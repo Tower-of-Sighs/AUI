@@ -1,0 +1,68 @@
+body {
+    width: 100%;
+    height: 100%;
+}
+
+img {
+    overflow: hidden;
+}
+
+input {
+    border-bottom: 1px solid #808080;
+    width: 64px;
+    overflow: hidden;
+}
+input:focus {
+    background-color: #fff;
+}
+
+select {
+    border: 1px solid #808080;
+    width: 64px;
+    background-color: #fff;
+    height: 14px;
+    line-height: 14px;
+    overflow: hidden;
+    padding-left: 2px;
+}
+select:focus {
+    background-color: #eee;
+    height: unset;
+}
+select>option:first-child {
+    margin-top: 12px;
+}
+select>option {
+    background-color: #ddd;
+    width: 64px;
+    display: none;
+    justify-content: center;
+    height: 12px;
+    padding-left: 2px;
+}
+select:focus>option {
+    display: flex;
+}
+select>option:hover {
+    background-color: #fff;
+}
+
+container {
+    display: grid;
+    grid-template-columns: 9;
+    gap: 2px;
+    justify-items: stretch;
+    align-items: stretch;
+}
+
+slot {
+    display: block;
+    width: 16px;
+    height: 16px;
+    background-image: url("apricityui/img/gui/area.png");
+}
+
+@font-face {
+    font-family: "lxgw";
+    src: url("apricityui/lxgw3500.ttf");
+}

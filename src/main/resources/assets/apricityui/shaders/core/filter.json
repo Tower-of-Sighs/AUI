@@ -1,0 +1,27 @@
+{
+  "blend": {
+    "func": "add",
+    "srcrgb": "srcalpha",
+    "dstrgb": "1-srcalpha"
+  },
+  "vertex": "apricityui:filter",
+  "fragment": "apricityui:filter",
+  "attributes": [
+    "Position",
+    "UV0",
+    "Color"
+  ],
+  "samplers": [
+    { "name": "DiffuseSampler" }
+  ],
+  "uniforms": [
+    { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+    { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+    { "name": "TexelSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+    { "name": "BlurRadius", "type": "float", "count": 1, "values": [ 0.0 ] },
+    { "name": "Brightness", "type": "float", "count": 1, "values": [ 1.0 ] },
+    { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
+    { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] },
+    { "name": "HueRotate", "type": "float", "count": 1, "values": [ 0.0 ] }
+  ]
+}

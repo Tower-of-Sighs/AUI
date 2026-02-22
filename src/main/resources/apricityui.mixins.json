@@ -1,0 +1,17 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "com.sighs.apricityui.mixin",
+  "compatibilityLevel": "JAVA_8",
+  "refmap": "apricityui.refmap.json",
+  "mixins": [
+  ],
+  "client": [
+    "AbstractContainerScreenMixin",
+    "accessor.AbstractContainerScreenAccessor",
+    "accessor.SlotAccessor"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
