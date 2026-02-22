@@ -6,10 +6,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
@@ -31,6 +31,8 @@ import java.util.HashMap;
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class Client {
     public static final HashMap<String, Integer> KEY_MAP = new HashMap<>();
+    private static int lastWindowWidth = -1;
+    private static int lastWindowHeight = -1;
 
     static {
         KEY_MAP.put("key.keyboard.unknown", -1);
@@ -169,12 +171,15 @@ public class Client {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
-        if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) Base.drawAllDocument(event.getGuiGraphics().pose());
+        if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null)
+            Base.drawAllDocument(event.getGuiGraphics().pose());
     }
+
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) Base.drawAllDocument(event.getGuiGraphics().pose());
     }
+
     @SubscribeEvent
     public static void scroll(InputEvent.MouseScrollingEvent event) {
         Operation.scroll(event.getScrollDelta());
@@ -188,16 +193,19 @@ public class Client {
             }
         }
     }
+
     @SubscribeEvent
     public static void scroll(ScreenEvent.MouseScrolled.Post event) {
         Operation.scroll(event.getScrollDelta());
     }
+
     @SubscribeEvent
     public static void onCharTyped(ScreenEvent.CharacterTyped.Pre event) {
         if (SharedConstants.isAllowedChatCharacter(event.getCodePoint())) {
             if (Operation.onCharTyped(event.getCodePoint())) event.setCanceled(true);
         }
     }
+
     @SubscribeEvent
     public static void mouseButton(InputEvent.MouseButton.Pre event) {
         if (event.getAction() == InputConstants.PRESS) Operation.onMouseDown();
@@ -215,6 +223,7 @@ public class Client {
             }
         }
     }
+
     @SubscribeEvent
     public static void mouseMove(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
@@ -228,14 +237,24 @@ public class Client {
             }
         }
     }
+
     @SubscribeEvent
     public static void onKeyPressed(ScreenEvent.KeyPressed.Pre event) {
         if (Operation.onKeyPressed(event.getKeyCode())) event.setCanceled(true);
     }
+
     @SubscribeEvent
     public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             Runtime.tick();
+            Size current = getWindowSize();
+            int w = (int) current.width();
+            int h = (int) current.height();
+            if (lastWindowWidth != w || lastWindowHeight != h) {
+                lastWindowWidth = w;
+                lastWindowHeight = h;
+                Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
+            }
         }
     }
 
