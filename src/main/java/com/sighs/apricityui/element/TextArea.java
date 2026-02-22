@@ -15,6 +15,7 @@ import com.sighs.apricityui.style.Text;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.common.Mod;
 
+import java.util.ArrayList;
 import java.util.List;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
@@ -53,8 +54,9 @@ public class TextArea extends AbstractTextElement {
     @Override
     protected void locateCursor(double mouseOffsetX, double mouseOffsetY) {
         String renderText = getRenderText();
-        List<String> lines = splitLines(renderText);
-        int[] starts = buildLineStarts(lines);
+        WrapResult wrapped = wrapLines(renderText);
+        List<String> lines = wrapped.lines;
+        int[] starts = wrapped.starts;
 
         Box box = Box.of(this);
         double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
@@ -64,7 +66,7 @@ public class TextArea extends AbstractTextElement {
         if (lineHeight <= 0) lineHeight = Size.DEFAULT_LINE_HEIGHT;
 
         double relativeY = mouseOffsetY - contentStartY + getScrollTop();
-        int line = clamp((int) Math.floor(relativeY / lineHeight), 0, lines.size() - 1);
+        int line = clamp((int) Math.floor(relativeY / lineHeight), 0, Math.max(0, lines.size() - 1));
 
         String lineText = lines.get(line);
         double relativeX = mouseOffsetX - contentStartX + scrollLeft;
@@ -84,8 +86,9 @@ public class TextArea extends AbstractTextElement {
     @Override
     protected void clampScroll() {
         String renderText = getRenderText();
-        List<String> lines = splitLines(renderText);
-        int[] starts = buildLineStarts(lines);
+        WrapResult wrapped = wrapLines(renderText);
+        List<String> lines = wrapped.lines;
+        int[] starts = wrapped.starts;
 
         cursor = clamp(cursor, 0, renderText.length());
 
@@ -149,8 +152,9 @@ public class TextArea extends AbstractTextElement {
             return;
         }
 
-        List<String> lines = splitLines(renderText);
-        int[] starts = buildLineStarts(lines);
+        WrapResult wrapped = wrapLines(renderText);
+        List<String> lines = wrapped.lines;
+        int[] starts = wrapped.starts;
 
         drawSelection(poseStack, lines, starts, baseX, baseY, lineHeight);
 
@@ -203,5 +207,61 @@ public class TextArea extends AbstractTextElement {
             line++;
         }
         return line;
+    }
+
+    private WrapResult wrapLines(String renderText) {
+        double wrapWidth = Box.of(this).innerSize().width();
+
+        if (wrapWidth <= 2) {
+            List<String> hard = splitLines(renderText);
+            return new WrapResult(hard, buildLineStarts(hard));
+        }
+
+        List<String> lines = new ArrayList<>();
+        List<Integer> starts = new ArrayList<>();
+
+        int globalIndex = 0;
+        StringBuilder current = new StringBuilder();
+        double currentWidth = 0;
+
+        starts.add(0);
+
+        for (int i = 0; i < renderText.length(); i++) {
+            char c = renderText.charAt(i);
+
+            // 硬换行
+            if (c == '\n') {
+                lines.add(current.toString());
+                current.setLength(0);
+                currentWidth = 0;
+                globalIndex++;
+                starts.add(globalIndex);
+                continue;
+            }
+
+            String charStr = String.valueOf(c);
+            double charWidth = Size.measureText(this, charStr);
+
+            // 软换行
+            if (!current.isEmpty() && currentWidth + charWidth > wrapWidth) {
+                lines.add(current.toString());
+                current.setLength(0);
+                currentWidth = 0;
+                starts.add(globalIndex);
+            }
+
+            current.append(c);
+            currentWidth += charWidth;
+            globalIndex++;
+        }
+
+        lines.add(current.toString());
+
+        int[] startArr = new int[starts.size()];
+        for (int i = 0; i < starts.size(); i++) startArr[i] = starts.get(i);
+        return new WrapResult(lines, startArr);
+    }
+
+    private record WrapResult(List<String> lines, int[] starts) {
     }
 }
