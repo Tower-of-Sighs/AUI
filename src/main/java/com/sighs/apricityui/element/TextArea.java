@@ -7,6 +7,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -39,16 +40,18 @@ public class TextArea extends AbstractTextElement {
         List<String> lines = splitLines(renderText);
         int[] starts = buildLineStarts(lines);
 
-        Rect rect = Rect.of(this);
-        Position contentPos = rect.getContentPosition();
+        Box box = Box.of(this);
+        double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
+        double contentStartY = box.getBorderTop() + box.getPaddingTop();
         Text text = Text.of(this);
         double lineHeight = text.lineHeight;
+        if (lineHeight <= 0) lineHeight = Size.DEFAULT_LINE_HEIGHT;
 
-        double relativeY = mouseOffsetY - contentPos.y + scrollTop;
+        double relativeY = mouseOffsetY - contentStartY + getScrollTop();
         int line = clamp((int) Math.floor(relativeY / lineHeight), 0, lines.size() - 1);
 
         String lineText = lines.get(line);
-        double relativeX = mouseOffsetX - contentPos.x + scrollLeft;
+        double relativeX = mouseOffsetX - contentStartX + scrollLeft;
         double currentWidth = 0;
         int column = 0;
         for (int i = 0; i < lineText.length(); i++) {
@@ -79,9 +82,9 @@ public class TextArea extends AbstractTextElement {
         double cursorX = Size.measureText(this, lines.get(cursorLine).substring(0, column));
         double cursorY = cursorLine * lineHeight;
 
-        Size contentSize = Size.getContentSize(this);
-        double visibleWidth = contentSize.width();
-        double visibleHeight = contentSize.height();
+        Size visibleSize = Box.of(this).innerSize();
+        double visibleWidth = Math.max(0, visibleSize.width());
+        double visibleHeight = Math.max(0, visibleSize.height());
 
         if (cursorX < scrollLeft) setScrollLeft(cursorX);
         else if (cursorX > scrollLeft + visibleWidth) setScrollLeft(cursorX - visibleWidth + 2);
@@ -115,8 +118,10 @@ public class TextArea extends AbstractTextElement {
         Text text = Text.of(this);
         double lineHeight = text.lineHeight;
         Position contentPos = rectRenderer.getContentPosition();
-        float baseX = (float) (contentPos.x - scrollLeft);
-        float baseY = (float) (contentPos.y - getScrollTop());
+        double currentScrollLeft = scrollLeft;
+        double currentScrollTop = getScrollTop();
+        float baseX = (float) (contentPos.x - currentScrollLeft);
+        float baseY = (float) (contentPos.y - currentScrollTop);
 
         if (isPlaceholder) {
             text.content = placeholder;
