@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.*;
+import com.sighs.apricityui.style.Gradient;
 import org.joml.Matrix4f;
 
 public class Graph {
@@ -24,13 +25,12 @@ public class Graph {
     }
 
     private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, ColorResolver colorRes) {
-        if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
-        // 计算每个顶点的颜色
-        int cTL = colorRes.resolve(x0, y0);
-        int cBL = colorRes.resolve(x0, y1);
-        int cBR = colorRes.resolve(x1, y1);
-        int cTR = colorRes.resolve(x1, y0);
+    public static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int color) {
+        addRect(buf, mat, x0, y0, x1, y1, (x, y) -> color);
+    }
 
+    private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int cTL, int cBL, int cBR, int cTR) {
+        if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
         vtx(buf, mat, x0, y0, cTL);
         vtx(buf, mat, x0, y1, cBL);
         vtx(buf, mat, x1, y1, cBR);
@@ -38,11 +38,15 @@ public class Graph {
         vtx(buf, mat, x1, y1, cBR);
         vtx(buf, mat, x1, y0, cTR);
     }
-    public static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int color) {
-        addRect(buf, mat, x0, y0, x1, y1, color, color, color, color);
-    }
-    private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int cTL, int cBL, int cBR, int cTR) {
+
+    private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, ColorResolver colorRes) {
         if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
+
+        int cTL = colorRes.resolve(x0, y0);
+        int cBL = colorRes.resolve(x0, y1);
+        int cBR = colorRes.resolve(x1, y1);
+        int cTR = colorRes.resolve(x1, y0);
+
         vtx(buf, mat, x0, y0, cTL);
         vtx(buf, mat, x0, y1, cBL);
         vtx(buf, mat, x1, y1, cBR);
@@ -84,35 +88,48 @@ public class Graph {
     }
 
     public static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, int color) {
+        drawUnifiedRoundedRect(mat, x, y, w, h, radii, (px, py) -> color);
+    }
+
+    public static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, Gradient gradient) {
+        drawUnifiedRoundedRect(mat, x, y, w, h, radii, (px, py) -> gradient.getColorAt(px, py, x, y, w, h));
+    }
+
+    private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
         BufferBuilder buf = Base.getBuffer();
-
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-        addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, color);
-
+        prepare(buf);
+        addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
         Base.beginRendering();
         BufferUploader.drawWithShader(buf.end());
         Base.finishRendering();
     }
 
     public static void addUnifiedRoundedRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, int color) {
+        addUnifiedRoundedRectVertices(buf, mat, x, y, width, height, radii, (px, py) -> color);
+    }
+
+    public static void addUnifiedRoundedRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, ColorResolver colorRes) {
         float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
 
-        if (tl > 0) addCorner(buf, mat, x + tl, y + tl, tl, SEGMENTS * 2, color);
-        if (tr > 0) addCorner(buf, mat, x + width - tr, y + tr, tr, SEGMENTS * 3, color);
-        if (br > 0) addCorner(buf, mat, x + width - br, y + height - br, br, 0, color);
-        if (bl > 0) addCorner(buf, mat, x + bl, y + height - bl, bl, SEGMENTS, color);
+        if (tl > 0) addCorner(buf, mat, x + tl, y + tl, tl, SEGMENTS * 2, colorRes);
+        if (tr > 0) addCorner(buf, mat, x + width - tr, y + tr, tr, SEGMENTS * 3, colorRes);
+        if (br > 0) addCorner(buf, mat, x + width - br, y + height - br, br, 0, colorRes);
+        if (bl > 0) addCorner(buf, mat, x + bl, y + height - bl, bl, SEGMENTS, colorRes);
 
         float maxTopR = Math.max(tl, tr), maxBottomR = Math.max(bl, br);
-        addRect(buf, mat, x + tl, y, x + width - tr, y + maxTopR, color);
-        addRect(buf, mat, x + bl, y + height - maxBottomR, x + width - br, y + height, color);
+
+        // 中间大矩形
+        addRect(buf, mat, x + tl, y, x + width - tr, y + maxTopR, colorRes);
+        addRect(buf, mat, x + bl, y + height - maxBottomR, x + width - br, y + height, colorRes);
 
         float midY1 = y + maxTopR, midY2 = y + height - maxBottomR;
-        if (midY1 < midY2) addRect(buf, mat, x, midY1, x + width, midY2, color);
+        if (midY1 < midY2) addRect(buf, mat, x, midY1, x + width, midY2, colorRes);
 
-        if (maxTopR > tl) addRect(buf, mat, x, y + tl, x + tl, y + maxTopR, color);
-        if (maxTopR > tr) addRect(buf, mat, x + width - tr, y + tr, x + width, y + maxTopR, color);
-        if (maxBottomR > bl) addRect(buf, mat, x, y + height - maxBottomR, x + bl, y + height - bl, color);
-        if (maxBottomR > br) addRect(buf, mat, x + width - br, y + height - maxBottomR, x + width, y + height - br, color);
+        // 填充角落留下的空隙
+        if (maxTopR > tl) addRect(buf, mat, x, y + tl, x + tl, y + maxTopR, colorRes);
+        if (maxTopR > tr) addRect(buf, mat, x + width - tr, y + tr, x + width, y + maxTopR, colorRes);
+        if (maxBottomR > bl) addRect(buf, mat, x, y + height - maxBottomR, x + bl, y + height - bl, colorRes);
+        if (maxBottomR > br) addRect(buf, mat, x + width - br, y + height - maxBottomR, x + width, y + height - br, colorRes);
     }
 
     public static void addEllipseGeometry(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, int color) {
@@ -124,15 +141,31 @@ public class Graph {
     }
 
     private static void addCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float r, int startIndex, int color) {
+        addCorner(buf, mat, cx, cy, r, startIndex, (px, py) -> color);
+    }
+
+    private static void addCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float r, int startIndex, ColorResolver colorRes) {
+        // 圆心的颜色
+        int centerColor = colorRes.resolve(cx, cy);
+
         for (int i = 0; i < SEGMENTS; i++) {
             int idx0 = startIndex + i;
             int idx1 = startIndex + i + 1;
 
             if (idx1 >= TOTAL_STEPS) idx1 -= TOTAL_STEPS;
 
-            vtx(buf, mat, cx, cy, color);
-            vtx(buf, mat, cx + COS_TABLE[idx0] * r, cy + SIN_TABLE[idx0] * r, color);
-            vtx(buf, mat, cx + COS_TABLE[idx1] * r, cy + SIN_TABLE[idx1] * r, color);
+            float x0 = cx + COS_TABLE[idx0] * r;
+            float y0 = cy + SIN_TABLE[idx0] * r;
+            float x1 = cx + COS_TABLE[idx1] * r;
+            float y1 = cy + SIN_TABLE[idx1] * r;
+
+            // 计算圆弧上每个点的颜色
+            int c0 = colorRes.resolve(x0, y0);
+            int c1 = colorRes.resolve(x1, y1);
+
+            vtx(buf, mat, cx, cy, centerColor);
+            vtx(buf, mat, x0, y0, c0);
+            vtx(buf, mat, x1, y1, c1);
         }
     }
 

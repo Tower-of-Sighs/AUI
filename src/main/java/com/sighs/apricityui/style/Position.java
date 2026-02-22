@@ -106,7 +106,7 @@ public class Position {
         return resultPosition;
     }
 
-        private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {
+    private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {
         Style ps = parent.getComputedStyle();
         if ("grid".equals(ps.display)) {
             return Grid.computeChildPosition(element, parent, siblings);
@@ -148,5 +148,10 @@ public static int parseSignedInt(String str) {
         }
 
         return 0;
+    }
+
+    @Override
+    public String toString() {
+        return "[" + x + "," + y + "]";
     }
 }
