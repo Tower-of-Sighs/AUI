@@ -461,7 +461,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             Size bodySize = rect.getBodyRectSize();
             int slotWidth = Math.max(1, (int) Math.round(bodySize.width()));
             int slotHeight = Math.max(1, (int) Math.round(bodySize.height()));
-            int padding = clampPadding(Math.min(slotWidth, slotHeight), slot.resolvePadding(0));
+            int padding = clampPadding(Math.min(slotWidth, slotHeight), slot.resolveItemPadding(0));
             int renderWidth = Math.max(1, slotWidth - padding * 2);
             int renderHeight = Math.max(1, slotHeight - padding * 2);
             int drawX = (int) Math.round(body.x + padding + (renderWidth - 16) / 2.0);

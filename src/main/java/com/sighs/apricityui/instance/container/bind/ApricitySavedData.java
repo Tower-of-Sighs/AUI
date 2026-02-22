@@ -2,6 +2,7 @@ package com.sighs.apricityui.instance.container.bind;
 
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraftforge.items.ItemStackHandler;
 import org.jetbrains.annotations.NotNull;
@@ -39,24 +40,37 @@ public class ApricitySavedData extends SavedData {
     }
 
     public ItemStackHandler getOrCreate(String inventoryKey, int slotCount) {
+        int normalizedSlotCount = Math.max(1, slotCount);
         ItemStackHandler existing = inventories.get(inventoryKey);
         if (existing == null) {
-            ItemStackHandler created = createTrackedHandler(slotCount);
+            ItemStackHandler created = createTrackedHandler(normalizedSlotCount);
             inventories.put(inventoryKey, created);
             setDirty();
             return created;
         }
 
-        if (existing.getSlots() >= slotCount) return existing;
+        if (existing.getSlots() == normalizedSlotCount) return existing;
 
-        ItemStackHandler expanded = createTrackedHandler(slotCount);
-        int copyCount = Math.min(existing.getSlots(), expanded.getSlots());
-        for (int i = 0; i < copyCount; i++) {
-            expanded.setStackInSlot(i, existing.getStackInSlot(i).copy());
+        ItemStackHandler resized = createTrackedHandler(normalizedSlotCount);
+        if (normalizedSlotCount >= existing.getSlots()) {
+            // 扩容：原位置不变，直接复制已有槽位。
+            for (int i = 0; i < existing.getSlots(); i++) {
+                resized.setStackInSlot(i, existing.getStackInSlot(i).copy());
+            }
+        } else {
+            // 缩容：先淘汰空槽位；只有非空槽位超过目标容量时，才从尾部截断。
+            int writeIndex = 0;
+            for (int i = 0; i < existing.getSlots(); i++) {
+                ItemStack stack = existing.getStackInSlot(i);
+                if (stack.isEmpty()) continue;
+                if (writeIndex >= normalizedSlotCount) break;
+                resized.setStackInSlot(writeIndex, stack.copy());
+                writeIndex++;
+            }
         }
-        inventories.put(inventoryKey, expanded);
+        inventories.put(inventoryKey, resized);
         setDirty();
-        return expanded;
+        return resized;
     }
 
     @Override

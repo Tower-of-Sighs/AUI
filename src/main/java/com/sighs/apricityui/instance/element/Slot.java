@@ -266,7 +266,7 @@ public class Slot extends MinecraftElement {
         return parsed;
     }
 
-    public int resolvePadding(int fallback) {
+    public int resolveItemPadding(int fallback) {
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
         if (isBoundMode() && uiSlot != null) {
             return Math.max(0, uiSlot.getUiPadding());
