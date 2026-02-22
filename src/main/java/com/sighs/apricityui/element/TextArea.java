@@ -35,6 +35,22 @@ public class TextArea extends AbstractTextElement {
     }
 
     @Override
+    protected void onInitFromDom(Element origin) {
+        super.onInitFromDom(origin);
+
+        if (!hasAttribute("value")) {
+            String inlineText = origin == null ? "" : origin.innerText;
+            if (inlineText == null) inlineText = "";
+            value = inlineText.replace("\r\n", "\n").replace('\r', '\n');
+            cursor = Math.min(cursor, value.length());
+            selectionAnchor = cursor;
+            clearSelection();
+            clampScroll();
+            getRenderer().text.clear();
+        }
+    }
+
+    @Override
     protected void locateCursor(double mouseOffsetX, double mouseOffsetY) {
         String renderText = getRenderText();
         List<String> lines = splitLines(renderText);
