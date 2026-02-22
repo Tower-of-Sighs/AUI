@@ -37,6 +37,9 @@ public class Element {
     public List<String> classNames = null;
     private RenderElement renderElement = new RenderElement(this);
 
+    // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
+    private boolean domInitHookInvoked = false;
+
     public Element(Document document, String tagName) {
         this.document = document;
         this.tagName = tagName.toUpperCase();
@@ -107,12 +110,37 @@ public class Element {
         }
         if (name.equals("class")) {
             classNames = new ArrayList<>();
-            classNames.addAll(List.of(value.split(" ")));
+            if (value != null && !value.isBlank()) {
+                classNames.addAll(List.of(value.trim().split("\\s+")));
+            }
         }
         updateCSS();
     }
+
+    public void removeAttribute(String name) {
+        attributes.remove(name);
+        if (name.equals("style")) {
+            updateInlineStyle();
+        }
+        if (name.equals("value")) {
+            this.value = null;
+        }
+        if (name.equals("id")) {
+            id = null;
+        }
+        if (name.equals("class")) {
+            classNames = null;
+        }
+        updateCSS();
+    }
+
+    public boolean hasAttribute(String name) {
+        return attributes.containsKey(name);
+    }
     public Set<String> getClassNames() {
-        return Set.of(getAttribute("class").split(" "));
+        String classes = getAttribute("class");
+        if (classes == null || classes.isBlank()) return Collections.emptySet();
+        return Set.of(classes.trim().split("\\s+"));
     }
 
     protected void updateCSS() {
@@ -233,6 +261,48 @@ public class Element {
         }
     }
 
+
+    /**
+     * DOM 解析阶段的初始化钩子（只调用一次）。
+     * <p>
+     * 注意：在 {@link #init(Element)} 替换通用元素为具体子类时，attributes 会被整体迁移，
+     * 不会重新触发 {@link #setAttribute(String, String)} 的副作用。因此该钩子用于让子类在不强制触发
+     * CSS/layout 的前提下，从 attributes 中同步一次内部状态。
+     */
+    protected void onInitFromDom(Element origin) {}
+
+    /**
+     * 运行一次性的 DOM 初始化逻辑（含公共同步），避免重复执行。
+     * <p>
+     * 该方法只在 {@link #init(Element)} 替换元素后调用；程序运行过程中属性变更仍建议走懒加载/脏检查。
+     */
+    protected final void runInitFromDomOnce(Element origin) {
+        if (domInitHookInvoked) return;
+        domInitHookInvoked = true;
+
+        // 同步常用字段缓存（避免依赖 setAttribute 的副作用）。
+        String attrId = attributes.getOrDefault("id", null);
+        if ((id == null || id.isEmpty()) && attrId != null && !attrId.isEmpty()) {
+            id = attrId;
+        }
+        if (document != null && id != null && !id.isBlank()) {
+            document.recordID(this);
+        }
+
+        String attrValue = attributes.getOrDefault("value", null);
+        if (value == null && attrValue != null) {
+            value = attrValue;
+        }
+
+        String attrClass = attributes.getOrDefault("class", null);
+        if (classNames == null && attrClass != null && !attrClass.isEmpty()) {
+            classNames = new ArrayList<>();
+            classNames.addAll(List.of(attrClass.split(" ")));
+        }
+
+        onInitFromDom(origin);
+    }
+
     // 元素工厂
     private static final Map<String, BiFunction<Document, String, ? extends Element>> REGISTRY = new HashMap<>();
 
@@ -265,6 +335,8 @@ public class Element {
                 element.innerText = "";
                 element.prepend(textNode);
             }
+
+            element.runInitFromDomOnce(origin);
 
             return element;
         }

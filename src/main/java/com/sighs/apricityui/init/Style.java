@@ -69,6 +69,7 @@ public class Style implements Cloneable {
     public String borderImageRepeat = "unset";
 
     public String color = "unset";
+    public String selectionColor = "unset";
     public String fontSize = "unset";
     public String fontFamily = "unset";
     public String lineHeight = "unset";
@@ -160,6 +161,25 @@ public class Style implements Cloneable {
             styleColor = "#000";
         }
         return Color.parse(styleColor);
+    }
+
+    public static int getSelectionColor(Element element) {
+        String selection = element.getComputedStyle().selectionColor;
+        if (selection.equals("unset")) {
+            Element parent = element.parentElement;
+            while (parent != null) {
+                String parentSelection = parent.getComputedStyle().selectionColor;
+                if (!parentSelection.equals("unset")) {
+                    selection = parentSelection;
+                    break;
+                }
+                parent = parent.parentElement;
+            }
+        }
+        if (selection.equals("unset")) {
+            selection = "#3399FF80";
+        }
+        return Color.parse(selection);
     }
 
     public void merge(String styleString) {
