@@ -2,9 +2,9 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
-import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.script.ApricityJS;
 
 import java.util.*;
@@ -134,6 +134,11 @@ public class Document {
 
     public Set<Element> getDirtyElements() {
         return dirtyElements;
+    }
+
+    public void markDirty(int mask) {
+        elements.forEach(element -> element.addDirtyFlags(mask));
+        dirtyElements.addAll(elements);
     }
 
     public void markDirty(Element element, int mask) {
