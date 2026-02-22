@@ -104,6 +104,11 @@ public class Rect {
         if (!background.color.equals("unset")) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), radii, new Color(background.color).getValue());
         }
+        if (background.gradient != null) {
+            Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
+                    (float)p.x, (float)p.y, (float)s.width(), (float)s.height(),
+                    radii, background.gradient);
+        }
         if (!background.imagePath.equals("unset")) {
             ImageDrawer.drawComplexBackground(poseStack, (int)p.x, (int)p.y, (int)s.width(), (int)s.height(), background);
         }
