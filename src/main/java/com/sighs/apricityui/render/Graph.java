@@ -24,7 +24,6 @@ public class Graph {
         buf.vertex(mat, x, y, 0f).color(color).endVertex();
     }
 
-    private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, ColorResolver colorRes) {
     public static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int color) {
         addRect(buf, mat, x0, y0, x1, y1, (x, y) -> color);
     }
