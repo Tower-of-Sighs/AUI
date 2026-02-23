@@ -54,7 +54,7 @@ public class Event {
         }
         if (targetEvent.stoppedPropagation) return;
         // 目标阶段
-//        triggerSingle(targetEvent);
+        // triggerSingle(targetEvent);
         target.triggerEvent(event -> {
             if (event.type.equals(type)) {
                 targetEvent.currentTarget = target;

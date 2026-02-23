@@ -1,18 +1,20 @@
 package com.sighs.apricityui.instance.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.world.item.ItemStack;
+import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.screen.Screen;
+import net.minecraft.item.ItemStack;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -31,17 +33,17 @@ public abstract class MinecraftElement extends Element {
     }
 
     protected static Object getGlobalCache(String key) {
-        if (key == null || key.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(key)) return null;
         return GLOBAL_RUNTIME_CACHES.get(key);
     }
 
     protected static Object computeGlobalCacheIfAbsent(String key, Supplier<Object> factory) {
-        if (key == null || key.isBlank() || factory == null) return null;
+        if (StringUtils.isNullOrEmptyEx(key) || factory == null) return null;
         return GLOBAL_RUNTIME_CACHES.computeIfAbsent(key, ignored -> factory.get());
     }
 
     protected static void clearGlobalCache(String key) {
-        if (key == null || key.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(key)) return;
         GLOBAL_RUNTIME_CACHES.remove(key);
     }
 
@@ -79,12 +81,12 @@ public abstract class MinecraftElement extends Element {
     }
 
     public final Object getRuntimeCache(String key) {
-        if (key == null || key.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(key)) return null;
         return runtimeCaches.get(key);
     }
 
     public final void putRuntimeCache(String key, Object value) {
-        if (key == null || key.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(key)) return;
         if (value == null) {
             runtimeCaches.remove(key);
             return;
@@ -93,12 +95,12 @@ public abstract class MinecraftElement extends Element {
     }
 
     public final Object computeRuntimeCacheIfAbsent(String key, Supplier<Object> factory) {
-        if (key == null || key.isBlank() || factory == null) return null;
+        if (StringUtils.isNullOrEmptyEx(key) || factory == null) return null;
         return runtimeCaches.computeIfAbsent(key, ignored -> factory.get());
     }
 
     public final void removeRuntimeCache(String key) {
-        if (key == null || key.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(key)) return;
         runtimeCaches.remove(key);
     }
 
@@ -133,7 +135,7 @@ public abstract class MinecraftElement extends Element {
     }
 
     protected final void putAttributeSilently(String name, String value) {
-        if (name == null || name.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(name)) return;
 
         HashMap<String, String> attributes = getAttributes();
         String safeValue = value == null ? "" : value;
@@ -151,7 +153,7 @@ public abstract class MinecraftElement extends Element {
         }
         if ("class".equals(name)) {
             this.classNames = new ArrayList<>();
-            this.classNames.addAll(List.of(safeValue.split(" ")));
+            this.classNames.addAll(Arrays.asList(safeValue.split(" ")));
         }
 
         if (attributeBatchDepth == 0) {
@@ -174,19 +176,34 @@ public abstract class MinecraftElement extends Element {
         return ItemStack.EMPTY;
     }
 
-    public void renderTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        ItemStack stack = getTooltipStack();
-        if (stack.isEmpty()) return;
-        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+    public void renderTooltip(MatrixStack stack, int mouseX, int mouseY) {
+        ItemStack itemStack = getTooltipStack();
+        if (itemStack.isEmpty()) return;
+
+        renderItemTooltip(stack, itemStack.getItem().getFontRenderer(itemStack), itemStack, mouseX, mouseY);
+    }
+
+    public static void renderItemTooltip(MatrixStack stack, FontRenderer font, ItemStack itemStack, int mouseX, int mouseY) {
+        Screen screen = Minecraft.getInstance().screen;
+        if (screen == null) return;
+        net.minecraftforge.fml.client.gui.GuiUtils.preItemToolTip(itemStack);
+        screen.renderWrappedToolTip(stack, screen.getTooltipFromItem(itemStack), mouseX, mouseY, (font == null ? Minecraft.getInstance().font : font));
+        net.minecraftforge.fml.client.gui.GuiUtils.postItemToolTip();
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
         switch (phase) {
-            case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY -> rectRenderer.drawBody(poseStack);
-            case BORDER -> rectRenderer.drawBorder(poseStack);
+            case SHADOW:
+                rectRenderer.drawShadow(stack);
+                break;
+            case BODY:
+                rectRenderer.drawBody(stack);
+                break;
+            case BORDER:
+                rectRenderer.drawBorder(stack);
+                break;
         }
     }
 

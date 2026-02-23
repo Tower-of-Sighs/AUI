@@ -1,28 +1,22 @@
 package com.sighs.apricityui.registry;
 
-import com.mojang.blaze3d.platform.InputConstants;
-import com.sighs.apricityui.ApricityUI;
-import net.minecraft.client.KeyMapping;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
+import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.client.util.InputMappings;
 import net.minecraftforge.client.settings.KeyConflictContext;
 import net.minecraftforge.client.settings.KeyModifier;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.client.registry.ClientRegistry;
 import org.lwjgl.glfw.GLFW;
 
-@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT, modid = ApricityUI.MODID)
 public class Keybindings {
-    public static final KeyMapping RELOAD = new KeyMapping("key.apricityui.reload",
+    public static final KeyBinding RELOAD = new KeyBinding("key.apricityui.reload",
             KeyConflictContext.GUI,
             KeyModifier.NONE,
-            InputConstants.Type.KEYSYM,
+            InputMappings.Type.KEYSYM,
             GLFW.GLFW_KEY_Z,
             "key.categories.apricityui"
     );
 
-    @SubscribeEvent
-    public static void registerKeyMapping(RegisterKeyMappingsEvent event) {
-        event.register(RELOAD);
+    public static void registerKeyMapping() {
+        ClientRegistry.registerKeyBinding(RELOAD);
     }
 }

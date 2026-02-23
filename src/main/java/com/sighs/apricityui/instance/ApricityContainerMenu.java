@@ -3,58 +3,63 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.instance.container.bind.ApricityMenuSlotSource;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 import com.sighs.apricityui.registry.ApricityMenus;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.Container;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.entity.player.Inventory;
-import net.minecraft.world.entity.player.Player;
-import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.Slot;
-import net.minecraft.world.item.ItemStack;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.Accessors;
+import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.inventory.IInventory;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.inventory.container.Container;
+import net.minecraft.inventory.container.Slot;
+import net.minecraft.item.ItemStack;
+import net.minecraft.network.PacketBuffer;
 
 import java.util.*;
 
-public class ApricityContainerMenu extends AbstractContainerMenu {
+public class ApricityContainerMenu extends Container {
+    @Getter
     private final ContainerSchema.Descriptor descriptor;
-    private final Inventory playerInventory;
+    @Getter
+    private final IInventory playerInventory;
     private final LinkedHashMap<String, LinkedHashMap<Integer, Integer>> containerLocalToGlobal = new LinkedHashMap<>();
     private final LinkedHashMap<String, List<ContainerSlotRef>> containerSlotRefs = new LinkedHashMap<>();
     private final ArrayList<ApricityMenuSlotSource> activeSources = new ArrayList<>();
-    private final ServerPlayer owner;
+    private final ServerPlayerEntity owner;
 
     private int customSlotCount = 0;
     private int playerSlotStart = -1;
     private int playerSlotEnd = -1;
 
-    public ApricityContainerMenu(int containerId, Inventory playerInventory, FriendlyByteBuf extraData) {
-        this(containerId, playerInventory, readDescriptor(extraData), Map.of(), null);
+    public ApricityContainerMenu(int containerId, IInventory playerInventory, PacketBuffer extraData) {
+        this(containerId, playerInventory, readDescriptor(extraData), new HashMap<>(), null);
     }
 
-    public ApricityContainerMenu(int containerId, Inventory playerInventory, ContainerSchema.Descriptor descriptor) {
-        this(containerId, playerInventory, descriptor, Map.of(), null);
+    public ApricityContainerMenu(int containerId, IInventory playerInventory, ContainerSchema.Descriptor descriptor) {
+        this(containerId, playerInventory, descriptor, new HashMap<>(), null);
     }
 
     public ApricityContainerMenu(int containerId,
-                                 Inventory playerInventory,
+                                 IInventory playerInventory,
                                  ContainerSchema.Descriptor descriptor,
                                  Map<String, ApricityMenuSlotSource> containerSources,
-                                 ServerPlayer owner) {
+                                 ServerPlayerEntity owner) {
         super(ApricityMenus.APRICITY_CONTAINER.get(), containerId);
         this.playerInventory = playerInventory;
         this.descriptor = Objects.requireNonNull(descriptor, "Container descriptor 不能为空");
         this.owner = owner;
-        initializeSlots(containerSources == null ? Map.of() : containerSources);
+        initializeSlots(containerSources == null ? new HashMap<>() : containerSources);
     }
 
-    private static ContainerSchema.Descriptor readDescriptor(FriendlyByteBuf extraData) {
+    private static ContainerSchema.Descriptor readDescriptor(PacketBuffer extraData) {
         if (extraData == null) {
             throw new IllegalStateException("容器打开失败：服务端未提供 descriptor（extraData 为空）");
         }
         return ContainerSchema.Descriptor.read(extraData);
     }
 
-    public static ApricityContainerMenu createClientOnly(Inventory playerInventory, String templatePath) {
+    public static ApricityContainerMenu createClientOnly(IInventory playerInventory, String templatePath) {
         return new ApricityContainerMenu(-1, playerInventory, ContainerSchema.Descriptor.createUiOnly(templatePath));
     }
 
@@ -78,7 +83,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             int requiredPoolSize = ContainerSchema.Descriptor.requiredPoolSize(descriptor.getContainerSlots(containerId));
             ArrayList<Integer> pool = new ArrayList<>(requiredPoolSize);
             ApricityMenuSlotSource source = containerSources.get(containerId);
-            SimpleContainer fallback = source == null ? new SimpleContainer(Math.max(1, requiredPoolSize)) : null;
+            IInventory fallback = source == null ? new Inventory(Math.max(1, requiredPoolSize)) : null;
 
             for (int localIndex = 0; localIndex < requiredPoolSize; localIndex++) {
                 Slot slot = source == null
@@ -104,7 +109,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             }
         }
 
-        List<Integer> playerPool = List.of();
+        List<Integer> playerPool = Collections.emptyList();
         if (hasPlayerBinding) {
             playerSlotStart = slots.size();
             addPlayerInventorySlots(playerInventory);
@@ -113,7 +118,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             for (int i = playerSlotStart; i < playerSlotEnd; i++) {
                 generatedPlayerPool.add(i);
             }
-            playerPool = List.copyOf(generatedPlayerPool);
+            playerPool = new ArrayList<>(generatedPlayerPool);
         }
 
         for (String containerId : descriptor.getContainerIds()) {
@@ -132,7 +137,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
         for (String containerId : descriptor.getContainerIds()) {
             List<Integer> localSlots = descriptor.getContainerSlots(containerId);
-            List<Integer> sourcePool = sourcePoolByContainer.getOrDefault(containerId, List.of());
+            List<Integer> sourcePool = sourcePoolByContainer.getOrDefault(containerId, Collections.emptyList());
 
             LinkedHashMap<Integer, Integer> containerMapping = new LinkedHashMap<>();
             ArrayList<ContainerSlotRef> refs = new ArrayList<>();
@@ -147,7 +152,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             }
 
             containerLocalToGlobal.put(containerId, containerMapping);
-            containerSlotRefs.put(containerId, List.copyOf(refs));
+            containerSlotRefs.put(containerId, new ArrayList<>(refs));
         }
     }
 
@@ -160,8 +165,9 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             for (ContainerSlotRef ref : refs) {
                 if (ref == null) continue;
                 if (ref.globalSlotIndex < 0 || ref.globalSlotIndex >= slots.size()) continue;
-                net.minecraft.world.inventory.Slot rawSlot = slots.get(ref.globalSlotIndex);
-                if (!(rawSlot instanceof UiSlot uiSlot)) continue;
+                net.minecraft.inventory.container.Slot rawSlot = slots.get(ref.globalSlotIndex);
+                if (!(rawSlot instanceof UiSlot)) continue;
+                UiSlot uiSlot = (UiSlot) rawSlot;
 
                 ContainerSchema.Descriptor.SlotVisualProfile profile = visuals.get(ref.localSlotIndex);
                 if (profile == null) continue;
@@ -170,7 +176,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
     }
 
-    private void addPlayerInventorySlots(Inventory playerInventory) {
+    private void addPlayerInventorySlots(IInventory playerInventory) {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 int index = col + row * 9 + 9;
@@ -182,16 +188,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
     }
 
-    public ContainerSchema.Descriptor getDescriptor() {
-        return descriptor;
-    }
-
     public String getTemplatePath() {
         return descriptor.getTemplatePath();
-    }
-
-    public Inventory getPlayerInventory() {
-        return playerInventory;
     }
 
     public boolean hasContainer(String containerId) {
@@ -205,11 +203,11 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     }
 
     public List<ContainerSlotRef> getContainerSlotRefs(String containerId) {
-        return containerSlotRefs.getOrDefault(containerId, List.of());
+        return containerSlotRefs.getOrDefault(containerId, Collections.emptyList());
     }
 
     @Override
-    public ItemStack quickMoveStack(Player player, int slotIndex) {
+    public ItemStack quickMoveStack(PlayerEntity player, int slotIndex) {
         if (slotIndex < 0 || slotIndex >= slots.size()) return ItemStack.EMPTY;
 
         Slot sourceSlot = slots.get(slotIndex);
@@ -241,8 +239,9 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     }
 
     @Override
-    public boolean stillValid(Player player) {
-        if (!(player instanceof ServerPlayer serverPlayer)) return true;
+    public boolean stillValid(PlayerEntity player) {
+        if (!(player instanceof ServerPlayerEntity)) return true;
+        ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
         if (owner != null && owner != serverPlayer) return false;
         for (ApricityMenuSlotSource source : activeSources) {
             if (!source.stillValid(serverPlayer)) return false;
@@ -251,30 +250,43 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     }
 
     @Override
-    public void removed(Player player) {
+    public void removed(PlayerEntity player) {
         super.removed(player);
-        if (player instanceof ServerPlayer serverPlayer) {
+        if (player instanceof ServerPlayerEntity) {
+            ServerPlayerEntity serverPlayer = (ServerPlayerEntity) player;
             for (ApricityMenuSlotSource source : activeSources) {
                 source.onClose(serverPlayer);
             }
         }
     }
 
-    public record ContainerSlotRef(int localSlotIndex, int globalSlotIndex) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class ContainerSlotRef {
+        private int localSlotIndex;
+        private int globalSlotIndex;
     }
 
+    @Getter
     public static class UiSlot extends Slot {
         private int uiSlotSize = 16;
+        @Setter
         private boolean uiDisabled = false;
+        @Setter
         private boolean uiHidden = false;
+        @Setter
         private boolean uiAcceptPointer = true;
+        @Setter
         private boolean uiRenderBackground = true;
+        @Setter
         private boolean uiRenderItem = true;
         private float uiIconScale = 1.0F;
         private int uiPadding = 0;
+        @Setter
         private int uiZIndex = 0;
 
-        public UiSlot(Container container, int slot, int x, int y) {
+        public UiSlot(IInventory container, int slot, int x, int y) {
             super(container, slot, x, y);
         }
 
@@ -302,81 +314,22 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
 
         @Override
-        public boolean mayPickup(Player player) {
+        public boolean mayPickup(PlayerEntity player) {
             if (uiDisabled) return false;
             return super.mayPickup(player);
-        }
-
-        public int getUiSlotSize() {
-            return uiSlotSize;
         }
 
         public void setUiSlotSize(int uiSlotSize) {
             this.uiSlotSize = Math.max(1, uiSlotSize);
         }
 
-        public boolean isUiDisabled() {
-            return uiDisabled;
-        }
-
-        public void setUiDisabled(boolean uiDisabled) {
-            this.uiDisabled = uiDisabled;
-        }
-
-        public boolean isUiHidden() {
-            return uiHidden;
-        }
-
-        public void setUiHidden(boolean uiHidden) {
-            this.uiHidden = uiHidden;
-        }
-
-        public boolean isUiAcceptPointer() {
-            return uiAcceptPointer;
-        }
-
-        public void setUiAcceptPointer(boolean uiAcceptPointer) {
-            this.uiAcceptPointer = uiAcceptPointer;
-        }
-
-        public boolean isUiRenderBackground() {
-            return uiRenderBackground;
-        }
-
-        public void setUiRenderBackground(boolean uiRenderBackground) {
-            this.uiRenderBackground = uiRenderBackground;
-        }
-
-        public boolean isUiRenderItem() {
-            return uiRenderItem;
-        }
-
-        public void setUiRenderItem(boolean uiRenderItem) {
-            this.uiRenderItem = uiRenderItem;
-        }
-
-        public float getUiIconScale() {
-            return uiIconScale;
-        }
-
         public void setUiIconScale(float uiIconScale) {
             this.uiIconScale = Math.max(0.01F, uiIconScale);
-        }
-
-        public int getUiPadding() {
-            return uiPadding;
         }
 
         public void setUiPadding(int uiPadding) {
             this.uiPadding = Math.max(0, uiPadding);
         }
 
-        public int getUiZIndex() {
-            return uiZIndex;
-        }
-
-        public void setUiZIndex(int uiZIndex) {
-            this.uiZIndex = uiZIndex;
-        }
     }
 }

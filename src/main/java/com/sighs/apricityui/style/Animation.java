@@ -10,13 +10,13 @@ public class Animation {
     private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
 
-    private static final Set<String> DIRECTIONS = new HashSet<>(List.of(
+    private static final Set<String> DIRECTIONS = new HashSet<>(Arrays.asList(
             "normal", "reverse", "alternate", "alternate-reverse"
     ));
-    private static final Set<String> FILL_MODES = new HashSet<>(List.of(
+    private static final Set<String> FILL_MODES = new HashSet<>(Arrays.asList(
             "none", "forwards", "backwards", "both"
     ));
-    private static final Set<String> TIMING_FUNCTIONS = new HashSet<>(List.of(
+    private static final Set<String> TIMING_FUNCTIONS = new HashSet<>(Arrays.asList(
             "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
     ));
 
@@ -252,21 +252,27 @@ public class Animation {
             Transform s = startTransforms.get(i);
             Transform e = endTransforms.get(i);
 
-            if (s instanceof Transform.Translate ts && e instanceof Transform.Translate te) {
+            if (s instanceof Transform.Translate && e instanceof Transform.Translate) {
+                Transform.Translate ts = (Transform.Translate) s;
+                Transform.Translate te = (Transform.Translate) e;
                 double x = Transition.getOffset("transform-x", ts.x(), te.x(), fraction);
                 double y = Transition.getOffset("transform-y", ts.y(), te.y(), fraction);
                 double z = Transition.getOffset("transform-z", ts.z(), te.z(), fraction);
                 changes.add(new Transition.Change("transform-translatex", x));
                 changes.add(new Transition.Change("transform-translatey", y));
                 changes.add(new Transition.Change("transform-translatez", z));
-            } else if (s instanceof Transform.Rotate rs && e instanceof Transform.Rotate re) {
+            } else if (s instanceof Transform.Rotate && e instanceof Transform.Rotate) {
+                Transform.Rotate rs = (Transform.Rotate) s;
+                Transform.Rotate re = (Transform.Rotate) e;
                 double x = Transition.getOffset("transform-rx", rs.x(), re.x(), fraction);
                 double y = Transition.getOffset("transform-ry", rs.y(), re.y(), fraction);
                 double z = Transition.getOffset("transform-rz", rs.z(), re.z(), fraction);
                 changes.add(new Transition.Change("transform-rotatex", x));
                 changes.add(new Transition.Change("transform-rotatey", y));
                 changes.add(new Transition.Change("transform-rotatez", z));
-            } else if (s instanceof Transform.Scale ss && e instanceof Transform.Scale es) {
+            } else if (s instanceof Transform.Scale && e instanceof Transform.Scale) {
+                Transform.Scale ss = (Transform.Scale) s;
+                Transform.Scale es = (Transform.Scale) e;
                 double x = Transition.getOffset("transform-sx", ss.x(), es.x(), fraction);
                 double y = Transition.getOffset("transform-sy", ss.y(), es.y(), fraction);
                 changes.add(new Transition.Change("transform-scalex", x));
@@ -281,7 +287,8 @@ public class Animation {
             if (time.endsWith("ms")) return Double.parseDouble(time.substring(0, time.length() - 2));
             if (time.endsWith("s")) return Double.parseDouble(time.substring(0, time.length() - 1)) * 1000;
             return Double.parseDouble(time) * 1000;
-        } catch (NumberFormatException ignored) {}
+        } catch (NumberFormatException ignored) {
+        }
         return 0;
     }
 }

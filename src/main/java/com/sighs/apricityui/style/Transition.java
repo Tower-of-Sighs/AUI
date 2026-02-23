@@ -2,13 +2,33 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 
-public record Transition(String name, double start, double end, double duration, double delay, long startTime) {
+@Getter
+@Accessors(fluent = true)
+@AllArgsConstructor
+public class Transition {
+    private String name;
+    private double start;
+    private double end;
+    private double duration;
+    private double delay;
+    private long startTime;
+
     private static final HashMap<UUID, List<Transition>> workList = new HashMap<>();
 
-    public record Change(String name, double value) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class Change {
+        private String name;
+        private double value;
+    }
 
     public static void create(Element element, Style startStyle, Style endStyle) {
         if (!startStyle.transition.equals(Style.DEFAULT.transition)) {
@@ -64,7 +84,7 @@ public record Transition(String name, double start, double end, double duration,
         List<Transition> result = new ArrayList<>();
 
         String transition = startStyle.transition;
-        if (transition == null || transition.isBlank()) return result;
+        if (StringUtils.isNullOrEmptyEx(transition)) return result;
 
         // 以逗号分隔多个 transition
         String[] parts = transition.split(",");
@@ -98,6 +118,7 @@ public record Transition(String name, double start, double end, double duration,
 
         return result;
     }
+
     private static void buildTransition(Style startStyle, Style endStyle, List<Transition> result, String name, double duration, double delay) {
         long time = System.currentTimeMillis();
 
@@ -160,7 +181,7 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     private static Set<String> animatableProperties(Style style) {
-        return Set.of(
+        return new HashSet<>(Arrays.asList(
                 "opacity",
                 "width",
                 "height",
@@ -171,6 +192,6 @@ public record Transition(String name, double start, double end, double duration,
                 "background-color",
                 "border-right-color",
                 "border-radius"
-        );
+        ));
     }
 }

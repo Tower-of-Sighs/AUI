@@ -1,8 +1,7 @@
 package com.sighs.apricityui.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Base;
@@ -31,20 +30,25 @@ public class Option extends Element {
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
         double offsetX = 0;
         if (parentElement != null) offsetX = Box.of(parentElement).getPaddingLeft();
         rectRenderer.position = rectRenderer.position.add(new Position(-offsetX, 0));
         switch (phase) {
-            case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY -> {
-                rectRenderer.drawBody(poseStack);
-                FontDrawer.drawFont(poseStack, Text.of(this), rectRenderer.getContentPosition());
+            case SHADOW: {
+                rectRenderer.drawShadow(stack);
             }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
+            break;
+            case BODY: {
+                rectRenderer.drawBody(stack);
+                FontDrawer.drawFont(stack, Text.of(this), rectRenderer.getContentPosition());
             }
+            break;
+            case BORDER: {
+                rectRenderer.drawBorder(stack);
+            }
+            break;
         }
     }
 }

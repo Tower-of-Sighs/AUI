@@ -18,15 +18,19 @@ public class Operation {
     public static void onMouseDown() {
         onMouseDown(-1);
     }
+
     public static void onMouseDown(int button) {
         MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition()));
     }
+
     public static void onMouseUp() {
         onMouseUp(-1);
     }
+
     public static void onMouseUp(int button) {
         MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition()));
     }
+
     public static void onMouseMove(Position currentMousePosition) {
         if (cachedMousePosition != null) {
             MouseEvent mouseEvent = new MouseEvent("mousemove", getMousePosition());
@@ -46,9 +50,12 @@ public class Operation {
     public static boolean onCharTyped(char code) {
         boolean shouldCancel = false;
         for (Document document : Document.getAll()) {
-            if (document.getFocusedElement() instanceof AbstractTextElement textElement && textElement.canEditText()) {
-                textElement.insertText(Character.toString(code));
-                shouldCancel = true;
+            if (document.getFocusedElement() instanceof AbstractTextElement) {
+                AbstractTextElement textElement = (AbstractTextElement) document.getFocusedElement();
+                if (textElement.canEditText()) {
+                    textElement.insertText(Character.toString(code));
+                    shouldCancel = true;
+                }
             }
         }
         return shouldCancel;
@@ -59,7 +66,8 @@ public class Operation {
         for (Document document : Document.getAll()) {
             Element focusedElement = document.getFocusedElement();
 
-            if (focusedElement instanceof AbstractTextElement textElement) {
+            if (focusedElement instanceof AbstractTextElement) {
+                AbstractTextElement textElement = (AbstractTextElement) focusedElement;
                 if (isCtrlDown() && textElement.canEditText()) {
                     if (key == GLFW.GLFW_KEY_A) {
                         textElement.selectAll();
@@ -86,9 +94,12 @@ public class Operation {
                     }
                 }
 
-                if (focusedElement instanceof Input input && key == GLFW.GLFW_KEY_SPACE && input.handleSpaceKey()) {
-                    cancel = true;
-                    continue;
+                if (focusedElement instanceof Input && key == GLFW.GLFW_KEY_SPACE) {
+                    Input input = (Input) focusedElement;
+                    if (input.handleSpaceKey()) {
+                        cancel = true;
+                        continue;
+                    }
                 }
 
                 if (!textElement.canEditText()) continue;

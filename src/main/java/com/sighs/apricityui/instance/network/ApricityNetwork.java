@@ -4,15 +4,17 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.simple.SimpleChannel;
+import net.minecraft.util.ResourceLocation;
+import net.minecraftforge.fml.network.NetworkRegistry;
+import net.minecraftforge.fml.network.simple.SimpleChannel;
 
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 public final class ApricityNetwork {
     private static final String CURRENT_PROTOCOL_VERSION = "1";
-    private static final Set<String> COMPATIBLE_PROTOCOL_VERSIONS = Set.of(CURRENT_PROTOCOL_VERSION);
+    private static final Set<String> COMPATIBLE_PROTOCOL_VERSIONS = new HashSet<>(Collections.singletonList(CURRENT_PROTOCOL_VERSION));
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(ApricityUI.MODID, "main"),
             () -> CURRENT_PROTOCOL_VERSION,

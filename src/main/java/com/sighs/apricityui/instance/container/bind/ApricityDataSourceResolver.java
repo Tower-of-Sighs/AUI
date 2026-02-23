@@ -2,18 +2,20 @@ package com.sighs.apricityui.instance.container.bind;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
-import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
-import net.minecraft.server.level.ServerLevel;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.tileentity.TileEntity;
+import net.minecraft.util.Direction;
+import com.sighs.apricityui.util.StringUtils;
+import net.minecraft.util.math.BlockPos;
+import net.minecraft.world.server.ServerWorld;
+import net.minecraftforge.items.CapabilityItemHandler;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -26,7 +28,7 @@ public final class ApricityDataSourceResolver {
     }
 
     public static ApricityMenuSlotSource resolve(
-            ServerPlayer player,
+            ServerPlayerEntity player,
             ContainerSchema.Descriptor.BindType bindType,
             Map<String, String> args,
             int requiredSlotCount
@@ -41,7 +43,7 @@ public final class ApricityDataSourceResolver {
         }
         if (bindType == ContainerSchema.Descriptor.BindType.PLAYER) return null;
 
-        Map<String, String> safeArgs = args == null ? Map.of() : args;
+        Map<String, String> safeArgs = args == null ? new HashMap<>() : args;
         ApricityMenuSlotSource source = resolveBuiltin(player, bindType, safeArgs, requiredSlotCount);
         if (source == null) {
             ApricityUI.LOGGER.warn("No data source found for bindType: {}", bindType.id());
@@ -56,7 +58,7 @@ public final class ApricityDataSourceResolver {
     }
 
     private static ApricityMenuSlotSource resolveBuiltin(
-            ServerPlayer player,
+            ServerPlayerEntity player,
             ContainerSchema.Descriptor.BindType bindType,
             Map<String, String> args,
             int requiredSlotCount
@@ -91,7 +93,7 @@ public final class ApricityDataSourceResolver {
     }
 
     private static int parsePositiveInt(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return Math.max(1, fallback);
+        if (StringUtils.isNullOrEmptyEx(raw)) return Math.max(1, fallback);
         try {
             int parsed = Integer.parseInt(raw.trim());
             return parsed > 0 ? parsed : Math.max(1, fallback);
@@ -102,7 +104,7 @@ public final class ApricityDataSourceResolver {
 
     private static Integer parseRequiredInt(Map<String, String> args, String key) {
         String raw = args.get(key);
-        if (raw == null || raw.isBlank()) {
+        if (StringUtils.isNullOrEmptyEx(raw)) {
             ApricityUI.LOGGER.warn("Missing argument: {}", key);
             return null;
         }
@@ -116,7 +118,7 @@ public final class ApricityDataSourceResolver {
 
     private static UUID parseRequiredUuid(Map<String, String> args, String key) {
         String raw = args.get(key);
-        if (raw == null || raw.isBlank()) {
+        if (StringUtils.isNullOrEmptyEx(raw)) {
             ApricityUI.LOGGER.warn("Missing argument: {}", key);
             return null;
         }
@@ -129,13 +131,13 @@ public final class ApricityDataSourceResolver {
     }
 
     private static Direction parseDirection(String raw) {
-        if (raw == null || raw.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(raw)) return null;
         return Direction.byName(raw.trim().toLowerCase(java.util.Locale.ROOT));
     }
 
-    private static Entity findEntityByUuid(ServerPlayer player, UUID uuid) {
+    private static Entity findEntityByUuid(ServerPlayerEntity player, UUID uuid) {
         if (player == null || player.server == null || uuid == null) return null;
-        for (ServerLevel level : player.server.getAllLevels()) {
+        for (ServerWorld level : player.server.getAllLevels()) {
             Entity entity = level.getEntity(uuid);
             if (entity != null) return entity;
         }
@@ -144,7 +146,7 @@ public final class ApricityDataSourceResolver {
 
     private static ApricityMenuSlotSource createSavedSource(
             ContainerSchema.Descriptor.BindType bindType,
-            ServerPlayer player,
+            ServerPlayerEntity player,
             String dataName,
             String inventoryKey,
             int slotCount
@@ -163,12 +165,12 @@ public final class ApricityDataSourceResolver {
             }
 
             @Override
-            public net.minecraft.world.inventory.Slot createSlot(int slotIndex, int x, int y) {
+            public net.minecraft.inventory.container.Slot createSlot(int slotIndex, int x, int y) {
                 return new SlotItemHandler(handler, slotIndex, x, y);
             }
 
             @Override
-            public void onClose(ServerPlayer player) {
+            public void onClose(ServerPlayerEntity player) {
                 savedData.setDirty();
             }
         };
@@ -176,23 +178,23 @@ public final class ApricityDataSourceResolver {
 
     private static ApricityMenuSlotSource createBlockEntitySource(
             ContainerSchema.Descriptor.BindType bindType,
-            ServerPlayer player,
+            ServerPlayerEntity player,
             BlockPos pos,
             Direction side
     ) {
-        ServerLevel level = player.serverLevel();
+        ServerWorld level = player.getLevel();
         if (!level.hasChunkAt(pos)) {
             ApricityUI.LOGGER.warn("Target chunk not loaded, cannot bind {} @ {}", bindType.id(), pos);
             return null;
         }
 
-        BlockEntity blockEntity = level.getBlockEntity(pos);
+        TileEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) {
             ApricityUI.LOGGER.warn("Block entity not found, cannot bind {} @ {}", bindType.id(), pos);
             return null;
         }
 
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
+        IItemHandler handler = blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, side).orElse(null);
         if (handler == null || handler.getSlots() <= 0) {
             ApricityUI.LOGGER.warn("Block entity has no inventory capability, cannot bind {} @ {}", bindType.id(), pos);
             return null;
@@ -212,15 +214,15 @@ public final class ApricityDataSourceResolver {
             }
 
             @Override
-            public net.minecraft.world.inventory.Slot createSlot(int slotIndex, int x, int y) {
+            public net.minecraft.inventory.container.Slot createSlot(int slotIndex, int x, int y) {
                 return new SlotItemHandler(handler, slotIndex, x, y);
             }
 
             @Override
-            public boolean stillValid(ServerPlayer player) {
-                ServerLevel currentLevel = player.serverLevel();
+            public boolean stillValid(ServerPlayerEntity player) {
+                ServerWorld currentLevel = player.getLevel();
                 if (!currentLevel.hasChunkAt(immutablePos)) return false;
-                BlockEntity current = currentLevel.getBlockEntity(immutablePos);
+                TileEntity current = currentLevel.getBlockEntity(immutablePos);
                 return current != null && expectedType.isInstance(current);
             }
         };
@@ -228,16 +230,17 @@ public final class ApricityDataSourceResolver {
 
     private static ApricityMenuSlotSource createEntitySource(
             ContainerSchema.Descriptor.BindType bindType,
-            ServerPlayer player,
+            ServerPlayerEntity player,
             UUID targetUuid
     ) {
         Entity target = findEntityByUuid(player, targetUuid);
-        if (!(target instanceof LivingEntity livingEntity)) {
+        if (!(target instanceof LivingEntity)) {
             ApricityUI.LOGGER.warn("Entity source resolve failed: living entity not found, uuid={}", targetUuid);
             return null;
         }
+        LivingEntity livingEntity = (LivingEntity) target;
 
-        IItemHandler handler = livingEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler handler = livingEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY).orElse(null);
         if (handler == null || handler.getSlots() <= 0) {
             ApricityUI.LOGGER.warn("Entity source resolve failed: no item handler capability, uuid={}", targetUuid);
             return null;
@@ -255,12 +258,12 @@ public final class ApricityDataSourceResolver {
             }
 
             @Override
-            public net.minecraft.world.inventory.Slot createSlot(int slotIndex, int x, int y) {
+            public net.minecraft.inventory.container.Slot createSlot(int slotIndex, int x, int y) {
                 return new SlotItemHandler(handler, slotIndex, x, y);
             }
 
             @Override
-            public boolean stillValid(ServerPlayer player) {
+            public boolean stillValid(ServerPlayerEntity player) {
                 Entity current = findEntityByUuid(player, targetUuid);
                 return current != null && expectedType.isInstance(current);
             }

@@ -2,27 +2,25 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.style.*;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Predicate;
 
 public class RenderElement {
     private final Element element;
-    public Cache<List<Transform>> transform = new Cache<>() {
+    public Cache<List<Transform>> transform = new Cache<List<Transform>>() {
         @Override
         void expandClear() {
             element.children.forEach(e -> e.getRenderer().transform.clear());
         }
     };
-    public Cache<Float> opacity = new Cache<>() {
+    public Cache<Float> opacity = new Cache<Float>() {
         @Override
         void expandClear() {
             element.children.forEach(e -> e.getRenderer().opacity.clear());
         }
     };
     public Cache<Style> computedStyle = new Cache<>();
-    public Cache<Text> text = new Cache<>() {
+    public Cache<Text> text = new Cache<Text>() {
         @Override
         void expandClear() {
             element.children.forEach(e -> e.getRenderer().text.clear());
@@ -30,7 +28,7 @@ public class RenderElement {
     };
     public Cache<Size> size = new Cache<>();
     public Cache<Box> box = new Cache<>();
-    public Cache<Position> position = new Cache<>() {
+    public Cache<Position> position = new Cache<Position>() {
         @Override
         void expandClear() {
             element.children.forEach(e -> e.getRenderer().position.clear());
@@ -44,20 +42,25 @@ public class RenderElement {
 
     public static class Cache<T> {
         T value = null;
+
         public T get() {
             return value;
         }
+
         public void set(T value) {
             this.value = value;
         }
+
         public void clear() {
             value = null;
             expandClear();
         }
-        void expandClear() {}
+
+        void expandClear() {
+        }
     }
 
-    private static final Set<String> LAYOUT_PROPS = Set.of(
+    private static final Set<String> LAYOUT_PROPS = new HashSet<>(Arrays.asList(
             "width", "height",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems",
@@ -66,28 +69,28 @@ public class RenderElement {
             "justifyItems",
             "gridRow", "gridColumn", "justifySelf", "alignSelf",
             "position", "top", "bottom", "left", "right", "display"
-    );
+    ));
 
-    private static final Set<String> PADDING_AND_BORDER_PROPS = Set.of(
+    private static final Set<String> PADDING_AND_BORDER_PROPS = new HashSet<>(Arrays.asList(
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
             "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
-    );
+    ));
 
-    private static final Set<String> VISUAL_BOX_PROPS = Set.of(
+    private static final Set<String> VISUAL_BOX_PROPS = new HashSet<>(Arrays.asList(
             "color", "visibility", "opacity",
             "borderRadius",
             "boxShadow",
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
             "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat"
-    );
+    ));
 
-    private static final Set<String> BACKGROUND_PROPS = Set.of(
+    private static final Set<String> BACKGROUND_PROPS = new HashSet<>(Arrays.asList(
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
-    );
+    ));
 
-    private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
+    private static final Set<String> TEXT_LAYOUT_PROPS = new HashSet<>(Arrays.asList(
             "fontSize", "lineHeight", "fontFamily"
-    );
+    ));
 
     public static void observeStyle(Element element, Style origin, Style current) {
         int dirtyMask = 0;

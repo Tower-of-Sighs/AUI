@@ -1,16 +1,19 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Text;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.renderer.texture.NativeImage;
+import net.minecraft.util.ResourceLocation;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -22,17 +25,17 @@ public class FontDrawer {
     private static final String MODID = "apricityui";
     private static final Map<String, FontEntry> CACHE = new ConcurrentHashMap<>();
 
-    public static void drawFont(PoseStack poseStack, Element element) {
-        drawFont(poseStack, Text.of(element), Position.of(element));
+    public static void drawFont(MatrixStack stack, Element element) {
+        drawFont(stack, Text.of(element), Position.of(element));
     }
 
-    public static void drawFont(PoseStack poseStack, Text text, Position position) {
+    public static void drawFont(MatrixStack stack, Text text, Position position) {
         position = position.add(new Position(0, (text.size.height() - text.fontSize) / 2));
         float x = (float) position.x;
         float y = (float) position.y;
 
         if (text.fontFamily.equals("unset")) {
-            Client.drawDefaultFont(poseStack, text, position);
+            Client.drawDefaultFont(stack, text, position);
             return;
         }
 
@@ -50,7 +53,7 @@ public class FontDrawer {
         float drawW = entry.width() * scale;
         float drawH = entry.height() * scale;
 
-        ImageDrawer.draw(poseStack, entry.location(),
+        ImageDrawer.draw(stack, entry.location(),
                 x - drawH * 0.08f, y - drawH * 0.2f,
                 drawW, drawH,
                 true
@@ -97,7 +100,7 @@ public class FontDrawer {
             g.drawString(content, pad, pad + fm.getAscent());
             g.dispose();
 
-            NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, imgW, imgH, true);
+            NativeImage nativeImg = new NativeImage(NativeImage.PixelFormat.RGBA, imgW, imgH, true);
 
             for (int y = 0; y < imgH; y++) {
                 for (int x = 0; x < imgW; x++) {
@@ -131,7 +134,14 @@ public class FontDrawer {
         return (a << 24) | (b << 16) | (g << 8) | r;
     }
 
-    public record FontEntry(ResourceLocation location, NativeImage nativeImage, DynamicTexture dynamicTexture,
-                            int width, int height) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class FontEntry {
+        private ResourceLocation location;
+        private NativeImage nativeImage;
+        private DynamicTexture dynamicTexture;
+        private int width;
+        private int height;
     }
 }

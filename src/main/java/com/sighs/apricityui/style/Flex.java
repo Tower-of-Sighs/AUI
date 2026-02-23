@@ -2,6 +2,9 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 
 import java.util.List;
 
@@ -116,81 +119,129 @@ public class Flex {
         return new FlexLayoutOffset(offsetStart, offsetInterval);
     }
 
-    private record FlexLayoutOffset(double offsetStart, double offsetInterval) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class FlexLayoutOffset {
+        private double offsetStart;
+        private double offsetInterval;
+    }
 
-    public record FlexDirection(String value) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class FlexDirection {
+        private String value;
+
         public boolean isColumn() {
             return value.contains("column");
         }
+
         public boolean isRow() {
             return value.contains("row");
         }
+
         public boolean isReverse() {
             return value.contains("reverse");
         }
     }
 
-    public record FlexWrap(String value) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class FlexWrap {
+        private String value;
+
         public boolean canWrap() {
             return value.equals("wrap");
         }
     }
 
-    public record AlignContent(String value, boolean canWrap) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class AlignContent {
+        private String value;
+        private boolean canWrap;
+
         public boolean isCenter() {
             return canWrap && value.equals("center");
         }
+
         public boolean isFlexStart() {
             return canWrap && value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return canWrap && value.equals("flex-end");
         }
+
         public boolean isSpaceAround() {
             return canWrap && value.equals("space-around");
         }
+
         public boolean isSpaceBetween() {
             return canWrap && value.equals("space-between");
         }
+
         public boolean isStretch() {
             return canWrap && value.equals("stretch");
         }
     }
 
-    public record JustifyContent(String value) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class JustifyContent {
+        private String value;
+
         public boolean isCenter() {
             return value.equals("center");
         }
+
         public boolean isFlexStart() {
             return value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return value.equals("flex-end");
         }
+
         public boolean isSpaceBetween() {
             return value.equals("space-between");
         }
+
         public boolean isSpaceAround() {
             return value.equals("space-around");
         }
+
         public boolean isSpaceEvenly() {
             return value.equals("space-evenly");
         }
     }
 
-    public record AlignItems(String value) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class AlignItems {
+        private String value;
+
         public boolean isCenter() {
             return value.equals("center");
         }
+
         public boolean isFlexStart() {
             return value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return value.equals("flex-end");
         }
+
         public boolean isStretch() {
             return value.equals("stretch");
         }
+
         public boolean isBaseline() {
             return value.equals("baseline");
         }

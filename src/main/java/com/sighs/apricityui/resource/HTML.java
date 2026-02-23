@@ -3,6 +3,7 @@ package com.sighs.apricityui.resource;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -25,7 +26,7 @@ public class HTML {
 
     public static Element create(Document document, String path) {
         String rawHtml = getTemple(path);
-        if (rawHtml == null || rawHtml.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(rawHtml)) return null;
         if (!rawHtml.trim().toLowerCase().startsWith("<body")) {
             rawHtml = "<body>" + rawHtml + "</body>";
         }
@@ -45,7 +46,7 @@ public class HTML {
     }
 
     public static Element createElement(Document document, String html) {
-        if (html == null || html.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(html)) return null;
 
         // 统一处理：确保有 body 包裹，以便 buildDOM 逻辑能正确识别根节点
         String processedHtml = html.trim();
@@ -66,7 +67,7 @@ public class HTML {
 
         for (Token token : tokens) {
             switch (token.type) {
-                case START_TAG -> {
+                case START_TAG: {
                     Element el = document.createElement(token.tagName);
                     token.attributes.forEach(el::setAttribute);
                     if (stack.isEmpty()) {
@@ -76,16 +77,21 @@ public class HTML {
                     if (!token.selfClosing) stack.push(el);
                     else if (!stack.isEmpty()) stack.peek().append(el);
                 }
-                case END_TAG -> {
+                break;
+                case END_TAG: {
                     if (stack.isEmpty()) return null;
                     Element finished = stack.pop();
                     if (!stack.isEmpty()) stack.peek().append(finished);
                 }
-                case TEXT -> {
+                break;
+                case TEXT: {
                     if (stack.isEmpty()) return null;
-                    if (!token.content.isBlank()) stack.peek().innerText += token.content;
+                    if (StringUtils.isNotNullOrEmptyEx(token.content)) stack.peek().innerText += token.content;
                 }
-                case COMMENT -> {}
+                break;
+                case COMMENT: {
+                }
+                break;
             }
         }
         return stack.isEmpty() ? root : null;
@@ -191,7 +197,7 @@ public class HTML {
                     continue;
                 }
 
-                if (part.isBlank()) continue;
+                if (StringUtils.isNullOrEmptyEx(part)) continue;
 
                 tokens.add(Token.text(part));
             }

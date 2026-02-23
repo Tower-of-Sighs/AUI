@@ -3,7 +3,7 @@ package com.sighs.apricityui.dev;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Selector;
-import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.Locale;
 
@@ -13,14 +13,14 @@ public class DevTools {
     private static final String PATH = "devtools/index.html";
 
     public static void toggle() {
-//        if (Document.get(PATH).isEmpty()) {
-//            document = Document.create(PATH);
-//            load();
-////            ApricityJS.eval("console.log(Client.screen.width)");
-//        } else {
-//            document = null;
-//            Document.remove(PATH);
-//        }
+        if (Document.get(PATH).isEmpty()) {
+            document = Document.create(PATH);
+            load();
+            // ApricityJS.eval("console.log(Client.screen.width)");
+        } else {
+            document = null;
+            Document.remove(PATH);
+        }
     }
 
     public static void load() {
@@ -30,11 +30,11 @@ public class DevTools {
         for (Element element : document.getElements()) {
             element.getRenderer().size.clear();
         }
-//        document.body.getRenderer().position.clear();
+        // document.body.getRenderer().position.clear();
     }
 
     public static void buildTree(Element tree, Element element) {
-        String blank = "      ".repeat(element.getRoute().size() - 1);
+        String blank = StringUtils.repeat("      ", element.getRoute().size() - 1);
         String tag = element.tagName.toLowerCase(Locale.ENGLISH);
         Element node = document.createElement("DIV");
         node.addEventListener("mousedown", event -> {
@@ -63,8 +63,7 @@ public class DevTools {
             node.append(input);
             node.append(text("</" + tag + ">"));
             tree.append(node);
-        }
-        else {
+        } else {
             tree.append(node);
             element.children.forEach(child -> buildTree(tree, child));
             Element end = document.createElement("DIV");

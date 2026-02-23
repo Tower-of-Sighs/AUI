@@ -1,9 +1,10 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
-import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 // 测试中，不保证能用
 public class BoxTransition {
@@ -51,11 +52,11 @@ public class BoxTransition {
 
         if (property.startsWith("border")) {
             if ("border".equals(property)) {
-               for (String side : Box.SIDE) {
-                   createSideBorderTransition(startStyle, endStyle, result, "border-" + side, duration, delay, time);
-               }
+                for (String side : Box.SIDE) {
+                    createSideBorderTransition(startStyle, endStyle, result, "border-" + side, duration, delay, time);
+                }
             } else {
-               createSideBorderTransition(startStyle, endStyle, result, property, duration, delay, time);
+                createSideBorderTransition(startStyle, endStyle, result, property, duration, delay, time);
             }
         }
     }
@@ -63,7 +64,7 @@ public class BoxTransition {
     private static void createSideBorderTransition(Style start, Style end, List<Transition> result, String propName, double duration, double delay, long time) {
         Box.SideBorder s = Box.parseSideBorder(start.get(propName));
         Box.SideBorder e = Box.parseSideBorder(end.get(propName));
-        
+
         if (s.size() != e.size()) {
             result.add(new Transition(propName + "-width", s.size(), e.size(), duration, delay, time));
         }
@@ -73,11 +74,11 @@ public class BoxTransition {
     }
 
     public static void readTransition(List<Transition.Change> changeList, Style originStyle) {
-        
-        List<Transition.Change> shadowChanges = changeList.stream().filter(c -> c.name().startsWith("box-shadow-")).toList();
+
+        List<Transition.Change> shadowChanges = changeList.stream().filter(c -> c.name().startsWith("box-shadow-")).collect(Collectors.toList());
         if (!shadowChanges.isEmpty()) {
             Box.Shadow current = Box.parseShadow(originStyle.boxShadow);
-            
+
             double x = current.x();
             double y = current.y();
             double size = current.size();
@@ -85,18 +86,26 @@ public class BoxTransition {
 
             for (Transition.Change change : shadowChanges) {
                 switch (change.name()) {
-                    case "box-shadow-x" -> x = change.value();
-                    case "box-shadow-y" -> y = change.value();
-                    case "box-shadow-size" -> size = change.value();
-                    case "box-shadow-color" -> color = new Color(change.value());
+                    case "box-shadow-x":
+                        x = change.value();
+                        break;
+                    case "box-shadow-y":
+                        y = change.value();
+                        break;
+                    case "box-shadow-size":
+                        size = change.value();
+                        break;
+                    case "box-shadow-color":
+                        color = new Color(change.value());
+                        break;
                 }
             }
 
-            originStyle.boxShadow = new Box.Shadow((int)x, (int)y, (int)size, color).toString();
+            originStyle.boxShadow = new Box.Shadow((int) x, (int) y, (int) size, color).toString();
             changeList.removeAll(shadowChanges);
         }
 
-        List<Transition.Change> radiusChanges = changeList.stream().filter(c -> c.name().startsWith("border-radius-")).toList();
+        List<Transition.Change> radiusChanges = changeList.stream().filter(c -> c.name().startsWith("border-radius-")).collect(Collectors.toList());
         if (!radiusChanges.isEmpty()) {
             double[] radii = parseFourValues(originStyle.borderRadius);
 
@@ -107,26 +116,26 @@ public class BoxTransition {
                 if (change.name().endsWith("bl")) radii[3] = change.value();
             }
 
-            originStyle.borderRadius = (int)radii[0] + "px " + (int)radii[1] + "px " + (int)radii[2] + "px " + (int)radii[3] + "px";
+            originStyle.borderRadius = (int) radii[0] + "px " + (int) radii[1] + "px " + (int) radii[2] + "px " + (int) radii[3] + "px";
             changeList.removeAll(radiusChanges);
         }
 
         for (String side : Box.SIDE) {
             String prefix = "border-" + side;
             List<Transition.Change> sideChanges = changeList.stream()
-                    .filter(c -> c.name().startsWith(prefix)).toList();
-            
+                    .filter(c -> c.name().startsWith(prefix)).collect(Collectors.toList());
+
             if (!sideChanges.isEmpty()) {
                 Box.SideBorder current = Box.parseSideBorder(originStyle.get(prefix));
                 double width = current.size();
                 Color color = current.color();
-                
+
                 for (Transition.Change c : sideChanges) {
                     if (c.name().endsWith("-width")) width = c.value();
                     if (c.name().endsWith("-color")) color = new Color(c.value());
                 }
 
-                originStyle.update(prefix, new Box.SideBorder((int)width, current.type(), color).toString());
+                originStyle.update(prefix, new Box.SideBorder((int) width, current.type(), color).toString());
                 changeList.removeAll(sideChanges);
             }
         }
@@ -134,7 +143,7 @@ public class BoxTransition {
 
     private static double[] parseFourValues(String val) {
         double[] res = new double[4];
-        if(val == null || val.isBlank()) return res;
+        if (StringUtils.isNullOrEmptyEx(val)) return res;
         String[] parts = val.trim().split("\\s+");
         double v1 = Size.parse(parts[0]);
         double v2 = parts.length > 1 ? Size.parse(parts[1]) : v1;

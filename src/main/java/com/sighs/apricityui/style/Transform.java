@@ -2,21 +2,44 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public interface Transform {
-    record Translate(double x, double y, double z) implements Transform {
+
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    class Translate implements Transform {
+        private double x;
+        private double y;
+        private double z;
+
         public static final Translate DEFAULT = new Translate(0, 0, 0);
     }
 
-    record Rotate(double x, double y, double z) implements Transform {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    class Rotate implements Transform {
+        private double x;
+        private double y;
+        private double z;
         public static final Rotate DEFAULT = new Rotate(0, 0, 0);
     }
 
-    record Scale(double x, double y) implements Transform {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    class Scale implements Transform {
+        private double x;
+        private double y;
         public static final Scale DEFAULT = new Scale(1.0, 1.0);
     }
 
@@ -27,8 +50,8 @@ public interface Transform {
         Rotate rotate = Rotate.DEFAULT;
         Scale scale = Scale.DEFAULT;
 
-        if (transform == null || transform.isBlank() || "none".equalsIgnoreCase(transform.trim())) {
-            return List.of();
+        if (StringUtils.isNullOrEmptyEx(transform) || "none".equalsIgnoreCase(transform.trim())) {
+            return Collections.emptyList();
         }
 
         Pattern funcPattern = Pattern.compile("([a-zA-Z0-9]+)\\(([^)]*)\\)");
@@ -40,43 +63,52 @@ public interface Transform {
             List<String> args = splitArgs(argText);
 
             switch (func) {
-                case "translate", "translate3d" -> {
+                case "translate":
+                case "translate3d": {
                     double x = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
                     double y = args.size() > 1 ? Size.parse(args.get(1)) : 0;
                     double z = args.size() > 2 ? Size.parse(args.get(2)) : 0;
                     result.add(new Translate(x, y, z));
                 }
-                case "translatex" -> {
+                break;
+                case "translatex": {
                     double x = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
                     result.add(new Translate(x, translate.y(), translate.z()));
                 }
-                case "translatey" -> {
+                break;
+                case "translatey": {
                     double y = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
                     result.add(new Translate(translate.x(), y, translate.z()));
                 }
-                case "translatez" -> {
+                break;
+                case "translatez": {
                     double z = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
                     result.add(new Translate(translate.x(), translate.y(), z));
                 }
-                case "rotate", "rotatez" -> {
+                break;
+                case "rotate":
+                case "rotatez": {
                     if (!args.isEmpty()) {
                         double angDeg = parseAngleToDegrees(args.get(0));
                         result.add(new Rotate(rotate.x(), rotate.y(), angDeg));
                     }
                 }
-                case "rotatex" -> {
+                break;
+                case "rotatex": {
                     if (!args.isEmpty()) {
                         double angDeg = parseAngleToDegrees(args.get(0));
                         result.add(new Rotate(angDeg, rotate.y(), rotate.z()));
                     }
                 }
-                case "rotatey" -> {
+                break;
+                case "rotatey": {
                     if (!args.isEmpty()) {
                         double angDeg = parseAngleToDegrees(args.get(0));
                         result.add(new Rotate(rotate.x(), angDeg, rotate.z()));
                     }
                 }
-                case "scale" -> {
+                break;
+                case "scale": {
                     if (args.size() == 1) {
                         double s = parseScale(args.get(0));
                         result.add(new Scale(s, s));
@@ -86,16 +118,19 @@ public interface Transform {
                         result.add(new Scale(sx, sy));
                     }
                 }
-                case "scalex" -> {
+                break;
+                case "scalex": {
                     if (!args.isEmpty()) {
                         result.add(new Scale(parseScale(args.get(0)), scale.y()));
                     }
                 }
-                case "scaley" -> {
+                break;
+                case "scaley": {
                     if (!args.isEmpty()) {
                         result.add(new Scale(scale.x(), parseScale(args.get(0))));
                     }
                 }
+                break;
             }
         }
 
@@ -112,9 +147,9 @@ public interface Transform {
         return css.toString();
     }
 
-    private static List<String> splitArgs(String argText) {
+    static List<String> splitArgs(String argText) {
         List<String> out = new ArrayList<>();
-        if (argText == null || argText.isBlank()) return out;
+        if ((StringUtils.isNullOrEmptyEx(argText))) return out;
         String[] byComma = argText.split(",");
         for (String part : byComma) {
             String trimmed = part.trim();
@@ -127,7 +162,7 @@ public interface Transform {
         return out;
     }
 
-    private static double parseScale(String token) {
+    static double parseScale(String token) {
         if (token == null) return 1.0;
         try {
             return Double.parseDouble(token.trim());
@@ -141,12 +176,13 @@ public interface Transform {
         }
     }
 
-    private static double parseAngleToDegrees(String token) {
+    static double parseAngleToDegrees(String token) {
         if (token == null) return 0.0;
         token = token.trim().toLowerCase(Locale.ROOT);
         try {
             if (token.endsWith("deg")) return Double.parseDouble(token.substring(0, token.length() - 3));
-            if (token.endsWith("rad")) return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
+            if (token.endsWith("rad"))
+                return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
             if (token.endsWith("grad")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 0.9;
             if (token.endsWith("turn")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 360.0;
             return Double.parseDouble(token);
@@ -164,19 +200,25 @@ public interface Transform {
         for (int i = 0; i < startTransforms.size(); i++) {
             Transform start = startTransforms.get(i);
             Transform end = endTransforms.get(i);
-            if (start instanceof Translate startTranslate && end instanceof Translate endTranslate) {
+            if (start instanceof Translate && end instanceof Translate) {
+                Translate startTranslate = (Translate) start;
+                Translate endTranslate = (Translate) end;
                 if (!startTranslate.equals(endTranslate)) {
                     result.add(new Transition("transform-translatex", startTranslate.x(), endTranslate.x(), duration, delay, time));
                     result.add(new Transition("transform-translatey", startTranslate.y(), endTranslate.y(), duration, delay, time));
                     result.add(new Transition("transform-translatez", startTranslate.z(), endTranslate.z(), duration, delay, time));
                 }
-            } else if (start instanceof Rotate startRotate && end instanceof Rotate endRotate) {
+            } else if (start instanceof Rotate && end instanceof Rotate) {
+                Rotate startRotate = (Rotate) start;
+                Rotate endRotate = (Rotate) end;
                 if (!startRotate.equals(endRotate)) {
                     result.add(new Transition("transform-rotatex", startRotate.x(), endRotate.x(), duration, delay, time));
                     result.add(new Transition("transform-rotatey", startRotate.y(), endRotate.y(), duration, delay, time));
                     result.add(new Transition("transform-rotatez", startRotate.z(), endRotate.z(), duration, delay, time));
                 }
-            } else if (start instanceof Scale startScale && end instanceof Scale endScale) {
+            } else if (start instanceof Scale && end instanceof Scale) {
+                Scale startScale = (Scale) start;
+                Scale endScale = (Scale) end;
                 if (!startScale.equals(endScale)) {
                     result.add(new Transition("transform-scalex", startScale.x(), endScale.x(), duration, delay, time));
                     result.add(new Transition("transform-scaley", startScale.y(), endScale.y(), duration, delay, time));
@@ -191,29 +233,29 @@ public interface Transform {
 
         for (Transform transform : transforms) {
             if (transform instanceof Translate) {
-                List<String> names = List.of("transform-translatex", "transform-translatey", "transform-translatez");
+                List<String> names = Arrays.asList("transform-translatex", "transform-translatey", "transform-translatez");
                 List<String> values = new ArrayList<>();
                 for (Transition.Change change : changeList) {
                     if (names.contains(change.name()) && values.size() < names.size()) {
                         values.add(String.valueOf(change.value()));
-//                        changeList.remove(change);
+                        // changeList.remove(change);
                     }
                 }
                 functions.add("translate(" + String.join(",", values) + ") ");
             }
             if (transform instanceof Rotate) {
-                List<String> names = List.of("transform-rotatex", "transform-rotatey", "transform-rotatez");
+                List<String> names = Arrays.asList("transform-rotatex", "transform-rotatey", "transform-rotatez");
                 List<String> values = new ArrayList<>();
                 for (Transition.Change change : changeList) {
                     if (names.contains(change.name()) && values.size() < names.size()) {
                         values.add(String.valueOf(change.value()));
-//                        changeList.remove(change);
+                        // changeList.remove(change);
                     }
                 }
                 functions.add("rotatex(" + values.get(0) + ") rotatey(" + values.get(1) + ") rotatez(" + values.get(2) + ") ");
             }
             if (transform instanceof Scale) {
-                List<String> names = List.of("transform-scalex", "transform-scaley");
+                List<String> names = Arrays.asList("transform-scalex", "transform-scaley");
                 List<String> values = new ArrayList<>();
                 for (Transition.Change change : changeList) {
                     if (names.contains(change.name()) && values.size() < names.size()) {

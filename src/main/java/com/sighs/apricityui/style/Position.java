@@ -3,8 +3,8 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
-
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Position {
@@ -58,7 +58,7 @@ public class Position {
                 x = parentPos.x + parentSize.width() - borderRight - selfSize.width() - parseSignedInt(style.right);
             } else {
                 if (element.parentElement != null) {
-                    CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
+                    CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(Collections.singletonList(element));
                     Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
                     x = staticPos.x;
                 }
@@ -70,7 +70,7 @@ public class Position {
                 y = parentPos.y + parentSize.height() - borderBottom - selfSize.height() - parseSignedInt(style.bottom);
             } else {
                 if (element.parentElement != null) {
-                    CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
+                    CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(Collections.singletonList(element));
                     Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
                     y = staticPos.y;
                 }
@@ -114,7 +114,7 @@ public class Position {
         return Flex.computeChildPosition(element, parent, siblings);
     }
 
-public static int parseSignedInt(String str) {
+    public static int parseSignedInt(String str) {
         if (str == null || str.isEmpty() || "unset".equals(str)) {
             return 0;
         }
@@ -129,17 +129,15 @@ public static int parseSignedInt(String str) {
             if (c == '-' && !foundNumber && i + 1 < chars.length && Character.isDigit(chars[i + 1])) {
                 numberBuilder.append(c);
                 foundNumber = true;
-            }
-            else if (Character.isDigit(c)) {
+            } else if (Character.isDigit(c)) {
                 numberBuilder.append(c);
                 foundNumber = true;
-            }
-            else if (foundNumber) {
+            } else if (foundNumber) {
                 break;
             }
         }
 
-        if (!numberBuilder.isEmpty()) {
+        if (numberBuilder.length() > 0) {
             try {
                 return Integer.parseInt(numberBuilder.toString());
             } catch (NumberFormatException e) {

@@ -1,45 +1,43 @@
 package com.sighs.apricityui.instance;
 
-import com.mojang.blaze3d.platform.InputConstants;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Position;
+import lombok.Setter;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.client.renderer.IRenderTypeBuffer;
+import net.minecraft.util.math.vector.Matrix4f;
+import net.minecraft.util.math.vector.Vector3d;
+import net.minecraft.util.math.vector.Vector3f;
+import net.minecraft.util.math.vector.Vector4f;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.client.event.RenderWorldLastEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import org.joml.Matrix4f;
-import org.joml.Vector3f;
-import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public class WorldWindow {
     static final List<WorldWindow> windows = new ArrayList<>();
 
     public Document document;
-    private Vec3 position;
+    @Setter
+    private Vector3d position;
     private float yRot;
     private float xRot;
+    @Setter
     private float scale; // 缩放比例: 1px 对应多少 Block
     private int width;
     private int height;
     private int maxDistance;
 
-    public WorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
+    public WorldWindow(String documentPath, Vector3d position, float width, float height, int maxDistance) {
         this.document = Document.createInWorld(documentPath);
         this.position = position;
         this.width = (int) width;
@@ -50,45 +48,40 @@ public class WorldWindow {
         this.maxDistance = maxDistance;
     }
 
-    public void setPosition(Vec3 position) { this.position = position; }
     public void setRotation(float yRot, float xRot) {
         this.yRot = yRot;
         this.xRot = xRot;
     }
-    public void setScale(float scale) { this.scale = scale; }
 
-    public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
+    public void render(MatrixStack stack, Matrix4f projectionMatrix, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
-        Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
+        Vector3d cameraPos = mc.gameRenderer.getMainCamera().getPosition();
 
-        poseStack.pushPose();
-        poseStack.translate(
+        stack.pushPose();
+        stack.translate(
                 position.x - cameraPos.x,
                 position.y - cameraPos.y,
                 position.z - cameraPos.z
         );
 
-        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - this.yRot));
-        poseStack.mulPose(Axis.XP.rotationDegrees(this.xRot));
+        stack.mulPose(Vector3f.YP.rotationDegrees(180.0F - this.yRot));
+        stack.mulPose(Vector3f.XP.rotationDegrees(this.xRot));
 
-        poseStack.scale(scale, -scale, scale);
-        poseStack.translate(-width / 2.0f, -height / 2.0f, 0);
+        stack.scale(scale, -scale, scale);
+        stack.translate(-width / 2.0f, -height / 2.0f, 0);
 
-        MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
-
-        poseStack.last().pose().set(poseStack.last().pose());
-        poseStack.last().normal().set(poseStack.last().normal());
+        IRenderTypeBuffer.Impl bufferSource = mc.renderBuffers().bufferSource();
 
         RenderSystem.enableDepthTest();
         RenderSystem.depthFunc(GL11.GL_LEQUAL);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
 
-        Base.drawDocument(poseStack, document);
+        Base.drawDocument(stack, document);
 
         bufferSource.endBatch();
 
-        poseStack.popPose();
+        stack.popPose();
     }
 
     public static void addWindow(WorldWindow window) {
@@ -105,52 +98,53 @@ public class WorldWindow {
     }
 
     @SubscribeEvent
-    public static void onRenderWorld(RenderLevelStageEvent event) {
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-            if (windows.isEmpty()) return;
-
-            for (WorldWindow window : windows) {
-                window.render(event.getPoseStack(), event.getProjectionMatrix(), event.getPartialTick());
-            }
+    public static void onRenderWorld(RenderWorldLastEvent event) {
+        if (windows.isEmpty()) return;
+        for (WorldWindow window : windows) {
+            window.render(event.getMatrixStack(), event.getProjectionMatrix(), event.getPartialTicks());
         }
     }
 
     public Position getRealPos() {
         Minecraft mc = Minecraft.getInstance();
-        Position invalid = new Position(-1, -1);
+        // Position invalid = new Position(-1, -1);
         if (mc.player == null) return null;
 
-        Vec3 rayOrigin = mc.player.getEyePosition(mc.getPartialTick());
-        Vec3 rayDir = mc.player.getViewVector(mc.getPartialTick());
+        float partialTick = mc.getFrameTime();
+        Vector3d rayOrigin = mc.player.getEyePosition(partialTick);
+        Vector3d rayDir = mc.player.getViewVector(partialTick);
 
         Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate((float)position.x, (float)position.y, (float)position.z);
-        modelMatrix.rotate((float) Math.toRadians(180.0F - this.yRot), 0, 1, 0);
-        modelMatrix.rotate((float) Math.toRadians(this.xRot), 1, 0, 0);
-        modelMatrix.scale(scale, -scale, scale);
+        modelMatrix.setIdentity();
+        modelMatrix.multiply(Matrix4f.createTranslateMatrix((float) position.x, (float) position.y, (float) position.z));
+        modelMatrix.multiply(Vector3f.YP.rotationDegrees(180.0F - this.yRot));
+        modelMatrix.multiply(Vector3f.XP.rotationDegrees(this.xRot));
+        modelMatrix.multiply(Matrix4f.createScaleMatrix(scale, -scale, scale));
 
-        Vector4f centerWorld = modelMatrix.transform(new Vector4f(0, 0, 0, 1));
+        Vector4f centerWorld = new Vector4f(0, 0, 0, 1);
+        centerWorld.transform(modelMatrix);
         Vector4f normalWorld = new Vector4f(0, 0, 1, 0);
-        modelMatrix.transform(normalWorld);
-        Vec3 planeNormal = new Vec3(normalWorld.x, normalWorld.y, normalWorld.z).normalize();
-        Vec3 planeCenter = new Vec3(centerWorld.x, centerWorld.y, centerWorld.z);
+        normalWorld.transform(modelMatrix);
+        Vector3d planeNormal = new Vector3d(normalWorld.x(), normalWorld.y(), normalWorld.z()).normalize();
+        Vector3d planeCenter = new Vector3d(centerWorld.x(), centerWorld.y(), centerWorld.z());
 
         double denominator = planeNormal.dot(rayDir);
 
         if (Math.abs(denominator) < 1e-6) return null;
 
-        Vec3 toCenter = planeCenter.subtract(rayOrigin);
+        Vector3d toCenter = planeCenter.subtract(rayOrigin);
         double t = toCenter.dot(planeNormal) / denominator;
 
         if (t < 0 || t > maxDistance) return null;
 
-        Vec3 intersection = rayOrigin.add(rayDir.scale(t));
-        Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
-        Vector4f localHit = new Vector4f((float)intersection.x, (float)intersection.y, (float)intersection.z, 1.0f);
-        inverseMatrix.transform(localHit);
+        Vector3d intersection = rayOrigin.add(rayDir.scale(t));
+        Matrix4f inverseMatrix = modelMatrix.copy();
+        inverseMatrix.invert();
+        Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
+        localHit.transform(inverseMatrix);
 
-        double localX = localHit.x + width / 2.0;
-        double localY = localHit.y + height / 2.0;
+        double localX = localHit.x() + width / 2.0;
+        double localY = localHit.y() + height / 2.0;
 
         if (localX >= 0 && localX <= width && localY >= 0 && localY <= height) {
             return new Position(localX, localY);

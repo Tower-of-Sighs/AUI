@@ -5,10 +5,19 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 
 import java.awt.*;
 
-public record Size(double width, double height) {
+@Getter
+@Accessors(fluent = true)
+@AllArgsConstructor
+public class Size {
+    private double width;
+    private double height;
+
     public static final double DEFAULT_LINE_HEIGHT = 16;
     public static final Size ZERO = new Size(0, 0);
 
@@ -39,7 +48,7 @@ public record Size(double width, double height) {
             }
         }
 
-        if (!numberBuilder.isEmpty()) {
+        if (numberBuilder.length() > 0) {
             try {
                 return Integer.parseInt(numberBuilder.toString());
             } catch (NumberFormatException e) {
@@ -105,7 +114,8 @@ public record Size(double width, double height) {
 
         for (Element child : element.children) {
             Style childStyle = child.getComputedStyle();
-            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display)) continue;
+            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display))
+                continue;
             Size size = Size.box(child);
             if (flexColumn) {
                 totalWidth = Math.max(totalWidth, size.width);
@@ -136,6 +146,7 @@ public record Size(double width, double height) {
             } else return 0;
         } else return getWindowSize().width;
     }
+
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
@@ -152,6 +163,7 @@ public record Size(double width, double height) {
     }
 
     private static final Canvas METRICS_CANVAS = new Canvas();
+
     public static double measureText(Element element, String text) {
         if (text == null || text.isEmpty()) return 0;
 

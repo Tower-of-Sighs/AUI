@@ -25,7 +25,7 @@ base {
 }
 
 java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
+    toolchain.languageVersion = JavaLanguageVersion.of(8)
 }
 
 minecraft {
@@ -91,14 +91,19 @@ dependencies {
 
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    implementation fg.deobf("curse.maven:kubejs-238086:5853326")
-    implementation fg.deobf("curse.maven:rhino-416294:6186971")
-    implementation fg.deobf("curse.maven:architectury-api-419699:5137938")
+    compileOnly 'org.projectlombok:lombok:1.18.34'
+    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    testCompileOnly 'org.projectlombok:lombok:1.18.34'
+    testAnnotationProcessor 'org.projectlombok:lombok:1.18.34'
 
-    implementation fg.deobf("curse.maven:embeddium-908741:5681725")
-    implementation fg.deobf("curse.maven:rubidium-extra-654373:6101745")
+    implementation fg.deobf("curse.maven:kubejs-238086:${kubejs_id}")
+    implementation fg.deobf("curse.maven:rhino-416294:${rhino_id}")
+    implementation fg.deobf("curse.maven:architectury-api-419699:${architectury_api_id}")
 
-//    implementation fg.deobf("curse.maven:accelerated-rendering-1314021:7342975")
+    implementation fg.deobf("curse.maven:embeddium-908741:${embeddium_id}")
+    implementation fg.deobf("curse.maven:rubidium-extra-654373:${rubidium_extra_id}")
+
+   // implementation fg.deobf("curse.maven:accelerated-rendering-1314021:7342975")
 
 }
 

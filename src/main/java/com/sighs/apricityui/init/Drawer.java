@@ -1,9 +1,15 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.render.AABB;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -130,7 +136,14 @@ public class Drawer {
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
 
-    private record Paintable(Element element, int zValue, int domOrder) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class Paintable {
+        private Element element;
+        private int zValue;
+        private int domOrder;
+    }
 
     public static void invalidateElement(Element target, int mask, List<RenderNode> documentPaintList) {
         if ((mask & RELAYOUT) != 0) {
@@ -145,14 +158,14 @@ public class Drawer {
     }
 
     private static Element getNodeTarget(RenderNode node) {
-        if (node instanceof Element e) return e;
-        if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
-        if (node instanceof RenderNode.MaskPushNode n) return n.target();
-        if (node instanceof RenderNode.MaskPopNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
-        if (node instanceof RenderNode.FilterPushNode n) return n.target();
-        if (node instanceof RenderNode.FilterPopNode n) return n.target();
+        if (node instanceof Element) return (Element) node;
+        if (node instanceof RenderNode.ElementPhaseNode) return ((RenderNode.ElementPhaseNode) node).target();
+        if (node instanceof RenderNode.MaskPushNode) return ((RenderNode.MaskPushNode) node).target();
+        if (node instanceof RenderNode.MaskPopNode) return ((RenderNode.MaskPopNode) node).target();
+        if (node instanceof RenderNode.ClipPathPushNode) return ((RenderNode.ClipPathPushNode) node).target();
+        if (node instanceof RenderNode.ClipPathPopNode) return ((RenderNode.ClipPathPopNode) node).target();
+        if (node instanceof RenderNode.FilterPushNode) return ((RenderNode.FilterPushNode) node).target();
+        if (node instanceof RenderNode.FilterPopNode) return ((RenderNode.FilterPopNode) node).target();
         return null;
     }
 

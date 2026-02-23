@@ -1,6 +1,6 @@
 package com.sighs.apricityui.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -22,15 +22,22 @@ public class Img extends Element {
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
         switch (phase) {
-            case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY   -> {
-                rectRenderer.drawBody(poseStack);
-                ImageDrawer.draw(poseStack, this, rectRenderer);
+            case SHADOW: {
+                rectRenderer.drawShadow(stack);
             }
-            case BORDER -> rectRenderer.drawBorder(poseStack);
+            break;
+            case BODY: {
+                rectRenderer.drawBody(stack);
+                ImageDrawer.draw(stack, this, rectRenderer);
+            }
+            break;
+            case BORDER: {
+                rectRenderer.drawBorder(stack);
+            }
+            break;
         }
     }
 }

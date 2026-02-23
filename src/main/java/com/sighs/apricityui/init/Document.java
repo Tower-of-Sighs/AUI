@@ -6,6 +6,9 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import lombok.Getter;
+import lombok.Setter;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -13,30 +16,35 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Document {
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
+    @Getter
     private final ArrayList<Element> elements = new ArrayList<>();
+    @Getter
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
+    @Getter
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private final HashMap<String, Element> IDMap = new HashMap<>();
 
+    @Setter
+    @Getter
     private Element previousCursorElement = null;
+    @Getter
     private Element activeElement = null;
+    @Getter
     private Element focusedElement = null;
 
+    @Getter
     private final String path;
     public final Map<String, Map<String, String>> CSSCache = new HashMap<>();
     public final List<String> JSCache = new ArrayList<>();
     public Body body;
+    @Getter
     private UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
 
     public Document(String path, boolean inWorld) {
         this.path = path;
         this.inWorld = inWorld;
-//        refresh();
-    }
-
-    public UUID getUuid() {
-        return uuid;
+        // refresh();
     }
 
     public void refresh() {
@@ -44,6 +52,7 @@ public class Document {
         elements.clear();
         Element bodyElement = HTML.create(this, path);
         try {
+            if (bodyElement == null) return;
             if (body != null) bodyElement.EventListener = body.EventListener;
             body = (Body) Element.init(bodyElement);
             elements.add(0, body);
@@ -62,7 +71,8 @@ public class Document {
             for (Event eventListener : body.EventListener) {
                 if (eventListener.type.equals("load")) body.triggerEvent(eventListener.listener);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     private void prefetchImages() {
@@ -94,21 +104,21 @@ public class Document {
     }
 
     private static boolean isImagePathValid(String path) {
-        return path != null && !path.isBlank() && !"unset".equals(path);
+        return StringUtils.isNotNullOrEmptyEx(path) && !"unset".equals(path);
     }
 
     private static String resolveFirstNonUnset(String primary, String fallback) {
-        if (primary != null && !primary.isBlank() && !"unset".equals(primary)) {
+        if (StringUtils.isNotNullOrEmptyEx(primary) && !"unset".equals(primary)) {
             return primary;
         }
-        if (fallback != null && !fallback.isBlank() && !"unset".equals(fallback)) {
+        if (StringUtils.isNotNullOrEmptyEx(fallback) && !"unset".equals(fallback)) {
             return fallback;
         }
         return null;
     }
 
     private static String resolveCssUrl(String contextPath, String cssValue) {
-        if (cssValue == null || cssValue.isBlank() || "unset".equals(cssValue)) return null;
+        if (StringUtils.isNullOrEmptyEx(cssValue) || "unset".equals(cssValue)) return null;
         int start = cssValue.indexOf("url(");
         if (start < 0) return null;
         int end = cssValue.indexOf(')', start + 4);
@@ -116,10 +126,6 @@ public class Document {
         String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
         if (raw.isEmpty()) return null;
         return Loader.resolve(contextPath, raw);
-    }
-
-    public ArrayList<RenderNode> getPaintList() {
-        return paintList;
     }
 
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
@@ -130,10 +136,6 @@ public class Document {
         }
         if (index == -1) return;
         elements.set(index, element);
-    }
-
-    public Set<Element> getDirtyElements() {
-        return dirtyElements;
     }
 
     public void markDirty(int mask) {
@@ -156,18 +158,19 @@ public class Document {
     public boolean is(String path) {
         return this.path.equals(path);
     }
+
     public boolean is(UUID uuid) {
         return this.uuid.equals(uuid);
     }
 
-    public String getPath() { return path; }
-
     public Element createHTML(String html) {
         return HTML.createElement(this, html);
     }
+
     public Element createElement(String tagName) {
         return new Element(this, tagName);
     }
+
     public void createRelation(Element child, Element parent, boolean head) {
         if (child.parentElement != null) child.parentElement.children.remove(child);
         child.parentElement = parent;
@@ -192,15 +195,19 @@ public class Document {
         // 需要判断一下是否为影响布局的属性，待补充
         markDirty(parent, Drawer.RELAYOUT);
     }
+
     public List<Element> querySelectorAll(String selector) {
         return Selector.querySelectorAll(body, selector);
     }
+
     public Element querySelector(String selector) {
         return Selector.querySelector(body, selector);
     }
+
     public void recordID(Element element) {
         IDMap.put(element.id, element);
     }
+
     public Element getElementById(String id) {
         return IDMap.get(id);
     }
@@ -216,6 +223,7 @@ public class Document {
         document.refresh();
         return document;
     }
+
     public static Document createInWorld(String path) {
         if (HTML.getTemple(path) == null) return null;
         Document document = new Document(path, true);
@@ -231,6 +239,7 @@ public class Document {
         }
         return result;
     }
+
     public static Document getByUUID(String uuid) {
         for (Document document : documents) {
             if (document.uuid.toString().equals(uuid)) return document;
@@ -241,16 +250,15 @@ public class Document {
     public static List<Document> getAll() {
         return documents;
     }
-    public ArrayList<Element> getElements() {
-        return elements;
-    }
 
     public static void remove(String path) {
         documents.removeIf(document -> document.is(path));
     }
+
     public static void remove(UUID uuid) {
         documents.removeIf(document -> document.is(uuid));
     }
+
     public void remove() {
         Document.remove(uuid);
     }
@@ -259,18 +267,6 @@ public class Document {
         element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
         element.document.markDirty(element.parentElement, Drawer.RELAYOUT);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
-    }
-
-    public Element getPreviousCursorElement() {
-        return previousCursorElement;
-    }
-
-    public void setPreviousCursorElement(Element element) {
-        this.previousCursorElement = element;
-    }
-
-    public Element getActiveElement() {
-        return activeElement;
     }
 
     public void setActiveElement(Element element) {
@@ -287,10 +283,6 @@ public class Document {
         }
 
         this.activeElement = element;
-    }
-
-    public Element getFocusedElement() {
-        return focusedElement;
     }
 
     public void setFocusedElement(Element element) {

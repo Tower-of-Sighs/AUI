@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -48,7 +49,7 @@ public class CSS {
                     }
                 }
 
-                if (innerCss != null && !innerCss.isBlank()) {
+                if (StringUtils.isNotNullOrEmptyEx(innerCss)) {
                     cachedStyleContents.add(innerCss.trim());
                 }
                 matcher.appendReplacement(sb, "");
@@ -116,7 +117,7 @@ public class CSS {
         }
 
         public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-            if (css == null || css.isBlank()) return;
+            if (StringUtils.isNullOrEmptyEx(css)) return;
             String normalizedCss = parseAndRegisterAnimations(css, contextPath);
 
             Pattern pattern = Pattern.compile("(.*?)\\s*\\{([^}]*)}");

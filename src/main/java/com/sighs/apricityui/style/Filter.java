@@ -1,17 +1,24 @@
 package com.sighs.apricityui.style;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Filter {
-    
-    public record FilterState(
-        float blurRadius,   // px
-        float brightness,   // percentage (1.0 = 100%)
-        float grayscale,    // 0.0 - 1.0
-        float invert,       // 0.0 - 1.0
-        float hueRotate     // degrees
-    ) {
+
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class FilterState {
+        private float blurRadius;   // px
+        private float brightness;   // percentage (1.0 = 100%)
+        private float grayscale;    // 0.0 - 1.0
+        private float invert;       // 0.0 - 1.0
+        private float hueRotate;     // degrees
+
         public static final FilterState EMPTY = new FilterState(0, 1, 0, 0, 0);
 
         public boolean isEmpty() {
@@ -48,7 +55,7 @@ public class Filter {
             } else if (val.endsWith(unit)) {
                 return Float.parseFloat(val.replace(unit, ""));
             } else if (unit.equals("px") && val.matches("[0-9.]+")) {
-                 return Float.parseFloat(val); // default px
+                return Float.parseFloat(val); // default px
             } else if (val.matches("[0-9.]+")) {
                 return Float.parseFloat(val); // raw number
             }

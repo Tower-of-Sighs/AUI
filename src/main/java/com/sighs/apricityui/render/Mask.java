@@ -1,18 +1,24 @@
 package com.sighs.apricityui.render;
 
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.style.Size;
+import lombok.Getter;
+import net.minecraft.client.MainWindow;
 import net.minecraft.client.Minecraft;
-import org.joml.Matrix4f;
+import net.minecraft.client.renderer.BufferBuilder;
+import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.util.math.vector.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL11C;
 
 import java.util.Stack;
 
 public class Mask {
     private static int depth = 0;
     private static final Stack<AABB> clipStack = new Stack<>();
+    @Getter
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
 
     public static void resetDepth() {
@@ -23,14 +29,10 @@ public class Mask {
         currentClip = new AABB(0, 0, screenWidth, screenHeight);
     }
 
-    public static AABB getCurrentClip() {
-        return currentClip;
-    }
-
-    public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
-//        clipStack.push(currentClip);
-//        AABB newMask = new AABB(x, y, width, height);
-//        currentClip = currentClip.intersection(newMask);
+    public static void pushMask(MatrixStack stack, float x, float y, float width, float height, float[] radii) {
+        // clipStack.push(currentClip);
+        // AABB newMask = new AABB(x, y, width, height);
+        // currentClip = currentClip.intersection(newMask);
 
         if (depth == 0) {
             Minecraft.getInstance().getMainRenderTarget().enableStencil();
@@ -39,20 +41,20 @@ public class Mask {
             GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
         }
 
-        pose.pushPose();
+        stack.pushPose();
         setupStencilStatePush();
 
-        drawToStencil(pose.last().pose(), x, y, width, height, radii);
+        drawToStencil(stack.last().pose(), x, y, width, height, radii);
 
         depth++;
         restoreRenderState();
 
         GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
         GL11.glStencilMask(0x00);
-        pose.popPose();
+        stack.popPose();
     }
 
-    public static void popMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
+    public static void popMask(MatrixStack stack, float x, float y, float width, float height, float[] radii) {
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
         depth--;
         if (depth > 0) {
@@ -63,12 +65,12 @@ public class Mask {
     }
 
     private static void drawToStencil(Matrix4f matrix, float x, float y, float width, float height, float[] radii) {
-        Tesselator tess = Tesselator.getInstance();
+        Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuilder();
 
         Base.setPositionColorShader();
 
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
+        buf.begin(GL11C.GL_TRIANGLES, DefaultVertexFormats.POSITION);
         Graph.addUnifiedRoundedRectVertices(buf, matrix, x, y, width, height, radii, 0xFFFFFFFF);
         tess.end();
     }
@@ -97,7 +99,7 @@ public class Mask {
         GL11.glEnable(GL11.GL_CULL_FACE);
     }
 
-    public static void pushClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
+    public static void pushClipPath(MatrixStack stack, float x, float y, float width, float height, String clipPathValue) {
         clipStack.push(currentClip);
         AABB newMask = new AABB(x, y, width, height);
         currentClip = currentClip.intersection(newMask);
@@ -109,25 +111,25 @@ public class Mask {
             GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
         }
 
-        pose.pushPose();
+        stack.pushPose();
         setupStencilStatePush();
 
-        drawClipToStencil(pose.last().pose(), x, y, width, height, clipPathValue);
+        drawClipToStencil(stack.last().pose(), x, y, width, height, clipPathValue);
 
         depth++;
         restoreRenderState();
 
         GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
         GL11.glStencilMask(0x00);
-        pose.popPose();
+        stack.popPose();
     }
 
-    public static void popClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
+    public static void popClipPath(MatrixStack stack, float x, float y, float width, float height, String clipPathValue) {
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
-        pose.pushPose();
+        stack.pushPose();
         setupStencilStatePop();
 
-        drawClipToStencil(pose.last().pose(), x, y, width, height, clipPathValue);
+        drawClipToStencil(stack.last().pose(), x, y, width, height, clipPathValue);
 
         depth--;
         restoreRenderState();
@@ -138,22 +140,22 @@ public class Mask {
             GL11.glDisable(GL11.GL_STENCIL_TEST);
         }
         GL11.glStencilMask(0x00);
-        pose.popPose();
+        stack.popPose();
     }
 
     private static void drawClipToStencil(Matrix4f matrix, float x, float y, float width, float height, String clipPath) {
-        Tesselator tess = Tesselator.getInstance();
+        Tessellator tess = Tessellator.getInstance();
         BufferBuilder buf = tess.getBuilder();
 
         Base.setPositionColorShader();
 
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
+        buf.begin(GL11C.GL_TRIANGLES, DefaultVertexFormats.POSITION);
         ClipPath.drawToStencil(buf, matrix, x, y, width, height, clipPath);
         tess.end();
     }
 
     public static void enableScissor(int x, int y, int width, int height) {
-        Window window = Minecraft.getInstance().getWindow();
+        MainWindow window = Minecraft.getInstance().getWindow();
         double scale = window.getGuiScale();
         int windowHeight = window.getHeight();
 

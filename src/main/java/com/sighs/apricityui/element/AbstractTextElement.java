@@ -1,6 +1,6 @@
 package com.sighs.apricityui.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -13,6 +13,7 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
@@ -37,7 +38,8 @@ public abstract class AbstractTextElement extends Element {
 
     private void addSelectionEventListeners() {
         addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || !canEditText()) return;
+            if (!(event instanceof MouseEvent) || !canEditText()) return;
+            MouseEvent mouseEvent = (MouseEvent) event;
 
             locateCursor(mouseEvent.offsetX, mouseEvent.offsetY);
             if (mouseEvent.shiftKey) {
@@ -53,8 +55,9 @@ public abstract class AbstractTextElement extends Element {
         });
 
         addEventListener("mousemove", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || !canEditText()) return;
+            if (!(event instanceof MouseEvent) || !canEditText()) return;
             if (!selecting || document.getActiveElement() != this) return;
+            MouseEvent mouseEvent = (MouseEvent) event;
 
             locateCursor(mouseEvent.offsetX, mouseEvent.offsetY);
             selectionStart = selectionAnchor;
@@ -326,7 +329,7 @@ public abstract class AbstractTextElement extends Element {
         return value;
     }
 
-    protected void drawSingleLineSelection(PoseStack poseStack, Rect rectRenderer, String renderText, double lineHeight) {
+    protected void drawSingleLineSelection(MatrixStack stack, Rect rectRenderer, String renderText, double lineHeight) {
         if (!hasSelection()) return;
         int min = clamp(selMin(), 0, renderText.length());
         int max = clamp(selMax(), 0, renderText.length());
@@ -340,19 +343,19 @@ public abstract class AbstractTextElement extends Element {
         float x1 = (float) (contentPos.x + endX);
         float y0 = (float) contentPos.y;
         float y1 = y0 + (float) lineHeight;
-        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
+        Graph.drawFillRect(stack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
     }
 
-    protected void drawSingleLineCursor(PoseStack poseStack, String renderText, float drawX, float drawY, float lineHeight) {
+    protected void drawSingleLineCursor(MatrixStack stack, String renderText, float drawX, float drawY, float lineHeight) {
         if (!Element.isElementFocusing(this)) return;
         String textBefore = renderText.substring(0, Math.min(cursor, renderText.length()));
         double cursorXOffset = Size.measureText(this, textBefore);
         float renderX = (float) (drawX + cursorXOffset);
-        Graph.drawCursor(poseStack.last().pose(), renderX, drawY, lineHeight, Style.getFontColor(this), this.lastBlinkTime);
+        Graph.drawCursor(stack.last().pose(), renderX, drawY, lineHeight, Style.getFontColor(this), this.lastBlinkTime);
     }
 
     protected List<String> splitLines(String text) {
-        return new ArrayList<>(List.of(text.split("\n", -1)));
+        return new ArrayList<>(Arrays.asList(text.split("\n", -1)));
     }
 
     protected int[] buildLineStarts(List<String> lines) {

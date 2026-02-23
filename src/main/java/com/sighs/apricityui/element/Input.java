@@ -1,15 +1,19 @@
 package com.sighs.apricityui.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.common.Mod;
 
@@ -48,12 +52,15 @@ public class Input extends AbstractTextElement {
 
     private Mode getMode() {
         String type = getAttribute("type");
-        if (type == null || type.isBlank()) return Mode.TEXT;
-        return switch (type.toLowerCase(Locale.ROOT)) {
-            case "checkbox" -> Mode.CHECKBOX;
-            case "radio" -> Mode.RADIO;
-            default -> Mode.TEXT;
-        };
+        if (StringUtils.isNullOrEmptyEx(type)) return Mode.TEXT;
+        switch (type.toLowerCase(Locale.ROOT)) {
+            case "checkbox":
+                return Mode.CHECKBOX;
+            case "radio":
+                return Mode.RADIO;
+            default:
+                return Mode.TEXT;
+        }
     }
 
     @Override
@@ -64,7 +71,7 @@ public class Input extends AbstractTextElement {
     private boolean isChecked() {
         if (!hasAttribute("checked")) return false;
         String value = getAttribute("checked");
-        if (value == null || value.isBlank()) return true;
+        if (StringUtils.isNullOrEmptyEx(value)) return true;
         return !("false".equalsIgnoreCase(value) || "0".equals(value));
     }
 
@@ -75,11 +82,14 @@ public class Input extends AbstractTextElement {
 
     private void clearRadioGroupChecked() {
         String group = getAttribute("name");
-        if (group == null || group.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(group)) return;
         for (Element element : document.getElements()) {
             if (element == this) continue;
-            if (element instanceof Input input && input.getMode() == Mode.RADIO && group.equals(input.getAttribute("name"))) {
-                input.setChecked(false);
+            if (element instanceof Input) {
+                Input input = (Input) element;
+                if (input.getMode() == Mode.RADIO && group.equals(input.getAttribute("name"))) {
+                    input.setChecked(false);
+                }
             }
         }
     }
@@ -107,30 +117,30 @@ public class Input extends AbstractTextElement {
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
-        if (phase == Base.RenderPhase.SHADOW) rectRenderer.drawShadow(poseStack);
-        if (phase == Base.RenderPhase.BORDER) rectRenderer.drawBorder(poseStack);
+        if (phase == Base.RenderPhase.SHADOW) rectRenderer.drawShadow(stack);
+        if (phase == Base.RenderPhase.BORDER) rectRenderer.drawBorder(stack);
         if (phase != Base.RenderPhase.BODY) return;
 
-        rectRenderer.drawBody(poseStack);
+        rectRenderer.drawBody(stack);
         Mode mode = getMode();
         if (mode == Mode.CHECKBOX || mode == Mode.RADIO) {
-            drawCheckableInput(poseStack, rectRenderer, mode);
+            drawCheckableInput(stack, rectRenderer, mode);
             return;
         }
-        drawTextInput(poseStack, rectRenderer);
+        drawTextInput(stack, rectRenderer);
     }
 
-    private void drawCheckableInput(PoseStack poseStack, Rect rectRenderer, Mode mode) {
+    private void drawCheckableInput(MatrixStack stack, Rect rectRenderer, Mode mode) {
         if (!isChecked()) return;
         Text text = Text.of(this);
         text.content = mode == Mode.RADIO ? "●" : "✓";
         text.color = new Color(Style.getFontColor(this));
-        FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
+        FontDrawer.drawFont(stack, text, rectRenderer.getContentPosition());
     }
 
-    private void drawTextInput(PoseStack poseStack, Rect rectRenderer) {
+    private void drawTextInput(MatrixStack stack, Rect rectRenderer) {
         String textToShow = getRenderText();
         boolean isPlaceholder = textToShow.isEmpty() && !placeholder.isEmpty();
         String renderContent = isPlaceholder ? placeholder : textToShow;
@@ -146,10 +156,10 @@ public class Input extends AbstractTextElement {
         float drawY = (float) contentPos.y;
 
         if (!isPlaceholder) {
-            drawSingleLineSelection(poseStack, rectRenderer, textToShow, text.lineHeight);
+            drawSingleLineSelection(stack, rectRenderer, textToShow, text.lineHeight);
         }
 
-        FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
-        drawSingleLineCursor(poseStack, textToShow, drawX, drawY, (float) text.lineHeight);
+        FontDrawer.drawFont(stack, text, new Position(drawX, drawY));
+        drawSingleLineCursor(stack, textToShow, drawX, drawY, (float) text.lineHeight);
     }
 }

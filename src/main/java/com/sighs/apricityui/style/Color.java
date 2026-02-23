@@ -1,5 +1,8 @@
 package com.sighs.apricityui.style;
 
+import lombok.Getter;
+
+@Getter
 public class Color {
     private int value;
     public static final Color BLACK = new Color("#000");
@@ -11,9 +14,6 @@ public class Color {
         set(value.intValue());
     }
 
-    public int getValue() {
-        return value;
-    }
     public void set(String string) {
         this.value = parse(string);
     }

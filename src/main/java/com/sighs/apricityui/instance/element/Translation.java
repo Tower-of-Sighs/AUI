@@ -1,6 +1,6 @@
 package com.sighs.apricityui.instance.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.Span;
 import com.sighs.apricityui.init.Document;
@@ -9,7 +9,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
-import net.minecraft.network.chat.Component;
+import net.minecraft.util.text.TranslationTextComponent;
 import net.minecraftforge.fml.common.Mod;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID)
@@ -25,19 +25,24 @@ public class Translation extends Span {
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
         switch (phase) {
-            case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY -> {
-                rectRenderer.drawBody(poseStack);
+            case SHADOW: {
+                rectRenderer.drawShadow(stack);
+            }
+            break;
+            case BODY: {
+                rectRenderer.drawBody(stack);
                 Text text = Text.of(this);
-                text.content = Component.translatable(text.content).getString();
-                FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
+                text.content = new TranslationTextComponent(text.content).getString();
+                FontDrawer.drawFont(stack, text, rectRenderer.getContentPosition());
             }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
+            break;
+            case BORDER: {
+                rectRenderer.drawBorder(stack);
             }
+            break;
         }
     }
 }

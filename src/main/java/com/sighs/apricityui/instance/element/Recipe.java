@@ -4,16 +4,19 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.*;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.*;
+import net.minecraft.util.ResourceLocation;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RecipesUpdatedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.*;
 
@@ -36,14 +39,14 @@ public class Recipe extends MinecraftElement {
     }
 
     private static String appendStyle(String style, String declaration) {
-        if (style == null || style.isBlank()) return declaration;
+        if (StringUtils.isNullOrEmptyEx(style)) return declaration;
         String trimmed = style.trim();
         if (trimmed.endsWith(";")) return trimmed + declaration;
         return trimmed + ";" + declaration;
     }
 
     private static int parsePositive(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (StringUtils.isNullOrEmptyEx(raw)) return fallback;
         try {
             int parsed = Integer.parseInt(raw.trim());
             return parsed > 0 ? parsed : fallback;
@@ -89,65 +92,79 @@ public class Recipe extends MinecraftElement {
             return RecipePreview.empty("Recipe manager is not available");
         }
 
-        Optional<? extends net.minecraft.world.item.crafting.Recipe<?>> recipeOptional = recipeManager.byKey(recipeId);
-        if (recipeOptional.isEmpty()) {
+        Optional<? extends IRecipe<?>> recipeOptional = recipeManager.byKey(recipeId);
+        if (!recipeOptional.isPresent()) {
             return RecipePreview.empty("Recipe not found");
         }
 
-        net.minecraft.world.item.crafting.Recipe<?> recipe = recipeOptional.get();
+        IRecipe<?> recipe = recipeOptional.get();
         if (!declaredType.matches(recipe)) {
-            return RecipePreview.empty("Recipe type mismatch: declared=%s, actual=%s"
-                    .formatted(declaredType.id(), recipe.getClass().getSimpleName()));
+            return RecipePreview.empty(String.format("Recipe type mismatch: declared=%s, actual=%s"
+                    , declaredType.id(), recipe.getClass().getSimpleName()));
         }
 
-        RegistryAccess registryAccess = minecraft.level.registryAccess();
+        // DynamicRegistries registryAccess = minecraft.level.registryAccess();
         int step = DEFAULT_SLOT_SIZE + DEFAULT_GAP;
         ArrayList<PreviewEntry> absoluteEntries = new ArrayList<>();
         ArrayList<PreviewEntry> listEntries = new ArrayList<>();
         RecipeLayoutKind layoutKind = declaredType.layoutKind();
 
         switch (declaredType) {
-            case CRAFTING_SHAPED -> {
-                if (!(recipe instanceof ShapedRecipe shapedRecipe)) {
+            case CRAFTING_SHAPED: {
+                if (!(recipe instanceof ShapedRecipe)) {
                     return RecipePreview.empty("Declared crafting_shaped but recipe is not ShapedRecipe");
                 }
-                buildShapedCraftingEntries(shapedRecipe, step, absoluteEntries, registryAccess);
+                ShapedRecipe shapedRecipe = (ShapedRecipe) recipe;
+                buildShapedCraftingEntries(shapedRecipe, step, absoluteEntries);
             }
-            case CRAFTING_SHAPELESS -> {
-                if (!(recipe instanceof CraftingRecipe craftingRecipe) || recipe instanceof ShapedRecipe) {
+            break;
+            case CRAFTING_SHAPELESS: {
+                if (!(recipe instanceof ICraftingRecipe) || recipe instanceof ShapedRecipe) {
                     return RecipePreview.empty("Declared crafting_shapeless but recipe is not shapeless crafting");
                 }
-                buildShapelessCraftingEntries(craftingRecipe, step, absoluteEntries, registryAccess);
+                ICraftingRecipe craftingRecipe = (ICraftingRecipe) recipe;
+                buildShapelessCraftingEntries(craftingRecipe, step, absoluteEntries);
             }
-            case SMELTING, BLASTING, SMOKING, CAMPFIRE_COOKING -> {
-                if (!(recipe instanceof AbstractCookingRecipe cookingRecipe)) {
+            break;
+            case SMELTING:
+            case BLASTING:
+            case SMOKING:
+            case CAMPFIRE_COOKING: {
+                if (!(recipe instanceof AbstractCookingRecipe)) {
                     return RecipePreview.empty("Declared cooking family but recipe is not AbstractCookingRecipe");
                 }
-                buildCookingEntries(cookingRecipe, step, absoluteEntries, registryAccess);
+                AbstractCookingRecipe cookingRecipe = (AbstractCookingRecipe) recipe;
+                buildCookingEntries(cookingRecipe, step, absoluteEntries);
             }
-            case STONECUTTING -> {
-                if (!(recipe instanceof StonecutterRecipe stonecutterRecipe)) {
+            break;
+            case STONECUTTING: {
+                if (!(recipe instanceof StonecuttingRecipe)) {
                     return RecipePreview.empty("Declared stonecutting but recipe is not StonecutterRecipe");
                 }
-                buildStonecuttingEntries(stonecutterRecipe, recipeManager, step, absoluteEntries, listEntries, registryAccess);
+                StonecuttingRecipe stonecutterRecipe = (StonecuttingRecipe) recipe;
+                buildStonecuttingEntries(stonecutterRecipe, recipeManager, step, absoluteEntries, listEntries);
             }
-            case SMITHING -> {
-                if (!(recipe instanceof SmithingRecipe smithingRecipe)) {
+            break;
+            case SMITHING: {
+                if (!(recipe instanceof SmithingRecipe)) {
                     return RecipePreview.empty("Declared smithing but recipe is not SmithingRecipe");
                 }
-                buildSmithingEntries(smithingRecipe, step, absoluteEntries, registryAccess);
+                SmithingRecipe smithingRecipe = (SmithingRecipe) recipe;
+                buildSmithingEntries(smithingRecipe, step, absoluteEntries);
             }
-            case FALLBACK -> buildFallbackEntries(recipe, step, absoluteEntries, registryAccess);
+            break;
+            case FALLBACK:
+                buildFallbackEntries(recipe, step, absoluteEntries);
+                break;
         }
 
-        return new RecipePreview(layoutKind, List.copyOf(absoluteEntries), List.copyOf(listEntries), "");
+        return new RecipePreview(layoutKind, new ArrayList<>(absoluteEntries), new ArrayList<>(listEntries), "");
     }
 
     private static void buildShapedCraftingEntries(
             ShapedRecipe recipe,
             int step,
-            List<PreviewEntry> output,
-            RegistryAccess registryAccess
+            List<PreviewEntry> output
     ) {
         int width = Math.max(1, recipe.getWidth());
         int height = Math.max(1, recipe.getHeight());
@@ -163,16 +180,15 @@ public class Recipe extends MinecraftElement {
             if (entry != null) output.add(entry);
         }
 
-        ItemStack result = recipe.getResultItem(registryAccess);
+        ItemStack result = recipe.getResultItem();
         PreviewEntry resultEntry = toEntry(result, step * 4, step, PreviewRole.OUTPUT);
         if (resultEntry != null) output.add(resultEntry);
     }
 
     private static void buildShapelessCraftingEntries(
-            CraftingRecipe recipe,
+            ICraftingRecipe recipe,
             int step,
-            List<PreviewEntry> output,
-            RegistryAccess registryAccess
+            List<PreviewEntry> output
     ) {
         List<Ingredient> ingredients = recipe.getIngredients();
         int visualIndex = 0;
@@ -188,7 +204,7 @@ public class Recipe extends MinecraftElement {
             if (visualIndex >= 9) break;
         }
 
-        ItemStack result = recipe.getResultItem(registryAccess);
+        ItemStack result = recipe.getResultItem();
         PreviewEntry resultEntry = toEntry(result, step * 4, step, PreviewRole.OUTPUT);
         if (resultEntry != null) output.add(resultEntry);
     }
@@ -196,8 +212,7 @@ public class Recipe extends MinecraftElement {
     private static void buildCookingEntries(
             AbstractCookingRecipe recipe,
             int step,
-            List<PreviewEntry> output,
-            RegistryAccess registryAccess
+            List<PreviewEntry> output
     ) {
         List<Ingredient> ingredients = recipe.getIngredients();
         if (!ingredients.isEmpty()) {
@@ -215,18 +230,17 @@ public class Recipe extends MinecraftElement {
         );
         output.add(fuelEntry);
 
-        ItemStack result = recipe.getResultItem(registryAccess);
+        ItemStack result = recipe.getResultItem();
         PreviewEntry resultEntry = toEntry(result, step * 3, step, PreviewRole.OUTPUT);
         if (resultEntry != null) output.add(resultEntry);
     }
 
     private static void buildStonecuttingEntries(
-            StonecutterRecipe recipe,
+            StonecuttingRecipe recipe,
             RecipeManager recipeManager,
             int step,
             List<PreviewEntry> absoluteOutput,
-            List<PreviewEntry> listOutput,
-            RegistryAccess registryAccess
+            List<PreviewEntry> listOutput
     ) {
         List<Ingredient> ingredients = recipe.getIngredients();
         if (!ingredients.isEmpty()) {
@@ -235,9 +249,9 @@ public class Recipe extends MinecraftElement {
             if (inputEntry != null) absoluteOutput.add(inputEntry);
         }
 
-        ArrayList<ItemStack> outputs = collectStonecuttingOutputs(recipe, recipeManager, registryAccess);
+        ArrayList<ItemStack> outputs = collectStonecuttingOutputs(recipe, recipeManager);
         if (outputs.isEmpty()) {
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = recipe.getResultItem();
             if (!result.isEmpty()) outputs.add(result.copy());
         }
 
@@ -248,9 +262,8 @@ public class Recipe extends MinecraftElement {
     }
 
     private static ArrayList<ItemStack> collectStonecuttingOutputs(
-            StonecutterRecipe recipe,
-            RecipeManager recipeManager,
-            RegistryAccess registryAccess
+            StonecuttingRecipe recipe,
+            RecipeManager recipeManager
     ) {
         ArrayList<ItemStack> result = new ArrayList<>();
         List<Ingredient> ingredients = recipe.getIngredients();
@@ -261,8 +274,8 @@ public class Recipe extends MinecraftElement {
         if (selectedInput.isEmpty()) return result;
 
         HashSet<ResourceLocation> dedup = new HashSet<>();
-        List<StonecutterRecipe> candidates = recipeManager.getAllRecipesFor(RecipeType.STONECUTTING);
-        for (StonecutterRecipe candidateRecipe : candidates) {
+        List<StonecuttingRecipe> candidates = recipeManager.getAllRecipesFor(IRecipeType.STONECUTTING);
+        for (StonecuttingRecipe candidateRecipe : candidates) {
             List<Ingredient> candidateIngredients = candidateRecipe.getIngredients();
             if (candidateIngredients.isEmpty()) continue;
             Ingredient candidateIngredient = candidateIngredients.get(0);
@@ -270,16 +283,16 @@ public class Recipe extends MinecraftElement {
                 continue;
             }
 
-            ItemStack candidateResult = candidateRecipe.getResultItem(registryAccess);
+            ItemStack candidateResult = candidateRecipe.getResultItem();
             if (candidateResult.isEmpty()) continue;
-            ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(candidateResult.getItem());
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(candidateResult.getItem());
             if (itemId == null || !dedup.add(itemId)) continue;
             result.add(candidateResult.copy());
         }
 
         result.sort((a, b) -> {
-            ResourceLocation ida = BuiltInRegistries.ITEM.getKey(a.getItem());
-            ResourceLocation idb = BuiltInRegistries.ITEM.getKey(b.getItem());
+            ResourceLocation ida = ForgeRegistries.ITEMS.getKey(a.getItem());
+            ResourceLocation idb = ForgeRegistries.ITEMS.getKey(b.getItem());
             String sa = ida == null ? "" : ida.toString();
             String sb = idb == null ? "" : idb.toString();
             return sa.compareTo(sb);
@@ -290,33 +303,39 @@ public class Recipe extends MinecraftElement {
     private static void buildSmithingEntries(
             SmithingRecipe recipe,
             int step,
-            List<PreviewEntry> output,
-            RegistryAccess registryAccess
+            List<PreviewEntry> output
     ) {
         List<Ingredient> ingredients = recipe.getIngredients();
         int limit = Math.min(3, ingredients.size());
         for (int index = 0; index < limit; index++) {
             ItemStack stack = pickDisplayStack(ingredients.get(index));
-            PreviewRole role = switch (index) {
-                case 0 -> PreviewRole.TEMPLATE;
-                case 1 -> PreviewRole.INPUT;
-                case 2 -> PreviewRole.ADDITION;
-                default -> PreviewRole.INPUT;
-            };
+            PreviewRole role;
+            switch (index) {
+                case 0:
+                    role = PreviewRole.TEMPLATE;
+                    break;
+                case 1:
+                    role = PreviewRole.INPUT;
+                    break;
+                case 2:
+                    role = PreviewRole.ADDITION;
+                    break;
+                default:
+                    role = PreviewRole.INPUT;
+            }
             PreviewEntry entry = toEntry(stack, 0, index * step, role);
             if (entry != null) output.add(entry);
         }
 
-        ItemStack result = recipe.getResultItem(registryAccess);
+        ItemStack result = recipe.getResultItem();
         PreviewEntry resultEntry = toEntry(result, step * 4, step, PreviewRole.OUTPUT);
         if (resultEntry != null) output.add(resultEntry);
     }
 
     private static void buildFallbackEntries(
-            net.minecraft.world.item.crafting.Recipe<?> recipe,
+            IRecipe<?> recipe,
             int step,
-            List<PreviewEntry> output,
-            RegistryAccess registryAccess
+            List<PreviewEntry> output
     ) {
         List<Ingredient> ingredients = recipe.getIngredients();
         int visualIndex = 0;
@@ -329,7 +348,7 @@ public class Recipe extends MinecraftElement {
             if (visualIndex >= 8) break;
         }
 
-        ItemStack result = recipe.getResultItem(registryAccess);
+        ItemStack result = recipe.getResultItem();
         PreviewEntry outputEntry = toEntry(result, step * 5, step, PreviewRole.OUTPUT);
         if (outputEntry != null) output.add(outputEntry);
     }
@@ -347,7 +366,7 @@ public class Recipe extends MinecraftElement {
 
     private static PreviewEntry toEntry(ItemStack stack, int x, int y, PreviewRole role) {
         if (stack == null || stack.isEmpty()) return null;
-        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
         if (itemId == null) return null;
         int count = Math.max(1, stack.getCount());
         return new PreviewEntry(role, itemId.toString(), count, x, y);
@@ -396,13 +415,13 @@ public class Recipe extends MinecraftElement {
 
         RecipePreview preview = RecipePreviewCache.resolve(new RecipeCacheKey(recipeId, declaredType));
         if (preview.absoluteEntries().isEmpty() && preview.listEntries().isEmpty()) {
-            if (!preview.message().isBlank()) {
+            if (StringUtils.isNotNullOrEmptyEx(preview.message())) {
                 setAttribute("data-recipe-error", preview.message());
                 changed = true;
             }
             return changed;
         }
-        if (!getAttribute("data-recipe-error").isBlank()) {
+        if (StringUtils.isNotNullOrEmptyEx(getAttribute("data-recipe-error"))) {
             setAttribute("data-recipe-error", "");
             changed = true;
         }
@@ -446,7 +465,7 @@ public class Recipe extends MinecraftElement {
         List<Element> childrenSnapshot = new ArrayList<>(children);
         for (Element child : childrenSnapshot) {
             String generatedTag = child.getAttribute("data-generated");
-            if (generatedTag == null || generatedTag.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(generatedTag)) continue;
             if (!generatedTag.startsWith("recipe")) continue;
             child.remove();
             changed = true;
@@ -460,15 +479,15 @@ public class Recipe extends MinecraftElement {
                 "recipe-slot recipe-slot-" + entry.role().name().toLowerCase(Locale.ROOT),
                 "recipe-generated"
         );
-        slot.setAttributesBatch(Map.of(
-                "mode", Slot.MODE_VIRTUAL,
-                "data-role", entry.role().name().toLowerCase(Locale.ROOT),
-                "data-preview-x", String.valueOf(x),
-                "data-preview-y", String.valueOf(y),
-                "data-preview-absolute", "true",
-                "style", "position:absolute;display:block;left:%dpx;top:%dpx;width:%dpx;height:%dpx;"
-                        .formatted(x, y, slotSize, slotSize)
-        ), true);
+        slot.setAttributesBatch(new HashMap<String, String>() {{
+            put("mode", Slot.MODE_VIRTUAL);
+            put("data-role", entry.role().name().toLowerCase(Locale.ROOT));
+            put("data-preview-x", String.valueOf(x));
+            put("data-preview-y", String.valueOf(y));
+            put("data-preview-absolute", "true");
+            put("style", String.format("position:absolute;display:block;left:%dpx;top:%dpx;width:%dpx;height:%dpx;"
+                    , x, y, slotSize, slotSize));
+        }}, true);
         slot.innerText = Slot.buildLiteralWithCount(entry.itemLiteral(), Math.max(1, entry.count()));
         append(slot);
         return new PreviewPlacement(x, y, slotSize);
@@ -503,11 +522,11 @@ public class Recipe extends MinecraftElement {
         boolean changed = false;
 
         if (!containsCssProperty(normalized, "width")) {
-            merged = appendStyle(merged, "width:%dpx;".formatted(Math.max(1, bounds.width())));
+            merged = appendStyle(merged, String.format("width:%dpx;", Math.max(1, bounds.width())));
             changed = true;
         }
         if (!containsCssProperty(normalized, "height")) {
-            merged = appendStyle(merged, "height:%dpx;".formatted(Math.max(1, bounds.height())));
+            merged = appendStyle(merged, String.format("height:%dpx;", (Math.max(1, bounds.height()))));
             changed = true;
         }
         if (changed) {
@@ -517,11 +536,11 @@ public class Recipe extends MinecraftElement {
     }
 
     private static boolean containsCssProperty(String inlineStyle, String property) {
-        if (inlineStyle == null || inlineStyle.isBlank() || property == null || property.isBlank()) return false;
+        if (StringUtils.isNullOrEmptyEx(inlineStyle) || StringUtils.isNullOrEmptyEx(property)) return false;
         String expected = property.trim().toLowerCase(Locale.ROOT);
         String[] declarations = inlineStyle.split(";");
         for (String declaration : declarations) {
-            if (declaration == null || declaration.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(declaration)) continue;
             int split = declaration.indexOf(':');
             if (split < 0) continue;
             String key = declaration.substring(0, split).trim().toLowerCase(Locale.ROOT);
@@ -532,14 +551,14 @@ public class Recipe extends MinecraftElement {
 
     private ResourceLocation parseRecipeIdFromInnerText() {
         String normalized = normalizeRecipeIdLiteral(innerText);
-        if (normalized.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(normalized)) return null;
         return ResourceLocation.tryParse(normalized);
     }
 
     private static String normalizeRecipeIdLiteral(String raw) {
         if (raw == null) return "";
         String normalized = raw.trim();
-        if (normalized.isBlank()) return "";
+        if (StringUtils.isNullOrEmptyEx(normalized)) return "";
         if (normalized.length() >= 2) {
             char first = normalized.charAt(0);
             char last = normalized.charAt(normalized.length() - 1);
@@ -590,55 +609,55 @@ public class Recipe extends MinecraftElement {
     public enum RecipeDeclaredType {
         CRAFTING_SHAPED("crafting_shaped", RecipeLayoutKind.CRAFTING_SHAPED) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+            boolean matches(IRecipe<?> recipe) {
                 return recipe instanceof ShapedRecipe;
             }
         },
         CRAFTING_SHAPELESS("crafting_shapeless", RecipeLayoutKind.CRAFTING_SHAPELESS) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
-                return recipe instanceof CraftingRecipe && !(recipe instanceof ShapedRecipe);
+            boolean matches(IRecipe<?> recipe) {
+                return recipe instanceof ICraftingRecipe && !(recipe instanceof ShapedRecipe);
             }
         },
         SMELTING("smelting", RecipeLayoutKind.SMELTING_FAMILY) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
-                return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.SMELTING;
+            boolean matches(IRecipe<?> recipe) {
+                return recipe instanceof AbstractCookingRecipe && recipe.getType() == IRecipeType.SMELTING;
             }
         },
         BLASTING("blasting", RecipeLayoutKind.SMELTING_FAMILY) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
-                return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.BLASTING;
+            boolean matches(IRecipe<?> recipe) {
+                return recipe instanceof AbstractCookingRecipe && recipe.getType() == IRecipeType.BLASTING;
             }
         },
         SMOKING("smoking", RecipeLayoutKind.SMELTING_FAMILY) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
-                return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.SMOKING;
+            boolean matches(IRecipe<?> recipe) {
+                return recipe instanceof AbstractCookingRecipe && recipe.getType() == IRecipeType.SMOKING;
             }
         },
         CAMPFIRE_COOKING("campfire_cooking", RecipeLayoutKind.SMELTING_FAMILY) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
-                return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.CAMPFIRE_COOKING;
+            boolean matches(IRecipe<?> recipe) {
+                return recipe instanceof AbstractCookingRecipe && recipe.getType() == IRecipeType.CAMPFIRE_COOKING;
             }
         },
         STONECUTTING("stonecutting", RecipeLayoutKind.STONECUTTING) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
-                return recipe instanceof StonecutterRecipe;
+            boolean matches(IRecipe<?> recipe) {
+                return recipe instanceof StonecuttingRecipe;
             }
         },
         SMITHING("smithing", RecipeLayoutKind.SMITHING) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+            boolean matches(IRecipe<?> recipe) {
                 return recipe instanceof SmithingRecipe;
             }
         },
         FALLBACK("fallback", RecipeLayoutKind.FALLBACK) {
             @Override
-            boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
+            boolean matches(IRecipe<?> recipe) {
                 return recipe != null;
             }
         };
@@ -659,10 +678,10 @@ public class Recipe extends MinecraftElement {
             return layoutKind;
         }
 
-        abstract boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe);
+        abstract boolean matches(IRecipe<?> recipe);
 
         static RecipeDeclaredType fromRaw(String raw) {
-            if (raw == null || raw.isBlank()) return null;
+            if (StringUtils.isNullOrEmptyEx(raw)) return null;
             String normalized = raw.trim().toLowerCase(Locale.ROOT);
             for (RecipeDeclaredType value : values()) {
                 if (value.id.equals(normalized)) return value;
@@ -671,14 +690,17 @@ public class Recipe extends MinecraftElement {
         }
     }
 
-    private record RecipePreview(
-            RecipeLayoutKind layoutKind,
-            List<PreviewEntry> absoluteEntries,
-            List<PreviewEntry> listEntries,
-            String message
-    ) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class RecipePreview {
+        private RecipeLayoutKind layoutKind;
+        private List<PreviewEntry> absoluteEntries;
+        private List<PreviewEntry> listEntries;
+        private String message;
+
         private static RecipePreview empty(String message) {
-            return new RecipePreview(RecipeLayoutKind.FALLBACK, List.of(), List.of(), message == null ? "" : message);
+            return new RecipePreview(RecipeLayoutKind.FALLBACK, Collections.emptyList(), Collections.emptyList(), message == null ? "" : message);
         }
     }
 
@@ -723,22 +745,40 @@ public class Recipe extends MinecraftElement {
         }
     }
 
-    public record PreviewEntry(
-            PreviewRole role,
-            String itemLiteral,
-            int count,
-            int x,
-            int y
-    ) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class PreviewEntry {
+        private PreviewRole role;
+        private String itemLiteral;
+        private int count;
+        private int x;
+        private int y;
     }
 
-    private record PreviewBounds(int width, int height) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class PreviewBounds {
+        private int width;
+        private int height;
     }
 
-    private record PreviewPlacement(int x, int y, int slotSize) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class PreviewPlacement {
+        private int x;
+        private int y;
+        private int slotSize;
     }
 
-    private record RecipeCacheKey(ResourceLocation recipeId, RecipeDeclaredType declaredType) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class RecipeCacheKey {
+        private ResourceLocation recipeId;
+        private RecipeDeclaredType declaredType;
     }
 
     @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)

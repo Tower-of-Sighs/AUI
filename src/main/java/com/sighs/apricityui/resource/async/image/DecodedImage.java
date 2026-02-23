@@ -1,13 +1,17 @@
 package com.sighs.apricityui.resource.async.image;
 
-import com.mojang.blaze3d.platform.NativeImage;
+
+import lombok.Getter;
+import net.minecraft.client.renderer.texture.NativeImage;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
  * 图片解码后的纯 CPU 数据，不能包含任何 GL/TextureManager 行为。
  */
+@Getter
 public class DecodedImage implements AutoCloseable {
     private final NativeImage staticImage;
     private final List<NativeImage> frames;
@@ -25,7 +29,7 @@ public class DecodedImage implements AutoCloseable {
 
     public static DecodedImage ofStatic(NativeImage image) {
         if (image == null) return null;
-        return new DecodedImage(image, List.of(), new int[0], image.getWidth(), image.getHeight());
+        return new DecodedImage(image, Collections.emptyList(), new int[0], image.getWidth(), image.getHeight());
     }
 
     public static DecodedImage ofAnimated(List<NativeImage> images, List<Integer> delaysMs) {
@@ -42,26 +46,6 @@ public class DecodedImage implements AutoCloseable {
 
     public boolean isAnimated() {
         return !frames.isEmpty();
-    }
-
-    public NativeImage getStaticImage() {
-        return staticImage;
-    }
-
-    public List<NativeImage> getFrames() {
-        return frames;
-    }
-
-    public int[] getFrameDelaysMs() {
-        return frameDelaysMs;
-    }
-
-    public int getWidth() {
-        return width;
-    }
-
-    public int getHeight() {
-        return height;
     }
 
     @Override

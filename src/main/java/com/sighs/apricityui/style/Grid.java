@@ -2,14 +2,19 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 /**
  * Global Grid layout (MVP + alignment + placement/span)
- *
+ * <p>
  * Supported:
  * - display: grid
  * - grid-template-columns / grid-template-rows: number | (px|auto)+
@@ -17,41 +22,84 @@ import java.util.Locale;
  * - justify-items / align-items (align-items reuses Style.alignItems)
  * - justify-self / align-self (per-item override)
  * - grid-row / grid-column with span (basic)
- *
+ * <p>
  * Placement notes:
  * - Auto flow is row-major.
  * - If grid-row/grid-column specifies an explicit start (e.g. "2" or "2 / span 3"),
- *   the algorithm will try to place at/after that coordinate.
+ * the algorithm will try to place at/after that coordinate.
  * - Conflicts (overlaps) are allowed; this implementation is fail-soft.
- *
+ * <p>
  * Indexing:
  * - grid-row/grid-column use 1-based grid lines (CSS-like); internally converted to 0-based track index.
  */
 public final class Grid {
-    private Grid() {}
-
-    private enum TrackType { FIXED, AUTO }
-    private record Track(TrackType type, int px) {}
-    private record Gaps(int rowGap, int colGap) {}
-
-    private enum Align { START, CENTER, END, STRETCH }
-
-    private record SpanSpec(int start, int span) {
-        // start: 0-based track index, -1 means auto
-        static SpanSpec auto() { return new SpanSpec(-1, 1); }
+    private Grid() {
     }
 
-    private record ItemSpec(SpanSpec col, SpanSpec row, Element el) {}
+    private enum TrackType {FIXED, AUTO}
 
-    private record Placement(int col, int row, int colSpan, int rowSpan) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class Track {
+        private TrackType type;
+        private int px;
+    }
 
-    private record Layout(List<Element> flow,
-                          List<Placement> placements,
-                          List<Track> cols,
-                          List<Track> rows,
-                          int[] colW,
-                          int[] rowH,
-                          Gaps gaps) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class Gaps {
+        private int rowGap;
+        private int colGap;
+    }
+
+    private enum Align {START, CENTER, END, STRETCH}
+
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class SpanSpec {
+        private int start;
+        private int span;
+
+        // start: 0-based track index, -1 means auto
+        static SpanSpec auto() {
+            return new SpanSpec(-1, 1);
+        }
+    }
+
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class ItemSpec {
+        private SpanSpec col;
+        private SpanSpec row;
+        private Element el;
+    }
+
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class Placement {
+        private int col;
+        private int row;
+        private int colSpan;
+        private int rowSpan;
+    }
+
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class Layout {
+        private List<Element> flow;
+        private List<Placement> placements;
+        private List<Track> cols;
+        private List<Track> rows;
+        private int[] colW;
+        private int[] rowH;
+        private Gaps gaps;
+    }
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Position parentPosition = Position.of(parent);
@@ -109,7 +157,7 @@ public final class Grid {
         if (flow.isEmpty()) {
             List<Track> cols0 = parseTracks(ps.gridTemplateColumns, 1);
             List<Track> rows0 = parseTracks(ps.gridTemplateRows, 1);
-            return new Layout(flow, List.of(), cols0, rows0, new int[]{0}, new int[]{0}, gaps);
+            return new Layout(flow, Collections.emptyList(), cols0, rows0, new int[]{0}, new int[]{0}, gaps);
         }
 
         // 1) parse base tracks
@@ -232,7 +280,7 @@ public final class Grid {
 
     /**
      * Parse a CSS-like grid-row/grid-column value into (start, span).
-     *
+     * <p>
      * Supported patterns:
      * - "auto" / "unset" / null -> auto, span 1
      * - "N" -> start line N, span 1
@@ -244,7 +292,7 @@ public final class Grid {
     private static SpanSpec parseSpanSpec(String raw) {
         if (raw == null) return SpanSpec.auto();
         raw = raw.trim().toLowerCase(Locale.ROOT);
-        if (raw.isBlank() || "unset".equals(raw) || "auto".equals(raw)) return SpanSpec.auto();
+        if (raw.isEmpty() || "unset".equals(raw) || "auto".equals(raw)) return SpanSpec.auto();
 
         String[] parts = raw.split("/");
         String a = parts[0].trim();
@@ -290,7 +338,7 @@ public final class Grid {
             if (Character.isDigit(c)) num.append(c);
             else break;
         }
-        if (num.isEmpty()) return fallback;
+        if (num.length() <= 0) return fallback;
         try {
             int v = Integer.parseInt(num.toString());
             return v > 0 ? v : fallback;
@@ -398,11 +446,14 @@ public final class Grid {
         Align container = normalizeAlign(ps.justifyItems, Align.START);
         Align self = normalizeAlign(es.justifySelf, container);
 
-        return switch (self) {
-            case CENTER -> (cellW - itemW) / 2.0;
-            case END -> (cellW - itemW);
-            case STRETCH, START -> 0.0;
-        };
+        switch (self) {
+            case CENTER:
+                return (cellW - itemW) / 2.0;
+            case END:
+                return (cellW - itemW);
+            default:
+                return 0.0;
+        }
     }
 
     private static double computeAlignOffset(Element element, Element parent, double cellH, double itemH) {
@@ -412,25 +463,39 @@ public final class Grid {
         Align container = normalizeAlign(ps.alignItems, Align.START);
         Align self = normalizeAlign(es.alignSelf, container);
 
-        return switch (self) {
-            case CENTER -> (cellH - itemH) / 2.0;
-            case END -> (cellH - itemH);
-            case STRETCH, START -> 0.0;
-        };
+        switch (self) {
+            case CENTER:
+                return (cellH - itemH) / 2.0;
+            case END:
+                return (cellH - itemH);
+            default:
+                return 0.0;
+        }
     }
 
     private static Align normalizeAlign(String raw, Align fallback) {
         if (raw == null) return fallback;
         raw = raw.trim().toLowerCase(Locale.ROOT);
-        if (raw.isBlank() || "unset".equals(raw) || "auto".equals(raw)) return fallback;
+        if (raw.isEmpty() || "unset".equals(raw) || "auto".equals(raw)) return fallback;
 
-        return switch (raw) {
-            case "start", "flex-start", "left", "top" -> Align.START;
-            case "center" -> Align.CENTER;
-            case "end", "flex-end", "right", "bottom" -> Align.END;
-            case "stretch" -> Align.STRETCH;
-            default -> fallback;
-        };
+        switch (raw) {
+            case "start":
+            case "flex-start":
+            case "left":
+            case "top":
+                return Align.START;
+            case "center":
+                return Align.CENTER;
+            case "end":
+            case "flex-end":
+            case "right":
+            case "bottom":
+                return Align.END;
+            case "stretch":
+                return Align.STRETCH;
+            default:
+                return fallback;
+        }
     }
 
     // ---------------- gaps / tracks parsing ----------------
@@ -468,7 +533,7 @@ public final class Grid {
      */
     private static List<Track> parseTracks(String raw, int fallbackCount) {
         raw = raw == null ? "unset" : raw.trim().toLowerCase(Locale.ROOT);
-        if (raw.isBlank() || "unset".equals(raw)) {
+        if (raw.isEmpty() || "unset".equals(raw)) {
             return makeAutoTracks(Math.max(1, fallbackCount));
         }
 
@@ -481,7 +546,7 @@ public final class Grid {
         String[] tokens = raw.split("\\s+");
         List<Track> out = new ArrayList<>();
         for (String t : tokens) {
-            if (t.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(t)) continue;
             if ("auto".equals(t)) {
                 out.add(new Track(TrackType.AUTO, 0));
                 continue;

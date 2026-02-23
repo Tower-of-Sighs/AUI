@@ -4,11 +4,8 @@ import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Size;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class Style implements Cloneable {
     public static final Style DEFAULT = new Style();
@@ -133,6 +130,7 @@ public class Style implements Cloneable {
         }
         return (int) (fontSize / 16d * 9);
     }
+
     public static String getFontFamily(Element element) {
         String fontFamily = "unset";
         for (Element e : element.getRoute()) {
@@ -144,6 +142,7 @@ public class Style implements Cloneable {
         }
         return fontFamily;
     }
+
     public static int getFontColor(Element element) {
         String styleColor = element.getComputedStyle().color;
         if (styleColor.equals("unset")) {
@@ -204,8 +203,10 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             field.set(this, value);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
     }
+
     public String get(String name) {
         String styleName = transformStyleName(name);
         try {
@@ -216,7 +217,8 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             return (String) field.get(this);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
         return null;
     }
 
@@ -250,6 +252,7 @@ public class Style implements Cloneable {
         STYLE_NAME.put(input, result.toString());
         return result.toString();
     }
+
     // fontSize -> font-size
     private static String camelToKebab(String input) {
         StringBuilder result = new StringBuilder();
@@ -279,13 +282,14 @@ public class Style implements Cloneable {
                             .append(value)
                             .append(";");
                 }
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
         return css.toString();
     }
 
     static Set<String> getTextProp() {
-        return Set.of("color", "font-size", "font-family");
+        return new HashSet<>(Arrays.asList("color", "font-size", "font-family"));
     }
 
 
@@ -326,7 +330,8 @@ public class Style implements Cloneable {
                         .append(":")
                         .append(value)
                         .append(";");
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
 
         return sb.toString();

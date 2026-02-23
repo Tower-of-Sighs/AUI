@@ -1,42 +1,44 @@
 package com.sighs.apricityui.instance.container.bind;
 
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.item.ItemStack;
+import net.minecraft.nbt.CompoundNBT;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.saveddata.SavedData;
+import net.minecraftforge.common.util.WorldCapabilityData;
 import net.minecraftforge.items.ItemStackHandler;
-import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
  * 通用世界级库存 SavedData。
  */
-public class ApricitySavedData extends SavedData {
+public class ApricitySavedData extends WorldCapabilityData {
     private static final String INVENTORIES_KEY = "inventories";
 
     private final LinkedHashMap<String, ItemStackHandler> inventories = new LinkedHashMap<>();
 
+    public ApricitySavedData() {
+        super(INVENTORIES_KEY);
+    }
+
     public static ApricitySavedData get(MinecraftServer server, String dataName) {
         return server.overworld().getDataStorage().computeIfAbsent(
-                ApricitySavedData::load,
                 ApricitySavedData::new,
                 dataName
         );
     }
 
-    public static ApricitySavedData load(CompoundTag tag) {
+    public void load(CompoundNBT tag) {
         ApricitySavedData data = new ApricitySavedData();
-        CompoundTag allInventories = tag.getCompound(INVENTORIES_KEY);
+        CompoundNBT allInventories = tag.getCompound(INVENTORIES_KEY);
         for (String key : allInventories.getAllKeys()) {
-            CompoundTag serialized = allInventories.getCompound(key);
+            CompoundNBT serialized = allInventories.getCompound(key);
             int slotCount = Math.max(1, serialized.getInt("Size"));
             ItemStackHandler handler = data.createTrackedHandler(slotCount);
             handler.deserializeNBT(serialized);
             data.inventories.put(key, handler);
         }
-        return data;
     }
 
     public ItemStackHandler getOrCreate(String inventoryKey, int slotCount) {
@@ -74,8 +76,9 @@ public class ApricitySavedData extends SavedData {
     }
 
     @Override
-    public @NotNull CompoundTag save(@NotNull CompoundTag tag) {
-        CompoundTag allInventories = new CompoundTag();
+    @Nonnull
+    public CompoundNBT save(CompoundNBT tag) {
+        CompoundNBT allInventories = new CompoundNBT();
         for (Map.Entry<String, ItemStackHandler> entry : inventories.entrySet()) {
             allInventories.put(entry.getKey(), entry.getValue().serializeNBT());
         }

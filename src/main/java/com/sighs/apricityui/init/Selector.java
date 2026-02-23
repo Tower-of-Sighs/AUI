@@ -1,12 +1,27 @@
 package com.sighs.apricityui.init;
 
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+import lombok.var;
+import com.sighs.apricityui.util.StringUtils;
+
 import java.util.*;
-import java.util.regex.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Selector {
     private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new HashMap<>();
 
-    public record Specificity(int ids, int classes, int tags, int order) implements Comparable<Specificity> {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class Specificity implements Comparable<Specificity> {
+        private int ids;
+        private int classes;
+        private int tags;
+        private int order;
+
         @Override
         public int compareTo(Specificity o) {
             if (this.ids != o.ids) return Integer.compare(this.ids, o.ids);
@@ -16,29 +31,44 @@ public class Selector {
         }
     }
 
-    private enum Combinator { DESCENDANT, CHILD }
+    private enum Combinator {DESCENDANT, CHILD}
 
-    private record Pseudo(String name, String expression) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class Pseudo {
+        private String name;
+        private String expression;
+
         boolean matches(Element e) {
             if (e == null) return false;
 
-            return switch (name) {
-                case "first-child" -> isSiblingIndex(e, 0);
-                case "last-child" -> isSiblingIndex(e, -1);
-                case "nth-child" -> matchNth(e, expression);
-                case "hover" -> e.isHover;
-                case "active" -> e.isActive;
-                case "focus" -> e.isFocus;
-                case "empty" -> e.children.isEmpty();
-                case "checked" -> isChecked(e);
-                default -> false;
-            };
+            switch (name) {
+                case "first-child":
+                    return isSiblingIndex(e, 0);
+                case "last-child":
+                    return isSiblingIndex(e, -1);
+                case "nth-child":
+                    return matchNth(e, expression);
+                case "hover":
+                    return e.isHover;
+                case "active":
+                    return e.isActive;
+                case "focus":
+                    return e.isFocus;
+                case "empty":
+                    return e.children.isEmpty();
+                case "checked":
+                    return isChecked(e);
+                default:
+                    return false;
+            }
         }
 
         private boolean isChecked(Element e) {
             if (e.getAttributes().containsKey("checked")) {
                 String v = e.getAttribute("checked");
-                if (v == null || v.isBlank()) return true;
+                if (StringUtils.isNullOrEmptyEx(v)) return true;
                 return !("false".equalsIgnoreCase(v) || "0".equals(v));
             }
 
@@ -67,11 +97,24 @@ public class Selector {
             int pos = e.parentElement.children.indexOf(e) + 1;
             if ("odd".equals(expr)) return pos % 2 != 0;
             if ("even".equals(expr)) return pos % 2 == 0;
-            try { return Integer.parseInt(expr) == pos; } catch (Exception ex) { return false; }
+            try {
+                return Integer.parseInt(expr) == pos;
+            } catch (Exception ex) {
+                return false;
+            }
         }
     }
 
-    private record Component(String tag, String id, Set<String> classes, Map<String, String> attrs, List<Pseudo> pseudos) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class Component {
+        private String tag;
+        private String id;
+        private Set<String> classes;
+        private Map<String, String> attrs;
+        private List<Pseudo> pseudos;
+
         boolean matches(Element e) {
             if (e == null) return false;
             if (tag != null && !tag.equals("*") && !tag.equalsIgnoreCase(e.tagName)) return false;
@@ -104,7 +147,14 @@ public class Selector {
         }
     }
 
-    private record CompiledSelector(List<Component> components, List<Combinator> combinators, Specificity specificity) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class CompiledSelector {
+        private List<Component> components;
+        private List<Combinator> combinators;
+        private Specificity specificity;
+    }
 
 
     public static HashMap<String, String> matchCSS(Element element) {
@@ -185,11 +235,16 @@ public class Selector {
         for (String token : tokens) {
             token = token.trim();
             switch (token) {
-                case "" -> {
+                case "": {
                 }
-                case ">" -> combinators.add(Combinator.CHILD);
-                case " " -> combinators.add(Combinator.DESCENDANT);
-                default -> {
+                break;
+                case ">":
+                    combinators.add(Combinator.CHILD);
+                    break;
+                case " ":
+                    combinators.add(Combinator.DESCENDANT);
+                    break;
+                default: {
                     if (components.size() > combinators.size()) {
                         combinators.add(Combinator.DESCENDANT);
                     }
@@ -201,13 +256,14 @@ public class Selector {
                     if (comp.pseudos != null) classesAndPseudos += comp.pseudos.size();
                     if (comp.tag != null && !comp.tag.equals("*")) tags++;
                 }
+                break;
             }
         }
         return new CompiledSelector(components, combinators, new Specificity(ids, classesAndPseudos, tags, order));
     }
 
     private static Component parseAtom(String atom) {
-        String tag = null;
+        String tag;
         String id = null;
         Set<String> classes = new HashSet<>();
         Map<String, String> attrs = new HashMap<>();
@@ -222,7 +278,7 @@ public class Selector {
         String rest;
         if (firstSpecial == -1) {
             // 纯 tag 或者空
-            tag = atom.isBlank() ? null : atom;
+            tag = StringUtils.isNullOrEmptyEx(atom) ? null : atom;
             rest = "";
         } else {
             String maybeTag = atom.substring(0, firstSpecial).trim();
@@ -318,7 +374,14 @@ public class Selector {
 
     public static Map<String, Map<String, String>> getDebugStyles(Element element) {
         Map<String, Map<String, String>> result = new LinkedHashMap<>();
-        record DebugMatch(String selector, Specificity specificity, Map<String, String> styles) {}
+        @Getter
+        @Accessors(fluent = true)
+        @AllArgsConstructor
+        class DebugMatch {
+            private String selector;
+            private Specificity specificity;
+            private Map<String, String> styles;
+        }
         List<DebugMatch> matches = new ArrayList<>();
         int order = 0;
 
@@ -342,5 +405,11 @@ public class Selector {
         return result;
     }
 
-    private record MatchedRule(Specificity specificity, Map<String, String> styles) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class MatchedRule {
+        private Specificity specificity;
+        private Map<String, String> styles;
+    }
 }

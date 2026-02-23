@@ -10,12 +10,15 @@ import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.NetworkHooks;
+import net.minecraft.entity.player.ServerPlayerEntity;
+import net.minecraft.inventory.container.SimpleNamedContainerProvider;
+import com.sighs.apricityui.util.StringUtils;
+import net.minecraft.util.text.ITextComponent;
+import net.minecraft.util.text.StringTextComponent;
+import net.minecraftforge.fml.network.NetworkEvent;
+import net.minecraftforge.fml.network.NetworkHooks;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +38,7 @@ public final class ApricityScreenNetworkHandler {
         ApricityNetwork.sendToServer(new CloseContainerRequestPacket());
     }
 
-    public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
+    public static void openScreen(ServerPlayerEntity player, String path, OpenBindPlan plan) {
         if (player == null) return;
 
         ContainerSchema.OpenRequest request = ContainerSchema.OpenRequest.fromRaw(path);
@@ -56,7 +59,7 @@ public final class ApricityScreenNetworkHandler {
     public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
+            ServerPlayerEntity player = context.getSender();
             if (player == null) return;
 
             ContainerSchema.OpenRequest request = ContainerSchema.OpenRequest.fromRaw(packet.templatePath());
@@ -76,7 +79,7 @@ public final class ApricityScreenNetworkHandler {
     public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
+            ServerPlayerEntity player = context.getSender();
             if (player == null) return;
 
             if (player.containerMenu instanceof ApricityContainerMenu) {
@@ -113,7 +116,7 @@ public final class ApricityScreenNetworkHandler {
                 descriptor.getSlotVisualMapping());
     }
 
-    private static Map<String, ApricityMenuSlotSource> resolveContainerSources(ServerPlayer player,
+    private static Map<String, ApricityMenuSlotSource> resolveContainerSources(ServerPlayerEntity player,
                                                                                ContainerSchema.Descriptor descriptor,
                                                                                OpenBindPlan plan) {
         LinkedHashMap<String, ApricityMenuSlotSource> sources = new LinkedHashMap<>();
@@ -148,7 +151,7 @@ public final class ApricityScreenNetworkHandler {
                                                    String containerId,
                                                    String primaryContainerId,
                                                    int containerIndex) {
-        if (plan == null) return Map.of();
+        if (plan == null) return new HashMap<>();
 
         OpenBindPlan.BindingSpec indexedBinding = plan.bindingForIndex(containerIndex);
         if (indexedBinding != null) return indexedBinding.args();
@@ -158,20 +161,20 @@ public final class ApricityScreenNetworkHandler {
             return primaryBinding.args();
         }
 
-        return Map.of();
+        return new HashMap<>();
     }
 
-    private static void openScreenFromServer(ServerPlayer player,
+    private static void openScreenFromServer(ServerPlayerEntity player,
                                              ContainerSchema.Descriptor descriptor,
                                              Map<String, ApricityMenuSlotSource> containerSources) {
         if (player == null || descriptor == null) return;
 
         String titleLiteral = ContainerSchema.TemplateAnalyzer.resolvePrimaryContainerTitleLiteral(descriptor.getTemplatePath());
-        Component titleComponent = (titleLiteral == null || titleLiteral.isBlank())
-                ? Component.empty()
-                : Component.literal(titleLiteral);
+        ITextComponent titleComponent = (StringUtils.isNullOrEmptyEx(titleLiteral))
+                ? new StringTextComponent("")
+                : new StringTextComponent(titleLiteral);
 
-        NetworkHooks.openScreen(player, new SimpleMenuProvider(
+        NetworkHooks.openGui(player, new SimpleNamedContainerProvider(
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,
                         playerInventory,

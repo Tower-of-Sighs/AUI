@@ -1,13 +1,18 @@
 package com.sighs.apricityui.resource;
 
-import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+import lombok.var;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.client.renderer.texture.NativeImage;
+import net.minecraft.client.renderer.texture.Texture;
+import net.minecraft.client.renderer.texture.TextureUtil;
+import net.minecraft.resources.IResourceManager;
+import net.minecraft.util.ResourceLocation;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -18,6 +23,7 @@ import javax.imageio.metadata.IIOMetadata;
 import javax.imageio.stream.ImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -26,14 +32,24 @@ import java.util.List;
 public class Image {
     public static ITexture loadTexture(String cacheKey, InputStream is) {
         if (is == null) return null;
-        try {
-            byte[] bytes = is.readAllBytes();
+        try (InputStream input = is) {
+            byte[] bytes = toByteArray(input);
             DecodedImage decodedImage = decode(cacheKey, bytes);
             return uploadDecoded(cacheKey, decodedImage);
         } catch (IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("Failed to load image: {}", cacheKey, e);
             return null;
         }
+    }
+
+    public static byte[] toByteArray(InputStream is) throws IOException {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        byte[] tmp = new byte[8192];
+        int read;
+        while ((read = is.read(tmp, 0, tmp.length)) != -1) {
+            buffer.write(tmp, 0, read);
+        }
+        return buffer.toByteArray();
     }
 
     public static DecodedImage decode(String cacheKey, byte[] data) {
@@ -71,7 +87,7 @@ public class Image {
             TextureInfo info = uploadImage(cacheKey, imageData);
             return new StaticTexture(info.textureId, info.location, info.width, info.height);
         } catch (Exception e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("Failed to load image: {}", cacheKey, e);
             return null;
         } finally {
             decodedImage.close();
@@ -83,7 +99,7 @@ public class Image {
             NativeImage image = NativeImage.read(bis);
             return DecodedImage.ofStatic(image);
         } catch (IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("Failed to load image}", e);
             return null;
         }
     }
@@ -117,7 +133,7 @@ public class Image {
             return decodedImage;
         } catch (Exception e) {
             frames.forEach(NativeImage::close);
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("Failed to load image", e);
             return null;
         }
     }
@@ -173,12 +189,23 @@ public class Image {
         return new TextureInfo(textureId, location, image.getWidth(), image.getHeight());
     }
 
-    private record TextureInfo(int textureId, ResourceLocation location, int width, int height) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class TextureInfo {
+        private int textureId;
+        private ResourceLocation location;
+        private int width;
+        private int height;
+    }
 
     public interface ITexture {
         ResourceLocation getLocation();
+
         int getWidth();
+
         int getHeight();
+
         void destroy();
     }
 
@@ -195,16 +222,37 @@ public class Image {
             this.height = height;
         }
 
-        @Override public ResourceLocation getLocation() { return location; }
-        @Override public int getWidth() { return width; }
-        @Override public int getHeight() { return height; }
-        @Override public void destroy() {
+        @Override
+        public ResourceLocation getLocation() {
+            return location;
+        }
+
+        @Override
+        public int getWidth() {
+            return width;
+        }
+
+        @Override
+        public int getHeight() {
+            return height;
+        }
+
+        @Override
+        public void destroy() {
             RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(textureId));
         }
     }
 
     public static class AnimatedTexture implements ITexture {
-        public record Frame(ResourceLocation location, int textureId, int durationMs) {}
+        @Getter
+        @Accessors(fluent = true)
+        @AllArgsConstructor
+        public static class Frame {
+            private ResourceLocation location;
+            private int textureId;
+            private int durationMs;
+        }
+
         private final List<Frame> frames;
         private final int width;
         private final int height;
@@ -231,19 +279,38 @@ public class Image {
             return frames.get(0).location;
         }
 
-        @Override public int getWidth() { return width; }
-        @Override public int getHeight() { return height; }
-        @Override public void destroy() {
+        @Override
+        public int getWidth() {
+            return width;
+        }
+
+        @Override
+        public int getHeight() {
+            return height;
+        }
+
+        @Override
+        public void destroy() {
             for (Frame frame : frames) {
                 RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(frame.textureId));
             }
         }
     }
 
-    public static class SimpleTextureWrapper extends AbstractTexture {
+    public static class SimpleTextureWrapper extends Texture {
         private final int textureId;
-        public SimpleTextureWrapper(int textureId) { this.textureId = textureId; }
-        @Override public int getId() { return textureId; }
-        @Override public void load(ResourceManager manager) { }
+
+        public SimpleTextureWrapper(int textureId) {
+            this.textureId = textureId;
+        }
+
+        @Override
+        public int getId() {
+            return textureId;
+        }
+
+        @Override
+        public void load(IResourceManager manager) {
+        }
     }
 }

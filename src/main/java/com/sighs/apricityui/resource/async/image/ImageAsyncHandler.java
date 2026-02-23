@@ -6,6 +6,10 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.io.InputStream;
 import java.util.Collection;
@@ -28,7 +32,7 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
     }
 
     public ImageHandle request(String path, Element requester, boolean needRelayout) {
-        if (path == null || path.isBlank() || "unset".equals(path)) return null;
+        if (StringUtils.isNullOrEmptyEx(path) || "unset".equals(path)) return null;
 
         long now = System.currentTimeMillis();
         long generation = currentGeneration();
@@ -79,7 +83,7 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
                         handle.markFailed(new IllegalStateException("未找到图片资源: " + handle.path()), System.currentTimeMillis());
                         return;
                     }
-                    byte[] bytes = is.readAllBytes();
+                    byte[] bytes = Image.toByteArray(is);
                     decodedImage = Image.decode(handle.path(), bytes);
                 }
             }
@@ -154,5 +158,12 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         }
     }
 
-    public record ImageApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {}
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class ImageApplyTask {
+        private ImageHandle handle;
+        private DecodedImage decodedImage;
+        private long generation;
+    }
 }

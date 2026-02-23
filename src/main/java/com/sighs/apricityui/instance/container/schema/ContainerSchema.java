@@ -2,8 +2,12 @@ package com.sighs.apricityui.instance.container.schema;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.HTML;
-import net.minecraft.network.FriendlyByteBuf;
-import net.minecraft.resources.ResourceLocation;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+import net.minecraft.network.PacketBuffer;
+import net.minecraft.util.ResourceLocation;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -13,22 +17,26 @@ public final class ContainerSchema {
     public static final class Descriptor {
         public static final String DEFAULT_PARTITION_KEY = "c0";
         public static final int PLAYER_SLOT_COUNT = 36;
+        @Getter
         private final String menuKey;
+        @Getter
         private final String templatePath;
+        @Getter
         private final String primaryPartitionKey;
         private final LinkedHashMap<String, BindType> bindMapping;
         private final LinkedHashMap<String, List<Integer>> slotMapping;
         private final LinkedHashMap<String, Map<Integer, SlotVisualProfile>> slotVisualMapping;
+
         public Descriptor(String menuKey, String templatePath, Map<String, List<Integer>> slotMapping) {
-            this(menuKey, templatePath, resolveDefaultPrimaryPartitionKey(slotMapping), createDefaultBindMapping(slotMapping, BindType.PLAYER), slotMapping, Map.of());
+            this(menuKey, templatePath, resolveDefaultPrimaryPartitionKey(slotMapping), createDefaultBindMapping(slotMapping, BindType.PLAYER), slotMapping, new HashMap<>());
         }
 
         public Descriptor(String menuKey, String templatePath, Map<String, BindType> bindMapping, Map<String, List<Integer>> slotMapping) {
-            this(menuKey, templatePath, resolveDefaultPrimaryPartitionKey(slotMapping), bindMapping, slotMapping, Map.of());
+            this(menuKey, templatePath, resolveDefaultPrimaryPartitionKey(slotMapping), bindMapping, slotMapping, new HashMap<>());
         }
 
         public Descriptor(String menuKey, String templatePath, String primaryPartitionKey, Map<String, BindType> bindMapping, Map<String, List<Integer>> slotMapping) {
-            this(menuKey, templatePath, primaryPartitionKey, bindMapping, slotMapping, Map.of());
+            this(menuKey, templatePath, primaryPartitionKey, bindMapping, slotMapping, new HashMap<>());
         }
 
         public Descriptor(String menuKey,
@@ -43,13 +51,13 @@ public final class ContainerSchema {
             this.slotMapping = new LinkedHashMap<>();
             this.slotVisualMapping = new LinkedHashMap<>();
             String resolvedPrimaryPartitionKey = primaryPartitionKey;
-            if (slotMapping == null) slotMapping = Map.of();
-            if (bindMapping == null) bindMapping = Map.of();
-            if (slotVisualMapping == null) slotVisualMapping = Map.of();
+            if (slotMapping == null) slotMapping = new HashMap<>();
+            if (bindMapping == null) bindMapping = new HashMap<>();
+            if (slotVisualMapping == null) slotVisualMapping = new HashMap<>();
             Map<String, BindType> finalBindMapping = bindMapping;
             Map<String, Map<Integer, SlotVisualProfile>> finalSlotVisualMapping = slotVisualMapping;
             slotMapping.forEach((containerId, slots) -> {
-                if (containerId == null || containerId.isBlank()) return;
+                if (StringUtils.isNullOrEmptyEx(containerId)) return;
                 ArrayList<Integer> safeSlots = new ArrayList<>();
                 if (slots != null) for (Integer slot : slots) {
                     if (slot != null && slot >= 0) safeSlots.add(slot);
@@ -73,13 +81,13 @@ public final class ContainerSchema {
                     this.slotVisualMapping.put(containerId, Collections.unmodifiableMap(safeVisuals));
                 }
             });
-            if (resolvedPrimaryPartitionKey == null || resolvedPrimaryPartitionKey.isBlank() || !this.slotMapping.containsKey(resolvedPrimaryPartitionKey)) {
+            if (StringUtils.isNullOrEmptyEx(resolvedPrimaryPartitionKey) || !this.slotMapping.containsKey(resolvedPrimaryPartitionKey)) {
                 resolvedPrimaryPartitionKey = resolveDefaultPrimaryPartitionKey(this.slotMapping);
             }
             this.primaryPartitionKey = resolvedPrimaryPartitionKey;
         }
 
-        public static Descriptor read(FriendlyByteBuf buf) {
+        public static Descriptor read(PacketBuffer buf) {
             String menuKey = buf.readUtf();
             String templatePath = buf.readUtf();
             String primaryPartitionKey = buf.readUtf();
@@ -91,7 +99,7 @@ public final class ContainerSchema {
                 BindType bindType = BindType.fromRaw(buf.readUtf());
                 if (bindType == null) {
                     ApricityUI.LOGGER.warn("Descriptor decode failed: invalid bindType, container={}", containerId);
-                    return new Descriptor(menuKey, templatePath, Map.of(), Map.of());
+                    return new Descriptor(menuKey, templatePath, new HashMap<>(), new HashMap<>());
                 }
                 int slotCount = buf.readVarInt();
                 ArrayList<Integer> slots = new ArrayList<>(slotCount);
@@ -120,11 +128,11 @@ public final class ContainerSchema {
 
             Descriptor descriptor = createSanitized(menuKey, templatePath, primaryPartitionKey, binds, mapping, slotVisualMapping);
             if (descriptor != null) return descriptor;
-            return new Descriptor(menuKey, templatePath, Map.of(), Map.of());
+            return new Descriptor(menuKey, templatePath, new HashMap<>(), new HashMap<>());
         }
 
         public static Descriptor createSanitized(String menuKey, String templatePath, Map<String, BindType> bindMapping, Map<String, List<Integer>> slotMapping) {
-            return createSanitized(menuKey, templatePath, resolveDefaultPrimaryPartitionKey(slotMapping), bindMapping, slotMapping, Map.of());
+            return createSanitized(menuKey, templatePath, resolveDefaultPrimaryPartitionKey(slotMapping), bindMapping, slotMapping, new HashMap<>());
         }
 
         public static Descriptor createSanitized(String menuKey,
@@ -136,7 +144,7 @@ public final class ContainerSchema {
         }
 
         public static Descriptor createSanitized(String menuKey, String templatePath, String primaryPartitionKey, Map<String, BindType> bindMapping, Map<String, List<Integer>> slotMapping) {
-            return createSanitized(menuKey, templatePath, primaryPartitionKey, bindMapping, slotMapping, Map.of());
+            return createSanitized(menuKey, templatePath, primaryPartitionKey, bindMapping, slotMapping, new HashMap<>());
         }
 
         public static Descriptor createSanitized(String menuKey,
@@ -157,12 +165,16 @@ public final class ContainerSchema {
             String partitionKey = DEFAULT_PARTITION_KEY;
             return new Descriptor(menuKey, templatePath,
                     partitionKey,
-                    Map.of(partitionKey, BindType.PLAYER),
-                    Map.of(partitionKey, createPlayerSlots()));
+                    new HashMap<String, BindType>() {{
+                        put(partitionKey, BindType.PLAYER);
+                    }},
+                    new HashMap<String, List<Integer>>() {{
+                        put(partitionKey, createPlayerSlots());
+                    }});
         }
 
         public static Descriptor createUiOnly(String templatePath) {
-            return new Descriptor("apricityui:ui_only", templatePath, Map.of());
+            return new Descriptor("apricityui:ui_only", templatePath, new HashMap<>());
         }
 
         public static List<Integer> createPlayerSlots() {
@@ -212,7 +224,7 @@ public final class ContainerSchema {
             LinkedHashMap<String, BindType> result = new LinkedHashMap<>();
             if (slotMapping == null) return result;
             slotMapping.forEach((containerId, slots) -> {
-                if (containerId == null || containerId.isBlank()) return;
+                if (StringUtils.isNullOrEmptyEx(containerId)) return;
                 result.put(containerId, bindType);
             });
             return result;
@@ -221,7 +233,7 @@ public final class ContainerSchema {
         private static String resolveDefaultPrimaryPartitionKey(Map<String, List<Integer>> slotMapping) {
             if (slotMapping == null || slotMapping.isEmpty()) return DEFAULT_PARTITION_KEY;
             for (String key : slotMapping.keySet()) {
-                if (key != null && !key.isBlank()) return key;
+                if (StringUtils.isNullOrEmptyEx(key)) return key;
             }
             return DEFAULT_PARTITION_KEY;
         }
@@ -236,7 +248,7 @@ public final class ContainerSchema {
 
             for (Map.Entry<String, List<Integer>> entry : sanitizedSlotMapping.entrySet()) {
                 String containerId = entry.getKey();
-                if (containerId == null || containerId.isBlank()) continue;
+                if (StringUtils.isNullOrEmptyEx(containerId)) continue;
 
                 Map<Integer, SlotVisualProfile> rawVisuals = rawSlotVisualMapping.get(containerId);
                 if (rawVisuals == null || rawVisuals.isEmpty()) continue;
@@ -255,18 +267,6 @@ public final class ContainerSchema {
                 }
             }
             return result;
-        }
-
-        public String getMenuKey() {
-            return menuKey;
-        }
-
-        public String getTemplatePath() {
-            return templatePath;
-        }
-
-        public String getPrimaryPartitionKey() {
-            return primaryPartitionKey;
         }
 
         public Map<String, BindType> getBindMapping() {
@@ -316,7 +316,7 @@ public final class ContainerSchema {
             return slotMapping.isEmpty();
         }
 
-        public void write(FriendlyByteBuf buf) {
+        public void write(PacketBuffer buf) {
             buf.writeUtf(menuKey);
             buf.writeUtf(templatePath == null ? "" : templatePath);
             buf.writeUtf(primaryPartitionKey == null ? DEFAULT_PARTITION_KEY : primaryPartitionKey);
@@ -343,22 +343,30 @@ public final class ContainerSchema {
         }
 
         public Descriptor withTemplatePath(String templatePathOverride) {
-            String resolvedTemplatePath = (templatePathOverride == null || templatePathOverride.isBlank()) ? templatePath : templatePathOverride;
+            String resolvedTemplatePath = (StringUtils.isNullOrEmptyEx(templatePathOverride)) ? templatePath : templatePathOverride;
             return new Descriptor(menuKey, resolvedTemplatePath, primaryPartitionKey, bindMapping, slotMapping, slotVisualMapping);
         }
 
-        public record SlotVisualProfile(
-                Integer slotSize,
-                Boolean disabled,
-                Boolean acceptPointer,
-                Boolean renderBackground,
-                Boolean renderItem,
-                Float iconScale,
-                Integer padding,
-                Integer zIndex,
-                String extraClasses
-        ) {
-            public record RenderRule(boolean renderBackground, boolean renderItem) {
+        @Getter
+        @Accessors(fluent = true)
+        @AllArgsConstructor
+        public static class SlotVisualProfile {
+            private Integer slotSize;
+            private Boolean disabled;
+            private Boolean acceptPointer;
+            private Boolean renderBackground;
+            private Boolean renderItem;
+            private Float iconScale;
+            private Integer padding;
+            private Integer zIndex;
+            private String extraClasses;
+
+            @Getter
+            @Accessors(fluent = true)
+            @AllArgsConstructor
+            public static class RenderRule {
+                private boolean renderBackground;
+                private boolean renderItem;
             }
 
             private static final int FLAG_SLOT_SIZE = 1;
@@ -416,7 +424,7 @@ public final class ContainerSchema {
                 );
             }
 
-            public static SlotVisualProfile read(FriendlyByteBuf buf) {
+            public static SlotVisualProfile read(PacketBuffer buf) {
                 int flags = buf.readVarInt();
                 Integer slotSize = (flags & FLAG_SLOT_SIZE) != 0 ? buf.readVarInt() : null;
                 Boolean disabled = (flags & FLAG_DISABLED) != 0 ? buf.readBoolean() : null;
@@ -430,7 +438,7 @@ public final class ContainerSchema {
                 return new SlotVisualProfile(slotSize, disabled, acceptPointer, renderBackground, renderItem, iconScale, padding, zIndex, extraClasses);
             }
 
-            public void write(FriendlyByteBuf buf) {
+            public void write(PacketBuffer buf) {
                 int flags = 0;
                 if (slotSize != null) flags |= FLAG_SLOT_SIZE;
                 if (disabled != null) flags |= FLAG_DISABLED;
@@ -440,7 +448,7 @@ public final class ContainerSchema {
                 if (iconScale != null) flags |= FLAG_ICON_SCALE;
                 if (padding != null) flags |= FLAG_PADDING;
                 if (zIndex != null) flags |= FLAG_Z_INDEX;
-                if (extraClasses != null && !extraClasses.isBlank()) flags |= FLAG_EXTRA_CLASSES;
+                if (StringUtils.isNotNullOrEmptyEx(extraClasses)) flags |= FLAG_EXTRA_CLASSES;
                 buf.writeVarInt(flags);
                 if (slotSize != null) buf.writeVarInt(Math.max(1, slotSize));
                 if (disabled != null) buf.writeBoolean(disabled);
@@ -450,7 +458,7 @@ public final class ContainerSchema {
                 if (iconScale != null) buf.writeFloat(Math.max(0.01F, iconScale));
                 if (padding != null) buf.writeVarInt(Math.max(0, padding));
                 if (zIndex != null) buf.writeInt(zIndex);
-                if (extraClasses != null && !extraClasses.isBlank()) buf.writeUtf(extraClasses);
+                if (StringUtils.isNotNullOrEmptyEx(extraClasses)) buf.writeUtf(extraClasses);
             }
 
             public int resolveSlotSize(int fallback) {
@@ -494,12 +502,12 @@ public final class ContainerSchema {
             }
 
             public String resolveExtraClasses(String fallback) {
-                if (extraClasses == null || extraClasses.isBlank()) return fallback;
+                if (StringUtils.isNullOrEmptyEx(extraClasses)) return fallback;
                 return extraClasses;
             }
 
             private static Boolean parseBoolean(String raw) {
-                if (raw == null || raw.isBlank()) return null;
+                if (StringUtils.isNullOrEmptyEx(raw)) return null;
                 String normalized = raw.trim().toLowerCase(Locale.ROOT);
                 if ("true".equals(normalized) || "1".equals(normalized) || "on".equals(normalized) || "yes".equals(normalized)) {
                     return true;
@@ -511,7 +519,7 @@ public final class ContainerSchema {
             }
 
             public static Boolean parsePointerFlag(String raw) {
-                if (raw == null || raw.isBlank()) return null;
+                if (StringUtils.isNullOrEmptyEx(raw)) return null;
                 String normalized = raw.trim().toLowerCase(Locale.ROOT);
                 if ("auto".equals(normalized)) return null;
                 if ("true".equals(normalized)
@@ -531,21 +539,26 @@ public final class ContainerSchema {
             }
 
             public static RenderRule parseRenderRule(String raw) {
-                if (raw == null || raw.isBlank()) return null;
+                if (StringUtils.isNullOrEmptyEx(raw)) return null;
                 String normalized = raw.trim().toLowerCase(Locale.ROOT);
-                return switch (normalized) {
-                    case "none" -> new RenderRule(false, false);
-                    case "item" -> new RenderRule(false, true);
-                    case "bg", "background" -> new RenderRule(true, false);
-                    default -> parseRenderRuleByTokens(normalized);
-                };
+                switch (normalized) {
+                    case "none":
+                        return new RenderRule(false, false);
+                    case "item":
+                        return new RenderRule(false, true);
+                    case "bg":
+                    case "background":
+                        return new RenderRule(true, false);
+                    default:
+                        return parseRenderRuleByTokens(normalized);
+                }
             }
 
             private static RenderRule parseRenderRuleByTokens(String normalized) {
                 String[] tokens = normalized.split("[\\s,|+/]+");
                 LinkedHashSet<String> normalizedTokens = new LinkedHashSet<>();
                 for (String token : tokens) {
-                    if (token == null || token.isBlank()) continue;
+                    if (StringUtils.isNullOrEmptyEx(token)) continue;
                     normalizedTokens.add(token.trim());
                 }
                 if (normalizedTokens.isEmpty()) return null;
@@ -570,7 +583,7 @@ public final class ContainerSchema {
             }
 
             public static Integer parseSignedInt(String raw) {
-                if (raw == null || raw.isBlank()) return null;
+                if (StringUtils.isNullOrEmptyEx(raw)) return null;
                 try {
                     return Integer.parseInt(raw.trim());
                 } catch (NumberFormatException ignored) {
@@ -591,7 +604,7 @@ public final class ContainerSchema {
             }
 
             public static Float parsePositiveFloat(String raw) {
-                if (raw == null || raw.isBlank()) return null;
+                if (StringUtils.isNullOrEmptyEx(raw)) return null;
                 try {
                     float parsed = Float.parseFloat(raw.trim());
                     if (parsed <= 0.0F) return null;
@@ -604,15 +617,15 @@ public final class ContainerSchema {
             private static String normalizeBlankToNull(String raw) {
                 if (raw == null) return null;
                 String normalized = raw.trim();
-                return normalized.isBlank() ? null : normalized;
+                return StringUtils.isNullOrEmptyEx(normalized) ? null : normalized;
             }
 
             private static String firstNonBlank(Map<String, String> attributes, String... keys) {
                 if (attributes == null || attributes.isEmpty() || keys == null || keys.length == 0) return null;
                 for (String key : keys) {
-                    if (key == null || key.isBlank()) continue;
+                    if (StringUtils.isNullOrEmptyEx(key)) continue;
                     String value = attributes.get(key);
-                    if (value == null || value.isBlank()) continue;
+                    if (StringUtils.isNullOrEmptyEx(value)) continue;
                     return value;
                 }
                 return null;
@@ -641,7 +654,7 @@ public final class ContainerSchema {
             }
 
             public static BindType fromRaw(String rawBindType) {
-                if (rawBindType == null || rawBindType.isBlank()) return null;
+                if (StringUtils.isNullOrEmptyEx(rawBindType)) return null;
                 String bindType = rawBindType.trim().toLowerCase(Locale.ROOT);
                 return BY_ID.get(bindType);
             }
@@ -672,7 +685,7 @@ public final class ContainerSchema {
         }
 
         public static String normalizeContainerId(String rawContainerId) {
-            if (rawContainerId == null || rawContainerId.isBlank()) return null;
+            if (StringUtils.isNullOrEmptyEx(rawContainerId)) return null;
             String containerId = rawContainerId.trim().toLowerCase(Locale.ROOT);
             if (!CONTAINER_ID_PATTERN.matcher(containerId).matches()) return null;
             return containerId;
@@ -693,7 +706,13 @@ public final class ContainerSchema {
         }
     }
 
-    public record OpenRequest(String templatePath, ResourceLocation menuKey) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class OpenRequest {
+        private String templatePath;
+        private ResourceLocation menuKey;
+
         public static OpenRequest fromRaw(String rawTemplatePath) {
             String normalizedTemplatePath = MenuKeyResolver.normalizeTemplatePath(rawTemplatePath);
             if (normalizedTemplatePath == null) return null;
@@ -726,7 +745,7 @@ public final class ContainerSchema {
             boolean[] invalidFound = {false};
             rawSlotMapping.forEach((rawContainerId, rawSlots) -> {
                 if (invalidFound[0]) return;
-                if (rawContainerId == null || rawContainerId.isBlank()) return;
+                if (StringUtils.isNullOrEmptyEx(rawContainerId)) return;
 
                 String normalizedContainerId = MenuKeyResolver.normalizeContainerId(rawContainerId);
                 if (normalizedContainerId == null || slotMapping.containsKey(normalizedContainerId)) return;
@@ -759,8 +778,12 @@ public final class ContainerSchema {
             return rawBindMapping.get(normalizedContainerId);
         }
 
-        public record SanitizedMapping(LinkedHashMap<String, Descriptor.BindType> bindMapping,
-                                       LinkedHashMap<String, List<Integer>> slotMapping) {
+        @Getter
+        @Accessors(fluent = true)
+        @AllArgsConstructor
+        public static class SanitizedMapping {
+            private LinkedHashMap<String, Descriptor.BindType> bindMapping;
+            private LinkedHashMap<String, List<Integer>> slotMapping;
         }
     }
 
@@ -794,7 +817,7 @@ public final class ContainerSchema {
             if (request == null) return null;
 
             String rawHtml = HTML.getTemple(request.templatePath());
-            if (rawHtml == null || rawHtml.isBlank()) return null;
+            if (StringUtils.isNullOrEmptyEx(rawHtml)) return null;
 
             List<ContainerDraft> drafts = parseContainerDrafts(rawHtml, request.templatePath());
             String primaryPartitionKey = resolvePrimaryPartitionKey(request.templatePath(), drafts);
@@ -802,7 +825,7 @@ public final class ContainerSchema {
 
             for (ContainerDraft draft : drafts) {
                 if (!primaryPartitionKey.equals(draft.partitionKey)) continue;
-                if (draft.titleLiteral == null || draft.titleLiteral.isBlank()) return null;
+                if (StringUtils.isNullOrEmptyEx(draft.titleLiteral)) return null;
                 return draft.titleLiteral.trim();
             }
             return null;
@@ -810,7 +833,7 @@ public final class ContainerSchema {
 
         private static AnalyzeResult buildContainerMapping(String templatePath) {
             String rawHtml = HTML.getTemple(templatePath);
-            if (rawHtml == null || rawHtml.isBlank()) {
+            if (StringUtils.isNullOrEmptyEx(rawHtml)) {
                 ApricityUI.LOGGER.warn("Template analysis failed: HTML content not found, path={}", templatePath);
                 return AnalyzeResult.invalid();
             }
@@ -832,8 +855,8 @@ public final class ContainerSchema {
 
                 if (draft.virtualContainer) {
                     rawBindMapping.put(draft.partitionKey, Descriptor.BindType.VIRTUAL_UI);
-                    rawSlotMapping.put(draft.partitionKey, List.of());
-                    rawSlotVisualMapping.put(draft.partitionKey, Map.of());
+                    rawSlotMapping.put(draft.partitionKey, Collections.emptyList());
+                    rawSlotVisualMapping.put(draft.partitionKey, new HashMap<>());
                     if (draft.ignoredBoundSlotCount > 0) {
                         ApricityUI.LOGGER.info(
                                 "Template analysis: virtual container ignored bound slots, path={}, partition={}, ignored={}",
@@ -1042,7 +1065,7 @@ public final class ContainerSchema {
 
         private static LinkedHashMap<String, String> parseAttributes(String attrSection) {
             LinkedHashMap<String, String> attributes = new LinkedHashMap<>();
-            if (attrSection == null || attrSection.isBlank()) return attributes;
+            if (StringUtils.isNullOrEmptyEx(attrSection)) return attributes;
 
             Matcher attrMatcher = ATTRIBUTE_PATTERN.matcher(attrSection);
             while (attrMatcher.find()) {
@@ -1094,7 +1117,7 @@ public final class ContainerSchema {
         }
 
         private static boolean isVirtualContainer(String rawBind) {
-            return rawBind == null || rawBind.isBlank();
+            return StringUtils.isNullOrEmptyEx(rawBind);
         }
 
         private static Integer resolveAutoSlotCount(Map<String, String> attributes, Descriptor.BindType bindType) {
@@ -1106,7 +1129,7 @@ public final class ContainerSchema {
 
         private static boolean isBoundSlot(Map<String, String> attributes) {
             String rawMode = attributes.get("mode");
-            if (rawMode == null || rawMode.isBlank()) return true;
+            if (StringUtils.isNullOrEmptyEx(rawMode)) return true;
             return "bound".equals(rawMode.trim().toLowerCase(Locale.ROOT));
         }
 
@@ -1117,7 +1140,7 @@ public final class ContainerSchema {
         }
 
         private static Integer parseSlotIndex(String rawSlotIndex) {
-            if (rawSlotIndex == null || rawSlotIndex.isBlank()) return null;
+            if (StringUtils.isNullOrEmptyEx(rawSlotIndex)) return null;
             try {
                 return Integer.parseInt(rawSlotIndex.trim());
             } catch (NumberFormatException ignored) {
@@ -1126,7 +1149,7 @@ public final class ContainerSchema {
         }
 
         private static Integer parsePositive(String raw) {
-            if (raw == null || raw.isBlank()) return null;
+            if (StringUtils.isNullOrEmptyEx(raw)) return null;
             try {
                 int value = Integer.parseInt(raw.trim());
                 return value > 0 ? value : null;
@@ -1135,14 +1158,24 @@ public final class ContainerSchema {
             }
         }
 
-        private record TagData(String tagName, Map<String, String> attributes) {
+        @Getter
+        @Accessors(fluent = true)
+        @AllArgsConstructor
+        private static class TagData {
+            private String tagName;
+            private Map<String, String> attributes;
         }
 
-        private record AnalyzeResult(boolean valid,
-                                     String primaryPartitionKey,
-                                     LinkedHashMap<String, Descriptor.BindType> bindMapping,
-                                     LinkedHashMap<String, List<Integer>> slotMapping,
-                                     LinkedHashMap<String, Map<Integer, Descriptor.SlotVisualProfile>> slotVisualMapping) {
+        @Getter
+        @Accessors(fluent = true)
+        @AllArgsConstructor
+        private static class AnalyzeResult {
+            private boolean valid;
+            private String primaryPartitionKey;
+            private LinkedHashMap<String, Descriptor.BindType> bindMapping;
+            private LinkedHashMap<String, List<Integer>> slotMapping;
+            private LinkedHashMap<String, Map<Integer, Descriptor.SlotVisualProfile>> slotVisualMapping;
+
             private static AnalyzeResult invalid() {
                 return new AnalyzeResult(false, null, new LinkedHashMap<>(), new LinkedHashMap<>(), new LinkedHashMap<>());
             }
@@ -1209,8 +1242,8 @@ public final class ContainerSchema {
             }
 
             private Map<Integer, Descriptor.SlotVisualProfile> exportSlotVisualProfiles(List<Integer> includedSlots) {
-                if (includedSlots == null || includedSlots.isEmpty()) return Map.of();
-                if (slotVisualProfiles.isEmpty()) return Map.of();
+                if (includedSlots == null || includedSlots.isEmpty()) return new HashMap<>();
+                if (slotVisualProfiles.isEmpty()) return new HashMap<>();
 
                 LinkedHashMap<Integer, Descriptor.SlotVisualProfile> result = new LinkedHashMap<>();
                 for (Integer localSlotIndex : includedSlots) {
@@ -1219,7 +1252,7 @@ public final class ContainerSchema {
                     if (profile == null) continue;
                     result.put(localSlotIndex, profile);
                 }
-                if (result.isEmpty()) return Map.of();
+                if (result.isEmpty()) return new HashMap<>();
                 return result;
             }
         }
@@ -1283,7 +1316,7 @@ public final class ContainerSchema {
                 if (titleCaptureActive) {
                     if (draft != null) {
                         String captured = titleBuffer.toString();
-                        draft.setTitleLiteral(captured == null || captured.isBlank() ? null : captured.trim());
+                        draft.setTitleLiteral(StringUtils.isNullOrEmptyEx(captured) ? null : captured.trim());
                     }
                     titleCaptureActive = false;
                     titleCaptureDepth = -1;

@@ -1,8 +1,10 @@
 package com.sighs.apricityui.event;
 
-import com.sighs.apricityui.instance.element.Slot;
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Box;
@@ -158,7 +160,7 @@ public class MouseEvent extends Event implements Cloneable {
         if (target != null) {
             if (event.shiftKey) target.setScrollLeft(target.scrollLeft + event.scrollDelta);
             else target.setScrollTop(target.scrollTop + event.scrollDelta);
-            if(target.children != null) {
+            if (target.children != null) {
                 target.children.forEach(e -> e.getRenderer().position.clear());
             }
         }
@@ -183,15 +185,16 @@ public class MouseEvent extends Event implements Cloneable {
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
 
-            if (node instanceof RenderNode.MaskPopNode popNode) {
+            if (node instanceof RenderNode.MaskPopNode) {
+                RenderNode.MaskPopNode popNode = (RenderNode.MaskPopNode) node;
                 clipStack.push(popNode.target());
-            }
-            else if (node instanceof RenderNode.MaskPushNode pushNode) {
+            } else if (node instanceof RenderNode.MaskPushNode) {
+                RenderNode.MaskPushNode pushNode = (RenderNode.MaskPushNode) node;
                 if (!clipStack.isEmpty() && clipStack.peek() == pushNode.target()) {
                     clipStack.pop();
                 }
-            }
-            else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {
+            } else if (node instanceof RenderNode.ElementPhaseNode) {
+                RenderNode.ElementPhaseNode phaseNode = (RenderNode.ElementPhaseNode) node;
                 Element element = phaseNode.target();
                 boolean slotNode = element instanceof Slot;
                 if (phaseNode.phase() != Base.RenderPhase.BODY && !slotNode) continue;

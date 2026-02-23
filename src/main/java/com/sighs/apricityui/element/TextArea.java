@@ -1,17 +1,19 @@
 package com.sighs.apricityui.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Color;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.*;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.common.Mod;
 
@@ -123,13 +125,13 @@ public class TextArea extends AbstractTextElement {
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
-        if (phase == Base.RenderPhase.SHADOW) rectRenderer.drawShadow(poseStack);
-        if (phase == Base.RenderPhase.BORDER) rectRenderer.drawBorder(poseStack);
+        if (phase == Base.RenderPhase.SHADOW) rectRenderer.drawShadow(stack);
+        if (phase == Base.RenderPhase.BORDER) rectRenderer.drawBorder(stack);
         if (phase != Base.RenderPhase.BODY) return;
 
-        rectRenderer.drawBody(poseStack);
+        rectRenderer.drawBody(stack);
 
         String renderText = getRenderText();
         boolean isPlaceholder = renderText.isEmpty() && !placeholder.isEmpty();
@@ -145,9 +147,9 @@ public class TextArea extends AbstractTextElement {
         if (isPlaceholder) {
             text.content = placeholder;
             text.color = new Color("#888888");
-            FontDrawer.drawFont(poseStack, text, new Position(baseX, baseY));
+            FontDrawer.drawFont(stack, text, new Position(baseX, baseY));
             if (Element.isElementFocusing(this)) {
-                Graph.drawCursor(poseStack.last().pose(), baseX, baseY, (float) lineHeight, Style.getFontColor(this), lastBlinkTime);
+                Graph.drawCursor(stack.last().pose(), baseX, baseY, (float) lineHeight, Style.getFontColor(this), lastBlinkTime);
             }
             return;
         }
@@ -156,13 +158,13 @@ public class TextArea extends AbstractTextElement {
         List<String> lines = wrapped.lines;
         int[] starts = wrapped.starts;
 
-        drawSelection(poseStack, lines, starts, baseX, baseY, lineHeight);
+        drawSelection(stack, lines, starts, baseX, baseY, lineHeight);
 
         text.color = new Color(Style.getFontColor(this));
         for (int i = 0; i < lines.size(); i++) {
             text.content = lines.get(i);
             float y = (float) (baseY + i * lineHeight);
-            FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
+            FontDrawer.drawFont(stack, text, new Position(baseX, y));
         }
 
         if (!Element.isElementFocusing(this)) return;
@@ -172,10 +174,10 @@ public class TextArea extends AbstractTextElement {
         double cursorOffset = Size.measureText(this, lines.get(cursorLine).substring(0, column));
         float cursorX = (float) (baseX + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
-        Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Style.getFontColor(this), lastBlinkTime);
+        Graph.drawCursor(stack.last().pose(), cursorX, cursorY, (float) lineHeight, Style.getFontColor(this), lastBlinkTime);
     }
 
-    private void drawSelection(PoseStack poseStack, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
+    private void drawSelection(MatrixStack stack, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
         if (!hasSelection()) return;
 
         int min = selMin();
@@ -197,7 +199,7 @@ public class TextArea extends AbstractTextElement {
             float x1 = (float) (baseX + endX);
             float y0 = (float) (baseY + i * lineHeight);
             float y1 = (float) (y0 + lineHeight);
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
+            Graph.drawFillRect(stack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
         }
     }
 
@@ -243,7 +245,7 @@ public class TextArea extends AbstractTextElement {
             double charWidth = Size.measureText(this, charStr);
 
             // 软换行
-            if (!current.isEmpty() && currentWidth + charWidth > wrapWidth) {
+            if (current.length() > 0 && currentWidth + charWidth > wrapWidth) {
                 lines.add(current.toString());
                 current.setLength(0);
                 currentWidth = 0;
@@ -262,6 +264,11 @@ public class TextArea extends AbstractTextElement {
         return new WrapResult(lines, startArr);
     }
 
-    private record WrapResult(List<String> lines, int[] starts) {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    private static class WrapResult {
+        private List<String> lines;
+        private int[] starts;
     }
 }

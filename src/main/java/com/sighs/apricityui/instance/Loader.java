@@ -10,9 +10,9 @@ import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.resources.IResource;
+import net.minecraft.resources.IResourceManager;
+import net.minecraft.util.ResourceLocation;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
@@ -24,8 +24,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Collection;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
@@ -62,9 +61,13 @@ public class Loader {
 
             // 资源包
             ResourceLocation rl = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
-            Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(rl);
-            if (res.isPresent()) return res.get().open();
-        } catch (IOException ignored) {}
+            IResourceManager resourceManager = Minecraft.getInstance().getResourceManager();
+            if (resourceManager.hasResource(rl)) {
+                IResource res = resourceManager.getResource(rl);
+                return res.getInputStream();
+            }
+        } catch (IOException ignored) {
+        }
         return null;
     }
 
@@ -98,7 +101,8 @@ public class Loader {
     }
 
     private final String extension;
-    private BiConsumer<String, String> handler = (k, c) -> {};
+    private BiConsumer<String, String> handler = (k, c) -> {
+    };
 
     public Loader(String extension) {
         this.extension = extension;
@@ -111,17 +115,17 @@ public class Loader {
     }
 
     private void loadFromResourcePack() {
-        ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity",
-                loc -> loc.getPath().endsWith("." + extension));
+        IResourceManager manager = Minecraft.getInstance().getResourceManager();
+        Collection<ResourceLocation> resources = manager.listResources("apricity",
+                loc -> loc.endsWith("." + extension));
 
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
-            try (InputStream stream = entry.getValue().open()) {
-                String path = entry.getKey().getPath(); // "apricity/modid/index.html"
+        for (ResourceLocation location : resources) {
+            try (InputStream stream = manager.getResource(location).getInputStream()) {
+                String path = location.getPath(); // "apricity/modid/index.html"
                 if (path.startsWith("apricity/")) path = path.substring(9);
                 handler.accept(path, IOUtils.toString(stream, StandardCharsets.UTF_8));
             } catch (IOException e) {
-                e.printStackTrace();
+                ApricityUI.LOGGER.error("Failed to load resource: {}", location, e);
             }
         }
     }
@@ -138,19 +142,22 @@ public class Loader {
                         .filter(p -> p.toString().endsWith("." + extension))
                         .forEach(p -> {
                             try {
-                                String content = Files.readString(p, StandardCharsets.UTF_8);
+                                String content = new String(Files.readAllBytes(p), StandardCharsets.UTF_8);
                                 String relPath = root.relativize(p).toString().replace("\\", "/");
                                 handler.accept(relPath, content);
-                            } catch (IOException ignored) {}
+                            } catch (IOException ignored) {
+                            }
                         });
             }
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     public static String readGlobalCSS() {
         try (InputStream is = getResourceStream("global.css")) {
             if (is != null) return IOUtils.toString(is, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         return null;
     }
 }

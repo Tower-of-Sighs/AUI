@@ -1,6 +1,6 @@
 package com.sighs.apricityui.element;
 
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -24,12 +24,15 @@ public class Select extends Element {
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
         switch (phase) {
-            case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY -> {
-                rectRenderer.drawBody(poseStack);
+            case SHADOW: {
+                rectRenderer.drawShadow(stack);
+            }
+            break;
+            case BODY: {
+                rectRenderer.drawBody(stack);
                 Text text = Text.of(this);
                 if (!children.isEmpty()) text.content = children.get(0).innerText;
                 for (Element child : children) {
@@ -38,11 +41,13 @@ public class Select extends Element {
                         break;
                     }
                 }
-                FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
+                FontDrawer.drawFont(stack, text, rectRenderer.getContentPosition());
             }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
+            break;
+            case BORDER: {
+                rectRenderer.drawBorder(stack);
             }
+            break;
         }
     }
 

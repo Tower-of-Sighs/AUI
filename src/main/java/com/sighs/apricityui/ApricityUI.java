@@ -1,6 +1,5 @@
 package com.sighs.apricityui;
 
-import com.mojang.logging.LogUtils;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.container.bind.ApricityDataSourceResolver;
@@ -9,14 +8,17 @@ import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.Keybindings;
 import dev.latvian.mods.rhino.util.HideFromJS;
-import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import org.slf4j.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,13 +26,18 @@ import java.util.List;
 @Mod(ApricityUI.MODID)
 public class ApricityUI {
     public static final String MODID = "apricityui";
-    public static final Logger LOGGER = LogUtils.getLogger();
+    public static final Logger LOGGER = LogManager.getLogger();
 
     @HideFromJS
     public ApricityUI() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         ApricityMenus.register(modEventBus);
         ApricityNetwork.register();
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onClientSetup);
+    }
+
+    public void onClientSetup(final FMLClientSetupEvent event) {
+        Keybindings.registerKeyMapping();
     }
 
     public static Window getWindow() {
@@ -61,7 +68,7 @@ public class ApricityUI {
         DistExecutor.safeRunWhenOn(Dist.CLIENT, () -> () -> ApricityScreenNetworkHandler.requestOpenScreen(path));
     }
 
-    public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
+    public static void openScreen(ServerPlayerEntity player, String path, OpenBindPlan plan) {
         ApricityScreenNetworkHandler.openScreen(player, path, plan);
     }
 

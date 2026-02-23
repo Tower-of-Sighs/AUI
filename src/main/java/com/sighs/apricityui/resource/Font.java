@@ -1,5 +1,7 @@
 package com.sighs.apricityui.resource;
 
+import com.sighs.apricityui.ApricityUI;
+
 import java.awt.*;
 import java.io.File;
 import java.io.IOException;
@@ -29,7 +31,7 @@ public class Font {
             FONTS.put(cleanKey, derived);
             return true;
         } catch (FontFormatException | IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("Failed to register font: {}", key, e);
             return false;
         }
     }
@@ -43,7 +45,7 @@ public class Font {
             FONTS.put(cleanKey, derived);
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("Failed to register font: {}", key, e);
             return false;
         }
     }

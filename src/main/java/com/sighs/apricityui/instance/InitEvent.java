@@ -3,7 +3,7 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.LocalStorage;
 import com.sighs.apricityui.init.Window;
-import net.minecraft.nbt.NbtIo;
+import net.minecraft.nbt.CompressedStreamTools;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -19,9 +19,9 @@ public class InitEvent {
     @SubscribeEvent
     public static void localStorageInit(FMLClientSetupEvent event) {
         try {
-            Window.window.localStorage.localStorage = NbtIo.readCompressed(LocalStorage.LOCAL_STORAGE_FILE_PATH);
+            Window.window.localStorage.localStorage = CompressedStreamTools.readCompressed(LocalStorage.LOCAL_STORAGE_FILE_PATH);
         } catch (IOException e) {
-            //文件不存在
+            // 文件不存在
             Window.window.localStorage.save();
         }
     }

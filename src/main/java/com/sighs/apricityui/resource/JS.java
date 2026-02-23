@@ -2,6 +2,7 @@ package com.sighs.apricityui.resource;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,7 +56,7 @@ public class JS {
                 // 2. 如果没有 src 或者有内部代码，则提取内部代码
                 // 注意：HTML标准中如果带src通常忽略内部代码，但在你的UI引擎中可以根据需求决定是否允许两者共存
                 // 这里逻辑为：如果有内容，就加入缓存
-                if (innerScript != null && !innerScript.isBlank()) {
+                if (StringUtils.isNotNullOrEmptyEx(innerScript)) {
                     cachedScriptContents.add(innerScript.trim());
                 }
 
@@ -71,7 +72,7 @@ public class JS {
                 String resolvedPath = Loader.resolve(contextPath, src);
                 try (InputStream is = Loader.getResourceStream(resolvedPath)) {
                     if (is != null) {
-                        String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
+                        String content = new String(Image.toByteArray(is), StandardCharsets.UTF_8);
                         document.JSCache.add(content);
                     }
                 } catch (IOException e) {

@@ -1,17 +1,23 @@
 package com.sighs.apricityui.instance.network.packet;
 
-import net.minecraft.network.FriendlyByteBuf;
+import lombok.Getter;
+import lombok.experimental.Accessors;
+import net.minecraft.network.PacketBuffer;
 
-public record OpenScreenRequestPacket(String templatePath) {
+@Getter
+@Accessors(fluent = true)
+public class OpenScreenRequestPacket {
+    private final String templatePath;
+
     public OpenScreenRequestPacket(String templatePath) {
         this.templatePath = templatePath == null ? "" : templatePath;
     }
 
-    public static void encode(OpenScreenRequestPacket packet, FriendlyByteBuf buf) {
+    public static void encode(OpenScreenRequestPacket packet, PacketBuffer buf) {
         buf.writeUtf(packet.templatePath);
     }
 
-    public static OpenScreenRequestPacket decode(FriendlyByteBuf buf) {
+    public static OpenScreenRequestPacket decode(PacketBuffer buf) {
         return new OpenScreenRequestPacket(buf.readUtf());
     }
 }

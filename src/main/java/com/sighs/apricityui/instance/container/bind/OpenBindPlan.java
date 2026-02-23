@@ -1,7 +1,12 @@
 package com.sighs.apricityui.instance.container.bind;
 
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.util.StringUtils;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.experimental.Accessors;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -34,15 +39,21 @@ public final class OpenBindPlan {
     }
 
     public Map<Integer, BindingSpec> indexBindings() {
-        return Map.copyOf(indexBindings);
+        return new HashMap<>(indexBindings);
     }
 
     public BindingSpec bindingForIndex(int index) {
         return indexBindings.get(index);
     }
 
-    public record BindingSpec(ContainerSchema.Descriptor.BindType bindType, Map<String, String> args) {
-        public BindingSpec {
+    @Getter
+    @Accessors(fluent = true)
+    @AllArgsConstructor
+    public static class BindingSpec {
+        private ContainerSchema.Descriptor.BindType bindType;
+        private Map<String, String> args;
+
+        public BindingSpec() {
             if (bindType == null) {
                 throw new IllegalArgumentException("bindType cannot be null");
             }
@@ -59,7 +70,7 @@ public final class OpenBindPlan {
                     normalizedArgs.put(normalizedKey, value == null ? "" : value);
                 });
             }
-            args = Map.copyOf(normalizedArgs);
+            args = new HashMap<>(normalizedArgs);
         }
     }
 
@@ -83,7 +94,7 @@ public final class OpenBindPlan {
 
         private static BindingSpec withSingleArg(BindingSpec base, String argKey, String argValue) {
             if (base == null) throw new IllegalArgumentException("base binding cannot be null");
-            if (argKey == null || argKey.trim().isEmpty()) {
+            if (StringUtils.isNullOrEmptyEx(argKey)) {
                 throw new IllegalArgumentException("argKey cannot be blank");
             }
             LinkedHashMap<String, String> args = new LinkedHashMap<>(base.args());
@@ -92,7 +103,7 @@ public final class OpenBindPlan {
         }
 
         private static String requireText(String value, String fieldName) {
-            if (value == null || value.trim().isEmpty()) {
+            if (StringUtils.isNullOrEmptyEx(value)) {
                 throw new IllegalArgumentException(fieldName + " cannot be blank");
             }
             return value.trim();
@@ -116,14 +127,16 @@ public final class OpenBindPlan {
             args.put("x", String.valueOf(x));
             args.put("y", String.valueOf(y));
             args.put("z", String.valueOf(z));
-            if (side != null && !side.trim().isEmpty()) {
+            if (StringUtils.isNotNullOrEmptyEx(side)) {
                 args.put("side", side.trim());
             }
             return new BindingSpec(ContainerSchema.Descriptor.BindType.BLOCK_ENTITY, args);
         }
 
         private static BindingSpec entitySpec(String uuid) {
-            return new BindingSpec(ContainerSchema.Descriptor.BindType.ENTITY, Map.of("uuid", requireText(uuid, "uuid")));
+            return new BindingSpec(ContainerSchema.Descriptor.BindType.ENTITY, new HashMap<String, String>() {{
+                put("uuid", requireText(uuid, "uuid"));
+            }});
         }
 
         /**
@@ -136,7 +149,7 @@ public final class OpenBindPlan {
          * @throws IllegalArgumentException 当 bindType 非法时抛出
          */
         public Builder primary(ContainerSchema.Descriptor.BindType bindType) {
-            this.primaryBinding = new BindingSpec(bindType, Map.of());
+            this.primaryBinding = new BindingSpec(bindType, new HashMap<>());
             return this;
         }
 
@@ -153,7 +166,7 @@ public final class OpenBindPlan {
          * @throws IllegalArgumentException 当 bindType 非法或 argKey 为空白时抛出
          */
         public Builder primary(ContainerSchema.Descriptor.BindType bindType, String argKey, String argValue) {
-            this.primaryBinding = withSingleArg(new BindingSpec(bindType, Map.of()), argKey, argValue);
+            this.primaryBinding = withSingleArg(new BindingSpec(bindType, new HashMap<>()), argKey, argValue);
             return this;
         }
 
@@ -163,7 +176,7 @@ public final class OpenBindPlan {
          * @return 当前 Builder，支持链式调用
          */
         public Builder primaryPlayer() {
-            this.primaryBinding = new BindingSpec(ContainerSchema.Descriptor.BindType.PLAYER, Map.of());
+            this.primaryBinding = new BindingSpec(ContainerSchema.Descriptor.BindType.PLAYER, new HashMap<>());
             return this;
         }
 
@@ -248,7 +261,7 @@ public final class OpenBindPlan {
          */
         public Builder containerIndex(int index, ContainerSchema.Descriptor.BindType bindType) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, new BindingSpec(bindType, Map.of()));
+            indexBindings.put(index, new BindingSpec(bindType, new HashMap<>()));
             return this;
         }
 
@@ -267,7 +280,7 @@ public final class OpenBindPlan {
          */
         public Builder containerIndex(int index, ContainerSchema.Descriptor.BindType bindType, String argKey, String argValue) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, withSingleArg(new BindingSpec(bindType, Map.of()), argKey, argValue));
+            indexBindings.put(index, withSingleArg(new BindingSpec(bindType, new HashMap<>()), argKey, argValue));
             return this;
         }
 
@@ -279,7 +292,7 @@ public final class OpenBindPlan {
          */
         public Builder containerIndexPlayer(int index) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, new BindingSpec(ContainerSchema.Descriptor.BindType.PLAYER, Map.of()));
+            indexBindings.put(index, new BindingSpec(ContainerSchema.Descriptor.BindType.PLAYER, new HashMap<>()));
             return this;
         }
 

@@ -1,0 +1,40 @@
+.area {
+    border: 7px solid #100;
+    border-image: url("area-1.png") 7 / 7px;
+    background-color: rgb(203 204 212);
+    color: rgb(69 55 102);
+}
+
+.button {
+    border: 4px solid #00000000;
+    border-image: url("button-1.png") 4 / 4px;
+    background-color: rgb(154 159 180);
+    color: #fff;
+    padding-left: 2px;
+    padding-right: 2px;
+    transform: scale(1);
+}
+.button:hover {
+    background-color: rgb(156 211 255);
+    border-image: url("button-hover-1.png") 4 / 4px;
+}
+.button:active {
+    background-color: rgb(105 109 136);
+    border-image: url("button-active-1.png") 4 / 4px;
+}
+
+input {
+    border: 3px solid #00000000;
+    border-image: url("input-1.png") 3 / 3px;
+    background-color: rgb(154 159 180);
+    line-height: 14px;
+    padding-bottom: 2px;
+    color: #fff;
+}
+input:focus {
+    background-color: rgb(154 159 180);
+}
+
+slot {
+    background-image: url("slot-1.png");
+}

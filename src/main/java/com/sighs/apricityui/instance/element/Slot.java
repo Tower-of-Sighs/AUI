@@ -1,7 +1,7 @@
 package com.sighs.apricityui.instance.element;
 
+import com.mojang.blaze3d.matrix.MatrixStack;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -9,19 +9,21 @@ import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 import com.sighs.apricityui.render.Base;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.RecipeType;
+import net.minecraft.inventory.IInventory;
+import net.minecraft.inventory.Inventory;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.crafting.IRecipeType;
+import net.minecraft.nbt.CompoundNBT;
+import net.minecraft.nbt.JsonToNBT;
+import net.minecraft.tags.ITag;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.util.ResourceLocation;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.ForgeHooks;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -45,13 +47,13 @@ public class Slot extends MinecraftElement {
         Element.register(TAG_NAME, (document, string) -> new Slot(document));
     }
 
-    private final SimpleContainer virtualContainer = new SimpleContainer(1);
-    private final net.minecraft.world.inventory.Slot virtualMcSlot = new net.minecraft.world.inventory.Slot(virtualContainer, 0, 0, 0);
-    private net.minecraft.world.inventory.Slot mcSlot = virtualMcSlot;
+    private final IInventory virtualContainer = new Inventory(1);
+    private final net.minecraft.inventory.container.Slot virtualMcSlot = new net.minecraft.inventory.container.Slot(virtualContainer, 0, 0, 0);
+    private net.minecraft.inventory.container.Slot mcSlot = virtualMcSlot;
 
     private String resolvedItemToken = "";
     private ResourceLocation resolvedTagId = null;
-    private List<ItemStack> candidates = List.of();
+    private List<ItemStack> candidates = Collections.emptyList();
     private int candidateIndex = 0;
     private long nextRotateAtMillis = 0L;
 
@@ -66,7 +68,8 @@ public class Slot extends MinecraftElement {
         if (document == null) return;
         List<Element> snapshot = new ArrayList<>(document.getElements());
         for (Element element : snapshot) {
-            if (!(element instanceof Slot slot)) continue;
+            if (!(element instanceof Slot)) continue;
+            Slot slot = (Slot) element;
             if (!slot.isRuntimeGeneratedSlot()) continue;
             slot.remove();
         }
@@ -91,27 +94,26 @@ public class Slot extends MinecraftElement {
     private static List<ItemStack> buildCandidatesByTag(ResourceLocation tagId) {
         ArrayList<ItemStack> result = new ArrayList<>();
         if (FURNACE_FUEL_VIRTUAL_TAG.equals(tagId)) {
-            for (Item item : BuiltInRegistries.ITEM) {
+            for (Item item : ForgeRegistries.ITEMS) {
                 ItemStack stack = new ItemStack(item);
-                if (ForgeHooks.getBurnTime(stack, RecipeType.SMELTING) <= 0) continue;
+                if (ForgeHooks.getBurnTime(stack, IRecipeType.SMELTING) <= 0) continue;
                 result.add(stack);
             }
         } else {
-            TagKey<Item> tagKey = TagKey.create(Registries.ITEM, tagId);
-            for (Item item : BuiltInRegistries.ITEM) {
-                ItemStack stack = new ItemStack(item);
-                if (stack.is(tagKey)) result.add(stack);
+            ITag<Item> tag = ItemTags.getAllTags().getTagOrEmpty(tagId);
+            for (Item item : tag.getValues()) {
+                result.add(new ItemStack(item));
             }
         }
         result.sort(Comparator.comparing(stack -> {
-            ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
             return id == null ? "" : id.toString();
         }));
-        return List.copyOf(result);
+        return new ArrayList<>(result);
     }
 
     private static int parsePositiveInt(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (StringUtils.isNullOrEmptyEx(raw)) return fallback;
         try {
             int parsed = Integer.parseInt(raw.trim());
             return parsed > 0 ? parsed : fallback;
@@ -121,7 +123,7 @@ public class Slot extends MinecraftElement {
     }
 
     private static long parsePositiveLong(String raw, long fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (StringUtils.isNullOrEmptyEx(raw)) return fallback;
         try {
             long parsed = Long.parseLong(raw.trim());
             return parsed > 0 ? parsed : fallback;
@@ -133,30 +135,30 @@ public class Slot extends MinecraftElement {
     private String getFirstNonBlankAttribute(String... keys) {
         if (keys == null) return null;
         for (String key : keys) {
-            if (key == null || key.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(key)) continue;
             String value = getAttribute(key);
-            if (value == null || value.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(value)) continue;
             return value;
         }
         return null;
     }
 
-    public void bindMcSlot(net.minecraft.world.inventory.Slot slot) {
+    public void bindMcSlot(net.minecraft.inventory.container.Slot slot) {
         mcSlot = slot == null ? virtualMcSlot : slot;
     }
 
-    public net.minecraft.world.inventory.Slot getMcSlot() {
+    public net.minecraft.inventory.container.Slot getMcSlot() {
         return mcSlot == null ? virtualMcSlot : mcSlot;
     }
 
     private ApricityContainerMenu.UiSlot resolveUiSlot() {
-        if (!(getMcSlot() instanceof ApricityContainerMenu.UiSlot uiSlot)) return null;
-        return uiSlot;
+        if (!(getMcSlot() instanceof ApricityContainerMenu.UiSlot)) return null;
+        return (ApricityContainerMenu.UiSlot) getMcSlot();
     }
 
     public String getMode() {
         String rawMode = getAttribute("mode");
-        if (rawMode != null && !rawMode.isBlank()) {
+        if (StringUtils.isNotNullOrEmptyEx(rawMode)) {
             String normalized = rawMode.trim().toLowerCase(Locale.ROOT);
             if (MODE_BOUND.equals(normalized)) return MODE_BOUND;
             if (MODE_VIRTUAL.equals(normalized)) return MODE_VIRTUAL;
@@ -321,19 +323,19 @@ public class Slot extends MinecraftElement {
     public String getBackgroundImageCandidate() {
         com.sighs.apricityui.style.Background background = com.sighs.apricityui.style.Background.of(this);
         String rawPath = background == null ? null : background.imagePath;
-        if (rawPath == null || rawPath.isBlank() || "unset".equals(rawPath)) return null;
+        if (StringUtils.isNullOrEmptyEx(rawPath) || "unset".equals(rawPath)) return null;
         return rawPath;
     }
 
     @Override
-    public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+    public void drawPhase(MatrixStack stack, Base.RenderPhase phase) {
         if (!shouldRenderBackground()
                 && (phase == Base.RenderPhase.SHADOW
                 || phase == Base.RenderPhase.BODY
                 || phase == Base.RenderPhase.BORDER)) {
             return;
         }
-        super.drawPhase(poseStack, phase);
+        super.drawPhase(stack, phase);
     }
 
     @Override
@@ -384,32 +386,34 @@ public class Slot extends MinecraftElement {
     }
 
     @Override
-    public void renderTooltip(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        ItemStack stack = getTooltipStack();
-        if (stack.isEmpty()) return;
-        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+    public void renderTooltip(MatrixStack stack, int mouseX, int mouseY) {
+        ItemStack itemStack = getTooltipStack();
+        if (itemStack.isEmpty()) return;
+        renderItemTooltip(stack, Minecraft.getInstance().font, itemStack, mouseX, mouseY);
     }
 
     /**
      * 批量设置 recipe 生成槽位的公共元数据，避免重复触发 updateCSS。
      */
     public void applyRecipeSlotMeta(String className, String generatedTag) {
-        setAttributesBatch(Map.of(
-                "class", className == null ? "" : className,
-                "data-generated", generatedTag == null ? "" : generatedTag
-        ), true);
+        setAttributesBatch(new HashMap<String, String>() {{
+                               put("class", className == null ? "" : className);
+                               put("data-generated", generatedTag == null ? "" : generatedTag);
+                           }}
+                , true);
     }
 
     /**
      * 批量设置 player 自动注入槽位的公共属性。
      */
     public void applyImplicitPlayerMeta(int localSlotIndex, String part) {
-        setAttributesBatch(Map.of(
-                "mode", MODE_BOUND,
-                "slot-index", String.valueOf(Math.max(0, localSlotIndex)),
-                "data-generated", GENERATED_PLAYER_AUTO,
-                "part", part == null ? "inv" : part
-        ), true);
+        setAttributesBatch(new HashMap<String, String>() {{
+                               put("mode", MODE_BOUND);
+                               put("slot-index", String.valueOf(Math.max(0, localSlotIndex)));
+                               put("data-generated", GENERATED_PLAYER_AUTO);
+                               put("part", part == null ? "inv" : part);
+                           }}
+                , true);
     }
 
     private void refreshCandidatesIfNeeded() {
@@ -418,11 +422,11 @@ public class Slot extends MinecraftElement {
 
         resolvedItemToken = normalized;
         resolvedTagId = null;
-        candidates = List.of();
+        candidates = Collections.emptyList();
         candidateIndex = 0;
         nextRotateAtMillis = 0L;
 
-        if (normalized.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(normalized)) return;
         if (normalized.startsWith("#")) {
             ResourceLocation tagId = ResourceLocation.tryParse(normalized.substring(1));
             if (tagId == null) return;
@@ -433,7 +437,7 @@ public class Slot extends MinecraftElement {
 
         ItemStack parsed = parseItemLiteral(normalized);
         if (!parsed.isEmpty()) {
-            candidates = List.of(parsed);
+            candidates = Collections.singletonList(parsed);
         }
     }
 
@@ -444,7 +448,7 @@ public class Slot extends MinecraftElement {
     private static String normalizeItemLiteral(String raw) {
         if (raw == null) return "";
         String normalized = raw.trim();
-        if (normalized.isBlank()) return "";
+        if (StringUtils.isNullOrEmptyEx(normalized)) return "";
         if (normalized.length() >= 2) {
             char first = normalized.charAt(0);
             char last = normalized.charAt(normalized.length() - 1);
@@ -458,24 +462,24 @@ public class Slot extends MinecraftElement {
 
     public static String buildLiteralWithCount(String rawLiteral, int requestedCount) {
         String normalized = normalizeItemLiteral(rawLiteral);
-        if (normalized.isBlank()) return "";
+        if (StringUtils.isNullOrEmptyEx(normalized)) return "";
 
         ItemStack parsed = parseItemLiteral(normalized);
         if (parsed.isEmpty()) return normalized;
 
         int safeCount = Math.max(1, Math.min(parsed.getMaxStackSize(), requestedCount));
         parsed.setCount(safeCount);
-        CompoundTag stackTag = new CompoundTag();
+        CompoundNBT stackTag = new CompoundNBT();
         parsed.save(stackTag);
         return stackTag.toString();
     }
 
     private static ItemStack parseItemLiteral(String literal) {
-        if (literal == null || literal.isBlank()) return ItemStack.EMPTY;
+        if (StringUtils.isNullOrEmptyEx(literal)) return ItemStack.EMPTY;
 
         if (literal.startsWith("{") && literal.endsWith("}")) {
             try {
-                CompoundTag stackTag = TagParser.parseTag(literal);
+                CompoundNBT stackTag = JsonToNBT.parseTag(literal);
                 ItemStack parsed = ItemStack.of(stackTag);
                 return parsed == null ? ItemStack.EMPTY : parsed;
             } catch (CommandSyntaxException ignored) {
@@ -485,17 +489,17 @@ public class Slot extends MinecraftElement {
 
         int nbtStart = literal.indexOf('{');
         String itemLiteral = nbtStart >= 0 ? literal.substring(0, nbtStart).trim() : literal;
-        if (itemLiteral.isBlank()) return ItemStack.EMPTY;
+        if (StringUtils.isNullOrEmptyEx(itemLiteral)) return ItemStack.EMPTY;
 
         ResourceLocation itemId = ResourceLocation.tryParse(itemLiteral);
-        if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) return ItemStack.EMPTY;
-        Item item = BuiltInRegistries.ITEM.get(itemId);
+        if (itemId == null || !ForgeRegistries.ITEMS.containsKey(itemId)) return ItemStack.EMPTY;
+        Item item = ForgeRegistries.ITEMS.getValue(itemId);
         ItemStack stack = new ItemStack(item);
 
         if (nbtStart >= 0) {
             String nbtLiteral = literal.substring(nbtStart).trim();
             try {
-                CompoundTag nbtTag = TagParser.parseTag(nbtLiteral);
+                CompoundNBT nbtTag = JsonToNBT.parseTag(nbtLiteral);
                 stack.setTag(nbtTag);
             } catch (CommandSyntaxException ignored) {
                 return ItemStack.EMPTY;
