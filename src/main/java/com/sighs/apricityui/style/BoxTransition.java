@@ -2,7 +2,6 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Style;
 
-import java.util.ArrayList;
 import java.util.List;
 
 // 测试中，不保证能用

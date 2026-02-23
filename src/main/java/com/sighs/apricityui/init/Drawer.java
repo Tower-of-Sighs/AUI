@@ -42,6 +42,7 @@ public class Drawer {
 
     public static ArrayList<RenderNode> createPaintList(Element body) {
         ArrayList<RenderNode> paintList = new ArrayList<>();
+        if (body == null) return paintList;
 
         Size window = Size.getWindowSize();
         AABB initialClip = new AABB(0, 0, (float) window.width(), (float) window.height());
@@ -51,6 +52,7 @@ public class Drawer {
     }
 
     private static void processStackingContext(Element contextRoot, List<RenderNode> paintList, AABB currentClip) {
+        if (contextRoot == null) return;
         Rect rootRect = Rect.of(contextRoot);
         Style rootStyle = contextRoot.getComputedStyle();
 
@@ -97,6 +99,7 @@ public class Drawer {
 
         for (int i = 0; i < children.size(); i++) {
             Element child = children.get(i);
+            if (child == null) continue;
             Rect childRect = Rect.of(child);
             if (!childRect.getVisualBounds().intersects(childClip)) {
                 continue;
@@ -121,9 +124,13 @@ public class Drawer {
         if (negativeZ.size() > 1) negativeZ.sort(Comparator.comparingInt(p -> p.zValue));
         if (positiveZ.size() > 1) positiveZ.sort(Comparator.comparingInt(p -> p.zValue));
 
-        for (Paintable p : negativeZ) processStackingContext(p.element, paintList, childClip);
+        for (Paintable p : negativeZ) {
+            if (p.element != null) processStackingContext(p.element, paintList, childClip);
+        }
         for (Element e : normalFlow) processStackingContext(e, paintList, childClip);
-        for (Paintable p : positiveZ) processStackingContext(p.element, paintList, childClip);
+        for (Paintable p : positiveZ) {
+            if (p.element != null) processStackingContext(p.element, paintList, childClip);
+        }
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
         if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot, filterState));
@@ -133,12 +140,14 @@ public class Drawer {
     private record Paintable(Element element, int zValue, int domOrder) {}
 
     public static void invalidateElement(Element target, int mask, List<RenderNode> documentPaintList) {
+        if (target == null) return;
         if ((mask & RELAYOUT) != 0) {
             mask |= REORDER;
         }
 
         if ((mask & REORDER) != 0) {
             Element contextRoot = findNearestStackingContext(target);
+            if (contextRoot == null) return;
             List<RenderNode> localSubtreeOrder = createPaintList(contextRoot);
             updateGlobalPaintList(documentPaintList, contextRoot, localSubtreeOrder);
         }
@@ -157,6 +166,7 @@ public class Drawer {
     }
 
     private static Element findNearestStackingContext(Element e) {
+        if (e == null || e.document == null) return null;
         Element current = e.parentElement;
         while (current != null) {
             String zi = current.getComputedStyle().zIndex;

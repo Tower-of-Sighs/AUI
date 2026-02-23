@@ -1,6 +1,9 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
@@ -233,10 +236,10 @@ public class ImageDrawer {
         float minV = vTexture / (float)textureHeight;
         float maxV = (vTexture + heightTexture) / (float)textureHeight;
 
-        vertexConsumer.vertex(matrix, x, y + height, 0.0F).color(255, 255, 255, 255).uv(minU, maxV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x + width, y + height, 0.0F).color(255, 255, 255, 255).uv(maxU, maxV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x + width, y, 0.0F).color(255, 255, 255, 255).uv(maxU, minV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x, y, 0.0F).color(255, 255, 255, 255).uv(minU, minV).uv2(0xF000F0).endVertex();
+        vertexConsumer.addVertex(matrix, x, y + height, 0.0F).setColor(255, 255, 255, 255).setUv(minU, maxV).setLight(0xF000F0);
+        vertexConsumer.addVertex(matrix, x + width, y + height, 0.0F).setColor(255, 255, 255, 255).setUv(maxU, maxV).setLight(0xF000F0);
+        vertexConsumer.addVertex(matrix, x + width, y, 0.0F).setColor(255, 255, 255, 255).setUv(maxU, minV).setLight(0xF000F0);
+        vertexConsumer.addVertex(matrix, x, y, 0.0F).setColor(255, 255, 255, 255).setUv(minU, minV).setLight(0xF000F0);
 
         bufferSource.endBatch(renderType);
     }
@@ -253,7 +256,7 @@ public class ImageDrawer {
                     256,
                     true,
                     true,
-                    RenderType.CompositeState.builder()
+                    CompositeState.builder()
                             .setTextureState(new TextureStateShard(location, blur, false))
                             .setShaderState(POSITION_COLOR_TEX_LIGHTMAP_SHADER)
                             .setDepthTestState(LEQUAL_DEPTH_TEST)

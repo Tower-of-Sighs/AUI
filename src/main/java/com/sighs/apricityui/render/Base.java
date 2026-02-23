@@ -2,7 +2,6 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.math.Axis;
@@ -10,7 +9,10 @@ import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 
 import java.util.List;
@@ -57,8 +59,8 @@ public class Base {
         GlStateManager._disableBlend();
     }
 
-    public static BufferBuilder getBuffer() {
-        return Tesselator.getInstance().getBuilder();
+    public static Tesselator getBuffer() {
+        return Tesselator.getInstance();
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {

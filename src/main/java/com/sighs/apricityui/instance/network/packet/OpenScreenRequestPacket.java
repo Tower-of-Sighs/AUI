@@ -1,17 +1,27 @@
 package com.sighs.apricityui.instance.network.packet;
 
-import net.minecraft.network.FriendlyByteBuf;
+import com.sighs.apricityui.instance.network.INetwork;
+import com.sighs.apricityui.instance.network.NetworkType;
+import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
+import com.sighs.apricityui.registry.annotation.NetworkRegister;
+import net.minecraft.network.RegistryFriendlyByteBuf;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.network.codec.StreamCodec;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
-public record OpenScreenRequestPacket(String templatePath) {
-    public OpenScreenRequestPacket(String templatePath) {
-        this.templatePath = templatePath == null ? "" : templatePath;
+@NetworkRegister(type = NetworkType.C2S)
+public record OpenScreenRequestPacket(String templatePath) implements INetwork<OpenScreenRequestPacket> {
+    @Override
+    public StreamCodec<? super RegistryFriendlyByteBuf, OpenScreenRequestPacket> streamCodec() {
+        return StreamCodec.composite(
+                ByteBufCodecs.STRING_UTF8,
+                OpenScreenRequestPacket::templatePath,
+                OpenScreenRequestPacket::new
+        );
     }
 
-    public static void encode(OpenScreenRequestPacket packet, FriendlyByteBuf buf) {
-        buf.writeUtf(packet.templatePath);
-    }
-
-    public static OpenScreenRequestPacket decode(FriendlyByteBuf buf) {
-        return new OpenScreenRequestPacket(buf.readUtf());
+    @Override
+    public void execute(OpenScreenRequestPacket payload, IPayloadContext context) {
+        ApricityScreenNetworkHandler.handleOpenScreenRequest(payload, context);
     }
 }

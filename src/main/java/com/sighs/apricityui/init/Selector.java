@@ -1,7 +1,8 @@
 package com.sighs.apricityui.init;
 
 import java.util.*;
-import java.util.regex.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Selector {
     private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new HashMap<>();
@@ -30,29 +31,8 @@ public class Selector {
                 case "active" -> e.isActive;
                 case "focus" -> e.isFocus;
                 case "empty" -> e.children.isEmpty();
-                case "checked" -> isChecked(e);
                 default -> false;
             };
-        }
-
-        private boolean isChecked(Element e) {
-            if (e.getAttributes().containsKey("checked")) {
-                String v = e.getAttribute("checked");
-                if (v == null || v.isBlank()) return true;
-                return !("false".equalsIgnoreCase(v) || "0".equals(v));
-            }
-
-            if ("OPTION".equalsIgnoreCase(e.tagName)) {
-                if (e.getAttributes().containsKey("selected")) return true;
-                Element parent = e.parentElement;
-                if (parent != null && "SELECT".equalsIgnoreCase(parent.tagName)) {
-                    String pv = parent.getAttribute("value");
-                    String ov = e.getAttribute("value");
-                    return pv != null && pv.equals(ov);
-                }
-            }
-
-            return false;
         }
 
         private boolean isSiblingIndex(Element e, int target) {
@@ -80,21 +60,10 @@ public class Selector {
             if (attrs != null) {
                 for (var entry : attrs.entrySet()) {
                     String expected = entry.getValue();
-
-                    // CSS 属性选择器：
-                    // - [attr]：只要求属性存在
-                    // - [attr=value]：要求属性存在且值相等
-                    String key = entry.getKey();
-                    String actual = e.getAttribute(key);
-                    boolean present = e.getAttributes().containsKey(key);
-
-                    if (expected == null) {
-                        if (!present) return false;
-                        continue;
-                    }
-
-                    if (!present) return false;
-                    if (!expected.equals(actual)) return false;
+                    // 当前不支持复杂/带引号的属性选择器值，解析失败时 expected 可能为 null；
+                    // 直接视为不匹配，避免触发 NPE 影响整页 refresh/hot-reload。
+                    if (expected == null || expected.isBlank()) return false;
+                    if (!expected.equals(e.getAttribute(entry.getKey()))) return false;
                 }
             }
             if (pseudos != null) {
@@ -184,23 +153,22 @@ public class Selector {
 
         for (String token : tokens) {
             token = token.trim();
-            switch (token) {
-                case "" -> {
+            if (token.isEmpty()) continue;
+            if (token.equals(">")) {
+                combinators.add(Combinator.CHILD);
+            } else if (token.equals(" ")) {
+                combinators.add(Combinator.DESCENDANT);
+            } else {
+                if (components.size() > combinators.size()) {
+                    combinators.add(Combinator.DESCENDANT);
                 }
-                case ">" -> combinators.add(Combinator.CHILD);
-                case " " -> combinators.add(Combinator.DESCENDANT);
-                default -> {
-                    if (components.size() > combinators.size()) {
-                        combinators.add(Combinator.DESCENDANT);
-                    }
-                    Component comp = parseAtom(token);
-                    components.add(comp);
+                Component comp = parseAtom(token);
+                components.add(comp);
 
-                    if (comp.id != null) ids++;
-                    if (comp.classes != null) classesAndPseudos += comp.classes.size();
-                    if (comp.pseudos != null) classesAndPseudos += comp.pseudos.size();
-                    if (comp.tag != null && !comp.tag.equals("*")) tags++;
-                }
+                if (comp.id != null) ids++;
+                if (comp.classes != null) classesAndPseudos += comp.classes.size();
+                if (comp.pseudos != null) classesAndPseudos += comp.pseudos.size();
+                if (comp.tag != null && !comp.tag.equals("*")) tags++;
             }
         }
         return new CompiledSelector(components, combinators, new Specificity(ids, classesAndPseudos, tags, order));
@@ -213,63 +181,21 @@ public class Selector {
         Map<String, String> attrs = new HashMap<>();
         List<Pseudo> pseudos = new ArrayList<>();
 
-        // 先解析 tag（如果存在）：tag 只能出现在最前面，遇到 # . [ : 即结束
-        int firstSpecial = -1;
-        for (char c : new char[]{'#', '.', '[', ':'}) {
-            int idx = atom.indexOf(c);
-            if (idx != -1 && (firstSpecial == -1 || idx < firstSpecial)) firstSpecial = idx;
-        }
-        String rest;
-        if (firstSpecial == -1) {
-            // 纯 tag 或者空
-            tag = atom.isBlank() ? null : atom;
-            rest = "";
-        } else {
-            String maybeTag = atom.substring(0, firstSpecial).trim();
-            tag = maybeTag.isEmpty() ? null : maybeTag;
-            rest = atom.substring(firstSpecial);
-        }
-
-        // (#(?<id>[\\w-]+)) - ID 选择器 - #id
-        // (\\.(?<cls>[\\w-]+)) - 类选择器 - .class
-        // (\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?]) - 属性选择器 - [attr] / [attr=value]
-        // :(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))? - 伪类 / 伪元素选择器 - :pseudo / :pseudo(expr)
-        Pattern token = Pattern.compile(
-                "(#(?<id>[\\w-]+))" +
-                        "|(\\.(?<cls>[\\w-]+))" +
-                        "|(\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
-                        "|:(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
-        );
-
-        Matcher m = token.matcher(rest);
+        // 正则解释：
+        // 1. ([.#\[:]?) 前缀
+        // 2. ([\\w-]+) 名称
+        // 3. (?:=([\\w-]+)])? 属性值
+        // 4. (?:\\(([^)]+)\\))? 伪类参数 (如 nth-child 的参数)
+        Matcher m = Pattern.compile("([.#\\[:]?)([\\w-]+)(?:=([\\w-]+)])?(?:\\(([^)]+)\\))?").matcher(atom);
         while (m.find()) {
-            String gid = m.group("id");
-            if (gid != null) {
-                id = gid;
-                continue;
-            }
-            String gcls = m.group("cls");
-            if (gcls != null) {
-                classes.add(gcls);
-                continue;
-            }
-            String attrName = m.group("attrName");
-            if (attrName != null) {
-                String v = m.group("attrValue");
-                if (v != null) {
-                    v = v.trim();
-                    // 去掉引号
-                    if ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'"))) {
-                        v = v.substring(1, v.length() - 1);
-                    }
-                }
-                // v == null 表示 [attr]，由 matches() 中的 presence 逻辑处理
-                attrs.put(attrName, v);
-                continue;
-            }
-            String pseudoName = m.group("pseudoName");
-            if (pseudoName != null) {
-                pseudos.add(new Pseudo(pseudoName, m.group("pseudoExpr")));
+            String prefix = m.group(1);
+            String val = m.group(2);
+            switch (prefix) {
+                case "#" -> id = val;
+                case "." -> classes.add(val);
+                case "[" -> attrs.put(val, m.group(3));
+                case ":" -> pseudos.add(new Pseudo(val, m.group(4)));
+                default -> tag = val;
             }
         }
         return new Component(tag, id,

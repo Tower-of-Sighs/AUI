@@ -1,8 +1,10 @@
 package com.sighs.apricityui.event;
 
-import com.sighs.apricityui.instance.element.Slot;
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Box;
@@ -45,7 +47,6 @@ public class MouseEvent extends Event implements Cloneable {
 
     public static void tiggerEvent(MouseEvent event, Document document) {
         List<RenderNode> paintList = document.getPaintList();
-        Element activeElement = document.getActiveElement();
 
         Position detectionPos = new Position(event.clientX, event.clientY);
 
@@ -73,6 +74,8 @@ public class MouseEvent extends Event implements Cloneable {
                     document.setFocusedElement(null);
                 }
             }
+        } else if (event.type.equals("mouseup")) {
+            document.setActiveElement(null);
         }
 
         if (target != null && event.type.equals("scroll")) {
@@ -80,19 +83,6 @@ public class MouseEvent extends Event implements Cloneable {
         }
         if (target != null) {
             Event.tiggerEvent(event);
-        }
-
-        if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
-            MouseEvent activeEvent = event.clone();
-            activeEvent.target = activeElement;
-            Position activePosition = Position.of(activeElement);
-            activeEvent.offsetX = activeEvent.clientX - activePosition.x;
-            activeEvent.offsetY = activeEvent.clientY - activePosition.y;
-            Event.triggerSingle(activeEvent);
-        }
-
-        if (event.type.equals("mouseup")) {
-            document.setActiveElement(null);
         }
     }
 
@@ -104,6 +94,7 @@ public class MouseEvent extends Event implements Cloneable {
         });
     }
 
+    //
     private static void handleHoverChange(MouseEvent originalEvent, Element newTarget, Document document) {
         Element previousCursorElement = document.getPreviousCursorElement();
         if (previousCursorElement == newTarget) return;

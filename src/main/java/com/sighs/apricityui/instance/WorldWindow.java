@@ -1,39 +1,37 @@
 package com.sighs.apricityui.instance;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.math.Axis;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Position;
+import lombok.Setter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = ApricityUI.MOD_ID, value = Dist.CLIENT)
 public class WorldWindow {
     static final List<WorldWindow> windows = new ArrayList<>();
 
     public Document document;
+    @Setter
     private Vec3 position;
     private float yRot;
     private float xRot;
+    @Setter
     private float scale; // 缩放比例: 1px 对应多少 Block
     private int width;
     private int height;
@@ -50,12 +48,10 @@ public class WorldWindow {
         this.maxDistance = maxDistance;
     }
 
-    public void setPosition(Vec3 position) { this.position = position; }
     public void setRotation(float yRot, float xRot) {
         this.yRot = yRot;
         this.xRot = xRot;
     }
-    public void setScale(float scale) { this.scale = scale; }
 
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
@@ -110,7 +106,7 @@ public class WorldWindow {
             if (windows.isEmpty()) return;
 
             for (WorldWindow window : windows) {
-                window.render(event.getPoseStack(), event.getProjectionMatrix(), event.getPartialTick());
+                window.render(event.getPoseStack(), event.getProjectionMatrix(), event.getPartialTick().getRealtimeDeltaTicks());
             }
         }
     }
@@ -120,11 +116,11 @@ public class WorldWindow {
         Position invalid = new Position(-1, -1);
         if (mc.player == null) return null;
 
-        Vec3 rayOrigin = mc.player.getEyePosition(mc.getPartialTick());
-        Vec3 rayDir = mc.player.getViewVector(mc.getPartialTick());
+        Vec3 rayOrigin = mc.player.getEyePosition();
+        Vec3 rayDir = mc.player.getViewVector(1.0F);
 
         Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate((float)position.x, (float)position.y, (float)position.z);
+        modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
         modelMatrix.rotate((float) Math.toRadians(180.0F - this.yRot), 0, 1, 0);
         modelMatrix.rotate((float) Math.toRadians(this.xRot), 1, 0, 0);
         modelMatrix.scale(scale, -scale, scale);
@@ -146,7 +142,7 @@ public class WorldWindow {
 
         Vec3 intersection = rayOrigin.add(rayDir.scale(t));
         Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
-        Vector4f localHit = new Vector4f((float)intersection.x, (float)intersection.y, (float)intersection.z, 1.0f);
+        Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
         inverseMatrix.transform(localHit);
 
         double localX = localHit.x + width / 2.0;

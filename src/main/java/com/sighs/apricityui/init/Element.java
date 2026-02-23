@@ -1,8 +1,15 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.render.*;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.Transition;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -11,6 +18,7 @@ import java.util.function.Consumer;
 
 public class Element {
     public UUID uuid = UUID.randomUUID();
+    @Getter
     private HashMap<String, String> attributes = new HashMap<>();
     public Document document;
     public String tagName;
@@ -19,12 +27,14 @@ public class Element {
     public boolean isLoaded = false;
     public HashMap<String, String> cssCache = new HashMap<>();
     private int dirtyFlags = 0;
+    @Getter
     public int depth = 0;
     public Element parentElement = null;
     public CopyOnWriteArrayList<Element> children = new CopyOnWriteArrayList<>();
     public boolean isPointerEnabled = true;
     public boolean isVisible = true;
     public String id = null;
+    @Setter
     public String value = null;
     public boolean isHover = false;
     public boolean isActive = false;
@@ -36,9 +46,6 @@ public class Element {
     public double targetScrollTop = 0;
     public List<String> classNames = null;
     private RenderElement renderElement = new RenderElement(this);
-
-    // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
-    private boolean domInitHookInvoked = false;
 
     public Element(Document document, String tagName) {
         this.document = document;
@@ -57,14 +64,12 @@ public class Element {
     }
 
     public Style style = null;
+
     public Style getStyle() {
         if (style == null) updateInlineStyle();
         return style;
     }
 
-    public HashMap<String, String> getAttributes() {
-        return attributes;
-    }
     public String getAttribute(String name) {
         if (name.equals("value")) {
             String _value = attributes.getOrDefault(name, "");
@@ -97,6 +102,7 @@ public class Element {
 //        }
         return attributes.getOrDefault(name, "");
     }
+
     public void setAttribute(String name, String value) {
         attributes.put(name, value);
         if (name.equals("style")) {
@@ -110,37 +116,13 @@ public class Element {
         }
         if (name.equals("class")) {
             classNames = new ArrayList<>();
-            if (value != null && !value.isBlank()) {
-                classNames.addAll(List.of(value.trim().split("\\s+")));
-            }
+            classNames.addAll(List.of(value.split(" ")));
         }
         updateCSS();
     }
 
-    public void removeAttribute(String name) {
-        attributes.remove(name);
-        if (name.equals("style")) {
-            updateInlineStyle();
-        }
-        if (name.equals("value")) {
-            this.value = null;
-        }
-        if (name.equals("id")) {
-            id = null;
-        }
-        if (name.equals("class")) {
-            classNames = null;
-        }
-        updateCSS();
-    }
-
-    public boolean hasAttribute(String name) {
-        return attributes.containsKey(name);
-    }
     public Set<String> getClassNames() {
-        String classes = getAttribute("class");
-        if (classes == null || classes.isBlank()) return Collections.emptySet();
-        return Set.of(classes.trim().split("\\s+"));
+        return Set.of(getAttribute("class").split(" "));
     }
 
     protected void updateCSS() {
@@ -189,6 +171,7 @@ public class Element {
         }
         return computedStyle;
     }
+
     public void updateInlineStyle() {
         Style newStyle = new Style();
         newStyle.merge(attributes.getOrDefault("style", ""));
@@ -201,28 +184,34 @@ public class Element {
         isHover = hover;
         updateCSS();
     }
+
     public void setActive(boolean active) {
         if (isActive == active) return;
         isActive = active;
         updateCSS();
     }
+
     public void setFocus(boolean value) {
         isFocus = value;
         updateCSS();
     }
+
     public boolean canFocus() {
         return false;
     }
+
     public static boolean isElementFocusing(Element element) {
         if (element == null || element.document == null) return false;
         Element currentFocus = element.document.getFocusedElement();
         return currentFocus != null && element.uuid.equals(currentFocus.uuid);
     }
+
     public void setScrollLeft(double value) {
         value = Math.min(value, scrollWidth - Size.of(this).width());
         value = Math.max(value, 0);
         scrollLeft = Size.lerp(scrollLeft, value);
     }
+
     public void setScrollTop(double value) {
         double limitHeight = scrollHeight - Size.of(this).height();
         if (value < 0) value *= 0.4;
@@ -231,20 +220,19 @@ public class Element {
         }
         targetScrollTop = value;
     }
+
     public double getScrollTop() {
         if (scrollTop != targetScrollTop) {
             renderElement.position.clear();
             double process = (System.currentTimeMillis() - lastTickTime) / 50d;
             double nextScrollTop = (targetScrollTop - scrollTop) * 0.2 + scrollTop;
-            return  (nextScrollTop - scrollTop) * process + scrollTop;
+            return (nextScrollTop - scrollTop) * process + scrollTop;
         } else return scrollTop;
     }
+
     public boolean canScroll() {
         if (getComputedStyle().overflow.equals("visible")) return false;
         return scrollHeight != Size.of(this).height();
-    }
-    public void setValue(String value) {
-        this.value = value;
     }
 
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
@@ -259,48 +247,6 @@ public class Element {
                 rectRenderer.drawBorder(poseStack);
             }
         }
-    }
-
-
-    /**
-     * DOM 解析阶段的初始化钩子（只调用一次）。
-     * <p>
-     * 注意：在 {@link #init(Element)} 替换通用元素为具体子类时，attributes 会被整体迁移，
-     * 不会重新触发 {@link #setAttribute(String, String)} 的副作用。因此该钩子用于让子类在不强制触发
-     * CSS/layout 的前提下，从 attributes 中同步一次内部状态。
-     */
-    protected void onInitFromDom(Element origin) {}
-
-    /**
-     * 运行一次性的 DOM 初始化逻辑（含公共同步），避免重复执行。
-     * <p>
-     * 该方法只在 {@link #init(Element)} 替换元素后调用；程序运行过程中属性变更仍建议走懒加载/脏检查。
-     */
-    protected final void runInitFromDomOnce(Element origin) {
-        if (domInitHookInvoked) return;
-        domInitHookInvoked = true;
-
-        // 同步常用字段缓存（避免依赖 setAttribute 的副作用）。
-        String attrId = attributes.getOrDefault("id", null);
-        if ((id == null || id.isEmpty()) && attrId != null && !attrId.isEmpty()) {
-            id = attrId;
-        }
-        if (document != null && id != null && !id.isBlank()) {
-            document.recordID(this);
-        }
-
-        String attrValue = attributes.getOrDefault("value", null);
-        if (value == null && attrValue != null) {
-            value = attrValue;
-        }
-
-        String attrClass = attributes.getOrDefault("class", null);
-        if (classNames == null && attrClass != null && !attrClass.isEmpty()) {
-            classNames = new ArrayList<>();
-            classNames.addAll(List.of(attrClass.split(" ")));
-        }
-
-        onInitFromDom(origin);
     }
 
     // 元素工厂
@@ -336,8 +282,6 @@ public class Element {
                 element.prepend(textNode);
             }
 
-            element.runInitFromDomOnce(origin);
-
             return element;
         }
 
@@ -347,6 +291,7 @@ public class Element {
     public List<Element> querySelectorAll(String selector) {
         return Selector.querySelectorAll(this, selector);
     }
+
     public Element querySelector(String selector) {
         return Selector.querySelector(this, selector);
     }
@@ -354,6 +299,7 @@ public class Element {
     public void prepend(Element element) {
         document.createRelation(init(element), this, true);
     }
+
     public void append(Element element) {
         document.createRelation(init(element), this, false);
     }
@@ -361,9 +307,15 @@ public class Element {
     public void addDirtyFlags(int mask) {
         this.dirtyFlags |= mask;
     }
-    public boolean hasDirtyFlag(int mask) { return (this.dirtyFlags & mask) != 0; }
-    public void clearDirtyFlags() { this.dirtyFlags = 0; }
-    public int getDepth() { return this.depth; }
+
+    public boolean hasDirtyFlag(int mask) {
+        return (this.dirtyFlags & mask) != 0;
+    }
+
+    public void clearDirtyFlags() {
+        this.dirtyFlags = 0;
+    }
+
     public Element getParentStackContext() {
         Element parent = parentElement;
         while (parent != null) {
@@ -372,12 +324,14 @@ public class Element {
         }
         return document.body;
     }
+
     public boolean isStackContext() {
         Style style = getComputedStyle();
         return !style.position.equals("static") || !style.zIndex.equals("auto");
     }
 
     private long lastTickTime;
+
     public void tick() {
         lastTickTime = System.currentTimeMillis();
         if (scrollTop != targetScrollTop) {
@@ -400,15 +354,19 @@ public class Element {
 
     // 事件部分
     public ArrayList<Event> EventListener = new ArrayList<>();
+
     public void addEventListener(String type, Consumer<Event> listener) {
         addEventListener(type, listener, false);
     }
+
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         EventListener.add(new Event(this, type, listener, useCapture));
     }
+
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         EventListener.removeIf(event -> type.equals(event.type) && listener.equals(event.listener) && useCapture == event.useCapture);
     }
+
     public void triggerEvent(Consumer<Event> handler) {
         EventListener.forEach(handler);
     }
@@ -416,6 +374,7 @@ public class Element {
     public RenderElement getRenderer() {
         return renderElement;
     }
+
     public void resetRenderer() {
         renderElement = new RenderElement(this);
     }

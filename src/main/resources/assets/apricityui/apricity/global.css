@@ -47,16 +47,7 @@ select>option:hover {
     background-color: #fff;
 }
 
-container {
-    display: grid;
-    grid-template-columns: 9;
-    gap: 2px;
-    justify-items: stretch;
-    align-items: stretch;
-}
-
 slot {
-    display: block;
     width: 16px;
     height: 16px;
     background-image: url("apricityui/img/gui/area.png");

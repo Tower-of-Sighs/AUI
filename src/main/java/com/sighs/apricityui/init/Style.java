@@ -4,7 +4,6 @@ import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Size;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,21 +19,6 @@ public class Style implements Cloneable {
     public String boxShadow = "unset";
     public String zIndex = "auto";
     public String display = "flex";
-
-    public String gridTemplateColumns = "unset";
-    public String gridTemplateRows = "unset";
-
-    public String gap = "0px";
-    public String rowGap = "unset";
-    public String columnGap = "unset";
-
-    public String justifyItems = "stretch";
-
-    public String justifySelf = "unset";
-    public String alignSelf = "unset";
-
-    public String gridRow = "auto";
-    public String gridColumn = "auto";
 
     public String backgroundColor = "unset";
     public String backgroundImage = "unset";
@@ -69,7 +53,6 @@ public class Style implements Cloneable {
     public String borderImageRepeat = "unset";
 
     public String color = "unset";
-    public String selectionColor = "unset";
     public String fontSize = "unset";
     public String fontFamily = "unset";
     public String lineHeight = "unset";
@@ -133,6 +116,7 @@ public class Style implements Cloneable {
         }
         return (int) (fontSize / 16d * 9);
     }
+
     public static String getFontFamily(Element element) {
         String fontFamily = "unset";
         for (Element e : element.getRoute()) {
@@ -144,6 +128,7 @@ public class Style implements Cloneable {
         }
         return fontFamily;
     }
+
     public static int getFontColor(Element element) {
         String styleColor = element.getComputedStyle().color;
         if (styleColor.equals("unset")) {
@@ -161,25 +146,6 @@ public class Style implements Cloneable {
             styleColor = "#000";
         }
         return Color.parse(styleColor);
-    }
-
-    public static int getSelectionColor(Element element) {
-        String selection = element.getComputedStyle().selectionColor;
-        if (selection.equals("unset")) {
-            Element parent = element.parentElement;
-            while (parent != null) {
-                String parentSelection = parent.getComputedStyle().selectionColor;
-                if (!parentSelection.equals("unset")) {
-                    selection = parentSelection;
-                    break;
-                }
-                parent = parent.parentElement;
-            }
-        }
-        if (selection.equals("unset")) {
-            selection = "#3399FF80";
-        }
-        return Color.parse(selection);
     }
 
     public void merge(String styleString) {
@@ -204,8 +170,10 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             field.set(this, value);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
     }
+
     public String get(String name) {
         String styleName = transformStyleName(name);
         try {
@@ -216,7 +184,8 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             return (String) field.get(this);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
         return null;
     }
 
@@ -250,6 +219,7 @@ public class Style implements Cloneable {
         STYLE_NAME.put(input, result.toString());
         return result.toString();
     }
+
     // fontSize -> font-size
     private static String camelToKebab(String input) {
         StringBuilder result = new StringBuilder();
@@ -279,7 +249,8 @@ public class Style implements Cloneable {
                             .append(value)
                             .append(";");
                 }
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
         return css.toString();
     }
@@ -305,7 +276,7 @@ public class Style implements Cloneable {
 
         for (Field field : fields) {
             // 跳过静态字段
-            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+            if (Modifier.isStatic(field.getModifiers())) {
                 continue;
             }
 
@@ -326,7 +297,8 @@ public class Style implements Cloneable {
                         .append(":")
                         .append(value)
                         .append(";");
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
 
         return sb.toString();

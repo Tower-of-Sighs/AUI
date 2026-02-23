@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
@@ -109,8 +110,7 @@ public class FontDrawer {
             DynamicTexture texture = new DynamicTexture(nativeImg);
             texture.setFilter(true, false); // linear filter
 
-            ResourceLocation location = new ResourceLocation(
-                    MODID,
+            ResourceLocation location = ApricityUI.id(
                     "font/" + UUID.nameUUIDFromBytes((fontKey + text + color.getValue()).getBytes())
             );
 

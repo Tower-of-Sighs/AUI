@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance.container.schema;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.instance.container.visual.SlotVisualRules;
 import com.sighs.apricityui.resource.HTML;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
@@ -358,9 +359,6 @@ public final class ContainerSchema {
                 Integer zIndex,
                 String extraClasses
         ) {
-            public record RenderRule(boolean renderBackground, boolean renderItem) {
-            }
-
             private static final int FLAG_SLOT_SIZE = 1;
             private static final int FLAG_DISABLED = 1 << 1;
             private static final int FLAG_POINTER = 1 << 2;
@@ -374,21 +372,21 @@ public final class ContainerSchema {
             public static SlotVisualProfile fromSlotAttributes(Map<String, String> attributes) {
                 if (attributes == null || attributes.isEmpty()) return null;
 
-                Integer slotSize = parsePositiveInt(firstNonBlank(attributes, "size", "slot-size"));
+                Integer slotSize = SlotVisualRules.parsePositiveInt(firstNonBlank(attributes, "size", "slot-size"));
                 Boolean disabled = parseBoolean(attributes.get("disabled"));
-                Boolean acceptPointer = parsePointerFlag(firstNonBlank(
+                Boolean acceptPointer = SlotVisualRules.parsePointerFlag(firstNonBlank(
                         attributes,
                         "pointer",
                         "accept-pointer",
                         "acceptpointer",
                         "hit"
                 ));
-                RenderRule renderRule = parseRenderRule(firstNonBlank(attributes, "render"));
+                SlotVisualRules.RenderRule renderRule = SlotVisualRules.parseRenderRule(firstNonBlank(attributes, "render"));
                 Boolean renderBackground = renderRule == null ? null : renderRule.renderBackground();
                 Boolean renderItem = renderRule == null ? null : renderRule.renderItem();
-                Float iconScale = parsePositiveFloat(firstNonBlank(attributes, "icon-scale", "iconscale", "scale"));
-                Integer padding = parseNonNegativeInt(firstNonBlank(attributes, "padding"));
-                Integer zIndex = parseSignedInt(firstNonBlank(attributes, "z-index", "zindex", "z"));
+                Float iconScale = SlotVisualRules.parsePositiveFloat(firstNonBlank(attributes, "icon-scale", "iconscale", "scale"));
+                Integer padding = SlotVisualRules.parseNonNegativeInt(firstNonBlank(attributes, "padding"));
+                Integer zIndex = SlotVisualRules.parseSignedInt(firstNonBlank(attributes, "z-index", "zindex", "z"));
                 String extraClasses = normalizeBlankToNull(attributes.get("class"));
 
                 if (slotSize == null
@@ -510,113 +508,22 @@ public final class ContainerSchema {
                 return null;
             }
 
-            public static Boolean parsePointerFlag(String raw) {
-                if (raw == null || raw.isBlank()) return null;
-                String normalized = raw.trim().toLowerCase(Locale.ROOT);
-                if ("auto".equals(normalized)) return null;
-                if ("true".equals(normalized)
-                        || "1".equals(normalized)
-                        || "on".equals(normalized)
-                        || "yes".equals(normalized)) {
-                    return true;
-                }
-                if ("false".equals(normalized)
-                        || "0".equals(normalized)
-                        || "none".equals(normalized)
-                        || "off".equals(normalized)
-                        || "no".equals(normalized)) {
-                    return false;
-                }
-                return null;
-            }
-
-            public static RenderRule parseRenderRule(String raw) {
-                if (raw == null || raw.isBlank()) return null;
-                String normalized = raw.trim().toLowerCase(Locale.ROOT);
-                return switch (normalized) {
-                    case "none" -> new RenderRule(false, false);
-                    case "item" -> new RenderRule(false, true);
-                    case "bg", "background" -> new RenderRule(true, false);
-                    default -> parseRenderRuleByTokens(normalized);
-                };
-            }
-
-            private static RenderRule parseRenderRuleByTokens(String normalized) {
-                String[] tokens = normalized.split("[\\s,|+/]+");
-                LinkedHashSet<String> normalizedTokens = new LinkedHashSet<>();
-                for (String token : tokens) {
-                    if (token == null || token.isBlank()) continue;
-                    normalizedTokens.add(token.trim());
-                }
-                if (normalizedTokens.isEmpty()) return null;
-
-                boolean renderBackground = false;
-                boolean renderItem = false;
-                for (String token : normalizedTokens) {
-                    if ("bg".equals(token) || "background".equals(token)) {
-                        renderBackground = true;
-                    } else if ("item".equals(token)) {
-                        renderItem = true;
-                    }
-                }
-
-                if (renderBackground || renderItem) {
-                    return new RenderRule(renderBackground, renderItem);
-                }
-                if (normalizedTokens.contains("none")) {
-                    return new RenderRule(false, false);
-                }
-                return null;
-            }
-
-            public static Integer parseSignedInt(String raw) {
-                if (raw == null || raw.isBlank()) return null;
-                try {
-                    return Integer.parseInt(raw.trim());
-                } catch (NumberFormatException ignored) {
-                    return null;
-                }
-            }
-
-            public static Integer parsePositiveInt(String raw) {
-                Integer parsed = parseSignedInt(raw);
-                if (parsed == null || parsed <= 0) return null;
-                return parsed;
-            }
-
-            public static Integer parseNonNegativeInt(String raw) {
-                Integer parsed = parseSignedInt(raw);
-                if (parsed == null || parsed < 0) return null;
-                return parsed;
-            }
-
-            public static Float parsePositiveFloat(String raw) {
-                if (raw == null || raw.isBlank()) return null;
-                try {
-                    float parsed = Float.parseFloat(raw.trim());
-                    if (parsed <= 0.0F) return null;
-                    return parsed;
-                } catch (NumberFormatException ignored) {
-                    return null;
-                }
-            }
-
             private static String normalizeBlankToNull(String raw) {
                 if (raw == null) return null;
                 String normalized = raw.trim();
                 return normalized.isBlank() ? null : normalized;
             }
+        }
 
-            private static String firstNonBlank(Map<String, String> attributes, String... keys) {
-                if (attributes == null || attributes.isEmpty() || keys == null || keys.length == 0) return null;
-                for (String key : keys) {
-                    if (key == null || key.isBlank()) continue;
-                    String value = attributes.get(key);
-                    if (value == null || value.isBlank()) continue;
-                    return value;
-                }
-                return null;
+        private static String firstNonBlank(Map<String, String> attributes, String... keys) {
+            if (attributes == null || attributes.isEmpty() || keys == null || keys.length == 0) return null;
+            for (String key : keys) {
+                if (key == null || key.isBlank()) continue;
+                String value = attributes.get(key);
+                if (value == null || value.isBlank()) continue;
+                return value;
             }
+            return null;
         }
 
         public enum BindType {

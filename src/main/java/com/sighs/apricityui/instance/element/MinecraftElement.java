@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.container.runtime.ContainerEngine;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
 import net.minecraft.client.Minecraft;
@@ -18,11 +19,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
 /**
- * Minecraft 相关元素基类，统一处理批量属性更新与基础渲染辅助能力。
+ * Minecraft 相关元素基类，统一处理绑定状态、批量属性更新与基础渲染辅助能力。
  */
 public abstract class MinecraftElement extends Element {
     private static final Map<String, Object> GLOBAL_RUNTIME_CACHES = new ConcurrentHashMap<>();
     private final HashMap<String, Object> runtimeCaches = new HashMap<>();
+    protected ContainerEngine.Controller controller = null;
+    protected String containerId = "";
+    protected int boundSlotIndex = -1;
+    protected boolean validBinding = false;
+    protected boolean runtimeHidden = false;
     private int attributeBatchDepth = 0;
     private boolean pendingCssUpdate = false;
 
@@ -59,6 +65,51 @@ public abstract class MinecraftElement extends Element {
 
     public final boolean isVirtualMode() {
         return getBindingMode() == MinecraftBindingMode.VIRTUAL;
+    }
+
+    public void applyRuntimeLayout(int screenX, int screenY, int slotSize, boolean hidden) {
+        this.runtimeHidden = hidden;
+    }
+
+    public void clearRuntimeLayout() {
+        this.runtimeHidden = false;
+    }
+
+    public final void bindToSlot(ContainerEngine.Controller controller, String containerId, int slotIndex) {
+        this.controller = controller;
+        this.containerId = containerId == null ? "" : containerId;
+        this.boundSlotIndex = slotIndex;
+        this.validBinding = true;
+        onBoundToSlot(controller, this.containerId, slotIndex);
+    }
+
+    public final void unbindFromSlot() {
+        setHover(false);
+        this.controller = null;
+        this.containerId = "";
+        this.boundSlotIndex = -1;
+        this.validBinding = false;
+        clearRuntimeLayout();
+        clearRuntimeCaches();
+        onUnboundFromSlot();
+    }
+
+    protected void onBoundToSlot(ContainerEngine.Controller controller, String containerId, int slotIndex) {
+    }
+
+    protected void onUnboundFromSlot() {
+    }
+
+    public final String getBoundContainerId() {
+        return containerId;
+    }
+
+    public final int getBoundSlotIndex() {
+        return boundSlotIndex;
+    }
+
+    public final boolean hasValidBinding() {
+        return validBinding;
     }
 
     public final <T extends Element> T findAncestor(Class<T> type) {

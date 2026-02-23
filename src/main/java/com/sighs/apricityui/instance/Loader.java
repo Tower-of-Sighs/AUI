@@ -13,10 +13,10 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.loading.FMLPaths;
 import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
@@ -29,7 +29,7 @@ import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID)
+@EventBusSubscriber(modid = ApricityUI.MOD_ID)
 public class Loader {
     @SubscribeEvent
     public static void setup(FMLCommonSetupEvent event) {
@@ -61,10 +61,11 @@ public class Loader {
             if (Files.exists(local)) return Files.newInputStream(local);
 
             // 资源包
-            ResourceLocation rl = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
+            ResourceLocation rl = ApricityUI.id("apricity/" + path);
             Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(rl);
             if (res.isPresent()) return res.get().open();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         return null;
     }
 
@@ -98,7 +99,8 @@ public class Loader {
     }
 
     private final String extension;
-    private BiConsumer<String, String> handler = (k, c) -> {};
+    private BiConsumer<String, String> handler = (k, c) -> {
+    };
 
     public Loader(String extension) {
         this.extension = extension;
@@ -141,16 +143,19 @@ public class Loader {
                                 String content = Files.readString(p, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(p).toString().replace("\\", "/");
                                 handler.accept(relPath, content);
-                            } catch (IOException ignored) {}
+                            } catch (IOException ignored) {
+                            }
                         });
             }
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     public static String readGlobalCSS() {
         try (InputStream is = getResourceStream("global.css")) {
             if (is != null) return IOUtils.toString(is, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         return null;
     }
 }

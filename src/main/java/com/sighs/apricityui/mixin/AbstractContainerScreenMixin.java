@@ -1,7 +1,7 @@
 package com.sighs.apricityui.mixin;
 
-import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
+import com.sighs.apricityui.instance.container.runtime.SlotRuntimeAccess;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -45,12 +45,10 @@ public abstract class AbstractContainerScreenMixin {
             cir.setReturnValue(false);
             return;
         }
-
         int slotSize = 16;
-        if (slot instanceof ApricityContainerMenu.UiSlot uiSlot) {
-            slotSize = Math.max(1, uiSlot.getUiSlotSize());
+        if (slot instanceof SlotRuntimeAccess access) {
+            slotSize = Math.max(1, access.apricityui$getSlotSize());
         }
-
         double localX = mouseX - (double) leftPos;
         double localY = mouseY - (double) topPos;
         cir.setReturnValue(localX >= (double) (slot.x - 1)

@@ -1,24 +1,18 @@
 package com.sighs.apricityui.instance.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.Span;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.network.chat.Component;
-import net.minecraftforge.fml.common.Mod;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID)
+@ElementRegister(Translation.TAG_NAME)
 public class Translation extends Span {
     public static final String TAG_NAME = "TRANSLATION";
-
-    static {
-        Element.register(TAG_NAME, ((document, string) -> new Span(document)));
-    }
 
     public Translation(Document document) {
         super(document);

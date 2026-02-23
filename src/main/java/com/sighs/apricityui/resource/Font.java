@@ -64,6 +64,6 @@ public class Font {
 
     public static void clear() {
         FONTS.clear();
-        FONTS.put(DEFAULT_KEY, new java.awt.Font("Microsoft YaHei", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
+        FONTS.put(DEFAULT_KEY, new java.awt.Font("Arial", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
     }
 }

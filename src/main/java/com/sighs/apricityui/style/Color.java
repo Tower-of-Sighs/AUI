@@ -62,15 +62,14 @@ public class Color {
     }
 
     public String toRgbaString() {
-        return String.format("rgba(%d, %d, %d, %.3f)",
-                getR(), getG(), getB(), getA() / 255.0);
-    }
-
-    public String toHexString() {
         if (getA() == 255) {
             return String.format("#%06X", (value & 0x00FFFFFF));
         }
         return String.format("#%08X", value);
+    }
+
+    public String toHexString() {
+        return String.format("#%06X", (value & 0x00FFFFFF));
     }
 
     public int getA() {

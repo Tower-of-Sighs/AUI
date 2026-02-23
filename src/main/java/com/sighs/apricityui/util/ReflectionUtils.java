@@ -1,8 +1,9 @@
 package com.sighs.apricityui.util;
 
 import com.sighs.apricityui.ApricityUI;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.forgespi.language.ModFileScanData;
+import lombok.experimental.UtilityClass;
+import net.neoforged.fml.ModList;
+import net.neoforged.neoforgespi.language.ModFileScanData;
 import org.jetbrains.annotations.Nullable;
 
 import java.lang.annotation.Annotation;
@@ -15,6 +16,7 @@ import java.util.function.Predicate;
 
 // 代码参考ldlib2
 // https://github.com/Low-Drag-MC/LDLib2/blob/1.21/src/main/java/com/lowdragmc/lowdraglib2/utils/ReflectionUtils.java
+@UtilityClass
 public final class ReflectionUtils {
 
     public static Class<?> getRawType(Type type, Class<?> fallback) {
@@ -23,15 +25,12 @@ public final class ReflectionUtils {
     }
 
     public static Class<?> getRawType(Type type) {
-        if (type instanceof Class<?> aClass) {
-            return aClass;
-        } else if (type instanceof GenericArrayType genericArrayType) {
-            return getRawType(genericArrayType.getGenericComponentType());
-        } else if (type instanceof ParameterizedType parameterizedType) {
-            return getRawType(parameterizedType.getRawType());
-        } else {
-            return null;
-        }
+        return switch (type) {
+            case Class<?> aClass -> aClass;
+            case GenericArrayType genericArrayType -> getRawType(genericArrayType.getGenericComponentType());
+            case ParameterizedType parameterizedType -> getRawType(parameterizedType.getRawType());
+            case null, default -> null;
+        };
     }
 
     public static <A extends Annotation> void findAnnotationClasses(Class<A> annotationClass,

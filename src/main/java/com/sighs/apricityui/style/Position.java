@@ -3,8 +3,7 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
-
-import java.util.*;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Position {
@@ -24,9 +23,8 @@ public class Position {
 
     public static Position of(Element element) {
         if (element == null) return ZERO;
-
-        Position cache = element.getRenderer().position.get();
-        if (cache != null) return cache;
+//        Position cache = element.getRenderer().position.get();
+//        if (cache != null) return cache;
 
         Style style = element.getComputedStyle();
         Position resultPosition = ZERO;
@@ -59,7 +57,7 @@ public class Position {
             } else {
                 if (element.parentElement != null) {
                     CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
-                    Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
+                    Position staticPos = Flex.computeChildPosition(element, element.parentElement, siblings);
                     x = staticPos.x;
                 }
             }
@@ -71,7 +69,7 @@ public class Position {
             } else {
                 if (element.parentElement != null) {
                     CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
-                    Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
+                    Position staticPos = Flex.computeChildPosition(element, element.parentElement, siblings);
                     y = staticPos.y;
                 }
             }
@@ -85,7 +83,7 @@ public class Position {
         } else {
             Element parent = element.parentElement;
             if (parent != null) {
-                resultPosition = computeNormalFlowChildPosition(element, parent, parent.children);
+                resultPosition = Flex.computeChildPosition(element, parent, parent.children);
             }
 
             if ("relative".equals(positionType)) {
@@ -106,15 +104,7 @@ public class Position {
         return resultPosition;
     }
 
-    private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {
-        Style ps = parent.getComputedStyle();
-        if ("grid".equals(ps.display)) {
-            return Grid.computeChildPosition(element, parent, siblings);
-        }
-        return Flex.computeChildPosition(element, parent, siblings);
-    }
-
-public static int parseSignedInt(String str) {
+    public static int parseSignedInt(String str) {
         if (str == null || str.isEmpty() || "unset".equals(str)) {
             return 0;
         }
@@ -148,10 +138,5 @@ public static int parseSignedInt(String str) {
         }
 
         return 0;
-    }
-
-    @Override
-    public String toString() {
-        return "[" + x + "," + y + "]";
     }
 }

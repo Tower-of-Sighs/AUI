@@ -9,10 +9,10 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemStackHandler;
-import net.minecraftforge.items.SlotItemHandler;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.items.IItemHandler;
+import net.neoforged.neoforge.items.ItemStackHandler;
+import net.neoforged.neoforge.items.SlotItemHandler;
 
 import java.util.Map;
 import java.util.UUID;
@@ -149,7 +149,7 @@ public final class ApricityDataSourceResolver {
             String inventoryKey,
             int slotCount
     ) {
-        ApricitySavedData savedData = ApricitySavedData.get(player.server, dataName);
+        ApricitySavedDataInventory savedData = ApricitySavedDataInventory.get(player.server, dataName);
         ItemStackHandler handler = savedData.getOrCreate(inventoryKey, Math.max(1, slotCount));
         return new ApricityMenuSlotSource() {
             @Override
@@ -192,7 +192,13 @@ public final class ApricityDataSourceResolver {
             return null;
         }
 
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
+        IItemHandler handler = level.getCapability(
+                Capabilities.ItemHandler.BLOCK,
+                pos,
+                blockEntity.getBlockState(),
+                blockEntity,
+                side
+        );
         if (handler == null || handler.getSlots() <= 0) {
             ApricityUI.LOGGER.warn("Block entity has no inventory capability, cannot bind {} @ {}", bindType.id(), pos);
             return null;
@@ -237,7 +243,7 @@ public final class ApricityDataSourceResolver {
             return null;
         }
 
-        IItemHandler handler = livingEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler handler = Capabilities.ItemHandler.ENTITY.getCapability(livingEntity, null);
         if (handler == null || handler.getSlots() <= 0) {
             ApricityUI.LOGGER.warn("Entity source resolve failed: no item handler capability, uuid={}", targetUuid);
             return null;

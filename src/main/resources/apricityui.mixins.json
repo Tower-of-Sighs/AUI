@@ -2,16 +2,25 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.sighs.apricityui.mixin",
-  "compatibilityLevel": "JAVA_8",
-  "refmap": "apricityui.refmap.json",
+  "compatibilityLevel": "JAVA_21",
   "mixins": [
+    "SlotRuntimeMixin",
+    "accessor.SlotAccessor"
   ],
   "client": [
     "AbstractContainerScreenMixin",
-    "accessor.AbstractContainerScreenAccessor",
-    "accessor.SlotAccessor"
+    "InputConstants$TypeMixin",
+    "LevelLoadingScreenMixin",
+    "MinecraftMixin",
+    "ProgressScreenMixin",
+    "ReceivingLevelScreenMixin",
+    "SignRendererMixin",
+    "accessor.AbstractContainerScreenAccessor"
   ],
   "injectors": {
     "defaultRequire": 1
+  },
+  "overwrites": {
+    "requireAnnotations": true
   }
 }

@@ -3,7 +3,9 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

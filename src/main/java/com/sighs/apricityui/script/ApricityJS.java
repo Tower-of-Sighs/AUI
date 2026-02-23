@@ -1,14 +1,14 @@
 package com.sighs.apricityui.script;
 
+import com.sighs.apricityui.ApricityUI;
 import dev.latvian.mods.kubejs.KubeJS;
-import net.minecraftforge.fml.ModList;
 
 public class ApricityJS {
     public static void eval(String code) {
-        if (!ModList.get().isLoaded("kubejs")) return;
+        if (!ApricityUI.isKubeJSLoaded()) return;
         var manager = KubeJS.getClientScriptManager();
-        var context = manager.context;
-        var top = manager.topLevelScope;
+        var context = manager.contextFactory.enter();
+        var top = context.getTopCallScope();
         context.evaluateString(top, code, "eval", 1, null);
     }
 }

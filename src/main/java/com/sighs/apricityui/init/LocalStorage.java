@@ -3,7 +3,7 @@ package com.sighs.apricityui.init;
 import com.sighs.apricityui.ApricityUI;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtIo;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.fml.loading.FMLPaths;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,7 +13,7 @@ public class LocalStorage {
 
     //文件存储位置
     public static final File LOCAL_STORAGE_FILE_PATH = FMLPaths.CONFIGDIR.get()
-            .resolve(ApricityUI.MODID)
+            .resolve(ApricityUI.MOD_ID)
             .resolve("localStorage.nbt")
             .toFile();
 
@@ -29,7 +29,7 @@ public class LocalStorage {
                 }
             }
 
-            NbtIo.writeCompressed(localStorage, LOCAL_STORAGE_FILE_PATH);
+            NbtIo.writeCompressed(localStorage, LOCAL_STORAGE_FILE_PATH.toPath());
         }catch (IOException e){
             ApricityUI.LOGGER.error("Failed to save LocalStorage data to {}", LOCAL_STORAGE_FILE_PATH.getAbsolutePath(), e);
         }

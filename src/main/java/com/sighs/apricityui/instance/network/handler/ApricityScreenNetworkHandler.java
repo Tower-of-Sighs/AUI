@@ -6,33 +6,30 @@ import com.sighs.apricityui.instance.container.bind.ApricityDataSourceResolver;
 import com.sighs.apricityui.instance.container.bind.ApricityMenuSlotSource;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
-import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.NetworkHooks;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public final class ApricityScreenNetworkHandler {
     public static void requestOpenScreen(String path) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
-        ApricityNetwork.sendToServer(new OpenScreenRequestPacket(path));
+        minecraft.player.connection.send(new OpenScreenRequestPacket(path));
     }
 
     public static void requestCloseScreen() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
 
-        ApricityNetwork.sendToServer(new CloseContainerRequestPacket());
+        minecraft.player.connection.send(new CloseContainerRequestPacket());
     }
 
     public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
@@ -53,37 +50,27 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, boundDescriptor, containerSources);
     }
 
-    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
-        context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
-            if (player == null) return;
+    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, IPayloadContext context) {
+        ServerPlayer player = (ServerPlayer) context.player();
 
-            ContainerSchema.OpenRequest request = ContainerSchema.OpenRequest.fromRaw(packet.templatePath());
-            if (request == null) return;
+        ContainerSchema.OpenRequest request = ContainerSchema.OpenRequest.fromRaw(packet.templatePath());
+        if (request == null) return;
 
-            ContainerSchema.Descriptor descriptor = ContainerSchema.TemplateAnalyzer.analyzeTemplate(request.templatePath());
-            if (descriptor == null) return;
+        ContainerSchema.Descriptor descriptor = ContainerSchema.TemplateAnalyzer.analyzeTemplate(request.templatePath());
+        if (descriptor == null) return;
 
-            Map<String, ApricityMenuSlotSource> containerSources = resolveContainerSources(player, descriptor, null);
-            if (containerSources == null) return;
+        Map<String, ApricityMenuSlotSource> containerSources = resolveContainerSources(player, descriptor, null);
+        if (containerSources == null) return;
 
-            openScreenFromServer(player, descriptor, containerSources);
-        });
-        context.setPacketHandled(true);
+        openScreenFromServer(player, descriptor, containerSources);
     }
 
-    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
-        context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
-            if (player == null) return;
+    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, IPayloadContext context) {
+        ServerPlayer player = (ServerPlayer) context.player();
 
-            if (player.containerMenu instanceof ApricityContainerMenu) {
-                player.closeContainer();
-            }
-        });
-        context.setPacketHandled(true);
+        if (player.containerMenu instanceof ApricityContainerMenu) {
+            player.closeContainer();
+        }
     }
 
     private static ContainerSchema.Descriptor applyBindPlan(ContainerSchema.Descriptor descriptor, OpenBindPlan plan) {
@@ -171,7 +158,7 @@ public final class ApricityScreenNetworkHandler {
                 ? Component.empty()
                 : Component.literal(titleLiteral);
 
-        NetworkHooks.openScreen(player, new SimpleMenuProvider(
+        player.openMenu(new SimpleMenuProvider(
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,
                         playerInventory,

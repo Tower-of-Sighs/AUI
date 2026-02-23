@@ -61,10 +61,6 @@ public class RenderElement {
             "width", "height",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems",
-            "gridTemplateColumns", "gridTemplateRows",
-            "gap", "rowGap", "columnGap",
-            "justifyItems",
-            "gridRow", "gridColumn", "justifySelf", "alignSelf",
             "position", "top", "bottom", "left", "right", "display"
     );
 

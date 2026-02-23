@@ -3,7 +3,6 @@ package com.sighs.apricityui.dev;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Selector;
-import com.sighs.apricityui.script.ApricityJS;
 
 import java.util.Locale;
 
@@ -13,14 +12,13 @@ public class DevTools {
     private static final String PATH = "devtools/index.html";
 
     public static void toggle() {
-//        if (Document.get(PATH).isEmpty()) {
-//            document = Document.create(PATH);
-//            load();
-////            ApricityJS.eval("console.log(Client.screen.width)");
-//        } else {
-//            document = null;
-//            Document.remove(PATH);
-//        }
+        if (Document.get(PATH).isEmpty()) {
+            document = Document.create(PATH);
+            load();
+        } else {
+            document = null;
+            Document.remove(PATH);
+        }
     }
 
     public static void load() {

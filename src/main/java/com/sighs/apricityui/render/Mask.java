@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.style.Size;
+import lombok.Getter;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
@@ -13,6 +14,7 @@ import java.util.Stack;
 public class Mask {
     private static int depth = 0;
     private static final Stack<AABB> clipStack = new Stack<>();
+    @Getter
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
 
     public static void resetDepth() {
@@ -21,10 +23,6 @@ public class Mask {
         int screenWidth = (int) Size.getWindowSize().width();
         int screenHeight = (int) Size.getWindowSize().height();
         currentClip = new AABB(0, 0, screenWidth, screenHeight);
-    }
-
-    public static AABB getCurrentClip() {
-        return currentClip;
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
@@ -64,13 +62,11 @@ public class Mask {
 
     private static void drawToStencil(Matrix4f matrix, float x, float y, float width, float height, float[] radii) {
         Tesselator tess = Tesselator.getInstance();
-        BufferBuilder buf = tess.getBuilder();
+        BufferBuilder buf = tess.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
 
         Base.setPositionColorShader();
 
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
         Graph.addUnifiedRoundedRectVertices(buf, matrix, x, y, width, height, radii, 0xFFFFFFFF);
-        tess.end();
     }
 
     private static void setupStencilStatePush() {
@@ -143,13 +139,11 @@ public class Mask {
 
     private static void drawClipToStencil(Matrix4f matrix, float x, float y, float width, float height, String clipPath) {
         Tesselator tess = Tesselator.getInstance();
-        BufferBuilder buf = tess.getBuilder();
+        BufferBuilder buf = tess.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
 
         Base.setPositionColorShader();
 
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
         ClipPath.drawToStencil(buf, matrix, x, y, width, height, clipPath);
-        tess.end();
     }
 
     public static void enableScissor(int x, int y, int width, int height) {
