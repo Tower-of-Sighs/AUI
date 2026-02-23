@@ -13,7 +13,11 @@ import java.util.regex.Pattern;
 
 public class Animation {
     private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
-    private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
+    /**
+     * 每个 Element 可能同时存在多个 animation（逗号分隔）。
+     * 这里用 index 对齐（第 i 个 AnimationConfig 对应第 i 个 AnimationState）。
+     */
+    private static final Map<UUID, List<AnimationState>> ACTIVE_ANIMATIONS = new HashMap<>();
 
     private static final Set<String> DIRECTIONS = new HashSet<>(Arrays.asList(
             "normal", "reverse", "alternate", "alternate-reverse"
@@ -65,40 +69,128 @@ public class Animation {
     }
 
     public static boolean isActive(Element element) {
-        return ACTIVE_ANIMATIONS.containsKey(element.uuid);
+        List<AnimationState> list = ACTIVE_ANIMATIONS.get(element.uuid);
+        if (list == null || list.isEmpty()) return false;
+        for (AnimationState s : list) {
+            if (s != null) return true;
+        }
+        return false;
     }
 
     public static void stop(Element element) {
         ACTIVE_ANIMATIONS.remove(element.uuid);
     }
 
-    public static void registerKeyframe(String name, double percent, Map<String, String> properties) {
-        KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>())
-                .put(percent, properties);
+    public static void clearKeyframes(String name) {
+        if (name == null) return;
+        KEYFRAMES.remove(name);
     }
 
-    private static AnimationConfig resolveAnimation(Style style) {
-        AnimationConfig config = new AnimationConfig();
-        String shorthand = style.animation;
-        if (valid(shorthand)) {
-            applyShorthandLogic(config, shorthand);
+    public static void registerKeyframe(String name, double percent, Map<String, String> properties) {
+        if (name == null || properties == null) return;
+        KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>())
+                // 同百分比的多次定义：后写覆盖属性
+                .merge(percent, new HashMap<>(properties), (oldMap, newMap) -> {
+                    oldMap.putAll(newMap);
+                    return oldMap;
+                });
+    }
+
+    private static List<AnimationConfig> resolveAnimations(Style style) {
+        List<AnimationConfig> base = new ArrayList<>();
+        if (valid(style.animation)) {
+            for (String segment : splitTopLevelByComma(style.animation)) {
+                if (StringUtils.isNullOrEmptyEx(segment)) continue;
+                AnimationConfig cfg = new AnimationConfig();
+                applyShorthandLogic(cfg, segment);
+                base.add(cfg);
+            }
         }
 
-        if (valid(style.animationName)) config.name = style.animationName;
-        if (valid(style.animationDuration)) config.duration = style.animationDuration;
-        if (valid(style.animationDelay)) config.delay = style.animationDelay;
-        if (valid(style.animationIterationCount)) config.iterationCount = style.animationIterationCount;
-        if (valid(style.animationDirection)) config.direction = style.animationDirection;
-        if (valid(style.animationFillMode)) config.fillMode = style.animationFillMode;
-        if (valid(style.animationTimingFunction)) config.timingFunction = style.animationTimingFunction;
-        if (valid(style.animationPlayState)) config.playState = style.animationPlayState;
+        List<String> names = parseCommaListIfValid(style.animationName);
+        List<String> durations = parseCommaListIfValid(style.animationDuration);
+        List<String> delays = parseCommaListIfValid(style.animationDelay);
+        List<String> iterationCounts = parseCommaListIfValid(style.animationIterationCount);
+        List<String> directions = parseCommaListIfValid(style.animationDirection);
+        List<String> fillModes = parseCommaListIfValid(style.animationFillMode);
+        List<String> timingFunctions = parseCommaListIfValid(style.animationTimingFunction);
+        List<String> playStates = parseCommaListIfValid(style.animationPlayState);
 
-        return config;
+        int n = 0;
+        n = Math.max(n, base.size());
+        n = Math.max(n, names.size());
+        n = Math.max(n, durations.size());
+        n = Math.max(n, delays.size());
+        n = Math.max(n, iterationCounts.size());
+        n = Math.max(n, directions.size());
+        n = Math.max(n, fillModes.size());
+        n = Math.max(n, timingFunctions.size());
+        n = Math.max(n, playStates.size());
+
+        // 没有任何 animation 信息
+        if (n == 0) return Collections.emptyList();
+
+        // 补齐 base 到 n（按 CSS 规则循环补齐）
+        if (base.isEmpty()) {
+            for (int i = 0; i < n; i++) base.add(new AnimationConfig());
+        } else if (base.size() < n) {
+            int baseSize = base.size();
+            for (int i = base.size(); i < n; i++) {
+                base.add(copyConfig(base.get(i % baseSize)));
+            }
+        } else if (base.size() > n) {
+            base = new ArrayList<>(base.subList(0, n));
+        }
+
+        for (int i = 0; i < n; i++) {
+            AnimationConfig cfg = base.get(i);
+
+            String v;
+            v = pick(names, i); if (v != null) cfg.name = v;
+            v = pick(durations, i); if (v != null) cfg.duration = v;
+            v = pick(delays, i); if (v != null) cfg.delay = v;
+            v = pick(iterationCounts, i); if (v != null) cfg.iterationCount = v;
+            v = pick(directions, i); if (v != null) cfg.direction = v;
+            v = pick(fillModes, i); if (v != null) cfg.fillMode = v;
+            v = pick(timingFunctions, i); if (v != null) cfg.timingFunction = v;
+            v = pick(playStates, i); if (v != null) cfg.playState = v;
+        }
+
+        return base;
     }
 
-    private static void applyShorthandLogic(AnimationConfig config, String shorthand) {
-        String singleAnimation = firstAnimationSegment(shorthand);
-        List<String> tokens = splitAnimationTokens(singleAnimation);
+    private static AnimationConfig copyConfig(AnimationConfig src) {
+        AnimationConfig c = new AnimationConfig();
+        c.name = src.name;
+        c.duration = src.duration;
+        c.delay = src.delay;
+        c.iterationCount = src.iterationCount;
+        c.direction = src.direction;
+        c.fillMode = src.fillMode;
+        c.timingFunction = src.timingFunction;
+        c.playState = src.playState;
+        return c;
+    }
+
+    private static List<String> parseCommaListIfValid(String raw) {
+        if (!valid(raw)) return Collections.emptyList();
+        List<String> parts = splitTopLevelByComma(raw);
+        ArrayList<String> out = new ArrayList<>(parts.size());
+        for (String p : parts) {
+            if (p == null) continue;
+            String t = p.trim();
+            if (!t.isEmpty() && !"unset".equals(t)) out.add(t);
+        }
+        return out;
+    }
+
+    private static String pick(List<String> list, int i) {
+        if (list == null || list.isEmpty()) return null;
+        return list.get(i % list.size());
+    }
+
+    private static void applyShorthandLogic(AnimationConfig config, String shorthandSegment) {
+        List<String> tokens = splitAnimationTokens(shorthandSegment);
         boolean durationSet = false;
 
         for (String token : tokens) {
@@ -139,21 +231,29 @@ public class Animation {
         }
     }
 
-    private static String firstAnimationSegment(String shorthand) {
-        StringBuilder builder = new StringBuilder();
+    /**
+     * 顶层逗号分割：忽略括号内的逗号（用于 cubic-bezier/steps 等）。
+     */
+    private static List<String> splitTopLevelByComma(String s) {
+        ArrayList<String> out = new ArrayList<>();
+        if (s == null) return out;
+        StringBuilder cur = new StringBuilder();
         int depth = 0;
-        for (int i = 0; i < shorthand.length(); i++) {
-            char c = shorthand.charAt(i);
-            if (c == '(') {
-                depth++;
-            } else if (c == ')') {
-                depth = Math.max(0, depth - 1);
-            } else if (c == ',' && depth == 0) {
-                break;
+
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')') depth = Math.max(0, depth - 1);
+
+            if (c == ',' && depth == 0) {
+                out.add(cur.toString().trim());
+                cur.setLength(0);
+                continue;
             }
-            builder.append(c);
+            cur.append(c);
         }
-        return builder.toString();
+        if (cur.length() > 0) out.add(cur.toString().trim());
+        return out;
     }
 
     private static List<String> splitAnimationTokens(String value) {
@@ -218,75 +318,120 @@ public class Animation {
                 + config.direction + "|" + config.fillMode + "|" + config.timingFunction;
     }
 
+    private static List<AnimationState> ensureStateList(Element element, int n) {
+        List<AnimationState> old = ACTIVE_ANIMATIONS.get(element.uuid);
+        if (old == null) {
+            ArrayList<AnimationState> created = new ArrayList<>(Collections.nCopies(n, null));
+            ACTIVE_ANIMATIONS.put(element.uuid, created);
+            return created;
+        }
+        if (old.size() == n) return old;
+
+        ArrayList<AnimationState> resized = new ArrayList<>(Collections.nCopies(n, null));
+        int copy = Math.min(old.size(), n);
+        for (int i = 0; i < copy; i++) resized.set(i, old.get(i));
+        ACTIVE_ANIMATIONS.put(element.uuid, resized);
+        return resized;
+    }
+
     public static void updateStyle(Element element, Style computedStyle) {
-        AnimationConfig config = resolveAnimation(computedStyle);
-        String animName = config.name;
-        if (animName == null || animName.equals("none") || !KEYFRAMES.containsKey(animName)) {
+        List<AnimationConfig> configs = resolveAnimations(computedStyle);
+        if (configs.isEmpty()) {
             ACTIVE_ANIMATIONS.remove(element.uuid);
             return;
         }
 
-        String configKey = buildConfigKey(config);
-        AnimationState state = ACTIVE_ANIMATIONS.get(element.uuid);
-        if (state == null || !state.currentName.equals(animName) || !state.configKey.equals(configKey)) {
-            state = new AnimationState(animName, configKey);
-            ACTIVE_ANIMATIONS.put(element.uuid, state);
-        }
+        // 作为“底层样式”快照，避免多 animation 叠加时彼此污染 fallback 值
+        Style baseStyle = computedStyle.clone();
 
+        List<AnimationState> states = ensureStateList(element, configs.size());
         long now = System.currentTimeMillis();
-        if ("paused".equals(config.playState)) {
-            if (!state.paused) {
-                state.paused = true;
-                state.pauseStartedAt = now;
+
+        boolean anyActive = false;
+
+        for (int i = 0; i < configs.size(); i++) {
+            AnimationConfig config = configs.get(i);
+            String animName = config.name;
+
+            // none 或找不到 keyframes：该段无效
+            if (animName == null || animName.equals("none") || !KEYFRAMES.containsKey(animName)) {
+                states.set(i, null);
+                continue;
             }
-        } else if (state.paused) {
-            state.startTime += now - state.pauseStartedAt;
-            state.pauseStartedAt = 0;
-            state.paused = false;
-        }
 
-        double duration = parseTime(config.duration);
-        if (duration <= 0) {
-            ACTIVE_ANIMATIONS.remove(element.uuid);
-            return;
-        }
-
-        long elapsed = state.paused ? (state.pauseStartedAt - state.startTime) : (now - state.startTime);
-        double delay = parseTime(config.delay);
-
-        if (elapsed < delay) {
-            if (isBackwardsFill(config.fillMode)) {
-                applyKeyframes(computedStyle, animName, 0.0);
+            double duration = parseTime(config.duration);
+            if (duration <= 0) {
+                states.set(i, null);
+                continue;
             }
-            return;
-        }
 
-        long activeTime = elapsed - (long) delay;
-        double count = parseIterationCount(config.iterationCount);
-
-        if (count <= 0) {
-            ACTIVE_ANIMATIONS.remove(element.uuid);
-            return;
-        }
-
-        if (count != Double.MAX_VALUE && activeTime >= duration * count) {
-            ACTIVE_ANIMATIONS.remove(element.uuid);
-            if (isForwardsFill(config.fillMode)) {
-                applyKeyframes(computedStyle, animName, 100.0);
+            double count = parseIterationCount(config.iterationCount);
+            if (count <= 0) {
+                states.set(i, null);
+                continue;
             }
-            return;
+
+            String configKey = buildConfigKey(config);
+            AnimationState state = states.get(i);
+            if (state == null || !state.currentName.equals(animName) || !state.configKey.equals(configKey)) {
+                state = new AnimationState(animName, configKey);
+                states.set(i, state);
+            }
+
+            // paused / resume
+            if ("paused".equals(config.playState)) {
+                if (!state.paused) {
+                    state.paused = true;
+                    state.pauseStartedAt = now;
+                }
+            } else if (state.paused) {
+                state.startTime += now - state.pauseStartedAt;
+                state.pauseStartedAt = 0;
+                state.paused = false;
+            }
+
+            long elapsed = state.paused ? (state.pauseStartedAt - state.startTime) : (now - state.startTime);
+            double delay = parseTime(config.delay);
+
+            // delay 期间：只有 backwards/both 才应用 0%
+            if (elapsed < delay) {
+                anyActive = true;
+                if (isBackwardsFill(config.fillMode)) {
+                    applyKeyframes(computedStyle, baseStyle, animName, 0.0);
+                }
+                continue;
+            }
+
+            long activeTime = elapsed - (long) delay;
+
+            // 已结束：forwards/both 维持最后一帧（保持 active 以便 observeStyle 生效）
+            if (count != Double.MAX_VALUE && activeTime >= duration * count) {
+                if (isForwardsFill(config.fillMode)) {
+                    anyActive = true;
+                    applyKeyframes(computedStyle, baseStyle, animName, 100.0);
+                } else {
+                    states.set(i, null);
+                }
+                continue;
+            }
+
+            anyActive = true;
+
+            double currentCycleTime = activeTime % duration;
+            double progress = currentCycleTime / duration;
+            long currentIteration = (long) Math.floor(activeTime / duration);
+
+            if (isReverseDirection(config.direction, currentIteration)) {
+                progress = 1.0 - progress;
+            }
+
+            double easedProgress = applyTimingFunction(progress, config.timingFunction);
+            applyKeyframes(computedStyle, baseStyle, animName, clamp01(easedProgress) * 100.0);
         }
 
-        double currentCycleTime = activeTime % duration;
-        double progress = currentCycleTime / duration;
-        long currentIteration = (long) Math.floor(activeTime / duration);
-
-        if (isReverseDirection(config.direction, currentIteration)) {
-            progress = 1.0 - progress;
+        if (!anyActive) {
+            ACTIVE_ANIMATIONS.remove(element.uuid);
         }
-
-        double easedProgress = applyTimingFunction(progress, config.timingFunction);
-        applyKeyframes(computedStyle, animName, clamp01(easedProgress) * 100.0);
     }
 
     private static boolean isBackwardsFill(String fillMode) {
@@ -434,7 +579,7 @@ public class Animation {
         return Math.min(value, 1);
     }
 
-    private static void applyKeyframes(Style style, String animName, double currentPercent) {
+    private static void applyKeyframes(Style style, Style baseStyle, String animName, double currentPercent) {
         TreeMap<Double, Map<String, String>> timeline = KEYFRAMES.get(animName);
         if (timeline == null || timeline.isEmpty()) return;
 
@@ -462,7 +607,8 @@ public class Animation {
         List<Transition.Change> changes = new ArrayList<>();
 
         for (String prop : allProperties) {
-            String startValStr = startProps.getOrDefault(prop, style.get(prop));
+            String baseVal = baseStyle.get(prop);
+            String startValStr = startProps.getOrDefault(prop, baseVal);
             String endValStr = endProps.getOrDefault(prop, startValStr);
 
             if (startValStr == null || endValStr == null) continue;
