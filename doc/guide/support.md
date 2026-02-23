@@ -59,6 +59,8 @@ div {
   overflow: hidden;      /* 溢出处理：visible, hidden, scroll, auto */
   transition: all 0.3s;  /* 过渡效果：属性 时长 时延 缓动函数 */
   transform: translateX(10px); /* 变换：translate, rotate, scale */
+  animation-timing-function: ease-in-out; /* 动画缓动函数：linear, ease, ease-in, ease-out, ease-in-out, cubic-bezier(), steps() */
+  animation-play-state: running; /* 动画播放状态：running, paused */
   clip-path: polygon(50% 0%, 0% 100%, 100% 100%); /* 裁剪路径：polygon, circle, ellipse, inset */
   filter: blur(2px);     /* 滤镜：blur, brightness, contrast, grayscale, invert, opacity, huerotate */
 }
