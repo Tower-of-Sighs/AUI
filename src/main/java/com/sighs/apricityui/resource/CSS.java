@@ -64,17 +64,22 @@ public class CSS {
 
     static class Parser {
         private static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
-        private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile("(?i)@keyframes\\s+([\\w-]+)\\s*\\{");
-        private static final Pattern FRAME_PATTERN = Pattern.compile("([\\d\\.]+%|from|to)\\s*\\{([^}]*)}");
-
+        private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile("(?i)@(?:-webkit-)?keyframes\\s+((?:[\\w-]+)|(?:\\\"[^\\\"]+\\\")|(?:\\\'[^\\\']+\\\'))\\s*\\{");
+        private static final Pattern FRAME_PATTERN = Pattern.compile("((?:[\\d\\.]+%|from|to)(?:\\s*,\\s*(?:[\\d\\.]+%|from|to))*)\\s*\\{([^}]*)}");
         public static String parseAndRegisterAnimations(String css, String contextPath) {
             if (css == null) return "";
-            StringBuilder cleanCss = new StringBuilder(css.replaceAll("/\\*.*?\\*/", ""));
+            // 去掉注释（支持跨行），避免干扰 @keyframes / 帧解析
+            StringBuilder cleanCss = new StringBuilder(css.replaceAll("(?s)/\\*.*?\\*/", ""));
             Matcher matcher = KEYFRAMES_HEAD_PATTERN.matcher(cleanCss);
 
             int offset = 0;
             while (matcher.find(offset)) {
-                String animName = matcher.group(1);
+                String animName = matcher.group(1).trim();
+                // 支持引号包裹的 keyframes 名称
+                if ((animName.startsWith("\"") && animName.endsWith("\"")) || (animName.startsWith("'") && animName.endsWith("'"))) {
+                    animName = animName.substring(1, animName.length() - 1);
+                }
+
                 int blockStart = matcher.end();
                 int braceCount = 1;
                 int blockEnd = -1;
@@ -90,22 +95,39 @@ public class CSS {
                 }
 
                 if (blockEnd != -1) {
+                    // 热重载时避免残留旧帧
+                    Animation.clearKeyframes(animName);
+
                     String fullContent = cleanCss.substring(blockStart, blockEnd);
-                    // 解析内部帧
+
+                    // 解析内部帧（支持 0%, 50%, to 这样的多 selector）
                     Matcher frameMatcher = FRAME_PATTERN.matcher(fullContent);
                     while (frameMatcher.find()) {
-                        String percentStr = frameMatcher.group(1);
+                        String selectorList = frameMatcher.group(1);
                         String rules = frameMatcher.group(2);
 
-                        double percent = 0;
-                        if (percentStr.equalsIgnoreCase("from")) percent = 0;
-                        else if (percentStr.equalsIgnoreCase("to")) percent = 100;
-                        else percent = Double.parseDouble(percentStr.replace("%", ""));
+                        Map<String, String> props = parseProperties(rules, contextPath);
 
-                        Animation.registerKeyframe(animName, percent, parseProperties(rules, contextPath));
+                        for (String sel : selectorList.split("\\s*,\\s*")) {
+                            String percentStr = sel.trim();
+                            if (percentStr.isEmpty()) continue;
+
+                            double percent;
+                            if (percentStr.equalsIgnoreCase("from")) percent = 0;
+                            else if (percentStr.equalsIgnoreCase("to")) percent = 100;
+                            else {
+                                try {
+                                    percent = Double.parseDouble(percentStr.replace("%", ""));
+                                } catch (NumberFormatException ignored) {
+                                    continue;
+                                }
+                            }
+
+                            Animation.registerKeyframe(animName, percent, props);
+                        }
                     }
 
-                    // 移除已处理的@keyframes
+                    // 移除已处理的 @keyframes（或 @-webkit-keyframes）
                     cleanCss.delete(matcher.start(), blockEnd + 1);
                     offset = matcher.start();
                 } else {
