@@ -279,6 +279,10 @@ public class Box {
         if (valid(style.borderImageOutset)) bi.outset = parse4Values(style.borderImageOutset);
         if (valid(style.borderImageRepeat)) bi.repeat = style.borderImageRepeat;
 
+        if (style.borderImage.startsWith("linear-gradient")) {
+            bi.gradient = Gradient.parse(style.borderImage);
+        }
+
         return bi.isEmpty() ? null : bi;
     }
 
@@ -287,9 +291,6 @@ public class Box {
         return input.substring(input.indexOf("url(") + 4, input.lastIndexOf(")")).replace("\"", "").replace("'", "");
     }
 
-    /**
-     * 将 CSS 的 1-4 个数值扩展为 [top, right, bottom, left]
-     */
     private static int[] parse4Values(String input) {
         String[] parts = input.trim().split("\\s+");
         int[] res = new int[4];
@@ -345,6 +346,7 @@ public class Box {
         public int[] outset = new int[]{0, 0, 0, 0};
         public String repeat = "stretch"; // stretch, repeat, round
         public boolean fill = false;      // 是否保留中间部分
+        public Gradient gradient = null;
 
         public boolean isEmpty() {
             return source == null || source.equals("none");

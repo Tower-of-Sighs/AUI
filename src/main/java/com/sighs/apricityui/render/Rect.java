@@ -74,6 +74,11 @@ public class Rect {
         Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float)x, (float)y, (float)w, (float)h, radii, borders, colors);
 
         if (box.borderImage != null) {
+            if (box.borderImage.gradient != null) {
+                Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
+                        (float)x, (float)y, (float)w, (float)h,
+                        radii, box.borderImage.gradient);
+            }
             Position p = position.add(new Position(box.getMarginLeft(), box.getMarginTop()));
             Size s = getShadowSize();
             String path = Loader.resolve(documentPath, box.borderImage.source);
