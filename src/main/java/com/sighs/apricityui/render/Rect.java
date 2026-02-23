@@ -76,7 +76,7 @@ public class Rect {
         if (box.borderImage != null) {
             if (box.borderImage.gradient != null) {
                 Graph.drawUnifiedRoundedRect(stack.last().pose(),
-                        (float)x, (float)y, (float)w, (float)h,
+                        (float) x, (float) y, (float) w, (float) h,
                         radii, box.borderImage.gradient);
             }
             Position p = position.add(new Position(box.getMarginLeft(), box.getMarginTop()));
