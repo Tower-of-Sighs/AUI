@@ -1,8 +1,6 @@
 package com.sighs.apricityui.resource.async.image;
 
-import com.sighs.apricityui.init.AbstractAsyncHandler;
-import com.sighs.apricityui.init.Drawer;
-import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
@@ -11,6 +9,7 @@ import java.io.InputStream;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.ImageApplyTask> {
@@ -50,6 +49,59 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
 
         submitIfNeeded(handle);
         return handle;
+    }
+
+    public static void prefetchImages(Document document) {
+        Set<String> paths = new HashSet<>();
+        for (Element element : document.getElements()) {
+            String src = element.getAttribute("src");
+            if (!src.isEmpty() && "IMG".equals(element.tagName)) {
+                String resolved = Loader.resolve(document.getPath(), src);
+                if (isImagePathValid(resolved)) {
+                    paths.add(resolved);
+                }
+            }
+
+            Style style = element.getRawComputedStyle();
+            if (style == null) continue;
+
+            String backgroundPath = resolveCssUrl(document.getPath(), style.backgroundImage);
+            if (isImagePathValid(backgroundPath)) {
+                paths.add(backgroundPath);
+            }
+
+            String borderImageSource = resolveFirstNonUnset(style.borderImageSource, style.borderImage);
+            String borderImagePath = resolveCssUrl(document.getPath(), borderImageSource);
+            if (isImagePathValid(borderImagePath)) {
+                paths.add(borderImagePath);
+            }
+        }
+        ImageAsyncHandler.INSTANCE.prefetch(paths);
+    }
+
+    private static boolean isImagePathValid(String path) {
+        return path != null && !path.isBlank() && !"unset".equals(path);
+    }
+
+    private static String resolveFirstNonUnset(String primary, String fallback) {
+        if (primary != null && !primary.isBlank() && !"unset".equals(primary)) {
+            return primary;
+        }
+        if (fallback != null && !fallback.isBlank() && !"unset".equals(fallback)) {
+            return fallback;
+        }
+        return null;
+    }
+
+    private static String resolveCssUrl(String contextPath, String cssValue) {
+        if (cssValue == null || cssValue.isBlank() || "unset".equals(cssValue)) return null;
+        int start = cssValue.indexOf("url(");
+        if (start < 0) return null;
+        int end = cssValue.indexOf(')', start + 4);
+        if (end < 0) return null;
+        String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
+        if (raw.isEmpty()) return null;
+        return Loader.resolve(contextPath, raw);
     }
 
     public void prefetch(Collection<String> paths) {

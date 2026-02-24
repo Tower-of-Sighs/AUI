@@ -35,13 +35,13 @@ public class Document {
     public Document(String path, boolean inWorld) {
         this.path = path;
         this.inWorld = inWorld;
-//        refresh();
     }
 
     public UUID getUuid() {
         return uuid;
     }
 
+<<<<<<< feature/animation
     public long getAnimationFrameTime() {
         return animationFrameTime;
     }
@@ -50,11 +50,15 @@ public class Document {
         this.animationFrameTime = animationFrameTime;
     }
 
+=======
+    // 用于刷新整个document，首先是清理缓存，接着会创建body元素，按照我的设计，创建body元素时就会将所有子孙类补齐。
+>>>>>>> forge/20.1
     public void refresh() {
         CSSCache.clear();
         elements.clear();
         Element bodyElement = HTML.create(this, path);
         try {
+            // 特殊处理，手动转移body的事件。
             if (body != null) bodyElement.EventListener = body.EventListener;
             body = (Body) Element.init(bodyElement);
             elements.add(0, body);
@@ -63,8 +67,11 @@ public class Document {
             dirtyElements.clear();
             paintList = Drawer.createPaintList(body);
             elements.forEach(Element::updateCSS);
-            prefetchImages();
+            // 预加载图片
+            ImageAsyncHandler.prefetchImages(this);
 
+            // 运行html内嵌js，写得肥肠简单，目前是简单的运行，也就是说会随刷新累积，原来挂着的内容比如Interval，还会继续运作。
+            // 目前是推荐写道load事件里，这样起码旧的DOM操作会在刷新的时候随着旧的EventListener列表被干掉。
             for (String js : JSCache) {
                 String head = "let document = ApricityUI.getDocumentByUUID(\"" + uuid + "\");\n";
                 head += "let window = ApricityUI.getWindow();";
@@ -76,59 +83,7 @@ public class Document {
         } catch (Exception ignored) {}
     }
 
-    private void prefetchImages() {
-        Set<String> paths = new HashSet<>();
-        for (Element element : elements) {
-            String src = element.getAttribute("src");
-            if (!src.isEmpty() && "IMG".equals(element.tagName)) {
-                String resolved = Loader.resolve(path, src);
-                if (isImagePathValid(resolved)) {
-                    paths.add(resolved);
-                }
-            }
-
-            Style style = element.getRawComputedStyle();
-            if (style == null) continue;
-
-            String backgroundPath = resolveCssUrl(path, style.backgroundImage);
-            if (isImagePathValid(backgroundPath)) {
-                paths.add(backgroundPath);
-            }
-
-            String borderImageSource = resolveFirstNonUnset(style.borderImageSource, style.borderImage);
-            String borderImagePath = resolveCssUrl(path, borderImageSource);
-            if (isImagePathValid(borderImagePath)) {
-                paths.add(borderImagePath);
-            }
-        }
-        ImageAsyncHandler.INSTANCE.prefetch(paths);
-    }
-
-    private static boolean isImagePathValid(String path) {
-        return path != null && !path.isBlank() && !"unset".equals(path);
-    }
-
-    private static String resolveFirstNonUnset(String primary, String fallback) {
-        if (primary != null && !primary.isBlank() && !"unset".equals(primary)) {
-            return primary;
-        }
-        if (fallback != null && !fallback.isBlank() && !"unset".equals(fallback)) {
-            return fallback;
-        }
-        return null;
-    }
-
-    private static String resolveCssUrl(String contextPath, String cssValue) {
-        if (cssValue == null || cssValue.isBlank() || "unset".equals(cssValue)) return null;
-        int start = cssValue.indexOf("url(");
-        if (start < 0) return null;
-        int end = cssValue.indexOf(')', start + 4);
-        if (end < 0) return null;
-        String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
-        if (raw.isEmpty()) return null;
-        return Loader.resolve(contextPath, raw);
-    }
-
+    // 绘制队列，详见Drawer类
     public ArrayList<RenderNode> getPaintList() {
         return paintList;
     }
@@ -220,6 +175,7 @@ public class Document {
         documents.forEach(Document::refresh);
     }
 
+    // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
     public static Document create(String path) {
         if (HTML.getTemple(path) == null) return null;
         Document document = new Document(path, false);
