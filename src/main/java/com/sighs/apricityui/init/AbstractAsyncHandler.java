@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 
+// 用于异步加载资源
 public abstract class AbstractAsyncHandler<TApplyTask> {
     private static final Map<String, AbstractAsyncHandler<?>> HANDLERS = new ConcurrentHashMap<>();
 
