@@ -14,6 +14,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Stack;
 
+// 鼠标事件，现在还没有做得很完善
 public class MouseEvent extends Event implements Cloneable {
     public double clientX = 0;
     public double clientY = 0;
@@ -39,16 +40,16 @@ public class MouseEvent extends Event implements Cloneable {
 
     public static void tiggerEvent(MouseEvent event) {
         Document.getAll().forEach(document -> {
+            // 世界内渲染的ui是在instance.Client里单独触发事件，之后可以合并过来。
             if (!document.inWorld) tiggerEvent(event, document);
         });
     }
 
+    // 触发鼠标事件的主体
     public static void tiggerEvent(MouseEvent event, Document document) {
         List<RenderNode> paintList = document.getPaintList();
         Element activeElement = document.getActiveElement();
-
         Position detectionPos = new Position(event.clientX, event.clientY);
-
         Element target = hitTest(paintList, detectionPos);
 
         if (target != null) {
@@ -59,13 +60,12 @@ public class MouseEvent extends Event implements Cloneable {
 
         event.target = target;
 
-        if (event.type.equals("mousemove")) {
-            handleHoverChange(event, target, document);
-        }
+        if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
         if (event.type.equals("mousedown")) {
             if (target != null) {
                 document.setActiveElement(target);
                 if (target.canFocus()) {
+                    // 这里先清除全局焦点，再设置某个焦点，确保只能focus一个元素，不然多个document的时候确实可能多个input一起输入。
                     clearGlobalFocusExcept(document);
                     document.setFocusedElement(target);
                 } else {
@@ -75,12 +75,8 @@ public class MouseEvent extends Event implements Cloneable {
             }
         }
 
-        if (target != null && event.type.equals("scroll")) {
-            scroll(event);
-        }
-        if (target != null) {
-            Event.tiggerEvent(event);
-        }
+        if (target != null && event.type.equals("scroll")) scroll(event);
+        if (target != null) Event.tiggerEvent(event);
 
         if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
             MouseEvent activeEvent = event.clone();
@@ -104,6 +100,7 @@ public class MouseEvent extends Event implements Cloneable {
         });
     }
 
+    // 其实是专门为hover写了这个部分，所以函数名就叫hover，实际上是处理各类鼠标事件的，这边是根据路径去做处理，不知道性能上能不能优化。
     private static void handleHoverChange(MouseEvent originalEvent, Element newTarget, Document document) {
         Element previousCursorElement = document.getPreviousCursorElement();
         if (previousCursorElement == newTarget) return;
@@ -146,6 +143,7 @@ public class MouseEvent extends Event implements Cloneable {
         document.setPreviousCursorElement(newTarget);
     }
 
+    // 触发滚动，印象中是有个单独事件的，但是目前也并在鼠标事件里，以后要单独做出来。
     private static void scroll(MouseEvent event) {
         Element target = null;
         ArrayList<Element> route = event.target.getRoute();
@@ -159,11 +157,13 @@ public class MouseEvent extends Event implements Cloneable {
             if (event.shiftKey) target.setScrollLeft(target.scrollLeft + event.scrollDelta);
             else target.setScrollTop(target.scrollTop + event.scrollDelta);
             if(target.children != null) {
+                // 清理子元素的位置缓存
                 target.children.forEach(e -> e.getRenderer().position.clear());
             }
         }
     }
 
+    // 肥简单的范围检查，看鼠标位置是否在某元素的范围内。
     public static boolean checkCursor(Element element, Position mousePos) {
         if (mousePos == null) return false;
         Position elementPos = Position.of(element);
@@ -175,6 +175,8 @@ public class MouseEvent extends Event implements Cloneable {
                 (mousePos.y >= elementY && mousePos.y <= elementY + size.height());
     }
 
+    // 用于寻找鼠标事件的目标元素，也就是鼠标正对着的最上层元素，这块一般没啥问题。
+    // 基本逻辑是把绘制队列倒序遍历，看最先命中哪个，写这么多主要是考虑到遮罩和style的影响。
     public static Element hitTest(List<RenderNode> paintOrder, Position cursorPosition) {
         if (paintOrder == null || paintOrder.isEmpty()) return null;
 
