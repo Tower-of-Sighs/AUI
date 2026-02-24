@@ -60,6 +60,8 @@ animation-delay
 animation-iteration-count
 animation-direction
 animation-fill-mode
+animation-timing-function
+animation-play-state
 
 @font-face
 @keyframes

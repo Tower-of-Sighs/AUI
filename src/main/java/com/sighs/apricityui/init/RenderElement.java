@@ -22,6 +22,8 @@ public class RenderElement {
         }
     };
     public Cache<Style> computedStyle = new Cache<>();
+    public Cache<Style> frameStyle = new Cache<>();
+    public long frameStyleTime = -1;
     public Cache<Text> text = new Cache<>() {
         @Override
         void expandClear() {

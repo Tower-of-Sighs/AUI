@@ -11,7 +11,11 @@ import java.util.regex.Pattern;
 
 public class CSS {
     public static void readCSS(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-        Parser.parse(css, targetCache, contextPath);
+        readCSS(css, targetCache, contextPath, "global");
+    }
+
+    public static void readCSS(String css, Map<String, Map<String, String>> targetCache, String contextPath, String keyframeScope) {
+        Parser.parse(css, targetCache, contextPath, keyframeScope);
     }
 
     public static class Extractor {
@@ -64,17 +68,31 @@ public class CSS {
 
     static class Parser {
         private static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
-        private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile("(?i)@keyframes\\s+([\\w-]+)\\s*\\{");
-        private static final Pattern FRAME_PATTERN = Pattern.compile("([\\d\\.]+%|from|to)\\s*\\{([^}]*)}");
-
+        private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile(
+                "(?i)@(?:-webkit-)?keyframes\\s+((?:[\\w-]+)|(?:\"[^\"]+\")|(?:'[^']+'))\\s*\\{"
+        );
+        private static final Pattern FRAME_PATTERN = Pattern.compile(
+                "((?:[\\d\\.]+%|from|to)(?:\\s*,\\s*(?:[\\d\\.]+%|from|to))*)\\s*\\{([^}]*)}",
+                Pattern.CASE_INSENSITIVE
+        );
         public static String parseAndRegisterAnimations(String css, String contextPath) {
+            return parseAndRegisterAnimations(css, contextPath, "global");
+        }
+
+        public static String parseAndRegisterAnimations(String css, String contextPath, String keyframeScope) {
             if (css == null) return "";
-            StringBuilder cleanCss = new StringBuilder(css.replaceAll("/\\*.*?\\*/", ""));
+            String scope = (keyframeScope == null || keyframeScope.isBlank()) ? "global" : keyframeScope;
+            StringBuilder cleanCss = new StringBuilder(css.replaceAll("(?s)/\\*.*?\\*/", ""));
             Matcher matcher = KEYFRAMES_HEAD_PATTERN.matcher(cleanCss);
 
             int offset = 0;
             while (matcher.find(offset)) {
-                String animName = matcher.group(1);
+                String animName = matcher.group(1).trim();
+                if ((animName.startsWith("\"") && animName.endsWith("\""))
+                        || (animName.startsWith("'") && animName.endsWith("'"))) {
+                    animName = animName.substring(1, animName.length() - 1);
+                }
+
                 int blockStart = matcher.end();
                 int braceCount = 1;
                 int blockEnd = -1;
@@ -90,41 +108,60 @@ public class CSS {
                 }
 
                 if (blockEnd != -1) {
+                    Animation.clearKeyframes(scope, animName);
+
                     String fullContent = cleanCss.substring(blockStart, blockEnd);
-                    // 解析内部帧
                     Matcher frameMatcher = FRAME_PATTERN.matcher(fullContent);
                     while (frameMatcher.find()) {
-                        String percentStr = frameMatcher.group(1);
+                        String selectorList = frameMatcher.group(1);
                         String rules = frameMatcher.group(2);
+                        HashMap<String, String> props = parseProperties(rules, contextPath);
 
-                        double percent = 0;
-                        if (percentStr.equalsIgnoreCase("from")) percent = 0;
-                        else if (percentStr.equalsIgnoreCase("to")) percent = 100;
-                        else percent = Double.parseDouble(percentStr.replace("%", ""));
+                        for (String sel : selectorList.split("\\s*,\\s*")) {
+                            String percentStr = sel.trim();
+                            if (percentStr.isEmpty()) continue;
 
-                        Animation.registerKeyframe(animName, percent, parseProperties(rules, contextPath));
+                            double percent;
+                            if (percentStr.equalsIgnoreCase("from")) {
+                                percent = 0;
+                            } else if (percentStr.equalsIgnoreCase("to")) {
+                                percent = 100;
+                            } else {
+                                try {
+                                    percent = Double.parseDouble(percentStr.replace("%", ""));
+                                } catch (NumberFormatException ignored) {
+                                    continue;
+                                }
+                            }
+
+                            if (percent < 0 || percent > 100) continue;
+                            Animation.registerKeyframe(scope, animName, percent, props);
+                        }
                     }
 
-                    // 移除已处理的@keyframes
                     cleanCss.delete(matcher.start(), blockEnd + 1);
                     offset = matcher.start();
                 } else {
                     offset = matcher.end();
                 }
             }
+
             return cleanCss.toString();
         }
 
         public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
+            parse(css, targetCache, contextPath, "global");
+        }
+
+        public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath, String keyframeScope) {
             if (css == null || css.isBlank()) return;
-            String normalizedCss = parseAndRegisterAnimations(css, contextPath);
+            String normalizedCss = parseAndRegisterAnimations(css, contextPath, keyframeScope);
 
             Pattern pattern = Pattern.compile("(.*?)\\s*\\{([^}]*)}");
             Matcher matcher = pattern.matcher(normalizedCss);
 
             while (matcher.find()) {
                 String selector = matcher.group(1).trim();
-                // 忽略空的或可能是残留的 @ 规则
                 if (selector.isEmpty() || selector.startsWith("@")) continue;
 
                 String rules = matcher.group(2).trim();

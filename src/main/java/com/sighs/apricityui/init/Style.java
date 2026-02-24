@@ -100,6 +100,8 @@ public class Style implements Cloneable {
     public String animationIterationCount = "unset";
     public String animationDirection = "unset"; // normal, reverse, alternate...
     public String animationFillMode = "unset";
+    public String animationTimingFunction = "unset";
+    public String animationPlayState = "unset";
 
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
