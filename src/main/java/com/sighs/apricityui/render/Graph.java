@@ -20,8 +20,16 @@ public class Graph {
         }
     }
 
+    public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color, float alphaMultiplier) {
+        int a = (int) (((color >> 24) & 0xFF) * alphaMultiplier);
+        int r = (color >> 16) & 0xFF;
+        int g = (color >> 8) & 0xFF;
+        int b = color & 0xFF;
+
+        buf.vertex(mat, x, y, 0f).color(r, g, b, a).endVertex();
+    }
     public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color) {
-        buf.vertex(mat, x, y, 0f).color(color).endVertex();
+        vtx(buf, mat, x, y, color, 1.0f);
     }
 
     public static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int color) {

@@ -294,6 +294,9 @@ public class Client {
         }
     }
 
+    public static Window getWindow() {
+        return Minecraft.getInstance().getWindow();
+    }
     public static Size getWindowSize() {
         Window window = Minecraft.getInstance().getWindow();
         return new Size(window.getGuiScaledWidth(), window.getGuiScaledHeight());

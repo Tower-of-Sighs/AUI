@@ -92,6 +92,7 @@ public class Style implements Cloneable {
     public String transform = "none";
     public String clipPath = "none";
     public String filter = "none";
+    public String backdropFilter = "none";
 
     public String animation = "unset";
     public String animationName = "unset";

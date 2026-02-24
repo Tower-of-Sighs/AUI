@@ -82,13 +82,13 @@ public interface RenderNode {
                 return;
             }
 
-            RenderSystem.setShaderColor(1F, 1F, 1F, opacity);
+//            RenderSystem.setShaderColor(1F, 1F, 1F, opacity);
             if (!target.isLoaded) {
                 target.resetRenderer();
                 target.isLoaded = true;
             }
             target.drawPhase(poseStack, phase);
-            RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
+//            RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
             poseStack.popPose();
         }
     }
@@ -137,6 +137,9 @@ public interface RenderNode {
     record FilterPushNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            String filterStr = target.getComputedStyle().filter;
+            if (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) return;
+
             FilterRenderer.pushFilter();
         }
     }
@@ -144,7 +147,25 @@ public interface RenderNode {
     record FilterPopNode(Element target, Filter.FilterState state) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            String filterStr = target.getComputedStyle().filter;
+            if (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) return;
+
             FilterRenderer.popFilter(state);
+        }
+    }
+
+    record BackdropFilterNode(Element target, Filter.FilterState state) implements RenderNode {
+        @Override
+        public void render(PoseStack poseStack) {
+            if (target.getComputedStyle().display.equals("none")) return;
+
+            AABB currentClip = Mask.getCurrentClip();
+            Rect rect = Rect.of(target);
+            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) {
+                return;
+            }
+
+            FilterRenderer.renderBackdrop(target, state);
         }
     }
 }

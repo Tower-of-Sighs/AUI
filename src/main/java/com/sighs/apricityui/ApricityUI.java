@@ -3,6 +3,7 @@ package com.sighs.apricityui;
 import com.mojang.logging.LogUtils;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
+import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.instance.container.bind.ApricityDataSourceResolver;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
@@ -12,12 +13,15 @@ import com.sighs.apricityui.registry.ApricityMenus;
 import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.DistExecutor;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -31,6 +35,16 @@ public class ApricityUI {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         ApricityMenus.register(modEventBus);
         ApricityNetwork.register();
+
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            modEventBus.addListener(this::onRegisterShaders);
+        }
+    }
+
+    private void onRegisterShaders(RegisterShadersEvent event) {
+        try {
+            ShaderRegistry.register(event);
+        } catch (IOException ignored) {}
     }
 
     public static Window getWindow() {

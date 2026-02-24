@@ -1,23 +1,21 @@
 {
   "blend": {
     "func": "add",
-    "srcrgb": "srcalpha",
-    "dstrgb": "1-srcalpha"
+    "srcfactor": "src_alpha",
+    "dstfactor": "one_minus_src_alpha"
   },
   "vertex": "apricityui:filter",
   "fragment": "apricityui:filter",
   "attributes": [
     "Position",
-    "UV0",
-    "Color"
+    "UV0"
   ],
   "samplers": [
-    { "name": "DiffuseSampler" }
+    { "name": "Sampler0" }
   ],
   "uniforms": [
-    { "name": "ModelViewMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
     { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
-    { "name": "TexelSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
+    { "name": "InSize", "type": "float", "count": 2, "values": [ 1.0, 1.0 ] },
     { "name": "BlurRadius", "type": "float", "count": 1, "values": [ 0.0 ] },
     { "name": "Brightness", "type": "float", "count": 1, "values": [ 1.0 ] },
     { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
