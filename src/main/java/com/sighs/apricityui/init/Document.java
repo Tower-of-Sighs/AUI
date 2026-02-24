@@ -41,7 +41,6 @@ public class Document {
         return uuid;
     }
 
-<<<<<<< feature/animation
     public long getAnimationFrameTime() {
         return animationFrameTime;
     }
@@ -50,9 +49,7 @@ public class Document {
         this.animationFrameTime = animationFrameTime;
     }
 
-=======
     // 用于刷新整个document，首先是清理缓存，接着会创建body元素，按照我的设计，创建body元素时就会将所有子孙类补齐。
->>>>>>> forge/20.1
     public void refresh() {
         CSSCache.clear();
         elements.clear();
