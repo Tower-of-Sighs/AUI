@@ -1,24 +1,34 @@
 package com.sighs.apricityui.instance;
 
-import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.render.FilterRenderer;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.minecraft.client.shader.ShaderInstance;
+import net.minecraft.resources.IResourceManager;
 
-
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ShaderRegistry {
-    @SubscribeEvent
-    public static void onClientSetup(FMLClientSetupEvent event) {
-        event.enqueueWork(() -> {
-            try {
-                FilterRenderer.initShader(Minecraft.getInstance().getResourceManager());
-            } catch (Exception e) {
-                ApricityUI.LOGGER.error("Failed to init UI Filter Shader", e);
-            }
-        });
+    private static ShaderInstance filterShader;
+    private static boolean initialized;
+    private static boolean loadAttempted;
+
+    public static void init() {
+        initialized = true;
+    }
+
+    private static void loadShader() {
+        if (loadAttempted) return;
+        loadAttempted = true;
+        try {
+            IResourceManager resourceManager = Minecraft.getInstance().getResourceManager();
+            filterShader = new ShaderInstance(resourceManager, "apricityui:core/filter");
+        } catch (Exception e) {
+            filterShader = null;
+        }
+    }
+
+    public static ShaderInstance getFilterShader() {
+        if (!initialized) return null;
+        if (filterShader == null && !loadAttempted) {
+            loadShader();
+        }
+        return filterShader;
     }
 }

@@ -2,6 +2,7 @@ package com.sighs.apricityui;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
+import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.instance.container.bind.ApricityDataSourceResolver;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
@@ -33,11 +34,13 @@ public class ApricityUI {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         ApricityMenus.register(modEventBus);
         ApricityNetwork.register();
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onClientSetup);
+
+        modEventBus.addListener(this::onClientSetup);
     }
 
     public void onClientSetup(final FMLClientSetupEvent event) {
         Keybindings.registerKeyMapping();
+        ShaderRegistry.init();
     }
 
     public static Window getWindow() {

@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
 import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -10,8 +11,11 @@ import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Transform;
+import lombok.Getter;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.Tessellator;
+import net.minecraft.client.shader.ShaderInstance;
+import net.minecraft.util.math.vector.Matrix4f;
 import net.minecraft.util.math.vector.Vector3f;
 
 import java.util.List;
@@ -22,6 +26,9 @@ public class Base {
         BODY,
         BORDER
     }
+
+    @Getter
+    private static final Matrix4f projectionMatrix = new Matrix4f();
 
     public static void drawAllDocument(MatrixStack stack) {
         Mask.resetDepth();
@@ -99,13 +106,29 @@ public class Base {
         stack.translate(0, 0, 0.005);
     }
 
+    public static void setProjectionMatrix(Matrix4f matrix) {
+        projectionMatrix.set(matrix);
+    }
+
+    public static void setShader(ShaderInstance shader) {
+        if (shader != null) {
+            shader.apply();
+        }
+    }
+
     public static void setPositionColorShader() {
-        // FIXME
-        // RenderSystem.setShader(GameRenderer::getPositionColorShader);
+        RenderSystem.disableTexture();
     }
 
     public static void setPositionTexShader() {
-        // FIXME
-        // RenderSystem.setShader(GameRenderer::getPositionTexShader);
+        RenderSystem.enableTexture();
+    }
+
+    public static void setShaderTexture(int i, int v) {
+        RenderSystem.bindTexture(v);
+    }
+
+    public static void setShaderColor(float a, float r, float g, float b) {
+        RenderSystem.color4f(r, g, b, a);
     }
 }

@@ -31,31 +31,19 @@ public class HTML {
             rawHtml = "<body>" + rawHtml + "</body>";
         }
 
-        // 1. 处理 CSS (提取 <style>)
         CSS.Extractor cssExtractor = new CSS.Extractor(path);
         String htmlAfterCss = cssExtractor.handle(rawHtml);
         cssExtractor.pushToDocument(document);
 
-        // 2. 处理 JS (提取 <script>) -> 这里是新增逻辑
         JS.Extractor jsExtractor = new JS.Extractor(path);
-        String cleanHtml = jsExtractor.handle(htmlAfterCss); // 传入经过CSS处理后的HTML
+        String cleanHtml = jsExtractor.handle(htmlAfterCss);
         jsExtractor.pushToDocument(document);
 
-        // 3. 构建 DOM (传入既没有style也没有script的纯HTML)
         return buildDOM(document, cleanHtml);
     }
 
     public static Element createElement(Document document, String html) {
-        if (StringUtils.isNullOrEmptyEx(html)) return null;
-
-        // 统一处理：确保有 body 包裹，以便 buildDOM 逻辑能正确识别根节点
-        String processedHtml = html.trim();
-        if (!processedHtml.toLowerCase().startsWith("<body")) {
-            processedHtml = "<body>" + processedHtml + "</body>";
-        }
-
-        // 复用 buildDOM 逻辑
-        return buildDOM(document, processedHtml);
+        return buildDOM(document, html);
     }
 
     private static Element buildDOM(Document document, String html) {
