@@ -6,9 +6,11 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Transition;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.Getter;
 import lombok.Setter;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -40,6 +42,9 @@ public class Document {
     @Getter
     private UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
+    @Setter
+    @Getter
+    private long animationFrameTime = System.currentTimeMillis();
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -252,11 +257,19 @@ public class Document {
     }
 
     public static void remove(String path) {
-        documents.removeIf(document -> document.is(path));
+        documents.removeIf(document -> {
+            if (!document.is(path)) return false;
+            clearDocumentMotionState(document);
+            return true;
+        });
     }
 
     public static void remove(UUID uuid) {
-        documents.removeIf(document -> document.is(uuid));
+        documents.removeIf(document -> {
+            if (!document.is(uuid)) return false;
+            clearDocumentMotionState(document);
+            return true;
+        });
     }
 
     public void remove() {
@@ -264,9 +277,29 @@ public class Document {
     }
 
     public void removeElement(Element element) {
+        clearElementMotionState(element);
         element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
         element.document.markDirty(element.parentElement, Drawer.RELAYOUT);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
+    }
+
+    private static void clearDocumentMotionState(Document document) {
+        for (Element element : document.getElements()) {
+            Animation.stop(element);
+            Transition.stop(element);
+            element.getRenderer().frameStyle.clear();
+            element.getRenderer().frameStyleTime = -1;
+        }
+    }
+
+    private static void clearElementMotionState(Element element) {
+        Animation.stop(element);
+        Transition.stop(element);
+        element.getRenderer().frameStyle.clear();
+        element.getRenderer().frameStyleTime = -1;
+        for (Element child : element.children) {
+            clearElementMotionState(child);
+        }
     }
 
     public void setActiveElement(Element element) {

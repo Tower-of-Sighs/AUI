@@ -12,11 +12,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Animation {
-    private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
-    /**
-     * 每个 Element 可能同时存在多个 animation（逗号分隔）。
-     * 这里用 index 对齐（第 i 个 AnimationConfig 对应第 i 个 AnimationState）。
-     */
+    private static final String GLOBAL_SCOPE = "global";
+    private static final double EPSILON = 1e-9;
+
+    private static final Map<String, Map<String, TreeMap<Double, Map<String, String>>>> KEYFRAMES = new HashMap<>();
     private static final Map<UUID, List<AnimationState>> ACTIVE_ANIMATIONS = new HashMap<>();
 
     private static final Set<String> DIRECTIONS = new HashSet<>(Arrays.asList(
@@ -29,7 +28,7 @@ public class Animation {
             "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
     ));
 
-    private static final Pattern TIME_PATTERN = Pattern.compile("^\\+?([0-9]*\\.?[0-9]+)(s|ms)$");
+    private static final Pattern TIME_PATTERN = Pattern.compile("^([+-]?[0-9]*\\.?[0-9]+)(s|ms)$");
     private static final Pattern CUBIC_BEZIER_PATTERN = Pattern.compile("^cubic-bezier\\(([^)]*)\\)$");
     private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(([^)]*)\\)$");
 
@@ -51,12 +50,19 @@ public class Animation {
         String currentName;
         String configKey;
 
+        boolean finished;
+        boolean holdFinalFrame;
+        double finishedPercent;
+
         AnimationState(String name, String configKey) {
             this.startTime = System.currentTimeMillis();
             this.currentName = name;
             this.configKey = configKey;
             this.pauseStartedAt = 0;
             this.paused = false;
+            this.finished = false;
+            this.holdFinalFrame = false;
+            this.finishedPercent = 0;
         }
     }
 
@@ -71,8 +77,8 @@ public class Animation {
     public static boolean isActive(Element element) {
         List<AnimationState> list = ACTIVE_ANIMATIONS.get(element.uuid);
         if (list == null || list.isEmpty()) return false;
-        for (AnimationState s : list) {
-            if (s != null) return true;
+        for (AnimationState state : list) {
+            if (isStateActive(state)) return true;
         }
         return false;
     }
@@ -82,18 +88,101 @@ public class Animation {
     }
 
     public static void clearKeyframes(String name) {
-        if (name == null) return;
-        KEYFRAMES.remove(name);
+        clearKeyframes(GLOBAL_SCOPE, name);
+    }
+
+    public static void clearKeyframes(String scope, String name) {
+        if (StringUtils.isNullOrEmptyEx(name)) return;
+        String normalizedScope = normalizeScope(scope);
+        Map<String, TreeMap<Double, Map<String, String>>> scoped = KEYFRAMES.get(normalizedScope);
+        if (scoped == null) return;
+
+        scoped.remove(name);
+        if (scoped.isEmpty()) {
+            KEYFRAMES.remove(normalizedScope);
+        }
     }
 
     public static void registerKeyframe(String name, double percent, Map<String, String> properties) {
-        if (name == null || properties == null) return;
-        KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>())
-                // 同百分比的多次定义：后写覆盖属性
+        registerKeyframe(GLOBAL_SCOPE, name, percent, properties);
+    }
+
+    public static void registerKeyframe(String scope, String name, double percent, Map<String, String> properties) {
+        if (StringUtils.isNullOrEmptyEx(name) || properties == null) return;
+        if (percent < 0 || percent > 100) return;
+
+        String normalizedScope = normalizeScope(scope);
+        Map<String, TreeMap<Double, Map<String, String>>> scoped =
+                KEYFRAMES.computeIfAbsent(normalizedScope, k -> new HashMap<>());
+
+        scoped.computeIfAbsent(name, k -> new TreeMap<>())
                 .merge(percent, new HashMap<>(properties), (oldMap, newMap) -> {
                     oldMap.putAll(newMap);
                     return oldMap;
                 });
+    }
+
+    public static void replaceKeyframes(String name, Map<Double, Map<String, String>> keyframes) {
+        replaceKeyframes(GLOBAL_SCOPE, name, keyframes);
+    }
+
+    public static void replaceKeyframes(String scope, String name, Map<Double, Map<String, String>> keyframes) {
+        if (StringUtils.isNullOrEmptyEx(name)) return;
+
+        String normalizedScope = normalizeScope(scope);
+        if (keyframes == null || keyframes.isEmpty()) {
+            clearKeyframes(normalizedScope, name);
+            return;
+        }
+
+        TreeMap<Double, Map<String, String>> timeline = new TreeMap<>();
+        for (Map.Entry<Double, Map<String, String>> entry : keyframes.entrySet()) {
+            if (entry == null || entry.getKey() == null || entry.getValue() == null) continue;
+            double percent = entry.getKey();
+            if (percent < 0 || percent > 100) continue;
+            timeline.put(percent, new HashMap<>(entry.getValue()));
+        }
+
+        if (timeline.isEmpty()) {
+            clearKeyframes(normalizedScope, name);
+            return;
+        }
+
+        Map<String, TreeMap<Double, Map<String, String>>> scoped =
+                KEYFRAMES.computeIfAbsent(normalizedScope, k -> new HashMap<>());
+        scoped.put(name, timeline);
+    }
+
+    private static String normalizeScope(String scope) {
+        if (StringUtils.isNullOrEmptyEx(scope)) return GLOBAL_SCOPE;
+        return scope;
+    }
+
+    private static String resolveScope(Element element) {
+        if (element == null || element.document == null || element.document.getUuid() == null) {
+            return GLOBAL_SCOPE;
+        }
+        return element.document.getUuid().toString();
+    }
+
+    private static boolean hasKeyframes(String scope, String name) {
+        return getTimeline(scope, name) != null;
+    }
+
+    private static TreeMap<Double, Map<String, String>> getTimeline(String scope, String name) {
+        String normalizedScope = normalizeScope(scope);
+        Map<String, TreeMap<Double, Map<String, String>>> scoped = KEYFRAMES.get(normalizedScope);
+        if (scoped != null) {
+            TreeMap<Double, Map<String, String>> timeline = scoped.get(name);
+            if (timeline != null) return timeline;
+        }
+
+        if (!GLOBAL_SCOPE.equals(normalizedScope)) {
+            Map<String, TreeMap<Double, Map<String, String>>> global = KEYFRAMES.get(GLOBAL_SCOPE);
+            if (global != null) return global.get(name);
+        }
+
+        return null;
     }
 
     private static List<AnimationConfig> resolveAnimations(Style style) {
@@ -146,14 +235,22 @@ public class Animation {
             AnimationConfig cfg = base.get(i);
 
             String v;
-            v = pick(names, i); if (v != null) cfg.name = v;
-            v = pick(durations, i); if (v != null) cfg.duration = v;
-            v = pick(delays, i); if (v != null) cfg.delay = v;
-            v = pick(iterationCounts, i); if (v != null) cfg.iterationCount = v;
-            v = pick(directions, i); if (v != null) cfg.direction = v;
-            v = pick(fillModes, i); if (v != null) cfg.fillMode = v;
-            v = pick(timingFunctions, i); if (v != null) cfg.timingFunction = v;
-            v = pick(playStates, i); if (v != null) cfg.playState = v;
+            v = pick(names, i);
+            if (v != null) cfg.name = v;
+            v = pick(durations, i);
+            if (v != null) cfg.duration = v;
+            v = pick(delays, i);
+            if (v != null) cfg.delay = v;
+            v = pick(iterationCounts, i);
+            if (v != null) cfg.iterationCount = v;
+            v = pick(directions, i);
+            if (v != null) cfg.direction = v;
+            v = pick(fillModes, i);
+            if (v != null) cfg.fillMode = v;
+            v = pick(timingFunctions, i);
+            if (v != null) cfg.timingFunction = v;
+            v = pick(playStates, i);
+            if (v != null) cfg.playState = v;
         }
 
         return base;
@@ -231,28 +328,28 @@ public class Animation {
         }
     }
 
-    /**
-     * 顶层逗号分割：忽略括号内的逗号（用于 cubic-bezier/steps 等）。
-     */
-    private static List<String> splitTopLevelByComma(String s) {
+    private static List<String> splitTopLevelByComma(String value) {
         ArrayList<String> out = new ArrayList<>();
-        if (s == null) return out;
-        StringBuilder cur = new StringBuilder();
-        int depth = 0;
+        if (value == null) return out;
 
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
             if (c == '(') depth++;
             else if (c == ')') depth = Math.max(0, depth - 1);
 
             if (c == ',' && depth == 0) {
-                out.add(cur.toString().trim());
-                cur.setLength(0);
+                out.add(current.toString().trim());
+                current.setLength(0);
                 continue;
             }
-            cur.append(c);
+            current.append(c);
         }
-        if (cur.length() > 0) out.add(cur.toString().trim());
+
+        if (current.length() > 0) {
+            out.add(current.toString().trim());
+        }
         return out;
     }
 
@@ -297,6 +394,7 @@ public class Animation {
         if (s == null || s.isEmpty()) return false;
         int len = s.length();
         boolean hasDot = false;
+
         for (int i = 0; i < len; i++) {
             char c = s.charAt(i);
             if (c == '.') {
@@ -304,6 +402,7 @@ public class Animation {
                 hasDot = true;
                 continue;
             }
+            if (i == 0 && (c == '+' || c == '-')) continue;
             if (c < '0' || c > '9') return false;
         }
         return true;
@@ -325,6 +424,7 @@ public class Animation {
             ACTIVE_ANIMATIONS.put(element.uuid, created);
             return created;
         }
+
         if (old.size() == n) return old;
 
         ArrayList<AnimationState> resized = new ArrayList<>(Collections.nCopies(n, null));
@@ -335,17 +435,21 @@ public class Animation {
     }
 
     public static void updateStyle(Element element, Style computedStyle) {
+        long frameTime = element.document != null ? element.document.getAnimationFrameTime() : System.currentTimeMillis();
+        advanceFrame(element, computedStyle, frameTime);
+    }
+
+    public static void advanceFrame(Element element, Style computedStyle, long frameTime) {
+        String scope = resolveScope(element);
         List<AnimationConfig> configs = resolveAnimations(computedStyle);
         if (configs.isEmpty()) {
             ACTIVE_ANIMATIONS.remove(element.uuid);
             return;
         }
 
-        // 作为“底层样式”快照，避免多 animation 叠加时彼此污染 fallback 值
         Style baseStyle = computedStyle.clone();
-
         List<AnimationState> states = ensureStateList(element, configs.size());
-        long now = System.currentTimeMillis();
+        long now = frameTime;
 
         boolean anyActive = false;
 
@@ -353,20 +457,7 @@ public class Animation {
             AnimationConfig config = configs.get(i);
             String animName = config.name;
 
-            // none 或找不到 keyframes：该段无效
-            if (animName == null || animName.equals("none") || !KEYFRAMES.containsKey(animName)) {
-                states.set(i, null);
-                continue;
-            }
-
-            double duration = parseTime(config.duration);
-            if (duration <= 0) {
-                states.set(i, null);
-                continue;
-            }
-
-            double count = parseIterationCount(config.iterationCount);
-            if (count <= 0) {
+            if (animName == null || animName.equals("none") || !hasKeyframes(scope, animName)) {
                 states.set(i, null);
                 continue;
             }
@@ -375,10 +466,26 @@ public class Animation {
             AnimationState state = states.get(i);
             if (state == null || !state.currentName.equals(animName) || !state.configKey.equals(configKey)) {
                 state = new AnimationState(animName, configKey);
+                state.startTime = now;
                 states.set(i, state);
             }
 
-            // paused / resume
+            if (state.finished) {
+                if (state.holdFinalFrame) {
+                    applyKeyframes(computedStyle, baseStyle, scope, animName, state.finishedPercent);
+                    anyActive = true;
+                }
+                continue;
+            }
+
+            double duration = parseTime(config.duration);
+            double count = parseIterationCount(config.iterationCount);
+            if (duration <= 0 || count <= 0) {
+                state.finished = true;
+                state.holdFinalFrame = false;
+                continue;
+            }
+
             if ("paused".equals(config.playState)) {
                 if (!state.paused) {
                     state.paused = true;
@@ -393,24 +500,25 @@ public class Animation {
             long elapsed = state.paused ? (state.pauseStartedAt - state.startTime) : (now - state.startTime);
             double delay = parseTime(config.delay);
 
-            // delay 期间：只有 backwards/both 才应用 0%
             if (elapsed < delay) {
                 anyActive = true;
                 if (isBackwardsFill(config.fillMode)) {
-                    applyKeyframes(computedStyle, baseStyle, animName, 0.0);
+                    double initialPercent = resolveInitialPercent(config);
+                    applyKeyframes(computedStyle, baseStyle, scope, animName, initialPercent);
                 }
                 continue;
             }
 
             long activeTime = elapsed - (long) delay;
 
-            // 已结束：forwards/both 维持最后一帧（保持 active 以便 observeStyle 生效）
             if (count != Double.MAX_VALUE && activeTime >= duration * count) {
-                if (isForwardsFill(config.fillMode)) {
+                state.finished = true;
+                state.holdFinalFrame = isForwardsFill(config.fillMode);
+                state.finishedPercent = resolveFinalPercent(config, count);
+
+                if (state.holdFinalFrame) {
+                    applyKeyframes(computedStyle, baseStyle, scope, animName, state.finishedPercent);
                     anyActive = true;
-                    applyKeyframes(computedStyle, baseStyle, animName, 100.0);
-                } else {
-                    states.set(i, null);
                 }
                 continue;
             }
@@ -426,12 +534,58 @@ public class Animation {
             }
 
             double easedProgress = applyTimingFunction(progress, config.timingFunction);
-            applyKeyframes(computedStyle, baseStyle, animName, clamp01(easedProgress) * 100.0);
+            applyKeyframes(computedStyle, baseStyle, scope, animName, clamp01(easedProgress) * 100.0);
         }
 
         if (!anyActive) {
-            ACTIVE_ANIMATIONS.remove(element.uuid);
+            boolean hasFinishedNoHold = false;
+            for (AnimationState state : states) {
+                if (state != null && state.finished && !state.holdFinalFrame) {
+                    hasFinishedNoHold = true;
+                    break;
+                }
+            }
+            if (!hasFinishedNoHold) {
+                ACTIVE_ANIMATIONS.remove(element.uuid);
+            }
         }
+    }
+
+    private static boolean isStateActive(AnimationState state) {
+        if (state == null) return false;
+        return !state.finished || state.holdFinalFrame;
+    }
+
+    private static double resolveInitialPercent(AnimationConfig config) {
+        double progress = isReverseDirection(config.direction, 0) ? 1.0 : 0.0;
+        double eased = applyTimingFunction(progress, config.timingFunction);
+        return clamp01(eased) * 100.0;
+    }
+
+    private static double resolveFinalPercent(AnimationConfig config, double count) {
+        if (count <= 0) {
+            return resolveInitialPercent(config);
+        }
+
+        long finalIteration;
+        double progress;
+
+        double floor = Math.floor(count);
+        double fraction = count - floor;
+        if (Math.abs(fraction) < EPSILON) {
+            finalIteration = Math.max(0, (long) floor - 1);
+            progress = 1.0;
+        } else {
+            finalIteration = (long) floor;
+            progress = fraction;
+        }
+
+        if (isReverseDirection(config.direction, finalIteration)) {
+            progress = 1.0 - progress;
+        }
+
+        double eased = applyTimingFunction(progress, config.timingFunction);
+        return clamp01(eased) * 100.0;
     }
 
     private static boolean isBackwardsFill(String fillMode) {
@@ -579,8 +733,8 @@ public class Animation {
         return Math.min(value, 1);
     }
 
-    private static void applyKeyframes(Style style, Style baseStyle, String animName, double currentPercent) {
-        TreeMap<Double, Map<String, String>> timeline = KEYFRAMES.get(animName);
+    private static void applyKeyframes(Style style, Style baseStyle, String scope, String animName, double currentPercent) {
+        TreeMap<Double, Map<String, String>> timeline = getTimeline(scope, animName);
         if (timeline == null || timeline.isEmpty()) return;
 
         Map.Entry<Double, Map<String, String>> startEntry = timeline.floorEntry(currentPercent);
@@ -647,22 +801,51 @@ public class Animation {
         List<Transform> startTransforms = Transform.parse(startStr);
         List<Transform> endTransforms = Transform.parse(endStr);
 
+        Transform.Translate startTranslate = null;
+        for (Transform transform : startTransforms) {
+            if (transform instanceof Transform.Translate) {
+                Transform.Translate t = (Transform.Translate) transform;
+                if (startTranslate == null) {
+                    startTranslate = t;
+                } else {
+                    startTranslate = new Transform.Translate(startTranslate.x() + t.x(), startTranslate.y() + t.y(), startTranslate.z() + t.z());
+                }
+            }
+        }
+
+        Transform.Translate endTranslate = null;
+        for (Transform transform : endTransforms) {
+            if (transform instanceof Transform.Translate) {
+                Transform.Translate t = (Transform.Translate) transform;
+                if (endTranslate == null) {
+                    endTranslate = t;
+                } else {
+                    endTranslate = new Transform.Translate(endTranslate.x() + t.x(), endTranslate.y() + t.y(), endTranslate.z() + t.z());
+                }
+            }
+        }
+
+        if (startTranslate != null || endTranslate != null) {
+            Transform.Translate ts = startTranslate != null ? startTranslate : Transform.Translate.DEFAULT;
+            Transform.Translate te = endTranslate != null ? endTranslate : Transform.Translate.DEFAULT;
+
+            double x = Transition.getOffset("transform-x", ts.x(), te.x(), fraction);
+            double y = Transition.getOffset("transform-y", ts.y(), te.y(), fraction);
+            double z = Transition.getOffset("transform-z", ts.z(), te.z(), fraction);
+            changes.add(new Transition.Change("transform-translatex", x));
+            changes.add(new Transition.Change("transform-translatey", y));
+            changes.add(new Transition.Change("transform-translatez", z));
+        }
+
         int size = Math.min(startTransforms.size(), endTransforms.size());
 
         for (int i = 0; i < size; i++) {
             Transform s = startTransforms.get(i);
             Transform e = endTransforms.get(i);
 
-            if (s instanceof Transform.Translate && e instanceof Transform.Translate) {
-                Transform.Translate ts = (Transform.Translate) s;
-                Transform.Translate te = (Transform.Translate) e;
-                double x = Transition.getOffset("transform-x", ts.x(), te.x(), fraction);
-                double y = Transition.getOffset("transform-y", ts.y(), te.y(), fraction);
-                double z = Transition.getOffset("transform-z", ts.z(), te.z(), fraction);
-                changes.add(new Transition.Change("transform-translatex", x));
-                changes.add(new Transition.Change("transform-translatey", y));
-                changes.add(new Transition.Change("transform-translatez", z));
-            } else if (s instanceof Transform.Rotate && e instanceof Transform.Rotate) {
+            if (s instanceof Transform.Translate || e instanceof Transform.Translate) continue;
+
+            if (s instanceof Transform.Rotate && e instanceof Transform.Rotate) {
                 Transform.Rotate rs = (Transform.Rotate) s;
                 Transform.Rotate re = (Transform.Rotate) e;
                 double x = Transition.getOffset("transform-rx", rs.x(), re.x(), fraction);
@@ -684,14 +867,21 @@ public class Animation {
 
     private static double parseTime(String time) {
         if (time == null || time.equals("unset")) return 0;
+
         String value = time.trim().toLowerCase(Locale.ROOT);
-        if (value.isEmpty() || value.equals("0") || value.equals("0s") || value.equals("0ms")) return 0;
+        if (value.isEmpty()) return 0;
+
         try {
-            if (value.endsWith("ms")) return Double.parseDouble(value.substring(0, value.length() - 2));
-            if (value.endsWith("s")) return Double.parseDouble(value.substring(0, value.length() - 1)) * 1000;
+            if (value.endsWith("ms")) {
+                return Double.parseDouble(value.substring(0, value.length() - 2));
+            }
+            if (value.endsWith("s")) {
+                return Double.parseDouble(value.substring(0, value.length() - 1)) * 1000;
+            }
             return Double.parseDouble(value) * 1000;
         } catch (NumberFormatException ignored) {
         }
         return 0;
     }
 }
+

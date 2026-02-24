@@ -154,6 +154,8 @@ public class Element {
 
         cssCache = Selector.matchCSS(this);
         renderElement.computedStyle.clear();
+        renderElement.frameStyle.clear();
+        renderElement.frameStyleTime = -1;
 
         Style currentStyle = getRawComputedStyle();
 
@@ -169,15 +171,13 @@ public class Element {
     }
 
     public Style getComputedStyle() {
-        Style computedStyle = getRawComputedStyle();
-        Style originStyle = computedStyle.clone();
-        Transition.updateStyle(this, originStyle);
-        Animation.updateStyle(this, originStyle);
-        if (Transition.isActive(this) || Animation.isActive(this)) {
-            RenderElement.observeStyle(this, computedStyle, originStyle);
-            computedStyle = originStyle;
+        if (document != null) {
+            Style frameStyle = renderElement.frameStyle.get();
+            if (frameStyle != null && renderElement.frameStyleTime == document.getAnimationFrameTime()) {
+                return frameStyle;
+            }
         }
-        return computedStyle;
+        return getRawComputedStyle();
     }
 
     public Style getRawComputedStyle() {
@@ -194,6 +194,25 @@ public class Element {
             isVisible = computedStyle.visibility.equals("visible");
         }
         return computedStyle;
+    }
+
+
+    public void advanceFrameStyle(long frameTime) {
+        Style baseStyle = getRawComputedStyle();
+        Style currentStyle = baseStyle.clone();
+
+        Transition.advanceFrame(this, currentStyle, frameTime);
+        Animation.advanceFrame(this, currentStyle, frameTime);
+
+        Style previousFrameStyle = renderElement.frameStyle.get();
+        if (previousFrameStyle != null) {
+            RenderElement.observeStyle(this, previousFrameStyle, currentStyle);
+        } else {
+            RenderElement.observeStyle(this, baseStyle, currentStyle);
+        }
+
+        renderElement.frameStyle.set(currentStyle);
+        renderElement.frameStyleTime = frameTime;
     }
 
     public void updateInlineStyle() {

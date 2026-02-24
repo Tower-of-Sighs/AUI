@@ -2,10 +2,10 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 
@@ -41,14 +41,23 @@ public class Transition {
         return workList.containsKey(element.uuid);
     }
 
+    public static void stop(Element element) {
+        if (element == null) return;
+        workList.remove(element.uuid);
+    }
+
     public static void updateStyle(Element element, Style originStyle) {
+        advanceFrame(element, originStyle, System.currentTimeMillis());
+    }
+
+    public static void advanceFrame(Element element, Style originStyle, long frameTime) {
         List<Transition> transitions = workList.get(element.uuid);
         if (transitions == null) return;
 
-        long currentTime = System.currentTimeMillis();
         List<Change> changeList = new ArrayList<>();
         for (Transition transition : transitions) {
-            double process = (currentTime - transition.startTime) / transition.duration;
+            if (transition.duration <= 0) continue;
+            double process = (frameTime - transition.startTime) / transition.duration;
             if (process <= 1) {
                 double value = getOffset(transition, process);
                 changeList.add(new Change(transition.name, value));
