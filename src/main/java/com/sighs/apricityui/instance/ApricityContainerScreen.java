@@ -11,6 +11,7 @@ import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.ChatFormatting;
@@ -123,6 +124,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
         drawDevToolsOverlay(guiGraphics);
+        Cursor.drawPseudoCursor(guiGraphics.pose());
     }
 
     private void bindSlotsFromDocument() {
@@ -542,6 +544,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
 
         linkedDocument.remove();
+        // Ensure the native cursor is restored when the Apricity screen closes.
+        Cursor.resetToDefault();
         super.onClose();
     }
 

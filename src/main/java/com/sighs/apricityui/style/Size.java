@@ -1,6 +1,6 @@
 package com.sighs.apricityui.style;
 
-import com.sighs.apricityui.element.AbstractTextElement;
+import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
@@ -67,7 +67,7 @@ public record Size(double width, double height) {
         boolean unsetWidth = parsedWidth == -1;
         boolean unsetHeight = parsedHeight == -1;
 
-        boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractTextElement);
+        boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
         Size bodySize = isText ? getTextSize(element) : getContentSize(element);
 
         double totalWidth = bodySize.width, totalHeight = bodySize.height;
