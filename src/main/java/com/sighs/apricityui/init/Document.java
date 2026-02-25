@@ -187,6 +187,13 @@ public class Document {
         return document;
     }
 
+    public static boolean contains(String path) {
+        for (Document document : documents) {
+            if (document.getPath().equals(path)) return true;
+        }
+        return false;
+    }
+
     public static ArrayList<Document> get(String path) {
         ArrayList<Document> result = new ArrayList<>();
         for (Document document : documents) {

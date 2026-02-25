@@ -41,7 +41,8 @@ public class Graph {
     }
 
     private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int cTL, int cBL, int cBR, int cTR) {
-        if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
+        float dx = x1 - x0, dy = y1 - y0;
+        if (dx * dx < 1e-6f || dy * dy < 1e-6f) return;
         vtx(buf, mat, x0, y0, cTL);
         vtx(buf, mat, x0, y1, cBL);
         vtx(buf, mat, x1, y1, cBR);
@@ -51,7 +52,8 @@ public class Graph {
     }
 
     private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, ColorResolver colorRes) {
-        if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
+        float dx = x1 - x0, dy = y1 - y0;
+        if (dx * dx < 1e-6f || dy * dy < 1e-6f) return;
 
         int cTL = colorRes.resolve(x0, y0);
         int cBL = colorRes.resolve(x0, y1);
@@ -113,7 +115,6 @@ public class Graph {
         drawUnifiedRoundedRect(mat, x, y, w, h, radii, (px, py) -> gradient.getColorAt(px, py, x, y, w, h));
     }
 
-    // FIXME
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
         BufferBuilder buf = Base.getBuffer();
         prepare(buf);
@@ -189,7 +190,6 @@ public class Graph {
         }
     }
 
-    // FIXME
     public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
         BufferBuilder buf = Base.getBuffer();
         prepare(buf);
@@ -202,45 +202,76 @@ public class Graph {
         Base.finishRendering();
     }
 
+    private static final int SHADOW_LAYERS = 6;
+
     public static void addUnifiedShadowRingVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, float blur, int inC, int outC) {
         float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
-
-        addRect(buf, mat, x + tl, y - blur, x + width - tr, y, outC, inC, inC, outC);
-        addRect(buf, mat, x + bl, y + height, x + width - br, y + height + blur, inC, outC, outC, inC);
-        addRect(buf, mat, x - blur, y + tl, x, y + height - bl, outC, outC, inC, inC);
-        addRect(buf, mat, x + width, y + tr, x + width + blur, y + height - br, inC, inC, outC, outC);
 
         if (tl > 0 || blur > 0) addCornerShadow(buf, mat, x + tl, y + tl, tl, tl + blur, SEGMENTS * 2, inC, outC);
         if (tr > 0 || blur > 0)
             addCornerShadow(buf, mat, x + width - tr, y + tr, tr, tr + blur, SEGMENTS * 3, inC, outC);
         if (br > 0 || blur > 0) addCornerShadow(buf, mat, x + width - br, y + height - br, br, br + blur, 0, inC, outC);
         if (bl > 0 || blur > 0) addCornerShadow(buf, mat, x + bl, y + height - bl, bl, bl + blur, SEGMENTS, inC, outC);
-    }
 
-    private static void addCornerShadow(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rIn, float rOut, int startIndex, int inC, int outC) {
-        for (int i = 0; i < SEGMENTS; i++) {
-            int idx0 = startIndex + i;
-            int idx1 = startIndex + i + 1;
-            if (idx1 >= TOTAL_STEPS) idx1 -= TOTAL_STEPS;
-
-            float c0 = COS_TABLE[idx0], s0 = SIN_TABLE[idx0];
-            float c1 = COS_TABLE[idx1], s1 = SIN_TABLE[idx1];
-
-            float ix0 = cx + c0 * rIn, iy0 = cy + s0 * rIn;
-            float ix1 = cx + c1 * rIn, iy1 = cy + s1 * rIn;
-            float ox0 = cx + c0 * rOut, oy0 = cy + s0 * rOut;
-            float ox1 = cx + c1 * rOut, oy1 = cy + s1 * rOut;
-
-            vtx(buf, mat, ix0, iy0, inC);
-            vtx(buf, mat, ox0, oy0, outC);
-            vtx(buf, mat, ix1, iy1, inC);
-            vtx(buf, mat, ox0, oy0, outC);
-            vtx(buf, mat, ox1, oy1, outC);
-            vtx(buf, mat, ix1, iy1, inC);
+        float step = blur / SHADOW_LAYERS;
+        for (int layer = 0; layer < SHADOW_LAYERS; layer++) {
+            float y0 = y - step * layer, y1 = y - step * (layer + 1);
+            int c = lerpColor(inC, outC, (layer + 0.5f) / SHADOW_LAYERS);
+            addRect(buf, mat, x + tl, y1, x + width - tr, y0, c);
+        }
+        for (int layer = 0; layer < SHADOW_LAYERS; layer++) {
+            float y0 = y + height + step * layer, y1 = y + height + step * (layer + 1);
+            int c = lerpColor(inC, outC, (layer + 0.5f) / SHADOW_LAYERS);
+            addRect(buf, mat, x + bl, y0, x + width - br, y1, c);
+        }
+        for (int layer = 0; layer < SHADOW_LAYERS; layer++) {
+            float x0 = x - step * layer, x1 = x - step * (layer + 1);
+            int c = lerpColor(inC, outC, (layer + 0.5f) / SHADOW_LAYERS);
+            addRect(buf, mat, x1, y + tl, x0, y + height - bl, c);
+        }
+        for (int layer = 0; layer < SHADOW_LAYERS; layer++) {
+            float x0 = x + width + step * layer, x1 = x + width + step * (layer + 1);
+            int c = lerpColor(inC, outC, (layer + 0.5f) / SHADOW_LAYERS);
+            addRect(buf, mat, x0, y + tr, x1, y + height - br, c);
         }
     }
 
-    // FIXME
+    private static void addCornerShadow(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rIn, float rOut, int startIdx, int inC, int outC) {
+        float rStep = (rOut - rIn) / SHADOW_LAYERS;
+        for (int layer = 0; layer < SHADOW_LAYERS; layer++) {
+            float r0 = rIn + rStep * layer;
+            float r1 = r0 + rStep;
+            int c = lerpColor(inC, outC, (layer + 0.5f) / SHADOW_LAYERS);
+
+            for (int i = 0; i < SEGMENTS; i++) {
+                int idx0 = startIdx + i;
+                int idx1 = startIdx + i + 1;
+                if (idx1 > TOTAL_STEPS) idx1 -= TOTAL_STEPS;
+
+                float cos0 = COS_TABLE[idx0], sin0 = SIN_TABLE[idx0];
+                float cos1 = COS_TABLE[idx1], sin1 = SIN_TABLE[idx1];
+
+                float ix0 = cx + cos0 * r0, iy0 = cy + sin0 * r0;
+                float ix1 = cx + cos1 * r0, iy1 = cy + sin1 * r0;
+                float ox0 = cx + cos0 * r1, oy0 = cy + sin0 * r1;
+                float ox1 = cx + cos1 * r1, oy1 = cy + sin1 * r1;
+
+                if (r0 < 0.001f) {
+                    vtx(buf, mat, cx, cy, c);
+                    vtx(buf, mat, ox0, oy0, c);
+                    vtx(buf, mat, ox1, oy1, c);
+                } else {
+                    vtx(buf, mat, ix0, iy0, c);
+                    vtx(buf, mat, ox0, oy0, c);
+                    vtx(buf, mat, ix1, iy1, c);
+                    vtx(buf, mat, ox0, oy0, c);
+                    vtx(buf, mat, ox1, oy1, c);
+                    vtx(buf, mat, ix1, iy1, c);
+                }
+            }
+        }
+    }
+
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
         BufferBuilder buf = Base.getBuffer();
         prepare(buf);
@@ -268,7 +299,6 @@ public class Graph {
         Base.finishRendering();
     }
 
-    // FIXME
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {
         boolean blink = (System.currentTimeMillis() - lastBlinkTime) % 1000 < 500;
         if (blink) {
