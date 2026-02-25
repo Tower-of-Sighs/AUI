@@ -13,6 +13,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.Cursor;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -171,13 +172,18 @@ public class Client {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
-        if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null)
+        if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             Base.drawAllDocument(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+        }
     }
 
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
-        if (Minecraft.getInstance().screen == null) Base.drawAllDocument(event.getGuiGraphics().pose());
+        if (Minecraft.getInstance().screen == null) {
+            Base.drawAllDocument(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+        }
     }
 
     @SubscribeEvent

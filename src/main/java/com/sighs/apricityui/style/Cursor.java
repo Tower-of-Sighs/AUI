@@ -1,8 +1,13 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.resource.async.cursor.CursorAsyncHandler;
-import com.sighs.apricityui.resource.async.cursor.CursorHandle;
+import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.ImageDrawer;
+import com.sighs.apricityui.resource.Image;
+import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.image.ImageHandle;
+import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
@@ -14,6 +19,8 @@ public class Cursor {
     private static final Map<Integer, Long> STANDARD = new HashMap<>();
     private static boolean initialized = false;
     private static long currentHandle = 0L;
+    private static boolean systemCursorHidden = false;
+    private static CursorUrlSpec pseudoCursorSpec = null;
 
     public static void init() {
         if (initialized) return;
@@ -48,23 +55,27 @@ public class Cursor {
      *   <li>标准关键字（default/pointer/text/...）</li>
      *   <li>cursor: url("...") [hotspotX hotspotY]</li>
      * </ul>
-     * url 资源会走异步加载，并在 READY 后切换为自定义 GLFW Cursor。
+     * url 资源使用 ImageDrawer 渲染伪光标。
      */
     public static void applyCssCursor(String contextPath, String cssValue) {
         init();
 
         CursorUrlSpec urlSpec = parseUrlCursor(contextPath, cssValue);
         if (urlSpec != null) {
-            CursorHandle handle = CursorAsyncHandler.INSTANCE.request(urlSpec.path(), urlSpec.hotspotX(), urlSpec.hotspotY());
-            if (handle != null && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY) {
-                setWindowCursor(handle.glfwCursorHandle());
+            ImageHandle handle = ImageAsyncHandler.INSTANCE.request(urlSpec.path());
+            if (handle != null
+                    && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY
+                    && handle.texture() != null) {
+                enablePseudoCursor(urlSpec);
             } else {
-                // 异步加载中/失败时先使用默认箭头，避免卡顿
+                // 图片未就绪时回退默认箭头，避免暂时无光标。
+                disablePseudoCursor();
                 setWindowCursor(STANDARD.getOrDefault(GLFW.GLFW_ARROW_CURSOR, 0L));
             }
             return;
         }
 
+        disablePseudoCursor();
         int shape = mapCssToStandardCursor(cssValue);
         long handle = STANDARD.getOrDefault(shape, STANDARD.getOrDefault(GLFW.GLFW_ARROW_CURSOR, 0L));
         if (handle == 0L) return;
@@ -73,6 +84,49 @@ public class Cursor {
 
     public static void resetToDefault() {
         applyCssCursor("default");
+    }
+
+    public static void drawPseudoCursor(PoseStack poseStack) {
+        if (poseStack == null || pseudoCursorSpec == null) return;
+
+        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(pseudoCursorSpec.path());
+        if (handle == null || handle.state() != com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY) return;
+
+        Image.ITexture texture = handle.texture();
+        if (texture == null || texture.getLocation() == null) return;
+
+        int width = texture.getWidth();
+        int height = texture.getHeight();
+        if (width <= 0 || height <= 0) return;
+
+        Position mouse = Client.getMousePosition();
+        float drawX = (float) mouse.x - pseudoCursorSpec.hotspotX();
+        float drawY = (float) mouse.y - pseudoCursorSpec.hotspotY();
+
+        Base.resolveOffset(poseStack);
+        ImageDrawer.draw(poseStack, texture.getLocation(), drawX, drawY, width, height, false);
+    }
+
+    private static void enablePseudoCursor(CursorUrlSpec spec) {
+        pseudoCursorSpec = spec;
+        setSystemCursorHidden(true);
+    }
+
+    private static void disablePseudoCursor() {
+        pseudoCursorSpec = null;
+        setSystemCursorHidden(false);
+    }
+
+    private static void setSystemCursorHidden(boolean hidden) {
+        if (systemCursorHidden == hidden) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return;
+
+        long window = mc.getWindow().getWindow();
+        if (window == 0L) return;
+
+        GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, hidden ? GLFW.GLFW_CURSOR_HIDDEN : GLFW.GLFW_CURSOR_NORMAL);
+        systemCursorHidden = hidden;
     }
 
     private static void setWindowCursor(long handle) {
