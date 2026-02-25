@@ -136,10 +136,9 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
 
     private void rebuildCssCache(Document document, StyleHandle handle) {
         document.CSSCache.clear();
-        String keyframeScope = document.getUuid().toString();
         for (Map.Entry<Integer, StyleHandle.CssEntry> entry : handle.snapshotCssEntries()) {
             StyleHandle.CssEntry cssEntry = entry.getValue();
-            CSS.readCSS(cssEntry.cssText(), document.CSSCache, cssEntry.contextPath(), keyframeScope);
+            CSS.readCSS(cssEntry.cssText(), document.CSSCache, cssEntry.contextPath());
         }
     }
 

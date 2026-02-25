@@ -21,23 +21,14 @@ public record Transition(String name, double start, double end, double duration,
         return workList.containsKey(element.uuid);
     }
 
-    public static void stop(Element element) {
-        if (element == null) return;
-        workList.remove(element.uuid);
-    }
-
     public static void updateStyle(Element element, Style originStyle) {
-        advanceFrame(element, originStyle, System.currentTimeMillis());
-    }
-
-    public static void advanceFrame(Element element, Style originStyle, long frameTime) {
         List<Transition> transitions = workList.get(element.uuid);
         if (transitions == null) return;
 
+        long currentTime = System.currentTimeMillis();
         List<Change> changeList = new ArrayList<>();
         for (Transition transition : transitions) {
-            if (transition.duration <= 0) continue;
-            double process = (frameTime - transition.startTime) / transition.duration;
+            double process = (currentTime - transition.startTime) / transition.duration;
             if (process <= 1) {
                 double value = getOffset(transition, process);
                 changeList.add(new Change(transition.name, value));
