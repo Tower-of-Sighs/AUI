@@ -1,11 +1,8 @@
 package com.sighs.apricityui.instance;
 
-import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Position;
@@ -13,13 +10,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix4f;
-import org.joml.Vector3f;
+import org.joml.Quaternionf;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
@@ -68,8 +63,8 @@ public class WorldWindow {
                 position.z - cameraPos.z
         );
 
-        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - this.yRot));
-        poseStack.mulPose(Axis.XP.rotationDegrees(this.xRot));
+        poseStack.mulPose(new Quaternionf().rotationY(180.0F - this.yRot));
+        poseStack.mulPose(new Quaternionf().rotationX(this.xRot));
 
         poseStack.scale(scale, -scale, scale);
         poseStack.translate(-width / 2.0f, -height / 2.0f, 0);

@@ -5,7 +5,6 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.math.Axis;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -14,6 +13,7 @@ import com.sighs.apricityui.style.*;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 
 import java.util.List;
 
@@ -81,9 +81,9 @@ public class Base {
                 poseStack.translate(t.x(), t.y(), t.z());
             } else if (transform instanceof Transform.Rotate r) {
                 poseStack.translate(x + w / 2, y + h / 2, 0);
-                if (r.x() != 0) poseStack.mulPose(Axis.XP.rotationDegrees((float) r.x()));
-                if (r.y() != 0) poseStack.mulPose(Axis.YP.rotationDegrees((float) r.y()));
-                if (r.z() != 0) poseStack.mulPose(Axis.ZP.rotationDegrees((float) r.z()));
+                if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) r.x()));
+                if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) r.y()));
+                if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) r.z()));
                 poseStack.translate(-x - w / 2, -y - h / 2, 0);
             } else if (transform instanceof Transform.Scale s) {
                 poseStack.translate(x + w / 2, y + h / 2, 0);

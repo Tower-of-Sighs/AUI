@@ -3,7 +3,6 @@ package com.sighs.apricityui.mixin;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
@@ -21,16 +20,14 @@ public abstract class AbstractContainerScreenMixin {
     protected int topPos;
 
     @Inject(method = "renderSlot", at = @At("HEAD"), cancellable = true)
-    private void apricityui$cancelVanillaRenderSlot(GuiGraphics guiGraphics, Slot slot, CallbackInfo ci) {
+    private void apricityui$cancelVanillaRenderSlot(CallbackInfo ci) {
         if ((Object) this instanceof ApricityContainerScreen) {
             ci.cancel();
         }
     }
 
     @Inject(method = "renderSlotHighlight(Lnet/minecraft/client/gui/GuiGraphics;IIII)V", at = @At("HEAD"), cancellable = true, remap = false)
-    private static void apricityui$cancelVanillaSlotHighlightLegacy(
-            GuiGraphics p_283692_, int p_281453_, int p_281915_, int p_283504_, int color, CallbackInfo ci
-    ) {
+    private static void apricityui$cancelVanillaSlotHighlightLegacy(CallbackInfo ci) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             ci.cancel();
         }
