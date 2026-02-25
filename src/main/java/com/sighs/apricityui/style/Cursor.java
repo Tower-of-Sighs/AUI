@@ -1,6 +1,5 @@
-package com.sighs.apricityui.element;
+package com.sighs.apricityui.style;
 
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.cursor.CursorAsyncHandler;
 import com.sighs.apricityui.resource.async.cursor.CursorHandle;
@@ -11,15 +10,10 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-public class Cursor extends Element {
+public class Cursor {
     private static final Map<Integer, Long> STANDARD = new HashMap<>();
     private static boolean initialized = false;
     private static long currentHandle = 0L;
-
-    private Cursor() {
-        // Cursor 仅用于静态光标控制，不参与 DOM 树。
-        super(null, "CURSOR_MANAGER");
-    }
 
     public static void init() {
         if (initialized) return;

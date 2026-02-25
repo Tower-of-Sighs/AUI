@@ -39,6 +39,12 @@ public class RenderElement {
         }
     };
     public Cache<Background> background = new Cache<>();
+    public Cache<String> cursor = new Cache<>() {
+        @Override
+        void expandClear() {
+            element.children.forEach(e -> e.getRenderer().cursor.clear());
+        }
+    };
 
     public RenderElement(Element element) {
         this.element = element;
@@ -86,6 +92,7 @@ public class RenderElement {
     private static final Set<String> BACKGROUND_PROPS = Set.of(
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     );
+    private static final Set<String> CURSOR_PROPS = Set.of("cursor");
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
             "fontSize", "lineHeight", "fontFamily"
@@ -166,6 +173,10 @@ public class RenderElement {
         if (check.test(VISUAL_BOX_PROPS)) {
             renderer.box.clear();
             dirtyMask |= Drawer.REPAINT;
+        }
+
+        if (check.test(CURSOR_PROPS)) {
+            renderer.cursor.clear();
         }
 
         if (!origin.animation.equals(current.animation)) {

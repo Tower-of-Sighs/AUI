@@ -4,9 +4,9 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.element.Cursor;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 
@@ -79,17 +79,22 @@ public class MouseEvent extends Event implements Cloneable {
     private static String resolveCursor(Element target) {
         if (target == null) return "default";
 
+        String cache = target.getRenderer().cursor.get();
+        if (cache != null) return cache;
+
         Element e = target;
         while (e != null) {
             String c = e.getComputedStyle().cursor;
             if (c != null) {
                 c = c.trim();
                 if (!c.isEmpty() && !c.equalsIgnoreCase("unset") && !c.equalsIgnoreCase("auto")) {
+                    target.getRenderer().cursor.set(c);
                     return c;
                 }
             }
             e = e.parentElement;
         }
+        target.getRenderer().cursor.set("default");
         return "default";
     }
 
