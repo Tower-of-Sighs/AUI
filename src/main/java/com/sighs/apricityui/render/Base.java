@@ -5,7 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
-import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.async.Asynchronous;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -37,7 +37,7 @@ public class Base {
             Base.resolveOffset(poseStack);
             node.render(poseStack);
         }
-        AbstractAsyncHandler.tickAll();
+        Asynchronous.tickAll();
     }
 
     public static void beginRendering() {

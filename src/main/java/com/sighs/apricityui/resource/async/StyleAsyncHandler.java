@@ -1,8 +1,11 @@
-package com.sighs.apricityui.resource.async.style;
+package com.sighs.apricityui.resource.async;
 
-import com.sighs.apricityui.init.AbstractAsyncHandler;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.async.Asynchronous;
+import com.sighs.apricityui.async.Asynchronous.AsyncTaskRole;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.registry.annotation.AsyncTask;
+import com.sighs.apricityui.registry.annotation.AsyncTaskClass;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.UrlFetch;
@@ -19,10 +22,12 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.ApplyTask> {
+@AsyncTaskClass(id = "style", applyBudgetPerTick = 2, workerThreadName = "ApricityUI-StyleWorker")
+public class StyleAsyncHandler {
     public static final StyleAsyncHandler INSTANCE = new StyleAsyncHandler();
 
     private static final long FAILED_TTL_MS = 5_000L;
@@ -34,36 +39,40 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
     private static final Pattern FONT_FACE_PATTERN = Pattern.compile("(?is)@font-face\\s*\\{(.*?)}");
     private static final Pattern URL_PATTERN = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
 
-    private static final Map<UUID, StyleHandle> HANDLES = new ConcurrentHashMap<>();
+    private static final Map<UUID, StyleJob> JOBS = new ConcurrentHashMap<>();
     private static final Map<String, CacheEntry> BYTE_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, Long> FAILED_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, InFlightEntry> IN_FLIGHT = new ConcurrentHashMap<>();
 
     private StyleAsyncHandler() {
-        super("style", 256, 2, 1_500_000L, "ApricityUI-StyleWorker");
+        Asynchronous.register(this);
+    }
+
+    public void clearAndBumpGeneration() {
+        Asynchronous.clearAndBumpGeneration(this);
     }
 
     public void attach(Document document, String contextPath, List<String> externalStyleSrcs, List<String> inlineStyles) {
         if (document == null) return;
 
-        long generation = currentGeneration();
-        StyleHandle handle = new StyleHandle(document.getUuid(), generation);
-        StyleHandle oldHandle = HANDLES.put(document.getUuid(), handle);
-        if (oldHandle != null) oldHandle.markStale();
+        long generation = Asynchronous.currentGeneration(this);
+        StyleJob job = new StyleJob(document.getUuid(), generation);
+        StyleJob oldJob = JOBS.put(document.getUuid(), job);
+        if (oldJob != null) oldJob.markStale();
 
         int order = 0;
 
         String globalCss = Loader.readGlobalCSS();
         if (globalCss != null && !globalCss.isBlank()) {
             ParsedCss parsed = parseCss(globalCss, "global.css");
-            handle.putCssEntry(order++, new StyleHandle.CssEntry("global.css", parsed.cssText()));
-            enqueueFontTasks(handle, parsed.fontTasks());
+            job.putCssEntry(order++, new StyleJob.CssEntry("global.css", parsed.cssText()));
+            enqueueFontTasks(job, parsed.fontTasks());
         }
 
         if (externalStyleSrcs != null) {
             for (String src : externalStyleSrcs) {
                 String resolvedPath = Loader.resolve(contextPath, src);
-                enqueueCssFetch(handle, order++, resolvedPath);
+                enqueueCssFetch(job, order++, resolvedPath);
             }
         }
 
@@ -71,38 +80,80 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
             for (String inlineCss : inlineStyles) {
                 if (inlineCss == null || inlineCss.isBlank()) continue;
                 ParsedCss parsed = parseCss(inlineCss, contextPath);
-                handle.putCssEntry(order++, new StyleHandle.CssEntry(contextPath, parsed.cssText()));
-                enqueueFontTasks(handle, parsed.fontTasks());
+                job.putCssEntry(order++, new StyleJob.CssEntry(contextPath, parsed.cssText()));
+                enqueueFontTasks(job, parsed.fontTasks());
             }
         }
 
-        rebuildCssCache(document, handle);
-        if (handle.pendingTasks() <= 0) {
-            handle.markReady();
-        } else {
-            handle.markLoading();
+        rebuildCssCache(document, job);
+    }
+
+    private void enqueueCssFetch(StyleJob job, int order, String resolvedPath) {
+        if (resolvedPath == null || resolvedPath.isBlank()) return;
+
+        long now = System.currentTimeMillis();
+        Long failedAt = FAILED_CACHE.get(resolvedPath);
+        if (failedAt != null && now - failedAt < FAILED_TTL_MS) return;
+
+        if (!job.markTaskQueued()) return;
+        Asynchronous.submitWorker(this, "load_css", job, order, resolvedPath);
+    }
+
+    private void enqueueFontTasks(StyleJob job, List<FontTask> fontTasks) {
+        if (fontTasks == null || fontTasks.isEmpty()) return;
+        for (FontTask fontTask : fontTasks) {
+            if (fontTask == null || fontTask.fontFamily().isBlank() || fontTask.path().isBlank()) continue;
+            String fontKey = fontTask.fontFamily().trim() + "|" + fontTask.path().trim();
+            if (!job.tryRequestFont(fontKey)) continue;
+
+            long now = System.currentTimeMillis();
+            Long failedAt = FAILED_CACHE.get(fontTask.path());
+            if (failedAt != null && now - failedAt < FAILED_TTL_MS) continue;
+
+            if (!job.markTaskQueued()) continue;
+            Asynchronous.submitWorker(this, "load_font", job, fontTask);
         }
     }
 
-    @Override
-    protected void applyOnMainThread(ApplyTask task, long currentGeneration) {
-        if (task.handle().generation() != currentGeneration) return;
-        StyleHandle current = HANDLES.get(task.handle().documentId());
-        if (current != task.handle()) return;
+    @AsyncTask(role = AsyncTaskRole.WORKER, value = "load_css")
+    private ApplyTask runLoadCss(StyleJob job, int order, String resolvedPath) {
+        try {
+            String mergedCss = loadCssWithImports(resolvedPath, 0, new HashSet<>());
+            ParsedCss parsed = parseCss(mergedCss, resolvedPath);
+            return new CssLoadedTask(job, order, resolvedPath, parsed.cssText(), parsed.fontTasks());
+        } catch (Exception ex) {
+            return new FailedTask(job, resolvedPath, ex);
+        }
+    }
 
-        Document document = Document.getByUUID(task.handle().documentId().toString());
+    @AsyncTask(role = AsyncTaskRole.WORKER, value = "load_font")
+    private ApplyTask runLoadFont(StyleJob job, FontTask fontTask) {
+        try {
+            byte[] bytes = fetchBytes(fontTask.path());
+            return new FontLoadedTask(job, fontTask.fontFamily(), fontTask.path(), bytes);
+        } catch (Exception ex) {
+            return new FailedTask(job, fontTask.path(), ex);
+        }
+    }
+
+    @AsyncTask(role = AsyncTaskRole.APPLY)
+    private void applyOnMainThread(ApplyTask task, long currentGeneration) {
+        if (task.job().generation() != currentGeneration) return;
+        StyleJob current = JOBS.get(task.job().documentId());
+        if (current != task.job()) return;
+
+        Document document = Document.getByUUID(task.job().documentId().toString());
         if (document == null) {
-            task.handle().markTaskCompleted(true);
+            task.job().markTaskCompleted(true);
             return;
         }
 
-        task.handle().markApplying();
         if (task instanceof CssLoadedTask cssLoadedTask) {
-            task.handle().putCssEntry(cssLoadedTask.order(), new StyleHandle.CssEntry(cssLoadedTask.contextPath(), cssLoadedTask.cssText()));
-            enqueueFontTasks(task.handle(), cssLoadedTask.fontTasks());
-            rebuildCssCache(document, task.handle());
+            task.job().putCssEntry(cssLoadedTask.order(), new StyleJob.CssEntry(cssLoadedTask.contextPath(), cssLoadedTask.cssText()));
+            enqueueFontTasks(task.job(), cssLoadedTask.fontTasks());
+            rebuildCssCache(document, task.job());
             document.reapplyStylesFromCache();
-            task.handle().markTaskCompleted(false);
+            task.job().markTaskCompleted(false);
             return;
         }
 
@@ -111,76 +162,52 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
             try (ByteArrayInputStream stream = new ByteArrayInputStream(fontLoadedTask.bytes())) {
                 success = Font.registerFont(fontLoadedTask.fontFamily(), stream);
             } catch (IOException ignored) {}
-            if (success) {
-                document.reapplyStylesFromCache();
-            }
-            task.handle().markTaskCompleted(!success);
+            if (success) document.reapplyStylesFromCache();
+            task.job().markTaskCompleted(!success);
             return;
         }
 
         if (task instanceof FailedTask) {
-            task.handle().markTaskCompleted(true);
+            task.job().markTaskCompleted(true);
         }
     }
 
-    @Override
-    protected void onBeforeClear(long nextGeneration) {
-        for (StyleHandle handle : HANDLES.values()) {
-            handle.markStale();
-        }
-        HANDLES.clear();
+    @AsyncTask(role = AsyncTaskRole.DISCARD)
+    private void onDiscardApplyTask(ApplyTask task) {
+        if (task == null) return;
+        task.job().markTaskCompleted(true);
+    }
+
+    @AsyncTask(role = AsyncTaskRole.ON_CLEAR)
+    private void onBeforeClear(long nextGeneration) {
+        for (StyleJob job : JOBS.values()) job.markStale();
+        JOBS.clear();
         BYTE_CACHE.clear();
         FAILED_CACHE.clear();
         IN_FLIGHT.clear();
     }
 
-    private void rebuildCssCache(Document document, StyleHandle handle) {
-        document.CSSCache.clear();
-        String keyframeScope = document.getUuid().toString();
-        for (Map.Entry<Integer, StyleHandle.CssEntry> entry : handle.snapshotCssEntries()) {
-            StyleHandle.CssEntry cssEntry = entry.getValue();
-            CSS.readCSS(cssEntry.cssText(), document.CSSCache, cssEntry.contextPath(), keyframeScope);
+    @AsyncTask(role = AsyncTaskRole.ON_ERROR)
+    private void onAsyncError(AsyncTaskRole role, Throwable error, Object context) {
+        if (context instanceof StyleJob job) {
+            job.markTaskCompleted(true);
+            return;
+        }
+        if (context instanceof ApplyTask task) {
+            task.job().markTaskCompleted(true);
+            return;
+        }
+        if (context instanceof List<?> args && !args.isEmpty() && args.get(0) instanceof StyleJob job) {
+            job.markTaskCompleted(true);
         }
     }
 
-    private void enqueueCssFetch(StyleHandle handle, int order, String resolvedPath) {
-        if (resolvedPath == null || resolvedPath.isBlank()) return;
-        long now = System.currentTimeMillis();
-        Long failedAt = FAILED_CACHE.get(resolvedPath);
-        if (failedAt != null && now - failedAt < FAILED_TTL_MS) return;
-
-        handle.markTaskQueued();
-        submitWorker(() -> {
-            try {
-                String mergedCss = loadCssWithImports(resolvedPath, 0, new HashSet<>());
-                ParsedCss parsed = parseCss(mergedCss, resolvedPath);
-                enqueueApplyTask(new CssLoadedTask(handle, order, resolvedPath, parsed.cssText(), parsed.fontTasks()));
-            } catch (Exception ex) {
-                enqueueApplyTask(new FailedTask(handle, resolvedPath, ex));
-            }
-        }, ex -> enqueueApplyTask(new FailedTask(handle, resolvedPath, ex)));
-    }
-
-    private void enqueueFontTasks(StyleHandle handle, List<FontTask> fontTasks) {
-        if (fontTasks == null || fontTasks.isEmpty()) return;
-        for (FontTask fontTask : fontTasks) {
-            if (fontTask == null || fontTask.fontFamily().isBlank() || fontTask.path().isBlank()) continue;
-            String fontKey = fontTask.fontFamily().trim() + "|" + fontTask.path().trim();
-            if (!handle.tryRequestFont(fontKey)) continue;
-
-            long now = System.currentTimeMillis();
-            Long failedAt = FAILED_CACHE.get(fontTask.path());
-            if (failedAt != null && now - failedAt < FAILED_TTL_MS) continue;
-
-            handle.markTaskQueued();
-            submitWorker(() -> {
-                try {
-                    byte[] bytes = fetchBytes(fontTask.path());
-                    enqueueApplyTask(new FontLoadedTask(handle, fontTask.fontFamily(), fontTask.path(), bytes));
-                } catch (Exception ex) {
-                    enqueueApplyTask(new FailedTask(handle, fontTask.path(), ex));
-                }
-            }, ex -> enqueueApplyTask(new FailedTask(handle, fontTask.path(), ex)));
+    private void rebuildCssCache(Document document, StyleJob job) {
+        document.CSSCache.clear();
+        String keyframeScope = document.getUuid().toString();
+        for (Map.Entry<Integer, StyleJob.CssEntry> entry : job.snapshotCssEntries()) {
+            StyleJob.CssEntry cssEntry = entry.getValue();
+            CSS.readCSS(cssEntry.cssText(), document.CSSCache, cssEntry.contextPath(), keyframeScope);
         }
     }
 
@@ -275,9 +302,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
     private byte[] fetchBytes(String path) throws IOException {
         long now = System.currentTimeMillis();
         CacheEntry cacheEntry = BYTE_CACHE.get(path);
-        if (cacheEntry != null && cacheEntry.expiresAtMs() > now) {
-            return cacheEntry.bytes();
-        }
+        if (cacheEntry != null && cacheEntry.expiresAtMs() > now) return cacheEntry.bytes();
         if (cacheEntry != null) BYTE_CACHE.remove(path, cacheEntry);
 
         Long failedAt = FAILED_CACHE.get(path);
@@ -287,9 +312,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
 
         InFlightEntry own = new InFlightEntry();
         InFlightEntry existing = IN_FLIGHT.putIfAbsent(path, own);
-        if (existing != null) {
-            return existing.await(path);
-        }
+        if (existing != null) return existing.await(path);
 
         try {
             byte[] bytes = fetchBytesNow(path);
@@ -317,11 +340,11 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
     }
 
     interface ApplyTask {
-        StyleHandle handle();
+        StyleJob job();
     }
 
     private record CssLoadedTask(
-            StyleHandle handle,
+            StyleJob job,
             int order,
             String contextPath,
             String cssText,
@@ -329,14 +352,14 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
     ) implements ApplyTask {}
 
     private record FontLoadedTask(
-            StyleHandle handle,
+            StyleJob job,
             String fontFamily,
             String path,
             byte[] bytes
     ) implements ApplyTask {}
 
     private record FailedTask(
-            StyleHandle handle,
+            StyleJob job,
             String path,
             Exception error
     ) implements ApplyTask {}
@@ -369,5 +392,57 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
             if (bytes == null) throw new IOException("样式资源为空: " + path);
             return bytes;
         }
+    }
+
+    private static final class StyleJob {
+        private final UUID documentId;
+        private final ConcurrentHashMap<Integer, CssEntry> cssEntries = new ConcurrentHashMap<>();
+        private final ConcurrentHashMap<String, Boolean> requestedFonts = new ConcurrentHashMap<>();
+        private final AtomicInteger pendingTasks = new AtomicInteger(0);
+        private volatile long generation;
+        private volatile boolean stale;
+
+        private StyleJob(UUID documentId, long generation) {
+            this.documentId = documentId;
+            this.generation = generation;
+        }
+
+        private UUID documentId() { return documentId; }
+        private long generation() { return generation; }
+
+        private synchronized boolean markTaskQueued() {
+            if (stale) return false;
+            pendingTasks.incrementAndGet();
+            return true;
+        }
+
+        private synchronized void markTaskCompleted(boolean failed) {
+            if (stale) return;
+            int left = pendingTasks.decrementAndGet();
+            if (left < 0) pendingTasks.set(0);
+        }
+
+        private synchronized void markStale() {
+            stale = true;
+            pendingTasks.set(0);
+        }
+
+        private void putCssEntry(int order, CssEntry entry) {
+            if (entry == null) return;
+            cssEntries.put(order, entry);
+        }
+
+        private List<Map.Entry<Integer, CssEntry>> snapshotCssEntries() {
+            ArrayList<Map.Entry<Integer, CssEntry>> entries = new ArrayList<>(cssEntries.entrySet());
+            entries.sort(Map.Entry.comparingByKey());
+            return entries;
+        }
+
+        private boolean tryRequestFont(String fontKey) {
+            if (fontKey == null || fontKey.isBlank()) return false;
+            return requestedFonts.putIfAbsent(fontKey, Boolean.TRUE) == null;
+        }
+
+        private record CssEntry(String contextPath, String cssText) {}
     }
 }

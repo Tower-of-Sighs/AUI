@@ -1,10 +1,9 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.element.Body;
-import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
-import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Transition;

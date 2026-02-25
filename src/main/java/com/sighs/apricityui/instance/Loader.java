@@ -1,14 +1,14 @@
 package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.async.Asynchronous;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.HTML;
-import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.ImageAsyncHandler;
 import com.sighs.apricityui.resource.UrlFetch;
-import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.resource.async.StyleAsyncHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
@@ -38,7 +38,7 @@ public class Loader {
 
     public static void reload() {
         ensureAsyncHandlersInitialized();
-        AbstractAsyncHandler.clearAllAndBumpGeneration();
+        Asynchronous.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
         Font.clear();
         HTML.scan();
@@ -47,9 +47,9 @@ public class Loader {
     }
 
     private static void ensureAsyncHandlersInitialized() {
-        ImageAsyncHandler.INSTANCE.id();
-        StyleAsyncHandler.INSTANCE.id();
-        UrlFetch.INSTANCE.id();
+        ImageAsyncHandler.INSTANCE.getClass();
+        StyleAsyncHandler.INSTANCE.getClass();
+        UrlFetch.INSTANCE.getClass();
     }
 
     public static InputStream getResourceStream(String path) {

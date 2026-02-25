@@ -1,12 +1,10 @@
 package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.vertex.*;
-import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
-import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
-import com.sighs.apricityui.resource.async.image.ImageHandle;
+import com.sighs.apricityui.resource.async.ImageAsyncHandler;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
@@ -56,13 +54,11 @@ public class ImageDrawer {
     }
 
     private static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur, Element requester, boolean needRelayout) {
-        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, needRelayout);
-        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
+        Image.ITexture texture = ImageAsyncHandler.INSTANCE.request(path, requester, needRelayout);
+        if (texture == null) {
             drawPlaceholder(poseStack, x, y, width, height);
             return;
         }
-
-        Image.ITexture texture = handle.texture();
         ResourceLocation currentLocation = texture.getLocation();
         if (currentLocation == null) return;
 
@@ -208,12 +204,11 @@ public class ImageDrawer {
 
     private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, int x, int y, int width, int height) {
         if (path == null || path.isEmpty() || "unset".equals(path)) return null;
-        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path);
-        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
+        Image.ITexture texture = ImageAsyncHandler.INSTANCE.request(path);
+        if (texture == null) {
             drawPlaceholder(poseStack, x, y, width, height);
             return null;
         }
-        Image.ITexture texture = handle.texture();
         int textureWidth = texture.getWidth();
         int textureHeight = texture.getHeight();
         ResourceLocation location = texture.getLocation();

@@ -5,8 +5,7 @@ import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Image;
-import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
-import com.sighs.apricityui.resource.async.image.ImageHandle;
+import com.sighs.apricityui.resource.async.ImageAsyncHandler;
 import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -62,10 +61,8 @@ public class Cursor {
 
         CursorUrlSpec urlSpec = parseUrlCursor(contextPath, cssValue);
         if (urlSpec != null) {
-            ImageHandle handle = ImageAsyncHandler.INSTANCE.request(urlSpec.path());
-            if (handle != null
-                    && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY
-                    && handle.texture() != null) {
+            Image.ITexture texture = ImageAsyncHandler.INSTANCE.request(urlSpec.path());
+            if (texture != null) {
                 enablePseudoCursor(urlSpec);
             } else {
                 // 图片未就绪时回退默认箭头，避免暂时无光标。
@@ -89,10 +86,8 @@ public class Cursor {
     public static void drawPseudoCursor(PoseStack poseStack) {
         if (poseStack == null || pseudoCursorSpec == null) return;
 
-        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(pseudoCursorSpec.path());
-        if (handle == null || handle.state() != com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY) return;
-
-        Image.ITexture texture = handle.texture();
+        Image.ITexture texture = ImageAsyncHandler.INSTANCE.request(pseudoCursorSpec.path());
+        if (texture == null) return;
         if (texture == null || texture.getLocation() == null) return;
 
         int width = texture.getWidth();

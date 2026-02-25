@@ -3,7 +3,6 @@ package com.sighs.apricityui.resource;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.sighs.apricityui.resource.async.image.DecodedImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -20,6 +19,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -245,5 +245,71 @@ public class Image {
         public SimpleTextureWrapper(int textureId) { this.textureId = textureId; }
         @Override public int getId() { return textureId; }
         @Override public void load(ResourceManager manager) { }
+    }
+
+    // 图片解码后的纯 CPU 数据，不能包含任何 GL/TextureManager 行为。
+    public static class DecodedImage implements AutoCloseable {
+        private final NativeImage staticImage;
+        private final List<NativeImage> frames;
+        private final int[] frameDelaysMs;
+        private final int width;
+        private final int height;
+
+        private DecodedImage(NativeImage staticImage, List<NativeImage> frames, int[] frameDelaysMs, int width, int height) {
+            this.staticImage = staticImage;
+            this.frames = frames;
+            this.frameDelaysMs = frameDelaysMs;
+            this.width = width;
+            this.height = height;
+        }
+
+        public static DecodedImage ofStatic(NativeImage image) {
+            if (image == null) return null;
+            return new DecodedImage(image, Collections.emptyList(), new int[0], image.getWidth(), image.getHeight());
+        }
+
+        public static DecodedImage ofAnimated(List<NativeImage> images, List<Integer> delaysMs) {
+            if (images == null || images.isEmpty()) return null;
+            List<NativeImage> copiedFrames = new ArrayList<>(images);
+            int[] delays = new int[copiedFrames.size()];
+            for (int i = 0; i < copiedFrames.size(); i++) {
+                int delay = (delaysMs != null && i < delaysMs.size()) ? delaysMs.get(i) : 100;
+                delays[i] = Math.max(delay, 20);
+            }
+            NativeImage first = copiedFrames.get(0);
+            return new DecodedImage(null, copiedFrames, delays, first.getWidth(), first.getHeight());
+        }
+
+        public boolean isAnimated() {
+            return !frames.isEmpty();
+        }
+
+        public NativeImage getStaticImage() {
+            return staticImage;
+        }
+
+        public List<NativeImage> getFrames() {
+            return frames;
+        }
+
+        public int[] getFrameDelaysMs() {
+            return frameDelaysMs;
+        }
+
+        public int getWidth() {
+            return width;
+        }
+
+        public int getHeight() {
+            return height;
+        }
+
+        @Override
+        public void close() {
+            if (staticImage != null) staticImage.close();
+            for (NativeImage frame : frames) {
+                frame.close();
+            }
+        }
     }
 }

@@ -1,7 +1,10 @@
 package com.sighs.apricityui.resource;
 
-import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.async.Asynchronous;
+import com.sighs.apricityui.async.Asynchronous.AsyncTaskRole;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.registry.annotation.AsyncTask;
+import com.sighs.apricityui.registry.annotation.AsyncTaskClass;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.ByteArrayOutputStream;
@@ -14,8 +17,10 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 
-public final class UrlFetch extends AbstractAsyncHandler<Void> {
+@AsyncTaskClass(id = "url_fetch", maxQueueSize = 16, workerThreadName = "ApricityUI-UrlFetchWorker")
+public final class UrlFetch {
     public static final UrlFetch INSTANCE = new UrlFetch();
 
     public static final int CONNECT_TIMEOUT_MS = 3000;
@@ -25,16 +30,23 @@ public final class UrlFetch extends AbstractAsyncHandler<Void> {
     public static final int MAX_REDIRECTS = 3;
     public static final int MAX_CONTENT_LENGTH_BYTES = 8 * 1024 * 1024;
     public static final long SUCCESS_CACHE_TTL_MS = 60_000L;
+    public static final long FAILED_TTL_MS = 5_000L;
     public static final long RETRY_DELAY_429_MS = 20_000L;
     public static final long RETRY_DELAY_5XX_OR_TIMEOUT_MS = 2_000L;
 
     private static final Map<String, CacheEntry> SUCCESS_CACHE = new ConcurrentHashMap<>();
+    private static final Map<String, Long> FAILED_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, InFlightEntry> IN_FLIGHT = new ConcurrentHashMap<>();
-    private static final Map<String, Handle> HANDLES = new ConcurrentHashMap<>();
     private static final Semaphore DOWNLOAD_PERMITS = new Semaphore(MAX_IN_FLIGHT_REQUESTS, true);
 
+    private final AtomicLong generation = new AtomicLong(1L);
+
     private UrlFetch() {
-        super("url_fetch", 16, 1, 1_500_000L, "ApricityUI-UrlFetchWorker");
+        Asynchronous.register(this);
+    }
+
+    public void clearAndBumpGeneration() {
+        Asynchronous.clearAndBumpGeneration(this);
     }
 
     public byte[] fetchBytes(String url) throws IOException {
@@ -43,20 +55,14 @@ public final class UrlFetch extends AbstractAsyncHandler<Void> {
         }
 
         long now = System.currentTimeMillis();
-        long currentGeneration = currentGeneration();
-
-        Handle handle = HANDLES.compute(url, (key, old) -> {
-            if (old == null || old.generation() != currentGeneration) return new Handle(key, currentGeneration);
-            return old;
-        });
-
-        if (handle.state() == AsyncState.FAILED && now - handle.failedAtMs() >= 5_000L) {
-            handle.resetForRetry(currentGeneration);
+        Long failedAt = FAILED_CACHE.get(url);
+        if (failedAt != null && now - failedAt < FAILED_TTL_MS) {
+            throw new IOException("远程资源加载失败（TTL内）: " + url);
         }
+        if (failedAt != null) FAILED_CACHE.remove(url);
 
         CacheEntry cached = SUCCESS_CACHE.get(url);
         if (cached != null && cached.expiresAtMs > now) {
-            handle.markReady();
             return cached.bytes;
         }
         if (cached != null) SUCCESS_CACHE.remove(url, cached);
@@ -64,37 +70,38 @@ public final class UrlFetch extends AbstractAsyncHandler<Void> {
         InFlightEntry own = new InFlightEntry();
         InFlightEntry existing = IN_FLIGHT.putIfAbsent(url, own);
         if (existing != null) {
-            byte[] bytes = existing.await(url);
-            handle.markReady();
-            return bytes;
+            return existing.await(url);
         }
 
+        long snapshotGeneration = generation.get();
         try {
             byte[] bytes = downloadWithRetry(url);
-            SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + SUCCESS_CACHE_TTL_MS));
+            if (generation.get() == snapshotGeneration) {
+                SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + SUCCESS_CACHE_TTL_MS));
+                FAILED_CACHE.remove(url);
+            }
             own.complete(bytes, null);
-            handle.markReady();
             return bytes;
         } catch (IOException ex) {
+            FAILED_CACHE.put(url, System.currentTimeMillis());
             own.complete(null, ex);
-            handle.markFailed(System.currentTimeMillis());
             throw ex;
         } finally {
             IN_FLIGHT.remove(url, own);
         }
     }
 
-    @Override
-    protected void applyOnMainThread(Void task, long currentGeneration) {
-        // URL 拉取层不需要主线程 apply 队列。
+    @AsyncTask(role = AsyncTaskRole.ON_CLEAR)
+    private void onBeforeClear(long nextGeneration) {
+        generation.incrementAndGet();
+        SUCCESS_CACHE.clear();
+        FAILED_CACHE.clear();
+        IN_FLIGHT.clear();
     }
 
-    @Override
-    protected void onBeforeClear(long nextGeneration) {
-        for (Handle handle : HANDLES.values()) handle.markStale();
-        HANDLES.clear();
-        SUCCESS_CACHE.clear();
-        IN_FLIGHT.clear();
+    @AsyncTask(role = AsyncTaskRole.ON_ERROR)
+    private void onAsyncError(AsyncTaskRole role, Throwable error, Object context) {
+        // UrlFetch 无额外任务状态机，统一回调保留空实现。
     }
 
     private static byte[] downloadWithRetry(String url) throws IOException {
@@ -261,27 +268,5 @@ public final class UrlFetch extends AbstractAsyncHandler<Void> {
             if (bytes == null) throw new IOException("远程资源结果为空: " + url);
             return bytes;
         }
-    }
-
-    // ===== 原 NetworkHandle（改成内部 Handle）=====
-    private static final class Handle {
-        private final String url;
-        private volatile long generation;
-        private volatile AsyncState state = AsyncState.NEW;
-        private volatile long failedAtMs = 0L;
-
-        private Handle(String url, long generation) {
-            this.url = url;
-            this.generation = generation;
-        }
-
-        public long generation() { return generation; }
-        public AsyncState state() { return state; }
-        public long failedAtMs() { return failedAtMs; }
-
-        public synchronized void markReady() { this.state = AsyncState.READY; }
-        public synchronized void markFailed(long nowMs) { this.state = AsyncState.FAILED; this.failedAtMs = nowMs; }
-        public synchronized void resetForRetry(long newGeneration) { this.generation = newGeneration; this.state = AsyncState.NEW; this.failedAtMs = 0L; }
-        public synchronized void markStale() { this.state = AsyncState.STALE; }
     }
 }
