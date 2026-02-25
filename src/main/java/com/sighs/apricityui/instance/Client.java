@@ -245,8 +245,10 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void onKeyPressed(ScreenEvent.KeyPressed.Pre event) {
-        if (Operation.onKeyPressed(event.getKeyCode())) event.setCanceled(true);
+    public static void onKeyPressed(InputEvent.Key event) {
+        if (event.getAction() != InputConstants.PRESS) return;
+        Operation.onKeyPressed(event.getKey());
+        System.out.println(event.getKey());
     }
 
     @SubscribeEvent

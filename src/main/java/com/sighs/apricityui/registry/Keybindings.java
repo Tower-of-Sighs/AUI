@@ -17,7 +17,7 @@ public class Keybindings {
             KeyConflictContext.GUI,
             KeyModifier.NONE,
             InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_Z,
+            GLFW.GLFW_KEY_END,
             "key.categories.apricityui"
     );
 

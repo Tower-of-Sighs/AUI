@@ -60,6 +60,7 @@ slot {
     width: 16px;
     height: 16px;
     background-image: url("apricityui/img/gui/area.png");
+    pointer-events: none;
 }
 
 @font-face {
