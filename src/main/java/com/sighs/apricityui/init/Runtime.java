@@ -2,7 +2,9 @@ package com.sighs.apricityui.init;
 
 public class Runtime {
     public static void tick() {
+        long frameTime = System.currentTimeMillis();
         for (Document document : Document.getAll()) {
+            document.setAnimationFrameTime(frameTime);
             for (Element element : document.getElements()) {
                 element.tick();
             }
