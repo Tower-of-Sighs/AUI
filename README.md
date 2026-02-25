@@ -10,13 +10,13 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 - 能输入js的控制台，调用eval
 - 网络通讯的轮子，简化发包
 - 多重背景、flex-wrap、text-shadow、渐变、cursor
-- animation功能补全、帧动图
+- 帧动图
 - 伪元素
-- transition 完全适配
-- 非线性动画
+- transition 完全适配和transition非线性动画
 - 和浏览器一样的所有文本可选可复制
 - input溢出指示器（拓展功能，overflow-indicator属性）
 - 冷门css属性如border-width-left
+- opacity走filter着色器实现
 
 ### 优化：
 - 批处理
@@ -26,7 +26,7 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 
 ### 待修：
 - scrollLeft
-- filter
+- backdrop-filter
 - active不支持背景图片
 
 ## 开发须知
