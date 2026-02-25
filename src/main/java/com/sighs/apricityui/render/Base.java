@@ -82,8 +82,8 @@ public class Base {
             } else if (transform instanceof Transform.Rotate r) {
                 poseStack.translate(x + w / 2, y + h / 2, 0);
                 if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) r.x()));
-                if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) r.y()));
-                if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) r.z()));
+                if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) r.y()));
+                if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) r.z()));
                 poseStack.translate(-x - w / 2, -y - h / 2, 0);
             } else if (transform instanceof Transform.Scale s) {
                 poseStack.translate(x + w / 2, y + h / 2, 0);
