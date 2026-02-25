@@ -7,7 +7,7 @@ import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
-import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.resource.UrlFetch;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -49,7 +49,7 @@ public class Loader {
     private static void ensureAsyncHandlersInitialized() {
         ImageAsyncHandler.INSTANCE.id();
         StyleAsyncHandler.INSTANCE.id();
-        NetworkAsyncHandler.INSTANCE.id();
+        UrlFetch.INSTANCE.id();
     }
 
     public static InputStream getResourceStream(String path) {

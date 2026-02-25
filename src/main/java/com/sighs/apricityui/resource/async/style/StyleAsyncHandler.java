@@ -5,7 +5,7 @@ import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
-import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.resource.UrlFetch;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -308,7 +308,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
 
     private byte[] fetchBytesNow(String path) throws IOException {
         if (Loader.isRemotePath(path)) {
-            return NetworkAsyncHandler.INSTANCE.fetchBytes(path);
+            return UrlFetch.INSTANCE.fetchBytes(path);
         }
         try (InputStream stream = Loader.getResourceStream(path)) {
             if (stream == null) throw new IOException("未找到样式资源: " + path);

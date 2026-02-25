@@ -3,7 +3,7 @@ package com.sighs.apricityui.resource.async.image;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
-import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.resource.UrlFetch;
 
 import java.io.InputStream;
 import java.util.Collection;
@@ -123,7 +123,7 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         DecodedImage decodedImage = null;
         try {
             if (Loader.isRemotePath(handle.path())) {
-                byte[] bytes = NetworkAsyncHandler.INSTANCE.fetchBytes(handle.path());
+                byte[] bytes = UrlFetch.INSTANCE.fetchBytes(handle.path());
                 decodedImage = Image.decode(handle.path(), bytes);
             } else {
                 try (InputStream is = Loader.getResourceStream(handle.path())) {

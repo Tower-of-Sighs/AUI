@@ -1,4 +1,4 @@
-package com.sighs.apricityui.resource.async.network;
+package com.sighs.apricityui.resource;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.Loader;
@@ -15,16 +15,26 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 
-public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
-    public static final NetworkAsyncHandler INSTANCE = new NetworkAsyncHandler();
+public final class UrlFetch extends AbstractAsyncHandler<Void> {
+    public static final UrlFetch INSTANCE = new UrlFetch();
+
+    public static final int CONNECT_TIMEOUT_MS = 3000;
+    public static final int READ_TIMEOUT_MS = 3000;
+    public static final int MAX_RETRY_COUNT = 1;
+    public static final int MAX_IN_FLIGHT_REQUESTS = 4;
+    public static final int MAX_REDIRECTS = 3;
+    public static final int MAX_CONTENT_LENGTH_BYTES = 8 * 1024 * 1024;
+    public static final long SUCCESS_CACHE_TTL_MS = 60_000L;
+    public static final long RETRY_DELAY_429_MS = 20_000L;
+    public static final long RETRY_DELAY_5XX_OR_TIMEOUT_MS = 2_000L;
 
     private static final Map<String, CacheEntry> SUCCESS_CACHE = new ConcurrentHashMap<>();
     private static final Map<String, InFlightEntry> IN_FLIGHT = new ConcurrentHashMap<>();
-    private static final Map<String, NetworkHandle> HANDLES = new ConcurrentHashMap<>();
-    private static final Semaphore DOWNLOAD_PERMITS = new Semaphore(NetworkPolicy.MAX_IN_FLIGHT_REQUESTS, true);
+    private static final Map<String, Handle> HANDLES = new ConcurrentHashMap<>();
+    private static final Semaphore DOWNLOAD_PERMITS = new Semaphore(MAX_IN_FLIGHT_REQUESTS, true);
 
-    private NetworkAsyncHandler() {
-        super("network", 16, 1, 1_500_000L, "ApricityUI-NetworkWorker");
+    private UrlFetch() {
+        super("url_fetch", 16, 1, 1_500_000L, "ApricityUI-UrlFetchWorker");
     }
 
     public byte[] fetchBytes(String url) throws IOException {
@@ -34,11 +44,13 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
 
         long now = System.currentTimeMillis();
         long currentGeneration = currentGeneration();
-        NetworkHandle handle = HANDLES.compute(url, (key, old) -> {
-            if (old == null || old.generation() != currentGeneration) return new NetworkHandle(key, currentGeneration);
+
+        Handle handle = HANDLES.compute(url, (key, old) -> {
+            if (old == null || old.generation() != currentGeneration) return new Handle(key, currentGeneration);
             return old;
         });
-        if (handle.state() == AbstractAsyncHandler.AsyncState.FAILED && now - handle.failedAtMs() >= 5_000L) {
+
+        if (handle.state() == AsyncState.FAILED && now - handle.failedAtMs() >= 5_000L) {
             handle.resetForRetry(currentGeneration);
         }
 
@@ -59,7 +71,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
 
         try {
             byte[] bytes = downloadWithRetry(url);
-            SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + SUCCESS_CACHE_TTL_MS));
             own.complete(bytes, null);
             handle.markReady();
             return bytes;
@@ -74,14 +86,12 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
 
     @Override
     protected void applyOnMainThread(Void task, long currentGeneration) {
-        // 网络层不需要主线程 apply 队列。
+        // URL 拉取层不需要主线程 apply 队列。
     }
 
     @Override
     protected void onBeforeClear(long nextGeneration) {
-        for (NetworkHandle handle : HANDLES.values()) {
-            handle.markStale();
-        }
+        for (Handle handle : HANDLES.values()) handle.markStale();
         HANDLES.clear();
         SUCCESS_CACHE.clear();
         IN_FLIGHT.clear();
@@ -93,16 +103,16 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             try {
                 return downloadOnce(url);
             } catch (RetryableHttpException retryable) {
-                if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
+                if (attempt >= MAX_RETRY_COUNT) {
                     throw new IOException("下载失败: " + url + " (HTTP " + retryable.statusCode + ")", retryable);
                 }
                 sleepQuietly(retryable.retryDelayMs);
                 attempt++;
             } catch (SocketTimeoutException timeoutEx) {
-                if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
+                if (attempt >= MAX_RETRY_COUNT) {
                     throw new IOException("下载超时: " + url, timeoutEx);
                 }
-                sleepQuietly(NetworkPolicy.RETRY_DELAY_5XX_OR_TIMEOUT_MS);
+                sleepQuietly(RETRY_DELAY_5XX_OR_TIMEOUT_MS);
                 attempt++;
             }
         }
@@ -112,7 +122,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         acquirePermit();
         try {
             String requestUrl = url;
-            for (int i = 0; i <= NetworkPolicy.MAX_REDIRECTS; i++) {
+            for (int i = 0; i <= MAX_REDIRECTS; i++) {
                 HttpsURLConnection connection = openConnection(requestUrl);
                 try {
                     int status = connection.getResponseCode();
@@ -125,21 +135,14 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                         continue;
                     }
 
-                    if (status == 429) {
-                        throw new RetryableHttpException(status, NetworkPolicy.RETRY_DELAY_429_MS);
-                    }
-                    if (status >= 500 && status <= 599) {
-                        throw new RetryableHttpException(status, NetworkPolicy.RETRY_DELAY_5XX_OR_TIMEOUT_MS);
-                    }
-                    if (status < 200 || status >= 300) {
-                        throw new IOException("下载失败: " + requestUrl + " (HTTP " + status + ")");
-                    }
+                    if (status == 429) throw new RetryableHttpException(status, RETRY_DELAY_429_MS);
+                    if (status >= 500 && status <= 599) throw new RetryableHttpException(status, RETRY_DELAY_5XX_OR_TIMEOUT_MS);
+                    if (status < 200 || status >= 300) throw new IOException("下载失败: " + requestUrl + " (HTTP " + status + ")");
 
                     validateContentType(connection.getContentType(), requestUrl);
+
                     int length = connection.getContentLength();
-                    if (length > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) {
-                        throw new IOException("资源超出大小限制(8MB): " + requestUrl);
-                    }
+                    if (length > MAX_CONTENT_LENGTH_BYTES) throw new IOException("资源超出大小限制(8MB): " + requestUrl);
 
                     try (InputStream inputStream = connection.getInputStream()) {
                         return readAllBytesWithLimit(inputStream, requestUrl);
@@ -157,21 +160,23 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
     private static void validateContentType(String contentType, String url) throws IOException {
         if (contentType == null || contentType.isBlank()) return;
         String lower = contentType.toLowerCase();
-        if (!lower.startsWith("image/") && !lower.startsWith("text/css") && !lower.startsWith("font/") && !lower.startsWith("application/font")) {
+        if (!lower.startsWith("image/")
+                && !lower.startsWith("text/css")
+                && !lower.startsWith("font/")
+                && !lower.startsWith("application/font")) {
             throw new IOException("远程资源类型不支持: " + url + " (Content-Type: " + contentType + ")");
         }
     }
 
     private static HttpsURLConnection openConnection(String url) throws IOException {
         URL target = URI.create(url).toURL();
-        if (!Loader.isRemotePath(url)) {
-            throw new IOException("仅允许 HTTPS 远程资源: " + url);
-        }
+        if (!Loader.isRemotePath(url)) throw new IOException("仅允许 HTTPS 远程资源: " + url);
+
         HttpsURLConnection connection = (HttpsURLConnection) target.openConnection();
         connection.setRequestMethod("GET");
         connection.setUseCaches(false);
-        connection.setConnectTimeout(NetworkPolicy.CONNECT_TIMEOUT_MS);
-        connection.setReadTimeout(NetworkPolicy.READ_TIMEOUT_MS);
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
         connection.setInstanceFollowRedirects(false);
         connection.setRequestProperty("Accept", "*/*");
         connection.setRequestProperty("User-Agent", "ApricityUI/AsyncResourceLoader");
@@ -182,9 +187,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         URI base = URI.create(fromUrl);
         URI target = base.resolve(location);
         String resolved = target.toString();
-        if (!Loader.isRemotePath(resolved)) {
-            throw new IOException("重定向目标非 HTTPS，已拒绝: " + resolved);
-        }
+        if (!Loader.isRemotePath(resolved)) throw new IOException("重定向目标非 HTTPS，已拒绝: " + resolved);
         return resolved;
     }
 
@@ -195,14 +198,10 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         int read;
         while ((read = inputStream.read(buffer)) != -1) {
             total += read;
-            if (total > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) {
-                throw new IOException("资源超出大小限制(8MB): " + url);
-            }
+            if (total > MAX_CONTENT_LENGTH_BYTES) throw new IOException("资源超出大小限制(8MB): " + url);
             output.write(buffer, 0, read);
         }
-        if (total <= 0) {
-            throw new IOException("远程资源为空: " + url);
-        }
+        if (total <= 0) throw new IOException("远程资源为空: " + url);
         return output.toByteArray();
     }
 
@@ -262,5 +261,27 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             if (bytes == null) throw new IOException("远程资源结果为空: " + url);
             return bytes;
         }
+    }
+
+    // ===== 原 NetworkHandle（改成内部 Handle）=====
+    private static final class Handle {
+        private final String url;
+        private volatile long generation;
+        private volatile AsyncState state = AsyncState.NEW;
+        private volatile long failedAtMs = 0L;
+
+        private Handle(String url, long generation) {
+            this.url = url;
+            this.generation = generation;
+        }
+
+        public long generation() { return generation; }
+        public AsyncState state() { return state; }
+        public long failedAtMs() { return failedAtMs; }
+
+        public synchronized void markReady() { this.state = AsyncState.READY; }
+        public synchronized void markFailed(long nowMs) { this.state = AsyncState.FAILED; this.failedAtMs = nowMs; }
+        public synchronized void resetForRetry(long newGeneration) { this.generation = newGeneration; this.state = AsyncState.NEW; this.failedAtMs = 0L; }
+        public synchronized void markStale() { this.state = AsyncState.STALE; }
     }
 }
