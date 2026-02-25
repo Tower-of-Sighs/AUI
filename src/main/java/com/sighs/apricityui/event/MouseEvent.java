@@ -68,7 +68,7 @@ public class MouseEvent extends Event implements Cloneable {
             Element target = hitTest(document.getPaintList(), detectionPos);
             if (target == null) continue;
 
-            Cursor.applyCssCursor(resolveCursor(target));
+            Cursor.applyCssCursor(document.getPath(), resolveCursor(target));
             return;
         }
 
