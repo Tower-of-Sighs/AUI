@@ -1,7 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.dev.DevTools;
-import com.sighs.apricityui.element.AbstractTextElement;
+import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.MouseEvent;
@@ -46,7 +46,7 @@ public class Operation {
     public static boolean onCharTyped(char code) {
         boolean shouldCancel = false;
         for (Document document : Document.getAll()) {
-            if (document.getFocusedElement() instanceof AbstractTextElement textElement && textElement.canEditText()) {
+            if (document.getFocusedElement() instanceof AbstractText textElement && textElement.canEditText()) {
                 textElement.insertText(Character.toString(code));
                 shouldCancel = true;
             }
@@ -59,7 +59,7 @@ public class Operation {
         for (Document document : Document.getAll()) {
             Element focusedElement = document.getFocusedElement();
 
-            if (focusedElement instanceof AbstractTextElement textElement) {
+            if (focusedElement instanceof AbstractText textElement) {
                 if (isCtrlDown() && textElement.canEditText()) {
                     if (key == GLFW.GLFW_KEY_A) {
                         textElement.selectAll();

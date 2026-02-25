@@ -10,6 +10,7 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.element.Cursor;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -542,6 +543,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
 
         linkedDocument.remove();
+        // Ensure the native cursor is restored when the Apricity screen closes.
+        Cursor.resetToDefault();
         super.onClose();
     }
 

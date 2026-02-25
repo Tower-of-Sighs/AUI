@@ -16,7 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class AbstractTextElement extends Element {
+public abstract class AbstractText extends Element {
     protected int maxLength = 256;
     protected int cursor = 0;
     protected long lastBlinkTime = 0;
@@ -28,7 +28,7 @@ public abstract class AbstractTextElement extends Element {
     protected boolean selecting = false;
     protected int selectionAnchor = 0;
 
-    protected AbstractTextElement(Document document, String tagName) {
+    protected AbstractText(Document document, String tagName) {
         super(document, tagName);
         ensureValue();
         clearSelection();

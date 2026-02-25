@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
-public class TextArea extends AbstractTextElement {
+public class TextArea extends AbstractText {
     public static final String TAG_NAME = "TEXTAREA";
 
     static {
