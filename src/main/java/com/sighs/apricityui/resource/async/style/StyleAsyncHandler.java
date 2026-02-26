@@ -3,6 +3,7 @@ package com.sighs.apricityui.resource.async.style;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
@@ -112,6 +113,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
                 success = Font.registerFont(fontLoadedTask.fontFamily(), stream);
             } catch (IOException ignored) {}
             if (success) {
+                FontDrawer.clearCache();
                 document.reapplyStylesFromCache();
             }
             task.handle().markTaskCompleted(!success);
