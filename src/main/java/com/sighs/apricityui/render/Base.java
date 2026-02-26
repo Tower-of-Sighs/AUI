@@ -48,8 +48,8 @@ public class Base {
         GlStateManager._blendFuncSeparate(
                 GlStateManager.SourceFactor.SRC_ALPHA.value,
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ZERO.value
+                GlStateManager.SourceFactor.ONE.value, // Source Alpha 乘 1
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value // Dest Alpha 乘 (1 - src)
         );
         setPositionColorShader();
     }
@@ -81,9 +81,9 @@ public class Base {
                 poseStack.translate(t.x(), t.y(), t.z());
             } else if (transform instanceof Transform.Rotate r) {
                 poseStack.translate(x + w / 2, y + h / 2, 0);
-                if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) r.x()));
-                if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) r.y()));
-                if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) r.z()));
+                if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
+                if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
+                if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
                 poseStack.translate(-x - w / 2, -y - h / 2, 0);
             } else if (transform instanceof Transform.Scale s) {
                 poseStack.translate(x + w / 2, y + h / 2, 0);

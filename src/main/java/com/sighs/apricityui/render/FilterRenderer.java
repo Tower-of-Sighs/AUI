@@ -30,29 +30,39 @@ public class FilterRenderer {
 
         if (fboStack.isEmpty()) {
             mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
-            poolPointer = 0; // 每帧开始渲染时重置指针
+            poolPointer = 0;
         }
 
         RenderTarget temp;
         double width = Client.getWindow().getWidth();
         double height = Client.getWindow().getHeight();
+
         if (poolPointer < fboPool.size()) {
             temp = fboPool.get(poolPointer);
-            if (temp.width != width || temp.height != height) {
+            if (temp.width != (int)width || temp.height != (int)height) {
                 temp.destroyBuffers();
                 temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
+                // --- 修复点 1: 必须手动开启 Stencil ---
+                temp.enableStencil();
                 fboPool.set(poolPointer, temp);
             }
         } else {
             temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
+            // --- 修复点 1: 必须手动开启 Stencil ---
+            temp.enableStencil();
             fboPool.add(temp);
         }
         poolPointer++;
 
         temp.setClearColor(0f, 0f, 0f, 0f);
+        // 注意：这里的 clear 会清除当前绑定的 FBO 的缓冲区
         temp.clear(ON_OSX);
         fboStack.push(temp);
         temp.bindWrite(false);
+    }
+
+    public static RenderTarget getCurrentTarget() {
+        return fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
     }
 
     public static void popFilter(Filter.FilterState state) {
@@ -75,7 +85,7 @@ public class FilterRenderer {
                 GlStateManager.SourceFactor.SRC_ALPHA.value,
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
                 GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ZERO.value
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
         );
         GlStateManager._disableDepthTest();
         GlStateManager._depthMask(false);
@@ -164,6 +174,7 @@ public class FilterRenderer {
         if (shader.getUniform("Grayscale") != null) shader.getUniform("Grayscale").set(state.grayscale());
         if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
         if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
+        if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
         if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float)fbo.width, (float)fbo.height);
     }
 }

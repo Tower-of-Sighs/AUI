@@ -11,11 +11,7 @@ import java.util.regex.Pattern;
 
 public class CSS {
     public static void readCSS(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-        readCSS(css, targetCache, contextPath, "global");
-    }
-
-    public static void readCSS(String css, Map<String, Map<String, String>> targetCache, String contextPath, String keyframeScope) {
-        Parser.parse(css, targetCache, contextPath, keyframeScope);
+        Parser.parse(css, targetCache, contextPath);
     }
 
     public static class Extractor {
@@ -74,18 +70,13 @@ public class CSS {
         private static final Pattern FRAME_PATTERN = Pattern.compile("(?is)([^{}]+?)\\{([^{}]*)}");
 
         public static String parseAndRegisterAnimations(String css, String contextPath) {
-            return parseAndRegisterAnimations(css, contextPath, "global");
-        }
-
-        public static String parseAndRegisterAnimations(String css, String contextPath, String keyframeScope) {
             if (css == null) return "";
             StringBuilder cleanCss = new StringBuilder(css.replaceAll("/\\*.*?\\*/", ""));
             Matcher matcher = KEYFRAMES_HEAD_PATTERN.matcher(cleanCss);
-            String scope = keyframeScope == null || keyframeScope.isBlank() ? "global" : keyframeScope;
 
             int offset = 0;
             while (matcher.find(offset)) {
-                String animName = normalizeKeyframeName(matcher.group(1));
+                String animName = matcher.group(1);
                 int blockStart = matcher.end();
                 int braceCount = 1;
                 int blockEnd = -1;
@@ -102,29 +93,23 @@ public class CSS {
 
                 if (blockEnd != -1) {
                     String fullContent = cleanCss.substring(blockStart, blockEnd);
-                    TreeMap<Double, Map<String, String>> timeline = new TreeMap<>();
+                    // 解析内部帧
                     Matcher frameMatcher = FRAME_PATTERN.matcher(fullContent);
                     while (frameMatcher.find()) {
-                        String percentSelectors = frameMatcher.group(1);
+                        String percentStr = frameMatcher.group(1);
                         String rules = frameMatcher.group(2);
-                        Map<String, String> properties = parseProperties(rules, contextPath);
 
-                        for (String selector : percentSelectors.split(",")) {
-                            Double percent = parseKeyframePercent(selector.trim());
-                            if (percent == null) continue;
-                            if (percent < 0 || percent > 100) continue;
-                            timeline.computeIfAbsent(percent, k -> new HashMap<>()).putAll(properties);
-                        }
-                    }
-                    Animation.clearKeyframes(scope, animName);
-                    for (Map.Entry<Double, Map<String, String>> entry : timeline.entrySet()) {
-                        Animation.registerKeyframe(scope, animName, entry.getKey(), entry.getValue());
+                        double percent = 0;
+                        if (percentStr.equalsIgnoreCase("from")) percent = 0;
+                        else if (percentStr.equalsIgnoreCase("to")) percent = 100;
+                        else percent = Double.parseDouble(percentStr.replace("%", ""));
+
+                        Animation.registerKeyframe(animName, percent, parseProperties(rules, contextPath));
                     }
 
                     // 移除已处理的@keyframes
                     cleanCss.delete(matcher.start(), blockEnd + 1);
                     offset = matcher.start();
-                    matcher = KEYFRAMES_HEAD_PATTERN.matcher(cleanCss);
                 } else {
                     offset = matcher.end();
                 }
@@ -133,12 +118,8 @@ public class CSS {
         }
 
         public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-            parse(css, targetCache, contextPath, "global");
-        }
-
-        public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath, String keyframeScope) {
             if (css == null || css.isBlank()) return;
-            String normalizedCss = parseAndRegisterAnimations(css, contextPath, keyframeScope);
+            String normalizedCss = parseAndRegisterAnimations(css, contextPath);
 
             Pattern pattern = Pattern.compile("(.*?)\\s*\\{([^}]*)}");
             Matcher matcher = pattern.matcher(normalizedCss);

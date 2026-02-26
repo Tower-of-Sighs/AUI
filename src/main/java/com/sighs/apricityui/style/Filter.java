@@ -10,12 +10,13 @@ public class Filter {
         float brightness,   // percentage (1.0 = 100%)
         float grayscale,    // 0.0 - 1.0
         float invert,       // 0.0 - 1.0
-        float hueRotate     // degrees
+        float hueRotate,     // degrees
+        float opacity
     ) {
-        public static final FilterState EMPTY = new FilterState(0, 1, 0, 0, 0);
+        public static final FilterState EMPTY = new FilterState(0, 1, 0, 0, 0, 1);
 
         public boolean isEmpty() {
-            return blurRadius == 0 && brightness == 1 && grayscale == 0 && invert == 0 && hueRotate == 0;
+            return blurRadius == 0 && brightness == 1 && grayscale == 0 && invert == 0 && hueRotate == 0 && opacity == 1;
         }
     }
 
@@ -24,6 +25,7 @@ public class Filter {
     private static final Pattern GRAYSCALE = Pattern.compile("grayscale\\(([^)]+)\\)");
     private static final Pattern INVERT = Pattern.compile("invert\\(([^)]+)\\)");
     private static final Pattern HUE = Pattern.compile("hue-rotate\\(([^)]+)\\)");
+    private static final Pattern OPACITY = Pattern.compile("opacity\\(([^)]+)\\)");
 
     public static FilterState parse(String filterStr) {
         if (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) {
@@ -35,8 +37,9 @@ public class Filter {
         float gray = extractVal(GRAYSCALE, filterStr, 0f, "%");
         float inv = extractVal(INVERT, filterStr, 0f, "%");
         float hue = extractVal(HUE, filterStr, 0f, "deg");
+        float filterOpacity = extractVal(OPACITY, filterStr, 1.0f, "%");
 
-        return new FilterState(blur, bright, gray, inv, hue);
+        return new FilterState(blur, bright, gray, inv, hue, filterOpacity);
     }
 
     private static float extractVal(Pattern p, String source, float def, String unit) {

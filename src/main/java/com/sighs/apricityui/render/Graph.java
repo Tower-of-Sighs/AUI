@@ -68,10 +68,9 @@ public class Graph {
                 GlStateManager.SourceFactor.SRC_ALPHA.value,
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
                 GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ZERO.value
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
         );
         Base.setPositionColorShader();
-
         buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
     }
 
