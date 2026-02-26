@@ -1,8 +1,10 @@
 {
   "blend": {
     "func": "add",
-    "srcfactor": "src_alpha",
-    "dstfactor": "one_minus_src_alpha"
+    "srcrgb": "srcalpha",
+    "dstrgb": "1-srcalpha",
+    "srcalpha": "one",
+    "dstalpha": "1-srcalpha"
   },
   "vertex": "apricityui:filter",
   "fragment": "apricityui:filter",
@@ -20,6 +22,7 @@
     { "name": "Brightness", "type": "float", "count": 1, "values": [ 1.0 ] },
     { "name": "Grayscale", "type": "float", "count": 1, "values": [ 0.0 ] },
     { "name": "Invert", "type": "float", "count": 1, "values": [ 0.0 ] },
-    { "name": "HueRotate", "type": "float", "count": 1, "values": [ 0.0 ] }
+    { "name": "HueRotate", "type": "float", "count": 1, "values": [ 0.0 ] },
+    { "name": "Opacity", "type": "float", "count": 1, "values": [ 0.0 ] }
   ]
 }

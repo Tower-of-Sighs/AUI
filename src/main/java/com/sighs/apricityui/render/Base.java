@@ -54,8 +54,8 @@ public class Base {
         GlStateManager._blendFuncSeparate(
                 GlStateManager.SourceFactor.SRC_ALPHA.value,
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ZERO.value
+                GlStateManager.SourceFactor.ONE.value, // Source Alpha 乘 1
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value // Dest Alpha 乘 (1 - src)
         );
         setPositionColorShader();
     }

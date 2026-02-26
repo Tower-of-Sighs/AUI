@@ -5,8 +5,6 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Transition;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -213,19 +211,11 @@ public class Document {
     }
 
     public static void remove(String path) {
-        documents.removeIf(document -> {
-            if (!document.is(path)) return false;
-            document.cleanupMotion();
-            return true;
-        });
+        documents.removeIf(document -> document.is(path));
     }
 
     public static void remove(UUID uuid) {
-        documents.removeIf(document -> {
-            if (!document.is(uuid)) return false;
-            document.cleanupMotion();
-            return true;
-        });
+        documents.removeIf(document -> document.is(uuid));
     }
 
     public void remove() {
@@ -233,22 +223,9 @@ public class Document {
     }
 
     public void removeElement(Element element) {
-        stopMotion(element);
         element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
         element.document.markDirty(element.parentElement, Drawer.RELAYOUT);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
-    }
-
-    private void cleanupMotion() {
-        for (Element element : elements) {
-            stopMotion(element);
-        }
-    }
-
-    private void stopMotion(Element element) {
-        if (element == null) return;
-        Animation.stop(element);
-        Transition.stop(element);
     }
 
     public void setActiveElement(Element element) {

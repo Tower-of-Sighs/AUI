@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
+import net.minecraft.client.shader.Framebuffer;
 import net.minecraft.util.math.vector.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL11C;
@@ -35,7 +36,9 @@ public class Mask {
         // currentClip = currentClip.intersection(newMask);
 
         if (depth == 0) {
-            Minecraft.getInstance().getMainRenderTarget().enableStencil();
+            Framebuffer currentTarget = FilterRenderer.getCurrentTarget();
+            currentTarget.enableStencil();
+
             GL11.glEnable(GL11.GL_STENCIL_TEST);
             GL11.glStencilMask(0xFF);
             GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
@@ -105,7 +108,9 @@ public class Mask {
         currentClip = currentClip.intersection(newMask);
 
         if (depth == 0) {
-            Minecraft.getInstance().getMainRenderTarget().enableStencil();
+            Framebuffer currentTarget = FilterRenderer.getCurrentTarget();
+            currentTarget.enableStencil();
+
             GL11.glEnable(GL11.GL_STENCIL_TEST);
             GL11.glStencilMask(0xFF);
             GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);

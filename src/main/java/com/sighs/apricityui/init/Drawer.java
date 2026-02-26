@@ -65,7 +65,7 @@ public class Drawer {
             paintList.add(new RenderNode.ClipPathPushNode(contextRoot));
         }
 
-        String backdropFilterStr = rootStyle.backdropFilter; // 假设 Style 类能通过 key 获取值
+        String backdropFilterStr = rootStyle.backdropFilter;
         if (backdropFilterStr != null && !backdropFilterStr.equals("none")) {
             Filter.FilterState bfState = Filter.parse(backdropFilterStr);
             if (!bfState.isEmpty()) {

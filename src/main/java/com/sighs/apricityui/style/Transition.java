@@ -41,37 +41,18 @@ public class Transition {
         return workList.containsKey(element.uuid);
     }
 
-    public static void stop(Element element) {
-        workList.remove(element.uuid);
-    }
-
     public static void updateStyle(Element element, Style originStyle) {
         List<Transition> transitions = workList.get(element.uuid);
         if (transitions == null) return;
 
-        long currentTime = element.document != null
-                ? element.document.getAnimationFrameTime()
-                : System.currentTimeMillis();
+        long currentTime = System.currentTimeMillis();
         List<Change> changeList = new ArrayList<>();
-        boolean hasRunningTransition = false;
         for (Transition transition : transitions) {
-            if (transition.duration <= 0) continue;
-
-            double elapsed = currentTime - transition.startTime - transition.delay;
-            if (elapsed < 0) {
-                hasRunningTransition = true;
-                continue;
-            }
-
-            double process = elapsed / transition.duration;
-            if (process < 1) {
-                hasRunningTransition = true;
+            double process = (currentTime - transition.startTime) / transition.duration;
+            if (process <= 1) {
                 double value = getOffset(transition, process);
                 changeList.add(new Change(transition.name, value));
-                continue;
             }
-
-            changeList.add(new Change(transition.name, transition.end));
         }
 
         if (!changeList.isEmpty()) {
@@ -81,8 +62,7 @@ public class Transition {
                 if (change.name.equals("opacity")) originStyle.opacity = String.valueOf(change.value);
                 else merge(originStyle, change.name, change.value);
             });
-        }
-        if (!hasRunningTransition) {
+        } else {
             workList.remove(element.uuid);
         }
     }
@@ -140,7 +120,6 @@ public class Transition {
     }
 
     private static void buildTransition(Style startStyle, Style endStyle, List<Transition> result, String name, double duration, double delay) {
-        if (duration <= 0) return;
         long time = System.currentTimeMillis();
 
         if (name.equals("transform")) {

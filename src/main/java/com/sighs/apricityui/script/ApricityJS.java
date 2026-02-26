@@ -1,5 +1,6 @@
 package com.sighs.apricityui.script;
 
+import com.sighs.apricityui.ApricityUI;
 import dev.latvian.kubejs.KubeJS;
 import dev.latvian.mods.rhino.Context;
 import lombok.var;
@@ -16,6 +17,8 @@ public class ApricityJS {
         var cx = Context.enter();
         try {
             cx.evaluateString(scope, code, "eval", 1, null);
+        } catch (Exception e) {
+            ApricityUI.LOGGER.debug("Failed to evaluate script: {}", code, e);
         } finally {
             Context.exit();
         }

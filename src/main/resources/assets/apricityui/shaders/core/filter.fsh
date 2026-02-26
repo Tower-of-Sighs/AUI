@@ -7,6 +7,7 @@ uniform float Brightness;
 uniform float Grayscale;
 uniform float Invert;
 uniform float HueRotate;
+uniform float Opacity;
 
 in vec2 texCoord;
 out vec4 fragColor;
@@ -57,6 +58,10 @@ void main() {
         color = rawColor;
     }
 
+    if (color.a > 0.001) {
+        color.rgb /= color.a;
+    }
+
     // 亮度、灰度、反色、色相旋转
     color.rgb *= Brightness;
     float gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
@@ -67,5 +72,10 @@ void main() {
         color.rgb = applyHue(color.rgb, HueRotate);
     }
 
-    fragColor = vec4(color.rgb, rawColor.a);
+    float finalAlpha = color.a * Opacity;
+
+    // 如果最终透明度太低再丢弃，提高性能
+    if (finalAlpha <= 0.001) discard;
+
+    fragColor = vec4(color.rgb, finalAlpha);
 }
