@@ -12,8 +12,10 @@ import com.sighs.apricityui.mixin.accessor.ContainerScreenAccessor;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -24,7 +26,6 @@ import net.minecraft.client.gui.screen.inventory.ContainerScreen;
 import net.minecraft.client.renderer.ItemRenderer;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.ItemStack;
-import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.util.text.ITextComponent;
 import net.minecraft.util.text.StringTextComponent;
 import net.minecraft.util.text.TextFormatting;
@@ -128,6 +129,7 @@ public class ApricityContainerScreen extends ContainerScreen<ApricityContainerMe
         super.render(stack, mouseX, mouseY, partialTick);
         drawSlotHoverTooltipByElement(stack, mouseX, mouseY);
         drawDevToolsOverlay(stack);
+        Cursor.drawPseudoCursor(stack);
     }
 
     private void bindSlotsFromDocument() {
@@ -560,6 +562,8 @@ public class ApricityContainerScreen extends ContainerScreen<ApricityContainerMe
         }
 
         linkedDocument.remove();
+        // Ensure the native cursor is restored when the Apricity screen closes.
+        Cursor.resetToDefault();
         super.onClose();
     }
 

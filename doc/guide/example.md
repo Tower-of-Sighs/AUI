@@ -68,9 +68,6 @@
     .notice.open {
         animation-name: notice-enter;
         animation-duration: 0.3s;
-        animation-timing-function: ease-out;
-        animation-fill-mode: both;
-        animation-play-state: running;
     }
     .notice>div {
         width: 80px;
@@ -209,7 +206,6 @@
         transform: rotate(0);
         transition: transform 0.2s;
         animation: rotate 2s infinite alternate;
-        animation-timing-function: ease-in-out;
     }
     @keyframes rotate {
         0% {

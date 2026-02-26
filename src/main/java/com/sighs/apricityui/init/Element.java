@@ -1,11 +1,16 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
-import com.sighs.apricityui.render.*;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.Transition;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.Getter;
 import lombok.Setter;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -154,8 +159,6 @@ public class Element {
 
         cssCache = Selector.matchCSS(this);
         renderElement.computedStyle.clear();
-        renderElement.frameStyle.clear();
-        renderElement.frameStyleTime = -1;
 
         Style currentStyle = getRawComputedStyle();
 
@@ -171,13 +174,15 @@ public class Element {
     }
 
     public Style getComputedStyle() {
-        if (document != null) {
-            Style frameStyle = renderElement.frameStyle.get();
-            if (frameStyle != null && renderElement.frameStyleTime == document.getAnimationFrameTime()) {
-                return frameStyle;
-            }
+        Style computedStyle = getRawComputedStyle();
+        Style originStyle = computedStyle.clone();
+        Transition.updateStyle(this, originStyle);
+        Animation.updateStyle(this, originStyle);
+        if (Transition.isActive(this) || Animation.isActive(this)) {
+            RenderElement.observeStyle(this, computedStyle, originStyle);
+            computedStyle = originStyle;
         }
-        return getRawComputedStyle();
+        return computedStyle;
     }
 
     public Style getRawComputedStyle() {
@@ -194,25 +199,6 @@ public class Element {
             isVisible = computedStyle.visibility.equals("visible");
         }
         return computedStyle;
-    }
-
-
-    public void advanceFrameStyle(long frameTime) {
-        Style baseStyle = getRawComputedStyle();
-        Style currentStyle = baseStyle.clone();
-
-        Transition.advanceFrame(this, currentStyle, frameTime);
-        Animation.advanceFrame(this, currentStyle, frameTime);
-
-        Style previousFrameStyle = renderElement.frameStyle.get();
-        if (previousFrameStyle != null) {
-            RenderElement.observeStyle(this, previousFrameStyle, currentStyle);
-        } else {
-            RenderElement.observeStyle(this, baseStyle, currentStyle);
-        }
-
-        renderElement.frameStyle.set(currentStyle);
-        renderElement.frameStyleTime = frameTime;
     }
 
     public void updateInlineStyle() {

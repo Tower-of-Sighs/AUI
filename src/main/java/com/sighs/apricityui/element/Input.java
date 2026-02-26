@@ -20,7 +20,7 @@ import net.minecraftforge.fml.common.Mod;
 import java.util.Locale;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
-public class Input extends AbstractTextElement {
+public class Input extends AbstractText {
     public static final String TAG_NAME = "INPUT";
 
     private enum Mode {

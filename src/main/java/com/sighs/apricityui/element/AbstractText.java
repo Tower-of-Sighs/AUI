@@ -11,14 +11,16 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-public abstract class AbstractTextElement extends Element {
+public abstract class AbstractText extends Element {
     protected int maxLength = 256;
+    @Getter
     protected int cursor = 0;
     protected long lastBlinkTime = 0;
     protected String placeholder = "";
@@ -29,7 +31,7 @@ public abstract class AbstractTextElement extends Element {
     protected boolean selecting = false;
     protected int selectionAnchor = 0;
 
-    protected AbstractTextElement(Document document, String tagName) {
+    protected AbstractText(Document document, String tagName) {
         super(document, tagName);
         ensureValue();
         clearSelection();
@@ -128,10 +130,6 @@ public abstract class AbstractTextElement extends Element {
 
     protected boolean supportsMultilineInput() {
         return false;
-    }
-
-    public int getCursor() {
-        return cursor;
     }
 
     public boolean hasSelection() {

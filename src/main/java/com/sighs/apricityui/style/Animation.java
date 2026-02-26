@@ -8,15 +8,13 @@ import lombok.Getter;
 import lombok.experimental.Accessors;
 
 import java.util.*;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Animation {
     private static final String GLOBAL_SCOPE = "global";
-    private static final double EPSILON = 1e-9;
 
     private static final Map<String, Map<String, TreeMap<Double, Map<String, String>>>> KEYFRAMES = new HashMap<>();
-    private static final Map<UUID, List<AnimationState>> ACTIVE_ANIMATIONS = new HashMap<>();
+    private static final Map<UUID, Map<String, AnimationState>> ACTIVE_ANIMATIONS = new HashMap<>();
 
     private static final Set<String> DIRECTIONS = new HashSet<>(Arrays.asList(
             "normal", "reverse", "alternate", "alternate-reverse"
@@ -28,9 +26,7 @@ public class Animation {
             "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
     ));
 
-    private static final Pattern TIME_PATTERN = Pattern.compile("^([+-]?[0-9]*\\.?[0-9]+)(s|ms)$");
-    private static final Pattern CUBIC_BEZIER_PATTERN = Pattern.compile("^cubic-bezier\\(([^)]*)\\)$");
-    private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(([^)]*)\\)$");
+    private static final Pattern TIME_PATTERN = Pattern.compile("^[-+]?([0-9]*\\.?[0-9]+)(s|ms)$");
 
     private static class AnimationConfig {
         String name = "none";
@@ -41,28 +37,20 @@ public class Animation {
         String fillMode = "none";
         String timingFunction = "linear";
         String playState = "running";
+        String stateKey = "";
     }
 
     private static class AnimationState {
         long startTime;
-        long pauseStartedAt;
-        boolean paused;
+        long pauseStartTime = -1L;
+        long pauseDuration = 0L;
+        double finishedPercent = 0;
+        boolean finished = false;
         String currentName;
-        String configKey;
 
-        boolean finished;
-        boolean holdFinalFrame;
-        double finishedPercent;
-
-        AnimationState(String name, String configKey) {
-            this.startTime = System.currentTimeMillis();
+        AnimationState(String name, long startTime) {
             this.currentName = name;
-            this.configKey = configKey;
-            this.pauseStartedAt = 0;
-            this.paused = false;
-            this.finished = false;
-            this.holdFinalFrame = false;
-            this.finishedPercent = 0;
+            this.startTime = startTime;
         }
     }
 
@@ -75,12 +63,8 @@ public class Animation {
     }
 
     public static boolean isActive(Element element) {
-        List<AnimationState> list = ACTIVE_ANIMATIONS.get(element.uuid);
-        if (list == null || list.isEmpty()) return false;
-        for (AnimationState state : list) {
-            if (isStateActive(state)) return true;
-        }
-        return false;
+        Map<String, AnimationState> states = ACTIVE_ANIMATIONS.get(element.uuid);
+        return states != null && !states.isEmpty();
     }
 
     public static void stop(Element element) {
@@ -96,11 +80,8 @@ public class Animation {
         String normalizedScope = normalizeScope(scope);
         Map<String, TreeMap<Double, Map<String, String>>> scoped = KEYFRAMES.get(normalizedScope);
         if (scoped == null) return;
-
         scoped.remove(name);
-        if (scoped.isEmpty()) {
-            KEYFRAMES.remove(normalizedScope);
-        }
+        if (scoped.isEmpty()) KEYFRAMES.remove(normalizedScope);
     }
 
     public static void registerKeyframe(String name, double percent, Map<String, String> properties) {
@@ -108,18 +89,12 @@ public class Animation {
     }
 
     public static void registerKeyframe(String scope, String name, double percent, Map<String, String> properties) {
-        if (StringUtils.isNullOrEmptyEx(name) || properties == null) return;
-        if (percent < 0 || percent > 100) return;
-
+        if (StringUtils.isNullOrEmptyEx(name)) return;
         String normalizedScope = normalizeScope(scope);
-        Map<String, TreeMap<Double, Map<String, String>>> scoped =
-                KEYFRAMES.computeIfAbsent(normalizedScope, k -> new HashMap<>());
-
-        scoped.computeIfAbsent(name, k -> new TreeMap<>())
-                .merge(percent, new HashMap<>(properties), (oldMap, newMap) -> {
-                    oldMap.putAll(newMap);
-                    return oldMap;
-                });
+        KEYFRAMES
+                .computeIfAbsent(normalizedScope, k -> new HashMap<>())
+                .computeIfAbsent(name, k -> new TreeMap<>())
+                .put(percent, new HashMap<>(properties));
     }
 
     public static void replaceKeyframes(String name, Map<Double, Map<String, String>> keyframes) {
@@ -128,29 +103,12 @@ public class Animation {
 
     public static void replaceKeyframes(String scope, String name, Map<Double, Map<String, String>> keyframes) {
         if (StringUtils.isNullOrEmptyEx(name)) return;
-
         String normalizedScope = normalizeScope(scope);
-        if (keyframes == null || keyframes.isEmpty()) {
-            clearKeyframes(normalizedScope, name);
-            return;
-        }
-
-        TreeMap<Double, Map<String, String>> timeline = new TreeMap<>();
+        clearKeyframes(normalizedScope, name);
+        if (keyframes == null || keyframes.isEmpty()) return;
         for (Map.Entry<Double, Map<String, String>> entry : keyframes.entrySet()) {
-            if (entry == null || entry.getKey() == null || entry.getValue() == null) continue;
-            double percent = entry.getKey();
-            if (percent < 0 || percent > 100) continue;
-            timeline.put(percent, new HashMap<>(entry.getValue()));
+            registerKeyframe(normalizedScope, name, entry.getKey(), entry.getValue());
         }
-
-        if (timeline.isEmpty()) {
-            clearKeyframes(normalizedScope, name);
-            return;
-        }
-
-        Map<String, TreeMap<Double, Map<String, String>>> scoped =
-                KEYFRAMES.computeIfAbsent(normalizedScope, k -> new HashMap<>());
-        scoped.put(name, timeline);
     }
 
     private static String normalizeScope(String scope) {
@@ -158,19 +116,9 @@ public class Animation {
         return scope;
     }
 
-    private static String resolveScope(Element element) {
-        if (element == null || element.document == null || element.document.getUuid() == null) {
-            return GLOBAL_SCOPE;
-        }
-        return element.document.getUuid().toString();
-    }
-
-    private static boolean hasKeyframes(String scope, String name) {
-        return getTimeline(scope, name) != null;
-    }
-
     private static TreeMap<Double, Map<String, String>> getTimeline(String scope, String name) {
         String normalizedScope = normalizeScope(scope);
+
         Map<String, TreeMap<Double, Map<String, String>>> scoped = KEYFRAMES.get(normalizedScope);
         if (scoped != null) {
             TreeMap<Double, Map<String, String>> timeline = scoped.get(name);
@@ -181,209 +129,136 @@ public class Animation {
             Map<String, TreeMap<Double, Map<String, String>>> global = KEYFRAMES.get(GLOBAL_SCOPE);
             if (global != null) return global.get(name);
         }
-
         return null;
     }
 
     private static List<AnimationConfig> resolveAnimations(Style style) {
-        List<AnimationConfig> base = new ArrayList<>();
+        List<AnimationConfig> configs = new ArrayList<>();
+
         if (valid(style.animation)) {
             for (String segment : splitTopLevelByComma(style.animation)) {
                 if (StringUtils.isNullOrEmptyEx(segment)) continue;
-                AnimationConfig cfg = new AnimationConfig();
-                applyShorthandLogic(cfg, segment);
-                base.add(cfg);
+                AnimationConfig config = new AnimationConfig();
+                applyShorthandLogic(config, segment);
+                configs.add(config);
             }
         }
 
-        List<String> names = parseCommaListIfValid(style.animationName);
-        List<String> durations = parseCommaListIfValid(style.animationDuration);
-        List<String> delays = parseCommaListIfValid(style.animationDelay);
-        List<String> iterationCounts = parseCommaListIfValid(style.animationIterationCount);
-        List<String> directions = parseCommaListIfValid(style.animationDirection);
-        List<String> fillModes = parseCommaListIfValid(style.animationFillMode);
-        List<String> timingFunctions = parseCommaListIfValid(style.animationTimingFunction);
-        List<String> playStates = parseCommaListIfValid(style.animationPlayState);
+        applyLonghandOverrides(configs, style);
 
-        int n = 0;
-        n = Math.max(n, base.size());
-        n = Math.max(n, names.size());
-        n = Math.max(n, durations.size());
-        n = Math.max(n, delays.size());
-        n = Math.max(n, iterationCounts.size());
-        n = Math.max(n, directions.size());
-        n = Math.max(n, fillModes.size());
-        n = Math.max(n, timingFunctions.size());
-        n = Math.max(n, playStates.size());
-
-        // 没有任何 animation 信息
-        if (n == 0) return Collections.emptyList();
-
-        // 补齐 base 到 n（按 CSS 规则循环补齐）
-        if (base.isEmpty()) {
-            for (int i = 0; i < n; i++) base.add(new AnimationConfig());
-        } else if (base.size() < n) {
-            int baseSize = base.size();
-            for (int i = base.size(); i < n; i++) {
-                base.add(copyConfig(base.get(i % baseSize)));
-            }
-        } else if (base.size() > n) {
-            base = new ArrayList<>(base.subList(0, n));
+        if (configs.isEmpty()) {
+            configs.add(new AnimationConfig());
         }
 
-        for (int i = 0; i < n; i++) {
-            AnimationConfig cfg = base.get(i);
-
-            String v;
-            v = pick(names, i);
-            if (v != null) cfg.name = v;
-            v = pick(durations, i);
-            if (v != null) cfg.duration = v;
-            v = pick(delays, i);
-            if (v != null) cfg.delay = v;
-            v = pick(iterationCounts, i);
-            if (v != null) cfg.iterationCount = v;
-            v = pick(directions, i);
-            if (v != null) cfg.direction = v;
-            v = pick(fillModes, i);
-            if (v != null) cfg.fillMode = v;
-            v = pick(timingFunctions, i);
-            if (v != null) cfg.timingFunction = v;
-            v = pick(playStates, i);
-            if (v != null) cfg.playState = v;
+        ArrayList<AnimationConfig> result = new ArrayList<>();
+        for (int i = 0; i < configs.size(); i++) {
+            AnimationConfig config = configs.get(i);
+            if (StringUtils.isNullOrEmptyEx(config.name) || "none".equals(config.name)) continue;
+            config.stateKey = i + "|" + config.name + "|" + config.duration + "|" + config.delay + "|"
+                    + config.iterationCount + "|" + config.direction + "|" + config.fillMode + "|"
+                    + config.timingFunction;
+            result.add(config);
         }
-
-        return base;
+        return result;
     }
 
-    private static AnimationConfig copyConfig(AnimationConfig src) {
-        AnimationConfig c = new AnimationConfig();
-        c.name = src.name;
-        c.duration = src.duration;
-        c.delay = src.delay;
-        c.iterationCount = src.iterationCount;
-        c.direction = src.direction;
-        c.fillMode = src.fillMode;
-        c.timingFunction = src.timingFunction;
-        c.playState = src.playState;
-        return c;
-    }
+    private static void applyLonghandOverrides(List<AnimationConfig> configs, Style style) {
+        List<String> names = valid(style.animationName) ? splitTopLevelByComma(style.animationName) : Collections.emptyList();
+        List<String> durations = valid(style.animationDuration) ? splitTopLevelByComma(style.animationDuration) : Collections.emptyList();
+        List<String> delays = valid(style.animationDelay) ? splitTopLevelByComma(style.animationDelay) : Collections.emptyList();
+        List<String> counts = valid(style.animationIterationCount) ? splitTopLevelByComma(style.animationIterationCount) : Collections.emptyList();
+        List<String> directions = valid(style.animationDirection) ? splitTopLevelByComma(style.animationDirection) : Collections.emptyList();
+        List<String> fillModes = valid(style.animationFillMode) ? splitTopLevelByComma(style.animationFillMode) : Collections.emptyList();
+        List<String> timings = valid(style.animationTimingFunction) ? splitTopLevelByComma(style.animationTimingFunction) : Collections.emptyList();
+        List<String> playStates = valid(style.animationPlayState) ? splitTopLevelByComma(style.animationPlayState) : Collections.emptyList();
 
-    private static List<String> parseCommaListIfValid(String raw) {
-        if (!valid(raw)) return Collections.emptyList();
-        List<String> parts = splitTopLevelByComma(raw);
-        ArrayList<String> out = new ArrayList<>(parts.size());
-        for (String p : parts) {
-            if (p == null) continue;
-            String t = p.trim();
-            if (!t.isEmpty() && !"unset".equals(t)) out.add(t);
+        int maxSize = configs.size();
+        maxSize = Math.max(maxSize, names.size());
+        maxSize = Math.max(maxSize, durations.size());
+        maxSize = Math.max(maxSize, delays.size());
+        maxSize = Math.max(maxSize, counts.size());
+        maxSize = Math.max(maxSize, directions.size());
+        maxSize = Math.max(maxSize, fillModes.size());
+        maxSize = Math.max(maxSize, timings.size());
+        maxSize = Math.max(maxSize, playStates.size());
+        if (maxSize == 0) return;
+        ensureConfigSize(configs, maxSize);
+
+        for (int i = 0; i < maxSize; i++) {
+            AnimationConfig config = configs.get(i);
+            if (!names.isEmpty()) config.name = getListValue(names, i, config.name);
+            if (!durations.isEmpty()) config.duration = getListValue(durations, i, config.duration);
+            if (!delays.isEmpty()) config.delay = getListValue(delays, i, config.delay);
+            if (!counts.isEmpty()) config.iterationCount = getListValue(counts, i, config.iterationCount);
+            if (!directions.isEmpty()) config.direction = getListValue(directions, i, config.direction);
+            if (!fillModes.isEmpty()) config.fillMode = getListValue(fillModes, i, config.fillMode);
+            if (!timings.isEmpty()) config.timingFunction = getListValue(timings, i, config.timingFunction);
+            if (!playStates.isEmpty()) config.playState = getListValue(playStates, i, config.playState);
         }
-        return out;
     }
 
-    private static String pick(List<String> list, int i) {
-        if (list == null || list.isEmpty()) return null;
-        return list.get(i % list.size());
+    private static void ensureConfigSize(List<AnimationConfig> configs, int size) {
+        while (configs.size() < size) {
+            configs.add(new AnimationConfig());
+        }
     }
 
-    private static void applyShorthandLogic(AnimationConfig config, String shorthandSegment) {
-        List<String> tokens = splitAnimationTokens(shorthandSegment);
+    private static String getListValue(List<String> values, int index, String defaultValue) {
+        if (values == null || values.isEmpty()) return defaultValue;
+        int safeIndex = Math.min(index, values.size() - 1);
+        String value = values.get(safeIndex);
+        if (StringUtils.isNullOrEmptyEx(value)) return defaultValue;
+        return value;
+    }
+
+    private static void applyShorthandLogic(AnimationConfig config, String shorthand) {
+        List<String> tokens = splitByWhitespaceOutsideParentheses(shorthand.trim());
         boolean durationSet = false;
-
         for (String token : tokens) {
-            String value = token.trim();
-            if (value.isEmpty()) continue;
-            String lower = value.toLowerCase(Locale.ROOT);
+            String normalizedToken = token.trim();
+            if (normalizedToken.isEmpty()) continue;
+            String lowerToken = normalizedToken.toLowerCase(Locale.ROOT);
 
-            if (TIME_PATTERN.matcher(lower).matches()) {
+            if (TIME_PATTERN.matcher(lowerToken).matches()) {
                 if (!durationSet) {
-                    config.duration = lower;
+                    config.duration = lowerToken;
                     durationSet = true;
                 } else {
-                    config.delay = lower;
+                    config.delay = lowerToken;
                 }
                 continue;
             }
-            if (lower.equals("infinite") || isNumeric(lower)) {
-                config.iterationCount = lower;
+            if ("infinite".equals(lowerToken) || isNumeric(lowerToken)) {
+                config.iterationCount = lowerToken;
                 continue;
             }
-            if (DIRECTIONS.contains(lower)) {
-                config.direction = lower;
+            if (DIRECTIONS.contains(lowerToken)) {
+                config.direction = lowerToken;
                 continue;
             }
-            if (FILL_MODES.contains(lower)) {
-                config.fillMode = lower;
+            if (FILL_MODES.contains(lowerToken)) {
+                config.fillMode = lowerToken;
                 continue;
             }
-            if (isTimingFunction(lower)) {
-                config.timingFunction = lower;
+            if (TIMING_FUNCTIONS.contains(lowerToken) || lowerToken.startsWith("cubic-bezier(") || lowerToken.startsWith("steps(")) {
+                config.timingFunction = lowerToken;
                 continue;
             }
-            if (lower.equals("running") || lower.equals("paused")) {
-                config.playState = lower;
+            if ("running".equals(lowerToken) || "paused".equals(lowerToken)) {
+                config.playState = lowerToken;
                 continue;
             }
-            config.name = value;
+            config.name = unquoteIdentifier(normalizedToken);
         }
     }
 
-    private static List<String> splitTopLevelByComma(String value) {
-        ArrayList<String> out = new ArrayList<>();
-        if (value == null) return out;
-
-        StringBuilder current = new StringBuilder();
-        int depth = 0;
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '(') depth++;
-            else if (c == ')') depth = Math.max(0, depth - 1);
-
-            if (c == ',' && depth == 0) {
-                out.add(current.toString().trim());
-                current.setLength(0);
-                continue;
-            }
-            current.append(c);
+    private static String unquoteIdentifier(String token) {
+        if (token == null) return null;
+        String value = token.trim();
+        if ((value.startsWith("\"") && value.endsWith("\"")) || (value.startsWith("'") && value.endsWith("'"))) {
+            return value.substring(1, value.length() - 1);
         }
-
-        if (current.length() > 0) {
-            out.add(current.toString().trim());
-        }
-        return out;
-    }
-
-    private static List<String> splitAnimationTokens(String value) {
-        ArrayList<String> tokens = new ArrayList<>();
-        StringBuilder current = new StringBuilder();
-        int depth = 0;
-
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '(') {
-                depth++;
-                current.append(c);
-                continue;
-            }
-            if (c == ')') {
-                depth = Math.max(0, depth - 1);
-                current.append(c);
-                continue;
-            }
-            if (Character.isWhitespace(c) && depth == 0) {
-                if (current.length() > 0) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
-                continue;
-            }
-            current.append(c);
-        }
-
-        if (current.length() > 0) {
-            tokens.add(current.toString());
-        }
-        return tokens;
+        return value;
     }
 
     private static boolean valid(String s) {
@@ -392,349 +267,271 @@ public class Animation {
 
     private static boolean isNumeric(String s) {
         if (s == null || s.isEmpty()) return false;
-        int len = s.length();
-        boolean hasDot = false;
-
-        for (int i = 0; i < len; i++) {
-            char c = s.charAt(i);
-            if (c == '.') {
-                if (hasDot) return false;
-                hasDot = true;
-                continue;
-            }
-            if (i == 0 && (c == '+' || c == '-')) continue;
-            if (c < '0' || c > '9') return false;
+        try {
+            Double.parseDouble(s);
+            return true;
+        } catch (NumberFormatException ignored) {
+            return false;
         }
-        return true;
-    }
-
-    private static boolean isTimingFunction(String token) {
-        return TIMING_FUNCTIONS.contains(token) || token.startsWith("cubic-bezier(") || token.startsWith("steps(");
-    }
-
-    private static String buildConfigKey(AnimationConfig config) {
-        return config.name + "|" + config.duration + "|" + config.delay + "|" + config.iterationCount + "|"
-                + config.direction + "|" + config.fillMode + "|" + config.timingFunction;
-    }
-
-    private static List<AnimationState> ensureStateList(Element element, int n) {
-        List<AnimationState> old = ACTIVE_ANIMATIONS.get(element.uuid);
-        if (old == null) {
-            ArrayList<AnimationState> created = new ArrayList<>(Collections.nCopies(n, null));
-            ACTIVE_ANIMATIONS.put(element.uuid, created);
-            return created;
-        }
-
-        if (old.size() == n) return old;
-
-        ArrayList<AnimationState> resized = new ArrayList<>(Collections.nCopies(n, null));
-        int copy = Math.min(old.size(), n);
-        for (int i = 0; i < copy; i++) resized.set(i, old.get(i));
-        ACTIVE_ANIMATIONS.put(element.uuid, resized);
-        return resized;
     }
 
     public static void updateStyle(Element element, Style computedStyle) {
-        long frameTime = element.document != null ? element.document.getAnimationFrameTime() : System.currentTimeMillis();
-        advanceFrame(element, computedStyle, frameTime);
-    }
-
-    public static void advanceFrame(Element element, Style computedStyle, long frameTime) {
-        String scope = resolveScope(element);
         List<AnimationConfig> configs = resolveAnimations(computedStyle);
         if (configs.isEmpty()) {
             ACTIVE_ANIMATIONS.remove(element.uuid);
             return;
         }
 
-        Style baseStyle = computedStyle.clone();
-        List<AnimationState> states = ensureStateList(element, configs.size());
-        long now = frameTime;
+        String scope = element.document != null ? element.document.getUuid().toString() : GLOBAL_SCOPE;
+        long now = element.document != null
+                ? element.document.getAnimationFrameTime()
+                : System.currentTimeMillis();
 
-        boolean anyActive = false;
+        Map<String, AnimationState> states = ACTIVE_ANIMATIONS.computeIfAbsent(element.uuid, k -> new HashMap<>());
+        HashSet<String> activeKeys = new HashSet<>();
 
-        for (int i = 0; i < configs.size(); i++) {
-            AnimationConfig config = configs.get(i);
-            String animName = config.name;
+        for (AnimationConfig config : configs) {
+            TreeMap<Double, Map<String, String>> timeline = getTimeline(scope, config.name);
+            if (timeline == null || timeline.isEmpty()) continue;
 
-            if (animName == null || animName.equals("none") || !hasKeyframes(scope, animName)) {
-                states.set(i, null);
-                continue;
+            activeKeys.add(config.stateKey);
+            AnimationState state = states.get(config.stateKey);
+            if (state == null) {
+                state = new AnimationState(config.name, now);
+                states.put(config.stateKey, state);
             }
 
-            String configKey = buildConfigKey(config);
-            AnimationState state = states.get(i);
-            if (state == null || !state.currentName.equals(animName) || !state.configKey.equals(configKey)) {
-                state = new AnimationState(animName, configKey);
-                state.startTime = now;
-                states.set(i, state);
+            boolean keepState = advanceFrame(computedStyle, timeline, config, state, now);
+            if (!keepState) {
+                states.remove(config.stateKey);
             }
+        }
 
-            if (state.finished) {
-                if (state.holdFinalFrame) {
-                    applyKeyframes(computedStyle, baseStyle, scope, animName, state.finishedPercent);
-                    anyActive = true;
-                }
-                continue;
+        states.entrySet().removeIf(entry -> !activeKeys.contains(entry.getKey()));
+        if (states.isEmpty()) {
+            ACTIVE_ANIMATIONS.remove(element.uuid);
+        }
+    }
+
+    private static boolean advanceFrame(Style style, TreeMap<Double, Map<String, String>> timeline, AnimationConfig config, AnimationState state, long now) {
+        double duration = parseTime(config.duration);
+        if (duration <= 0) return false;
+
+        boolean paused = "paused".equalsIgnoreCase(config.playState);
+        if (paused) {
+            if (state.pauseStartTime < 0) {
+                state.pauseStartTime = now;
             }
+        } else if (state.pauseStartTime >= 0) {
+            state.pauseDuration += now - state.pauseStartTime;
+            state.pauseStartTime = -1;
+        }
 
-            double duration = parseTime(config.duration);
-            double count = parseIterationCount(config.iterationCount);
-            if (duration <= 0 || count <= 0) {
+        long effectiveNow = state.pauseStartTime >= 0 ? state.pauseStartTime : now;
+        double elapsed = effectiveNow - state.startTime - state.pauseDuration;
+        double delay = parseTime(config.delay);
+
+        if (elapsed < delay) {
+            state.finished = false;
+            if (hasBackwardFill(config.fillMode)) {
+                applyKeyframes(style, timeline, resolveStartPercent(config));
+            }
+            return true;
+        }
+
+        double activeTime = elapsed - delay;
+        double count = parseIterationCount(config.iterationCount);
+        if (count <= 0) return false;
+
+        if (Double.isFinite(count)) {
+            double totalDuration = duration * count;
+            if (activeTime >= totalDuration) {
                 state.finished = true;
-                state.holdFinalFrame = false;
-                continue;
-            }
-
-            if ("paused".equals(config.playState)) {
-                if (!state.paused) {
-                    state.paused = true;
-                    state.pauseStartedAt = now;
+                if (hasForwardFill(config.fillMode)) {
+                    state.finishedPercent = resolveFinalPercent(config, count);
+                    applyKeyframes(style, timeline, state.finishedPercent);
+                    return true;
                 }
-            } else if (state.paused) {
-                state.startTime += now - state.pauseStartedAt;
-                state.pauseStartedAt = 0;
-                state.paused = false;
-            }
-
-            long elapsed = state.paused ? (state.pauseStartedAt - state.startTime) : (now - state.startTime);
-            double delay = parseTime(config.delay);
-
-            if (elapsed < delay) {
-                anyActive = true;
-                if (isBackwardsFill(config.fillMode)) {
-                    double initialPercent = resolveInitialPercent(config);
-                    applyKeyframes(computedStyle, baseStyle, scope, animName, initialPercent);
-                }
-                continue;
-            }
-
-            long activeTime = elapsed - (long) delay;
-
-            if (count != Double.MAX_VALUE && activeTime >= duration * count) {
-                state.finished = true;
-                state.holdFinalFrame = isForwardsFill(config.fillMode);
-                state.finishedPercent = resolveFinalPercent(config, count);
-
-                if (state.holdFinalFrame) {
-                    applyKeyframes(computedStyle, baseStyle, scope, animName, state.finishedPercent);
-                    anyActive = true;
-                }
-                continue;
-            }
-
-            anyActive = true;
-
-            double currentCycleTime = activeTime % duration;
-            double progress = currentCycleTime / duration;
-            long currentIteration = (long) Math.floor(activeTime / duration);
-
-            if (isReverseDirection(config.direction, currentIteration)) {
-                progress = 1.0 - progress;
-            }
-
-            double easedProgress = applyTimingFunction(progress, config.timingFunction);
-            applyKeyframes(computedStyle, baseStyle, scope, animName, clamp01(easedProgress) * 100.0);
-        }
-
-        if (!anyActive) {
-            boolean hasFinishedNoHold = false;
-            for (AnimationState state : states) {
-                if (state != null && state.finished && !state.holdFinalFrame) {
-                    hasFinishedNoHold = true;
-                    break;
-                }
-            }
-            if (!hasFinishedNoHold) {
-                ACTIVE_ANIMATIONS.remove(element.uuid);
+                return false;
             }
         }
-    }
 
-    private static boolean isStateActive(AnimationState state) {
-        if (state == null) return false;
-        return !state.finished || state.holdFinalFrame;
-    }
+        state.finished = false;
+        if (activeTime < 0) activeTime = 0;
 
-    private static double resolveInitialPercent(AnimationConfig config) {
-        double progress = isReverseDirection(config.direction, 0) ? 1.0 : 0.0;
-        double eased = applyTimingFunction(progress, config.timingFunction);
-        return clamp01(eased) * 100.0;
-    }
-
-    private static double resolveFinalPercent(AnimationConfig config, double count) {
-        if (count <= 0) {
-            return resolveInitialPercent(config);
+        long currentIteration = (long) Math.floor(activeTime / duration);
+        double currentCycleTime = activeTime % duration;
+        if (currentCycleTime == 0 && activeTime > 0) {
+            currentCycleTime = duration;
+            currentIteration = Math.max(0, currentIteration - 1);
         }
 
-        long finalIteration;
-        double progress;
+        double progress = currentCycleTime / duration;
+        progress = resolveDirectionProgress(progress, config.direction, currentIteration);
+        progress = applyTimingFunction(progress, config.timingFunction);
 
-        double floor = Math.floor(count);
-        double fraction = count - floor;
-        if (Math.abs(fraction) < EPSILON) {
-            finalIteration = Math.max(0, (long) floor - 1);
-            progress = 1.0;
-        } else {
-            finalIteration = (long) floor;
-            progress = fraction;
-        }
-
-        if (isReverseDirection(config.direction, finalIteration)) {
-            progress = 1.0 - progress;
-        }
-
-        double eased = applyTimingFunction(progress, config.timingFunction);
-        return clamp01(eased) * 100.0;
+        applyKeyframes(style, timeline, progress * 100.0);
+        return true;
     }
 
-    private static boolean isBackwardsFill(String fillMode) {
-        return "backwards".equals(fillMode) || "both".equals(fillMode);
-    }
-
-    private static boolean isForwardsFill(String fillMode) {
+    private static boolean hasForwardFill(String fillMode) {
         return "forwards".equals(fillMode) || "both".equals(fillMode);
     }
 
-    private static boolean isReverseDirection(String direction, long currentIteration) {
-        return "reverse".equals(direction)
-                || ("alternate".equals(direction) && (currentIteration % 2) == 1)
-                || ("alternate-reverse".equals(direction) && (currentIteration % 2) == 0);
+    private static boolean hasBackwardFill(String fillMode) {
+        return "backwards".equals(fillMode) || "both".equals(fillMode);
     }
 
-    private static double parseIterationCount(String countStr) {
-        if (StringUtils.isNullOrEmptyEx(countStr)) return 1;
-        String normalized = countStr.trim().toLowerCase(Locale.ROOT);
-        if ("infinite".equals(normalized)) return Double.MAX_VALUE;
+    private static double parseIterationCount(String count) {
+        if (StringUtils.isNullOrEmptyEx(count)) return 1;
+        if ("infinite".equalsIgnoreCase(count)) return Double.POSITIVE_INFINITY;
         try {
-            double value = Double.parseDouble(normalized);
-            return value < 0 ? 0 : value;
+            return Double.parseDouble(count);
         } catch (NumberFormatException ignored) {
             return 1;
         }
     }
 
+    private static double resolveStartPercent(AnimationConfig config) {
+        double progress = resolveDirectionProgress(0, config.direction, 0);
+        return progress * 100.0;
+    }
+
+    private static double resolveFinalPercent(AnimationConfig config, double count) {
+        if (!Double.isFinite(count)) return 100.0;
+
+        double whole = Math.floor(count);
+        double fraction = count - whole;
+
+        long iteration;
+        double progress;
+        if (fraction < 1e-9) {
+            iteration = Math.max(0, (long) whole - 1);
+            progress = 1.0;
+        } else {
+            iteration = (long) whole;
+            progress = fraction;
+        }
+
+        progress = resolveDirectionProgress(progress, config.direction, iteration);
+        progress = applyTimingFunction(progress, config.timingFunction);
+        return progress * 100.0;
+    }
+
+    private static double resolveDirectionProgress(double progress, String direction, long currentIteration) {
+        if (progress < 0) progress = 0;
+        if (progress > 1) progress = 1;
+
+        boolean isEvenIteration = (currentIteration % 2) == 0;
+        if ("reverse".equals(direction)
+                || ("alternate".equals(direction) && !isEvenIteration)
+                || ("alternate-reverse".equals(direction) && isEvenIteration)) {
+            return 1.0 - progress;
+        }
+        return progress;
+    }
+
     private static double applyTimingFunction(double progress, String timingFunction) {
-        double t = clamp01(progress);
-        if (!valid(timingFunction)) return t;
+        progress = Math.max(0, Math.min(1, progress));
+        if (StringUtils.isNullOrEmptyEx(timingFunction)) return progress;
 
         String fn = timingFunction.trim().toLowerCase(Locale.ROOT);
-        switch (fn) {
-            case "linear":
-                return t;
-            case "ease":
-                return cubicBezierAt(t, 0.25, 0.1, 0.25, 1.0);
-            case "ease-in":
-                return cubicBezierAt(t, 0.42, 0.0, 1.0, 1.0);
-            case "ease-out":
-                return cubicBezierAt(t, 0.0, 0.0, 0.58, 1.0);
-            case "ease-in-out":
-                return cubicBezierAt(t, 0.42, 0.0, 0.58, 1.0);
-            case "step-start":
-                return stepsAt(t, 1, true);
-            case "step-end":
-                return stepsAt(t, 1, false);
-            default:
-                return applyCustomTimingFunction(t, fn);
-        }
-    }
+        if ("linear".equals(fn)) return progress;
+        if ("ease".equals(fn)) return cubicBezier(0.25, 0.1, 0.25, 1.0, progress);
+        if ("ease-in".equals(fn)) return cubicBezier(0.42, 0.0, 1.0, 1.0, progress);
+        if ("ease-out".equals(fn)) return cubicBezier(0.0, 0.0, 0.58, 1.0, progress);
+        if ("ease-in-out".equals(fn)) return cubicBezier(0.42, 0.0, 0.58, 1.0, progress);
+        if ("step-start".equals(fn)) return progress <= 0 ? 0 : 1;
+        if ("step-end".equals(fn)) return progress < 1 ? 0 : 1;
 
-    private static double applyCustomTimingFunction(double t, String function) {
-        Matcher bezierMatcher = CUBIC_BEZIER_PATTERN.matcher(function);
-        if (bezierMatcher.matches()) {
-            String[] parts = bezierMatcher.group(1).split(",");
-            if (parts.length == 4) {
-                try {
-                    double x1 = Double.parseDouble(parts[0].trim());
-                    double y1 = Double.parseDouble(parts[1].trim());
-                    double x2 = Double.parseDouble(parts[2].trim());
-                    double y2 = Double.parseDouble(parts[3].trim());
-                    return cubicBezierAt(t, x1, y1, x2, y2);
-                } catch (NumberFormatException ignored) {
-                    return t;
+        if (fn.startsWith("cubic-bezier(")) {
+            double[] args = parseFunctionArguments(fn, 4);
+            if (args != null) {
+                return cubicBezier(args[0], args[1], args[2], args[3], progress);
+            }
+            return progress;
+        }
+
+        if (fn.startsWith("steps(")) {
+            int leftParen = fn.indexOf('(');
+            int rightParen = fn.lastIndexOf(')');
+            if (leftParen > 0 && rightParen > leftParen) {
+                String[] parts = fn.substring(leftParen + 1, rightParen).split(",");
+                if (parts.length >= 1) {
+                    try {
+                        int steps = Integer.parseInt(parts[0].trim());
+                        boolean start = parts.length > 1 && parts[1].trim().contains("start");
+                        return applySteps(progress, steps, start);
+                    } catch (NumberFormatException ignored) {
+                        return progress;
+                    }
                 }
             }
-            return t;
         }
 
-        Matcher stepsMatcher = STEPS_PATTERN.matcher(function);
-        if (stepsMatcher.matches()) {
-            StepsArgs args = parseStepsArgs(stepsMatcher.group(1));
-            if (args != null) {
-                return stepsAt(t, args.steps, args.start);
-            }
-        }
-
-        return t;
+        return progress;
     }
 
-    private static StepsArgs parseStepsArgs(String rawArgs) {
-        String[] parts = rawArgs.split(",");
-        if (parts.length < 1 || parts.length > 2) return null;
+    private static double[] parseFunctionArguments(String functionText, int expectedSize) {
+        int leftParen = functionText.indexOf('(');
+        int rightParen = functionText.lastIndexOf(')');
+        if (leftParen < 0 || rightParen <= leftParen) return null;
 
-        int steps;
-        try {
-            steps = Integer.parseInt(parts[0].trim());
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-        if (steps <= 0) return null;
+        String body = functionText.substring(leftParen + 1, rightParen);
+        String[] parts = body.split(",");
+        if (parts.length != expectedSize) return null;
 
-        boolean start = false;
-        if (parts.length == 2) {
-            String position = parts[1].trim();
-            if ("start".equals(position)) {
-                start = true;
-            } else if (!"end".equals(position)) {
+        double[] result = new double[expectedSize];
+        for (int i = 0; i < expectedSize; i++) {
+            try {
+                result[i] = Double.parseDouble(parts[i].trim());
+            } catch (NumberFormatException ignored) {
                 return null;
             }
         }
-        return new StepsArgs(steps, start);
+        return result;
     }
 
-    private static double stepsAt(double t, int steps, boolean start) {
-        if (steps <= 0) return clamp01(t);
-
-        double value;
-        if (start) {
-            value = (Math.floor(t * steps) + 1.0) / steps;
-        } else {
-            value = Math.floor(t * steps) / steps;
-        }
-        return clamp01(value);
+    private static double applySteps(double progress, int steps, boolean start) {
+        if (steps <= 0) return progress;
+        double scaled = progress * steps;
+        double stepped = start ? Math.ceil(scaled) : Math.floor(scaled);
+        double value = stepped / steps;
+        return Math.max(0, Math.min(1, value));
     }
 
-    private static double cubicBezierAt(double x, double x1, double y1, double x2, double y2) {
-        double low = 0.0;
-        double high = 1.0;
-        double u = x;
+    private static double cubicBezier(double x1, double y1, double x2, double y2, double t) {
+        if (t <= 0) return 0;
+        if (t >= 1) return 1;
 
-        for (int i = 0; i < 20; i++) {
-            double estimateX = bezierSample(u, x1, x2);
-            if (Math.abs(estimateX - x) < 1e-6) break;
-            if (estimateX < x) {
-                low = u;
+        double lower = 0;
+        double upper = 1;
+        double sample = t;
+
+        for (int i = 0; i < 16; i++) {
+            double x = cubic(sample, 0, x1, x2, 1);
+            if (Math.abs(x - t) < 1e-5) break;
+            if (x < t) {
+                lower = sample;
             } else {
-                high = u;
+                upper = sample;
             }
-            u = (low + high) / 2.0;
+            sample = (lower + upper) / 2.0;
         }
 
-        return clamp01(bezierSample(u, y1, y2));
+        double y = cubic(sample, 0, y1, y2, 1);
+        return Math.max(0, Math.min(1, y));
     }
 
-    private static double bezierSample(double t, double p1, double p2) {
-        double inv = 1.0 - t;
-        return 3 * inv * inv * t * p1 + 3 * inv * t * t * p2 + t * t * t;
+    private static double cubic(double t, double p0, double p1, double p2, double p3) {
+        double oneMinus = 1 - t;
+        return oneMinus * oneMinus * oneMinus * p0
+                + 3 * oneMinus * oneMinus * t * p1
+                + 3 * oneMinus * t * t * p2
+                + t * t * t * p3;
     }
 
-    private static double clamp01(double value) {
-        if (value < 0) return 0;
-        return Math.min(value, 1);
-    }
-
-    private static void applyKeyframes(Style style, Style baseStyle, String scope, String animName, double currentPercent) {
-        TreeMap<Double, Map<String, String>> timeline = getTimeline(scope, animName);
+    private static void applyKeyframes(Style style, TreeMap<Double, Map<String, String>> timeline, double currentPercent) {
         if (timeline == null || timeline.isEmpty()) return;
 
         Map.Entry<Double, Map<String, String>> startEntry = timeline.floorEntry(currentPercent);
@@ -761,8 +558,7 @@ public class Animation {
         List<Transition.Change> changes = new ArrayList<>();
 
         for (String prop : allProperties) {
-            String baseVal = baseStyle.get(prop);
-            String startValStr = startProps.getOrDefault(prop, baseVal);
+            String startValStr = startProps.getOrDefault(prop, style.get(prop));
             String endValStr = endProps.getOrDefault(prop, startValStr);
 
             if (startValStr == null || endValStr == null) continue;
@@ -801,51 +597,22 @@ public class Animation {
         List<Transform> startTransforms = Transform.parse(startStr);
         List<Transform> endTransforms = Transform.parse(endStr);
 
-        Transform.Translate startTranslate = null;
-        for (Transform transform : startTransforms) {
-            if (transform instanceof Transform.Translate) {
-                Transform.Translate t = (Transform.Translate) transform;
-                if (startTranslate == null) {
-                    startTranslate = t;
-                } else {
-                    startTranslate = new Transform.Translate(startTranslate.x() + t.x(), startTranslate.y() + t.y(), startTranslate.z() + t.z());
-                }
-            }
-        }
-
-        Transform.Translate endTranslate = null;
-        for (Transform transform : endTransforms) {
-            if (transform instanceof Transform.Translate) {
-                Transform.Translate t = (Transform.Translate) transform;
-                if (endTranslate == null) {
-                    endTranslate = t;
-                } else {
-                    endTranslate = new Transform.Translate(endTranslate.x() + t.x(), endTranslate.y() + t.y(), endTranslate.z() + t.z());
-                }
-            }
-        }
-
-        if (startTranslate != null || endTranslate != null) {
-            Transform.Translate ts = startTranslate != null ? startTranslate : Transform.Translate.DEFAULT;
-            Transform.Translate te = endTranslate != null ? endTranslate : Transform.Translate.DEFAULT;
-
-            double x = Transition.getOffset("transform-x", ts.x(), te.x(), fraction);
-            double y = Transition.getOffset("transform-y", ts.y(), te.y(), fraction);
-            double z = Transition.getOffset("transform-z", ts.z(), te.z(), fraction);
-            changes.add(new Transition.Change("transform-translatex", x));
-            changes.add(new Transition.Change("transform-translatey", y));
-            changes.add(new Transition.Change("transform-translatez", z));
-        }
-
         int size = Math.min(startTransforms.size(), endTransforms.size());
 
         for (int i = 0; i < size; i++) {
             Transform s = startTransforms.get(i);
             Transform e = endTransforms.get(i);
 
-            if (s instanceof Transform.Translate || e instanceof Transform.Translate) continue;
-
-            if (s instanceof Transform.Rotate && e instanceof Transform.Rotate) {
+            if (s instanceof Transform.Translate && e instanceof Transform.Translate) {
+                Transform.Translate ts = (Transform.Translate) s;
+                Transform.Translate te = (Transform.Translate) e;
+                double x = Transition.getOffset("transform-x", ts.x(), te.x(), fraction);
+                double y = Transition.getOffset("transform-y", ts.y(), te.y(), fraction);
+                double z = Transition.getOffset("transform-z", ts.z(), te.z(), fraction);
+                changes.add(new Transition.Change("transform-translatex", x));
+                changes.add(new Transition.Change("transform-translatey", y));
+                changes.add(new Transition.Change("transform-translatez", z));
+            } else if (s instanceof Transform.Rotate && e instanceof Transform.Rotate) {
                 Transform.Rotate rs = (Transform.Rotate) s;
                 Transform.Rotate re = (Transform.Rotate) e;
                 double x = Transition.getOffset("transform-rx", rs.x(), re.x(), fraction);
@@ -865,23 +632,105 @@ public class Animation {
         }
     }
 
+    private static List<String> splitTopLevelByComma(String value) {
+        ArrayList<String> result = new ArrayList<>();
+        if (StringUtils.isNullOrEmptyEx(value)) return result;
+
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        char quote = 0;
+
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (quote != 0) {
+                current.append(c);
+                if (c == quote) quote = 0;
+                continue;
+            }
+            if (c == '\'' || c == '"') {
+                quote = c;
+                current.append(c);
+                continue;
+            }
+            if (c == '(') {
+                depth++;
+                current.append(c);
+                continue;
+            }
+            if (c == ')') {
+                depth = Math.max(0, depth - 1);
+                current.append(c);
+                continue;
+            }
+            if (c == ',' && depth == 0) {
+                String part = current.toString().trim();
+                if (!part.isEmpty()) result.add(part);
+                current.setLength(0);
+                continue;
+            }
+            current.append(c);
+        }
+
+        String part = current.toString().trim();
+        if (!part.isEmpty()) result.add(part);
+        return result;
+    }
+
+    private static List<String> splitByWhitespaceOutsideParentheses(String value) {
+        ArrayList<String> result = new ArrayList<>();
+        if (StringUtils.isNullOrEmptyEx(value)) return result;
+
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        char quote = 0;
+
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (quote != 0) {
+                current.append(c);
+                if (c == quote) quote = 0;
+                continue;
+            }
+            if (c == '\'' || c == '"') {
+                quote = c;
+                current.append(c);
+                continue;
+            }
+            if (c == '(') {
+                depth++;
+                current.append(c);
+                continue;
+            }
+            if (c == ')') {
+                depth = Math.max(0, depth - 1);
+                current.append(c);
+                continue;
+            }
+            if (Character.isWhitespace(c) && depth == 0) {
+                if (current.length() > 0) {
+                    result.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            current.append(c);
+        }
+
+        if (current.length() > 0) {
+            result.add(current.toString());
+        }
+        return result;
+    }
+
     private static double parseTime(String time) {
-        if (time == null || time.equals("unset")) return 0;
-
-        String value = time.trim().toLowerCase(Locale.ROOT);
-        if (value.isEmpty()) return 0;
-
+        if (!valid(time)) return 0;
+        String token = time.trim().toLowerCase(Locale.ROOT);
         try {
-            if (value.endsWith("ms")) {
-                return Double.parseDouble(value.substring(0, value.length() - 2));
-            }
-            if (value.endsWith("s")) {
-                return Double.parseDouble(value.substring(0, value.length() - 1)) * 1000;
-            }
-            return Double.parseDouble(value) * 1000;
+            if (token.endsWith("ms")) return Double.parseDouble(token.substring(0, token.length() - 2));
+            if (token.endsWith("s")) return Double.parseDouble(token.substring(0, token.length() - 1)) * 1000;
+            return Double.parseDouble(token) * 1000;
         } catch (NumberFormatException ignored) {
         }
         return 0;
     }
 }
-

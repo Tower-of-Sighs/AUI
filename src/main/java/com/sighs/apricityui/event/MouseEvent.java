@@ -4,10 +4,9 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Operation;
-import com.sighs.apricityui.instance.element.Slot;
-import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 
@@ -41,10 +40,62 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     public static void tiggerEvent(MouseEvent event) {
+        // 1) Apply CSS cursor from the top-most document under the pointer.
+        // We do this once per event to avoid cursor "fighting" between multiple documents.
+        applyCursorForTopMostDocument(event);
+
+        // 2) Dispatch events per document.
         Document.getAll().forEach(document -> {
             // 世界内渲染的ui是在instance.Client里单独触发事件，之后可以合并过来。
             if (!document.inWorld) tiggerEvent(event, document);
         });
+    }
+
+    private static void applyCursorForTopMostDocument(MouseEvent event) {
+        List<Document> docs = Document.getAll();
+        if (docs == null || docs.isEmpty()) {
+            Cursor.resetToDefault();
+            return;
+        }
+
+        Position detectionPos = new Position(event.clientX, event.clientY);
+
+        // Later-created documents are rendered on top; traverse in reverse.
+        for (int i = docs.size() - 1; i >= 0; i--) {
+            Document document = docs.get(i);
+            if (document == null || document.inWorld) continue;
+
+            Element target = hitTest(document.getPaintList(), detectionPos);
+            if (target == null) continue;
+
+            Cursor.applyCssCursor(document.getPath(), resolveCursor(target));
+            return;
+        }
+
+        // Pointer is not over any ApricityUI element.
+        Cursor.resetToDefault();
+    }
+
+    private static String resolveCursor(Element target) {
+        if (target == null) return "default";
+
+        String cache = target.getRenderer().cursor.get();
+        if (cache != null) return cache;
+
+        Element e = target;
+        while (e != null) {
+            String c = e.getComputedStyle().cursor;
+            if (c != null) {
+                c = c.trim();
+                if (!c.isEmpty() && !c.equalsIgnoreCase("unset") && !c.equalsIgnoreCase("auto")) {
+                    target.getRenderer().cursor.set(c);
+                    return c;
+                }
+            }
+            e = e.parentElement;
+        }
+        target.getRenderer().cursor.set("default");
+        return "default";
     }
 
     // 触发鼠标事件的主体
@@ -198,8 +249,6 @@ public class MouseEvent extends Event implements Cloneable {
             } else if (node instanceof RenderNode.ElementPhaseNode) {
                 RenderNode.ElementPhaseNode phaseNode = (RenderNode.ElementPhaseNode) node;
                 Element element = phaseNode.target();
-                boolean slotNode = element instanceof Slot;
-                if (phaseNode.phase() != Base.RenderPhase.BODY && !slotNode) continue;
 
                 if (!element.isVisible || !element.isPointerEnabled) continue;
 

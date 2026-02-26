@@ -7,10 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -232,98 +229,41 @@ public interface Transform {
 
     static void readTransition(List<Transition.Change> changeList, Style originStyle) {
         List<Transform> transforms = parse(originStyle.transform);
-
-        boolean hasTranslate = false;
-        double tx = 0;
-        double ty = 0;
-        double tz = 0;
-
-        boolean hasRotate = false;
-        double rx = 0;
-        double ry = 0;
-        double rz = 0;
-
-        boolean hasScale = false;
-        double sx = 1;
-        double sy = 1;
+        List<String> functions = new ArrayList<>();
 
         for (Transform transform : transforms) {
             if (transform instanceof Translate) {
-                Translate t = (Translate) transform;
-                hasTranslate = true;
-                tx += t.x();
-                ty += t.y();
-                tz += t.z();
+                List<String> names = Arrays.asList("transform-translatex", "transform-translatey", "transform-translatez");
+                List<String> values = new ArrayList<>();
+                for (Transition.Change change : changeList) {
+                    if (names.contains(change.name()) && values.size() < names.size()) {
+                        values.add(String.valueOf(change.value()));
+                        // changeList.remove(change);
+                    }
+                }
+                functions.add("translate(" + String.join(",", values) + ") ");
             }
             if (transform instanceof Rotate) {
-                Rotate r = (Rotate) transform;
-                hasRotate = true;
-                rx = r.x();
-                ry = r.y();
-                rz = r.z();
+                List<String> names = Arrays.asList("transform-rotatex", "transform-rotatey", "transform-rotatez");
+                List<String> values = new ArrayList<>();
+                for (Transition.Change change : changeList) {
+                    if (names.contains(change.name()) && values.size() < names.size()) {
+                        values.add(String.valueOf(change.value()));
+                        // changeList.remove(change);
+                    }
+                }
+                functions.add("rotatex(" + values.get(0) + ") rotatey(" + values.get(1) + ") rotatez(" + values.get(2) + ") ");
             }
             if (transform instanceof Scale) {
-                Scale s = (Scale) transform;
-                hasScale = true;
-                sx = s.x();
-                sy = s.y();
+                List<String> names = Arrays.asList("transform-scalex", "transform-scaley");
+                List<String> values = new ArrayList<>();
+                for (Transition.Change change : changeList) {
+                    if (names.contains(change.name()) && values.size() < names.size()) {
+                        values.add(String.valueOf(change.value()));
+                    }
+                }
+                if (!values.isEmpty()) functions.add("scale(" + String.join(",", values) + ") ");
             }
-        }
-
-        for (Transition.Change change : changeList) {
-            switch (change.name()) {
-                case "transform-translatex": {
-                    hasTranslate = true;
-                    tx = change.value();
-                }
-                break;
-                case "transform-translatey": {
-                    hasTranslate = true;
-                    ty = change.value();
-                }
-                break;
-                case "transform-translatez": {
-                    hasTranslate = true;
-                    tz = change.value();
-                }
-                break;
-                case "transform-rotatex": {
-                    hasRotate = true;
-                    rx = change.value();
-                }
-                break;
-                case "transform-rotatey": {
-                    hasRotate = true;
-                    ry = change.value();
-                }
-                break;
-                case "transform-rotatez": {
-                    hasRotate = true;
-                    rz = change.value();
-                }
-                break;
-                case "transform-scalex": {
-                    hasScale = true;
-                    sx = change.value();
-                }
-                break;
-                case "transform-scaley": {
-                    hasScale = true;
-                    sy = change.value();
-                }
-                break;
-            }
-        }
-
-        List<String> functions = new ArrayList<>();
-        if (hasTranslate) {
-            functions.add("translate(" + tx + "," + ty + "," + tz + ")");
-        }
-        if (hasRotate) {
-            functions.add("rotatex(" + rx + ") rotatey(" + ry + ") rotatez(" + rz + ")");
-        }
-        if (hasScale) {
-            functions.add("scale(" + sx + "," + sy + ")");
         }
 
         if (!functions.isEmpty()) originStyle.transform = String.join(" ", functions);

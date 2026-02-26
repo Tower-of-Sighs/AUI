@@ -3,6 +3,7 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.HTML;
@@ -39,6 +40,7 @@ public class Loader {
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
+        FontDrawer.clearCache();
         Font.clear();
         HTML.scan();
         Document.refreshAll();

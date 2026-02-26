@@ -8,6 +8,7 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
@@ -170,14 +171,19 @@ public class Client {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
-        if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null)
+        if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             Base.drawAllDocument(event.getMatrixStack());
+            Cursor.drawPseudoCursor(event.getMatrixStack());
+        }
     }
 
     @SubscribeEvent
     public static void drawOverlay(RenderGameOverlayEvent.Post event) {
         if (event.getType() != RenderGameOverlayEvent.ElementType.ALL) return;
-        if (Minecraft.getInstance().screen == null) Base.drawAllDocument(event.getMatrixStack());
+        if (Minecraft.getInstance().screen == null) {
+            Base.drawAllDocument(event.getMatrixStack());
+            Cursor.drawPseudoCursor(event.getMatrixStack());
+        }
     }
 
     @SubscribeEvent
@@ -239,8 +245,10 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void onKeyPressed(GuiScreenEvent.KeyboardKeyPressedEvent.Pre event) {
-        if (Operation.onKeyPressed(event.getKeyCode())) event.setCanceled(true);
+    public static void onKeyPressed(InputEvent.KeyInputEvent event) {
+        if (event.getAction() != GLFW.GLFW_PRESS) return;
+        Operation.onKeyPressed(event.getKey());
+        System.out.println(event.getKey());
     }
 
     @SubscribeEvent

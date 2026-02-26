@@ -83,6 +83,14 @@ public class Style implements Cloneable {
     public String right = "unset";
     public String position = "static";
 
+    /**
+     * CSS cursor property.
+     *
+     * <p>Baseline implementation: only supports mapping to GLFW standard cursors.
+     * Custom cursor resources (png/mcmeta/gif) are intentionally not handled here.</p>
+     */
+    public String cursor = "auto";
+
     public String pointerEvents = "auto";
     public String visibility = "visible";
     public String transition = "none";

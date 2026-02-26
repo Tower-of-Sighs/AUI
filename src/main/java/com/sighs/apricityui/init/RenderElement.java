@@ -20,8 +20,6 @@ public class RenderElement {
         }
     };
     public Cache<Style> computedStyle = new Cache<>();
-    public Cache<Style> frameStyle = new Cache<>();
-    public long frameStyleTime = -1;
     public Cache<Text> text = new Cache<Text>() {
         @Override
         void expandClear() {
@@ -37,6 +35,12 @@ public class RenderElement {
         }
     };
     public Cache<Background> background = new Cache<>();
+    public Cache<String> cursor = new Cache<String>() {
+        @Override
+        void expandClear() {
+            element.children.forEach(e -> e.getRenderer().cursor.clear());
+        }
+    };
 
     public RenderElement(Element element) {
         this.element = element;
@@ -89,6 +93,7 @@ public class RenderElement {
     private static final Set<String> BACKGROUND_PROPS = new HashSet<>(Arrays.asList(
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     ));
+    private static final Set<String> CURSOR_PROPS = new HashSet<>(Arrays.asList("cursor"));
 
     private static final Set<String> TEXT_LAYOUT_PROPS = new HashSet<>(Arrays.asList(
             "fontSize", "lineHeight", "fontFamily"
@@ -169,6 +174,10 @@ public class RenderElement {
         if (check.test(VISUAL_BOX_PROPS)) {
             renderer.box.clear();
             dirtyMask |= Drawer.REPAINT;
+        }
+
+        if (check.test(CURSOR_PROPS)) {
+            renderer.cursor.clear();
         }
 
         if (!origin.animation.equals(current.animation)) {

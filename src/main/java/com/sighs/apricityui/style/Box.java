@@ -229,8 +229,7 @@ public class Box {
 
 
     public static SideBorder parseSideBorder(String string) {
-        if (StringUtils.isNullOrEmptyEx(string)) return SideBorder.getDefault();
-        String[] res = string.trim().split("\\s+");
+        String[] res = string.split(" ");
         if (res.length != 3) return SideBorder.getDefault();
         return new SideBorder(Size.parse(res[0]), res[1], new Color(res[2]));
     }
