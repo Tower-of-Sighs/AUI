@@ -84,6 +84,17 @@ public class WorldWindow {
         stack.popPose();
     }
 
+    public static boolean contains(String path) {
+        for (WorldWindow window : windows) {
+            if (window.document.is(path)) return true;
+        }
+        return false;
+    }
+
+    public static boolean contains(WorldWindow window) {
+        return windows.contains(window);
+    }
+
     public static void addWindow(WorldWindow window) {
         windows.add(window);
     }

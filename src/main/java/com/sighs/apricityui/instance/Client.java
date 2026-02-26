@@ -213,7 +213,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void mouseButton(InputEvent.MouseInputEvent event) {
+    public static void mouseButton(InputEvent.RawMouseEvent event) {
         if (event.getAction() == GLFW.GLFW_PRESS) Operation.onMouseDown();
         if (event.getAction() == GLFW.GLFW_RELEASE) Operation.onMouseUp();
         if (Minecraft.getInstance().screen != null) return;
