@@ -69,30 +69,23 @@ public class CSS {
     static class Parser {
         private static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
         private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile(
-                "(?i)@(?:-webkit-)?keyframes\\s+((?:[\\w-]+)|(?:\"[^\"]+\")|(?:'[^']+'))\\s*\\{"
+                "(?i)@(?:-webkit-)?keyframes\\s+((?:\"[^\"]+\"|'[^']+'|[\\w-]+))\\s*\\{"
         );
-        private static final Pattern FRAME_PATTERN = Pattern.compile(
-                "((?:[\\d\\.]+%|from|to)(?:\\s*,\\s*(?:[\\d\\.]+%|from|to))*)\\s*\\{([^}]*)}",
-                Pattern.CASE_INSENSITIVE
-        );
+        private static final Pattern FRAME_PATTERN = Pattern.compile("(?is)([^{}]+?)\\{([^{}]*)}");
+
         public static String parseAndRegisterAnimations(String css, String contextPath) {
             return parseAndRegisterAnimations(css, contextPath, "global");
         }
 
         public static String parseAndRegisterAnimations(String css, String contextPath, String keyframeScope) {
             if (css == null) return "";
-            String scope = (keyframeScope == null || keyframeScope.isBlank()) ? "global" : keyframeScope;
-            StringBuilder cleanCss = new StringBuilder(css.replaceAll("(?s)/\\*.*?\\*/", ""));
+            StringBuilder cleanCss = new StringBuilder(css.replaceAll("/\\*.*?\\*/", ""));
             Matcher matcher = KEYFRAMES_HEAD_PATTERN.matcher(cleanCss);
+            String scope = keyframeScope == null || keyframeScope.isBlank() ? "global" : keyframeScope;
 
             int offset = 0;
             while (matcher.find(offset)) {
-                String animName = matcher.group(1).trim();
-                if ((animName.startsWith("\"") && animName.endsWith("\""))
-                        || (animName.startsWith("'") && animName.endsWith("'"))) {
-                    animName = animName.substring(1, animName.length() - 1);
-                }
-
+                String animName = normalizeKeyframeName(matcher.group(1));
                 int blockStart = matcher.end();
                 int braceCount = 1;
                 int blockEnd = -1;
@@ -108,44 +101,34 @@ public class CSS {
                 }
 
                 if (blockEnd != -1) {
-                    Animation.clearKeyframes(scope, animName);
-
                     String fullContent = cleanCss.substring(blockStart, blockEnd);
+                    TreeMap<Double, Map<String, String>> timeline = new TreeMap<>();
                     Matcher frameMatcher = FRAME_PATTERN.matcher(fullContent);
                     while (frameMatcher.find()) {
-                        String selectorList = frameMatcher.group(1);
+                        String percentSelectors = frameMatcher.group(1);
                         String rules = frameMatcher.group(2);
-                        HashMap<String, String> props = parseProperties(rules, contextPath);
+                        Map<String, String> properties = parseProperties(rules, contextPath);
 
-                        for (String sel : selectorList.split("\\s*,\\s*")) {
-                            String percentStr = sel.trim();
-                            if (percentStr.isEmpty()) continue;
-
-                            double percent;
-                            if (percentStr.equalsIgnoreCase("from")) {
-                                percent = 0;
-                            } else if (percentStr.equalsIgnoreCase("to")) {
-                                percent = 100;
-                            } else {
-                                try {
-                                    percent = Double.parseDouble(percentStr.replace("%", ""));
-                                } catch (NumberFormatException ignored) {
-                                    continue;
-                                }
-                            }
-
+                        for (String selector : percentSelectors.split(",")) {
+                            Double percent = parseKeyframePercent(selector.trim());
+                            if (percent == null) continue;
                             if (percent < 0 || percent > 100) continue;
-                            Animation.registerKeyframe(scope, animName, percent, props);
+                            timeline.computeIfAbsent(percent, k -> new HashMap<>()).putAll(properties);
                         }
                     }
+                    Animation.clearKeyframes(scope, animName);
+                    for (Map.Entry<Double, Map<String, String>> entry : timeline.entrySet()) {
+                        Animation.registerKeyframe(scope, animName, entry.getKey(), entry.getValue());
+                    }
 
+                    // 移除已处理的@keyframes
                     cleanCss.delete(matcher.start(), blockEnd + 1);
                     offset = matcher.start();
+                    matcher = KEYFRAMES_HEAD_PATTERN.matcher(cleanCss);
                 } else {
                     offset = matcher.end();
                 }
             }
-
             return cleanCss.toString();
         }
 
@@ -162,6 +145,7 @@ public class CSS {
 
             while (matcher.find()) {
                 String selector = matcher.group(1).trim();
+                // 忽略空的或可能是残留的 @ 规则
                 if (selector.isEmpty() || selector.startsWith("@")) continue;
 
                 String rules = matcher.group(2).trim();
@@ -174,6 +158,28 @@ public class CSS {
                         return oldMap;
                     });
                 }
+            }
+        }
+
+        private static String normalizeKeyframeName(String keyframeName) {
+            if (keyframeName == null) return null;
+            String name = keyframeName.trim();
+            if ((name.startsWith("\"") && name.endsWith("\"")) || (name.startsWith("'") && name.endsWith("'"))) {
+                return name.substring(1, name.length() - 1).trim();
+            }
+            return name;
+        }
+
+        private static Double parseKeyframePercent(String token) {
+            if (token == null || token.isBlank()) return null;
+            if ("from".equalsIgnoreCase(token)) return 0d;
+            if ("to".equalsIgnoreCase(token)) return 100d;
+            if (!token.endsWith("%")) return null;
+            String number = token.substring(0, token.length() - 1).trim();
+            try {
+                return Double.parseDouble(number);
+            } catch (NumberFormatException ignored) {
+                return null;
             }
         }
 

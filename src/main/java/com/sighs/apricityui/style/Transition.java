@@ -22,26 +22,36 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     public static void stop(Element element) {
-        if (element == null) return;
         workList.remove(element.uuid);
     }
 
     public static void updateStyle(Element element, Style originStyle) {
-        advanceFrame(element, originStyle, System.currentTimeMillis());
-    }
-
-    public static void advanceFrame(Element element, Style originStyle, long frameTime) {
         List<Transition> transitions = workList.get(element.uuid);
         if (transitions == null) return;
 
+        long currentTime = element.document != null
+                ? element.document.getAnimationFrameTime()
+                : System.currentTimeMillis();
         List<Change> changeList = new ArrayList<>();
+        boolean hasRunningTransition = false;
         for (Transition transition : transitions) {
             if (transition.duration <= 0) continue;
-            double process = (frameTime - transition.startTime) / transition.duration;
-            if (process <= 1) {
+
+            double elapsed = currentTime - transition.startTime - transition.delay;
+            if (elapsed < 0) {
+                hasRunningTransition = true;
+                continue;
+            }
+
+            double process = elapsed / transition.duration;
+            if (process < 1) {
+                hasRunningTransition = true;
                 double value = getOffset(transition, process);
                 changeList.add(new Change(transition.name, value));
+                continue;
             }
+
+            changeList.add(new Change(transition.name, transition.end));
         }
 
         if (!changeList.isEmpty()) {
@@ -51,7 +61,8 @@ public record Transition(String name, double start, double end, double duration,
                 if (change.name.equals("opacity")) originStyle.opacity = String.valueOf(change.value);
                 else merge(originStyle, change.name, change.value);
             });
-        } else {
+        }
+        if (!hasRunningTransition) {
             workList.remove(element.uuid);
         }
     }
@@ -108,6 +119,7 @@ public record Transition(String name, double start, double end, double duration,
         return result;
     }
     private static void buildTransition(Style startStyle, Style endStyle, List<Transition> result, String name, double duration, double delay) {
+        if (duration <= 0) return;
         long time = System.currentTimeMillis();
 
         if (name.equals("transform")) {

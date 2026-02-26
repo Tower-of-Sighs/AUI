@@ -49,7 +49,6 @@ public class Document {
         this.animationFrameTime = animationFrameTime;
     }
 
-    // 用于刷新整个document，首先是清理缓存，接着会创建body元素，按照我的设计，创建body元素时就会将所有子孙类补齐。
     public void refresh() {
         CSSCache.clear();
         elements.clear();
@@ -212,14 +211,14 @@ public class Document {
     public static void remove(String path) {
         documents.removeIf(document -> {
             if (!document.is(path)) return false;
-            clearDocumentMotionState(document);
+            document.cleanupMotion();
             return true;
         });
     }
     public static void remove(UUID uuid) {
         documents.removeIf(document -> {
             if (!document.is(uuid)) return false;
-            clearDocumentMotionState(document);
+            document.cleanupMotion();
             return true;
         });
     }
@@ -228,29 +227,22 @@ public class Document {
     }
 
     public void removeElement(Element element) {
-        clearElementMotionState(element);
+        stopMotion(element);
         element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
         element.document.markDirty(element.parentElement, Drawer.RELAYOUT);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
     }
 
-    private static void clearDocumentMotionState(Document document) {
-        for (Element element : document.getElements()) {
-            Animation.stop(element);
-            Transition.stop(element);
-            element.getRenderer().frameStyle.clear();
-            element.getRenderer().frameStyleTime = -1;
+    private void cleanupMotion() {
+        for (Element element : elements) {
+            stopMotion(element);
         }
     }
 
-    private static void clearElementMotionState(Element element) {
+    private void stopMotion(Element element) {
+        if (element == null) return;
         Animation.stop(element);
         Transition.stop(element);
-        element.getRenderer().frameStyle.clear();
-        element.getRenderer().frameStyleTime = -1;
-        for (Element child : element.children) {
-            clearElementMotionState(child);
-        }
     }
 
     public Element getPreviousCursorElement() {
