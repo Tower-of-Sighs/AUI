@@ -23,8 +23,9 @@ public class Position {
 
     public static Position of(Element element) {
         if (element == null) return ZERO;
-//        Position cache = element.getRenderer().position.get();
-//        if (cache != null) return cache;
+
+        Position cache = element.getRenderer().position.get();
+        if (cache != null) return cache;
 
         Style style = element.getComputedStyle();
         Position resultPosition = ZERO;
@@ -57,7 +58,7 @@ public class Position {
             } else {
                 if (element.parentElement != null) {
                     CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
-                    Position staticPos = Flex.computeChildPosition(element, element.parentElement, siblings);
+                    Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
                     x = staticPos.x;
                 }
             }
@@ -69,7 +70,7 @@ public class Position {
             } else {
                 if (element.parentElement != null) {
                     CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
-                    Position staticPos = Flex.computeChildPosition(element, element.parentElement, siblings);
+                    Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
                     y = staticPos.y;
                 }
             }
@@ -83,7 +84,7 @@ public class Position {
         } else {
             Element parent = element.parentElement;
             if (parent != null) {
-                resultPosition = Flex.computeChildPosition(element, parent, parent.children);
+                resultPosition = computeNormalFlowChildPosition(element, parent, parent.children);
             }
 
             if ("relative".equals(positionType)) {
@@ -104,7 +105,15 @@ public class Position {
         return resultPosition;
     }
 
-    public static int parseSignedInt(String str) {
+    private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {
+        Style ps = parent.getComputedStyle();
+        if ("grid".equals(ps.display)) {
+            return Grid.computeChildPosition(element, parent, siblings);
+        }
+        return Flex.computeChildPosition(element, parent, siblings);
+    }
+
+public static int parseSignedInt(String str) {
         if (str == null || str.isEmpty() || "unset".equals(str)) {
             return 0;
         }
@@ -138,5 +147,10 @@ public class Position {
         }
 
         return 0;
+    }
+
+    @Override
+    public String toString() {
+        return "[" + x + "," + y + "]";
     }
 }

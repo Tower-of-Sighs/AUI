@@ -3,9 +3,9 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.instance.container.bind.ApricityMenuSlotSource;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 import com.sighs.apricityui.registry.ApricityMenus;
-import lombok.Getter;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -16,9 +16,7 @@ import net.minecraft.world.item.ItemStack;
 import java.util.*;
 
 public class ApricityContainerMenu extends AbstractContainerMenu {
-    @Getter
     private final ContainerSchema.Descriptor descriptor;
-    @Getter
     private final Inventory playerInventory;
     private final LinkedHashMap<String, LinkedHashMap<Integer, Integer>> containerLocalToGlobal = new LinkedHashMap<>();
     private final LinkedHashMap<String, List<ContainerSlotRef>> containerSlotRefs = new LinkedHashMap<>();
@@ -84,7 +82,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
             for (int localIndex = 0; localIndex < requiredPoolSize; localIndex++) {
                 Slot slot = source == null
-                        ? new Slot(fallback, localIndex, 0, 0)
+                        ? new UiSlot(fallback, localIndex, 0, 0)
                         : source.createSlot(localIndex, 0, 0);
                 addSlot(slot);
                 pool.add(slots.size() - 1);
@@ -126,6 +124,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
 
         buildContainerMappings(sourcePoolByContainer);
+        applySlotVisualProfiles();
     }
 
     private void buildContainerMappings(Map<String, List<Integer>> sourcePoolByContainer) {
@@ -152,20 +151,47 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         }
     }
 
+    private void applySlotVisualProfiles() {
+        for (String containerId : descriptor.getContainerIds()) {
+            Map<Integer, ContainerSchema.Descriptor.SlotVisualProfile> visuals = descriptor.getContainerSlotVisuals(containerId);
+            if (visuals.isEmpty()) continue;
+
+            List<ContainerSlotRef> refs = getContainerSlotRefs(containerId);
+            for (ContainerSlotRef ref : refs) {
+                if (ref == null) continue;
+                if (ref.globalSlotIndex < 0 || ref.globalSlotIndex >= slots.size()) continue;
+                Slot rawSlot = slots.get(ref.globalSlotIndex);
+                if (!(rawSlot instanceof UiSlot uiSlot)) continue;
+
+                ContainerSchema.Descriptor.SlotVisualProfile profile = visuals.get(ref.localSlotIndex);
+                if (profile == null) continue;
+                uiSlot.applyProfile(profile);
+            }
+        }
+    }
+
     private void addPlayerInventorySlots(Inventory playerInventory) {
         for (int row = 0; row < 3; row++) {
             for (int col = 0; col < 9; col++) {
                 int index = col + row * 9 + 9;
-                addSlot(new Slot(playerInventory, index, 0, 0));
+                addSlot(new UiSlot(playerInventory, index, 0, 0));
             }
         }
         for (int hotbar = 0; hotbar < 9; hotbar++) {
-            addSlot(new Slot(playerInventory, hotbar, 0, 0));
+            addSlot(new UiSlot(playerInventory, hotbar, 0, 0));
         }
+    }
+
+    public ContainerSchema.Descriptor getDescriptor() {
+        return descriptor;
     }
 
     public String getTemplatePath() {
         return descriptor.getTemplatePath();
+    }
+
+    public Inventory getPlayerInventory() {
+        return playerInventory;
     }
 
     public boolean hasContainer(String containerId) {
@@ -235,5 +261,122 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     }
 
     public record ContainerSlotRef(int localSlotIndex, int globalSlotIndex) {
+    }
+
+    public static class UiSlot extends Slot {
+        private int uiSlotSize = 16;
+        private boolean uiDisabled = false;
+        private boolean uiHidden = false;
+        private boolean uiAcceptPointer = true;
+        private boolean uiRenderBackground = true;
+        private boolean uiRenderItem = true;
+        private float uiIconScale = 1.0F;
+        private int uiPadding = 0;
+        private int uiZIndex = 0;
+
+        public UiSlot(Container container, int slot, int x, int y) {
+            super(container, slot, x, y);
+        }
+
+        public void applyProfile(ContainerSchema.Descriptor.SlotVisualProfile profile) {
+            if (profile == null) return;
+            uiSlotSize = Math.max(1, profile.resolveSlotSize(uiSlotSize));
+            uiDisabled = profile.resolveDisabled(uiDisabled);
+            uiAcceptPointer = profile.resolveAcceptPointer(uiAcceptPointer);
+            uiRenderBackground = profile.resolveRenderBackground(uiRenderBackground);
+            uiRenderItem = profile.resolveRenderItem(uiRenderItem);
+            uiIconScale = Math.max(0.01F, profile.resolveIconScale(uiIconScale));
+            uiPadding = Math.max(0, profile.resolvePadding(uiPadding));
+            uiZIndex = profile.resolveZIndex(uiZIndex);
+        }
+
+        @Override
+        public boolean isActive() {
+            return !uiHidden && super.isActive();
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            if (uiDisabled) return false;
+            return super.mayPlace(stack);
+        }
+
+        @Override
+        public boolean mayPickup(Player player) {
+            if (uiDisabled) return false;
+            return super.mayPickup(player);
+        }
+
+        public int getUiSlotSize() {
+            return uiSlotSize;
+        }
+
+        public void setUiSlotSize(int uiSlotSize) {
+            this.uiSlotSize = Math.max(1, uiSlotSize);
+        }
+
+        public boolean isUiDisabled() {
+            return uiDisabled;
+        }
+
+        public void setUiDisabled(boolean uiDisabled) {
+            this.uiDisabled = uiDisabled;
+        }
+
+        public boolean isUiHidden() {
+            return uiHidden;
+        }
+
+        public void setUiHidden(boolean uiHidden) {
+            this.uiHidden = uiHidden;
+        }
+
+        public boolean isUiAcceptPointer() {
+            return uiAcceptPointer;
+        }
+
+        public void setUiAcceptPointer(boolean uiAcceptPointer) {
+            this.uiAcceptPointer = uiAcceptPointer;
+        }
+
+        public boolean isUiRenderBackground() {
+            return uiRenderBackground;
+        }
+
+        public void setUiRenderBackground(boolean uiRenderBackground) {
+            this.uiRenderBackground = uiRenderBackground;
+        }
+
+        public boolean isUiRenderItem() {
+            return uiRenderItem;
+        }
+
+        public void setUiRenderItem(boolean uiRenderItem) {
+            this.uiRenderItem = uiRenderItem;
+        }
+
+        public float getUiIconScale() {
+            return uiIconScale;
+        }
+
+        public void setUiIconScale(float uiIconScale) {
+            this.uiIconScale = Math.max(0.01F, uiIconScale);
+        }
+
+        public int getUiPadding() {
+            return uiPadding;
+        }
+
+        public void setUiPadding(int uiPadding) {
+            this.uiPadding = Math.max(0, uiPadding);
+        }
+
+        public int getUiZIndex() {
+            return uiZIndex;
+        }
+
+        public void setUiZIndex(int uiZIndex) {
+            this.uiZIndex = uiZIndex;
+        }
     }
 }

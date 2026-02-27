@@ -27,7 +27,6 @@ public class Recipe extends MinecraftElement {
     private static final String PREVIEW_CACHE_KEY = "minecraft-element:recipe-preview-cache";
 
     private boolean previewInitialized = false;
-    private List<RuntimePreviewSlot> runtimePreviewSlots = List.of();
 
     public Recipe(Document document) {
         super(document, TAG_NAME);
@@ -48,6 +47,29 @@ public class Recipe extends MinecraftElement {
         } catch (NumberFormatException ignored) {
             return fallback;
         }
+    }
+
+    private static int parseNonNegativePx(String raw, int fallback) {
+        int parsed = com.sighs.apricityui.style.Size.parse(raw);
+        return parsed >= 0 ? parsed : Math.max(0, fallback);
+    }
+
+    private int resolveColumnGapPx() {
+        int sharedGap = parseNonNegativePx(getComputedStyle().gap, DEFAULT_GAP);
+        return parseNonNegativePx(getComputedStyle().columnGap, sharedGap);
+    }
+
+    private int resolveRowGapPx() {
+        int sharedGap = parseNonNegativePx(getComputedStyle().gap, DEFAULT_GAP);
+        return parseNonNegativePx(getComputedStyle().rowGap, sharedGap);
+    }
+
+    // 预览缓存中的坐标使用默认步长，渲染时按当前 CSS gap 等比映射。
+    private static int remapPreviewCoordinate(int raw, int sourceStep, int targetStep) {
+        int normalized = Math.max(0, raw);
+        if (sourceStep <= 0 || targetStep <= 0) return normalized;
+        if (normalized % sourceStep != 0) return normalized;
+        return normalized / sourceStep * targetStep;
     }
 
     private static RecipePreview buildPreview(ResourceLocation recipeId, RecipeDeclaredType declaredType) {
@@ -369,7 +391,6 @@ public class Recipe extends MinecraftElement {
 
         changed |= ensurePositionedContainer();
         changed |= clearGeneratedElements();
-        runtimePreviewSlots = List.of();
 
         RecipePreview preview = RecipePreviewCache.resolve(new RecipeCacheKey(recipeId, declaredType));
         if (preview.absoluteEntries().isEmpty() && preview.listEntries().isEmpty()) {
@@ -385,19 +406,30 @@ public class Recipe extends MinecraftElement {
         }
 
         int slotSize = parsePositive(getAttribute("slot-size"), DEFAULT_SLOT_SIZE);
-        int gap = Math.max(0, parsePositive(getAttribute("slot-gap"), DEFAULT_GAP));
-        ArrayList<RuntimePreviewSlot> runtimeSlots = new ArrayList<>();
+        int columnGap = resolveColumnGapPx();
+        int rowGap = resolveRowGapPx();
+        int sourceStep = DEFAULT_SLOT_SIZE + DEFAULT_GAP;
+        int columnStep = slotSize + columnGap;
+        int rowStep = slotSize + rowGap;
+        ArrayList<PreviewPlacement> placements = new ArrayList<>();
 
         for (PreviewEntry entry : preview.absoluteEntries()) {
-            runtimeSlots.add(createRuntimePreviewSlot(entry, slotSize, entry.x(), entry.y()));
+            int mappedX = remapPreviewCoordinate(entry.x(), sourceStep, columnStep);
+            int mappedY = remapPreviewCoordinate(entry.y(), sourceStep, rowStep);
+            placements.add(appendPreviewSlot(entry, slotSize, mappedX, mappedY));
         }
         if (preview.layoutKind() == RecipeLayoutKind.STONECUTTING) {
-            appendStonecuttingRuntimeSlots(runtimeSlots, preview.listEntries(), slotSize, gap);
+            int listX = columnStep * 3;
+            int visibleCount = Math.min(STONECUTTING_LIST_VISIBLE_ROWS, preview.listEntries().size());
+            for (int index = 0; index < visibleCount; index++) {
+                PreviewEntry entry = preview.listEntries().get(index);
+                int slotY = index * rowStep;
+                placements.add(appendPreviewSlot(entry, slotSize, listX, slotY));
+            }
         }
-        runtimePreviewSlots = List.copyOf(runtimeSlots);
-        PreviewBounds previewBounds = computePreviewBounds(runtimePreviewSlots, slotSize);
+        PreviewBounds previewBounds = computePreviewBounds(placements, slotSize);
         changed |= ensureRuntimeSize(previewBounds);
-        if (!runtimePreviewSlots.isEmpty()) {
+        if (!placements.isEmpty()) {
             changed = true;
         }
         if (document != null) {
@@ -420,13 +452,11 @@ public class Recipe extends MinecraftElement {
         return changed;
     }
 
-    private RuntimePreviewSlot createRuntimePreviewSlot(PreviewEntry entry, int slotSize, int x, int y) {
+    private PreviewPlacement appendPreviewSlot(PreviewEntry entry, int slotSize, int x, int y) {
         Slot slot = new Slot(document);
-        slot.parentElement = this;
-        slot.depth = getDepth() + 1;
         slot.applyRecipeSlotMeta(
                 "recipe-slot recipe-slot-" + entry.role().name().toLowerCase(Locale.ROOT),
-                "recipe-runtime"
+                "recipe-generated"
         );
         slot.setAttributesBatch(Map.of(
                 "mode", Slot.MODE_VIRTUAL,
@@ -438,22 +468,8 @@ public class Recipe extends MinecraftElement {
                         .formatted(x, y, slotSize, slotSize)
         ), true);
         slot.innerText = Slot.buildLiteralWithCount(entry.itemLiteral(), Math.max(1, entry.count()));
-        return new RuntimePreviewSlot(slot, x, y, slotSize);
-    }
-
-    private void appendStonecuttingRuntimeSlots(List<RuntimePreviewSlot> output, List<PreviewEntry> listEntries, int slotSize, int gap) {
-        if (listEntries == null || listEntries.isEmpty()) return;
-        int listX = (slotSize + gap) * 3;
-        int visibleCount = Math.min(STONECUTTING_LIST_VISIBLE_ROWS, listEntries.size());
-        for (int index = 0; index < visibleCount; index++) {
-            PreviewEntry entry = listEntries.get(index);
-            int slotY = index * (slotSize + gap);
-            output.add(createRuntimePreviewSlot(entry, slotSize, listX, slotY));
-        }
-    }
-
-    public List<RuntimePreviewSlot> getRuntimePreviewSlots() {
-        return runtimePreviewSlots;
+        append(slot);
+        return new PreviewPlacement(x, y, slotSize);
     }
 
     private boolean ensurePositionedContainer() {
@@ -533,19 +549,19 @@ public class Recipe extends MinecraftElement {
         return normalized;
     }
 
-    private static PreviewBounds computePreviewBounds(List<RuntimePreviewSlot> runtimeSlots, int fallbackSlotSize) {
+    private static PreviewBounds computePreviewBounds(List<PreviewPlacement> placements, int fallbackSlotSize) {
         int slotSizeFallback = Math.max(1, fallbackSlotSize);
-        if (runtimeSlots == null || runtimeSlots.isEmpty()) {
+        if (placements == null || placements.isEmpty()) {
             return new PreviewBounds(slotSizeFallback, slotSizeFallback);
         }
 
         int maxRight = 0;
         int maxBottom = 0;
-        for (RuntimePreviewSlot runtimeSlot : runtimeSlots) {
-            if (runtimeSlot == null) continue;
-            int slotSize = Math.max(1, runtimeSlot.slotSize());
-            int right = Math.max(0, runtimeSlot.x()) + slotSize;
-            int bottom = Math.max(0, runtimeSlot.y()) + slotSize;
+        for (PreviewPlacement placement : placements) {
+            if (placement == null) continue;
+            int slotSize = Math.max(1, placement.slotSize());
+            int right = Math.max(0, placement.x()) + slotSize;
+            int bottom = Math.max(0, placement.y()) + slotSize;
             if (right > maxRight) maxRight = right;
             if (bottom > maxBottom) maxBottom = bottom;
         }
@@ -714,15 +730,10 @@ public class Recipe extends MinecraftElement {
     ) {
     }
 
-    public record RuntimePreviewSlot(
-            Slot slot,
-            int x,
-            int y,
-            int slotSize
-    ) {
+    private record PreviewBounds(int width, int height) {
     }
 
-    private record PreviewBounds(int width, int height) {
+    private record PreviewPlacement(int x, int y, int slotSize) {
     }
 
     private record RecipeCacheKey(ResourceLocation recipeId, RecipeDeclaredType declaredType) {

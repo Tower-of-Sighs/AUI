@@ -74,6 +74,11 @@ public class Rect {
         Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float)x, (float)y, (float)w, (float)h, radii, borders, colors);
 
         if (box.borderImage != null) {
+            if (box.borderImage.gradient != null) {
+                Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
+                        (float)x, (float)y, (float)w, (float)h,
+                        radii, box.borderImage.gradient);
+            }
             Position p = position.add(new Position(box.getMarginLeft(), box.getMarginTop()));
             Size s = getShadowSize();
             String path = Loader.resolve(documentPath, box.borderImage.source);
@@ -103,6 +108,11 @@ public class Rect {
         float[] radii = getBodyRadius();
         if (!background.color.equals("unset")) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), radii, new Color(background.color).getValue());
+        }
+        if (background.gradient != null) {
+            Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
+                    (float)p.x, (float)p.y, (float)s.width(), (float)s.height(),
+                    radii, background.gradient);
         }
         if (!background.imagePath.equals("unset")) {
             ImageDrawer.drawComplexBackground(poseStack, (int)p.x, (int)p.y, (int)s.width(), (int)s.height(), background);

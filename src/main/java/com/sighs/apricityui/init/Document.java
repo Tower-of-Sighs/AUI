@@ -1,10 +1,9 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.element.Body;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
-import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.script.ApricityJS;
 import lombok.Getter;
 import lombok.Setter;
@@ -19,12 +18,13 @@ public class Document {
     private final ArrayList<Element> elements = new ArrayList<>();
     @Getter
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
+    // 绘制队列，详见Drawer类
     @Getter
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private final HashMap<String, Element> IDMap = new HashMap<>();
 
-    @Setter
     @Getter
+    @Setter
     private Element previousCursorElement = null;
     @Getter
     private Element activeElement = null;
@@ -43,7 +43,6 @@ public class Document {
     public Document(String path, boolean inWorld) {
         this.path = path;
         this.inWorld = inWorld;
-//        refresh();
     }
 
     public void refresh() {
@@ -51,6 +50,7 @@ public class Document {
         elements.clear();
         Element bodyElement = HTML.create(this, path);
         try {
+            // 特殊处理，手动转移body的事件。
             if (body != null) bodyElement.EventListener = body.EventListener;
             body = (Body) Element.init(bodyElement);
             elements.add(0, body);
@@ -59,8 +59,11 @@ public class Document {
             dirtyElements.clear();
             paintList = Drawer.createPaintList(body);
             elements.forEach(Element::updateCSS);
-            prefetchImages();
+            // 预加载图片
+            ImageAsyncHandler.prefetchImages(this);
 
+            // 运行html内嵌js，写得肥肠简单，目前是简单的运行，也就是说会随刷新累积，原来挂着的内容比如Interval，还会继续运作。
+            // 目前是推荐写道load事件里，这样起码旧的DOM操作会在刷新的时候随着旧的EventListener列表被干掉。
             for (String js : JSCache) {
                 String head = "let document = ApricityUI.getDocumentByUUID(\"" + uuid + "\");\n";
                 head += "let window = ApricityUI.getWindow();";
@@ -69,65 +72,7 @@ public class Document {
             for (Event eventListener : body.EventListener) {
                 if (eventListener.type.equals("load")) body.triggerEvent(eventListener.listener);
             }
-        } catch (Exception ignored) {
-        }
-    }
-
-    private void prefetchImages() {
-        Set<String> paths = new HashSet<>();
-        for (Element element : elements) {
-            String src = element.getAttribute("src");
-            if (!src.isEmpty() && "IMG".equals(element.tagName)) {
-                String resolved = Loader.resolve(path, src);
-                if (isImagePathValid(resolved)) {
-                    paths.add(resolved);
-                }
-            }
-
-            Style style = element.getRawComputedStyle();
-            if (style == null) continue;
-
-            String backgroundPath = resolveCssUrl(path, style.backgroundImage);
-            if (isImagePathValid(backgroundPath)) {
-                paths.add(backgroundPath);
-            }
-
-            String borderImageSource = resolveFirstNonUnset(style.borderImageSource, style.borderImage);
-            String borderImagePath = resolveCssUrl(path, borderImageSource);
-            if (isImagePathValid(borderImagePath)) {
-                paths.add(borderImagePath);
-            }
-        }
-        ImageAsyncHandler.INSTANCE.prefetch(paths);
-    }
-
-    private static boolean isImagePathValid(String path) {
-        return path != null && !path.isBlank() && !"unset".equals(path);
-    }
-
-    private static String resolveFirstNonUnset(String primary, String fallback) {
-        if (primary != null && !primary.isBlank() && !"unset".equals(primary)) {
-            return primary;
-        }
-        if (fallback != null && !fallback.isBlank() && !"unset".equals(fallback)) {
-            return fallback;
-        }
-        return null;
-    }
-
-    private static String resolveCssUrl(String contextPath, String cssValue) {
-        if (cssValue == null || cssValue.isBlank() || "unset".equals(cssValue)) return null;
-        int start = cssValue.indexOf("url(");
-        if (start < 0) return null;
-        int end = cssValue.indexOf(')', start + 4);
-        if (end < 0) return null;
-        String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
-        if (raw.isEmpty()) return null;
-        return Loader.resolve(contextPath, raw);
-    }
-
-    public ArrayList<RenderNode> getPaintList() {
-        return paintList;
+        } catch (Exception ignored) {}
     }
 
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
@@ -138,6 +83,11 @@ public class Document {
         }
         if (index == -1) return;
         elements.set(index, element);
+    }
+
+    public void markDirty(int mask) {
+        elements.forEach(element -> element.addDirtyFlags(mask));
+        dirtyElements.addAll(elements);
     }
 
     public void markDirty(Element element, int mask) {
@@ -155,7 +105,6 @@ public class Document {
     public boolean is(String path) {
         return this.path.equals(path);
     }
-
     public boolean is(UUID uuid) {
         return this.uuid.equals(uuid);
     }
@@ -163,11 +112,9 @@ public class Document {
     public Element createHTML(String html) {
         return HTML.createElement(this, html);
     }
-
     public Element createElement(String tagName) {
         return new Element(this, tagName);
     }
-
     public void createRelation(Element child, Element parent, boolean head) {
         if (child.parentElement != null) child.parentElement.children.remove(child);
         child.parentElement = parent;
@@ -192,19 +139,15 @@ public class Document {
         // 需要判断一下是否为影响布局的属性，待补充
         markDirty(parent, Drawer.RELAYOUT);
     }
-
     public List<Element> querySelectorAll(String selector) {
         return Selector.querySelectorAll(body, selector);
     }
-
     public Element querySelector(String selector) {
         return Selector.querySelector(body, selector);
     }
-
     public void recordID(Element element) {
         IDMap.put(element.id, element);
     }
-
     public Element getElementById(String id) {
         return IDMap.get(id);
     }
@@ -213,6 +156,7 @@ public class Document {
         documents.forEach(Document::refresh);
     }
 
+    // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
     public static Document create(String path) {
         if (HTML.getTemple(path) == null) return null;
         Document document = new Document(path, false);
@@ -220,7 +164,6 @@ public class Document {
         document.refresh();
         return document;
     }
-
     public static Document createInWorld(String path) {
         if (HTML.getTemple(path) == null) return null;
         Document document = new Document(path, true);
@@ -236,7 +179,6 @@ public class Document {
         }
         return result;
     }
-
     public static Document getByUUID(String uuid) {
         for (Document document : documents) {
             if (document.uuid.toString().equals(uuid)) return document;
@@ -251,11 +193,9 @@ public class Document {
     public static void remove(String path) {
         documents.removeIf(document -> document.is(path));
     }
-
     public static void remove(UUID uuid) {
         documents.removeIf(document -> document.is(uuid));
     }
-
     public void remove() {
         Document.remove(uuid);
     }

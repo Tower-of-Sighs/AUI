@@ -2,144 +2,177 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.platform.GlStateManager;
+import com.mojang.blaze3d.vertex.*;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
+import org.lwjgl.opengl.GL11;
 
-import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Stack;
 
 public class FilterRenderer {
-
-    private static final Stack<RenderTarget> framebufferStack = new Stack<>();
-    private static ShaderInstance filterShader;
-
-    // 初始化Shader (在Mod加载ClientProxy或事件中调用)
-    public static void initShader(net.minecraft.server.packs.resources.ResourceProvider resourceProvider) {
-        try {
-            // 注意：这里需要你根据实际 assets 路径配置 shader json
-            // 假设你的 shader json 叫 "ui_filter"
-            filterShader = new ShaderInstance(resourceProvider, "filter", DefaultVertexFormat.POSITION_TEX_COLOR);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public static ShaderInstance getShader() {
-        return filterShader;
-    }
-
-    public static void setShader(ShaderInstance instance) {
-        filterShader = instance;
-    }
+    private static final Stack<RenderTarget> fboStack = new Stack<>();
+    private static RenderTarget mainRenderTarget;
+    private static final List<RenderTarget> fboPool = new ArrayList<>();
+    private static int poolPointer = 0;
 
     public static void pushFilter() {
-        Minecraft mc = Minecraft.getInstance();
-        int width = mc.getMainRenderTarget().width;
-        int height = mc.getMainRenderTarget().height;
+        boolean ON_OSX = Minecraft.ON_OSX;
 
-        // 创建或获取一个新的 Framebuffer
-        // 注意：生产环境应该使用对象池来复用 RenderTarget，避免频繁 new
-        RenderTarget newTarget = new TextureTarget(width, height, true, Minecraft.ON_OSX);
-        newTarget.setClearColor(0.0f, 0.0f, 0.0f, 0.0f);
-        newTarget.clear(Minecraft.ON_OSX);
+        if (fboStack.isEmpty()) {
+            mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
+            poolPointer = 0;
+        }
 
-        // 绑定新的 FBO
-        newTarget.bindWrite(true);
+        RenderTarget temp;
+        double width = Client.getWindow().getWidth();
+        double height = Client.getWindow().getHeight();
 
-        framebufferStack.push(newTarget);
+        if (poolPointer < fboPool.size()) {
+            temp = fboPool.get(poolPointer);
+            if (temp.width != (int)width || temp.height != (int)height) {
+                temp.destroyBuffers();
+                temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
+                // --- 修复点 1: 必须手动开启 Stencil ---
+                temp.enableStencil();
+                fboPool.set(poolPointer, temp);
+            }
+        } else {
+            temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
+            // --- 修复点 1: 必须手动开启 Stencil ---
+            temp.enableStencil();
+            fboPool.add(temp);
+        }
+        poolPointer++;
 
-        // 必须重置投影矩阵，因为 FBO 通常是 0..1 或者 0..width 坐标系，这里我们保持和屏幕一致
-        RenderSystem.backupProjectionMatrix();
+        temp.setClearColor(0f, 0f, 0f, 0f);
+        // 注意：这里的 clear 会清除当前绑定的 FBO 的缓冲区
+        temp.clear(ON_OSX);
+        fboStack.push(temp);
+        temp.bindWrite(false);
+    }
+
+    public static RenderTarget getCurrentTarget() {
+        return fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
     }
 
     public static void popFilter(Filter.FilterState state) {
-        if (framebufferStack.isEmpty()) return;
+        if (fboStack.isEmpty()) return;
 
-        RenderTarget currentTarget = framebufferStack.pop();
+        RenderTarget currentFbo = fboStack.pop();
+        RenderTarget parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
+        parentFbo.bindWrite(false);
 
-        // 恢复之前的 FBO (可能是屏幕，也可能是上一层 Filter)
-        if (framebufferStack.isEmpty()) {
-            Minecraft.getInstance().getMainRenderTarget().bindWrite(true);
-        } else {
-            framebufferStack.peek().bindWrite(true);
-        }
-        RenderSystem.restoreProjectionMatrix();
-
-        // 绘制刚才的 FBO 内容到当前 FBO，并应用 Shader
-        drawTextureWithFilter(currentTarget, state);
-
-        // 清理
-        currentTarget.destroyBuffers();
+        drawWithShader(currentFbo, state);
     }
 
-    private static void drawTextureWithFilter(RenderTarget target, Filter.FilterState state) {
-        if (filterShader == null) return;
+    private static void drawWithShader(RenderTarget fbo, Filter.FilterState state) {
+        ShaderInstance shader = (state != null && !state.isEmpty()) ? ShaderRegistry.getFilterShader() : null;
 
-        RenderSystem.setShader(() -> filterShader);
+        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
 
-        // --- 关键修复：手动注入矩阵 ---
-        // 即使 ShaderInstance 会尝试自动绑定，手动设置能确保万无一失
-        if (filterShader.MODEL_VIEW_MATRIX != null) {
-            filterShader.MODEL_VIEW_MATRIX.set(RenderSystem.getModelViewMatrix());
+        GlStateManager._enableBlend();
+        GlStateManager._blendFuncSeparate(
+                GlStateManager.SourceFactor.SRC_ALPHA.value,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
+                GlStateManager.SourceFactor.ONE.value,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
+        );
+        GlStateManager._disableDepthTest();
+        GlStateManager._depthMask(false);
+        GlStateManager._disableCull();
+
+        if (shader == null) {
+            Base.setPositionColorShader();
+        } else {
+            setupUniforms(shader, state, fbo);
+            Base.setShader(shader);
         }
-        if (filterShader.PROJECTION_MATRIX != null) {
-            filterShader.PROJECTION_MATRIX.set(RenderSystem.getProjectionMatrix());
-        }
 
-        // 设置 Uniforms
-        safeSetUniform("BlurRadius", state.blurRadius());
-        safeSetUniform("Brightness", state.brightness());
-        safeSetUniform("Grayscale", state.grayscale());
-        safeSetUniform("Invert", state.invert());
-        safeSetUniform("HueRotate", state.hueRotate());
+        Base.setShaderTexture(0, fbo.getColorTextureId());
+        Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
-        float w = (float) target.width;
-        float h = (float) target.height;
-        safeSetUniform("TexelSize", 1.0f / w, 1.0f / h);
-
-        // 绑定 FBO 的纹理
-        RenderSystem.setShaderTexture(0, target.getColorTextureId());
-
-        // --- 关键修复：渲染状态 ---
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.disableDepthTest(); // 必须禁用深度测试，否则全屏 Quad 可能会被剔除
+        float guiW = (float) Client.getWindow().getGuiScaledWidth();
+        float guiH = (float) Client.getWindow().getGuiScaledHeight();
+        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
+        Base.setProjectionMatrix(matrix);
 
         Tesselator tesselator = Tesselator.getInstance();
 
-        Minecraft mc = Minecraft.getInstance();
-        float width = (float) mc.getWindow().getGuiScaledWidth();
-        float height = (float) mc.getWindow().getGuiScaledHeight();
+        BufferBuilder bufferbuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        bufferbuilder.addVertex(0, guiH, 0).setUv(0, 0);
+        bufferbuilder.addVertex(guiW, guiH, 0).setUv(1, 0);
+        bufferbuilder.addVertex(guiW, 0, 0).setUv(1, 1);
+        bufferbuilder.addVertex(0, 0, 0).setUv(0, 1);
 
-        // 纹理坐标 (根据 Minecraft FBO 特性，可能需要 V 轴翻转，如果画面倒置请交换 v0/v1)
-        float u0 = 0f;
-        float u1 = 1f;
-        float v0 = 1f; // 这里的 1 和 0 可能需要互换，取决于 GL 版本和 FBO 类型
-        float v1 = 0f;
+        BufferUploader.drawWithShader(bufferbuilder.buildOrThrow());
 
-        Matrix4f mat = RenderSystem.getModelViewMatrix();
-
-        BufferBuilder bufferbuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
-        // 注意：Vertex 顺序必须是 CCW (逆时针) 或者关闭 CullFace
-        // 下面是标准顺序
-        bufferbuilder.addVertex(mat, 0, height, 0).setUv(u0, v0).setColor(255, 255, 255, 255);
-        bufferbuilder.addVertex(mat, width, height, 0).setUv(u1, v0).setColor(255, 255, 255, 255);
-        bufferbuilder.addVertex(mat, width, 0, 0).setUv(u1, v1).setColor(255, 255, 255, 255);
-        bufferbuilder.addVertex(mat, 0, 0, 0).setUv(u0, v1).setColor(255, 255, 255, 255);
-
-        // 恢复状态
-        RenderSystem.enableDepthTest();
+        GlStateManager._depthMask(true);
+        GlStateManager._enableDepthTest();
+        Base.setProjectionMatrix(oldProjection);
     }
 
-    private static void safeSetUniform(String name, float... values) {
-        // 具体的 Uniform 获取和设置逻辑，根据 MC 版本略有不同
-//         filterShader.getUniform(name).set(values);
+    public static void renderBackdrop(Element target, Filter.FilterState state) {
+        RenderTarget currentBound = fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
+        drawBackdropWithShader(currentBound, state, target);
+    }
+
+    private static void drawBackdropWithShader(RenderTarget sourceFbo, Filter.FilterState state, Element target) {
+        ShaderInstance shader = ShaderRegistry.getFilterShader();
+        if (shader == null || state == null || state.isEmpty()) return;
+
+        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
+
+        GlStateManager._enableBlend();
+        GlStateManager._blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+
+        setupUniforms(shader, state, sourceFbo);
+        Base.setShader(shader);
+        Base.setShaderTexture(0, sourceFbo.getColorTextureId());
+
+        Rect rect = Rect.of(target);
+        Position p = rect.getBodyRectPosition();
+        Size s = rect.getBodyRectSize();
+
+        // 使用 Mask 逻辑来确保 backdrop-filter 遵循 border-radius
+        PoseStack poseStack = new PoseStack();
+        Mask.pushMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
+
+        float guiW = (float) Client.getWindow().getGuiScaledWidth();
+        float guiH = (float) Client.getWindow().getGuiScaledHeight();
+        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
+        Base.setProjectionMatrix(matrix);
+
+        Tesselator tesselator = Tesselator.getInstance();
+
+        BufferBuilder bufferbuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+        bufferbuilder.addVertex(0, guiH, 0).setUv(0, 0);
+        bufferbuilder.addVertex(guiW, guiH, 0).setUv(1, 0);
+        bufferbuilder.addVertex(guiW, 0, 0).setUv(1, 1);
+        bufferbuilder.addVertex(0, 0, 0).setUv(0, 1);
+
+        BufferUploader.drawWithShader(bufferbuilder.buildOrThrow());
+
+        Mask.popMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
+        Base.setProjectionMatrix(oldProjection);
+    }
+
+    private static void setupUniforms(ShaderInstance shader, Filter.FilterState state, RenderTarget fbo) {
+        if (shader.getUniform("BlurRadius") != null) shader.getUniform("BlurRadius").set(state.blurRadius());
+        if (shader.getUniform("Brightness") != null) shader.getUniform("Brightness").set(state.brightness());
+        if (shader.getUniform("Grayscale") != null) shader.getUniform("Grayscale").set(state.grayscale());
+        if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
+        if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
+        if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
+        if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float)fbo.width, (float)fbo.height);
     }
 }

@@ -5,7 +5,10 @@ import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -64,8 +67,10 @@ public class CSS {
 
     static class Parser {
         private static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
-        private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile("(?i)@keyframes\\s+([\\w-]+)\\s*\\{");
-        private static final Pattern FRAME_PATTERN = Pattern.compile("([\\d\\.]+%|from|to)\\s*\\{([^}]*)}");
+        private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile(
+                "(?i)@(?:-webkit-)?keyframes\\s+((?:\"[^\"]+\"|'[^']+'|[\\w-]+))\\s*\\{"
+        );
+        private static final Pattern FRAME_PATTERN = Pattern.compile("(?is)([^{}]+?)\\{([^{}]*)}");
 
         public static String parseAndRegisterAnimations(String css, String contextPath) {
             if (css == null) return "";
@@ -137,6 +142,28 @@ public class CSS {
                         return oldMap;
                     });
                 }
+            }
+        }
+
+        private static String normalizeKeyframeName(String keyframeName) {
+            if (keyframeName == null) return null;
+            String name = keyframeName.trim();
+            if ((name.startsWith("\"") && name.endsWith("\"")) || (name.startsWith("'") && name.endsWith("'"))) {
+                return name.substring(1, name.length() - 1).trim();
+            }
+            return name;
+        }
+
+        private static Double parseKeyframePercent(String token) {
+            if (token == null || token.isBlank()) return null;
+            if ("from".equalsIgnoreCase(token)) return 0d;
+            if ("to".equalsIgnoreCase(token)) return 100d;
+            if (!token.endsWith("%")) return null;
+            String number = token.substring(0, token.length() - 1).trim();
+            try {
+                return Double.parseDouble(number);
+            } catch (NumberFormatException ignored) {
+                return null;
             }
         }
 

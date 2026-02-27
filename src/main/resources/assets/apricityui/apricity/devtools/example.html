@@ -1,0 +1,771 @@
+<body>
+<!-- 整体布局：默认 flex，测试 flex-wrap / align-content 等 -->
+<div class="page-root">
+    <div class="column left-column">
+        <div class="section-title">布局 & 网格</div>
+
+        <!-- Flex 区域：测试 flex-direction / justify-content / align-items -->
+        <div class="flex-panel" id="flexPanel">
+            <span class="flex-item">子项 1</span>
+            <span class="flex-item">子项 2</span>
+            <span class="flex-item" id="hoverBox">子项 3(鼠标事件)</span>
+        </div>
+
+        <!-- Grid 区域：测试 grid-template / gap / grid-row / grid-column / justify-items / justify-self / align-self -->
+        <div class="grid-panel" id="gridPanel">
+            <div class="grid-item grid-a">A</div>
+            <div class="grid-item grid-b">B</div>
+            <div class="grid-item grid-c">C</div>
+            <div class="grid-item grid-d">D</div>
+        </div>
+
+        <!-- 滚动区：测试 overflow / scroll 高度 -->
+        <div class="scroll-panel" id="scrollPanel">
+            <div class="scroll-item">滚动内容 1</div>
+            <div class="scroll-item">滚动内容 2</div>
+            <div class="scroll-item">滚动内容 3</div>
+            <div class="scroll-item">滚动内容 4</div>
+            <div class="scroll-item">滚动内容 5</div>
+            <div class="scroll-item">滚动内容 6</div>
+        </div>
+    </div>
+
+    <div class="column middle-column">
+        <div class="section-title">表单 / 文本 / 动画</div>
+
+        <!-- 表单区域：INPUT / SELECT / OPTION / TEXTAREA，测试 focus / blur -->
+        <div class="form-panel">
+            <div class="form-row">
+                <span class="label">文本输入：</span>
+                <input id="textInput" type="text" value="点我试试" />
+            </div>
+            <div class="form-row">
+                <span class="label">复选框：</span>
+                <input id="checkInput" type="checkbox" checked />
+            </div>
+            <div class="form-row">
+                <span class="label">单选组：</span>
+                <input id="radio1" type="radio" name="g" checked />
+                <input id="radio2" type="radio" name="g" />
+            </div>
+            <div class="form-row">
+                <span class="label">下拉框：</span>
+                <select id="selectTest">
+                    <option value="1">选项一</option>
+                    <option value="2">选项二</option>
+                    <option value="3">选项三</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <span class="label">多行输入：</span>
+                <textarea id="textareaTest">多行文本测试
+第二行</textarea>
+            </div>
+        </div>
+
+        <!-- 动画 / 过渡 / transform / clip-path / filter / pointer-events / visibility -->
+        <div class="visual-panel">
+            <div class="anim-box" id="animBox">动画盒子</div>
+            <div class="transition-box" id="transitionBox">过渡盒子</div>
+            <div class="clip-box">裁剪圆形</div>
+            <div class="filter-box">滤镜增强</div>
+            <div class="backdrop-wrapper">
+                <img class="backdrop-bg" src="background.png" />
+                <div class="backdrop-box">背板模糊</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="column right-column">
+        <div class="section-title">Minecraft 元素 / 定位 / 事件日志</div>
+
+        <!-- Minecraft 专用元素：CONTAINER / SLOT / RECIPE / TRANSLATION -->
+        <container id="containerTest">
+            <div class="mc-row">
+                <span class="label">虚拟槽位：</span>
+                <slot id="slotVirtual">minecraft:diamond</slot>
+            </div>
+            <div class="mc-row">
+                <span class="label">配方预览：</span>
+                <recipe id="recipeTest" type="crafting_shaped">minecraft:crafting_table</recipe>
+            </div>
+            <div class="mc-row">
+                <span class="label">翻译文本：</span>
+                <translation id="translationTest">gui.apricity.test_key</translation>
+            </div>
+        </container>
+
+        <!-- IMG：测试 background / border-image 等 -->
+        <div class="image-panel">
+            <img id="testImg" src="avatar.png" />
+            <div class="border-image-box">边框图片</div>
+        </div>
+
+        <!-- 绝对定位 + z-index + top/bottom/left/right + opacity -->
+        <div class="position-test">
+            <div class="base-box">基础盒子</div>
+            <div class="overlay-box" id="overlayBox">
+                绝对定位覆盖
+            </div>
+            <div class="bottom-box">
+                底部对齐
+            </div>
+        </div>
+
+        <!-- 事件日志区域 -->
+        <div class="log-panel" id="logPanel">
+            事件日志将显示在这里
+        </div>
+    </div>
+</div>
+</body>
+
+<style>
+    /* @font-face 测试（只用 font-family） */
+    @font-face {
+        font-family: test-font;
+    }
+
+    /* @keyframes 测试：配合 animation-* 使用 */
+    @keyframes test-bounce {
+        0% {
+            transform: translateY(0px) scale(1);
+            opacity: 1;
+        }
+        50% {
+            transform: translateY(-4px) scale(1.05);
+            opacity: 0.9;
+        }
+        100% {
+            transform: translateY(0px) scale(1);
+            opacity: 1;
+        }
+    }
+
+    @keyframes test-rotate {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 4px;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        align-content: stretch;
+        justify-content: space-between;
+        background-color: #20232a;
+        background-image: url("bg-tile.png");
+        background-repeat: repeat;
+        background-size: 32px 32px;
+        background-position: center center;
+        font-family: test-font;
+        font-size: 12px;
+        color: #f0f0f0;
+        selection-color: #3399ff80;
+    }
+
+    .page-root {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: nowrap;
+        align-items: stretch;
+        justify-content: space-between;
+        gap: 4px;
+    }
+
+    .column {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        justify-content: flex-start;
+        padding: 4px;
+        box-shadow: 0 0 4px #55000000;
+        background-color: #2b2f3a;
+        border: 1px solid #444a5a;
+        border-radius: 4px;
+    }
+
+    .left-column {
+        width: 120px;
+    }
+
+    .middle-column {
+        width: 150px;
+    }
+
+    .right-column {
+        width: 160px;
+    }
+
+    .section-title {
+        margin-bottom: 4px;
+        font-size: 13px;
+        line-height: 13px;
+        font-family: test-font;
+        color: #ffd27f;
+    }
+
+    /* Flex 区域 */
+    .flex-panel {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        align-items: flex-start;
+        padding: 4px;
+        margin-bottom: 4px;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+    }
+
+    .flex-item {
+        padding-top: 2px;
+        padding-bottom: 2px;
+        padding-left: 4px;
+        padding-right: 4px;
+        margin-bottom: 2px;
+        border-radius: 2px;
+        background-color: #41485c;
+        color: #ffffff;
+        line-height: 10px;
+    }
+
+    /* Grid 区域 */
+    .grid-panel {
+        display: grid;
+        width: 100%;
+        height: 60px;
+        margin-top: 4px;
+        margin-bottom: 4px;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 2px;
+        row-gap: 3px;
+        column-gap: 5px;
+        justify-items: center;
+        align-items: center;
+        align-content: stretch;
+    }
+
+    .grid-item {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #3c4356;
+        border-radius: 2px;
+        color: #ffffff;
+        font-size: 10px;
+    }
+
+    .grid-a {
+        grid-row: 1 / 3;
+        grid-column: 1 / 2;
+        justify-self: flex-start;
+        align-self: flex-start;
+    }
+
+    .grid-b {
+        grid-row: 1 / 2;
+        grid-column: 2 / 3;
+    }
+
+    .grid-c {
+        grid-row: 2 / 3;
+        grid-column: 2 / 3;
+    }
+
+    .grid-d {
+        grid-row: 2 / 3;
+        grid-column: 1 / 2;
+    }
+
+    /* 滚动区域 */
+    .scroll-panel {
+        width: 100%;
+        height: 60px;
+        overflow: hidden;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+        padding: 2px;
+        margin-top: 4px;
+    }
+
+    .scroll-item {
+        margin-top: 1px;
+        margin-bottom: 1px;
+        padding-left: 2px;
+        padding-right: 2px;
+        line-height: 9px;
+        font-size: 9px;
+        color: #dddddd;
+    }
+
+    /* 表单 */
+    .form-panel {
+        margin-bottom: 4px;
+        padding: 4px;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+    }
+
+    .form-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        margin-bottom: 3px;
+    }
+
+    .label {
+        width: 48px;
+        font-size: 10px;
+        color: #f3c98b;
+        line-height: 10px;
+    }
+
+    input {
+        color: #ffffff;
+        background-color: #2b2f3a;
+        border: 1px solid #777f9a;
+        border-top: 1px solid #777f9a;
+        border-bottom: 1px solid #777f9a;
+        border-left: 1px solid #777f9a;
+        border-right: 1px solid #777f9a;
+        border-radius: 2px;
+        padding-left: 2px;
+        padding-right: 2px;
+        padding-top: 1px;
+        padding-bottom: 1px;
+        width: 70px;
+        height: unset;
+        overflow: hidden;
+        font-size: 10px;
+        line-height: 10px;
+        selection-color: #55aaff80;
+    }
+
+    select {
+        color: #ffffff;
+        background-color: #2b2f3a;
+        border: 1px solid #777f9a;
+        border-radius: 2px;
+        padding-left: 2px;
+        padding-right: 2px;
+        font-size: 10px;
+        line-height: 10px;
+        width: 70px;
+    }
+
+    textarea {
+        color: #ffffff;
+        background-color: #2b2f3a;
+        border: 1px solid #777f9a;
+        border-radius: 2px;
+        padding-left: 2px;
+        padding-right: 2px;
+        padding-top: 2px;
+        padding-bottom: 2px;
+        width: 80px;
+        height: 32px;
+        overflow: hidden;
+        font-size: 10px;
+        line-height: 9px;
+        selection-color: #ff993380;
+    }
+
+    /* 动画 / 过渡 / transform / pointer-events / visibility 等 */
+    .visual-panel {
+        padding: 4px;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .anim-box {
+        width: 80px;
+        height: 18px;
+        background-color: #4a944a;
+        border-radius: 3px;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        animation-name: test-bounce;
+        animation-duration: 1.2s;
+        animation-delay: 0s;
+        animation-iteration-count: infinite;
+        animation-direction: alternate;
+        animation-fill-mode: both;
+        animation-timing-function: ease-in-out;
+        animation-play-state: running;
+    }
+
+    .transition-box {
+        width: 80px;
+        height: 18px;
+        background-color: #94744a;
+        border-radius: 3px;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 0.8;
+        transform: scale(1);
+        transition: opacity 0.15s, transform 0.15s;
+    }
+
+    .transition-box.active {
+        opacity: 1.0;
+        transform: scale(1.1);
+    }
+
+    .clip-box {
+        width: 40px;
+        height: 40px;
+        background-color: #4477aa;
+        clip-path: circle(50% at 50% 50%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 9px;
+        line-height: 9px;
+    }
+
+    .filter-box {
+        width: 80px;
+        height: 18px;
+        background-color: #aa4477;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #ffffff;
+        filter: brightness(1.2);
+    }
+
+    .backdrop-wrapper {
+        position: relative;
+        width: 100%;
+        height: 40px;
+        overflow: hidden;
+    }
+
+    .backdrop-bg {
+        width: 100%;
+        height: 100%;
+        border-radius: 4px;
+    }
+
+    .backdrop-box {
+        position: absolute;
+        left: 4px;
+        bottom: 4px;
+        right: 4px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #00000080;
+        color: #ffffff;
+        border-radius: 3px;
+        backdrop-filter: blur(4px);
+    }
+
+    /* Minecraft 元素 + border-image */
+    .image-panel {
+        margin-top: 4px;
+        padding: 4px;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    #testImg {
+        width: 32px;
+        height: 32px;
+        border-radius: 16px;
+        box-shadow: 0 0 4px #66000000;
+    }
+
+    .border-image-box {
+        width: 80px;
+        height: 20px;
+        border: 6px solid transparent;
+        border-radius: 4px;
+        background-color: #2b2f3a;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-image-source: url("border.png");
+        border-image-slice: 30;
+        border-image-width: 6px;
+        border-image-outset: 0px;
+        border-image-repeat: stretch;
+        border-image: url("border.png") 30 / 6px stretch;
+    }
+
+    container {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 4px;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+    }
+
+    .mc-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 2px;
+    }
+
+    slot, recipe, translation {
+        display: block;
+        padding-left: 2px;
+        padding-right: 2px;
+        padding-top: 1px;
+        padding-bottom: 1px;
+        border-radius: 2px;
+        background-color: #40475b;
+        color: #ffffff;
+        font-size: 9px;
+        line-height: 9px;
+    }
+
+    /* 定位测试：position / top / bottom / left / right / z-index / pointer-events / visibility */
+    .position-test {
+        position: relative;
+        margin-top: 4px;
+        padding: 4px;
+        background-color: #303545;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+        height: 60px;
+    }
+
+    .base-box {
+        width: 70px;
+        height: 18px;
+        background-color: #447799;
+        border-radius: 3px;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .overlay-box {
+        position: absolute;
+        left: 10px;
+        top: 18px;
+        right: unset;
+        bottom: unset;
+        width: 90px;
+        height: 18px;
+        background-color: #993344cc;
+        border-radius: 3px;
+        color: #ffffff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        pointer-events: auto;
+    }
+
+    .overlay-box.disabled {
+        visibility: hidden;
+        pointer-events: none;
+    }
+
+    .bottom-box {
+        position: absolute;
+        left: 4px;
+        right: 4px;
+        bottom: 4px;
+        height: 14px;
+        background-color: #222834;
+        border-radius: 2px;
+        color: #bbbbbb;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1;
+    }
+
+    /* 日志区域 */
+    .log-panel {
+        margin-top: 4px;
+        padding: 4px;
+        background-color: #181b22;
+        border-radius: 4px;
+        border: 1px solid #555c6e;
+        height: 70px;
+        overflow: hidden;
+        font-size: 9px;
+        line-height: 9px;
+        color: #9fb5ff;
+    }
+</style>
+
+<script>
+    // 简单日志函数
+    function log(message) {
+        var panel = document.querySelector("#logPanel");
+        if (!panel) return;
+        var old = panel.innerText;
+        panel.innerText = message + "\n" + old;
+    }
+
+    // load / unload 事件（绑定在 body 上）
+    document.body.addEventListener("load", function (event) {
+        log("body load");
+        setupOnce();
+    });
+
+    document.body.addEventListener("unload", function (event) {
+        log("body unload");
+    });
+
+    // 捕获阶段 / 冒泡阶段示例
+    function bodyCaptureDown(e) {
+        log("body mousedown (capture)");
+    }
+    document.body.addEventListener("mousedown", bodyCaptureDown, true);
+
+    // 鼠标事件：mouseenter / mouseout / mousemove / mousedown / mouseup
+    function setupOnce() {
+        var hoverBox = document.querySelector("#hoverBox");
+        var transitionBox = document.querySelector("#transitionBox");
+        var overlayBox = document.querySelector("#overlayBox");
+        var textInput = document.querySelector("#textInput");
+        var textarea = document.querySelector("#textareaTest");
+        var selectEl = document.querySelector("#selectTest");
+        var scrollPanel = document.querySelector("#scrollPanel");
+
+        if (hoverBox) {
+            hoverBox.addEventListener("mouseenter", function (e) {
+                log("hoverBox mouseenter");
+            });
+            hoverBox.addEventListener("mouseout", function (e) {
+                log("hoverBox mouseout");
+            });
+            hoverBox.addEventListener("mousemove", function (e) {
+                log("hoverBox mousemove");
+            });
+            hoverBox.addEventListener("mousedown", function (e) {
+                log("hoverBox mousedown");
+            });
+            hoverBox.addEventListener("mouseup", function (e) {
+                log("hoverBox mouseup");
+            });
+        }
+
+        if (transitionBox) {
+            transitionBox.addEventListener("mousedown", function (e) {
+                transitionBox.setAttribute(
+                    "class",
+                    "transition-box active"
+                );
+                log("transitionBox mousedown -> active");
+            });
+            transitionBox.addEventListener("mouseup", function (e) {
+                transitionBox.setAttribute("class", "transition-box");
+                log("transitionBox mouseup -> normal");
+            });
+        }
+
+        // focus / blur 测试
+        if (textInput) {
+            textInput.addEventListener("focus", function (e) {
+                log("textInput focus");
+            });
+            textInput.addEventListener("blur", function (e) {
+                log("textInput blur");
+            });
+        }
+        if (textarea) {
+            textarea.addEventListener("focus", function (e) {
+                log("textarea focus");
+            });
+            textarea.addEventListener("blur", function (e) {
+                log("textarea blur");
+            });
+        }
+
+        // select change（间接测试 value / getAttribute / setAttribute）
+        if (selectEl) {
+            selectEl.addEventListener("mousedown", function (e) {
+                log("select mousedown value=" + selectEl.getAttribute("value"));
+            });
+        }
+
+        // 滚动相关：读取 scrollHeight / scrollTop（通过属性）
+        if (scrollPanel) {
+            log(
+                "scroll-panel size: " +
+                    scrollPanel.scrollWidth +
+                    " x " +
+                    scrollPanel.scrollHeight
+            );
+        }
+
+        // 测试通过 JS 动态创建元素（createElement + append）
+        var flexPanel = document.querySelector("#flexPanel");
+        if (flexPanel && document.createElement) {
+            var created = document.createElement("div");
+            created.innerText = "createElement 创建的子项";
+            created.style.backgroundColor = "#556688";
+            created.style.paddingLeft = "4px";
+            created.style.paddingRight = "4px";
+            created.style.marginTop = "2px";
+            flexPanel.append(created);
+        }
+
+        // 演示 removeEventListener：只记录一次，然后移除
+        function onceDown(e) {
+            log("body mousedown once (then remove)");
+            document.body.removeEventListener("mousedown", onceDown, false);
+        }
+        document.body.addEventListener("mousedown", onceDown, false);
+
+        // 通过 class 切换 overlay 可见性（测试 visibility / pointer-events）
+        if (overlayBox) {
+            overlayBox.addEventListener("mousedown", function (e) {
+                var cls = overlayBox.getAttribute("class");
+                if (cls.indexOf("disabled") >= 0) {
+                    overlayBox.setAttribute("class", "overlay-box");
+                    log("overlayBox -> enabled");
+                } else {
+                    overlayBox.setAttribute("class", "overlay-box disabled");
+                    log("overlayBox -> disabled");
+                }
+            });
+        }
+    }
+</script>

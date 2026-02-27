@@ -20,7 +20,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class FontDrawer {
-    private static final String MODID = "apricityui";
     private static final Map<String, FontEntry> CACHE = new ConcurrentHashMap<>();
 
     public static void drawFont(PoseStack poseStack, Element element) {
@@ -32,20 +31,21 @@ public class FontDrawer {
         float x = (float) position.x;
         float y = (float) position.y;
 
-        if (text.fontFamily.equals("unset")) {
+        if ("unset".equals(text.fontFamily)) {
             Client.drawDefaultFont(poseStack, text, position);
             return;
         }
 
         String key = text.toKey();
-        FontEntry entry;
-        FontEntry cache = CACHE.get(key);
-        if (cache != null) entry = cache;
-        else {
+        FontEntry entry = CACHE.get(key);
+        if (entry == null) {
             entry = rebuildTextureEntry(text);
-            CACHE.put(key, entry);
+            if (entry != null) CACHE.put(key, entry);
         }
-        if (entry == null) return;
+        if (entry == null) {
+            Client.drawDefaultFont(poseStack, text, position);
+            return;
+        }
 
         float scale = text.fontSize / Font.getBaseFontSize();
         float drawW = entry.width() * scale;
@@ -110,9 +110,7 @@ public class FontDrawer {
             DynamicTexture texture = new DynamicTexture(nativeImg);
             texture.setFilter(true, false); // linear filter
 
-            ResourceLocation location = ApricityUI.id(
-                    "font/" + UUID.nameUUIDFromBytes((fontKey + text + color.getValue()).getBytes())
-            );
+            ResourceLocation location = ApricityUI.id("font/" + UUID.nameUUIDFromBytes((fontKey + text + color.getValue()).getBytes()));
 
             Minecraft.getInstance().getTextureManager().register(location, texture);
 
@@ -121,6 +119,18 @@ public class FontDrawer {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    public static void clearCache() {
+        if (CACHE.isEmpty()) return;
+        for (FontEntry entry : CACHE.values()) {
+            if (entry == null) continue;
+            try {
+                entry.dynamicTexture().close();
+            } catch (Exception ignored) {
+            }
+        }
+        CACHE.clear();
     }
 
     private static int argbToAbgr(int argb) {

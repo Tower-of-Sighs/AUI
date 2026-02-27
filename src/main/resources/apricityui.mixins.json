@@ -4,16 +4,10 @@
   "package": "com.sighs.apricityui.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [
-    "SlotRuntimeMixin",
     "accessor.SlotAccessor"
   ],
   "client": [
     "AbstractContainerScreenMixin",
-    "InputConstants$TypeMixin",
-    "LevelLoadingScreenMixin",
-    "MinecraftMixin",
-    "ProgressScreenMixin",
-    "ReceivingLevelScreenMixin",
     "SignRendererMixin",
     "accessor.AbstractContainerScreenAccessor"
   ],

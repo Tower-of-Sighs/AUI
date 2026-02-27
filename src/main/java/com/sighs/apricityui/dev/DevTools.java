@@ -12,13 +12,14 @@ public class DevTools {
     private static final String PATH = "devtools/index.html";
 
     public static void toggle() {
-        if (Document.get(PATH).isEmpty()) {
-            document = Document.create(PATH);
-            load();
-        } else {
-            document = null;
-            Document.remove(PATH);
-        }
+//        if (Document.get(PATH).isEmpty()) {
+//            document = Document.create(PATH);
+//            load();
+////            ApricityJS.eval("console.log(Client.screen.width)");
+//        } else {
+//            document = null;
+//            Document.remove(PATH);
+//        }
     }
 
     public static void load() {
@@ -61,8 +62,7 @@ public class DevTools {
             node.append(input);
             node.append(text("</" + tag + ">"));
             tree.append(node);
-        }
-        else {
+        } else {
             tree.append(node);
             element.children.forEach(child -> buildTree(tree, child));
             Element end = document.createElement("DIV");

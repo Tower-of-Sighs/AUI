@@ -16,7 +16,6 @@ public class Img extends Element {
         super(document, TAG_NAME);
     }
 
-
     @Override
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);

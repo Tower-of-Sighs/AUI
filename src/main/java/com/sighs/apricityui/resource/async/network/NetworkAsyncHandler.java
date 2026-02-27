@@ -38,7 +38,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             if (old == null || old.generation() != currentGeneration) return new NetworkHandle(key, currentGeneration);
             return old;
         });
-        if (handle.state() == AbstractAsyncHandler.AsyncState.FAILED && now - handle.failedAtMs() >= 5_000L) {
+        if (handle.state() == AsyncState.FAILED && now - handle.failedAtMs() >= 5_000L) {
             handle.resetForRetry(currentGeneration);
         }
 

@@ -1,8 +1,9 @@
 package com.sighs.apricityui.instance.container.bind;
 
-import net.minecraft.nbt.CompoundTag;
 import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.MinecraftServer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.neoforged.neoforge.items.ItemStackHandler;
 import org.jetbrains.annotations.NotNull;
@@ -13,20 +14,20 @@ import java.util.Map;
 /**
  * 通用世界级库存 SavedData。
  */
-public class ApricitySavedDataInventory extends SavedData {
+public class ApricitySavedData extends SavedData {
     private static final String INVENTORIES_KEY = "inventories";
 
     private final LinkedHashMap<String, ItemStackHandler> inventories = new LinkedHashMap<>();
 
-    public static ApricitySavedDataInventory get(MinecraftServer server, String dataName) {
+    public static ApricitySavedData get(MinecraftServer server, String dataName) {
         return server.overworld().getDataStorage().computeIfAbsent(
-                new SavedData.Factory<>(ApricitySavedDataInventory::new, ApricitySavedDataInventory::load),
+                new SavedData.Factory<>(ApricitySavedData::new, ApricitySavedData::load),
                 dataName
         );
     }
 
-    public static ApricitySavedDataInventory load(CompoundTag tag, HolderLookup.Provider provider) {
-        ApricitySavedDataInventory data = new ApricitySavedDataInventory();
+    public static ApricitySavedData load(CompoundTag tag, HolderLookup.Provider provider) {
+        ApricitySavedData data = new ApricitySavedData();
         CompoundTag allInventories = tag.getCompound(INVENTORIES_KEY);
         for (String key : allInventories.getAllKeys()) {
             CompoundTag serialized = allInventories.getCompound(key);
@@ -39,24 +40,37 @@ public class ApricitySavedDataInventory extends SavedData {
     }
 
     public ItemStackHandler getOrCreate(String inventoryKey, int slotCount) {
+        int normalizedSlotCount = Math.max(1, slotCount);
         ItemStackHandler existing = inventories.get(inventoryKey);
         if (existing == null) {
-            ItemStackHandler created = createTrackedHandler(slotCount);
+            ItemStackHandler created = createTrackedHandler(normalizedSlotCount);
             inventories.put(inventoryKey, created);
             setDirty();
             return created;
         }
 
-        if (existing.getSlots() >= slotCount) return existing;
+        if (existing.getSlots() == normalizedSlotCount) return existing;
 
-        ItemStackHandler expanded = createTrackedHandler(slotCount);
-        int copyCount = Math.min(existing.getSlots(), expanded.getSlots());
-        for (int i = 0; i < copyCount; i++) {
-            expanded.setStackInSlot(i, existing.getStackInSlot(i).copy());
+        ItemStackHandler resized = createTrackedHandler(normalizedSlotCount);
+        if (normalizedSlotCount >= existing.getSlots()) {
+            // 扩容：原位置不变，直接复制已有槽位。
+            for (int i = 0; i < existing.getSlots(); i++) {
+                resized.setStackInSlot(i, existing.getStackInSlot(i).copy());
+            }
+        } else {
+            // 缩容：先淘汰空槽位；只有非空槽位超过目标容量时，才从尾部截断。
+            int writeIndex = 0;
+            for (int i = 0; i < existing.getSlots(); i++) {
+                ItemStack stack = existing.getStackInSlot(i);
+                if (stack.isEmpty()) continue;
+                if (writeIndex >= normalizedSlotCount) break;
+                resized.setStackInSlot(writeIndex, stack.copy());
+                writeIndex++;
+            }
         }
-        inventories.put(inventoryKey, expanded);
+        inventories.put(inventoryKey, resized);
         setDirty();
-        return expanded;
+        return resized;
     }
 
     @Override

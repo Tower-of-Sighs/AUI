@@ -1,8 +1,9 @@
 package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
-import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
@@ -11,12 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
@@ -112,6 +108,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
                 success = Font.registerFont(fontLoadedTask.fontFamily(), stream);
             } catch (IOException ignored) {}
             if (success) {
+                FontDrawer.clearCache();
                 document.reapplyStylesFromCache();
             }
             task.handle().markTaskCompleted(!success);
@@ -136,6 +133,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
 
     private void rebuildCssCache(Document document, StyleHandle handle) {
         document.CSSCache.clear();
+        String keyframeScope = document.getUuid().toString();
         for (Map.Entry<Integer, StyleHandle.CssEntry> entry : handle.snapshotCssEntries()) {
             StyleHandle.CssEntry cssEntry = entry.getValue();
             CSS.readCSS(cssEntry.cssText(), document.CSSCache, cssEntry.contextPath());

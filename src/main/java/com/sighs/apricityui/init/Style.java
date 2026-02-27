@@ -20,6 +20,21 @@ public class Style implements Cloneable {
     public String zIndex = "auto";
     public String display = "flex";
 
+    public String gridTemplateColumns = "unset";
+    public String gridTemplateRows = "unset";
+
+    public String gap = "0px";
+    public String rowGap = "unset";
+    public String columnGap = "unset";
+
+    public String justifyItems = "stretch";
+
+    public String justifySelf = "unset";
+    public String alignSelf = "unset";
+
+    public String gridRow = "auto";
+    public String gridColumn = "auto";
+
     public String backgroundColor = "unset";
     public String backgroundImage = "unset";
     public String backgroundRepeat = "unset";
@@ -53,6 +68,7 @@ public class Style implements Cloneable {
     public String borderImageRepeat = "unset";
 
     public String color = "unset";
+    public String selectionColor = "unset";
     public String fontSize = "unset";
     public String fontFamily = "unset";
     public String lineHeight = "unset";
@@ -69,12 +85,21 @@ public class Style implements Cloneable {
     public String right = "unset";
     public String position = "static";
 
+    /**
+     * CSS cursor property.
+     *
+     * <p>Baseline implementation: only supports mapping to GLFW standard cursors.
+     * Custom cursor resources (png/mcmeta/gif) are intentionally not handled here.</p>
+     */
+    public String cursor = "auto";
+
     public String pointerEvents = "auto";
     public String visibility = "visible";
     public String transition = "none";
     public String transform = "none";
     public String clipPath = "none";
     public String filter = "none";
+    public String backdropFilter = "none";
 
     public String animation = "unset";
     public String animationName = "unset";
@@ -83,6 +108,8 @@ public class Style implements Cloneable {
     public String animationIterationCount = "unset";
     public String animationDirection = "unset"; // normal, reverse, alternate...
     public String animationFillMode = "unset";
+    public String animationTimingFunction = "unset";
+    public String animationPlayState = "unset";
 
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
@@ -116,7 +143,6 @@ public class Style implements Cloneable {
         }
         return (int) (fontSize / 16d * 9);
     }
-
     public static String getFontFamily(Element element) {
         String fontFamily = "unset";
         for (Element e : element.getRoute()) {
@@ -128,7 +154,6 @@ public class Style implements Cloneable {
         }
         return fontFamily;
     }
-
     public static int getFontColor(Element element) {
         String styleColor = element.getComputedStyle().color;
         if (styleColor.equals("unset")) {
@@ -146,6 +171,25 @@ public class Style implements Cloneable {
             styleColor = "#000";
         }
         return Color.parse(styleColor);
+    }
+
+    public static int getSelectionColor(Element element) {
+        String selection = element.getComputedStyle().selectionColor;
+        if (selection.equals("unset")) {
+            Element parent = element.parentElement;
+            while (parent != null) {
+                String parentSelection = parent.getComputedStyle().selectionColor;
+                if (!parentSelection.equals("unset")) {
+                    selection = parentSelection;
+                    break;
+                }
+                parent = parent.parentElement;
+            }
+        }
+        if (selection.equals("unset")) {
+            selection = "#3399FF80";
+        }
+        return Color.parse(selection);
     }
 
     public void merge(String styleString) {
@@ -170,10 +214,8 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             field.set(this, value);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
-        }
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
     }
-
     public String get(String name) {
         String styleName = transformStyleName(name);
         try {
@@ -184,8 +226,7 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             return (String) field.get(this);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
-        }
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
         return null;
     }
 
@@ -219,7 +260,6 @@ public class Style implements Cloneable {
         STYLE_NAME.put(input, result.toString());
         return result.toString();
     }
-
     // fontSize -> font-size
     private static String camelToKebab(String input) {
         StringBuilder result = new StringBuilder();
@@ -249,8 +289,7 @@ public class Style implements Cloneable {
                             .append(value)
                             .append(";");
                 }
-            } catch (IllegalAccessException ignored) {
-            }
+            } catch (IllegalAccessException ignored) {}
         }
         return css.toString();
     }
@@ -297,8 +336,7 @@ public class Style implements Cloneable {
                         .append(":")
                         .append(value)
                         .append(";");
-            } catch (IllegalAccessException ignored) {
-            }
+            } catch (IllegalAccessException ignored) {}
         }
 
         return sb.toString();

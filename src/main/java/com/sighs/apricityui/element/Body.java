@@ -9,6 +9,6 @@ public class Body extends Div {
 
     public Body(Document document) {
         super(document);
-        this.tagName = TAG_NAME;
+        tagName = TAG_NAME;
     }
 }

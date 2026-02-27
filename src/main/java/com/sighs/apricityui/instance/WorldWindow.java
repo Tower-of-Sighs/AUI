@@ -2,7 +2,6 @@ package com.sighs.apricityui.instance;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.math.Axis;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
@@ -16,6 +15,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
@@ -64,8 +64,8 @@ public class WorldWindow {
                 position.z - cameraPos.z
         );
 
-        poseStack.mulPose(Axis.YP.rotationDegrees(180.0F - this.yRot));
-        poseStack.mulPose(Axis.XP.rotationDegrees(this.xRot));
+        poseStack.mulPose(new Quaternionf().rotationY(180.0F - this.yRot));
+        poseStack.mulPose(new Quaternionf().rotationX(this.xRot));
 
         poseStack.scale(scale, -scale, scale);
         poseStack.translate(-width / 2.0f, -height / 2.0f, 0);
@@ -120,7 +120,7 @@ public class WorldWindow {
         Vec3 rayDir = mc.player.getViewVector(1.0F);
 
         Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
+        modelMatrix.translate((float)position.x, (float)position.y, (float)position.z);
         modelMatrix.rotate((float) Math.toRadians(180.0F - this.yRot), 0, 1, 0);
         modelMatrix.rotate((float) Math.toRadians(this.xRot), 1, 0, 0);
         modelMatrix.scale(scale, -scale, scale);
@@ -142,7 +142,7 @@ public class WorldWindow {
 
         Vec3 intersection = rayOrigin.add(rayDir.scale(t));
         Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
-        Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
+        Vector4f localHit = new Vector4f((float)intersection.x, (float)intersection.y, (float)intersection.z, 1.0f);
         inverseMatrix.transform(localHit);
 
         double localX = localHit.x + width / 2.0;

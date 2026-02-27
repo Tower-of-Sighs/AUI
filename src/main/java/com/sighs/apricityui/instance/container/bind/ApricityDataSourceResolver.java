@@ -149,7 +149,7 @@ public final class ApricityDataSourceResolver {
             String inventoryKey,
             int slotCount
     ) {
-        ApricitySavedDataInventory savedData = ApricitySavedDataInventory.get(player.server, dataName);
+        ApricitySavedData savedData = ApricitySavedData.get(player.server, dataName);
         ItemStackHandler handler = savedData.getOrCreate(inventoryKey, Math.max(1, slotCount));
         return new ApricityMenuSlotSource() {
             @Override
