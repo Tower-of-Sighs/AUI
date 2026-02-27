@@ -17,6 +17,7 @@ import net.minecraft.client.renderer.RenderType;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
 
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -93,37 +94,117 @@ public class ImageDrawer {
         int th = readyTexture.height();
         ResourceLocation loc = readyTexture.location();
 
-        float renderW = width, renderH = height;
+        float[] renderSize = resolveRenderSize(bg.size, width, height, tw, th);
+        float renderW = renderSize[0];
+        float renderH = renderSize[1];
+        if (renderW <= 0 || renderH <= 0) return;
 
-        if (bg.size.equals("cover")) {
-            float scale = Math.max((float) width / tw, (float) height / th);
-            renderW = tw * scale;
-            renderH = th * scale;
-        } else if (bg.size.equals("contain")) {
-            float scale = Math.min((float) width / tw, (float) height / th);
-            renderW = tw * scale;
-            renderH = th * scale;
-        }
+        float[] offset = parseBackgroundPosition(bg.position, width, height, renderW, renderH);
+        float offsetX = offset[0];
+        float offsetY = offset[1];
 
-        float offsetX = 0;
-        float offsetY = 0;
-        if (bg.position.contains("center")) {
-            offsetX = (width - renderW) / 2f;
-            offsetY = (height - renderH) / 2f;
-        }
-
-        if (bg.repeat.equals("repeat")) {
-            for (float ix = 0; ix < width; ix += renderW) {
-                for (float iy = 0; iy < height; iy += renderH) {
-                    innerBlit(poseStack, loc, (int)(x + ix), (int)(y + iy), (int)renderW, (int)renderH, 0, 0, tw, th, tw, th, false);
+        // 背景绘制统一在元素区域内裁剪，repeat 与 no-repeat 行为保持一致。
+        Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
+        if ("repeat".equals(bg.repeat)) {
+            float startX = normalizeRepeatStart(offsetX, renderW);
+            float startY = normalizeRepeatStart(offsetY, renderH);
+            for (float ix = startX; ix < width; ix += renderW) {
+                for (float iy = startY; iy < height; iy += renderH) {
+                    innerBlit(poseStack, loc, (int) (x + ix), (int) (y + iy), (int) renderW, (int) renderH,
+                            0, 0, tw, th, tw, th, false);
                 }
             }
         } else {
-            Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
+            innerBlit(poseStack, loc, (int) (x + offsetX), (int) (y + offsetY), (int) renderW, (int) renderH,
+                    0, 0, tw, th, tw, th, false);
+        }
+        Mask.popMask(poseStack, x, y, width, height, NO_RADIUS);
+    }
 
-            innerBlit(poseStack, loc, (int)(x + offsetX), (int)(y + offsetY), (int)renderW, (int)renderH, 0, 0, tw, th, tw, th, false);
+    private static float[] resolveRenderSize(String backgroundSize, int boxW, int boxH, int texW, int texH) {
+        String size = (backgroundSize == null || backgroundSize.isEmpty() || "unset".equals(backgroundSize))
+                ? "auto"
+                : backgroundSize.trim().toLowerCase(Locale.ROOT);
+        switch (size) {
+            case "cover" -> {
+                float scale = Math.max((float) boxW / texW, (float) boxH / texH);
+                return new float[]{texW * scale, texH * scale};
+            }
+            case "contain" -> {
+                float scale = Math.min((float) boxW / texW, (float) boxH / texH);
+                return new float[]{texW * scale, texH * scale};
+            }
+            case "auto" -> {
+                return new float[]{texW, texH};
+            }
+        }
+        return new float[]{boxW, boxH};
+    }
 
-            Mask.popMask(poseStack, x, y, width, height, NO_RADIUS);
+    private static float normalizeRepeatStart(float offset, float tileSize) {
+        if (tileSize <= 0) return 0;
+        float start = mod(offset, tileSize);
+        if (start > 0) start -= tileSize;
+        return start;
+    }
+
+    private static float mod(float a, float b) {
+        if (b == 0) return 0;
+        float m = a % b;
+        return (m < 0) ? (m + b) : m;
+    }
+
+    private static float[] parseBackgroundPosition(String position, float boxW, float boxH, float renderW, float renderH) {
+        String normalized = (position == null || position.isEmpty() || "unset".equals(position))
+                ? "0 0"
+                : position.trim().toLowerCase(Locale.ROOT);
+        String[] parts = normalized.split("\\s+");
+
+        String xPart = parts.length > 0 ? parts[0] : "0";
+        String yPart = parts.length > 1 ? parts[1] : "0";
+
+        if (parts.length == 1 && isPositionKeyword(xPart)) {
+            if ("top".equals(xPart) || "bottom".equals(xPart)) {
+                yPart = xPart;
+                xPart = "center";
+            } else {
+                yPart = "center";
+            }
+        }
+
+        float x = parsePositionToken(xPart, boxW, renderW, true);
+        float y = parsePositionToken(yPart, boxH, renderH, false);
+        return new float[]{x, y};
+    }
+
+    private static boolean isPositionKeyword(String token) {
+        return "left".equals(token) || "right".equals(token) || "center".equals(token)
+                || "top".equals(token) || "bottom".equals(token);
+    }
+
+    private static float parsePositionToken(String token, float boxSize, float renderSize, boolean isX) {
+        if (token == null || token.isEmpty()) return 0;
+        String normalized = token.trim().toLowerCase(Locale.ROOT);
+        if ("center".equals(normalized)) return (boxSize - renderSize) / 2f;
+        if ((isX && "left".equals(normalized)) || (!isX && "top".equals(normalized))) return 0;
+        if ((isX && "right".equals(normalized)) || (!isX && "bottom".equals(normalized))) return boxSize - renderSize;
+
+        if (normalized.endsWith("%")) {
+            try {
+                float percent = Float.parseFloat(normalized.substring(0, normalized.length() - 1).trim()) / 100f;
+                return (boxSize - renderSize) * percent;
+            } catch (NumberFormatException ignored) {
+                return 0;
+            }
+        }
+
+        String raw = normalized.endsWith("px")
+                ? normalized.substring(0, normalized.length() - 2).trim()
+                : normalized;
+        try {
+            return Float.parseFloat(raw);
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
     }
 
