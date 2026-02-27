@@ -251,8 +251,8 @@ public class Animation {
     }
 
     private static double applySteps(double progress, int steps, boolean isStart) {
-        if (progress <= 0.0) return 0.0;
-        if (progress >= 1.0) return 1.0;
+        double boundary = resolveStepsBoundary(progress, steps, isStart);
+        if (!Double.isNaN(boundary)) return boundary;
 
         double steppedProgress;
         if (isStart) {
@@ -263,6 +263,16 @@ public class Animation {
 
         if (steppedProgress < 0.0) return 0.0;
         return Math.min(steppedProgress, 1.0);
+    }
+
+    private static double resolveStepsBoundary(double progress, int steps, boolean isStart) {
+        if (steps <= 0) return 0.0;
+        // CSS-like boundary behavior:
+        // - steps(..., end) keeps 0 at t=0
+        // - steps(..., start) jumps to the first step at t=0
+        if (progress <= 0.0) return isStart ? (1.0 / steps) : 0.0;
+        if (progress >= 1.0) return 1.0;
+        return Double.NaN;
     }
 
     private static double[] parseBackgroundPositionPx(String value) {
