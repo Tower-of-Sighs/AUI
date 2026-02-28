@@ -22,7 +22,7 @@ public class Sprite extends Div {
     );
     private static final Set<String> SPRITE_ATTRS = Set.of(
             "src", "steps", "direction", "duration", "loop", "steps-mode", "autoplay",
-            "framew", "frameh", "initialframe", "fit"
+            "initialframe", "fit"
     );
     private static final Pattern TIME_PATTERN = Pattern.compile("^\\+?([0-9]*\\.?[0-9]+)(s|ms)$");
     private static final String DEFAULT_DURATION = "1s";
@@ -34,6 +34,12 @@ public class Sprite extends Div {
     static {
         Element.register(TAG_NAME, (document, string) -> new Sprite(document));
     }
+
+    // true 表示等待异步图片尺寸就绪后再重建 sprite 动画。
+    private boolean frameMetricsPending = false;
+    private String pendingFrameMetricsSrc = "";
+    // 避免同一尺寸异常日志反复刷屏。
+    private final Set<String> invalidMetricsWarnings = new HashSet<>();
 
     public Sprite(Document document) {
         super(document);
@@ -90,16 +96,29 @@ public class Sprite extends Div {
         }
     }
 
+    @Override
+    public void tick() {
+        super.tick();
+        if (!frameMetricsPending || pendingFrameMetricsSrc.isBlank()) return;
+
+        com.sighs.apricityui.resource.async.image.ImageHandle handle =
+                com.sighs.apricityui.resource.async.image.ImageAsyncHandler.INSTANCE
+                        .request(pendingFrameMetricsSrc, this, false);
+        if (!isHandleReady(handle)) return;
+
+        clearPendingFrameMetrics();
+        rebuildSpriteRuntime();
+        applyManagedStyle();
+    }
+
     private boolean shouldRebuildForAttr(String key) {
         return "class".equals(key) || SPRITE_ATTRS.contains(key);
     }
 
-    // 重新构建 Sprite 的托管样式：
-    // - 参数不足时降级为静态首帧
-    // - 参数齐全时生成动画样式
     private void rebuildSpriteRuntime() {
         String resolvedSrc = resolveSpriteSource();
         if (resolvedSrc.isEmpty()) {
+            clearPendingFrameMetrics();
             managedInlineStyle = "";
             return;
         }
@@ -107,13 +126,17 @@ public class Sprite extends Div {
         SpriteSpec.Direction direction = parseDirection(getAttr("direction"));
         int initialFrame = parseNonNegativeInt(getAttr("initialFrame"), 0);
         SpriteSpec.FitMode fitMode = parseFitMode(getAttr("fit"));
-        int frameW = parsePositiveInt(getAttr("frameW"), -1);
-        int frameH = parsePositiveInt(getAttr("frameH"), -1);
 
         int steps = parsePositiveInt(getAttr("steps"), -1);
-        boolean canAnimate = steps > 0 && frameW > 0 && frameH > 0;
-        if (!canAnimate) {
-            managedInlineStyle = buildStaticManagedStyle(resolvedSrc, fitMode, direction, initialFrame, frameW, frameH);
+        if (steps <= 0) {
+            clearPendingFrameMetrics();
+            managedInlineStyle = buildStaticManagedStyle(resolvedSrc, fitMode, direction, initialFrame, null);
+            return;
+        }
+
+        FrameMetrics frameMetrics = resolveFrameMetrics(resolvedSrc, steps, direction);
+        if (frameMetrics == null) {
+            managedInlineStyle = buildStaticManagedStyle(resolvedSrc, fitMode, direction, initialFrame, null);
             return;
         }
 
@@ -126,8 +149,8 @@ public class Sprite extends Div {
                 parseLoop(getAttr("loop")),
                 parseStepsMode(getAttr("steps-mode")),
                 parseAutoplay(getAttr("autoplay")),
-                frameW,
-                frameH,
+                frameMetrics.frameW(),
+                frameMetrics.frameH(),
                 clampedInitial,
                 fitMode
         );
@@ -181,20 +204,99 @@ public class Sprite extends Div {
         return toStyleString(managed);
     }
 
-    // 生成静态模式托管样式（参数不足或 autoplay=false 场景会用到）。
     private String buildStaticManagedStyle(String resolvedSrc, SpriteSpec.FitMode fitMode, SpriteSpec.Direction direction,
-                                           int initialFrame, int frameW, int frameH) {
+                                           int initialFrame, FrameMetrics frameMetrics) {
         LinkedHashMap<String, String> managed = new LinkedHashMap<>();
         managed.put("background-image", toCssUrl(resolvedSrc));
         managed.put("background-repeat", "no-repeat");
         managed.put("background-size", toBackgroundSize(fitMode));
 
-        if (frameW > 0 && frameH > 0 && initialFrame > 0) {
-            managed.put("background-position", frameOffset(direction, initialFrame, frameW, frameH));
+        if (frameMetrics != null && initialFrame > 0) {
+            managed.put("background-position", frameOffset(direction, initialFrame, frameMetrics.frameW(), frameMetrics.frameH()));
         } else {
             managed.put("background-position", "0px 0px");
         }
         return toStyleString(managed);
+    }
+
+    // 通过异步图片句柄推导帧尺寸；纹理未就绪时返回 null 并等待后续 tick 重建。
+    private FrameMetrics resolveFrameMetrics(String resolvedSrc, int steps, SpriteSpec.Direction direction) {
+        com.sighs.apricityui.resource.async.image.ImageHandle handle =
+                com.sighs.apricityui.resource.async.image.ImageAsyncHandler.INSTANCE
+                        .request(resolvedSrc, this, false);
+        if (!isHandleReady(handle)) {
+            markPendingFrameMetrics(resolvedSrc);
+            return null;
+        }
+
+        clearPendingFrameMetrics();
+        int textureW = handle.texture().getWidth();
+        int textureH = handle.texture().getHeight();
+        if (textureW <= 0 || textureH <= 0) {
+            warnInvalidFrameMetrics("图片尺寸非法", resolvedSrc, steps, direction, textureW, textureH);
+            return null;
+        }
+        if (!isDivisibleBySteps(textureW, textureH, steps, direction)) {
+            warnInvalidFrameMetrics("图片尺寸与 steps 不可整除", resolvedSrc, steps, direction, textureW, textureH);
+            return null;
+        }
+
+        int frameW;
+        int frameH;
+        switch (direction) {
+            case RIGHT, LEFT -> {
+                frameW = textureW / steps;
+                frameH = textureH;
+            }
+            case DOWN, UP -> {
+                frameW = textureW;
+                frameH = textureH / steps;
+            }
+            default -> {
+                frameW = textureW / steps;
+                frameH = textureH;
+            }
+        }
+
+        if (frameW <= 0 || frameH <= 0) {
+            warnInvalidFrameMetrics("推导后的帧尺寸非法", resolvedSrc, steps, direction, textureW, textureH);
+            return null;
+        }
+        return new FrameMetrics(frameW, frameH);
+    }
+
+    private static boolean isHandleReady(com.sighs.apricityui.resource.async.image.ImageHandle handle) {
+        return handle != null
+                && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY
+                && handle.texture() != null;
+    }
+
+    private static boolean isDivisibleBySteps(int textureW, int textureH, int steps, SpriteSpec.Direction direction) {
+        if (steps <= 0) return false;
+        return switch (direction) {
+            case RIGHT, LEFT -> textureW % steps == 0;
+            case DOWN, UP -> textureH % steps == 0;
+        };
+    }
+
+    private void markPendingFrameMetrics(String resolvedSrc) {
+        frameMetricsPending = true;
+        pendingFrameMetricsSrc = resolvedSrc;
+    }
+
+    private void clearPendingFrameMetrics() {
+        frameMetricsPending = false;
+        pendingFrameMetricsSrc = "";
+    }
+
+    private void warnInvalidFrameMetrics(String reason, String resolvedSrc, int steps,
+                                         SpriteSpec.Direction direction, int textureW, int textureH) {
+        String key = resolvedSrc + "|" + steps + "|" + direction + "|" + textureW + "x" + textureH + "|" + reason;
+        if (!invalidMetricsWarnings.add(key)) return;
+        ApricityUI.LOGGER.warn(
+                "Sprite 帧尺寸推导失败：{}，src={}，steps={}，direction={}，texture={}x{}",
+                reason, resolvedSrc, steps, direction, textureW, textureH
+        );
     }
 
     // 解析并规范化 src（相对路径 -> 文档上下文绝对路径）。
@@ -375,6 +477,9 @@ public class Sprite extends Div {
         if (name == null) return "";
         return name.replace("-", "").toLowerCase(Locale.ROOT);
     }
+
+    // 异步纹理就绪后推导出的单帧尺寸。
+    private record FrameMetrics(int frameW, int frameH) {}
 
     // Sprite 解析后的配置快照。
     private record SpriteSpec(

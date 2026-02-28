@@ -105,8 +105,6 @@
                 direction="right"
                 duration="1.2s"
                 loop="infinite"
-                frameW="48"
-                frameH="48"
                 steps-mode="end"
                 autoplay="true">
         </sprite>
