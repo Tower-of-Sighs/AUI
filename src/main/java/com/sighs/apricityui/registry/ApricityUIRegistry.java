@@ -12,7 +12,7 @@ import java.util.List;
 public class ApricityUIRegistry {
     public static List<Element> ELEMENTS;
 
-    static {
+    public static void register() {
         ReflectionUtils.findAnnotationClasses(ElementRegister.class, data -> true, clazz -> {
             if (!Element.class.isAssignableFrom(clazz)) {
                 ApricityUI.LOGGER.error("Class {} has @ElementRegister but is not a subclass of Element!", clazz.getName());

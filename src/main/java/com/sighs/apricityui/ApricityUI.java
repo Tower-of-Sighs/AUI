@@ -4,6 +4,7 @@ import com.mojang.logging.LogUtils;
 import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.ApricityUIRegistry;
 import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterShadersEvent;
@@ -27,6 +28,7 @@ public class ApricityUI {
         ApricityNetwork.register();
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            ApricityUIRegistry.register();
             modEventBus.addListener(this::onRegisterShaders);
         }
     }
