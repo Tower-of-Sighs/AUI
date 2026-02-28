@@ -236,18 +236,10 @@ public class Sprite extends Div {
             warnInvalidFrameMetrics("图片尺寸非法", resolvedSrc, steps, direction, textureW, textureH);
             return null;
         }
-        if (!isDivisibleBySteps(textureW, textureH, steps, direction)) {
-            warnInvalidFrameMetrics("图片尺寸与 steps 不可整除", resolvedSrc, steps, direction, textureW, textureH);
-            return null;
-        }
 
         int frameW;
         int frameH;
         switch (direction) {
-            case RIGHT, LEFT -> {
-                frameW = textureW / steps;
-                frameH = textureH;
-            }
             case DOWN, UP -> {
                 frameW = textureW;
                 frameH = textureH / steps;
@@ -269,14 +261,6 @@ public class Sprite extends Div {
         return handle != null
                 && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY
                 && handle.texture() != null;
-    }
-
-    private static boolean isDivisibleBySteps(int textureW, int textureH, int steps, SpriteSpec.Direction direction) {
-        if (steps <= 0) return false;
-        return switch (direction) {
-            case RIGHT, LEFT -> textureW % steps == 0;
-            case DOWN, UP -> textureH % steps == 0;
-        };
     }
 
     private void markPendingFrameMetrics(String resolvedSrc) {
