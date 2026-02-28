@@ -14,7 +14,10 @@ public class Background {
 
     public static Background of(Element element) {
         Background cache = element.getRenderer().background.get();
-        if (cache != null) return cache;
+        if (cache != null) {
+            cache.syncAnimatedFields(element.getComputedStyle());
+            return cache;
+        }
 
         Style style = element.getComputedStyle();
         Background bg = new Background();
@@ -26,6 +29,12 @@ public class Background {
 
         element.getRenderer().background.set(bg);
         return bg;
+    }
+
+    // 背景对象会被缓存，动画帧里需要同步会变化的字段。
+    private void syncAnimatedFields(Style style) {
+        if (style == null) return;
+        this.position = style.backgroundPosition;
     }
 
     public void resolveBackgroundImage(Element element, String image) {
