@@ -76,7 +76,7 @@ public class FilterRenderer {
     }
 
     private static void drawWithShader(RenderTarget fbo, Filter.FilterState state) {
-        ShaderInstance shader = (state != null && !state.isEmpty()) ? ShaderRegistry.getFilterShader() : null;
+        ShaderInstance shader = ShaderRegistry.getFilterShader();
 
         Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
 
@@ -122,13 +122,14 @@ public class FilterRenderer {
         Base.setProjectionMatrix(oldProjection);
     }
 
-    public static void renderBackdrop(Element target, Filter.FilterState state) {
+    public static void renderBackdrop(Element target) {
         RenderTarget currentBound = fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
-        drawBackdropWithShader(currentBound, state, target);
+        drawBackdropWithShader(currentBound, target);
     }
 
-    private static void drawBackdropWithShader(RenderTarget sourceFbo, Filter.FilterState state, Element target) {
+    private static void drawBackdropWithShader(RenderTarget sourceFbo, Element target) {
         ShaderInstance shader = ShaderRegistry.getFilterShader();
+        Filter.FilterState state = Filter.getBackdropFilterOf(target);
         if (shader == null || state == null || state.isEmpty()) return;
 
         Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
