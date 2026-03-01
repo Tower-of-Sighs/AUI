@@ -1,13 +1,14 @@
 package com.sighs.apricityui.instance.element;
 
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -111,7 +112,7 @@ public class Slot extends MinecraftElement {
     }
 
     private static int parsePositiveInt(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (StringUtils.isNullOrEmptyEx(raw)) return fallback;
         try {
             int parsed = Integer.parseInt(raw.trim());
             return parsed > 0 ? parsed : fallback;
@@ -121,7 +122,7 @@ public class Slot extends MinecraftElement {
     }
 
     private static long parsePositiveLong(String raw, long fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (StringUtils.isNullOrEmptyEx(raw)) return fallback;
         try {
             long parsed = Long.parseLong(raw.trim());
             return parsed > 0 ? parsed : fallback;
@@ -133,9 +134,9 @@ public class Slot extends MinecraftElement {
     private String getFirstNonBlankAttribute(String... keys) {
         if (keys == null) return null;
         for (String key : keys) {
-            if (key == null || key.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(key)) continue;
             String value = getAttribute(key);
-            if (value == null || value.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(value)) continue;
             return value;
         }
         return null;
@@ -156,7 +157,7 @@ public class Slot extends MinecraftElement {
 
     public String getMode() {
         String rawMode = getAttribute("mode");
-        if (rawMode != null && !rawMode.isBlank()) {
+        if (StringUtils.isNotNullOrEmptyEx(rawMode)) {
             String normalized = rawMode.trim().toLowerCase(Locale.ROOT);
             if (MODE_BOUND.equals(normalized)) return MODE_BOUND;
             if (MODE_VIRTUAL.equals(normalized)) return MODE_VIRTUAL;
@@ -321,7 +322,7 @@ public class Slot extends MinecraftElement {
     public String getBackgroundImageCandidate() {
         com.sighs.apricityui.style.Background background = com.sighs.apricityui.style.Background.of(this);
         String rawPath = background == null ? null : background.imagePath;
-        if (rawPath == null || rawPath.isBlank() || "unset".equals(rawPath)) return null;
+        if (StringUtils.isNullOrEmptyEx(rawPath) || "unset".equals(rawPath)) return null;
         return rawPath;
     }
 
@@ -395,8 +396,8 @@ public class Slot extends MinecraftElement {
      */
     public void applyRecipeSlotMeta(String className, String generatedTag) {
         setAttributesBatch(Map.of(
-                "class", className == null ? "" : className,
-                "data-generated", generatedTag == null ? "" : generatedTag
+                "class", StringUtils.nullToEmpty(className),
+                "data-generated", StringUtils.nullToEmpty(generatedTag)
         ), true);
     }
 
@@ -408,7 +409,7 @@ public class Slot extends MinecraftElement {
                 "mode", MODE_BOUND,
                 "slot-index", String.valueOf(Math.max(0, localSlotIndex)),
                 "data-generated", GENERATED_PLAYER_AUTO,
-                "part", part == null ? "inv" : part
+                "part", part != null ? part : "inv"
         ), true);
     }
 
@@ -442,7 +443,7 @@ public class Slot extends MinecraftElement {
     }
 
     private static String normalizeItemLiteral(String raw) {
-        if (raw == null) return "";
+        if (StringUtils.isNullOrEmpty(raw)) return "";
         String normalized = raw.trim();
         if (normalized.isBlank()) return "";
         if (normalized.length() >= 2) {
@@ -471,7 +472,7 @@ public class Slot extends MinecraftElement {
     }
 
     private static ItemStack parseItemLiteral(String literal) {
-        if (literal == null || literal.isBlank()) return ItemStack.EMPTY;
+        if (StringUtils.isNullOrEmptyEx(literal)) return ItemStack.EMPTY;
 
         if (literal.startsWith("{") && literal.endsWith("}")) {
             try {

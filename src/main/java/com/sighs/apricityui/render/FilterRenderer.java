@@ -39,7 +39,7 @@ public class FilterRenderer {
 
         if (poolPointer < fboPool.size()) {
             temp = fboPool.get(poolPointer);
-            if (temp.width != (int)width || temp.height != (int)height) {
+            if (temp.width != (int) width || temp.height != (int) height) {
                 temp.destroyBuffers();
                 temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
                 // --- 修复点 1: 必须手动开启 Stencil ---
@@ -130,7 +130,7 @@ public class FilterRenderer {
     private static void drawBackdropWithShader(RenderTarget sourceFbo, Element target) {
         ShaderInstance shader = ShaderRegistry.getFilterShader();
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
-        if (shader == null || state == null || state.isEmpty()) return;
+        if (shader == null || state == null) return;
 
         Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
 
@@ -147,7 +147,7 @@ public class FilterRenderer {
 
         // 使用 Mask 逻辑来确保 backdrop-filter 遵循 border-radius
         PoseStack poseStack = new PoseStack();
-        Mask.pushMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
+        Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();
@@ -165,7 +165,7 @@ public class FilterRenderer {
 
         BufferUploader.drawWithShader(bufferbuilder.end());
 
-        Mask.popMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
+        Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
         Base.setProjectionMatrix(oldProjection);
     }
 
@@ -176,6 +176,6 @@ public class FilterRenderer {
         if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
         if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
         if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
-        if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float)fbo.width, (float)fbo.height);
+        if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float) fbo.width, (float) fbo.height);
     }
 }

@@ -9,7 +9,7 @@ import java.util.Locale;
 
 /**
  * Global Grid layout (MVP + alignment + placement/span)
- *
+ * <p>
  * Supported:
  * - display: grid
  * - grid-template-columns / grid-template-rows: number | (px|auto)+
@@ -17,33 +17,42 @@ import java.util.Locale;
  * - justify-items / align-items (align-items reuses Style.alignItems)
  * - justify-self / align-self (per-item override)
  * - grid-row / grid-column with span (basic)
- *
+ * <p>
  * Placement notes:
  * - Auto flow is row-major.
  * - If grid-row/grid-column specifies an explicit start (e.g. "2" or "2 / span 3"),
- *   the algorithm will try to place at/after that coordinate.
+ * the algorithm will try to place at/after that coordinate.
  * - Conflicts (overlaps) are allowed; this implementation is fail-soft.
- *
+ * <p>
  * Indexing:
  * - grid-row/grid-column use 1-based grid lines (CSS-like); internally converted to 0-based track index.
  */
 public final class Grid {
-    private Grid() {}
+    private Grid() {
+    }
 
-    private enum TrackType { FIXED, AUTO }
-    private record Track(TrackType type, int px) {}
-    private record Gaps(int rowGap, int colGap) {}
+    private enum TrackType {FIXED, AUTO}
 
-    private enum Align { START, CENTER, END, STRETCH }
+    private record Track(TrackType type, int px) {
+    }
+
+    private record Gaps(int rowGap, int colGap) {
+    }
+
+    private enum Align {START, CENTER, END, STRETCH}
 
     private record SpanSpec(int start, int span) {
         // start: 0-based track index, -1 means auto
-        static SpanSpec auto() { return new SpanSpec(-1, 1); }
+        static SpanSpec auto() {
+            return new SpanSpec(-1, 1);
+        }
     }
 
-    private record ItemSpec(SpanSpec col, SpanSpec row, Element el) {}
+    private record ItemSpec(SpanSpec col, SpanSpec row, Element el) {
+    }
 
-    private record Placement(int col, int row, int colSpan, int rowSpan) {}
+    private record Placement(int col, int row, int colSpan, int rowSpan) {
+    }
 
     private record Layout(List<Element> flow,
                           List<Placement> placements,
@@ -51,7 +60,8 @@ public final class Grid {
                           List<Track> rows,
                           int[] colW,
                           int[] rowH,
-                          Gaps gaps) {}
+                          Gaps gaps) {
+    }
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Position parentPosition = Position.of(parent);
@@ -232,7 +242,7 @@ public final class Grid {
 
     /**
      * Parse a CSS-like grid-row/grid-column value into (start, span).
-     *
+     * <p>
      * Supported patterns:
      * - "auto" / "unset" / null -> auto, span 1
      * - "N" -> start line N, span 1

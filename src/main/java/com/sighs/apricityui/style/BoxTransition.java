@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.List;
 
@@ -196,7 +197,7 @@ public class BoxTransition {
 
     private static double[] parseFourValues(String val) {
         double[] res = new double[4];
-        if (val == null || val.isBlank()) return res;
+        if (StringUtils.isNullOrEmptyEx(val)) return res;
         String[] parts = val.trim().split("\\s+");
         double v1 = Size.parse(parts[0]);
         double v2 = parts.length > 1 ? Size.parse(parts[1]) : v1;

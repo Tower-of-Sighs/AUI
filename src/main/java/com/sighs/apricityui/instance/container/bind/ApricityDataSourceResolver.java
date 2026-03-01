@@ -2,6 +2,7 @@ package com.sighs.apricityui.instance.container.bind;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -91,7 +92,7 @@ public final class ApricityDataSourceResolver {
     }
 
     private static int parsePositiveInt(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return Math.max(1, fallback);
+        if (StringUtils.isNullOrEmptyEx(raw)) return Math.max(1, fallback);
         try {
             int parsed = Integer.parseInt(raw.trim());
             return parsed > 0 ? parsed : Math.max(1, fallback);
@@ -102,7 +103,7 @@ public final class ApricityDataSourceResolver {
 
     private static Integer parseRequiredInt(Map<String, String> args, String key) {
         String raw = args.get(key);
-        if (raw == null || raw.isBlank()) {
+        if (StringUtils.isNullOrEmptyEx(raw)) {
             ApricityUI.LOGGER.warn("Missing argument: {}", key);
             return null;
         }
@@ -116,7 +117,7 @@ public final class ApricityDataSourceResolver {
 
     private static UUID parseRequiredUuid(Map<String, String> args, String key) {
         String raw = args.get(key);
-        if (raw == null || raw.isBlank()) {
+        if (StringUtils.isNullOrEmptyEx(raw)) {
             ApricityUI.LOGGER.warn("Missing argument: {}", key);
             return null;
         }
@@ -129,7 +130,7 @@ public final class ApricityDataSourceResolver {
     }
 
     private static Direction parseDirection(String raw) {
-        if (raw == null || raw.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(raw)) return null;
         return Direction.byName(raw.trim().toLowerCase(java.util.Locale.ROOT));
     }
 

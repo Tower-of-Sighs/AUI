@@ -20,13 +20,13 @@ public class Rect {
 
     public static Rect of(Element element) {
         return new Rect(element);
-//        Rect cache = Cache.rect.get(element);
-//        if (cache != null) return cache;
-//        else {
-//            Rect result = new Rect(element);
-//            Cache.rect.set(element, result);
-//            return result;
-//        }
+        // Rect cache = Cache.rect.get(element);
+        // if (cache != null) return cache;
+        // else {
+        //     Rect result = new Rect(element);
+        //     Cache.rect.set(element, result);
+        //     return result;
+        // }
     }
 
     public AABB getVisualBounds() {

@@ -1,8 +1,13 @@
 package com.sighs.apricityui.render;
 
 public record AABB(float x, float y, float width, float height) {
-    public float maxX() { return x + width; }
-    public float maxY() { return y + height; }
+    public float maxX() {
+        return x + width;
+    }
+
+    public float maxY() {
+        return y + height;
+    }
 
     public AABB intersection(AABB other) {
         float newX = Math.max(this.x, other.x);
@@ -17,5 +22,7 @@ public record AABB(float x, float y, float width, float height) {
                 this.y < other.maxY() && this.maxY() > other.y;
     }
 
-    public boolean isValid() { return width > 0 && height > 0; }
+    public boolean isValid() {
+        return width > 0 && height > 0;
+    }
 }

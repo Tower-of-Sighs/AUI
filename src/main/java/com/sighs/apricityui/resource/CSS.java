@@ -4,8 +4,12 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.util.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -29,10 +33,10 @@ public class CSS {
         }
 
         public String handle(String html) {
-            if (html == null || html.isEmpty()) return html;
+            if (StringUtils.isNullOrEmpty(html)) return html;
 
             Matcher matcher = STYLE_TAG_PATTERN.matcher(html);
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
 
             while (matcher.find()) {
                 String attrText = matcher.group(1);
@@ -42,13 +46,13 @@ public class CSS {
                     Matcher srcMatcher = SRC_ATTR_PATTERN.matcher(attrText);
                     while (srcMatcher.find()) {
                         String srcValue = srcMatcher.group(2);
-                        if (srcValue != null && !srcValue.isEmpty()) {
+                        if (StringUtils.isNotNullOrEmpty(srcValue)) {
                             cachedStyleSrcs.add(srcValue);
                         }
                     }
                 }
 
-                if (innerCss != null && !innerCss.isBlank()) {
+                if (StringUtils.isNotNullOrEmptyEx(innerCss)) {
                     cachedStyleContents.add(innerCss.trim());
                 }
                 matcher.appendReplacement(sb, "");
@@ -118,7 +122,7 @@ public class CSS {
         }
 
         public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-            if (css == null || css.isBlank()) return;
+            if (StringUtils.isNullOrEmptyEx(css)) return;
             String normalizedCss = parseAndRegisterAnimations(css, contextPath);
 
             Pattern pattern = Pattern.compile("(.*?)\\s*\\{([^}]*)}");
@@ -152,7 +156,7 @@ public class CSS {
         }
 
         private static Double parseKeyframePercent(String token) {
-            if (token == null || token.isBlank()) return null;
+            if (StringUtils.isNullOrEmptyEx(token)) return null;
             if ("from".equalsIgnoreCase(token)) return 0d;
             if ("to".equalsIgnoreCase(token)) return 100d;
             if (!token.endsWith("%")) return null;

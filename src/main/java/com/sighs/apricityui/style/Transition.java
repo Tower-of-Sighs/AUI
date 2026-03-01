@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 
@@ -66,7 +67,7 @@ public record Transition(String name, double start, double end, double duration,
         List<Transition> result = new ArrayList<>();
 
         String transition = startStyle.transition;
-        if (transition == null || transition.isBlank()) return result;
+        if (StringUtils.isNullOrEmptyEx(transition)) return result;
 
         // 以逗号分隔多个 transition
         String[] parts = transition.split(",");

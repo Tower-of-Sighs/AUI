@@ -26,7 +26,7 @@ public class Img extends Element {
         Rect rectRenderer = Rect.of(this);
         switch (phase) {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY   -> {
+            case BODY -> {
                 rectRenderer.drawBody(poseStack);
                 ImageDrawer.draw(poseStack, this, rectRenderer);
             }

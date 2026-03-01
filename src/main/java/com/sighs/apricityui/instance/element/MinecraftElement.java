@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
@@ -31,17 +32,17 @@ public abstract class MinecraftElement extends Element {
     }
 
     protected static Object getGlobalCache(String key) {
-        if (key == null || key.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(key)) return null;
         return GLOBAL_RUNTIME_CACHES.get(key);
     }
 
     protected static Object computeGlobalCacheIfAbsent(String key, Supplier<Object> factory) {
-        if (key == null || key.isBlank() || factory == null) return null;
+        if (StringUtils.isNullOrEmptyEx(key) || factory == null) return null;
         return GLOBAL_RUNTIME_CACHES.computeIfAbsent(key, ignored -> factory.get());
     }
 
     protected static void clearGlobalCache(String key) {
-        if (key == null || key.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(key)) return;
         GLOBAL_RUNTIME_CACHES.remove(key);
     }
 
@@ -79,12 +80,12 @@ public abstract class MinecraftElement extends Element {
     }
 
     public final Object getRuntimeCache(String key) {
-        if (key == null || key.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(key)) return null;
         return runtimeCaches.get(key);
     }
 
     public final void putRuntimeCache(String key, Object value) {
-        if (key == null || key.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(key)) return;
         if (value == null) {
             runtimeCaches.remove(key);
             return;
@@ -93,12 +94,12 @@ public abstract class MinecraftElement extends Element {
     }
 
     public final Object computeRuntimeCacheIfAbsent(String key, Supplier<Object> factory) {
-        if (key == null || key.isBlank() || factory == null) return null;
+        if (StringUtils.isNullOrEmptyEx(key) || factory == null) return null;
         return runtimeCaches.computeIfAbsent(key, ignored -> factory.get());
     }
 
     public final void removeRuntimeCache(String key) {
-        if (key == null || key.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(key)) return;
         runtimeCaches.remove(key);
     }
 
@@ -133,7 +134,7 @@ public abstract class MinecraftElement extends Element {
     }
 
     protected final void putAttributeSilently(String name, String value) {
-        if (name == null || name.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(name)) return;
 
         HashMap<String, String> attributes = getAttributes();
         String safeValue = value == null ? "" : value;

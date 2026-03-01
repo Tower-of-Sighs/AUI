@@ -44,7 +44,8 @@ public class ApricityUI {
     private void onRegisterShaders(RegisterShadersEvent event) {
         try {
             ShaderRegistry.register(event);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     public static Window getWindow() {
@@ -57,6 +58,10 @@ public class ApricityUI {
 
     public static void removeDocument(String path) {
         Document.remove(path);
+    }
+
+    public static boolean containsDocument(String path) {
+        return Document.contains(path);
     }
 
     public static ArrayList<Document> getDocument(String path) {

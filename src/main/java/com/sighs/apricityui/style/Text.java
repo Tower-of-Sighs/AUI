@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.awt.*;
 
@@ -63,13 +64,13 @@ public class Text {
 
     private static int parseFontStyle(String fontWeight, String fontStyle) {
         int style = java.awt.Font.PLAIN;
-        if (fontWeight != null && !fontWeight.equals("unset")) {
+        if (StringUtils.isNotNullOrEmpty(fontWeight) && !fontWeight.equals("unset")) {
             String w = fontWeight.trim().toLowerCase();
             if (w.equals("bold") || w.equals("700") || w.equals("800") || w.equals("900")) {
                 style |= java.awt.Font.BOLD;
             }
         }
-        if (fontStyle != null && !fontStyle.equals("unset")) {
+        if (StringUtils.isNotNullOrEmpty(fontStyle) && !fontStyle.equals("unset")) {
             String s = fontStyle.trim().toLowerCase();
             if (s.equals("italic") || s.equals("oblique")) {
                 style |= java.awt.Font.ITALIC;
@@ -79,7 +80,7 @@ public class Text {
     }
 
     public static double calculateLineHeight(double fontSize, String lh) {
-        if (lh == null || lh.isEmpty() || lh.equals("normal") || lh.equals("unset")) {
+        if (StringUtils.isNullOrEmpty(lh) || lh.equals("normal") || lh.equals("unset")) {
             return fontSize + 2;
         }
 
@@ -106,7 +107,7 @@ public class Text {
     }
 
     public static double measureText(Text text) {
-        if (text.content == null || text.content.isEmpty()) return 0;
+        if (StringUtils.isNullOrEmpty(text.content)) return 0;
         if (text.fontFamily.equals("unset")) {
             return Client.getDefaultFontWidth(text.content) * (text.fontSize / 9.0);
         }

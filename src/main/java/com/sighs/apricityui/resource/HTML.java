@@ -3,6 +3,7 @@ package com.sighs.apricityui.resource;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -25,7 +26,7 @@ public class HTML {
 
     public static Element create(Document document, String path) {
         String rawHtml = getTemple(path);
-        if (rawHtml == null || rawHtml.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(rawHtml)) return null;
         if (!rawHtml.trim().toLowerCase().startsWith("<body")) {
             rawHtml = "<body>" + rawHtml + "</body>";
         }
@@ -73,7 +74,8 @@ public class HTML {
                     if (stack.isEmpty()) return null;
                     if (!token.content.isBlank()) stack.peek().innerText += token.content;
                 }
-                case COMMENT -> {}
+                case COMMENT -> {
+                }
             }
         }
         return stack.isEmpty() ? root : null;

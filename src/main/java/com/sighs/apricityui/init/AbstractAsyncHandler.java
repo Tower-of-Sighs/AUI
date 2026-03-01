@@ -1,14 +1,9 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.util.StringUtils;
+
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ThreadFactory;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -90,11 +85,14 @@ public abstract class AbstractAsyncHandler<TApplyTask> {
 
     protected abstract void applyOnMainThread(TApplyTask task, long currentGeneration);
 
-    protected void onBeforeClear(long nextGeneration) {}
+    protected void onBeforeClear(long nextGeneration) {
+    }
 
-    protected void onAfterClear(long nextGeneration) {}
+    protected void onAfterClear(long nextGeneration) {
+    }
 
-    protected void onDiscardApplyTask(TApplyTask task) {}
+    protected void onDiscardApplyTask(TApplyTask task) {
+    }
 
     public static void register(AbstractAsyncHandler<?> handler) {
         if (handler == null) return;
@@ -102,7 +100,7 @@ public abstract class AbstractAsyncHandler<TApplyTask> {
     }
 
     public static void unregister(String id) {
-        if (id == null || id.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(id)) return;
         HANDLERS.remove(id);
     }
 

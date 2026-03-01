@@ -2,6 +2,7 @@ package com.sighs.apricityui.resource.async.network;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.util.StringUtils;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.ByteArrayOutputStream;
@@ -118,7 +119,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                     int status = connection.getResponseCode();
                     if (isRedirect(status)) {
                         String location = connection.getHeaderField("Location");
-                        if (location == null || location.isBlank()) {
+                        if (StringUtils.isNullOrEmptyEx(location)) {
                             throw new IOException("重定向缺失 Location: " + requestUrl);
                         }
                         requestUrl = resolveRedirect(requestUrl, location);
@@ -155,7 +156,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
     }
 
     private static void validateContentType(String contentType, String url) throws IOException {
-        if (contentType == null || contentType.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(contentType)) return;
         String lower = contentType.toLowerCase();
         if (!lower.startsWith("image/") && !lower.startsWith("text/css") && !lower.startsWith("font/") && !lower.startsWith("application/font")) {
             throw new IOException("远程资源类型不支持: " + url + " (Content-Type: " + contentType + ")");
@@ -227,7 +228,8 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         }
     }
 
-    private record CacheEntry(byte[] bytes, long expiresAtMs) {}
+    private record CacheEntry(byte[] bytes, long expiresAtMs) {
+    }
 
     private static final class RetryableHttpException extends IOException {
         private final int statusCode;

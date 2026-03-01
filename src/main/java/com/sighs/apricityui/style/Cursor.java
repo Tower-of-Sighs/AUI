@@ -1,13 +1,13 @@
 package com.sighs.apricityui.style;
 
-import com.sighs.apricityui.instance.Loader;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
-import com.mojang.blaze3d.vertex.PoseStack;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
@@ -192,5 +192,6 @@ public class Cursor {
         return new CursorUrlSpec(resolved, hotspotX, hotspotY);
     }
 
-    private record CursorUrlSpec(String path, int hotspotX, int hotspotY) {}
+    private record CursorUrlSpec(String path, int hotspotX, int hotspotY) {
+    }
 }

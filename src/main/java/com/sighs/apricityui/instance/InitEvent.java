@@ -21,7 +21,7 @@ public class InitEvent {
         try {
             Window.window.localStorage.localStorage = NbtIo.readCompressed(LocalStorage.LOCAL_STORAGE_FILE_PATH);
         } catch (IOException e) {
-            //文件不存在
+            // 文件不存在
             Window.window.localStorage.save();
         }
     }

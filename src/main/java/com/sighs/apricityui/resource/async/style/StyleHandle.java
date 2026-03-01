@@ -1,6 +1,7 @@
 package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -56,7 +57,7 @@ public class StyleHandle {
     }
 
     public boolean tryRequestFont(String fontKey) {
-        if (fontKey == null || fontKey.isBlank()) return false;
+        if (StringUtils.isNullOrEmptyEx(fontKey)) return false;
         return requestedFonts.putIfAbsent(fontKey, Boolean.TRUE) == null;
     }
 
@@ -109,5 +110,6 @@ public class StyleHandle {
         pendingTasks.set(0);
     }
 
-    public record CssEntry(String contextPath, String cssText) {}
+    public record CssEntry(String contextPath, String cssText) {
+    }
 }

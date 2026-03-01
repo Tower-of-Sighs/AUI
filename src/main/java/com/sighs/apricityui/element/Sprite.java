@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
@@ -99,7 +100,7 @@ public class Sprite extends Div {
     @Override
     public void tick() {
         super.tick();
-        if (!frameMetricsPending || pendingFrameMetricsSrc.isBlank()) return;
+        if (!frameMetricsPending || StringUtils.isNullOrEmptyEx(pendingFrameMetricsSrc)) return;
 
         com.sighs.apricityui.resource.async.image.ImageHandle handle =
                 com.sighs.apricityui.resource.async.image.ImageAsyncHandler.INSTANCE
@@ -117,7 +118,7 @@ public class Sprite extends Div {
 
     private void rebuildSpriteRuntime() {
         String resolvedSrc = resolveSpriteSource();
-        if (resolvedSrc.isEmpty()) {
+        if (StringUtils.isNullOrEmpty(resolvedSrc)) {
             clearPendingFrameMetrics();
             managedInlineStyle = "";
             return;
@@ -286,7 +287,7 @@ public class Sprite extends Div {
     // 解析并规范化 src（相对路径 -> 文档上下文绝对路径）。
     private String resolveSpriteSource() {
         String src = getAttr("src");
-        if (src.isBlank()) return "";
+        if (StringUtils.isNullOrEmptyEx(src)) return "";
         return Loader.resolve(document.getPath(), src);
     }
 
@@ -294,7 +295,7 @@ public class Sprite extends Div {
     private String getAttr(String name) {
         Map<String, String> attrs = getAttributes();
         String direct = attrs.getOrDefault(name, "");
-        if (!direct.isBlank()) return direct.trim();
+        if (StringUtils.isNotNullOrEmptyEx(direct)) return direct.trim();
 
         for (Map.Entry<String, String> entry : attrs.entrySet()) {
             if (normalizeAttr(entry.getKey()).equals(normalizeAttr(name))) {
@@ -305,7 +306,7 @@ public class Sprite extends Div {
     }
 
     private static boolean valid(String value) {
-        return value != null && !value.isBlank() && !"unset".equals(value);
+        return StringUtils.isNotNullOrEmptyEx(value) && !"unset".equals(value);
     }
 
     // duration 支持 CSS 时间值；非法时回退默认 1s。
@@ -429,7 +430,7 @@ public class Sprite extends Div {
     // 把 style 字符串解析成有序 KV，便于后续覆盖和回写。
     private static LinkedHashMap<String, String> parseStyle(String rawStyle) {
         LinkedHashMap<String, String> result = new LinkedHashMap<>();
-        if (rawStyle == null || rawStyle.isBlank()) return result;
+        if (StringUtils.isNullOrEmptyEx(rawStyle)) return result;
 
         String[] entries = rawStyle.split(";");
         for (String entry : entries) {
@@ -463,7 +464,8 @@ public class Sprite extends Div {
     }
 
     // 异步纹理就绪后推导出的单帧尺寸。
-    private record FrameMetrics(int frameW, int frameH) {}
+    private record FrameMetrics(int frameW, int frameH) {
+    }
 
     // Sprite 解析后的配置快照。
     private record SpriteSpec(
@@ -513,7 +515,8 @@ public class Sprite extends Div {
             SpriteSpec.Direction direction,
             int frameW,
             int frameH
-    ) {}
+    ) {
+    }
 
     // Document 级缓存：同一文档中相同 SpriteKey 只注册一次 keyframes。
     private static class SpriteKeyframesCache {

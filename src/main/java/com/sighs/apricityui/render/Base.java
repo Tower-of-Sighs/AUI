@@ -9,7 +9,10 @@ import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
@@ -100,21 +103,27 @@ public class Base {
     public static void setProjectionMatrix(Matrix4f matrix) {
         RenderSystem.setProjectionMatrix(matrix, RenderSystem.getVertexSorting());
     }
+
     public static Matrix4f getProjectionMatrix() {
         return RenderSystem.getProjectionMatrix();
     }
+
     public static void setShader(ShaderInstance shader) {
         RenderSystem.setShader(() -> shader);
     }
+
     public static void setPositionColorShader() {
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
     }
+
     public static void setPositionTexShader() {
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
     }
+
     public static void setShaderTexture(int i, int v) {
         RenderSystem.setShaderTexture(i, v);
     }
+
     public static void setShaderColor(float a, float r, float g, float b) {
         RenderSystem.setShaderColor(a, r, g, b);
     }

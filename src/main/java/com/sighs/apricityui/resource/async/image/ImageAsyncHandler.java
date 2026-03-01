@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.io.InputStream;
 import java.util.Collection;
@@ -27,7 +28,7 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
     }
 
     public ImageHandle request(String path, Element requester, boolean needRelayout) {
-        if (path == null || path.isBlank() || "unset".equals(path)) return null;
+        if (StringUtils.isNullOrEmptyEx(path) || "unset".equals(path)) return null;
 
         long now = System.currentTimeMillis();
         long generation = currentGeneration();
@@ -55,7 +56,7 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         Set<String> paths = new HashSet<>();
         for (Element element : document.getElements()) {
             String src = element.getAttribute("src");
-            if (!src.isEmpty() && "IMG".equals(element.tagName)) {
+            if (StringUtils.isNotNullOrEmpty(src) && "IMG".equals(element.tagName)) {
                 String resolved = Loader.resolve(document.getPath(), src);
                 if (isImagePathValid(resolved)) {
                     paths.add(resolved);
@@ -80,27 +81,27 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
     }
 
     private static boolean isImagePathValid(String path) {
-        return path != null && !path.isBlank() && !"unset".equals(path);
+        return StringUtils.isNotNullOrEmptyEx(path) && !"unset".equals(path);
     }
 
     private static String resolveFirstNonUnset(String primary, String fallback) {
-        if (primary != null && !primary.isBlank() && !"unset".equals(primary)) {
+        if (StringUtils.isNotNullOrEmptyEx(primary) && !"unset".equals(primary)) {
             return primary;
         }
-        if (fallback != null && !fallback.isBlank() && !"unset".equals(fallback)) {
+        if (StringUtils.isNotNullOrEmptyEx(fallback) && !"unset".equals(fallback)) {
             return fallback;
         }
         return null;
     }
 
     private static String resolveCssUrl(String contextPath, String cssValue) {
-        if (cssValue == null || cssValue.isBlank() || "unset".equals(cssValue)) return null;
+        if (StringUtils.isNullOrEmptyEx(cssValue) || "unset".equals(cssValue)) return null;
         int start = cssValue.indexOf("url(");
         if (start < 0) return null;
         int end = cssValue.indexOf(')', start + 4);
         if (end < 0) return null;
         String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
-        if (raw.isEmpty()) return null;
+        if (StringUtils.isNullOrEmpty(raw)) return null;
         return Loader.resolve(contextPath, raw);
     }
 
@@ -206,5 +207,6 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         }
     }
 
-    public record ImageApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {}
+    public record ImageApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {
+    }
 }

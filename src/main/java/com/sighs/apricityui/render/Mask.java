@@ -29,9 +29,9 @@ public class Mask {
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
-//        clipStack.push(currentClip);
-//        AABB newMask = new AABB(x, y, width, height);
-//        currentClip = currentClip.intersection(newMask);
+        // clipStack.push(currentClip);
+        // AABB newMask = new AABB(x, y, width, height);
+        // currentClip = currentClip.intersection(newMask);
 
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();

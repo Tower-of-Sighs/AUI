@@ -1,23 +1,19 @@
 package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
-import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
@@ -55,7 +51,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
         int order = 0;
 
         String globalCss = Loader.readGlobalCSS();
-        if (globalCss != null && !globalCss.isBlank()) {
+        if (StringUtils.isNotNullOrEmptyEx(globalCss)) {
             ParsedCss parsed = parseCss(globalCss, "global.css");
             handle.putCssEntry(order++, new StyleHandle.CssEntry("global.css", parsed.cssText()));
             enqueueFontTasks(handle, parsed.fontTasks());
@@ -70,7 +66,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
 
         if (inlineStyles != null) {
             for (String inlineCss : inlineStyles) {
-                if (inlineCss == null || inlineCss.isBlank()) continue;
+                if (StringUtils.isNullOrEmptyEx(inlineCss)) continue;
                 ParsedCss parsed = parseCss(inlineCss, contextPath);
                 handle.putCssEntry(order++, new StyleHandle.CssEntry(contextPath, parsed.cssText()));
                 enqueueFontTasks(handle, parsed.fontTasks());
@@ -111,7 +107,8 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
             boolean success = false;
             try (ByteArrayInputStream stream = new ByteArrayInputStream(fontLoadedTask.bytes())) {
                 success = Font.registerFont(fontLoadedTask.fontFamily(), stream);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
             if (success) {
                 FontDrawer.clearCache();
                 document.reapplyStylesFromCache();
@@ -146,7 +143,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
     }
 
     private void enqueueCssFetch(StyleHandle handle, int order, String resolvedPath) {
-        if (resolvedPath == null || resolvedPath.isBlank()) return;
+        if (StringUtils.isNullOrEmptyEx(resolvedPath)) return;
         long now = System.currentTimeMillis();
         Long failedAt = FAILED_CACHE.get(resolvedPath);
         if (failedAt != null && now - failedAt < FAILED_TTL_MS) return;
@@ -166,7 +163,8 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
     private void enqueueFontTasks(StyleHandle handle, List<FontTask> fontTasks) {
         if (fontTasks == null || fontTasks.isEmpty()) return;
         for (FontTask fontTask : fontTasks) {
-            if (fontTask == null || fontTask.fontFamily().isBlank() || fontTask.path().isBlank()) continue;
+            if (fontTask == null || StringUtils.isNullOrEmptyEx(fontTask.fontFamily()) || StringUtils.isNullOrEmptyEx(fontTask.path()))
+                continue;
             String fontKey = fontTask.fontFamily().trim() + "|" + fontTask.path().trim();
             if (!handle.tryRequestFont(fontKey)) continue;
 
@@ -188,7 +186,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
 
     private String loadCssWithImports(String path, int depth, Set<String> visited) throws IOException {
         if (depth > MAX_IMPORT_DEPTH) return "";
-        if (path == null || path.isBlank()) return "";
+        if (StringUtils.isNullOrEmptyEx(path)) return "";
 
         String normalized = path.trim();
         if (!visited.add(normalized)) return "";
@@ -203,11 +201,12 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
         if (depth < MAX_IMPORT_DEPTH) {
             for (String importPath : imports) {
                 String resolved = Loader.resolve(normalized, importPath);
-                if (resolved.isBlank()) continue;
+                if (StringUtils.isNullOrEmptyEx(resolved)) continue;
                 try {
                     String imported = loadCssWithImports(resolved, depth + 1, visited);
-                    if (!imported.isBlank()) merged.append(imported).append('\n');
-                } catch (IOException ignored) {}
+                    if (StringUtils.isNotNullOrEmptyEx(imported)) merged.append(imported).append('\n');
+                } catch (IOException ignored) {
+                }
             }
         }
         merged.append(cssWithoutImport);
@@ -232,7 +231,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
     }
 
     private FontTask parseFontTask(String rules, String contextPath) {
-        if (rules == null || rules.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(rules)) return null;
         String[] pairs = rules.split(";");
         String fontFamily = null;
         String src = null;
@@ -249,28 +248,28 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
         Matcher urlMatcher = URL_PATTERN.matcher(src);
         if (!urlMatcher.find()) return null;
         String rawPath = urlMatcher.group(1).replace("\"", "").replace("'", "").trim();
-        if (rawPath.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(rawPath)) return null;
 
         String resolvedPath = Loader.resolve(contextPath, rawPath);
         String cleanFamily = fontFamily.replace("\"", "").replace("'", "").trim();
-        if (cleanFamily.isBlank() || resolvedPath.isBlank()) return null;
+        if (StringUtils.isNullOrEmptyEx(cleanFamily) || StringUtils.isNullOrEmptyEx(resolvedPath)) return null;
         return new FontTask(cleanFamily, resolvedPath);
     }
 
     private List<String> extractImportPaths(String css) {
-        if (css == null || css.isBlank()) return List.of();
+        if (StringUtils.isNullOrEmptyEx(css)) return List.of();
         ArrayList<String> imports = new ArrayList<>();
         Matcher matcher = IMPORT_PATTERN.matcher(css);
         while (matcher.find()) {
             String path = matcher.group(1);
-            if (path == null || path.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(path)) continue;
             imports.add(path.trim());
         }
         return imports;
     }
 
     private String stripImports(String css) {
-        if (css == null || css.isBlank()) return "";
+        if (StringUtils.isNullOrEmptyEx(css)) return "";
         return IMPORT_PATTERN.matcher(css).replaceAll("");
     }
 
@@ -328,26 +327,32 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
             String contextPath,
             String cssText,
             List<FontTask> fontTasks
-    ) implements ApplyTask {}
+    ) implements ApplyTask {
+    }
 
     private record FontLoadedTask(
             StyleHandle handle,
             String fontFamily,
             String path,
             byte[] bytes
-    ) implements ApplyTask {}
+    ) implements ApplyTask {
+    }
 
     private record FailedTask(
             StyleHandle handle,
             String path,
             Exception error
-    ) implements ApplyTask {}
+    ) implements ApplyTask {
+    }
 
-    private record ParsedCss(String cssText, List<FontTask> fontTasks) {}
+    private record ParsedCss(String cssText, List<FontTask> fontTasks) {
+    }
 
-    private record FontTask(String fontFamily, String path) {}
+    private record FontTask(String fontFamily, String path) {
+    }
 
-    private record CacheEntry(byte[] bytes, long expiresAtMs) {}
+    private record CacheEntry(byte[] bytes, long expiresAtMs) {
+    }
 
     private static final class InFlightEntry {
         private final CountDownLatch latch = new CountDownLatch(1);

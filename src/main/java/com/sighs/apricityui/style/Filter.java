@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.Iterator;
 import java.util.List;
@@ -9,14 +10,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Filter {
-    
+
     public record FilterState(
-        float blurRadius,   // px
-        float brightness,   // percentage (1.0 = 100%)
-        float grayscale,    // 0.0 - 1.0
-        float invert,       // 0.0 - 1.0
-        float hueRotate,     // degrees
-        float opacity
+            float blurRadius,   // px
+            float brightness,   // percentage (1.0 = 100%)
+            float grayscale,    // 0.0 - 1.0
+            float invert,       // 0.0 - 1.0
+            float hueRotate,     // degrees
+            float opacity
     ) {
         public static final FilterState EMPTY = new FilterState(0, 1, 0, 0, 0, 1);
 
@@ -77,7 +78,7 @@ public class Filter {
             } else if (val.endsWith(unit)) {
                 return Float.parseFloat(val.replace(unit, ""));
             } else if (unit.equals("px") && val.matches("[0-9.]+")) {
-                 return Float.parseFloat(val);
+                return Float.parseFloat(val);
             } else if (val.matches("[0-9.]+")) {
                 return Float.parseFloat(val);
             }
@@ -95,10 +96,11 @@ public class Filter {
 
     public static boolean isDisabled(Element element) {
         String filterStr = element.getComputedStyle().filter;
-        return (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) && getOpacity(element) == 1.0f;
+        return (StringUtils.isNullOrEmpty(filterStr) || filterStr.equals("none")) && getOpacity(element) == 1.0f;
     }
+
     public static boolean isDisabled(String filterStr) {
-        return filterStr == null || filterStr.equals("none") || filterStr.isEmpty();
+        return StringUtils.isNullOrEmpty(filterStr) || filterStr.equals("none");
     }
 
     public static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {

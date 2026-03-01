@@ -3,7 +3,9 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
 import org.lwjgl.opengl.GL11;
 
 public interface RenderNode {
@@ -46,9 +48,9 @@ public interface RenderNode {
     record ElementPhaseNode(Element target, Base.RenderPhase phase) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-//            if (Transition.isActive(target) || Animation.isActive(target)) {
-//                target.getComputedStyle();
-//            }
+            // if (Transition.isActive(target) || Animation.isActive(target)) {
+            //     target.getComputedStyle();
+            // }
             AABB currentClip = Mask.getCurrentClip();
             if (!currentClip.isValid()) return;
             if (target.getComputedStyle().display.equals("none")) return;
@@ -68,10 +70,10 @@ public interface RenderNode {
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
             // 可以考虑这个，但目前还没想到怎么写比较好一点
-//            if (opacity <= 0.001f) {
-//                poseStack.popPose();
-//                return;
-//            }
+            // if (opacity <= 0.001f) {
+            //     poseStack.popPose();
+            //     return;
+            // }
 
             if (!target.isLoaded) {
                 target.resetRenderer();

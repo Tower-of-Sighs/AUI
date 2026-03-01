@@ -7,6 +7,7 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -17,7 +18,7 @@ public class Drawer {
     public static final int REPAINT = 1;
 
     private static boolean isSet(String s) {
-        return s != null && !s.equals("unset") && !s.isBlank();
+        return StringUtils.isNotNullOrEmptyEx(s) && !s.equals("unset");
     }
 
     public static final int REORDER = 2;

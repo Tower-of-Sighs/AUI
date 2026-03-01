@@ -2,8 +2,11 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -27,7 +30,7 @@ public interface Transform {
         Rotate rotate = Rotate.DEFAULT;
         Scale scale = Scale.DEFAULT;
 
-        if (transform == null || transform.isBlank() || "none".equalsIgnoreCase(transform.trim())) {
+        if (StringUtils.isNullOrEmptyEx(transform) || "none".equalsIgnoreCase(transform.trim())) {
             return List.of();
         }
 
@@ -114,7 +117,7 @@ public interface Transform {
 
     private static List<String> splitArgs(String argText) {
         List<String> out = new ArrayList<>();
-        if (argText == null || argText.isBlank()) return out;
+        if (StringUtils.isNullOrEmptyEx(argText)) return out;
         String[] byComma = argText.split(",");
         for (String part : byComma) {
             String trimmed = part.trim();
@@ -146,7 +149,8 @@ public interface Transform {
         token = token.trim().toLowerCase(Locale.ROOT);
         try {
             if (token.endsWith("deg")) return Double.parseDouble(token.substring(0, token.length() - 3));
-            if (token.endsWith("rad")) return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
+            if (token.endsWith("rad"))
+                return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
             if (token.endsWith("grad")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 0.9;
             if (token.endsWith("turn")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 360.0;
             return Double.parseDouble(token);
@@ -196,7 +200,7 @@ public interface Transform {
                 for (Transition.Change change : changeList) {
                     if (names.contains(change.name()) && values.size() < names.size()) {
                         values.add(String.valueOf(change.value()));
-//                        changeList.remove(change);
+                        // changeList.remove(change);
                     }
                 }
                 functions.add("translate(" + String.join(",", values) + ") ");
@@ -207,7 +211,7 @@ public interface Transform {
                 for (Transition.Change change : changeList) {
                     if (names.contains(change.name()) && values.size() < names.size()) {
                         values.add(String.valueOf(change.value()));
-//                        changeList.remove(change);
+                        // changeList.remove(change);
                     }
                 }
                 functions.add("rotatex(" + values.get(0) + ") rotatey(" + values.get(1) + ") rotatez(" + values.get(2) + ") ");

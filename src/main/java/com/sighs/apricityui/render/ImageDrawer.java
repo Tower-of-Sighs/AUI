@@ -1,6 +1,9 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
@@ -11,6 +14,7 @@ import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -38,7 +42,7 @@ public class ImageDrawer {
 
     public static void draw(PoseStack poseStack, Element element, Rect rect) {
         String src = element.getAttribute("src");
-        if (src == null || src.isEmpty()) return;
+        if (StringUtils.isNullOrEmpty(src)) return;
 
         Position position = rect.getBodyRectPosition();
         Size size = rect.getBodyRectSize();
@@ -122,7 +126,7 @@ public class ImageDrawer {
     }
 
     private static float[] resolveRenderSize(String backgroundSize, int boxW, int boxH, int texW, int texH) {
-        String size = (backgroundSize == null || backgroundSize.isEmpty() || "unset".equals(backgroundSize))
+        String size = (StringUtils.isNullOrEmpty(backgroundSize) || "unset".equals(backgroundSize))
                 ? "auto"
                 : backgroundSize.trim().toLowerCase(Locale.ROOT);
         switch (size) {
@@ -155,7 +159,7 @@ public class ImageDrawer {
     }
 
     private static float[] parseBackgroundPosition(String position, float boxW, float boxH, float renderW, float renderH) {
-        String normalized = (position == null || position.isEmpty() || "unset".equals(position))
+        String normalized = (StringUtils.isNullOrEmpty(position) || "unset".equals(position))
                 ? "0 0"
                 : position.trim().toLowerCase(Locale.ROOT);
         String[] parts = normalized.split("\\s+");
@@ -183,7 +187,7 @@ public class ImageDrawer {
     }
 
     private static float parsePositionToken(String token, float boxSize, float renderSize, boolean isX) {
-        if (token == null || token.isEmpty()) return 0;
+        if (StringUtils.isNullOrEmpty(token)) return 0;
         String normalized = token.trim().toLowerCase(Locale.ROOT);
         if ("center".equals(normalized)) return (boxSize - renderSize) / 2f;
         if ((isX && "left".equals(normalized)) || (!isX && "top".equals(normalized))) return 0;
@@ -232,9 +236,12 @@ public class ImageDrawer {
 
         // 4个角
         if (bL > 0 && bT > 0) innerBlit(poseStack, loc, finalX, finalY, bL, bT, 0, 0, sL, sT, texW, texH, false);
-        if (bR > 0 && bT > 0) innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, false);
-        if (bL > 0 && bB > 0) innerBlit(poseStack, loc, finalX, finalY + finalH - bB, bL, bB, 0, texH - sB, sL, sB, texW, texH, false);
-        if (bR > 0 && bB > 0) innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, false);
+        if (bR > 0 && bT > 0)
+            innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, false);
+        if (bL > 0 && bB > 0)
+            innerBlit(poseStack, loc, finalX, finalY + finalH - bB, bL, bB, 0, texH - sB, sL, sB, texW, texH, false);
+        if (bR > 0 && bB > 0)
+            innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, false);
 
         // 4条边
         drawTiledPart(poseStack, loc, finalX + bL, finalY, destCW, bT, sL, 0, srcCW, sT, texW, texH, repeatH, "stretch");
@@ -257,10 +264,10 @@ public class ImageDrawer {
         float tileW = dw, tileV = dh;
 
         if (repeatX.equals("repeat") || repeatX.equals("round")) {
-            tileW = (repeatX.equals("round")) ? (float) dw / Math.max(1, Math.round((float)dw / sw)) : sw;
+            tileW = (repeatX.equals("round")) ? (float) dw / Math.max(1, Math.round((float) dw / sw)) : sw;
         }
         if (repeatY.equals("repeat") || repeatY.equals("round")) {
-            tileV = (repeatY.equals("round")) ? (float) dh / Math.max(1, Math.round((float)dh / sh)) : sh;
+            tileV = (repeatY.equals("round")) ? (float) dh / Math.max(1, Math.round((float) dh / sh)) : sh;
         }
 
         if (tileW == dw && tileV == dh) {
@@ -272,9 +279,9 @@ public class ImageDrawer {
 
         for (float curX = 0; curX < dw; curX += tileW) {
             for (float curY = 0; curY < dh; curY += tileV) {
-                int drawW = (int)Math.min(tileW, dw - curX + 1);
-                int drawH = (int)Math.min(tileV, dh - curY + 1);
-                innerBlit(poseStack, loc, (int)(dx + curX), (int)(dy + curY), drawW, drawH, sx, sy, sw, sh, texW, texH, false);
+                int drawW = (int) Math.min(tileW, dw - curX + 1);
+                int drawH = (int) Math.min(tileV, dh - curY + 1);
+                innerBlit(poseStack, loc, (int) (dx + curX), (int) (dy + curY), drawW, drawH, sx, sy, sw, sh, texW, texH, false);
             }
         }
 
@@ -288,7 +295,7 @@ public class ImageDrawer {
     }
 
     private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, int x, int y, int width, int height) {
-        if (path == null || path.isEmpty() || "unset".equals(path)) return null;
+        if (StringUtils.isNullOrEmpty(path) || "unset".equals(path)) return null;
         ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path);
         if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
             drawPlaceholder(poseStack, x, y, width, height);
@@ -309,10 +316,10 @@ public class ImageDrawer {
         VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
         Matrix4f matrix = poseStack.last().pose();
 
-        float minU = uTexture / (float)textureWidth;
-        float maxU = (uTexture + widthTexture) / (float)textureWidth;
-        float minV = vTexture / (float)textureHeight;
-        float maxV = (vTexture + heightTexture) / (float)textureHeight;
+        float minU = uTexture / (float) textureWidth;
+        float maxU = (uTexture + widthTexture) / (float) textureWidth;
+        float minV = vTexture / (float) textureHeight;
+        float maxV = (vTexture + heightTexture) / (float) textureHeight;
 
         vertexConsumer.vertex(matrix, x, y + height, 0.0F).color(255, 255, 255, 255).uv(minU, maxV).uv2(0xF000F0).endVertex();
         vertexConsumer.vertex(matrix, x + width, y + height, 0.0F).color(255, 255, 255, 255).uv(maxU, maxV).uv2(0xF000F0).endVertex();
@@ -345,6 +352,9 @@ public class ImageDrawer {
         }
     }
 
-    private record ReadyTexture(ResourceLocation location, int width, int height) {}
-    private record RenderKey(ResourceLocation location, boolean blur) {}
+    private record ReadyTexture(ResourceLocation location, int width, int height) {
+    }
+
+    private record RenderKey(ResourceLocation location, boolean blur) {
+    }
 }

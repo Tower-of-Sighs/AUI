@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance.container.bind;
 
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -55,8 +56,8 @@ public final class OpenBindPlan {
                 args.forEach((key, value) -> {
                     if (key == null) return;
                     String normalizedKey = key.trim();
-                    if (normalizedKey.isEmpty()) return;
-                    normalizedArgs.put(normalizedKey, value == null ? "" : value);
+                    if (StringUtils.isNullOrEmpty(normalizedKey)) return;
+                    normalizedArgs.put(normalizedKey, StringUtils.nullToEmpty(value));
                 });
             }
             args = Map.copyOf(normalizedArgs);
@@ -83,16 +84,16 @@ public final class OpenBindPlan {
 
         private static BindingSpec withSingleArg(BindingSpec base, String argKey, String argValue) {
             if (base == null) throw new IllegalArgumentException("base binding cannot be null");
-            if (argKey == null || argKey.trim().isEmpty()) {
+            if (StringUtils.isNullOrEmptyEx(argKey)) {
                 throw new IllegalArgumentException("argKey cannot be blank");
             }
             LinkedHashMap<String, String> args = new LinkedHashMap<>(base.args());
-            args.put(argKey.trim(), argValue == null ? "" : argValue);
+            args.put(argKey.trim(), StringUtils.nullToEmpty(argValue));
             return new BindingSpec(base.bindType(), args);
         }
 
         private static String requireText(String value, String fieldName) {
-            if (value == null || value.trim().isEmpty()) {
+            if (StringUtils.isNullOrEmptyEx(value)) {
                 throw new IllegalArgumentException(fieldName + " cannot be blank");
             }
             return value.trim();
@@ -116,7 +117,7 @@ public final class OpenBindPlan {
             args.put("x", String.valueOf(x));
             args.put("y", String.valueOf(y));
             args.put("z", String.valueOf(z));
-            if (side != null && !side.trim().isEmpty()) {
+            if (StringUtils.isNotNullOrEmptyEx(side)) {
                 args.put("side", side.trim());
             }
             return new BindingSpec(ContainerSchema.Descriptor.BindType.BLOCK_ENTITY, args);

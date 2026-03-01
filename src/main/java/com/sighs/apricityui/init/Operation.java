@@ -18,15 +18,19 @@ public class Operation {
     public static void onMouseDown() {
         onMouseDown(-1);
     }
+
     public static void onMouseDown(int button) {
         MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition()));
     }
+
     public static void onMouseUp() {
         onMouseUp(-1);
     }
+
     public static void onMouseUp(int button) {
         MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition()));
     }
+
     public static void onMouseMove(Position currentMousePosition) {
         if (cachedMousePosition != null) {
             MouseEvent mouseEvent = new MouseEvent("mousemove", getMousePosition());

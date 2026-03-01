@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.HashMap;
 import java.util.List;
@@ -131,8 +132,8 @@ public class RenderElement {
         for (String prop : STRUCTURAL_PROPS) {
             String oVal = origin.get(prop);
             String cVal = current.get(prop);
-            boolean had = oVal != null && !oVal.equals("none") && !oVal.isEmpty();
-            boolean has = cVal != null && !cVal.equals("none") && !cVal.isEmpty();
+            boolean had = StringUtils.isNotNullOrEmpty(oVal) && !oVal.equals("none");
+            boolean has = StringUtils.isNotNullOrEmpty(cVal) && !cVal.equals("none");
 
             // 特殊处理 overflow，只有 hidden 会触发 MaskNode
             if (prop.equals("overflow")) {

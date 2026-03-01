@@ -1,6 +1,8 @@
 package com.sighs.apricityui.event;
 
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Box;
@@ -207,7 +209,7 @@ public class MouseEvent extends Event implements Cloneable {
         if (target != null) {
             if (event.shiftKey) target.setScrollLeft(target.scrollLeft + event.scrollDelta);
             else target.setScrollTop(target.scrollTop + event.scrollDelta);
-            if(target.children != null) {
+            if (target.children != null) {
                 // 清理子元素的位置缓存
                 target.children.forEach(e -> e.getRenderer().position.clear());
             }
@@ -238,13 +240,11 @@ public class MouseEvent extends Event implements Cloneable {
 
             if (node instanceof RenderNode.MaskPopNode popNode) {
                 clipStack.push(popNode.target());
-            }
-            else if (node instanceof RenderNode.MaskPushNode pushNode) {
+            } else if (node instanceof RenderNode.MaskPushNode pushNode) {
                 if (!clipStack.isEmpty() && clipStack.peek() == pushNode.target()) {
                     clipStack.pop();
                 }
-            }
-            else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {
+            } else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {
                 Element element = phaseNode.target();
 
                 if (!element.isVisible || !element.isPointerEnabled) continue;

@@ -9,6 +9,7 @@ import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -167,7 +168,7 @@ public final class ApricityScreenNetworkHandler {
         if (player == null || descriptor == null) return;
 
         String titleLiteral = ContainerSchema.TemplateAnalyzer.resolvePrimaryContainerTitleLiteral(descriptor.getTemplatePath());
-        Component titleComponent = (titleLiteral == null || titleLiteral.isBlank())
+        Component titleComponent = (StringUtils.isNullOrEmptyEx(titleLiteral))
                 ? Component.empty()
                 : Component.literal(titleLiteral);
 

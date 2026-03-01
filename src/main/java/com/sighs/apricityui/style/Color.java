@@ -7,6 +7,7 @@ public class Color {
     public Color(String string) {
         set(string);
     }
+
     public Color(Number value) {
         set(value.intValue());
     }
@@ -14,9 +15,11 @@ public class Color {
     public int getValue() {
         return value;
     }
+
     public void set(String string) {
         this.value = parse(string);
     }
+
     public void set(int value) {
         this.value = value;
     }
@@ -28,11 +31,9 @@ public class Color {
 
         if (input.startsWith("#")) {
             return parseHex(input);
-        }
-        else if (input.startsWith("rgb")) {
+        } else if (input.startsWith("rgb")) {
             return parseRgba(input);
-        }
-        else if (input.startsWith("hsl(")) {
+        } else if (input.startsWith("hsl(")) {
             return parseHsl(input);
         } else {
             return 0;

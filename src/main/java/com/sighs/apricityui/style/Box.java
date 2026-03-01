@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -92,7 +93,7 @@ public class Box {
      * 解析单个 spacing 值，支持 px、%、auto（视为 0）
      */
     private static double parseSpacingValue(String value, Element element, boolean isMargin) {
-        if (value == null || value.isBlank() || value.equalsIgnoreCase("auto")) return 0;
+        if (StringUtils.isNullOrEmptyEx(value) || value.equalsIgnoreCase("auto")) return 0;
         double parsed = Size.parseDouble(value);
         if (parsed < 0) return 0;
         if (value.contains("%") && element != null) {
@@ -106,7 +107,7 @@ public class Box {
      * 解析 margin/padding 简写：1值全边/2值上下左右/3值上左右下/4值上右下左；auto 视为 0；% 相对于包含块宽度
      */
     private static double[] parse4SpacingValues(String value, Element element) {
-        if (value == null || value.isBlank()) return new double[]{0, 0, 0, 0};
+        if (StringUtils.isNullOrEmptyEx(value)) return new double[]{0, 0, 0, 0};
         String[] parts = value.trim().split("\\s+");
         double[] vals = new double[4];
         int n = 0;
@@ -129,7 +130,7 @@ public class Box {
     }
 
     private static boolean valid(String s) {
-        return s != null && !s.equals("unset") && !s.isBlank();
+        return StringUtils.isNotNullOrEmptyEx(s) && !s.equals("unset");
     }
 
     /**
@@ -326,7 +327,7 @@ public class Box {
     }
 
     public static Shadow parseShadow(String string) {
-        if (string == null || string.equals("unset") || string.equals("none") || string.isBlank()) {
+        if (StringUtils.isNullOrEmptyEx(string) || "unset".equals(string) || "none".equals(string)) {
             return Shadow.getDefault();
         }
         String[] res = string.trim().split("\\s+");

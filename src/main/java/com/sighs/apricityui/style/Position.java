@@ -2,9 +2,9 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
-
-import java.util.*;
+import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Position {
@@ -114,8 +114,8 @@ public class Position {
         return Flex.computeChildPosition(element, parent, siblings);
     }
 
-public static int parseSignedInt(String str) {
-        if (str == null || str.isEmpty() || "unset".equals(str)) {
+    public static int parseSignedInt(String str) {
+        if (StringUtils.isNullOrEmpty(str) || "unset".equals(str)) {
             return 0;
         }
 
@@ -129,12 +129,10 @@ public static int parseSignedInt(String str) {
             if (c == '-' && !foundNumber && i + 1 < chars.length && Character.isDigit(chars[i + 1])) {
                 numberBuilder.append(c);
                 foundNumber = true;
-            }
-            else if (Character.isDigit(c)) {
+            } else if (Character.isDigit(c)) {
                 numberBuilder.append(c);
                 foundNumber = true;
-            }
-            else if (foundNumber) {
+            } else if (foundNumber) {
                 break;
             }
         }

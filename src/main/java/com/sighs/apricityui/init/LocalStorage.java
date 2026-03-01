@@ -11,14 +11,14 @@ import java.io.IOException;
 public class LocalStorage {
     public CompoundTag localStorage = new CompoundTag();
 
-    //文件存储位置
+    // 文件存储位置
     public static final File LOCAL_STORAGE_FILE_PATH = FMLPaths.CONFIGDIR.get()
             .resolve(ApricityUI.MODID)
             .resolve("localStorage.nbt")
             .toFile();
 
-    public void save(){
-        try{
+    public void save() {
+        try {
             File parentDir = LOCAL_STORAGE_FILE_PATH.getParentFile();
 
             if (parentDir != null && !parentDir.exists()) {
@@ -30,7 +30,7 @@ public class LocalStorage {
             }
 
             NbtIo.writeCompressed(localStorage, LOCAL_STORAGE_FILE_PATH);
-        }catch (IOException e){
+        } catch (IOException e) {
             ApricityUI.LOGGER.error("Failed to save LocalStorage data to {}", LOCAL_STORAGE_FILE_PATH.getAbsolutePath(), e);
         }
 

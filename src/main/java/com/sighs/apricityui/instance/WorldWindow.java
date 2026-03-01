@@ -45,12 +45,18 @@ public class WorldWindow {
         this.maxDistance = maxDistance;
     }
 
-    public void setPosition(Vec3 position) { this.position = position; }
+    public void setPosition(Vec3 position) {
+        this.position = position;
+    }
+
     public void setRotation(float yRot, float xRot) {
         this.yRot = yRot;
         this.xRot = xRot;
     }
-    public void setScale(float scale) { this.scale = scale; }
+
+    public void setScale(float scale) {
+        this.scale = scale;
+    }
 
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
@@ -86,6 +92,17 @@ public class WorldWindow {
         poseStack.popPose();
     }
 
+    public static boolean cotains(String path) {
+        for (WorldWindow window : windows) {
+            if (window.document.is(path)) return true;
+        }
+        return false;
+    }
+
+    public static boolean cotains(WorldWindow window) {
+        return windows.contains(window);
+    }
+
     public static void addWindow(WorldWindow window) {
         windows.add(window);
     }
@@ -119,7 +136,7 @@ public class WorldWindow {
         Vec3 rayDir = mc.player.getViewVector(mc.getPartialTick());
 
         Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate((float)position.x, (float)position.y, (float)position.z);
+        modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
         modelMatrix.rotate((float) Math.toRadians(180.0F - this.yRot), 0, 1, 0);
         modelMatrix.rotate((float) Math.toRadians(this.xRot), 1, 0, 0);
         modelMatrix.scale(scale, -scale, scale);
@@ -141,7 +158,7 @@ public class WorldWindow {
 
         Vec3 intersection = rayOrigin.add(rayDir.scale(t));
         Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
-        Vector4f localHit = new Vector4f((float)intersection.x, (float)intersection.y, (float)intersection.z, 1.0f);
+        Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
         inverseMatrix.transform(localHit);
 
         double localX = localHit.x + width / 2.0;

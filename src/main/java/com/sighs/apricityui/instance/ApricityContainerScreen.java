@@ -14,6 +14,7 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -166,7 +167,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             Container ownerContainer = slot.findAncestor(Container.class);
             if (ownerContainer == null) continue;
             String containerId = containerIdByElement.get(ownerContainer);
-            if (containerId == null || containerId.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(containerId)) continue;
 
             int localSlotIndex = slot.getSlotIndex();
             if (localSlotIndex < 0) {
@@ -278,7 +279,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         for (Map.Entry<String, Container> entry : containerById.entrySet()) {
             String containerId = entry.getKey();
             Container container = entry.getValue();
-            if (container == null || containerId == null || containerId.isBlank()) continue;
+            if (container == null || StringUtils.isNullOrEmptyEx(containerId)) continue;
             if (!com.sighs.apricityui.instance.container.schema.ContainerSchema.Descriptor.isPlayerBind(
                     menu.getDescriptor().getContainerBindType(containerId))) {
                 continue;
@@ -315,8 +316,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             explicit = true;
         } else {
             String computedGridColumn = element.getComputedStyle().gridColumn;
-            explicit = computedGridColumn != null
-                    && !computedGridColumn.isBlank()
+            explicit = StringUtils.isNotNullOrEmptyEx(computedGridColumn)
                     && !"auto".equals(computedGridColumn)
                     && !"unset".equals(computedGridColumn);
         }
@@ -325,7 +325,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     private static boolean containsGridColumnDeclaration(String styleText) {
-        if (styleText == null || styleText.isBlank()) return false;
+        if (StringUtils.isNullOrEmptyEx(styleText)) return false;
         return styleText.toLowerCase(Locale.ROOT).contains("grid-column");
     }
 

@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -36,14 +37,14 @@ public class Recipe extends MinecraftElement {
     }
 
     private static String appendStyle(String style, String declaration) {
-        if (style == null || style.isBlank()) return declaration;
+        if (StringUtils.isNullOrEmptyEx(style)) return declaration;
         String trimmed = style.trim();
         if (trimmed.endsWith(";")) return trimmed + declaration;
         return trimmed + ";" + declaration;
     }
 
     private static int parsePositive(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
+        if (StringUtils.isNullOrEmptyEx(raw)) return fallback;
         try {
             int parsed = Integer.parseInt(raw.trim());
             return parsed > 0 ? parsed : fallback;
@@ -446,7 +447,7 @@ public class Recipe extends MinecraftElement {
         List<Element> childrenSnapshot = new ArrayList<>(children);
         for (Element child : childrenSnapshot) {
             String generatedTag = child.getAttribute("data-generated");
-            if (generatedTag == null || generatedTag.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(generatedTag)) continue;
             if (!generatedTag.startsWith("recipe")) continue;
             child.remove();
             changed = true;
@@ -517,11 +518,11 @@ public class Recipe extends MinecraftElement {
     }
 
     private static boolean containsCssProperty(String inlineStyle, String property) {
-        if (inlineStyle == null || inlineStyle.isBlank() || property == null || property.isBlank()) return false;
+        if (StringUtils.isNullOrEmptyEx(inlineStyle) || StringUtils.isNullOrEmptyEx(property)) return false;
         String expected = property.trim().toLowerCase(Locale.ROOT);
         String[] declarations = inlineStyle.split(";");
         for (String declaration : declarations) {
-            if (declaration == null || declaration.isBlank()) continue;
+            if (StringUtils.isNullOrEmptyEx(declaration)) continue;
             int split = declaration.indexOf(':');
             if (split < 0) continue;
             String key = declaration.substring(0, split).trim().toLowerCase(Locale.ROOT);
@@ -662,7 +663,7 @@ public class Recipe extends MinecraftElement {
         abstract boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe);
 
         static RecipeDeclaredType fromRaw(String raw) {
-            if (raw == null || raw.isBlank()) return null;
+            if (StringUtils.isNullOrEmptyEx(raw)) return null;
             String normalized = raw.trim().toLowerCase(Locale.ROOT);
             for (RecipeDeclaredType value : values()) {
                 if (value.id.equals(normalized)) return value;

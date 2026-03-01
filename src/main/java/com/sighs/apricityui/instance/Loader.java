@@ -10,6 +10,7 @@ import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
@@ -55,7 +56,7 @@ public class Loader {
     }
 
     public static InputStream getResourceStream(String path) {
-        if (path == null || path.isEmpty()) return null;
+        if (StringUtils.isNullOrEmpty(path)) return null;
         try {
             Path devPath = FMLPaths.GAMEDIR.get().resolve("../../src/main/resources/assets/apricityui/apricity" + path);
             if (Files.exists(devPath)) return Files.newInputStream(devPath);
@@ -66,7 +67,8 @@ public class Loader {
             ResourceLocation rl = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
             Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(rl);
             if (res.isPresent()) return res.get().open();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         return null;
     }
 
@@ -77,19 +79,19 @@ public class Loader {
     }
 
     public static String resolve(String context, String raw) {
-        if (raw == null) return "";
+        if (StringUtils.isNullOrEmpty(raw)) return "";
         String trimmedRaw = raw.trim();
-        if (trimmedRaw.isEmpty()) return "";
+        if (StringUtils.isNullOrEmpty(trimmedRaw)) return "";
         if (isRemotePath(trimmedRaw)) return trimmedRaw;
         if (trimmedRaw.startsWith("/")) return trimmedRaw.substring(1); // 绝对路径
 
-        String safeContext = context == null ? "" : context;
+        String safeContext = StringUtils.nullToEmpty(context);
         String base = safeContext.contains("/") ? safeContext.substring(0, safeContext.lastIndexOf('/')) : "";
         String[] parts = (base + "/" + trimmedRaw).split("/");
 
         java.util.Stack<String> stack = new java.util.Stack<>();
         for (String part : parts) {
-            if (part.isEmpty() || part.equals(".")) continue;
+            if (StringUtils.isNullOrEmpty(part) || part.equals(".")) continue;
             if (part.equals("..")) {
                 if (!stack.isEmpty()) stack.pop();
             } else {
@@ -100,7 +102,8 @@ public class Loader {
     }
 
     private final String extension;
-    private BiConsumer<String, String> handler = (k, c) -> {};
+    private BiConsumer<String, String> handler = (k, c) -> {
+    };
 
     public Loader(String extension) {
         this.extension = extension;
@@ -143,16 +146,19 @@ public class Loader {
                                 String content = Files.readString(p, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(p).toString().replace("\\", "/");
                                 handler.accept(relPath, content);
-                            } catch (IOException ignored) {}
+                            } catch (IOException ignored) {
+                            }
                         });
             }
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     public static String readGlobalCSS() {
         try (InputStream is = getResourceStream("global.css")) {
             if (is != null) return IOUtils.toString(is, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         return null;
     }
 }
