@@ -7,10 +7,11 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.util.ReflectionUtils;
 
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ApricityUIRegistry {
-    public static List<Element> ELEMENTS;
+    public static List<Element> ELEMENTS = new ArrayList<>();
 
     public static void register() {
         ReflectionUtils.findAnnotationClasses(ElementRegister.class, data -> true, clazz -> {
