@@ -7,12 +7,13 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.util.ReflectionUtils;
 
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.List;
 
 public class ApricityUIRegistry {
-    public static List<Element> ELEMENTS;
+    public static List<Element> ELEMENTS = new ArrayList<>();
 
-    static {
+    public static void register() {
         ReflectionUtils.findAnnotationClasses(ElementRegister.class, data -> true, clazz -> {
             if (!Element.class.isAssignableFrom(clazz)) {
                 ApricityUI.LOGGER.error("Class {} has @ElementRegister but is not a subclass of Element!", clazz.getName());

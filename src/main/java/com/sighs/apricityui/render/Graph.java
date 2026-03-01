@@ -229,7 +229,7 @@ public class Graph {
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
-        BufferBuilder buf = Base.getBuffer().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+        BufferBuilder buf = Base.getBuffer().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
         prepare(buf);
 
         float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];

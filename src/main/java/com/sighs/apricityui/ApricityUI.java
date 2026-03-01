@@ -2,6 +2,7 @@ package com.sighs.apricityui;
 
 import com.mojang.logging.LogUtils;
 import com.sighs.apricityui.registry.ApricityMenus;
+import com.sighs.apricityui.registry.ApricityUIRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.api.distmarker.Dist;
@@ -24,6 +25,7 @@ public class ApricityUI {
     public ApricityUI(IEventBus modEventBus, ModContainer modContainer, Dist dist) {
         ApricityMenus.register(modEventBus);
         if (dist == Dist.CLIENT) {
+            ApricityUIRegistry.register();
             modContainer.registerConfig(ModConfig.Type.COMMON, Config.CONFIG_SPEC, "%s_config.toml".formatted(MOD_ID));
             modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         }
