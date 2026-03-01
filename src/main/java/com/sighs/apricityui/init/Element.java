@@ -92,18 +92,18 @@ public class Element {
                 updateCSS();
             }
         }
-//        if (name.equals("class")) {
-//            if (classNames == null) {
-//                classNames = new ArrayList<>();
-//                classNames.addAll(List.of(attributes.getOrDefault(name, "").split(" ")));
-//            } else {
-//                String classes = String.join(" ", classNames);
-//                if (!attributes.getOrDefault("class", "").equals(classes)) {
-//                    attributes.put(name, classes);
-//                    updateCSS();
-//                }
-//            }
-//        }
+        // if (name.equals("class")) {
+        //     if (classNames == null) {
+        //         classNames = new ArrayList<>();
+        //         classNames.addAll(List.of(attributes.getOrDefault(name, "").split(" ")));
+        //     } else {
+        //         String classes = String.join(" ", classNames);
+        //         if (!attributes.getOrDefault("class", "").equals(classes)) {
+        //             attributes.put(name, classes);
+        //             updateCSS();
+        //         }
+        //     }
+        // }
         return attributes.getOrDefault(name, "");
     }
 

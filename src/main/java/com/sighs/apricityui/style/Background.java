@@ -1,8 +1,8 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.instance.Loader;
 
 public class Background {
     public String repeat = "no-repeat";
@@ -14,7 +14,10 @@ public class Background {
 
     public static Background of(Element element) {
         Background cache = element.getRenderer().background.get();
-        if (cache != null) return cache;
+        if (cache != null) {
+            cache.syncAnimatedFields(element.getComputedStyle());
+            return cache;
+        }
 
         Style style = element.getComputedStyle();
         Background bg = new Background();
@@ -28,14 +31,19 @@ public class Background {
         return bg;
     }
 
+    // 背景对象会被缓存，动画帧里需要同步会变化的字段。
+    private void syncAnimatedFields(Style style) {
+        if (style == null) return;
+        this.position = style.backgroundPosition;
+    }
+
     public void resolveBackgroundImage(Element element, String image) {
         if (image == null || image.equals("unset")) return;
 
         if (image.contains("url(")) {
             String path = image.substring(image.indexOf("(") + 1, image.lastIndexOf(")")).replace("\"", "").replace("'", "");
             this.imagePath = Loader.resolve(element.document.getPath(), path);
-        }
-        else if (image.startsWith("linear-gradient")) {
+        } else if (image.startsWith("linear-gradient")) {
             this.gradient = Gradient.parse(image);
         }
     }

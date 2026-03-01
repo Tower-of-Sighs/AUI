@@ -33,27 +33,30 @@ void main() {
         float twoSigmaSq = 2.0 * sigma * sigma;
 
         vec3 blurSumLinear = vec3(0.0);
+        float totalAlphaWeight = 0.0;
         float totalWeight = 0.0;
 
-        // 二维高斯采样循环
         for (int x = -radius; x <= radius; ++x) {
             for (int y = -radius; y <= radius; ++y) {
                 vec2 offset = vec2(x, y) * texelSize;
-                vec3 sampleColor = texture(Sampler0, texCoord + offset).rgb;
+                vec4 sampleCol = texture(Sampler0, texCoord + offset);
 
-                // 转换到线性空间进行混合以获得更佳效果
-                vec3 linearColor = pow(sampleColor, vec3(2.2));
+                vec3 linearColor = pow(sampleCol.rgb, vec3(2.2));
+                float weight = exp(-float(x*x + y*y) / twoSigmaSq);
 
-                float distSq = float(x*x + y*y);
-                float weight = exp(-distSq / twoSigmaSq);
-
-                blurSumLinear += linearColor * weight;
+                blurSumLinear += linearColor * sampleCol.a * weight;
+                totalAlphaWeight += sampleCol.a * weight;
                 totalWeight += weight;
             }
         }
-        // 归一化并转换回 sRGB 空间
-        color.rgb = pow(blurSumLinear / totalWeight, vec3(1.0/2.2));
-        color.a = rawColor.a;
+
+        if (totalAlphaWeight > 0.0) {
+            color.rgb = pow(blurSumLinear / totalAlphaWeight, vec3(1.0/2.2));
+        } else {
+            color.rgb = vec3(0.0);
+        }
+
+        color.a = totalAlphaWeight / totalWeight;
     } else {
         color = rawColor;
     }

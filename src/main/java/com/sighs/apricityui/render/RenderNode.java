@@ -88,30 +88,17 @@ public interface RenderNode {
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
-            float opacity = 1;
-            Float cache = target.getRenderer().opacity.get();
-            if (cache != null) opacity = cache;
-            else {
-                for (Element e : target.getRoute()) {
-                    opacity *= Float.parseFloat(e.getComputedStyle().opacity);
-                }
-                target.getRenderer().opacity.set(opacity);
-            }
+            // 可以考虑这个，但目前还没想到怎么写比较好一点
+            // if (opacity <= 0.001f) {
+            //     poseStack.popPose();
+            //     return;
+            // }
 
-            if (opacity <= 0.001f) {
-                stack.popPose();
-                return;
-            }
-
-            // RenderSystem.setShaderColor(1F, 1F, 1F, opacity);
-            // RenderSystem.color4f(1F, 1F, 1F, opacity);
             if (!target.isLoaded) {
                 target.resetRenderer();
                 target.isLoaded = true;
             }
             target.drawPhase(stack, phase);
-            // RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
-            // RenderSystem.color4f(1F, 1F, 1F, 1F);
             stack.popPose();
         }
     }
@@ -175,8 +162,7 @@ public interface RenderNode {
 
         @Override
         public void render(MatrixStack stack) {
-            String filterStr = target.getComputedStyle().filter;
-            if (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) return;
+            if (Filter.isDisabled(target)) return;
             FilterRenderer.pushFilter();
         }
     }
@@ -186,13 +172,11 @@ public interface RenderNode {
     @AllArgsConstructor
     class FilterPopNode implements RenderNode {
         private Element target;
-        private Filter.FilterState state;
 
         @Override
         public void render(MatrixStack stack) {
-            String filterStr = target.getComputedStyle().filter;
-            if (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) return;
-            FilterRenderer.popFilter(state);
+            if (Filter.isDisabled(target)) return;
+            FilterRenderer.popFilter(Filter.getFilterOf(target));
         }
     }
 
@@ -201,7 +185,6 @@ public interface RenderNode {
     @AllArgsConstructor
     class BackdropFilterNode implements RenderNode {
         private Element target;
-        private Filter.FilterState state;
 
         @Override
         public void render(MatrixStack stack) {
@@ -213,7 +196,7 @@ public interface RenderNode {
                 return;
             }
 
-            FilterRenderer.renderBackdrop(target, state);
+            FilterRenderer.renderBackdrop(target);
         }
     }
 }

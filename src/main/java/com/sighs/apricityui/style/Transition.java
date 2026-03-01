@@ -57,6 +57,7 @@ public class Transition {
 
         if (!changeList.isEmpty()) {
             Transform.readTransition(changeList, originStyle);
+            Filter.readTransition(changeList, originStyle);
             BoxTransition.readTransition(changeList, originStyle);
             changeList.forEach(change -> {
                 if (change.name.equals("opacity")) originStyle.opacity = String.valueOf(change.value);
@@ -124,6 +125,8 @@ public class Transition {
 
         if (name.equals("transform")) {
             Transform.createTransition(startStyle, endStyle, result, duration, delay);
+        } else if (name.equals("filter")) {
+            Filter.createTransition(startStyle, endStyle, result, duration, delay);
         } else if (isBoxProperty(name)) {
             BoxTransition.createTransition(startStyle, endStyle, result, name, duration, delay);
         } else {
@@ -185,6 +188,7 @@ public class Transition {
                 "opacity",
                 "width",
                 "height",
+                "filter",
                 "left",
                 "top",
                 "transform",

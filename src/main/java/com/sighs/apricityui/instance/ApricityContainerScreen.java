@@ -38,6 +38,7 @@ public class ApricityContainerScreen extends ContainerScreen<ApricityContainerMe
     private static final int QUICK_CRAFT_GHOST_COLOR = -2130706433;
     private static final float ICON_SCALE_EPSILON = 0.0001F;
     private static final int OFFSCREEN_SLOT_POS = -10000;
+    private static final String PLAYER_HEADER_RUNTIME_STYLE = "grid-column:1 / span 9;";
 
     @Getter
     private final Document linkedDocument;
@@ -45,6 +46,9 @@ public class ApricityContainerScreen extends ContainerScreen<ApricityContainerMe
     private final ArrayList<Slot> virtualSlots = new ArrayList<>();
     private final HashMap<Slot, Integer> boundGlobalIndexByElement = new HashMap<>();
     private final HashMap<Slot, Container> boundContainerByElement = new HashMap<>();
+    private final IdentityHashMap<Element, String> playerHeaderBaseInlineStyleByElement = new IdentityHashMap<>();
+    private final IdentityHashMap<Element, String> playerHeaderLastInlineStyleByElement = new IdentityHashMap<>();
+    private final IdentityHashMap<Element, Boolean> playerHeaderExplicitGridColumnByElement = new IdentityHashMap<>();
     private boolean slotsBound = false;
     private boolean slotSyncDirty = true;
 
@@ -144,6 +148,7 @@ public class ApricityContainerScreen extends ContainerScreen<ApricityContainerMe
         LinkedHashMap<String, Container> containerById = resolveTopLevelContainerMapping();
         injectImplicitPlayerSlots(containerById);
         expandBoundRepeatSlots();
+        normalizePlayerContainerHeaderLayout(containerById);
 
         IdentityHashMap<Container, String> containerIdByElement = new IdentityHashMap<>();
         for (Map.Entry<String, Container> entry : containerById.entrySet()) {
@@ -270,6 +275,87 @@ public class ApricityContainerScreen extends ContainerScreen<ApricityContainerMe
             }
         }
         return false;
+    }
+
+    /**
+     * 玩家容器头部（第一个 slot 之前的非 slot 直接子节点）强制跨满 9 列，
+     * 避免标题占用首格导致首行槽位只剩 8 列。
+     */
+    private void normalizePlayerContainerHeaderLayout(Map<String, Container> containerById) {
+        if (containerById == null || containerById.isEmpty()) return;
+
+        for (Map.Entry<String, Container> entry : containerById.entrySet()) {
+            String containerId = entry.getKey();
+            Container container = entry.getValue();
+            if (container == null || StringUtils.isNullOrEmptyEx(containerId)) continue;
+            if (!com.sighs.apricityui.instance.container.schema.ContainerSchema.Descriptor.isPlayerBind(
+                    menu.getDescriptor().getContainerBindType(containerId))) {
+                continue;
+            }
+
+            boolean beforeFirstSlot = true;
+            for (Element child : new ArrayList<>(container.children)) {
+                if (child == null) continue;
+
+                boolean shouldApply = false;
+                if (beforeFirstSlot && !(child instanceof Slot)) {
+                    shouldApply = !hasExplicitGridColumn(child);
+                }
+
+                applyPlayerHeaderRuntimeStyle(child, shouldApply);
+                if (child instanceof Slot) {
+                    beforeFirstSlot = false;
+                }
+            }
+        }
+    }
+
+    private boolean hasExplicitGridColumn(Element element) {
+        if (element == null) return false;
+
+        Boolean cachedBoolean = playerHeaderExplicitGridColumnByElement.get(element);
+        if (cachedBoolean != null) {
+            return cachedBoolean;
+        }
+
+        boolean explicit = false;
+        String inlineStyle = element.getAttribute("style");
+        if (containsGridColumnDeclaration(inlineStyle)) {
+            explicit = true;
+        } else {
+            String computedGridColumn = element.getComputedStyle().gridColumn;
+            explicit = StringUtils.isNotNullOrEmptyEx(computedGridColumn)
+                    && !"auto".equals(computedGridColumn)
+                    && !"unset".equals(computedGridColumn);
+        }
+        playerHeaderExplicitGridColumnByElement.put(element, explicit);
+        return explicit;
+    }
+
+    private static boolean containsGridColumnDeclaration(String styleText) {
+        if (StringUtils.isNullOrEmptyEx(styleText)) return false;
+        return styleText.toLowerCase(Locale.ROOT).contains("grid-column");
+    }
+
+    private boolean applyPlayerHeaderRuntimeStyle(Element element, boolean applyHeaderSpan) {
+        if (element == null) return false;
+
+        String baseStyle = playerHeaderBaseInlineStyleByElement.get(element);
+        if (baseStyle == null) {
+            if (!applyHeaderSpan) return false;
+            String raw = element.getAttribute("style");
+            baseStyle = raw == null ? "" : raw;
+            playerHeaderBaseInlineStyleByElement.put(element, baseStyle);
+        }
+
+        String runtimeStyle = applyHeaderSpan ? PLAYER_HEADER_RUNTIME_STYLE : "";
+        String merged = mergeInlineStyle(baseStyle, runtimeStyle);
+        String lastApplied = playerHeaderLastInlineStyleByElement.get(element);
+        if (Objects.equals(lastApplied, merged)) return false;
+
+        element.setAttribute("style", merged);
+        playerHeaderLastInlineStyleByElement.put(element, merged);
+        return true;
     }
 
     private boolean shouldSyncSlotPositions(boolean force) {
@@ -569,12 +655,19 @@ public class ApricityContainerScreen extends ContainerScreen<ApricityContainerMe
 
     @Override
     public void removed() {
+        // 兜底清理：某些关闭路径可能不经过 onClose，确保绑定文档不会残留。
+        if (linkedDocument != null) {
+            linkedDocument.remove();
+        }
         slotsBound = false;
         slotSyncDirty = true;
         boundSlots.clear();
         virtualSlots.clear();
         boundGlobalIndexByElement.clear();
         boundContainerByElement.clear();
+        playerHeaderBaseInlineStyleByElement.clear();
+        playerHeaderLastInlineStyleByElement.clear();
+        playerHeaderExplicitGridColumnByElement.clear();
         super.removed();
     }
 

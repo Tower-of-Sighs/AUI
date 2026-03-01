@@ -79,7 +79,7 @@ public class FilterRenderer {
     }
 
     private static void drawWithShader(Framebuffer fbo, Filter.FilterState state) {
-        ShaderInstance shader = (state != null && !state.isEmpty()) ? ShaderRegistry.getFilterShader() : null;
+        ShaderInstance shader = ShaderRegistry.getFilterShader();
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();
@@ -126,13 +126,14 @@ public class FilterRenderer {
         Base.setProjectionMatrix(oldProjection);
     }
 
-    public static void renderBackdrop(Element target, Filter.FilterState state) {
+    public static void renderBackdrop(Element target) {
         Framebuffer currentBound = fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
-        drawBackdropWithShader(currentBound, state, target);
+        drawBackdropWithShader(currentBound, target);
     }
 
-    private static void drawBackdropWithShader(Framebuffer sourceFbo, Filter.FilterState state, Element target) {
+    private static void drawBackdropWithShader(Framebuffer sourceFbo, Element target) {
         ShaderInstance shader = ShaderRegistry.getFilterShader();
+        Filter.FilterState state = Filter.getBackdropFilterOf(target);
         if (shader == null || state == null || state.isEmpty()) return;
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();

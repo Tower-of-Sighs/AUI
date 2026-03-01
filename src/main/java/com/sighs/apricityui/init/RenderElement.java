@@ -41,6 +41,8 @@ public class RenderElement {
             element.children.forEach(e -> e.getRenderer().cursor.clear());
         }
     };
+    public Cache<Filter.FilterState> filter = new Cache<>();
+    public Cache<Filter.FilterState> backdropFilter = new Cache<>();
 
     public RenderElement(Element element) {
         this.element = element;
@@ -99,6 +101,10 @@ public class RenderElement {
             "fontSize", "lineHeight", "fontFamily"
     ));
 
+    private static final Set<String> STRUCTURAL_PROPS = new HashSet<>(Arrays.asList(
+            "clipPath", "filter", "backdropFilter", "overflow"
+    ));
+
     public static void observeStyle(Element element, Style origin, Style current) {
         int dirtyMask = 0;
 
@@ -116,12 +122,41 @@ public class RenderElement {
 
         RenderElement renderer = element.getRenderer();
 
+        for (String prop : STRUCTURAL_PROPS) {
+            String oVal = origin.get(prop);
+            String cVal = current.get(prop);
+            boolean had = oVal != null && !oVal.equals("none") && !oVal.isEmpty();
+            boolean has = cVal != null && !cVal.equals("none") && !cVal.isEmpty();
+
+            // 特殊处理 overflow，只有 hidden 会触发 MaskNode
+            if (prop.equals("overflow")) {
+                had = "hidden".equals(oVal);
+                has = "hidden".equals(cVal);
+            }
+
+            if (had != has) {
+                dirtyMask |= Drawer.REORDER; // 结构改变，需要重建绘制队列
+                break;
+            }
+        }
+
         if (!current.transform.equals(origin.transform)) {
             renderer.transform.clear();
             dirtyMask |= Drawer.REPAINT;
         }
-        if (!current.opacity.equals(origin.opacity)) {
+
+        if (!origin.opacity.equals(current.opacity)) {
             renderer.opacity.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
+
+        if (!origin.filter.equals(current.filter)) {
+            renderer.filter.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
+
+        if (!origin.backdropFilter.equals(current.backdropFilter)) {
+            renderer.backdropFilter.clear();
             dirtyMask |= Drawer.REPAINT;
         }
 
@@ -182,6 +217,10 @@ public class RenderElement {
 
         if (!origin.animation.equals(current.animation)) {
             Animation.stop(element);
+        }
+
+        if (!origin.zIndex.equals(current.zIndex)) {
+            dirtyMask |= Drawer.REORDER;
         }
 
         if (dirtyMask != 0 && element.document != null) {

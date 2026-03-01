@@ -18,6 +18,22 @@ public final class StringUtils {
         return s != null && !s.trim().isEmpty();
     }
 
+    public static boolean isNullOrEmpty(StringBuilder s) {
+        return null == s || s.length() == 0;
+    }
+
+    public static boolean isNullOrEmptyEx(StringBuilder s) {
+        return null == s || s.toString().trim().isEmpty();
+    }
+
+    public static boolean isNotNullOrEmpty(StringBuilder s) {
+        return s != null && s.length() > 0;
+    }
+
+    public static boolean isNotNullOrEmptyEx(StringBuilder s) {
+        return s != null && !s.toString().trim().isEmpty();
+    }
+
     public static boolean isNotNull(Object s) {
         return s != null;
     }
