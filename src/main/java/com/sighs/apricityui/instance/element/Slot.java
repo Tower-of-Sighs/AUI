@@ -1,12 +1,13 @@
 package com.sighs.apricityui.instance.element;
 
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -19,9 +20,7 @@ import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.ForgeHooks;
-import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,7 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * 统一槽位元素：bound 与 virtual 都通过 mcSlot 单通路读取/写入展示物品。
  */
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@ElementRegister(Slot.TAG_NAME)
 public class Slot extends MinecraftElement {
     public static final String TAG_NAME = "SLOT";
     public static final String MODE_BOUND = "bound";
@@ -40,10 +39,6 @@ public class Slot extends MinecraftElement {
     private static final String GENERATED_PLAYER_AUTO = "player-auto";
     private static final long DEFAULT_ROTATE_INTERVAL_MS = 1000L;
     private static final String TAG_CANDIDATE_CACHE_KEY = "minecraft-element:slot-tag-candidates";
-
-    static {
-        Element.register(TAG_NAME, (document, string) -> new Slot(document));
-    }
 
     private final SimpleContainer virtualContainer = new SimpleContainer(1);
     private final net.minecraft.world.inventory.Slot virtualMcSlot = new net.minecraft.world.inventory.Slot(virtualContainer, 0, 0, 0);

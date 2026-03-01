@@ -1,17 +1,12 @@
 package com.sighs.apricityui.element;
 
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import net.minecraftforge.fml.common.Mod;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID)
+@ElementRegister(Span.TAG_NAME)
 public class Span extends Element {
     public static final String TAG_NAME = "SPAN";
-
-    static {
-        Element.register(TAG_NAME, ((document, string) -> new Span(document)));
-    }
 
     public Span(Document document) {
         super(document, TAG_NAME);
