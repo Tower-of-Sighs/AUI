@@ -150,7 +150,11 @@ public class Transition {
                 name.equals("border-radius") ||
                 name.equals("margin") ||
                 name.equals("padding") ||
-                name.startsWith("border");
+                name.startsWith("border") ||
+                name.equals("outline") ||
+                name.equals("outline-width") ||
+                name.equals("outline-color") ||
+                name.equals("outline-offset");
     }
 
     public static double parseStyle(String name, String value) {
@@ -194,7 +198,7 @@ public class Transition {
                 "transform",
                 "color",
                 "background-color",
-                "border-right-color",
+                "border-color", "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
                 "border-radius"
         ));
     }

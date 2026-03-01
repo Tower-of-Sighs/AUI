@@ -58,6 +58,34 @@ public class BoxTransition {
             } else {
                 createSideBorderTransition(startStyle, endStyle, result, property, duration, delay, time);
             }
+            return;
+        }
+
+        if ("outline".equals(property) || "outline-width".equals(property) || "outline-color".equals(property) || "outline-offset".equals(property)) {
+            createOutlineTransition(startStyle, endStyle, result, property, duration, delay, time);
+        }
+    }
+
+    private static void createOutlineTransition(Style startStyle, Style endStyle, List<Transition> result, String property, double duration, double delay, long time) {
+        Box.Outline start = Box.parseOutline(startStyle);
+        Box.Outline end = Box.parseOutline(endStyle);
+        if (start == null) start = new Box.Outline();
+        if (end == null) end = new Box.Outline();
+
+        if ("outline".equals(property) || "outline-width".equals(property)) {
+            if (start.width != end.width) {
+                result.add(new Transition("outline-width", start.width, end.width, duration, delay, time));
+            }
+        }
+        if ("outline".equals(property) || "outline-color".equals(property)) {
+            if (start.color.getValue() != end.color.getValue()) {
+                result.add(new Transition("outline-color", start.color.getValue(), end.color.getValue(), duration, delay, time));
+            }
+        }
+        if ("outline".equals(property) || "outline-offset".equals(property)) {
+            if (start.offset != end.offset) {
+                result.add(new Transition("outline-offset", start.offset, end.offset, duration, delay, time));
+            }
         }
     }
 
@@ -101,7 +129,7 @@ public class BoxTransition {
                 }
             }
 
-            originStyle.boxShadow = new Box.Shadow((int) x, (int) y, (int) size, color).toString();
+            originStyle.boxShadow = new Box.Shadow((int) x, (int) y, (int) size, 0, color).toString();
             changeList.removeAll(shadowChanges);
         }
 
@@ -124,7 +152,6 @@ public class BoxTransition {
             String prefix = "border-" + side;
             List<Transition.Change> sideChanges = changeList.stream()
                     .filter(c -> c.name().startsWith(prefix)).collect(Collectors.toList());
-
             if (!sideChanges.isEmpty()) {
                 Box.SideBorder current = Box.parseSideBorder(originStyle.get(prefix));
                 double width = current.size();
@@ -138,6 +165,47 @@ public class BoxTransition {
                 originStyle.update(prefix, new Box.SideBorder((int) width, current.type(), color).toString());
                 changeList.removeAll(sideChanges);
             }
+        }
+
+        for (String side : Box.SIDE) {
+            String marginProp = "margin-" + side;
+            List<Transition.Change> mChanges = changeList.stream().filter(c -> c.name().equals(marginProp)).collect(Collectors.toList());
+            if (!mChanges.isEmpty()) {
+                originStyle.update(marginProp, (int) mChanges.get(0).value() + "px");
+                changeList.removeAll(mChanges);
+            }
+            String paddingProp = "padding-" + side;
+            List<Transition.Change> pChanges = changeList.stream().filter(c -> c.name().equals(paddingProp)).collect(Collectors.toList());
+            if (!pChanges.isEmpty()) {
+                originStyle.update(paddingProp, (int) pChanges.get(0).value() + "px");
+                changeList.removeAll(pChanges);
+            }
+        }
+
+        List<Transition.Change> outlineChanges = changeList.stream()
+                .filter(c -> c.name().equals("outline-width") || c.name().equals("outline-color") || c.name().equals("outline-offset"))
+                .collect(Collectors.toList());
+        if (!outlineChanges.isEmpty()) {
+            int width = Box.isStyleValid(originStyle.outlineWidth) ? Size.parse(originStyle.outlineWidth) : 0;
+            int offset = Box.isStyleValid(originStyle.outlineOffset) ? Size.parse(originStyle.outlineOffset) : 0;
+            Color color = Box.isStyleValid(originStyle.outlineColor) ? new Color(originStyle.outlineColor) : new Color("#000000");
+            for (Transition.Change c : outlineChanges) {
+                switch (c.name()) {
+                    case "outline-width":
+                        width = (int) c.value();
+                        break;
+                    case "outline-color":
+                        color = new Color(c.value());
+                        break;
+                    case "outline-offset":
+                        offset = (int) c.value();
+                        break;
+                }
+            }
+            originStyle.outlineWidth = width + "px";
+            originStyle.outlineColor = color.toHexString();
+            originStyle.outlineOffset = offset + "px";
+            changeList.removeAll(outlineChanges);
         }
     }
 

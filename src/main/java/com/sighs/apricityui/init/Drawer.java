@@ -7,6 +7,7 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -18,6 +19,11 @@ import java.util.Set;
 
 public class Drawer {
     public static final int REPAINT = 1;
+
+    private static boolean isSet(String s) {
+        return StringUtils.isNotNullOrEmptyEx(s) && !s.equals("unset");
+    }
+
     public static final int REORDER = 2;
     public static final int RELAYOUT = 4;
 
@@ -89,7 +95,9 @@ public class Drawer {
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
 
-        boolean needsMask = "hidden".equals(rootStyle.overflow);
+        String overflowX = isSet(rootStyle.overflowX) ? rootStyle.overflowX : rootStyle.overflow;
+        String overflowY = isSet(rootStyle.overflowY) ? rootStyle.overflowY : rootStyle.overflow;
+        boolean needsMask = "hidden".equals(overflowX) || "hidden".equals(overflowY);
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }

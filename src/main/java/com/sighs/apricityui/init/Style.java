@@ -12,7 +12,13 @@ public class Style implements Cloneable {
 
     public String width = "unset";
     public String height = "unset";
+    public String minWidth = "unset";
+    public String minHeight = "unset";
+    public String maxWidth = "unset";
+    public String maxHeight = "unset";
     public String overflow = "visible";
+    public String overflowX = "unset";
+    public String overflowY = "unset";
     public String opacity = "1.0";
     public String boxShadow = "unset";
     public String zIndex = "auto";
@@ -33,6 +39,7 @@ public class Style implements Cloneable {
     public String gridRow = "auto";
     public String gridColumn = "auto";
 
+    public String background = "unset";
     public String backgroundColor = "unset";
     public String backgroundImage = "unset";
     public String backgroundRepeat = "unset";
@@ -56,7 +63,16 @@ public class Style implements Cloneable {
     public String borderBottom = "unset";
     public String borderLeft = "unset";
     public String borderRight = "unset";
+    public String borderColor = "unset";
+    public String borderTopColor = "unset";
+    public String borderRightColor = "unset";
+    public String borderBottomColor = "unset";
+    public String borderLeftColor = "unset";
     public String borderRadius = "unset";
+    public String borderTopLeftRadius = "unset";
+    public String borderTopRightRadius = "unset";
+    public String borderBottomLeftRadius = "unset";
+    public String borderBottomRightRadius = "unset";
 
     public String borderImage = "unset";
     public String borderImageSource = "unset";
@@ -65,11 +81,20 @@ public class Style implements Cloneable {
     public String borderImageOutset = "unset";
     public String borderImageRepeat = "unset";
 
+    public String outline = "unset";
+    public String outlineWidth = "unset";
+    public String outlineStyle = "unset";
+    public String outlineColor = "unset";
+    public String outlineOffset = "unset";
+
     public String color = "unset";
     public String selectionColor = "unset";
     public String fontSize = "unset";
     public String fontFamily = "unset";
+    public String fontWeight = "unset";
+    public String fontStyle = "unset";
     public String lineHeight = "unset";
+    public String whiteSpace = "unset";
 
     public String flexDirection = "column";
     public String flexWrap = "nowrap";
@@ -300,7 +325,7 @@ public class Style implements Cloneable {
     }
 
     static Set<String> getTextProp() {
-        return new HashSet<>(Arrays.asList("color", "font-size", "font-family"));
+        return new HashSet<>(Arrays.asList("color", "font-size", "font-family", "font-weight", "font-style", "line-height", "white-space"));
     }
 
 

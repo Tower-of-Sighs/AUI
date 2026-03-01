@@ -56,23 +56,26 @@ public class Rect {
         int leftW = box.border.get("left").size();
         int rightW = box.border.get("right").size();
 
-        if (topW == 0 && bottomW == 0 && leftW == 0 && rightW == 0) return;
-
-        int topC = box.border.get("top").color().getValue();
-        int bottomC = box.border.get("bottom").color().getValue();
-        int leftC = box.border.get("left").color().getValue();
-        int rightC = box.border.get("right").color().getValue();
-
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
         double w = box.elementSize().width();
         double h = box.elementSize().height();
-
         float[] radii = box.getCalculatedRadii((float) w, (float) h, 0);
-        float[] borders = new float[]{topW, rightW, bottomW, leftW};
-        int[] colors = new int[]{topC, rightC, bottomC, leftC};
-        Graph.drawComplexRoundedBorder(stack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
 
+        if (topW > 0 || bottomW > 0 || leftW > 0 || rightW > 0) {
+            int topC = box.border.get("top").color().getValue();
+            int bottomC = box.border.get("bottom").color().getValue();
+            int leftC = box.border.get("left").color().getValue();
+            int rightC = box.border.get("right").color().getValue();
+            float[] borders = new float[]{topW, rightW, bottomW, leftW};
+            int[] colors = new int[]{topC, rightC, bottomC, leftC};
+            Graph.drawComplexRoundedBorder(stack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
+        }
+
+        if (box.outline != null && box.outline.width > 0) {
+            Graph.drawOutline(stack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii,
+                    box.outline.width, box.outline.offset, box.outline.color.getValue());
+        }
         if (box.borderImage != null) {
             if (box.borderImage.gradient != null) {
                 Graph.drawUnifiedRoundedRect(stack.last().pose(),

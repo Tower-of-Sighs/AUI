@@ -11,6 +11,7 @@ import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -213,6 +214,10 @@ public class TextArea extends AbstractText {
 
     private WrapResult wrapLines(String renderText) {
         double wrapWidth = Box.of(this).innerSize().width();
+        String whiteSpace = getComputedStyle().whiteSpace;
+        if (StringUtils.isNotNullOrEmptyEx(whiteSpace) && "nowrap".equalsIgnoreCase(whiteSpace.trim())) {
+            wrapWidth = Double.MAX_VALUE;
+        }
 
         if (wrapWidth <= 2) {
             List<String> hard = splitLines(renderText);

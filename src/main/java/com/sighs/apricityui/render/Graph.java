@@ -271,6 +271,21 @@ public class Graph {
         }
     }
 
+    /**
+     * 绘制 outline（外描边），绘制在元素边界外侧
+     */
+    public static void drawOutline(Matrix4f mat, float x, float y, float w, float h, float[] radii, float outlineWidth, float outlineOffset, int color) {
+        if (outlineWidth <= 0) return;
+        float off = outlineOffset + outlineWidth;
+        float ox = x - off, oy = y - off, ow = w + 2 * off, oh = h + 2 * off;
+        float[] outerRadii = new float[]{
+                radii[0] + off, radii[1] + off, radii[2] + off, radii[3] + off
+        };
+        float[] borders = new float[]{outlineWidth, outlineWidth, outlineWidth, outlineWidth};
+        int[] colors = new int[]{color, color, color, color};
+        drawComplexRoundedBorder(mat, ox, oy, ow, oh, outerRadii, borders, colors);
+    }
+
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
         BufferBuilder buf = Base.getBuffer();
         prepare(buf);

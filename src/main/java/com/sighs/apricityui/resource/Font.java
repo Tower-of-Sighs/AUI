@@ -56,8 +56,13 @@ public class Font {
     }
 
     public static java.awt.Font getBaseFont(String key) {
+        return getBaseFont(key, java.awt.Font.PLAIN);
+    }
+
+    public static java.awt.Font getBaseFont(String key, int style) {
         java.awt.Font f = FONTS.get(key);
-        return f != null ? f : FONTS.get(DEFAULT_KEY);
+        java.awt.Font base = f != null ? f : FONTS.get(DEFAULT_KEY);
+        return base.deriveFont(style, BASE_FONT_SIZE);
     }
 
     public static float getBaseFontSize() {

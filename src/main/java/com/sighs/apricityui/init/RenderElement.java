@@ -69,40 +69,44 @@ public class RenderElement {
     }
 
     private static final Set<String> LAYOUT_PROPS = new HashSet<>(Arrays.asList(
-            "width", "height",
+            "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems",
             "gridTemplateColumns", "gridTemplateRows",
             "gap", "rowGap", "columnGap",
             "justifyItems",
-            "gridRow", "gridColumn", "justifySelf", "alignSelf",
+            "gridRow", "gridColumn",
+            "justifySelf", "alignSelf",
             "position", "top", "bottom", "left", "right", "display"
     ));
 
     private static final Set<String> PADDING_AND_BORDER_PROPS = new HashSet<>(Arrays.asList(
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
-            "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
+            "border", "borderTop", "borderBottom", "borderLeft", "borderRight",
+            "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor",
+            "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset"
     ));
 
     private static final Set<String> VISUAL_BOX_PROPS = new HashSet<>(Arrays.asList(
             "color", "visibility", "opacity",
-            "borderRadius",
+            "borderRadius", "borderTopLeftRadius", "borderTopRightRadius", "borderBottomLeftRadius", "borderBottomRightRadius",
             "boxShadow",
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
-            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat"
+            "background", "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
+            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat",
+            "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset"
     ));
 
     private static final Set<String> BACKGROUND_PROPS = new HashSet<>(Arrays.asList(
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
+            "background", "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     ));
     private static final Set<String> CURSOR_PROPS = new HashSet<>(Arrays.asList("cursor"));
 
     private static final Set<String> TEXT_LAYOUT_PROPS = new HashSet<>(Arrays.asList(
-            "fontSize", "lineHeight", "fontFamily"
+            "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "whiteSpace"
     ));
 
     private static final Set<String> STRUCTURAL_PROPS = new HashSet<>(Arrays.asList(
-            "clipPath", "filter", "backdropFilter", "overflow"
+            "clipPath", "filter", "backdropFilter", "overflow", "overflowX", "overflowY"
     ));
 
     public static void observeStyle(Element element, Style origin, Style current) {
