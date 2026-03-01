@@ -12,6 +12,7 @@ import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -46,7 +47,7 @@ public class ImageDrawer {
 
     public static void draw(MatrixStack stack, Element element, Rect rect) {
         String src = element.getAttribute("src");
-        if (src == null || src.isEmpty()) return;
+        if (StringUtils.isNullOrEmpty(src)) return;
 
         Position position = rect.getBodyRectPosition();
         Size size = rect.getBodyRectSize();
@@ -130,7 +131,7 @@ public class ImageDrawer {
     }
 
     private static float[] resolveRenderSize(String backgroundSize, int boxW, int boxH, int texW, int texH) {
-        String size = (backgroundSize == null || backgroundSize.isEmpty() || "unset".equals(backgroundSize))
+        String size = (StringUtils.isNullOrEmpty(backgroundSize) || "unset".equals(backgroundSize))
                 ? "auto"
                 : backgroundSize.trim().toLowerCase(Locale.ROOT);
         switch (size) {
@@ -163,7 +164,7 @@ public class ImageDrawer {
     }
 
     private static float[] parseBackgroundPosition(String position, float boxW, float boxH, float renderW, float renderH) {
-        String normalized = (position == null || position.isEmpty() || "unset".equals(position))
+        String normalized = (StringUtils.isNullOrEmpty(position) || "unset".equals(position))
                 ? "0 0"
                 : position.trim().toLowerCase(Locale.ROOT);
         String[] parts = normalized.split("\\s+");
@@ -191,7 +192,7 @@ public class ImageDrawer {
     }
 
     private static float parsePositionToken(String token, float boxSize, float renderSize, boolean isX) {
-        if (token == null || token.isEmpty()) return 0;
+        if (StringUtils.isNullOrEmpty(token)) return 0;
         String normalized = token.trim().toLowerCase(Locale.ROOT);
         if ("center".equals(normalized)) return (boxSize - renderSize) / 2f;
         if ((isX && "left".equals(normalized)) || (!isX && "top".equals(normalized))) return 0;
@@ -299,7 +300,7 @@ public class ImageDrawer {
     }
 
     private static ReadyTexture requestReadyTexture(String path, MatrixStack stack, int x, int y, int width, int height) {
-        if (path == null || path.isEmpty() || "unset".equals(path)) return null;
+        if (StringUtils.isNullOrEmpty(path) || "unset".equals(path)) return null;
         ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path);
         if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
             drawPlaceholder(stack, x, y, width, height);

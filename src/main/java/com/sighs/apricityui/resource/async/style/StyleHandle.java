@@ -1,10 +1,10 @@
 package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.List;

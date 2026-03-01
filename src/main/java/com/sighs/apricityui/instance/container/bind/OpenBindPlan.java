@@ -66,8 +66,8 @@ public final class OpenBindPlan {
                 args.forEach((key, value) -> {
                     if (key == null) return;
                     String normalizedKey = key.trim();
-                    if (normalizedKey.isEmpty()) return;
-                    normalizedArgs.put(normalizedKey, value == null ? "" : value);
+                    if (StringUtils.isNullOrEmpty(normalizedKey)) return;
+                    normalizedArgs.put(normalizedKey, StringUtils.nullToEmpty(value));
                 });
             }
             args = new HashMap<>(normalizedArgs);
@@ -98,7 +98,7 @@ public final class OpenBindPlan {
                 throw new IllegalArgumentException("argKey cannot be blank");
             }
             LinkedHashMap<String, String> args = new LinkedHashMap<>(base.args());
-            args.put(argKey.trim(), argValue == null ? "" : argValue);
+            args.put(argKey.trim(), StringUtils.nullToEmpty(argValue));
             return new BindingSpec(base.bindType(), args);
         }
 

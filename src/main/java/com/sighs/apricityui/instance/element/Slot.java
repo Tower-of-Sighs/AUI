@@ -8,6 +8,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.inventory.IInventory;
 import net.minecraft.inventory.Inventory;
@@ -19,7 +20,6 @@ import net.minecraft.nbt.JsonToNBT;
 import net.minecraft.tags.ITag;
 import net.minecraft.tags.ItemTags;
 import net.minecraft.util.ResourceLocation;
-import com.sighs.apricityui.util.StringUtils;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.common.ForgeHooks;
 import net.minecraftforge.fml.common.Mod;
@@ -397,8 +397,8 @@ public class Slot extends MinecraftElement {
      */
     public void applyRecipeSlotMeta(String className, String generatedTag) {
         setAttributesBatch(new HashMap<String, String>() {{
-                               put("class", className == null ? "" : className);
-                               put("data-generated", generatedTag == null ? "" : generatedTag);
+                               put("class", StringUtils.nullToEmpty(className));
+                               put("data-generated", StringUtils.nullToEmpty(generatedTag));
                            }}
                 , true);
     }
@@ -411,7 +411,7 @@ public class Slot extends MinecraftElement {
                                put("mode", MODE_BOUND);
                                put("slot-index", String.valueOf(Math.max(0, localSlotIndex)));
                                put("data-generated", GENERATED_PLAYER_AUTO);
-                               put("part", part == null ? "inv" : part);
+                               put("part", part != null ? part : "inv");
                            }}
                 , true);
     }
@@ -446,7 +446,7 @@ public class Slot extends MinecraftElement {
     }
 
     private static String normalizeItemLiteral(String raw) {
-        if (raw == null) return "";
+        if (StringUtils.isNullOrEmpty(raw)) return "";
         String normalized = raw.trim();
         if (StringUtils.isNullOrEmptyEx(normalized)) return "";
         if (normalized.length() >= 2) {

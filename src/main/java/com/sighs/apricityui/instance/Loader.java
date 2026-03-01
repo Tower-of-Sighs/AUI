@@ -10,6 +10,7 @@ import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.IResource;
 import net.minecraft.resources.IResourceManager;
@@ -54,7 +55,7 @@ public class Loader {
     }
 
     public static InputStream getResourceStream(String path) {
-        if (path == null || path.isEmpty()) return null;
+        if (StringUtils.isNullOrEmpty(path)) return null;
         try {
             Path devPath = FMLPaths.GAMEDIR.get().resolve("../../src/main/resources/assets/apricityui/apricity" + path);
             if (Files.exists(devPath)) return Files.newInputStream(devPath);
@@ -80,19 +81,19 @@ public class Loader {
     }
 
     public static String resolve(String context, String raw) {
-        if (raw == null) return "";
+        if (StringUtils.isNullOrEmpty(raw)) return "";
         String trimmedRaw = raw.trim();
-        if (trimmedRaw.isEmpty()) return "";
+        if (StringUtils.isNullOrEmpty(trimmedRaw)) return "";
         if (isRemotePath(trimmedRaw)) return trimmedRaw;
         if (trimmedRaw.startsWith("/")) return trimmedRaw.substring(1); // 绝对路径
 
-        String safeContext = context == null ? "" : context;
+        String safeContext = StringUtils.nullToEmpty(context);
         String base = safeContext.contains("/") ? safeContext.substring(0, safeContext.lastIndexOf('/')) : "";
         String[] parts = (base + "/" + trimmedRaw).split("/");
 
         java.util.Stack<String> stack = new java.util.Stack<>();
         for (String part : parts) {
-            if (part.isEmpty() || part.equals(".")) continue;
+            if (StringUtils.isNullOrEmpty(part) || part.equals(".")) continue;
             if (part.equals("..")) {
                 if (!stack.isEmpty()) stack.pop();
             } else {

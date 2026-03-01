@@ -2,6 +2,7 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -260,7 +261,7 @@ public class Style implements Cloneable {
 
     // font-size转为fontSize这样的
     public static String transformStyleName(String input) {
-        if (input == null || input.isEmpty()) {
+        if (StringUtils.isNullOrEmpty(input)) {
             return input;
         }
         String cache = STYLE_NAME.get(input);

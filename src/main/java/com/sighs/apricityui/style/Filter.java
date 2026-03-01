@@ -22,9 +22,8 @@ public class Filter {
         private float brightness;   // percentage (1.0 = 100%)
         private float grayscale;    // 0.0 - 1.0
         private float invert;       // 0.0 - 1.0
-        private float hueRotate;     // degrees
+        private float hueRotate;    // degrees
         private float opacity;
-
         public static final FilterState EMPTY = new FilterState(0, 1, 0, 0, 0, 1);
 
         public boolean isEmpty() {
@@ -102,11 +101,11 @@ public class Filter {
 
     public static boolean isDisabled(Element element) {
         String filterStr = element.getComputedStyle().filter;
-        return (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) && getOpacity(element) == 1.0f;
+        return (StringUtils.isNullOrEmpty(filterStr) || filterStr.equals("none")) && getOpacity(element) == 1.0f;
     }
 
     public static boolean isDisabled(String filterStr) {
-        return filterStr == null || filterStr.equals("none") || filterStr.isEmpty();
+        return StringUtils.isNullOrEmpty(filterStr) || filterStr.equals("none");
     }
 
     public static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {

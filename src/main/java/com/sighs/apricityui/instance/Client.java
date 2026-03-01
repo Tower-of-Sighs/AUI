@@ -12,6 +12,7 @@ import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.MainWindow;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHelper;
@@ -274,7 +275,7 @@ public class Client {
     }
 
     public static boolean isKeyPressed(String keyName) {
-        if (keyName == null || keyName.isEmpty()) {
+        if (StringUtils.isNullOrEmpty(keyName)) {
             return false;
         }
 

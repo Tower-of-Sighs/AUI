@@ -3,9 +3,6 @@ package com.sighs.apricityui.instance;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.shader.ShaderInstance;
 import net.minecraft.resources.IResourceManager;
-import net.minecraft.util.ResourceLocation;
-
-import java.io.IOException;
 
 public class ShaderRegistry {
     private static ShaderInstance filterShader;

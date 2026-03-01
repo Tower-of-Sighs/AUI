@@ -11,6 +11,7 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.Getter;
 
 import java.util.ArrayList;
@@ -97,12 +98,12 @@ public abstract class AbstractText extends Element {
 
     private void syncTextAttribute(String name, String attrValue) {
         if (name.equals("placeholder")) {
-            placeholder = attrValue == null ? "" : attrValue;
+            placeholder = StringUtils.nullToEmpty(attrValue);
             return;
         }
 
         if (name.equals("maxlength")) {
-            int parsed = Size.parse(attrValue == null ? "" : attrValue);
+            int parsed = Size.parse(StringUtils.nullToEmpty(attrValue));
             maxLength = parsed > 0 ? parsed : 256;
             return;
         }
@@ -171,7 +172,7 @@ public abstract class AbstractText extends Element {
 
     public void insertText(String str) {
         if (!canEditText()) return;
-        if (str == null || str.isEmpty()) return;
+        if (StringUtils.isNullOrEmpty(str)) return;
 
         ensureValue();
         str = normalizeInsertedText(str);

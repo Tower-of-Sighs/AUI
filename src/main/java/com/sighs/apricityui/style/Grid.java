@@ -44,6 +44,7 @@ public final class Grid {
     private static class Track {
         private TrackType type;
         private int px;
+
     }
 
     @Getter

@@ -121,7 +121,7 @@ public class Sprite extends Div {
 
     private void rebuildSpriteRuntime() {
         String resolvedSrc = resolveSpriteSource();
-        if (resolvedSrc.isEmpty()) {
+        if (StringUtils.isNullOrEmpty(resolvedSrc)) {
             clearPendingFrameMetrics();
             managedInlineStyle = "";
             return;
@@ -555,6 +555,7 @@ public class Sprite extends Div {
         private SpriteSpec.Direction direction;
         private int frameW;
         private int frameH;
+
     }
 
     // Document 级缓存：同一文档中相同 SpriteKey 只注册一次 keyframes。

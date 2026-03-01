@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
@@ -39,7 +40,7 @@ public class Size {
      * 解析尺寸字符串中的数值，支持小数（如 50.5%、12.34px），无法解析时返回 -1
      */
     public static double parseDouble(String str) {
-        if (str == null || str.isEmpty()) return -1;
+        if (StringUtils.isNullOrEmpty(str)) return -1;
 
         StringBuilder num = new StringBuilder();
         boolean foundDigit = false;
@@ -194,7 +195,7 @@ public class Size {
     private static final Canvas METRICS_CANVAS = new Canvas();
 
     public static double measureText(Element element, String text) {
-        if (text == null || text.isEmpty()) return 0;
+        if (StringUtils.isNullOrEmpty(text)) return 0;
 
         String fontFamily = Style.getFontFamily(element);
 

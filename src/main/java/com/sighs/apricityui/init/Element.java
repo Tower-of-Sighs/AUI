@@ -74,6 +74,7 @@ public class Element {
         return style;
     }
 
+
     public String getAttribute(String name) {
         if (name.equals("value")) {
             String _value = attributes.getOrDefault(name, "");
@@ -305,7 +306,7 @@ public class Element {
 
         // 同步常用字段缓存（避免依赖 setAttribute 的副作用）。
         String attrId = attributes.getOrDefault("id", null);
-        if ((id == null || id.isEmpty()) && attrId != null && !attrId.isEmpty()) {
+        if (StringUtils.isNullOrEmpty(id) && StringUtils.isNotNullOrEmpty(attrId)) {
             id = attrId;
         }
         if (document != null && StringUtils.isNotNullOrEmptyEx(id)) {
@@ -318,7 +319,7 @@ public class Element {
         }
 
         String attrClass = attributes.getOrDefault("class", null);
-        if (classNames == null && attrClass != null && !attrClass.isEmpty()) {
+        if (classNames == null && StringUtils.isNotNullOrEmpty(attrClass)) {
             classNames = new ArrayList<>();
             classNames.addAll(Arrays.asList(attrClass.split(" ")));
         }
@@ -394,6 +395,7 @@ public class Element {
     public void clearDirtyFlags() {
         this.dirtyFlags = 0;
     }
+
 
     public Element getParentStackContext() {
         Element parent = parentElement;

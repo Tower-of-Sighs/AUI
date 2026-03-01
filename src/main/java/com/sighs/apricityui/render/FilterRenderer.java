@@ -134,7 +134,7 @@ public class FilterRenderer {
     private static void drawBackdropWithShader(Framebuffer sourceFbo, Element target) {
         ShaderInstance shader = ShaderRegistry.getFilterShader();
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
-        if (shader == null || state == null || state.isEmpty()) return;
+        if (shader == null || state == null) return;
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();

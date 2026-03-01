@@ -186,7 +186,7 @@ public class Animation {
     }
 
     private static List<String> splitOutsideParens(String raw, IntPredicate separator) {
-        if (raw == null) return Collections.emptyList();
+        if (StringUtils.isNullOrEmpty(raw)) return Collections.emptyList();
 
         List<String> output = new ArrayList<>();
         StringBuilder token = new StringBuilder();
@@ -235,7 +235,7 @@ public class Animation {
      * 目前仅实现 step-start / step-end / steps(N[, start|end])。
      */
     private static double applyTimingFunction(double progress, String timingFunction) {
-        if (timingFunction == null || timingFunction.isEmpty() || "unset".equals(timingFunction)) {
+        if (StringUtils.isNullOrEmpty(timingFunction) || "unset".equals(timingFunction)) {
             return progress;
         }
 
@@ -296,7 +296,7 @@ public class Animation {
     }
 
     private static double[] parseBackgroundPositionPx(String value) {
-        if (value == null || value.isEmpty() || "unset".equals(value)) return null;
+        if (StringUtils.isNullOrEmpty(value) || "unset".equals(value)) return null;
         String[] parts = value.trim().split("\\s+");
         if (parts.length == 0) return null;
 
@@ -309,7 +309,7 @@ public class Animation {
     }
 
     private static Double parseLengthPx(String token) {
-        if (token == null || token.isEmpty()) return null;
+        if (StringUtils.isNullOrEmpty(token)) return null;
         String t = token.trim().toLowerCase(Locale.ROOT);
         if (t.endsWith("px")) t = t.substring(0, t.length() - 2).trim();
         try {
@@ -326,11 +326,11 @@ public class Animation {
     }
 
     private static boolean valid(String s) {
-        return s != null && !s.isEmpty() && !s.equals("unset");
+        return StringUtils.isNotNullOrEmpty(s) && !s.equals("unset");
     }
 
     private static boolean isNumeric(String s) {
-        if (s == null || s.isEmpty()) return false;
+        if (StringUtils.isNullOrEmpty(s)) return false;
         int len = s.length();
         boolean hasDot = false;
         for (int i = 0; i < len; i++) {
@@ -420,7 +420,7 @@ public class Animation {
     }
 
     private static double parseIterationCount(String countStr) {
-        if (countStr == null || countStr.isEmpty() || "unset".equals(countStr)) return 1d;
+        if (StringUtils.isNullOrEmpty(countStr) || "unset".equals(countStr)) return 1d;
         if ("infinite".equals(countStr)) return Double.MAX_VALUE;
         try {
             return Double.parseDouble(countStr);
@@ -544,7 +544,7 @@ public class Animation {
     }
 
     private static double parseTime(String time) {
-        if (time == null || time.equals("unset") || time.equals("0s")) return 0;
+        if (StringUtils.isNullOrEmpty(time) || time.equals("unset") || time.equals("0s")) return 0;
         try {
             if (time.endsWith("ms")) return Double.parseDouble(time.substring(0, time.length() - 2));
             if (time.endsWith("s")) return Double.parseDouble(time.substring(0, time.length() - 1)) * 1000;

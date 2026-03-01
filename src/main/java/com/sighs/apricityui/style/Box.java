@@ -335,7 +335,7 @@ public class Box {
     }
 
     public static Shadow parseShadow(String string) {
-        if (StringUtils.isNullOrEmptyEx(string) || string.equals("unset") || string.equals("none")) {
+        if (StringUtils.isNullOrEmptyEx(string) || "unset".equals(string) || "none".equals(string)) {
             return Shadow.getDefault();
         }
         String[] res = string.trim().split("\\s+");

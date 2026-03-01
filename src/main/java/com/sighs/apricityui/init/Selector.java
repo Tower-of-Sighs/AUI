@@ -1,10 +1,10 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 import lombok.var;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -113,7 +113,8 @@ public class Selector {
         private String id;
         private Set<String> classes;
         private Map<String, String> attrs;
-        private List<Pseudo> pseudos;
+        private
+        List<Pseudo> pseudos;
 
         boolean matches(Element e) {
             if (e == null) return false;

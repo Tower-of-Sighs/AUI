@@ -30,7 +30,7 @@ public class JS {
         }
 
         public String handle(String html) {
-            if (html == null || html.isEmpty()) return html;
+            if (StringUtils.isNullOrEmpty(html)) return html;
 
             Matcher matcher = SCRIPT_TAG_PATTERN.matcher(html);
             StringBuffer sb = new StringBuffer();

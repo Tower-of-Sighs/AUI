@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.util.StringUtils;
 
 import java.util.Collections;
 import java.util.List;
@@ -115,7 +116,7 @@ public class Position {
     }
 
     public static int parseSignedInt(String str) {
-        if (str == null || str.isEmpty() || "unset".equals(str)) {
+        if (StringUtils.isNullOrEmpty(str) || "unset".equals(str)) {
             return 0;
         }
 

@@ -8,10 +8,10 @@ import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -336,6 +336,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
         private String contextPath;
         private String cssText;
         private List<FontTask> fontTasks;
+
     }
 
     @Getter
@@ -346,6 +347,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
         private String fontFamily;
         private String path;
         private byte[] bytes;
+
     }
 
     @Getter
@@ -355,6 +357,7 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
         private StyleHandle handle;
         private String path;
         private Exception error;
+
     }
 
     @Getter

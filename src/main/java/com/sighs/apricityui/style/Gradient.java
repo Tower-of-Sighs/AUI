@@ -1,5 +1,7 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.util.StringUtils;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -74,7 +76,7 @@ public class Gradient {
     }
 
     public static Gradient parse(String css) {
-        if (css == null || !css.startsWith("linear-gradient")) return null;
+        if (StringUtils.isNullOrEmpty(css) || !css.startsWith("linear-gradient")) return null;
 
         String content = css.substring(css.indexOf('(') + 1, css.lastIndexOf(')'));
         String[] parts = splitByCommaNotInParens(content);

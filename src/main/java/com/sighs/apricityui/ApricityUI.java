@@ -55,6 +55,10 @@ public class ApricityUI {
         Document.remove(path);
     }
 
+    public static boolean containsDocument(String path) {
+        return Document.contains(path);
+    }
+
     public static ArrayList<Document> getDocument(String path) {
         return Document.get(path);
     }

@@ -149,7 +149,7 @@ public interface Transform {
 
     static List<String> splitArgs(String argText) {
         List<String> out = new ArrayList<>();
-        if ((StringUtils.isNullOrEmptyEx(argText))) return out;
+        if (StringUtils.isNullOrEmptyEx(argText)) return out;
         String[] byComma = argText.split(",");
         for (String part : byComma) {
             String trimmed = part.trim();

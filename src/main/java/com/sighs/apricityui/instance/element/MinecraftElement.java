@@ -6,11 +6,11 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.item.ItemStack;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Arrays;

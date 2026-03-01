@@ -95,6 +95,17 @@ public class WorldWindow {
         return windows.contains(window);
     }
 
+    public static boolean cotains(String path) {
+        for (WorldWindow window : windows) {
+            if (window.document.is(path)) return true;
+        }
+        return false;
+    }
+
+    public static boolean cotains(WorldWindow window) {
+        return windows.contains(window);
+    }
+
     public static void addWindow(WorldWindow window) {
         windows.add(window);
     }

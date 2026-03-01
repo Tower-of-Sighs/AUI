@@ -59,7 +59,7 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         Set<String> paths = new HashSet<>();
         for (Element element : document.getElements()) {
             String src = element.getAttribute("src");
-            if (!src.isEmpty() && "IMG".equals(element.tagName)) {
+            if (StringUtils.isNotNullOrEmpty(src) && "IMG".equals(element.tagName)) {
                 String resolved = Loader.resolve(document.getPath(), src);
                 if (isImagePathValid(resolved)) {
                     paths.add(resolved);
@@ -104,7 +104,7 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         int end = cssValue.indexOf(')', start + 4);
         if (end < 0) return null;
         String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
-        if (raw.isEmpty()) return null;
+        if (StringUtils.isNullOrEmpty(raw)) return null;
         return Loader.resolve(contextPath, raw);
     }
 

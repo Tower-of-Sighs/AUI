@@ -33,7 +33,7 @@ public class CSS {
         }
 
         public String handle(String html) {
-            if (html == null || html.isEmpty()) return html;
+            if (StringUtils.isNullOrEmpty(html)) return html;
 
             Matcher matcher = STYLE_TAG_PATTERN.matcher(html);
             StringBuffer sb = new StringBuffer();
@@ -46,7 +46,7 @@ public class CSS {
                     Matcher srcMatcher = SRC_ATTR_PATTERN.matcher(attrText);
                     while (srcMatcher.find()) {
                         String srcValue = srcMatcher.group(2);
-                        if (srcValue != null && !srcValue.isEmpty()) {
+                        if (StringUtils.isNotNullOrEmpty(srcValue)) {
                             cachedStyleSrcs.add(srcValue);
                         }
                     }

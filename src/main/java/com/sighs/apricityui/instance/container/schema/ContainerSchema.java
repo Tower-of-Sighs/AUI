@@ -2,12 +2,12 @@ package com.sighs.apricityui.instance.container.schema;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
 import net.minecraft.network.PacketBuffer;
 import net.minecraft.util.ResourceLocation;
-import com.sighs.apricityui.util.StringUtils;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -233,7 +233,7 @@ public final class ContainerSchema {
         private static String resolveDefaultPrimaryPartitionKey(Map<String, List<Integer>> slotMapping) {
             if (slotMapping == null || slotMapping.isEmpty()) return DEFAULT_PARTITION_KEY;
             for (String key : slotMapping.keySet()) {
-                if (StringUtils.isNullOrEmptyEx(key)) return key;
+                if (StringUtils.isNotNullOrEmptyEx(key)) return key;
             }
             return DEFAULT_PARTITION_KEY;
         }
@@ -343,7 +343,7 @@ public final class ContainerSchema {
         }
 
         public Descriptor withTemplatePath(String templatePathOverride) {
-            String resolvedTemplatePath = (StringUtils.isNullOrEmptyEx(templatePathOverride)) ? templatePath : templatePathOverride;
+            String resolvedTemplatePath = StringUtils.isNullOrEmptyEx(templatePathOverride) ? templatePath : templatePathOverride;
             return new Descriptor(menuKey, resolvedTemplatePath, primaryPartitionKey, bindMapping, slotMapping, slotVisualMapping);
         }
 
@@ -615,7 +615,7 @@ public final class ContainerSchema {
             }
 
             private static String normalizeBlankToNull(String raw) {
-                if (raw == null) return null;
+                if (StringUtils.isNullOrEmpty(raw)) return null;
                 String normalized = raw.trim();
                 return StringUtils.isNullOrEmptyEx(normalized) ? null : normalized;
             }
@@ -669,9 +669,9 @@ public final class ContainerSchema {
         private static final Pattern CONTAINER_ID_PATTERN = Pattern.compile("^[a-z0-9_./-]+$");
 
         public static String normalizeTemplatePath(String rawTemplatePath) {
-            if (rawTemplatePath == null) return null;
+            if (StringUtils.isNullOrEmpty(rawTemplatePath)) return null;
             String path = rawTemplatePath.trim().replace('\\', '/');
-            if (path.isEmpty()) return null;
+            if (StringUtils.isNullOrEmpty(path)) return null;
 
             if (path.startsWith("./")) path = path.substring(2);
             if (path.startsWith("/")) path = path.substring(1);
@@ -1307,7 +1307,7 @@ public final class ContainerSchema {
 
             private void appendTitleText(String text) {
                 if (!isCapturingTitle()) return;
-                if (text == null || text.isEmpty()) return;
+                if (StringUtils.isNullOrEmpty(text)) return;
                 titleBuffer.append(text);
             }
 

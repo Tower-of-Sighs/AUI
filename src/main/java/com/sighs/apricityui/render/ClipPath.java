@@ -1,6 +1,7 @@
 package com.sighs.apricityui.render;
 
 
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.client.renderer.BufferBuilder;
 import net.minecraft.util.math.vector.Matrix4f;
 
@@ -11,7 +12,7 @@ public class ClipPath {
     private static final Pattern FUNC_PATTERN = Pattern.compile("([a-z-]+)\\((.*)\\)");
 
     public static void drawToStencil(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, String clipPathValue) {
-        if (clipPathValue == null || clipPathValue.equals("none")) return;
+        if (StringUtils.isNullOrEmpty(clipPathValue) || clipPathValue.equals("none")) return;
 
         Matcher matcher = FUNC_PATTERN.matcher(clipPathValue.trim());
         if (!matcher.find()) return;

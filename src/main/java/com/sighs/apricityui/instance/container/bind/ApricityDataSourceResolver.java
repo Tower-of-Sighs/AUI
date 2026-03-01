@@ -2,12 +2,12 @@ package com.sighs.apricityui.instance.container.bind;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.player.ServerPlayerEntity;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.Direction;
-import com.sighs.apricityui.util.StringUtils;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.server.ServerWorld;
 import net.minecraftforge.items.CapabilityItemHandler;
