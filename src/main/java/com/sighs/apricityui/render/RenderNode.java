@@ -163,7 +163,7 @@ public interface RenderNode {
         @Override
         public void render(MatrixStack stack) {
             if (Filter.isDisabled(target)) return;
-            FilterRenderer.pushFilter();
+            // FilterRenderer.pushFilter();
         }
     }
 
@@ -176,7 +176,7 @@ public interface RenderNode {
         @Override
         public void render(MatrixStack stack) {
             if (Filter.isDisabled(target)) return;
-            FilterRenderer.popFilter(Filter.getFilterOf(target));
+            // FilterRenderer.popFilter(Filter.getFilterOf(target));
         }
     }
 

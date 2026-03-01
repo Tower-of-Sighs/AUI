@@ -3,6 +3,9 @@ package com.sighs.apricityui.instance;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.shader.ShaderInstance;
 import net.minecraft.resources.IResourceManager;
+import net.minecraft.util.ResourceLocation;
+
+import java.io.IOException;
 
 public class ShaderRegistry {
     private static ShaderInstance filterShader;
@@ -18,7 +21,7 @@ public class ShaderRegistry {
         loadAttempted = true;
         try {
             IResourceManager resourceManager = Minecraft.getInstance().getResourceManager();
-            filterShader = new ShaderInstance(resourceManager, "apricityui:core/filter");
+            filterShader = new ShaderInstance(resourceManager, "apricityui:filter");
         } catch (Exception e) {
             filterShader = null;
         }

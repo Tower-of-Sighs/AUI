@@ -100,8 +100,9 @@ dependencies {
     implementation fg.deobf("curse.maven:rhino-416294:${rhino_id}")
     implementation fg.deobf("curse.maven:architectury-api-419699:${architectury_api_id}")
 
-    implementation fg.deobf("curse.maven:embeddium-908741:${embeddium_id}")
-    implementation fg.deobf("curse.maven:rubidium-extra-654373:${rubidium_extra_id}")
+    runtimeOnly fg.deobf("curse.maven:embeddium-908741:${embeddium_id}")
+    runtimeOnly fg.deobf("curse.maven:rubidium-extra-654373:${rubidium_extra_id}")
+    runtimeOnly fg.deobf("curse.maven:textrues-embeddium-options-910506:${textrues_embeddium_options_id}")
 
    // implementation fg.deobf("curse.maven:accelerated-rendering-1314021:7342975")
 
