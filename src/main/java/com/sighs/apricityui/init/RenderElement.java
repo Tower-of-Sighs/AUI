@@ -52,54 +52,63 @@ public class RenderElement {
 
     public static class Cache<T> {
         T value = null;
+
         public T get() {
             return value;
         }
+
         public void set(T value) {
             this.value = value;
         }
+
         public void clear() {
             value = null;
             expandClear();
         }
-        void expandClear() {}
+
+        void expandClear() {
+        }
     }
 
     private static final Set<String> LAYOUT_PROPS = Set.of(
-            "width", "height",
+            "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems",
             "gridTemplateColumns", "gridTemplateRows",
             "gap", "rowGap", "columnGap",
             "justifyItems",
-            "gridRow", "gridColumn", "justifySelf", "alignSelf",
+            "gridRow", "gridColumn",
+            "justifySelf", "alignSelf",
             "position", "top", "bottom", "left", "right", "display"
     );
 
     private static final Set<String> PADDING_AND_BORDER_PROPS = Set.of(
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
-            "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
+            "border", "borderTop", "borderBottom", "borderLeft", "borderRight",
+            "borderColor", "borderTopColor", "borderRightColor", "borderBottomColor", "borderLeftColor",
+            "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset"
     );
 
     private static final Set<String> VISUAL_BOX_PROPS = Set.of(
             "color", "visibility", "opacity",
-            "borderRadius",
+            "borderRadius", "borderTopLeftRadius", "borderTopRightRadius", "borderBottomLeftRadius", "borderBottomRightRadius",
             "boxShadow",
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
-            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat"
+            "background", "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
+            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat",
+            "outline", "outlineWidth", "outlineStyle", "outlineColor", "outlineOffset"
     );
 
     private static final Set<String> BACKGROUND_PROPS = Set.of(
-            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
+            "background", "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     );
     private static final Set<String> CURSOR_PROPS = Set.of("cursor");
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
-            "fontSize", "lineHeight", "fontFamily"
+            "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "whiteSpace"
     );
 
     private static final Set<String> STRUCTURAL_PROPS = Set.of(
-            "clipPath", "filter", "backdropFilter", "overflow"
+            "clipPath", "filter", "backdropFilter", "overflow", "overflowX", "overflowY"
     );
 
     public static void observeStyle(Element element, Style origin, Style current) {

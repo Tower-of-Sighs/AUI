@@ -2,16 +2,15 @@ package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Color;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.*;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.fml.common.Mod;
 
@@ -211,6 +210,11 @@ public class TextArea extends AbstractText {
 
     private WrapResult wrapLines(String renderText) {
         double wrapWidth = Box.of(this).innerSize().width();
+        String whiteSpace = getComputedStyle().whiteSpace;
+        if (whiteSpace != null && !whiteSpace.equals("unset") && !whiteSpace.isBlank()
+                && "nowrap".equals(whiteSpace.trim().toLowerCase())) {
+            wrapWidth = Double.MAX_VALUE;
+        }
 
         if (wrapWidth <= 2) {
             List<String> hard = splitLines(renderText);

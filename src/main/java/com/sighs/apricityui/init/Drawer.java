@@ -1,6 +1,9 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.render.AABB;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -12,6 +15,11 @@ import java.util.Set;
 
 public class Drawer {
     public static final int REPAINT = 1;
+
+    private static boolean isSet(String s) {
+        return s != null && !s.equals("unset") && !s.isBlank();
+    }
+
     public static final int REORDER = 2;
     public static final int RELAYOUT = 4;
 
@@ -83,7 +91,9 @@ public class Drawer {
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
 
-        boolean needsMask = "hidden".equals(rootStyle.overflow);
+        String overflowX = isSet(rootStyle.overflowX) ? rootStyle.overflowX : rootStyle.overflow;
+        String overflowY = isSet(rootStyle.overflowY) ? rootStyle.overflowY : rootStyle.overflow;
+        boolean needsMask = "hidden".equals(overflowX) || "hidden".equals(overflowY);
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }
@@ -150,7 +160,8 @@ public class Drawer {
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
 
-    private record Paintable(Element element, int zValue, int domOrder) {}
+    private record Paintable(Element element, int zValue, int domOrder) {
+    }
 
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;

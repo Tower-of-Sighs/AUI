@@ -8,7 +8,8 @@ import java.util.*;
 public record Transition(String name, double start, double end, double duration, double delay, long startTime) {
     private static final HashMap<UUID, List<Transition>> workList = new HashMap<>();
 
-    public record Change(String name, double value) {}
+    public record Change(String name, double value) {
+    }
 
     public static void create(Element element, Style startStyle, Style endStyle) {
         if (!startStyle.transition.equals(Style.DEFAULT.transition)) {
@@ -99,6 +100,7 @@ public record Transition(String name, double start, double end, double duration,
 
         return result;
     }
+
     private static void buildTransition(Style startStyle, Style endStyle, List<Transition> result, String name, double duration, double delay) {
         long time = System.currentTimeMillis();
 
@@ -129,7 +131,11 @@ public record Transition(String name, double start, double end, double duration,
                 name.equals("border-radius") ||
                 name.equals("margin") ||
                 name.equals("padding") ||
-                name.startsWith("border");
+                name.startsWith("border") ||
+                name.equals("outline") ||
+                name.equals("outline-width") ||
+                name.equals("outline-color") ||
+                name.equals("outline-offset");
     }
 
     public static double parseStyle(String name, String value) {
@@ -173,7 +179,7 @@ public record Transition(String name, double start, double end, double duration,
                 "transform",
                 "color",
                 "background-color",
-                "border-right-color",
+                "border-color", "border-top-color", "border-right-color", "border-bottom-color", "border-left-color",
                 "border-radius"
         );
     }

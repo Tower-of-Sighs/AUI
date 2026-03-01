@@ -20,35 +20,40 @@ public record Size(double width, double height) {
         return Client.getWindowSize();
     }
 
-    // 提取第一段数字，如提取100px中的100
+    // 提取第一段数字，如提取100px中的100、50.5%中的50.5
     public static int parse(String str) {
-        if (str == null || str.isEmpty()) {
-            return -1;
-        }
+        double d = parseDouble(str);
+        return d < 0 ? -1 : (int) Math.round(d);
+    }
 
-        StringBuilder numberBuilder = new StringBuilder();
+    /**
+     * 解析尺寸字符串中的数值，支持小数（如 50.5%、12.34px），无法解析时返回 -1
+     */
+    public static double parseDouble(String str) {
+        if (str == null || str.isEmpty()) return -1;
+
+        StringBuilder num = new StringBuilder();
         boolean foundDigit = false;
+        boolean foundDot = false;
 
         for (char c : str.toCharArray()) {
             if (Character.isDigit(c)) {
-                numberBuilder.append(c);
+                num.append(c);
                 foundDigit = true;
+            } else if (c == '.' && foundDigit && !foundDot) {
+                num.append(c);
+                foundDot = true;
             } else if (foundDigit) {
-                // 遇到非数字字符，且已经找到数字，结束提取
                 break;
             }
         }
 
-        if (!numberBuilder.isEmpty()) {
-            try {
-                return Integer.parseInt(numberBuilder.toString());
-            } catch (NumberFormatException e) {
-                // 如果数字太大超过int范围，返回-1
-                return -1;
-            }
+        if (num.length() == 0) return -1;
+        try {
+            return Double.parseDouble(num.toString());
+        } catch (NumberFormatException e) {
+            return -1;
         }
-
-        return -1;
     }
 
     public static Size of(Element element) {
@@ -61,11 +66,11 @@ public record Size(double width, double height) {
             return ZERO;
         }
 
-        int parsedWidth = parse(style.width);
-        int parsedHeight = parse(style.height);
+        double parsedWidth = parseDouble(style.width);
+        double parsedHeight = parseDouble(style.height);
 
-        boolean unsetWidth = parsedWidth == -1;
-        boolean unsetHeight = parsedHeight == -1;
+        boolean unsetWidth = parsedWidth < 0;
+        boolean unsetHeight = parsedHeight < 0;
 
         boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
         Size bodySize = isText ? getTextSize(element) : getContentSize(element);
@@ -75,12 +80,21 @@ public record Size(double width, double height) {
 
         if (!unsetWidth) {
             if (!style.width.contains("%")) totalWidth = parsedWidth;
-            else if (parentWidth != 0) totalWidth = parentWidth * parsedWidth / 100d;
+            else if (parentWidth > 0) totalWidth = parentWidth * parsedWidth / 100d;
         }
         if (!unsetHeight) {
             if (!style.height.contains("%")) totalHeight = parsedHeight;
-            else if (parentHeight != 0) totalHeight = parentHeight * parsedHeight / 100d;
+            else if (parentHeight > 0) totalHeight = parentHeight * parsedHeight / 100d;
         }
+
+        int minW = parse(style.minWidth);
+        int minH = parse(style.minHeight);
+        int maxW = parse(style.maxWidth);
+        int maxH = parse(style.maxHeight);
+        if (minW >= 0) totalWidth = Math.max(totalWidth, minW);
+        if (minH >= 0) totalHeight = Math.max(totalHeight, minH);
+        if (maxW >= 0) totalWidth = Math.min(totalWidth, maxW);
+        if (maxH >= 0) totalHeight = Math.min(totalHeight, maxH);
 
         Size resultSize = new Size(totalWidth, totalHeight);
 
@@ -105,7 +119,8 @@ public record Size(double width, double height) {
 
         for (Element child : element.children) {
             Style childStyle = child.getComputedStyle();
-            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display)) continue;
+            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display))
+                continue;
             Size size = Size.box(child);
             if (flexColumn) {
                 totalWidth = Math.max(totalWidth, size.width);
@@ -126,25 +141,41 @@ public record Size(double width, double height) {
         return Box.of(element).size();
     }
 
+    /**
+     * 获取元素的包含块宽度，用于解析子元素的 width 百分比。
+     * 仅根据样式递归向上计算，不调用 Size.of(parent)，避免与 getContentSize 的循环依赖。
+     */
     public static double getScaleWidth(Element element) {
         Element parent = element.parentElement;
-        if (parent != null) {
-            Style parentStyle = parent.getComputedStyle();
-            if (parse(parentStyle.width) != -1) {
-                if (parentStyle.width.contains("%")) return getScaleWidth(parent);
-                else return parse(parentStyle.width);
-            } else return 0;
-        } else return getWindowSize().width;
+        if (parent == null) return getWindowSize().width;
+
+        Style parentStyle = parent.getComputedStyle();
+        double parsed = parseDouble(parentStyle.width);
+        if (parsed >= 0) {
+            if (parentStyle.width.contains("%")) {
+                return getScaleWidth(parent) * parsed / 100d;
+            }
+            return parsed;
+        }
+        return getScaleWidth(parent);
     }
+
+    /**
+     * 获取元素的包含块高度，用于解析子元素的 height 百分比。
+     */
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
-        if (parent != null) {
-            Style parentStyle = parent.getComputedStyle();
-            if (parse(parentStyle.height) != -1) {
-                if (parentStyle.height.contains("%")) return getScaleHeight(parent);
-                else return parse(parentStyle.height);
-            } else return 0;
-        } else return getWindowSize().height;
+        if (parent == null) return getWindowSize().height;
+
+        Style parentStyle = parent.getComputedStyle();
+        double parsed = parseDouble(parentStyle.height);
+        if (parsed >= 0) {
+            if (parentStyle.height.contains("%")) {
+                return getScaleHeight(parent) * parsed / 100d;
+            }
+            return parsed;
+        }
+        return getScaleHeight(parent);
     }
 
     public static double lerp(double current, double target) {
@@ -152,6 +183,7 @@ public record Size(double width, double height) {
     }
 
     private static final Canvas METRICS_CANVAS = new Canvas();
+
     public static double measureText(Element element, String text) {
         if (text == null || text.isEmpty()) return 0;
 

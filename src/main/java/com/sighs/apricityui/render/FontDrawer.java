@@ -60,7 +60,7 @@ public class FontDrawer {
 
     private static FontEntry rebuildTextureEntry(Text text) {
         String fontKey = text.fontFamily;
-        java.awt.Font baseFont = Font.getBaseFont(fontKey);
+        java.awt.Font baseFont = Font.getBaseFont(fontKey, text.fontStyle);
         Color color = text.color;
         String content = text.content;
 
@@ -130,7 +130,8 @@ public class FontDrawer {
             if (entry == null) continue;
             try {
                 entry.dynamicTexture().close();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         CACHE.clear();
     }

@@ -12,6 +12,7 @@ public class Text {
     public int fontSize = -1;
     public Color color = null;
     public String fontFamily = "unset";
+    public int fontStyle = java.awt.Font.PLAIN;
     public String content = "";
     public double lineHeight = -1;
     public Size size = null;
@@ -30,6 +31,10 @@ public class Text {
                 shouldBreak = false;
                 if (!style.fontFamily.equals("unset")) text.fontFamily = style.fontFamily;
             }
+            if (text.fontStyle == java.awt.Font.PLAIN) {
+                shouldBreak = false;
+                text.fontStyle |= parseFontStyle(style.fontWeight, style.fontStyle);
+            }
             if (text.fontSize == -1) {
                 shouldBreak = false;
                 if (!style.fontSize.equals("unset")) text.fontSize = Size.parse(style.fontSize);
@@ -46,6 +51,7 @@ public class Text {
         }
         if (text.fontSize == -1) text.fontSize = 16;
         text.fontSize = (int) (text.fontSize / 16d * 9);
+        if (text.fontStyle == java.awt.Font.PLAIN) text.fontStyle = parseFontStyle(null, null);
         if (text.color == null) text.color = Color.BLACK;
         if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text.fontSize, lineHeight);
         double width = measureText(text);
@@ -53,6 +59,23 @@ public class Text {
 
         element.getRenderer().text.set(text);
         return text;
+    }
+
+    private static int parseFontStyle(String fontWeight, String fontStyle) {
+        int style = java.awt.Font.PLAIN;
+        if (fontWeight != null && !fontWeight.equals("unset")) {
+            String w = fontWeight.trim().toLowerCase();
+            if (w.equals("bold") || w.equals("700") || w.equals("800") || w.equals("900")) {
+                style |= java.awt.Font.BOLD;
+            }
+        }
+        if (fontStyle != null && !fontStyle.equals("unset")) {
+            String s = fontStyle.trim().toLowerCase();
+            if (s.equals("italic") || s.equals("oblique")) {
+                style |= java.awt.Font.ITALIC;
+            }
+        }
+        return style;
     }
 
     public static double calculateLineHeight(double fontSize, String lh) {
@@ -88,7 +111,7 @@ public class Text {
             return Client.getDefaultFontWidth(text.content) * (text.fontSize / 9.0);
         }
 
-        java.awt.Font baseFont = Font.getBaseFont(text.fontFamily);
+        java.awt.Font baseFont = Font.getBaseFont(text.fontFamily, text.fontStyle);
         if (baseFont == null) return 0;
 
         // 获取基础宽度 (基于 BASE_FONT_SIZE = 48.0f)
@@ -103,6 +126,6 @@ public class Text {
     }
 
     public String toKey() {
-        return fontSize + "/" + color + "/" + fontFamily + "/" + content;
+        return fontSize + "/" + fontStyle + "/" + color + "/" + fontFamily + "/" + content;
     }
 }

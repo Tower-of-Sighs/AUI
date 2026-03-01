@@ -14,6 +14,7 @@ public class Box {
     public final HashMap<String, Double> padding = new HashMap<>();
     public final ArrayList<Integer> borderRadius = new ArrayList<>();
     public Shadow shadow = null;
+    public Outline outline = null;
     public BorderImage borderImage = null;
     public Element element;
 
@@ -29,24 +30,113 @@ public class Box {
         SideBorder sideBorder = parseSideBorder(value);
         border.put(side, sideBorder);
     }
+
     public void applyBorderAll(String value) {
         SIDE.forEach(side -> applyBorder(side, value));
     }
+
+    public void applyBorderColor(String side, String colorValue) {
+        SideBorder current = border.get(side);
+        if (current != null) {
+            border.put(side, new SideBorder(current.size(), current.type(), new Color(colorValue)));
+        }
+    }
+
+    public void applyBorderColorAll(String colorValue) {
+        SIDE.forEach(side -> applyBorderColor(side, colorValue));
+    }
+
     public void applyMargin(String side, String value) {
-        margin.put(side, (double) Size.parse(value));
+        applyMargin(side, value, null);
     }
+
+    public void applyMargin(String side, String value, Element element) {
+        double v = parseSpacingValue(value, element, true);
+        margin.put(side, Math.max(0, v));
+    }
+
     public void applyMarginAll(String value) {
-        SIDE.forEach(side -> applyMargin(side, value));
+        applyMarginAll(value, null);
     }
+
+    public void applyMarginAll(String value, Element element) {
+        double[] vals = parse4SpacingValues(value, element);
+        margin.put("top", vals[0]);
+        margin.put("right", vals[1]);
+        margin.put("bottom", vals[2]);
+        margin.put("left", vals[3]);
+    }
+
     public void applyPadding(String side, String value) {
-        padding.put(side, (double) Size.parse(value));
+        applyPadding(side, value, null);
     }
+
+    public void applyPadding(String side, String value, Element element) {
+        double v = parseSpacingValue(value, element, false);
+        padding.put(side, Math.max(0, v));
+    }
+
     public void applyPaddingAll(String value) {
-        SIDE.forEach(side -> applyPadding(side, value));
+        applyPaddingAll(value, null);
+    }
+
+    public void applyPaddingAll(String value, Element element) {
+        double[] vals = parse4SpacingValues(value, element);
+        padding.put("top", vals[0]);
+        padding.put("right", vals[1]);
+        padding.put("bottom", vals[2]);
+        padding.put("left", vals[3]);
+    }
+
+    /**
+     * 解析单个 spacing 值，支持 px、%、auto（视为 0）
+     */
+    private static double parseSpacingValue(String value, Element element, boolean isMargin) {
+        if (value == null || value.isBlank() || value.equalsIgnoreCase("auto")) return 0;
+        double parsed = Size.parseDouble(value);
+        if (parsed < 0) return 0;
+        if (value.contains("%") && element != null) {
+            double ref = isMargin ? Size.getScaleWidth(element) : Size.getScaleWidth(element);
+            return ref * parsed / 100d;
+        }
+        return parsed;
+    }
+
+    /**
+     * 解析 margin/padding 简写：1值全边/2值上下左右/3值上左右下/4值上右下左；auto 视为 0；% 相对于包含块宽度
+     */
+    private static double[] parse4SpacingValues(String value, Element element) {
+        if (value == null || value.isBlank()) return new double[]{0, 0, 0, 0};
+        String[] parts = value.trim().split("\\s+");
+        double[] vals = new double[4];
+        int n = 0;
+        for (String p : parts) {
+            if (p.isEmpty()) continue;
+            double v = p.equalsIgnoreCase("auto") ? 0 : Size.parseDouble(p);
+            if (v >= 0) {
+                if (element != null && p.contains("%")) {
+                    double ref = Size.getScaleWidth(element);
+                    v = ref * v / 100d;
+                }
+                vals[Math.min(n++, 3)] = Math.max(0, v);
+            }
+        }
+        if (n == 1) return new double[]{vals[0], vals[0], vals[0], vals[0]};
+        if (n == 2) return new double[]{vals[0], vals[1], vals[0], vals[1]};
+        if (n == 3) return new double[]{vals[0], vals[1], vals[2], vals[1]};
+        if (n >= 4) return new double[]{vals[0], vals[1], vals[2], vals[3]};
+        return new double[]{0, 0, 0, 0};
     }
 
     private static boolean valid(String s) {
-        return !s.equals("unset");
+        return s != null && !s.equals("unset") && !s.isBlank();
+    }
+
+    /**
+     * 供 BoxTransition 等外部使用
+     */
+    public static boolean isStyleValid(String s) {
+        return valid(s);
     }
 
     public static Box of(Element element) {
@@ -61,19 +151,25 @@ public class Box {
         if (valid(style.borderBottom)) resultBox.applyBorder("bottom", style.borderBottom);
         if (valid(style.borderLeft)) resultBox.applyBorder("left", style.borderLeft);
         if (valid(style.borderRight)) resultBox.applyBorder("right", style.borderRight);
+        if (valid(style.borderColor)) resultBox.applyBorderColorAll(style.borderColor);
+        if (valid(style.borderTopColor)) resultBox.applyBorderColor("top", style.borderTopColor);
+        if (valid(style.borderRightColor)) resultBox.applyBorderColor("right", style.borderRightColor);
+        if (valid(style.borderBottomColor)) resultBox.applyBorderColor("bottom", style.borderBottomColor);
+        if (valid(style.borderLeftColor)) resultBox.applyBorderColor("left", style.borderLeftColor);
 
-        if (valid(style.margin)) resultBox.applyMarginAll(style.margin);
-        if (valid(style.marginTop)) resultBox.applyMargin("top", style.marginTop);
-        if (valid(style.marginBottom)) resultBox.applyMargin("bottom", style.marginBottom);
-        if (valid(style.marginLeft)) resultBox.applyMargin("left", style.marginLeft);
-        if (valid(style.marginRight)) resultBox.applyMargin("right", style.marginRight);
+        if (valid(style.margin)) resultBox.applyMarginAll(style.margin, element);
+        if (valid(style.marginTop)) resultBox.applyMargin("top", style.marginTop, element);
+        if (valid(style.marginBottom)) resultBox.applyMargin("bottom", style.marginBottom, element);
+        if (valid(style.marginLeft)) resultBox.applyMargin("left", style.marginLeft, element);
+        if (valid(style.marginRight)) resultBox.applyMargin("right", style.marginRight, element);
 
-        if (valid(style.padding)) resultBox.applyPaddingAll(style.padding);
-        if (valid(style.paddingTop)) resultBox.applyPadding("top", style.paddingTop);
-        if (valid(style.paddingBottom)) resultBox.applyPadding("bottom", style.paddingBottom);
-        if (valid(style.paddingLeft)) resultBox.applyPadding("left", style.paddingLeft);
-        if (valid(style.paddingRight)) resultBox.applyPadding("right", style.paddingRight);
+        if (valid(style.padding)) resultBox.applyPaddingAll(style.padding, element);
+        if (valid(style.paddingTop)) resultBox.applyPadding("top", style.paddingTop, element);
+        if (valid(style.paddingBottom)) resultBox.applyPadding("bottom", style.paddingBottom, element);
+        if (valid(style.paddingLeft)) resultBox.applyPadding("left", style.paddingLeft, element);
+        if (valid(style.paddingRight)) resultBox.applyPadding("right", style.paddingRight, element);
 
+        int tl = 0, tr = 0, br = 0, bl = 0;
         String radiusStr = style.borderRadius;
         if (!radiusStr.equals("unset")) {
             String[] parts = radiusStr.trim().split("\\s+");
@@ -82,30 +178,35 @@ public class Box {
                 int val = Size.parse(p);
                 parsed.add(val == -1 ? 0 : val);
             }
-
-            // 1值: [r, r, r, r]
-            // 2值: [TL, TR] -> [TL, TR, TL, TR] (对角)
-            // 3值: [TL, TR, BR] -> [TL, TR, BR, TR]
-            // 4值: [TL, TR, BR, BL]
             if (parsed.size() == 1) {
                 int r = parsed.get(0);
-                resultBox.borderRadius.addAll(List.of(r, r, r, r));
+                tl = tr = br = bl = r;
             } else if (parsed.size() == 2) {
-                resultBox.borderRadius.addAll(List.of(parsed.get(0), parsed.get(1), parsed.get(0), parsed.get(1)));
+                tl = br = parsed.get(0);
+                tr = bl = parsed.get(1);
             } else if (parsed.size() == 3) {
-                resultBox.borderRadius.addAll(List.of(parsed.get(0), parsed.get(1), parsed.get(2), parsed.get(1)));
+                tl = parsed.get(0);
+                tr = bl = parsed.get(1);
+                br = parsed.get(2);
             } else if (parsed.size() >= 4) {
-                resultBox.borderRadius.addAll(parsed.subList(0, 4));
+                tl = parsed.get(0);
+                tr = parsed.get(1);
+                br = parsed.get(2);
+                bl = parsed.get(3);
             }
-        } else {
-            resultBox.borderRadius.addAll(List.of(0, 0, 0, 0));
         }
+        if (valid(style.borderTopLeftRadius)) tl = Size.parse(style.borderTopLeftRadius);
+        if (valid(style.borderTopRightRadius)) tr = Size.parse(style.borderTopRightRadius);
+        if (valid(style.borderBottomRightRadius)) br = Size.parse(style.borderBottomRightRadius);
+        if (valid(style.borderBottomLeftRadius)) bl = Size.parse(style.borderBottomLeftRadius);
+        resultBox.borderRadius.addAll(List.of(tl, tr, br, bl));
 
         resultBox.element = element;
         resultBox.shadow = parseShadow(style.boxShadow);
+        resultBox.outline = parseOutline(style);
         resultBox.borderImage = parseBorderImage(style);
         if (resultBox.borderImage != null && isZero(resultBox.borderImage.width)) {
-            resultBox.borderImage.width = new int[] {
+            resultBox.borderImage.width = new int[]{
                     (int) resultBox.getBorderTop(),
                     (int) resultBox.getBorderRight(),
                     (int) resultBox.getBorderBottom(),
@@ -129,12 +230,14 @@ public class Box {
         double resultHeight = elementSize.height() + getMarginVertical();
         return new Size(resultWidth, resultHeight);
     }
+
     public Size innerSize() {
         Size elementSize = Size.of(element);
         double resultWidth = elementSize.width() - getBorderHorizontal() - getPaddingHorizontal();
         double resultHeight = elementSize.height() - getBorderVertical() - getPaddingVertical();
         return new Size(resultWidth, resultHeight);
     }
+
     public Size elementSize() {
         return Size.of(element);
     }
@@ -146,18 +249,23 @@ public class Box {
     public double getMarginHorizontal() {
         return getMarginLeft() + getMarginRight();
     }
+
     public double getMarginVertical() {
         return getMarginTop() + getMarginBottom();
     }
+
     public double getMarginLeft() {
         return margin.getOrDefault("left", 0d);
     }
+
     public double getMarginTop() {
         return margin.getOrDefault("top", 0d);
     }
+
     public double getMarginRight() {
         return margin.getOrDefault("right", 0d);
     }
+
     public double getMarginBottom() {
         return margin.getOrDefault("bottom", 0d);
     }
@@ -165,18 +273,23 @@ public class Box {
     public double getBorderHorizontal() {
         return getBorderLeft() + getBorderRight();
     }
+
     public double getBorderVertical() {
         return getBorderTop() + getBorderBottom();
     }
+
     public double getBorderLeft() {
         return border.getOrDefault("left", SideBorder.getDefault()).size;
     }
+
     public double getBorderRight() {
         return border.getOrDefault("right", SideBorder.getDefault()).size;
     }
+
     public double getBorderTop() {
         return border.getOrDefault("top", SideBorder.getDefault()).size;
     }
+
     public double getBorderBottom() {
         return border.getOrDefault("bottom", SideBorder.getDefault()).size;
     }
@@ -184,18 +297,23 @@ public class Box {
     public double getPaddingHorizontal() {
         return getPaddingLeft() + getPaddingRight();
     }
+
     public double getPaddingVertical() {
         return getPaddingTop() + getPaddingBottom();
     }
+
     public double getPaddingLeft() {
         return padding.getOrDefault("left", 0d);
     }
+
     public double getPaddingRight() {
         return padding.getOrDefault("right", 0d);
     }
+
     public double getPaddingTop() {
         return padding.getOrDefault("top", 0d);
     }
+
     public double getPaddingBottom() {
         return padding.getOrDefault("bottom", 0d);
     }
@@ -206,14 +324,50 @@ public class Box {
         if (res.length != 3) return SideBorder.getDefault();
         return new SideBorder(Size.parse(res[0]), res[1], new Color(res[2]));
     }
+
     public static Shadow parseShadow(String string) {
-        String[] res = string.split(" ");
-        if (res.length != 4) return Shadow.getDefault();
+        if (string == null || string.equals("unset") || string.equals("none") || string.isBlank()) {
+            return Shadow.getDefault();
+        }
+        String[] res = string.trim().split("\\s+");
+        if (res.length < 4) return Shadow.getDefault();
         int x = Size.parse(res[0]);
         if (res[0].contains("-")) x *= -1;
         int y = Size.parse(res[1]);
         if (res[1].contains("-")) y *= -1;
-        return new Shadow(x, y, Size.parse(res[2]), new Color(res[3]));
+        int blur = Size.parse(res[2]);
+        int spread = res.length >= 5 ? Size.parse(res[3]) : 0;
+        Color color = res.length >= 5 ? new Color(res[4]) : new Color(res[3]);
+        return new Shadow(x, y, blur, spread, color);
+    }
+
+    /**
+     * 解析 outline 相关样式
+     */
+    public static Outline parseOutline(Style style) {
+        Outline o = new Outline();
+        if (valid(style.outline) && !style.outline.equals("none")) {
+            String[] parts = style.outline.trim().split("\\s+");
+            for (String p : parts) {
+                if (p.equals("none")) return null;
+                if (!p.isEmpty() && (Character.isDigit(p.charAt(0)) || p.endsWith("px"))) {
+                    o.width = Size.parse(p);
+                } else if (p.equals("solid") || p.equals("dashed") || p.equals("dotted") || p.equals("double")) {
+                    o.style = p;
+                } else if (p.startsWith("#") || p.startsWith("rgb") || p.matches("^[a-zA-Z]+$")) {
+                    try {
+                        o.color = new Color(p);
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        }
+        if (valid(style.outlineWidth)) o.width = Size.parse(style.outlineWidth);
+        if (valid(style.outlineStyle)) o.style = style.outlineStyle;
+        if (valid(style.outlineColor)) o.color = new Color(style.outlineColor);
+        if (valid(style.outlineOffset)) o.offset = Size.parse(style.outlineOffset);
+        if (o.width <= 0) return null;
+        return o;
     }
 
     public record SideBorder(int size, String type, Color color) {
@@ -227,15 +381,28 @@ public class Box {
         }
     }
 
-    public record Shadow(int x, int y, int size, Color color) {
+    public record Shadow(int x, int y, int blur, int spread, Color color) {
         public static Shadow getDefault() {
-            return new Shadow(0, 0, 0, Color.BLACK);
+            return new Shadow(0, 0, 0, 0, Color.BLACK);
+        }
+
+        public int size() {
+            return blur;
         }
 
         @Override
         public String toString() {
-            return x + "px " + y + "px " + size + "px " + color.toHexString();
+            return spread != 0
+                    ? x + "px " + y + "px " + blur + "px " + spread + "px " + color.toHexString()
+                    : x + "px " + y + "px " + blur + "px " + color.toHexString();
         }
+    }
+
+    public static class Outline {
+        public int width = 0;
+        public String style = "solid";
+        public Color color = Color.BLACK;
+        public int offset = 0;
     }
 
     public static BorderImage parseBorderImage(Style style) {
@@ -336,7 +503,7 @@ public class Box {
         // 防止除以0或负数
         if (scale < 0) scale = 0;
 
-        return new float[] { tl * scale, tr * scale, br * scale, bl * scale };
+        return new float[]{tl * scale, tr * scale, br * scale, bl * scale};
     }
 
     public static class BorderImage {
