@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.Style;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Set;
 
 public class Box {
     public static final List<String> SIDE = List.of("top", "bottom", "left", "right");
@@ -337,6 +338,25 @@ public class Box {
         if (scale < 0) scale = 0;
 
         return new float[] { tl * scale, tr * scale, br * scale, bl * scale };
+    }
+
+    public static boolean matchStyleName(String name) {
+        return Set.of("margin", "padding", "border-width").contains(name);
+    }
+
+    public static void createTransition(Style sS, Style eS, List<Transition> res, String name, double dur, double del) {
+        String[] sides = {"-top", "-right", "-bottom", "-left"};
+        for (String side : sides) {
+            String subProp = name + side;
+            // 如果是 border-width，子属性是 border-top-width
+            if (name.equals("border-width")) subProp = "border" + side + "-width";
+
+            double s = Transition.parseStyle(subProp, sS.get(subProp));
+            double e = Transition.parseStyle(subProp, eS.get(subProp));
+            if (Math.abs(s - e) > 0.0001) {
+                res.add(new Transition(subProp, s, e, dur, del, System.currentTimeMillis()));
+            }
+        }
     }
 
     public static class BorderImage {

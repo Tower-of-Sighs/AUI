@@ -155,4 +155,14 @@ public class Filter {
             originStyle.filter = filterStr.toString().trim();
         }
     }
+
+    public static void interpolateFilter(List<Transition.Change> changes, String start, String end, double progress) {
+        Filter.FilterState s = Filter.parse(start, 1f), e = Filter.parse(end, 1f);
+        changes.add(new Transition.Change("filter-blur", Transition.getOffset("blur", s.blurRadius(), e.blurRadius(), progress)));
+        changes.add(new Transition.Change("filter-brightness", Transition.getOffset("bright", s.brightness(), e.brightness(), progress)));
+        changes.add(new Transition.Change("filter-grayscale", Transition.getOffset("gray", s.grayscale(), e.grayscale(), progress)));
+        changes.add(new Transition.Change("filter-invert", Transition.getOffset("inv", s.invert(), e.invert(), progress)));
+        changes.add(new Transition.Change("filter-hue-rotate", Transition.getOffset("hue", s.hueRotate(), e.hueRotate(), progress)));
+        changes.add(new Transition.Change("filter-opacity", Transition.getOffset("op", s.opacity(), e.opacity(), progress)));
+    }
 }

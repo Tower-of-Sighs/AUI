@@ -130,7 +130,7 @@ public class FilterRenderer {
     private static void drawBackdropWithShader(RenderTarget sourceFbo, Element target) {
         ShaderInstance shader = ShaderRegistry.getFilterShader();
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
-        if (shader == null || state == null || state.isEmpty()) return;
+        if (shader == null || state == null) return;
 
         Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
 
@@ -145,7 +145,6 @@ public class FilterRenderer {
         Position p = rect.getBodyRectPosition();
         Size s = rect.getBodyRectSize();
 
-        // 使用 Mask 逻辑来确保 backdrop-filter 遵循 border-radius
         PoseStack poseStack = new PoseStack();
         Mask.pushMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
 

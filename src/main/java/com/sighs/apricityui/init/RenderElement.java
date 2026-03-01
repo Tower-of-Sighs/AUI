@@ -144,6 +144,7 @@ public class RenderElement {
 
         if (!origin.opacity.equals(current.opacity)) {
             renderer.opacity.clear();
+            renderer.filter.clear();
             dirtyMask |= Drawer.REPAINT;
         }
 
@@ -212,9 +213,9 @@ public class RenderElement {
             renderer.cursor.clear();
         }
 
-        if (!origin.animation.equals(current.animation)) {
-            Animation.stop(element);
-        }
+//        if (!origin.animation.equals(current.animation)) {
+//            Animation.stop(element);
+//        }
 
         if (!origin.zIndex.equals(current.zIndex)) {
             dirtyMask |= Drawer.REORDER;

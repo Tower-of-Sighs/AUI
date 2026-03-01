@@ -24,7 +24,7 @@ void main() {
     if (rawColor.a <= 0.001) discard;
 
     vec4 color;
-    if (BlurRadius > 0.5) {
+    if (BlurRadius >= 1) {
         ivec2 texSize = textureSize(Sampler0, 0);
         vec2 texelSize = vec2(1.0 / texSize.x, 1.0 / texSize.y);
 

@@ -34,8 +34,10 @@ public class Base {
     public static void drawDocument(PoseStack poseStack, Document document) {
         Drawer.flushUpdates(document);
         for (RenderNode node : document.getPaintList()) {
+            poseStack.pushPose();
             Base.resolveOffset(poseStack);
             node.render(poseStack);
+            poseStack.popPose();
         }
         AbstractAsyncHandler.tickAll();
     }
@@ -64,32 +66,52 @@ public class Base {
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {
-        List<Transform> functions = element.getRenderer().transform.get();
-        if (functions == null) {
-            functions = Transform.parse(Transform.getMergedString(element));
-            element.getRenderer().transform.set(functions);
-        }
+        List<Element> route = element.getRoute();
+        double lastAbsX = 0;
+        double lastAbsY = 0;
 
-        Position pos = Position.of(element);
-        Size size = Size.of(element);
-        Box box = Box.of(element);
-        double x = pos.x + box.getMarginLeft(), y = pos.y + box.getMarginTop();
-        double w = size.width(), h = size.height();
+        for (Element e : route) {
+            Position pos = Position.of(e);
+            Box box = Box.of(e);
+            Size size = Size.of(e);
 
-        for (Transform transform : functions) {
-            if (transform instanceof Transform.Translate t) {
-                poseStack.translate(t.x(), t.y(), t.z());
-            } else if (transform instanceof Transform.Rotate r) {
-                poseStack.translate(x + w / 2, y + h / 2, 0);
-                if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
-                if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
-                if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
-                poseStack.translate(-x - w / 2, -y - h / 2, 0);
-            } else if (transform instanceof Transform.Scale s) {
-                poseStack.translate(x + w / 2, y + h / 2, 0);
-                poseStack.scale((float) s.x(), (float) s.y(), 1);
-                poseStack.translate(-x - w / 2, -y - h / 2, 0);
+            double currentAbsX = pos.x + box.getMarginLeft();
+            double currentAbsY = pos.y + box.getMarginTop();
+            poseStack.translate(currentAbsX - lastAbsX, currentAbsY - lastAbsY, 0);
+
+            List<Transform> functions = e.getRenderer().transform.get();
+            if (functions == null) {
+                String cssTransform = e.getComputedStyle().transform;
+                functions = Transform.parse(cssTransform);
+                e.getRenderer().transform.set(functions);
             }
+
+            if (!functions.isEmpty()) {
+                double w = size.width();
+                double h = size.height();
+                // transform-origin 默认为中心 (50% 50%)
+                float originX = (float) (w / 2.0);
+                float originY = (float) (h / 2.0);
+
+                for (Transform transform : functions) {
+                    if (transform instanceof Transform.Translate t) {
+                        poseStack.translate(t.x(), t.y(), t.z());
+                    } else if (transform instanceof Transform.Rotate r) {
+                        poseStack.translate(originX, originY, 0);
+                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
+                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
+                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
+                        poseStack.translate(-originX, -originY, 0);
+                    } else if (transform instanceof Transform.Scale s) {
+                        poseStack.translate(originX, originY, 0);
+                        poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
+                        poseStack.translate(-originX, -originY, 0);
+                    }
+                }
+            }
+
+            lastAbsX = currentAbsX;
+            lastAbsY = currentAbsY;
         }
     }
 
