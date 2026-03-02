@@ -455,10 +455,9 @@ public class Recipe extends MinecraftElement {
         Slot slot = new Slot(document);
         slot.applyRecipeSlotMeta(
                 "recipe-slot recipe-slot-" + entry.role().name().toLowerCase(Locale.ROOT),
-                "recipe-generated"
+                "recipe-slot"
         );
         slot.setAttributesBatch(Map.of(
-                "mode", Slot.MODE_VIRTUAL,
                 "data-role", entry.role().name().toLowerCase(Locale.ROOT),
                 "data-preview-x", String.valueOf(x),
                 "data-preview-y", String.valueOf(y),

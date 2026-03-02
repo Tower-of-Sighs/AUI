@@ -1,20 +1,49 @@
 package com.sighs.apricityui.instance.container.bind;
 
-import com.sighs.apricityui.instance.container.schema.ContainerSchema;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
  * 开屏绑定计划。
- * primary 对应主容器绑定；indexBindings 对应按顶层 container 顺序索引绑定。
+ * v2 以 containerId 为主键，同时保留 legacy primary/index API 兼容旧调用。
  */
 public final class OpenBindPlan {
+    private final String templatePath;
+    private final String primaryContainerIdOverride;
+    private final LinkedHashMap<String, ContainerOverride> containersById;
+    private final Options options;
+
+    @Deprecated
     private final BindingSpec primaryBinding;
+    @Deprecated
     private final LinkedHashMap<Integer, BindingSpec> indexBindings;
 
-    private OpenBindPlan(BindingSpec primaryBinding, Map<Integer, BindingSpec> indexBindings) {
+    private OpenBindPlan(String templatePath,
+                         String primaryContainerIdOverride,
+                         Map<String, ContainerOverride> containersById,
+                         Options options,
+                         BindingSpec primaryBinding,
+                         Map<Integer, BindingSpec> indexBindings) {
+        this.templatePath = templatePath == null ? "" : templatePath.trim();
+        this.primaryContainerIdOverride = primaryContainerIdOverride == null ? "" : primaryContainerIdOverride.trim();
+        this.options = options == null ? new Options(ResizePolicy.KEEP_OVERFLOW) : options;
+
+        this.containersById = new LinkedHashMap<>();
+        if (containersById != null) {
+            containersById.forEach((containerId, override) -> {
+                String normalizedContainerId = normalizeContainerId(containerId);
+                if (normalizedContainerId == null || override == null) return;
+                this.containersById.put(normalizedContainerId, override);
+            });
+        }
+
         this.primaryBinding = primaryBinding;
         this.indexBindings = new LinkedHashMap<>();
         if (indexBindings != null) {
@@ -29,24 +58,92 @@ public final class OpenBindPlan {
         return new Builder();
     }
 
+    public static OpenBindPlan merge(OpenBindPlan base, OpenBindPlan prefer) {
+        if (base == null) return prefer;
+        return base.merge(prefer);
+    }
+
+    public OpenBindPlan merge(OpenBindPlan override) {
+        if (override == null) return this;
+
+        LinkedHashMap<String, ContainerOverride> mergedContainers = new LinkedHashMap<>(containersById);
+        override.containersById.forEach((containerId, overrideValue) -> {
+            mergedContainers.compute(containerId, (k, current) -> current == null ? overrideValue : current.merge(overrideValue));
+        });
+
+        String mergedTemplatePath = override.templatePath.isBlank() ? templatePath : override.templatePath;
+        String mergedPrimaryContainerId = override.primaryContainerIdOverride.isBlank()
+                ? primaryContainerIdOverride
+                : override.primaryContainerIdOverride;
+        Options mergedOptions = options.merge(override.options);
+        BindingSpec mergedPrimaryBinding = override.primaryBinding != null ? override.primaryBinding : primaryBinding;
+        LinkedHashMap<Integer, BindingSpec> mergedIndexBindings = new LinkedHashMap<>(indexBindings);
+        mergedIndexBindings.putAll(override.indexBindings);
+
+        return new OpenBindPlan(
+                mergedTemplatePath,
+                mergedPrimaryContainerId,
+                mergedContainers,
+                mergedOptions,
+                mergedPrimaryBinding,
+                mergedIndexBindings
+        );
+    }
+
+    public String templatePath() {
+        return templatePath;
+    }
+
+    public String primaryContainerIdOverride() {
+        return primaryContainerIdOverride;
+    }
+
+    public Map<String, ContainerOverride> containers() {
+        return Map.copyOf(containersById);
+    }
+
+    public ContainerOverride container(String containerId) {
+        String normalizedContainerId = normalizeContainerId(containerId);
+        if (normalizedContainerId == null) return null;
+        return containersById.get(normalizedContainerId);
+    }
+
+    public Options options() {
+        return options;
+    }
+
+    @Deprecated
     public BindingSpec primaryBinding() {
         return primaryBinding;
     }
 
+    @Deprecated
     public Map<Integer, BindingSpec> indexBindings() {
         return Map.copyOf(indexBindings);
     }
 
+    @Deprecated
     public BindingSpec bindingForIndex(int index) {
         return indexBindings.get(index);
     }
 
-    public record BindingSpec(ContainerSchema.Descriptor.BindType bindType, Map<String, String> args) {
-        public BindingSpec {
+    public enum DisplayMode {
+        AUTO,
+        CUSTOM,
+        HIDDEN
+    }
+
+    public enum ResizePolicy {
+        KEEP_OVERFLOW,
+        TRUNCATE
+    }
+
+    public record BindOverride(ContainerBindType bindType, Map<String, String> args) {
+        public BindOverride {
             if (bindType == null) {
                 throw new IllegalArgumentException("bindType cannot be null");
             }
-            if (bindType == ContainerSchema.Descriptor.BindType.VIRTUAL_UI) {
+            if (bindType == ContainerBindType.VIRTUAL_UI) {
                 throw new IllegalArgumentException("bindType is reserved for template virtual container: " + bindType);
             }
 
@@ -63,33 +160,100 @@ public final class OpenBindPlan {
         }
     }
 
-    /**
-     * 用于逐步构建 {@link OpenBindPlan}。
-     * <p>
-     * 关于 {@code argKey}/{@code argValue}：
-     * 这组参数会进入绑定配置的 {@code args} 字典，并在服务端解析数据源时透传给
-     * {@code ApricityDataSourceResolver.resolve(...)}。
-     * 框架不会在 Builder 阶段解释其业务含义，只做“键名规范化 + 字典存储”。
-     * <p>
-     * 常见内建 bindType 参数约定：
-     * {@code saved_data}: {@code dataName}, {@code inventoryKey}, {@code slotCount}
-     * {@code block_entity}: {@code x}, {@code y}, {@code z}, {@code side}
-     * {@code entity}: {@code uuid}
-     * {@code player}: 无需额外参数
-     */
-    public static final class Builder {
-        private final LinkedHashMap<Integer, BindingSpec> indexBindings = new LinkedHashMap<>();
-        private BindingSpec primaryBinding;
-
-        private static BindingSpec withSingleArg(BindingSpec base, String argKey, String argValue) {
-            if (base == null) throw new IllegalArgumentException("base binding cannot be null");
-            if (argKey == null || argKey.trim().isEmpty()) {
-                throw new IllegalArgumentException("argKey cannot be blank");
+    public record DisplayOverride(DisplayMode mode, List<Integer> indices) {
+        public DisplayOverride {
+            if (mode == null) mode = DisplayMode.AUTO;
+            ArrayList<Integer> sanitized = new ArrayList<>();
+            if (indices != null) {
+                for (Integer index : indices) {
+                    if (index == null || index < 0) continue;
+                    sanitized.add(index);
+                }
             }
-            LinkedHashMap<String, String> args = new LinkedHashMap<>(base.args());
-            args.put(argKey.trim(), argValue == null ? "" : argValue);
-            return new BindingSpec(base.bindType(), args);
+            indices = List.copyOf(sanitized);
         }
+    }
+
+    public record CapacityOverride(Integer minCapacity, Integer exactCapacity, ResizePolicy resizePolicy) {
+        public CapacityOverride {
+            if (minCapacity != null && minCapacity < 0) minCapacity = 0;
+            if (exactCapacity != null && exactCapacity < 0) exactCapacity = 0;
+            if (resizePolicy == null) resizePolicy = ResizePolicy.KEEP_OVERFLOW;
+        }
+    }
+
+    public record InteractionOverride(Boolean serverAllowInteraction, Set<Integer> disabledIndices) {
+        public InteractionOverride {
+            LinkedHashSet<Integer> sanitized = new LinkedHashSet<>();
+            if (disabledIndices != null) {
+                for (Integer index : disabledIndices) {
+                    if (index == null || index < 0) continue;
+                    sanitized.add(index);
+                }
+            }
+            disabledIndices = Set.copyOf(sanitized);
+        }
+    }
+
+    public record ContainerOverride(BindOverride bind,
+                                    DisplayOverride display,
+                                    CapacityOverride capacity,
+                                    InteractionOverride interaction) {
+        public ContainerOverride merge(ContainerOverride override) {
+            if (override == null) return this;
+            return new ContainerOverride(
+                    override.bind != null ? override.bind : bind,
+                    override.display != null ? override.display : display,
+                    override.capacity != null ? override.capacity : capacity,
+                    override.interaction != null ? override.interaction : interaction
+            );
+        }
+    }
+
+    public record Options(ResizePolicy defaultResizePolicy) {
+        public Options {
+            if (defaultResizePolicy == null) defaultResizePolicy = ResizePolicy.KEEP_OVERFLOW;
+        }
+
+        public Options merge(Options override) {
+            if (override == null) return this;
+            return new Options(override.defaultResizePolicy != null ? override.defaultResizePolicy : defaultResizePolicy);
+        }
+    }
+
+    @Deprecated
+    public record BindingSpec(ContainerBindType bindType, Map<String, String> args) {
+        public BindingSpec {
+            if (bindType == null) {
+                throw new IllegalArgumentException("bindType cannot be null");
+            }
+            if (bindType == ContainerBindType.VIRTUAL_UI) {
+                throw new IllegalArgumentException("bindType is reserved for template virtual container: " + bindType);
+            }
+
+            LinkedHashMap<String, String> normalizedArgs = new LinkedHashMap<>();
+            if (args != null) {
+                args.forEach((key, value) -> {
+                    if (key == null) return;
+                    String normalizedKey = key.trim();
+                    if (normalizedKey.isEmpty()) return;
+                    normalizedArgs.put(normalizedKey, value == null ? "" : value);
+                });
+            }
+            args = Map.copyOf(normalizedArgs);
+        }
+    }
+
+    public static final class Builder {
+        private String templatePath;
+        private String primaryContainerIdOverride;
+        private final LinkedHashMap<String, ContainerOverride> containersById = new LinkedHashMap<>();
+        private Options options = new Options(ResizePolicy.KEEP_OVERFLOW);
+
+        @Deprecated
+        private final LinkedHashMap<Integer, BindingSpec> indexBindings = new LinkedHashMap<>();
+        @Deprecated
+        private BindingSpec primaryBinding;
 
         private static String requireText(String value, String fieldName) {
             if (value == null || value.trim().isEmpty()) {
@@ -103,15 +267,79 @@ public final class OpenBindPlan {
             return value;
         }
 
-        private static BindingSpec savedDataSpec(String dataName, String inventoryKey, int slotCount) {
+        private static String requireContainerId(String containerId) {
+            String normalized = normalizeContainerId(requireText(containerId, "containerId"));
+            if (normalized == null) {
+                throw new IllegalArgumentException("containerId cannot be blank");
+            }
+            return normalized;
+        }
+
+        private static BindOverride bindWithSingleArg(BindOverride base, String argKey, String argValue) {
+            if (base == null) throw new IllegalArgumentException("base bind override cannot be null");
+            LinkedHashMap<String, String> args = new LinkedHashMap<>(base.args());
+            args.put(requireText(argKey, "argKey"), argValue == null ? "" : argValue);
+            return new BindOverride(base.bindType(), args);
+        }
+
+        @Deprecated
+        private static BindingSpec legacyWithSingleArg(BindingSpec base, String argKey, String argValue) {
+            if (base == null) throw new IllegalArgumentException("base binding cannot be null");
+            LinkedHashMap<String, String> args = new LinkedHashMap<>(base.args());
+            args.put(requireText(argKey, "argKey"), argValue == null ? "" : argValue);
+            return new BindingSpec(base.bindType(), args);
+        }
+
+        public Builder templatePath(String templatePath) {
+            this.templatePath = templatePath == null ? null : templatePath.trim();
+            return this;
+        }
+
+        public Builder primaryContainer(String containerId) {
+            this.primaryContainerIdOverride = requireContainerId(containerId);
+            return this;
+        }
+
+        public Builder defaultResizePolicy(ResizePolicy resizePolicy) {
+            this.options = new Options(resizePolicy);
+            return this;
+        }
+
+        public ContainerBindBuilder bind(String containerId) {
+            return new ContainerBindBuilder(requireContainerId(containerId));
+        }
+
+        public ContainerBindBuilder primaryBind(String containerId) {
+            String normalizedContainerId = requireContainerId(containerId);
+            this.primaryContainerIdOverride = normalizedContainerId;
+            return new ContainerBindBuilder(normalizedContainerId);
+        }
+
+        public Builder primarySavedData(String containerId, String dataName, String inventoryKey) {
+            return primaryBind(containerId).savedData(dataName, inventoryKey).done();
+        }
+
+        public Builder containerBind(String containerId, ContainerBindType bindType) {
+            return setContainerBind(containerId, new BindOverride(bindType, Map.of()));
+        }
+
+        public Builder containerBind(String containerId, ContainerBindType bindType, String argKey, String argValue) {
+            return setContainerBind(containerId, bindWithSingleArg(new BindOverride(bindType, Map.of()), argKey, argValue));
+        }
+
+        public Builder containerPlayer(String containerId) {
+            return containerBind(containerId, ContainerBindType.PLAYER);
+        }
+
+        public Builder containerSavedData(String containerId, String dataName, String inventoryKey, int slotCount) {
             LinkedHashMap<String, String> args = new LinkedHashMap<>();
             args.put("dataName", requireText(dataName, "dataName"));
             args.put("inventoryKey", requireText(inventoryKey, "inventoryKey"));
             args.put("slotCount", String.valueOf(requirePositive(slotCount, "slotCount")));
-            return new BindingSpec(ContainerSchema.Descriptor.BindType.SAVED_DATA, args);
+            return setContainerBind(containerId, new BindOverride(ContainerBindType.SAVED_DATA, args));
         }
 
-        private static BindingSpec blockEntitySpec(int x, int y, int z, String side) {
+        public Builder containerBlockEntity(String containerId, int x, int y, int z, String side) {
             LinkedHashMap<String, String> args = new LinkedHashMap<>();
             args.put("x", String.valueOf(x));
             args.put("y", String.valueOf(y));
@@ -119,257 +347,307 @@ public final class OpenBindPlan {
             if (side != null && !side.trim().isEmpty()) {
                 args.put("side", side.trim());
             }
-            return new BindingSpec(ContainerSchema.Descriptor.BindType.BLOCK_ENTITY, args);
+            return setContainerBind(containerId, new BindOverride(ContainerBindType.BLOCK_ENTITY, args));
         }
 
-        private static BindingSpec entitySpec(String uuid) {
-            return new BindingSpec(ContainerSchema.Descriptor.BindType.ENTITY, Map.of("uuid", requireText(uuid, "uuid")));
+        public Builder containerEntity(String containerId, String uuid) {
+            return setContainerBind(containerId, new BindOverride(
+                    ContainerBindType.ENTITY,
+                    Map.of("uuid", requireText(uuid, "uuid"))
+            ));
         }
 
-        /**
-         * 设置主容器（primary container）的绑定规则，不附带参数。
-         * <p>
-         * 若此前已调用过 {@code primary(...)}，本次调用会覆盖旧的主容器绑定配置。
-         *
-         * @param bindType 绑定类型
-         * @return 当前 Builder，支持链式调用
-         * @throws IllegalArgumentException 当 bindType 非法时抛出
-         */
-        public Builder primary(ContainerSchema.Descriptor.BindType bindType) {
+        public Builder containerEntity(String containerId, UUID uuid) {
+            return containerEntity(containerId, uuid == null ? null : uuid.toString());
+        }
+
+        public Builder containerArg(String containerId, String argKey, String argValue) {
+            String normalizedContainerId = requireContainerId(containerId);
+            ContainerOverride current = containersById.get(normalizedContainerId);
+            if (current == null || current.bind() == null) {
+                throw new IllegalStateException("Call containerBind(containerId, bindType) before containerArg(...)");
+            }
+            return setContainerBind(normalizedContainerId, bindWithSingleArg(current.bind(), argKey, argValue));
+        }
+
+        public Builder containerDisplay(String containerId, DisplayMode mode, List<Integer> indices) {
+            String normalizedContainerId = requireContainerId(containerId);
+            ContainerOverride current = containersById.get(normalizedContainerId);
+            ContainerOverride updated = new ContainerOverride(
+                    current == null ? null : current.bind(),
+                    new DisplayOverride(mode, indices),
+                    current == null ? null : current.capacity(),
+                    current == null ? null : current.interaction()
+            );
+            containersById.put(normalizedContainerId, updated);
+            return this;
+        }
+
+        public Builder containerCapacity(String containerId, Integer minCapacity, Integer exactCapacity, ResizePolicy resizePolicy) {
+            String normalizedContainerId = requireContainerId(containerId);
+            ContainerOverride current = containersById.get(normalizedContainerId);
+            CapacityOverride currentCapacity = current == null ? null : current.capacity();
+            Integer mergedMinCapacity = minCapacity != null
+                    ? minCapacity
+                    : (currentCapacity == null ? null : currentCapacity.minCapacity());
+            Integer mergedExactCapacity = exactCapacity != null
+                    ? exactCapacity
+                    : (currentCapacity == null ? null : currentCapacity.exactCapacity());
+            ResizePolicy mergedResizePolicy = resizePolicy != null
+                    ? resizePolicy
+                    : (currentCapacity == null ? null : currentCapacity.resizePolicy());
+            ContainerOverride updated = new ContainerOverride(
+                    current == null ? null : current.bind(),
+                    current == null ? null : current.display(),
+                    new CapacityOverride(mergedMinCapacity, mergedExactCapacity, mergedResizePolicy),
+                    current == null ? null : current.interaction()
+            );
+            containersById.put(normalizedContainerId, updated);
+            return this;
+        }
+
+        public Builder containerInteraction(String containerId, Boolean serverAllowInteraction, Set<Integer> disabledIndices) {
+            String normalizedContainerId = requireContainerId(containerId);
+            ContainerOverride current = containersById.get(normalizedContainerId);
+            ContainerOverride updated = new ContainerOverride(
+                    current == null ? null : current.bind(),
+                    current == null ? null : current.display(),
+                    current == null ? null : current.capacity(),
+                    new InteractionOverride(serverAllowInteraction, disabledIndices)
+            );
+            containersById.put(normalizedContainerId, updated);
+            return this;
+        }
+
+        private Builder setContainerBind(String containerId, BindOverride bindOverride) {
+            String normalizedContainerId = requireContainerId(containerId);
+            ContainerOverride current = containersById.get(normalizedContainerId);
+            ContainerOverride updated = new ContainerOverride(
+                    bindOverride,
+                    current == null ? null : current.display(),
+                    current == null ? null : current.capacity(),
+                    current == null ? null : current.interaction()
+            );
+            containersById.put(normalizedContainerId, updated);
+            return this;
+        }
+
+        @Deprecated
+        public Builder primary(ContainerBindType bindType) {
             this.primaryBinding = new BindingSpec(bindType, Map.of());
             return this;
         }
 
-        /**
-         * 设置主容器（primary container）的绑定规则，并在创建时附加一个参数。
-         * <p>
-         * 该方法等价于先调用 {@link #primary(ContainerSchema.Descriptor.BindType)}，再调用一次 {@link #primaryArg(String, String)}。
-         * {@code argKey/argValue} 会写入该主容器绑定的参数字典，后续由数据源解析器按 bindType 使用。
-         *
-         * @param bindType 绑定类型
-         * @param argKey   参数名（不能为空白，例如 {@code slotCount}/{@code dataName}/{@code hand}）
-         * @param argValue 参数值（例如 {@code 27}/{@code my_inv}/{@code off_hand}）；为 {@code null} 时会归一化为空字符串
-         * @return 当前 Builder，支持链式调用
-         * @throws IllegalArgumentException 当 bindType 非法或 argKey 为空白时抛出
-         */
-        public Builder primary(ContainerSchema.Descriptor.BindType bindType, String argKey, String argValue) {
-            this.primaryBinding = withSingleArg(new BindingSpec(bindType, Map.of()), argKey, argValue);
+        @Deprecated
+        public Builder primary(ContainerBindType bindType, String argKey, String argValue) {
+            this.primaryBinding = legacyWithSingleArg(new BindingSpec(bindType, Map.of()), argKey, argValue);
             return this;
         }
 
-        /**
-         * 将主容器绑定为玩家库存。
-         *
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder primaryPlayer() {
-            this.primaryBinding = new BindingSpec(ContainerSchema.Descriptor.BindType.PLAYER, Map.of());
+            this.primaryBinding = new BindingSpec(ContainerBindType.PLAYER, Map.of());
             return this;
         }
 
-        /**
-         * 将主容器绑定为 SavedData 存储源。
-         *
-         * @param dataName     SavedData 名称
-         * @param inventoryKey 逻辑背包键
-         * @param slotCount    槽位数量（必须大于 0）
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder primarySavedData(String dataName, String inventoryKey, int slotCount) {
-            this.primaryBinding = savedDataSpec(dataName, inventoryKey, slotCount);
+            LinkedHashMap<String, String> args = new LinkedHashMap<>();
+            args.put("dataName", requireText(dataName, "dataName"));
+            args.put("inventoryKey", requireText(inventoryKey, "inventoryKey"));
+            args.put("slotCount", String.valueOf(requirePositive(slotCount, "slotCount")));
+            this.primaryBinding = new BindingSpec(ContainerBindType.SAVED_DATA, args);
             return this;
         }
 
-        /**
-         * 将主容器绑定为方块实体库存源。
-         *
-         * @param x    方块 X
-         * @param y    方块 Y
-         * @param z    方块 Z
-         * @param side 可选能力侧（如 north/up），为空表示不指定
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder primaryBlockEntity(int x, int y, int z, String side) {
-            this.primaryBinding = blockEntitySpec(x, y, z, side);
+            LinkedHashMap<String, String> args = new LinkedHashMap<>();
+            args.put("x", String.valueOf(x));
+            args.put("y", String.valueOf(y));
+            args.put("z", String.valueOf(z));
+            if (side != null && !side.trim().isEmpty()) {
+                args.put("side", side.trim());
+            }
+            this.primaryBinding = new BindingSpec(ContainerBindType.BLOCK_ENTITY, args);
             return this;
         }
 
-        /**
-         * 将主容器绑定为实体库存源（按 UUID 定位）。
-         *
-         * @param uuid 实体 UUID 字符串
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder primaryEntity(String uuid) {
-            this.primaryBinding = entitySpec(uuid);
+            this.primaryBinding = new BindingSpec(ContainerBindType.ENTITY, Map.of("uuid", requireText(uuid, "uuid")));
             return this;
         }
 
-        /**
-         * 将主容器绑定为实体库存源（按 UUID 定位）。
-         *
-         * @param uuid 实体 UUID
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder primaryEntity(UUID uuid) {
             return primaryEntity(uuid == null ? null : uuid.toString());
         }
 
-        /**
-         * 为主容器绑定追加或覆盖一个参数。
-         * <p>
-         * 调用前必须已通过 {@link #primary(ContainerSchema.Descriptor.BindType)} 或 {@link #primary(ContainerSchema.Descriptor.BindType, String, String)}
-         * 初始化主容器绑定，否则会抛出状态异常。
-         * 若 {@code argKey} 已存在，则本次调用会覆盖旧值。
-         *
-         * @param argKey   参数名（不能为空白，例如 {@code slotCount}/{@code inventoryKey}）
-         * @param argValue 参数值；为 {@code null} 时会归一化为空字符串
-         * @return 当前 Builder，支持链式调用
-         * @throws IllegalStateException    当主容器绑定尚未初始化时抛出
-         * @throws IllegalArgumentException 当 argKey 为空白时抛出
-         */
+        @Deprecated
         public Builder primaryArg(String argKey, String argValue) {
             if (primaryBinding == null) {
                 throw new IllegalStateException("Call primary(bindType) before primaryArg(...)");
             }
-            this.primaryBinding = withSingleArg(primaryBinding, argKey, argValue);
+            this.primaryBinding = legacyWithSingleArg(primaryBinding, argKey, argValue);
             return this;
         }
 
-        /**
-         * 按顶层容器顺序索引设置某个容器的绑定规则，不附带参数。
-         * <p>
-         * 若同一 {@code index} 已存在配置，本次调用会覆盖旧配置。
-         *
-         * @param index    顶层容器索引（从 0 开始）
-         * @param bindType 绑定类型
-         * @return 当前 Builder，支持链式调用
-         * @throws IllegalArgumentException 当 index 小于 0 或 bindType 非法时抛出
-         */
-        public Builder containerIndex(int index, ContainerSchema.Descriptor.BindType bindType) {
+        @Deprecated
+        public Builder containerIndex(int index, ContainerBindType bindType) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
             indexBindings.put(index, new BindingSpec(bindType, Map.of()));
             return this;
         }
 
-        /**
-         * 按顶层容器顺序索引设置某个容器的绑定规则，并在创建时附加一个参数。
-         * <p>
-         * 若同一 {@code index} 已存在配置，本次调用会覆盖旧配置。
-         * {@code argKey/argValue} 仅作用于该索引容器，不影响 primary 或其他索引容器。
-         *
-         * @param index    顶层容器索引（从 0 开始）
-         * @param bindType 绑定类型
-         * @param argKey   参数名（不能为空白，例如 {@code x}/{@code y}/{@code z}/{@code side}）
-         * @param argValue 参数值（例如 {@code 10}/{@code north}）；为 {@code null} 时会归一化为空字符串
-         * @return 当前 Builder，支持链式调用
-         * @throws IllegalArgumentException 当 index 小于 0、bindType 非法或 argKey 为空白时抛出
-         */
-        public Builder containerIndex(int index, ContainerSchema.Descriptor.BindType bindType, String argKey, String argValue) {
+        @Deprecated
+        public Builder containerIndex(int index, ContainerBindType bindType, String argKey, String argValue) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, withSingleArg(new BindingSpec(bindType, Map.of()), argKey, argValue));
+            indexBindings.put(index, legacyWithSingleArg(new BindingSpec(bindType, Map.of()), argKey, argValue));
             return this;
         }
 
-        /**
-         * 将指定索引容器绑定为玩家库存。
-         *
-         * @param index 顶层容器索引（从 0 开始）
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder containerIndexPlayer(int index) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, new BindingSpec(ContainerSchema.Descriptor.BindType.PLAYER, Map.of()));
+            indexBindings.put(index, new BindingSpec(ContainerBindType.PLAYER, Map.of()));
             return this;
         }
 
-        /**
-         * 将指定索引容器绑定为 SavedData 存储源。
-         *
-         * @param index        顶层容器索引（从 0 开始）
-         * @param dataName     SavedData 名称
-         * @param inventoryKey 逻辑背包键
-         * @param slotCount    槽位数量（必须大于 0）
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder containerIndexSavedData(int index, String dataName, String inventoryKey, int slotCount) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, savedDataSpec(dataName, inventoryKey, slotCount));
+            LinkedHashMap<String, String> args = new LinkedHashMap<>();
+            args.put("dataName", requireText(dataName, "dataName"));
+            args.put("inventoryKey", requireText(inventoryKey, "inventoryKey"));
+            args.put("slotCount", String.valueOf(requirePositive(slotCount, "slotCount")));
+            indexBindings.put(index, new BindingSpec(ContainerBindType.SAVED_DATA, args));
             return this;
         }
 
-        /**
-         * 将指定索引容器绑定为方块实体库存源。
-         *
-         * @param index 顶层容器索引（从 0 开始）
-         * @param x     方块 X
-         * @param y     方块 Y
-         * @param z     方块 Z
-         * @param side  可选能力侧（如 north/up），为空表示不指定
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder containerIndexBlockEntity(int index, int x, int y, int z, String side) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, blockEntitySpec(x, y, z, side));
+            LinkedHashMap<String, String> args = new LinkedHashMap<>();
+            args.put("x", String.valueOf(x));
+            args.put("y", String.valueOf(y));
+            args.put("z", String.valueOf(z));
+            if (side != null && !side.trim().isEmpty()) {
+                args.put("side", side.trim());
+            }
+            indexBindings.put(index, new BindingSpec(ContainerBindType.BLOCK_ENTITY, args));
             return this;
         }
 
-        /**
-         * 将指定索引容器绑定为实体库存源（按 UUID 定位）。
-         *
-         * @param index 顶层容器索引（从 0 开始）
-         * @param uuid  实体 UUID 字符串
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder containerIndexEntity(int index, String uuid) {
             if (index < 0) throw new IllegalArgumentException("container index must be >= 0");
-            indexBindings.put(index, entitySpec(uuid));
+            indexBindings.put(index, new BindingSpec(
+                    ContainerBindType.ENTITY,
+                    Map.of("uuid", requireText(uuid, "uuid"))
+            ));
             return this;
         }
 
-        /**
-         * 将指定索引容器绑定为实体库存源（按 UUID 定位）。
-         *
-         * @param index 顶层容器索引（从 0 开始）
-         * @param uuid  实体 UUID
-         * @return 当前 Builder，支持链式调用
-         */
+        @Deprecated
         public Builder containerIndexEntity(int index, UUID uuid) {
             return containerIndexEntity(index, uuid == null ? null : uuid.toString());
         }
 
-        /**
-         * 为指定索引容器绑定追加或覆盖一个参数。
-         * <p>
-         * 调用前必须已通过 {@link #containerIndex(int, ContainerSchema.Descriptor.BindType)} 或
-         * {@link #containerIndex(int, ContainerSchema.Descriptor.BindType, String, String)} 初始化该索引的绑定。
-         * 该方法常用于分多步补齐参数（例如先设置 bindType，再逐个补充 {@code x/y/z/side}）。
-         *
-         * @param index    顶层容器索引（从 0 开始）
-         * @param argKey   参数名（不能为空白；若已存在会被覆盖）
-         * @param argValue 参数值；为 {@code null} 时会归一化为空字符串
-         * @return 当前 Builder，支持链式调用
-         * @throws IllegalStateException    当 index 对应绑定尚未初始化时抛出
-         * @throws IllegalArgumentException 当 argKey 为空白时抛出
-         */
+        @Deprecated
         public Builder containerArg(int index, String argKey, String argValue) {
             BindingSpec current = indexBindings.get(index);
             if (current == null) {
                 throw new IllegalStateException("Call containerIndex(index, bindType) before containerArg(...)");
             }
-            indexBindings.put(index, withSingleArg(current, argKey, argValue));
+            indexBindings.put(index, legacyWithSingleArg(current, argKey, argValue));
             return this;
         }
 
-        /**
-         * 构建不可变的开屏绑定计划对象。
-         * <p>
-         * 返回对象会拷贝当前 Builder 状态；后续继续修改 Builder 不会影响已构建结果。
-         *
-         * @return {@link OpenBindPlan} 实例
-         */
         public OpenBindPlan build() {
-            return new OpenBindPlan(primaryBinding, indexBindings);
+            return new OpenBindPlan(
+                    templatePath,
+                    primaryContainerIdOverride,
+                    containersById,
+                    options,
+                    primaryBinding,
+                    indexBindings
+            );
         }
+
+        public final class ContainerBindBuilder {
+            private final String containerId;
+
+            private ContainerBindBuilder(String containerId) {
+                this.containerId = containerId;
+            }
+
+            public ContainerBindBuilder player() {
+                Builder.this.containerPlayer(containerId);
+                return this;
+            }
+
+            public ContainerBindBuilder savedData(String dataName, String inventoryKey) {
+                LinkedHashMap<String, String> args = new LinkedHashMap<>();
+                args.put("dataName", requireText(dataName, "dataName"));
+                args.put("inventoryKey", requireText(inventoryKey, "inventoryKey"));
+                Builder.this.setContainerBind(containerId, new BindOverride(ContainerBindType.SAVED_DATA, args));
+                return this;
+            }
+
+            public ContainerBindBuilder savedData(String dataName, String inventoryKey, int slotCount) {
+                Builder.this.containerSavedData(containerId, dataName, inventoryKey, slotCount);
+                return this;
+            }
+
+            public ContainerBindBuilder blockEntity(int x, int y, int z, String side) {
+                Builder.this.containerBlockEntity(containerId, x, y, z, side);
+                return this;
+            }
+
+            public ContainerBindBuilder entity(String uuid) {
+                Builder.this.containerEntity(containerId, uuid);
+                return this;
+            }
+
+            public ContainerBindBuilder entity(UUID uuid) {
+                Builder.this.containerEntity(containerId, uuid);
+                return this;
+            }
+
+            public ContainerBindBuilder arg(String argKey, String argValue) {
+                Builder.this.containerArg(containerId, argKey, argValue);
+                return this;
+            }
+
+            public ContainerBindBuilder minCapacity(int minCapacity) {
+                Builder.this.containerCapacity(containerId, minCapacity, null, null);
+                return this;
+            }
+
+            public ContainerBindBuilder exactCapacity(int exactCapacity) {
+                Builder.this.containerCapacity(containerId, null, exactCapacity, null);
+                return this;
+            }
+
+            public ContainerBindBuilder policy(ResizePolicy resizePolicy) {
+                Builder.this.containerCapacity(containerId, null, null, resizePolicy);
+                return this;
+            }
+
+            public Builder done() {
+                return Builder.this;
+            }
+
+            public OpenBindPlan build() {
+                return Builder.this.build();
+            }
+        }
+    }
+
+    private static String normalizeContainerId(String containerId) {
+        if (containerId == null) return null;
+        String normalized = containerId.trim().toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
     }
 }
