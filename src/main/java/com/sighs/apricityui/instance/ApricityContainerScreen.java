@@ -514,7 +514,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             int renderHeight = Math.max(1, slotHeight - padding * 2);
             int drawX = (int) Math.round(body.x + padding + (renderWidth - 16) / 2.0);
             int drawY = (int) Math.round(body.y + padding + (renderHeight - 16) / 2.0);
-            ItemStack stack = slot.getMcSlot().getItem();
+            ItemStack stack = slot.resolveDisplayStack();
             if (stack.isEmpty()) continue;
 
             float iconScale = Math.max(0.01F, slot.resolveIconScale(1.0F));

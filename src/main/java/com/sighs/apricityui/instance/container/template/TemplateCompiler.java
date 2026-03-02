@@ -182,12 +182,6 @@ public final class TemplateCompiler {
         }
     }
 
-    private static boolean isBoundSlot(Map<String, String> attributes) {
-        String rawMode = attributes.get("mode");
-        if (rawMode == null || rawMode.isBlank()) return true;
-        return "bound".equals(rawMode.trim().toLowerCase(Locale.ROOT));
-    }
-
     private static int parseRepeatCount(String rawRepeat) {
         return Math.max(1, parsePositiveInt(rawRepeat, 1));
     }
@@ -297,7 +291,6 @@ public final class TemplateCompiler {
 
         private void consumeSlot(Map<String, String> attributes) {
             if (bindType == ContainerBindType.VIRTUAL_UI) return;
-            if (!isBoundSlot(attributes)) return;
 
             int repeat = parseRepeatCount(attributes.get("repeat"));
             Integer parsedSlotIndex = parseSlotIndex(attributes.get("slot-index"));

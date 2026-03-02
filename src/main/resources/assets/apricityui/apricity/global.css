@@ -71,6 +71,76 @@ slot {
     pointer-events: none;
 }
 
+/* recipe 布局由 CSS 预设控制 */
+recipe {
+    --aui-recipe-gap: 2px;
+    --aui-recipe-slot-size: 18px;
+    --aui-recipe-columns: 5;
+    display: grid;
+    gap: var(--aui-recipe-gap);
+    grid-template-columns: var(--aui-recipe-columns);
+    justify-items: stretch;
+    align-items: stretch;
+}
+
+recipe > .aui-recipe-slot {
+    width: var(--aui-recipe-slot-size);
+    height: var(--aui-recipe-slot-size);
+    --aui-slot-interactive: 0;
+}
+
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-output,
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-output {
+    grid-column: 5;
+    grid-row: 2;
+}
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="0"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="0"] { grid-column: 1; grid-row: 1; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="1"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="1"] { grid-column: 2; grid-row: 1; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="2"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="2"] { grid-column: 3; grid-row: 1; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="3"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="3"] { grid-column: 1; grid-row: 2; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="4"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="4"] { grid-column: 2; grid-row: 2; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="5"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="5"] { grid-column: 3; grid-row: 2; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="6"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="6"] { grid-column: 1; grid-row: 3; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="7"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="7"] { grid-column: 2; grid-row: 3; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="8"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="8"] { grid-column: 3; grid-row: 3; }
+
+recipe[data-recipe-layout="smelting_family"] {
+    --aui-recipe-columns: 4;
+}
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-input[data-i="0"] { grid-column: 1; grid-row: 1; }
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-fuel[data-i="0"] { grid-column: 2; grid-row: 2; }
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-output[data-i="0"] { grid-column: 4; grid-row: 2; }
+
+recipe[data-recipe-layout="smithing"] {
+    --aui-recipe-columns: 5;
+}
+recipe[data-recipe-layout="smithing"] > .aui-recipe-template[data-i="0"] { grid-column: 1; grid-row: 2; }
+recipe[data-recipe-layout="smithing"] > .aui-recipe-input[data-role="input"][data-i="0"] { grid-column: 2; grid-row: 2; }
+recipe[data-recipe-layout="smithing"] > .aui-recipe-addition[data-i="0"] { grid-column: 3; grid-row: 2; }
+recipe[data-recipe-layout="smithing"] > .aui-recipe-output[data-i="0"] { grid-column: 5; grid-row: 2; }
+
+recipe[data-recipe-layout="stonecutting"] {
+    --aui-recipe-columns: 4;
+}
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-input[data-group="absolute"][data-i="0"] { grid-column: 1; grid-row: 2; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="0"] { grid-column: 4; grid-row: 1; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="1"] { grid-column: 4; grid-row: 2; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="2"] { grid-column: 4; grid-row: 3; }
+
+recipe[data-recipe-layout="fallback"] {
+    --aui-recipe-columns: 6;
+}
+recipe[data-recipe-layout="fallback"] > .aui-recipe-output[data-i="0"] { grid-column: 6; grid-row: 2; }
+
 @font-face {
     font-family: "lxgw";
     src: url("apricityui/lxgw3500.ttf");

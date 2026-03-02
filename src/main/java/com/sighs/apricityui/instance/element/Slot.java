@@ -11,7 +11,6 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
-import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -28,9 +27,8 @@ import java.util.Map;
 public class Slot extends MinecraftElement {
     public static final String TAG_NAME = "SLOT";
 
-    private final SimpleContainer virtualContainer = new SimpleContainer(1);
-    private final net.minecraft.world.inventory.Slot virtualMcSlot = new net.minecraft.world.inventory.Slot(virtualContainer, 0, 0, 0);
-    private net.minecraft.world.inventory.Slot mcSlot = virtualMcSlot;
+    private net.minecraft.world.inventory.Slot mcSlot = null;
+    private ItemStack virtualStack = ItemStack.EMPTY;
 
     private SlotDisplaySpec displaySpec = SlotDisplaySpec.EMPTY;
     private String compiledSignature = "";
@@ -54,16 +52,18 @@ public class Slot extends MinecraftElement {
     }
 
     public void bindMcSlot(net.minecraft.world.inventory.Slot slot) {
-        mcSlot = slot == null ? virtualMcSlot : slot;
+        mcSlot = slot;
+        if (slot != null) {
+            virtualStack = ItemStack.EMPTY;
+        }
     }
 
     public net.minecraft.world.inventory.Slot getMcSlot() {
-        return mcSlot == null ? virtualMcSlot : mcSlot;
+        return mcSlot;
     }
 
     private boolean isBoundToMenuSlot() {
-        net.minecraft.world.inventory.Slot slot = getMcSlot();
-        return slot != virtualMcSlot;
+        return mcSlot != null;
     }
 
     private ApricityContainerMenu.UiSlot resolveUiSlot() {
@@ -219,11 +219,11 @@ public class Slot extends MinecraftElement {
 
         refreshDisplaySpecIfNeeded();
         if (!displaySpec.hasCandidates()) {
-            virtualMcSlot.set(ItemStack.EMPTY);
+            virtualStack = ItemStack.EMPTY;
             return;
         }
         if (!shouldRenderItem()) {
-            virtualMcSlot.set(ItemStack.EMPTY);
+            virtualStack = ItemStack.EMPTY;
             return;
         }
 
@@ -242,11 +242,11 @@ public class Slot extends MinecraftElement {
 
         ItemStack stack = displaySpec.candidates().get(candidateIndex).copy();
         if (stack.getCount() <= 0) stack.setCount(1);
-        virtualMcSlot.set(stack);
+        virtualStack = stack;
     }
 
     public ItemStack resolveDisplayStack() {
-        ItemStack stack = getMcSlot().getItem();
+        ItemStack stack = isBoundToMenuSlot() ? mcSlot.getItem() : virtualStack;
         if (stack.isEmpty()) return ItemStack.EMPTY;
         return stack.copy();
     }
@@ -254,9 +254,9 @@ public class Slot extends MinecraftElement {
     @Override
     public ItemStack getTooltipStack() {
         if (isBoundToMenuSlot()) return ItemStack.EMPTY;
-        ItemStack stack = virtualMcSlot.getItem();
+        ItemStack stack = virtualStack;
         if (stack.isEmpty()) return ItemStack.EMPTY;
-        return stack;
+        return stack.copy();
     }
 
     @Override
