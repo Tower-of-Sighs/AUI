@@ -346,8 +346,9 @@ public final class TestBlockEntity {
             if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
 
             OpenBindPlan plan = ApricityUI.bind()
-                    .primaryBlockEntity(pos.getX(), pos.getY(), pos.getZ(), "")
-                    .containerIndexPlayer(1)
+                    .containerBlockEntity("furnace", pos.getX(), pos.getY(), pos.getZ(), "")
+                    .containerPlayer("player")
+                    .primaryContainer("furnace")
                     .build();
             ApricityUI.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, plan);
             return InteractionResult.CONSUME;

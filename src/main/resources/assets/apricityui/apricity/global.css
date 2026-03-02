@@ -1,6 +1,15 @@
 body {
     width: 100%;
     height: 100%;
+    --aui-slot-size: 18;
+    --aui-slot-render-bg: 1;
+    --aui-slot-render-item: 1;
+    --aui-slot-icon-scale: 1;
+    --aui-slot-padding: 0;
+    --aui-slot-z: 0;
+    --aui-slot-interactive: 1;
+    --aui-slot-cycle: 1;
+    --aui-slot-cycle-interval: 1000;
 }
 
 img {

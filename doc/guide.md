@@ -27,27 +27,31 @@ ApricityUI.closeScreen()
 如果你需要真实容器与数据源绑定，建议走服务端权威入口（Java 或 KubeJS 服务端事件中调用）：
 ```javascript
 OpenBindPlan plan = ApricityUI.bind()
-    .primarySavedData("apricityui_demo", "demo_key", 27)
-    .containerIndexPlayer(1)
-    .containerIndexPlayer(2)
+    .containerSavedData("main", "apricityui_demo", "demo_key", 27)
+    .containerPlayer("player")
+    .primaryContainer("main")
     .build()
 
 ApricityUI.openScreen(ServerPlayer player, String path, OpenBindPlan plan)
 ```
+
+其中 `main` / `player` 必须与模板里的顶层 `<container id="...">` 对应。
 
 其它常见绑定方式：
 
 ```javascript
 // 方块实体背包
 OpenBindPlan blockEntityPlan = ApricityUI.bind()
-    .primaryBlockEntity(100, 64, 200, "up")
-    .containerIndexPlayer(1)
+    .containerBlockEntity("machine", 100, 64, 200, "up")
+    .containerPlayer("player")
+    .primaryContainer("machine")
     .build()
 
 // 实体背包（按 uuid）
 OpenBindPlan entityPlan = ApricityUI.bind()
-    .primaryEntity("00000000-0000-0000-0000-000000000000")
-    .containerIndexPlayer(1)
+    .containerEntity("entity_inv", "00000000-0000-0000-0000-000000000000")
+    .containerPlayer("player")
+    .primaryContainer("entity_inv")
     .build()
 ```
 
@@ -68,14 +72,27 @@ OpenBindPlan entityPlan = ApricityUI.bind()
 - 不再支持 `container.title` 属性；
 - 首个子元素缺失或文本为空时，不渲染标题区域且不保留占位。
 
-统一槽位语义：
+统一槽位语义（新模板推荐）：
 
-- `<slot mode="bound">`：绑定真实菜单槽位；
-- `<slot mode="virtual">`：仅展示，不绑定真实菜单；
+- 顶层 `container` 内的 `<slot>` 默认按索引绑定真实菜单槽位；
+- 不在 `container` 内，或位于 `<recipe>` 预览中的槽位为 virtual；
+- `mode` 属性仅用于旧模板兼容，新模板不建议依赖；
 - `virtual` 物品来源只读取 `slot` 的 `innerText`（不再读取 `item/itemid/count/hover` 属性）；
 - `<recipe type="...">recipe_id</recipe>`：生成的槽位始终是 `virtual`，可放在 `container` 内或普通 HTML 区域；
 - `recipe` 的配方 id 只读取 `innerText`（不再读取 `recipe-id` 属性）；
 - `recipe.type` 必填并严格校验（不匹配则不渲染预览并写入 `data-recipe-error`）。
+
+`global.css` 默认变量（可在容器或 slot 层覆盖）：
+
+- `--aui-slot-size`：槽位像素尺寸（整数）；
+- `--aui-slot-render-bg`：是否渲染槽位背景（1/0）；
+- `--aui-slot-render-item`：是否渲染物品（1/0）；
+- `--aui-slot-icon-scale`：图标缩放（浮点）；
+- `--aui-slot-padding`：图标内边距（整数）；
+- `--aui-slot-z`：槽位层级（整数）；
+- `--aui-slot-interactive`：是否允许交互（1/0）；
+- `--aui-slot-cycle` / `--aui-slot-cycle-interval`：virtual 槽位轮播开关与间隔；
+- `--aui-container-columns`：可选，显式指定容器列数；未设置时由运行时按 `min(9, slotCount)` 注入默认列数。
 
 示例可直接参考：
 

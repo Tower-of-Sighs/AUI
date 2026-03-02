@@ -27,30 +27,46 @@ ApricityUI.closeScreen()
 如果你需要真实容器与数据源绑定，建议走服务端权威入口（Java 或 KubeJS 服务端事件中调用）：
 ```javascript
 OpenBindPlan plan = ApricityUI.bind()
-    .primarySavedData("apricityui_demo", "demo_key", 27)
-    .containerIndexPlayer(1)
-    .containerIndexPlayer(2)
+    .containerSavedData("main", "apricityui_demo", "demo_key", 27)
+    .containerPlayer("player")
+    .primaryContainer("main")
     .build()
 
 ApricityUI.openScreen(ServerPlayer player, String path, OpenBindPlan plan)
 ```
+
+其中 `main` / `player` 必须与模板里的顶层 `<container id="...">` 对应。
 
 其它常见绑定方式：
 
 ```javascript
 // 方块实体背包
 OpenBindPlan blockEntityPlan = ApricityUI.bind()
-    .primaryBlockEntity(100, 64, 200, "up")
-    .containerIndexPlayer(1)
+    .containerBlockEntity("machine", 100, 64, 200, "up")
+    .containerPlayer("player")
+    .primaryContainer("machine")
     .build()
 
 // 实体背包（按 uuid）
 OpenBindPlan entityPlan = ApricityUI.bind()
-    .primaryEntity("00000000-0000-0000-0000-000000000000")
-    .containerIndexPlayer(1)
+    .containerEntity("entity_inv", "00000000-0000-0000-0000-000000000000")
+    .containerPlayer("player")
+    .primaryContainer("entity_inv")
     .build()
 ```
 
 框架不内置触发器；右键物品、快捷键、右键方块、右键方块实体这些触发逻辑由你自己在事件中编写，再调用上述接口。
+
+`global.css` 默认变量（可在容器或 slot 层覆盖）：
+
+- `--aui-slot-size`：槽位像素尺寸（整数）；
+- `--aui-slot-render-bg`：是否渲染槽位背景（1/0）；
+- `--aui-slot-render-item`：是否渲染物品（1/0）；
+- `--aui-slot-icon-scale`：图标缩放（浮点）；
+- `--aui-slot-padding`：图标内边距（整数）；
+- `--aui-slot-z`：槽位层级（整数）；
+- `--aui-slot-interactive`：是否允许交互（1/0）；
+- `--aui-slot-cycle` / `--aui-slot-cycle-interval`：virtual 槽位轮播开关与间隔；
+- `--aui-container-columns`：可选，显式指定容器列数；未设置时由运行时按 `min(9, slotCount)` 注入默认列数。
 
 ### 影像
