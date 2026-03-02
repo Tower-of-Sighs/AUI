@@ -11,6 +11,26 @@
             <span class="flex-item" id="hoverBox">子项 3(鼠标事件)</span>
         </div>
 
+        <div class="wrap-demo-label">Wrap 行换行（row）</div>
+        <div class="wrap-row-panel">
+            <span class="wrap-item">1</span>
+            <span class="wrap-item">2</span>
+            <span class="wrap-item">3</span>
+            <span class="wrap-item">4</span>
+            <span class="wrap-item">5</span>
+            <span class="wrap-item">6</span>
+        </div>
+
+        <div class="wrap-demo-label">Wrap 列换列（column）</div>
+        <div class="wrap-column-panel">
+            <span class="wrap-item">A</span>
+            <span class="wrap-item">B</span>
+            <span class="wrap-item">C</span>
+            <span class="wrap-item">D</span>
+            <span class="wrap-item">E</span>
+            <span class="wrap-item">F</span>
+        </div>
+
         <!-- Grid 区域：测试 grid-template / gap / grid-row / grid-column / justify-items / justify-self / align-self -->
         <div class="grid-panel" id="gridPanel">
             <div class="grid-item grid-a">A</div>
@@ -239,6 +259,59 @@
         background-color: #41485c;
         color: #ffffff;
         line-height: 10px;
+    }
+
+    .wrap-demo-label {
+        margin-top: 2px;
+        margin-bottom: 1px;
+        color: #f3c98b;
+        font-size: 9px;
+        line-height: 9px;
+    }
+
+    .wrap-row-panel {
+        width: 100%;
+        height: 36px;
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        align-content: space-between;
+        justify-content: flex-start;
+        background-color: #2d3242;
+        border-radius: 3px;
+        border: 1px solid #4f566b;
+        margin-bottom: 3px;
+    }
+
+    .wrap-column-panel {
+        width: 100%;
+        height: 36px;
+        display: flex;
+        flex-direction: column;
+        flex-wrap: wrap;
+        align-content: center;
+        justify-content: flex-start;
+        background-color: #2d3242;
+        border-radius: 3px;
+        border: 1px solid #4f566b;
+        margin-bottom: 4px;
+    }
+
+    .wrap-item {
+        width: 16px;
+        height: 12px;
+        margin-top: 1px;
+        margin-bottom: 1px;
+        margin-left: 1px;
+        margin-right: 1px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #4b5268;
+        border-radius: 2px;
+        color: #ffffff;
+        font-size: 8px;
+        line-height: 8px;
     }
 
     /* Grid 区域 */

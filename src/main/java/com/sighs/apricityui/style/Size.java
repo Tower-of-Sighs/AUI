@@ -100,25 +100,12 @@ public record Size(double width, double height) {
         if ("grid".equals(style.display)) {
             return Grid.computeContentSize(element);
         }
-        boolean flexColumn = Flex.of(element).flexDirection.isColumn();
-        double totalWidth = 0, totalHeight = 0;
 
-        for (Element child : element.children) {
-            Style childStyle = child.getComputedStyle();
-            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display)) continue;
-            Size size = Size.box(child);
-            if (flexColumn) {
-                totalWidth = Math.max(totalWidth, size.width);
-                totalHeight += size.height;
-            } else {
-                totalHeight = Math.max(totalHeight, size.height);
-                totalWidth += size.width;
-            }
-        }
+        Size content = Flex.computeContentSize(element);
 
         Box box = Box.of(element);
-        totalWidth += box.getBorderHorizontal() + box.getPaddingHorizontal();
-        totalHeight += box.getBorderVertical() + box.getPaddingVertical();
+        double totalWidth = content.width() + box.getBorderHorizontal() + box.getPaddingHorizontal();
+        double totalHeight = content.height() + box.getBorderVertical() + box.getPaddingVertical();
         return new Size(totalWidth, totalHeight);
     }
 

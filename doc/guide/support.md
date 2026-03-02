@@ -23,8 +23,9 @@ div {
   /* 布局方式 */
   display: flex;         /* 布局方式：flex, grid, none */
   flex-direction: row;   /* flex 布局方向：row, column */
-  align-content: center; /* flex 布局内容对齐：flex-start, center, flex-end */
-  justify-content: center; /* flex 布局主轴对齐：flex-start, center, flex-end */
+  flex-wrap: wrap;       /* flex 换行：nowrap, wrap */
+  align-content: center; /* flex 多行对齐：flex-start, center, flex-end, space-between, space-around, stretch */
+  justify-content: center; /* flex 布局主轴对齐：flex-start, center, flex-end, space-between, space-around, space-evenly */
   align-items: center;   /* flex 布局交叉轴对齐：flex-start, center, flex-end */
   grid-template-columns: 9; /* grid 列轨道：数字（自动等宽列）或 px/auto 列表 */
   grid-template-rows: auto; /* grid 行轨道：数字或 px/auto 列表 */
