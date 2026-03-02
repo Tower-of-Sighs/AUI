@@ -1,11 +1,11 @@
 package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.matrix.MatrixStack;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
@@ -15,19 +15,13 @@ import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.experimental.Accessors;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.common.Mod;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@ElementRegister(TextArea.TAG_NAME)
 public class TextArea extends AbstractText {
     public static final String TAG_NAME = "TEXTAREA";
-
-    static {
-        Element.register(TAG_NAME, (document, string) -> new TextArea(document));
-    }
 
     public TextArea(Document document) {
         super(document, TAG_NAME);

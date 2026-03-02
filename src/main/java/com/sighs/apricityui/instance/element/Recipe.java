@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.util.StringUtils;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -20,17 +21,13 @@ import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.*;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@ElementRegister(Recipe.TAG_NAME)
 public class Recipe extends MinecraftElement {
     public static final String TAG_NAME = "RECIPE";
     private static final int DEFAULT_SLOT_SIZE = 16;
     private static final int DEFAULT_GAP = 2;
     private static final int STONECUTTING_LIST_VISIBLE_ROWS = 3;
     private static final String PREVIEW_CACHE_KEY = "minecraft-element:recipe-preview-cache";
-
-    static {
-        Element.register(TAG_NAME, (document, string) -> new Recipe(document));
-    }
 
     private boolean previewInitialized = false;
 

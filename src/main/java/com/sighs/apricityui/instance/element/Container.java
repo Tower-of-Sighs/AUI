@@ -1,18 +1,11 @@
 package com.sighs.apricityui.instance.element;
 
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.fml.common.Mod;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@ElementRegister(Container.TAG_NAME)
 public class Container extends MinecraftElement {
     public static final String TAG_NAME = "CONTAINER";
-
-    static {
-        Element.register(TAG_NAME, (document, string) -> new Container(document));
-    }
 
     public Container(Document document) {
         super(document, TAG_NAME);
