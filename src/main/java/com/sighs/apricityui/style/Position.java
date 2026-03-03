@@ -22,9 +22,10 @@ public class Position {
         return new Position(x + position.x, y + position.y);
     }
 
-    public static Position of(Element element) {
+    public static Position getOffset(Element element) {
         if (element == null) return ZERO;
 
+        // 缓存依然有效，但现在缓存的是本地 offset
         Position cache = element.getRenderer().position.get();
         if (cache != null) return cache;
 
@@ -32,77 +33,33 @@ public class Position {
         Position resultPosition = ZERO;
 
         String positionType = style.position;
-        boolean isAbsolute = "absolute".equals(positionType);
-        boolean isFixed = "fixed".equals(positionType);
-
-        if (isAbsolute || isFixed) {
-            Element parent = isFixed ? null : element.getParentStackContext();
-
-            Position parentPos = (parent == null) ? ZERO : Position.of(parent);
-            Size parentSize = (parent == null) ? Size.getWindowSize() : Size.of(parent);
-            Box parentBox = (parent == null) ? null : Box.of(parent);
-
-            double borderLeft = (parentBox == null) ? 0 : parentBox.getBorderLeft();
-            double borderTop = (parentBox == null) ? 0 : parentBox.getBorderTop();
-            double borderRight = (parentBox == null) ? 0 : parentBox.getBorderRight();
-            double borderBottom = (parentBox == null) ? 0 : parentBox.getBorderBottom();
-
-            double x = parentPos.x + borderLeft;
-            double y = parentPos.y + borderTop;
-
-            Size selfSize = Size.of(element);
-
-            if (!"unset".equals(style.left)) {
-                x += parseSignedInt(style.left);
-            } else if (!"unset".equals(style.right)) {
-                x = parentPos.x + parentSize.width() - borderRight - selfSize.width() - parseSignedInt(style.right);
-            } else {
-                if (element.parentElement != null) {
-                    CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
-                    Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
-                    x = staticPos.x;
-                }
-            }
-
-            if (!"unset".equals(style.top)) {
-                y += parseSignedInt(style.top);
-            } else if (!"unset".equals(style.bottom)) {
-                y = parentPos.y + parentSize.height() - borderBottom - selfSize.height() - parseSignedInt(style.bottom);
-            } else {
-                if (element.parentElement != null) {
-                    CopyOnWriteArrayList<Element> siblings = new CopyOnWriteArrayList<>(List.of(element));
-                    Position staticPos = computeNormalFlowChildPosition(element, element.parentElement, siblings);
-                    y = staticPos.y;
-                }
-            }
-
-            if (parent != null) {
-                x -= parent.scrollLeft;
-                y -= parent.getScrollTop();
-            }
-
-            resultPosition = new Position(x, y);
+        // 如果是绝对定位，计算相对于最近层叠上下文（或父级）的偏移
+        if ("absolute".equals(positionType) || "fixed".equals(positionType)) {
+            int top = parseSignedInt(style.top);
+            int left = parseSignedInt(style.left);
+            int bottom = parseSignedInt(style.bottom);
+            int right = parseSignedInt(style.right);
+            resultPosition = new Position(left - right, top - bottom);
         } else {
+            // 普通流布局（Flex/Grid）
             Element parent = element.parentElement;
             if (parent != null) {
+                // 这里调用布局引擎计算相对于父容器 content-box 的位置
                 resultPosition = computeNormalFlowChildPosition(element, parent, parent.children);
-            }
-
-            if ("relative".equals(positionType)) {
-                int top = "unset".equals(style.top) ? 0 : parseSignedInt(style.top);
-                int bottom = "unset".equals(style.bottom) ? 0 : parseSignedInt(style.bottom);
-                int left = "unset".equals(style.left) ? 0 : parseSignedInt(style.left);
-                int right = "unset".equals(style.right) ? 0 : parseSignedInt(style.right);
-
-                resultPosition = resultPosition.add(new Position(left - right, top - bottom));
-            }
-
-            if (parent != null) {
-                resultPosition = resultPosition.add(new Position(-parent.scrollLeft, -parent.getScrollTop()));
             }
         }
 
         element.getRenderer().position.set(resultPosition);
+        return resultPosition;
+    }
+
+    public static Position of(Element element) {
+        if (element == null) return ZERO;
+        Position resultPosition = new Position(0, 0);
+        for (Element e : element.getRoute()) {
+            resultPosition = resultPosition.add(Position.getOffset(e));
+            if (!e.uuid.equals(element.uuid)) resultPosition = resultPosition.add(new Position(-e.scrollLeft, -e.scrollTop));
+        }
         return resultPosition;
     }
 
@@ -114,7 +71,7 @@ public class Position {
         return Flex.computeChildPosition(element, parent, siblings);
     }
 
-public static int parseSignedInt(String str) {
+    public static int parseSignedInt(String str) {
         if (str == null || str.isEmpty() || "unset".equals(str)) {
             return 0;
         }

@@ -208,7 +208,7 @@ public class Document {
 
     public void removeElement(Element element) {
         element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
-        element.document.markDirty(element.parentElement, Drawer.RELAYOUT);
+        element.document.markDirty(element.parentElement, Drawer.REORDER);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
     }
 

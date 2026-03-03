@@ -210,6 +210,7 @@ public class MouseEvent extends Event implements Cloneable {
             if(target.children != null) {
                 // 清理子元素的位置缓存
                 target.children.forEach(e -> e.getRenderer().position.clear());
+                target.document.markDirty(target, Drawer.REORDER);
             }
         }
     }

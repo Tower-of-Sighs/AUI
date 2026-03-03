@@ -54,7 +54,6 @@ public final class Grid {
                           Gaps gaps) {}
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
-        Position parentPosition = Position.of(parent);
         Box parentBox = Box.of(parent);
 
         Layout layout = computeLayout(parent, siblings);
@@ -62,7 +61,7 @@ public final class Grid {
         int idx = layout.flow.indexOf(element);
         if (idx < 0) {
             // Not in normal flow (absolute/fixed/none), fallback to parent's content origin.
-            return new Position(parentPosition.x + parentBox.offset("left"), parentPosition.y + parentBox.offset("top"));
+            return new Position(parentBox.offset("left"), parentBox.offset("top"));
         }
 
         Placement p = layout.placements.get(idx);
@@ -77,7 +76,7 @@ public final class Grid {
         double dx = computeJustifyOffset(element, parent, cellW, itemSize.width());
         double dy = computeAlignOffset(element, parent, cellH, itemSize.height());
 
-        return new Position(parentPosition.x + baseX + dx, parentPosition.y + baseY + dy);
+        return new Position(baseX + dx, baseY + dy);
     }
 
     public static Size computeContentSize(Element gridContainer) {

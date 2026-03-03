@@ -25,7 +25,6 @@ public class Flex {
     }
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
-        Position parentPosition = Position.of(parent);
         Box parentBox = Box.of(parent);
         Size parentContentSize = parentBox.innerSize();
         Flex flex = Flex.of(parent);
@@ -91,7 +90,7 @@ public class Flex {
             }
         }
 
-        return new Position(parentPosition.x + offsetX, parentPosition.y + offsetY);
+        return new Position(offsetX, offsetY);
     }
 
     private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,
