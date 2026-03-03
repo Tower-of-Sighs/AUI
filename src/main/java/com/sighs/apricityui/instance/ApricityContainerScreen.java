@@ -11,10 +11,8 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -496,35 +494,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     private void drawUnboundSlotItems(GuiGraphics guiGraphics) {
-        if (linkedDocument == null) return;
-
-        for (Slot slot : unboundSlots) {
-            if (slot == null) continue;
-            if (!slot.isVisible) continue;
-            if ("none".equals(slot.getComputedStyle().display)) continue;
-            if (!slot.shouldRenderItem()) continue;
-
-            Rect rect = Rect.of(slot);
-            Position body = rect.getBodyRectPosition();
-            Size bodySize = rect.getBodyRectSize();
-            int slotWidth = Math.max(1, (int) Math.round(bodySize.width()));
-            int slotHeight = Math.max(1, (int) Math.round(bodySize.height()));
-            int padding = clampPadding(Math.min(slotWidth, slotHeight), slot.resolveItemPadding(0));
-            int renderWidth = Math.max(1, slotWidth - padding * 2);
-            int renderHeight = Math.max(1, slotHeight - padding * 2);
-            int drawX = (int) Math.round(body.x + padding + (renderWidth - 16) / 2.0);
-            int drawY = (int) Math.round(body.y + padding + (renderHeight - 16) / 2.0);
-            ItemStack stack = slot.resolveDisplayStack();
-            if (stack.isEmpty()) continue;
-
-            float iconScale = Math.max(0.01F, slot.resolveIconScale(1.0F));
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + slot.resolveZIndex(0));
-            applyItemScaleTransform(guiGraphics, drawX, drawY, iconScale);
-            guiGraphics.renderItem(stack, drawX, drawY);
-            guiGraphics.renderItemDecorations(font, stack, drawX, drawY);
-            guiGraphics.pose().popPose();
-        }
+        // Keep bound-slot rendering specialized for container screens.
+        // Unbound (virtual) slot items are rendered via the shared pass.
+        ItemRender.renderUnboundSlotItems(guiGraphics, new ArrayList<>(unboundSlots));
     }
 
     private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {
