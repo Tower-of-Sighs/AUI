@@ -36,7 +36,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     private final Document linkedDocument;
     private final ArrayList<Slot> boundSlots = new ArrayList<>();
-    private final ArrayList<Slot> virtualSlots = new ArrayList<>();
+    private final ArrayList<Slot> unboundSlots = new ArrayList<>();
     private final HashMap<Slot, Integer> boundGlobalIndexByElement = new HashMap<>();
     private final HashMap<Slot, Container> boundContainerByElement = new HashMap<>();
     private final IdentityHashMap<net.minecraft.world.inventory.Slot, Slot> boundElementByMenuSlot = new IdentityHashMap<>();
@@ -110,7 +110,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         Base.drawDocument(guiGraphics.pose(), linkedDocument);
         drawBoundSlotItems(guiGraphics);
-        drawVirtualSlotItems(guiGraphics);
+        drawUnboundSlotItems(guiGraphics);
     }
 
     @Override
@@ -139,7 +139,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (linkedDocument == null) return;
 
         boundSlots.clear();
-        virtualSlots.clear();
+        unboundSlots.clear();
         boundGlobalIndexByElement.clear();
         boundContainerByElement.clear();
         boundElementByMenuSlot.clear();
@@ -160,20 +160,20 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             if (!(element instanceof Slot slot)) continue;
             if (slot.findAncestor(Recipe.class) != null) {
                 slot.bindMcSlot(null);
-                virtualSlots.add(slot);
+                unboundSlots.add(slot);
                 continue;
             }
 
             Container ownerContainer = slot.findAncestor(Container.class);
             if (ownerContainer == null) {
                 slot.bindMcSlot(null);
-                virtualSlots.add(slot);
+                unboundSlots.add(slot);
                 continue;
             }
             String containerId = containerIdByElement.get(ownerContainer);
             if (containerId == null || containerId.isBlank()) {
                 slot.bindMcSlot(null);
-                virtualSlots.add(slot);
+                unboundSlots.add(slot);
                 continue;
             }
 
@@ -191,7 +191,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                     || globalSlotIndex >= menu.slots.size()
                     || !usedGlobalSlots.add(globalSlotIndex)) {
                 slot.bindMcSlot(null);
-                virtualSlots.add(slot);
+                unboundSlots.add(slot);
                 continue;
             }
 
@@ -213,7 +213,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         int currentSlotCount = countDomSlotElements();
         if (currentSlotCount < 0) return false;
         if (currentSlotCount != lastKnownDomSlotCount) return true;
-        return currentSlotCount != (boundSlots.size() + virtualSlots.size());
+        return currentSlotCount != (boundSlots.size() + unboundSlots.size());
     }
 
     private int countDomSlotElements() {
@@ -495,10 +495,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
     }
 
-    private void drawVirtualSlotItems(GuiGraphics guiGraphics) {
+    private void drawUnboundSlotItems(GuiGraphics guiGraphics) {
         if (linkedDocument == null) return;
 
-        for (Slot slot : virtualSlots) {
+        for (Slot slot : unboundSlots) {
             if (slot == null) continue;
             if (!slot.isVisible) continue;
             if ("none".equals(slot.getComputedStyle().display)) continue;
@@ -605,7 +605,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         slotSyncDirty = true;
         lastKnownDomSlotCount = -1;
         boundSlots.clear();
-        virtualSlots.clear();
+        unboundSlots.clear();
         boundGlobalIndexByElement.clear();
         boundContainerByElement.clear();
         boundElementByMenuSlot.clear();

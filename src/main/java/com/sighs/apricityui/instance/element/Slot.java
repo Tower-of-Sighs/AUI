@@ -71,13 +71,6 @@ public class Slot extends MinecraftElement {
         return uiSlot;
     }
 
-    @Override
-    public MinecraftBindingMode getBindingMode() {
-        if (isBoundToMenuSlot()) return MinecraftBindingMode.BOUND;
-        if (hasAncestor(Recipe.class)) return MinecraftBindingMode.VIRTUAL;
-        return hasAncestor(Container.class) ? MinecraftBindingMode.BOUND : MinecraftBindingMode.VIRTUAL;
-    }
-
     public int getRepeatCount() {
         Integer parsed = parsePositiveInt(getAttribute("repeat"));
         return parsed == null ? 1 : parsed;

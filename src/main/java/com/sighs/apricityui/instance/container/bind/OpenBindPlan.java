@@ -87,6 +87,10 @@ public final class OpenBindPlan {
         return options;
     }
 
+    /**
+     * @deprecated v1.4 起显示集合由模板 DOM 决定，不建议再通过 OpenBindPlan 覆盖。
+     */
+    @Deprecated(since = "1.4", forRemoval = false)
     public enum DisplayMode {
         AUTO,
         CUSTOM,
@@ -104,7 +108,7 @@ public final class OpenBindPlan {
                 throw new IllegalArgumentException("bindType cannot be null");
             }
             if (bindType == ContainerBindType.VIRTUAL_UI) {
-                throw new IllegalArgumentException("bindType is reserved for template virtual container: " + bindType);
+                throw new IllegalArgumentException("bindType is reserved for template ui-only container: " + bindType);
             }
 
             LinkedHashMap<String, String> normalizedArgs = new LinkedHashMap<>();
@@ -120,6 +124,10 @@ public final class OpenBindPlan {
         }
     }
 
+    /**
+     * @deprecated v1.4 起显示集合由模板 DOM 决定，不建议再通过 OpenBindPlan 覆盖。
+     */
+    @Deprecated(since = "1.4", forRemoval = false)
     public record DisplayOverride(DisplayMode mode, List<Integer> indices) {
         public DisplayOverride {
             if (mode == null) mode = DisplayMode.AUTO;
@@ -406,6 +414,7 @@ public final class OpenBindPlan {
          * @param indices 显式显示索引集合（仅 CUSTOM 时生效）
          * @return 当前构建器
          */
+        @Deprecated(since = "1.4", forRemoval = false)
         public Builder containerDisplay(String containerId, DisplayMode mode, List<Integer> indices) {
             String normalizedContainerId = requireContainerId(containerId);
             ContainerOverride current = containersById.get(normalizedContainerId);
