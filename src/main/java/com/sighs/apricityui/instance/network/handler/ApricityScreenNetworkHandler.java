@@ -2,15 +2,13 @@ package com.sighs.apricityui.instance.network.handler;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
-import com.sighs.apricityui.instance.container.bind.BindRequest;
-import com.sighs.apricityui.instance.container.bind.BindResolver;
-import com.sighs.apricityui.instance.container.bind.BindResult;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.instance.container.layout.MenuLayoutSpec;
 import com.sighs.apricityui.instance.container.template.TemplateCompiler;
 import com.sighs.apricityui.instance.container.template.TemplateSpec;
+import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
@@ -172,7 +170,7 @@ public final class ApricityScreenNetworkHandler {
             Map<String, String> args = resolveArgs(plan, containerId);
             OpenBindPlan.ResizePolicy resizePolicy = resolveResizePolicy(plan, containerId);
             try {
-                BindRequest request = new BindRequest(
+                ContainerDataSource dataSource = Container.resolveBinding(
                         player,
                         containerId,
                         bindType,
@@ -180,18 +178,15 @@ public final class ApricityScreenNetworkHandler {
                         requiredSlotCount,
                         resizePolicy
                 );
-                BindResult result = BindResolver.resolve(request);
-                if (!result.isSuccess()) {
+                if (dataSource == null) {
                     ApricityUI.LOGGER.warn(
-                            "Open container failed: bindType={} / container={} / reason={} / detail={}",
+                            "Open container failed: bindType={} / container={} / reason=UNRESOLVED_BINDING",
                             bindType.id(),
-                            containerId,
-                            result.failureReason(),
-                            result.failureDetail()
+                            containerId
                     );
                     return null;
                 }
-                sources.put(containerId, result.dataSource());
+                sources.put(containerId, dataSource);
             } catch (Exception exception) {
                 ApricityUI.LOGGER.warn("Open container failed: bindType={} / container={} / reason={}",
                         bindType.id(), containerId, exception.getMessage());

@@ -87,16 +87,6 @@ public final class OpenBindPlan {
         return options;
     }
 
-    /**
-     * @deprecated v1.4 起显示集合由模板 DOM 决定，不建议再通过 OpenBindPlan 覆盖。
-     */
-    @Deprecated(since = "1.4", forRemoval = false)
-    public enum DisplayMode {
-        AUTO,
-        CUSTOM,
-        HIDDEN
-    }
-
     public enum ResizePolicy {
         KEEP_OVERFLOW,
         TRUNCATE
@@ -124,23 +114,6 @@ public final class OpenBindPlan {
         }
     }
 
-    /**
-     * @deprecated v1.4 起显示集合由模板 DOM 决定，不建议再通过 OpenBindPlan 覆盖。
-     */
-    @Deprecated(since = "1.4", forRemoval = false)
-    public record DisplayOverride(DisplayMode mode, List<Integer> indices) {
-        public DisplayOverride {
-            if (mode == null) mode = DisplayMode.AUTO;
-            ArrayList<Integer> sanitized = new ArrayList<>();
-            if (indices != null) {
-                for (Integer index : indices) {
-                    if (index == null || index < 0) continue;
-                    sanitized.add(index);
-                }
-            }
-            indices = List.copyOf(sanitized);
-        }
-    }
 
     public record CapacityOverride(Integer minCapacity, Integer exactCapacity, ResizePolicy resizePolicy) {
         public CapacityOverride {
@@ -164,14 +137,12 @@ public final class OpenBindPlan {
     }
 
     public record ContainerOverride(BindOverride bind,
-                                    DisplayOverride display,
                                     CapacityOverride capacity,
                                     InteractionOverride interaction) {
         public ContainerOverride merge(ContainerOverride override) {
             if (override == null) return this;
             return new ContainerOverride(
                     override.bind != null ? override.bind : bind,
-                    override.display != null ? override.display : display,
                     override.capacity != null ? override.capacity : capacity,
                     override.interaction != null ? override.interaction : interaction
             );
@@ -407,28 +378,6 @@ public final class OpenBindPlan {
         }
 
         /**
-         * 设置容器显示策略覆盖。
-         *
-         * @param containerId 容器 ID
-         * @param mode 显示模式
-         * @param indices 显式显示索引集合（仅 CUSTOM 时生效）
-         * @return 当前构建器
-         */
-        @Deprecated(since = "1.4", forRemoval = false)
-        public Builder containerDisplay(String containerId, DisplayMode mode, List<Integer> indices) {
-            String normalizedContainerId = requireContainerId(containerId);
-            ContainerOverride current = containersById.get(normalizedContainerId);
-            ContainerOverride updated = new ContainerOverride(
-                    current == null ? null : current.bind(),
-                    new DisplayOverride(mode, indices),
-                    current == null ? null : current.capacity(),
-                    current == null ? null : current.interaction()
-            );
-            containersById.put(normalizedContainerId, updated);
-            return this;
-        }
-
-        /**
          * 设置容器容量策略覆盖。
          *
          * @param containerId 容器 ID
@@ -452,7 +401,6 @@ public final class OpenBindPlan {
                     : (currentCapacity == null ? null : currentCapacity.resizePolicy());
             ContainerOverride updated = new ContainerOverride(
                     current == null ? null : current.bind(),
-                    current == null ? null : current.display(),
                     new CapacityOverride(mergedMinCapacity, mergedExactCapacity, mergedResizePolicy),
                     current == null ? null : current.interaction()
             );
@@ -473,7 +421,6 @@ public final class OpenBindPlan {
             ContainerOverride current = containersById.get(normalizedContainerId);
             ContainerOverride updated = new ContainerOverride(
                     current == null ? null : current.bind(),
-                    current == null ? null : current.display(),
                     current == null ? null : current.capacity(),
                     new InteractionOverride(serverAllowInteraction, disabledIndices)
             );
@@ -486,7 +433,6 @@ public final class OpenBindPlan {
             ContainerOverride current = containersById.get(normalizedContainerId);
             ContainerOverride updated = new ContainerOverride(
                     bindOverride,
-                    current == null ? null : current.display(),
                     current == null ? null : current.capacity(),
                     current == null ? null : current.interaction()
             );

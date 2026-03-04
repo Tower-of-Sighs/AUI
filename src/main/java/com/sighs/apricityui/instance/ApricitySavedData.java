@@ -1,5 +1,6 @@
-package com.sighs.apricityui.instance.container.bind;
+package com.sighs.apricityui.instance;
 
+import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;

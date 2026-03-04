@@ -1,6 +1,6 @@
 package com.sighs.apricityui.instance.container.datasource;
 
-import com.sighs.apricityui.instance.container.bind.ApricitySavedData;
+import com.sighs.apricityui.instance.ApricitySavedData;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import net.minecraft.server.level.ServerPlayer;

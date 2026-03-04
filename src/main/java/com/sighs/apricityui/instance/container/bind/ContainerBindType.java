@@ -4,9 +4,6 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- * 容器绑定类型（v1.4 主链路类型）。
- */
 public enum ContainerBindType {
     PLAYER("player"),
     ENTITY("entity"),
