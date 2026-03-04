@@ -5,13 +5,10 @@ import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-/**
- * 服务端模板编译结果。
- * 仅描述容器声明，不包含运行时绑定结果。
- */
 public record TemplateSpec(
         String templatePath,
         String primaryContainerId,
@@ -40,9 +37,10 @@ public record TemplateSpec(
     }
 
     public ContainerSpec findContainer(String containerId) {
-        if (containerId == null || containerId.isBlank()) return null;
+        String normalized = normalizeContainerId(containerId);
+        if (normalized == null) return null;
         for (ContainerSpec container : containers) {
-            if (containerId.equals(container.id())) return container;
+            if (normalized.equals(container.id())) return container;
         }
         return null;
     }
@@ -55,34 +53,29 @@ public record TemplateSpec(
         return Map.copyOf(mapping);
     }
 
-    /**
-     * 单个容器声明。
-     */
+    private static String normalizeContainerId(String containerId) {
+        if (containerId == null) return null;
+        String normalized = containerId.trim().toLowerCase(Locale.ROOT);
+        return normalized.isEmpty() ? null : normalized;
+    }
+
     public record ContainerSpec(
             String id,
             ContainerBindType bindType,
             boolean primary,
             int requiredCapacity,
-            int declaredSize,
-            List<Integer> explicitIndices
+            String title
     ) {
         public ContainerSpec {
-            id = Objects.requireNonNull(id, "container id cannot be null").trim();
+            id = Objects.requireNonNull(id, "container id cannot be null")
+                    .trim()
+                    .toLowerCase(Locale.ROOT);
             if (id.isEmpty()) {
                 throw new IllegalArgumentException("container id cannot be blank");
             }
             bindType = Objects.requireNonNull(bindType, "bindType cannot be null");
             requiredCapacity = Math.max(0, requiredCapacity);
-            declaredSize = Math.max(0, declaredSize);
-
-            ArrayList<Integer> normalizedIndices = new ArrayList<>();
-            if (explicitIndices != null) {
-                for (Integer index : explicitIndices) {
-                    if (index == null || index < 0) continue;
-                    normalizedIndices.add(index);
-                }
-            }
-            explicitIndices = List.copyOf(normalizedIndices);
+            title = title == null ? "" : title.trim();
         }
     }
 }

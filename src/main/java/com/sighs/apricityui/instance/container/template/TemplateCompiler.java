@@ -8,7 +8,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -41,18 +40,17 @@ public final class TemplateCompiler {
         String primaryContainerId = resolvePrimaryContainerId(drafts);
         ArrayList<TemplateSpec.ContainerSpec> containers = new ArrayList<>(drafts.size());
         for (ContainerDraft draft : drafts) {
-            int explicitCapacity = draft.maxExplicitIndex() + 1;
+            int declaredCapacity = draft.maxSlotIndex() + 1;
             int playerCapacity = draft.bindType() == ContainerBindType.PLAYER
                     ? ContainerBindType.PLAYER_SLOT_COUNT
                     : 0;
-            int requiredCapacity = Math.max(Math.max(draft.declaredSize(), explicitCapacity), playerCapacity);
+            int requiredCapacity = Math.max(Math.max(draft.declaredSize(), declaredCapacity), playerCapacity);
             containers.add(new TemplateSpec.ContainerSpec(
                     draft.id(),
                     draft.bindType(),
                     draft.id().equals(primaryContainerId),
                     requiredCapacity,
-                    draft.declaredSize(),
-                    new ArrayList<>(draft.explicitIndices())
+                    draft.title()
             ));
         }
 
@@ -105,7 +103,8 @@ public final class TemplateCompiler {
                     boolean primary = parsePrimary(tagData.attributes().get("primary"));
                     ContainerBindType bindType = resolveBindType(tagData.attributes().get("bind"), containerId);
                     int declaredSize = parsePositiveInt(tagData.attributes().get("size"), 0);
-                    ContainerDraft draft = new ContainerDraft(containerId, bindType, primary, declaredSize);
+                    String title = tagData.attributes().get("title");
+                    ContainerDraft draft = new ContainerDraft(containerId, bindType, primary, declaredSize, title);
                     drafts.add(draft);
                     topLevelIndex++;
                     containerStack.push(new ContainerFrame(true, draft));
@@ -247,17 +246,20 @@ public final class TemplateCompiler {
         private final ContainerBindType bindType;
         private final boolean primary;
         private final int declaredSize;
-        private final LinkedHashSet<Integer> explicitIndices = new LinkedHashSet<>();
+        private final String title;
         private int nextImplicitIndex = 0;
+        private int maxSlotIndex = -1;
 
         private ContainerDraft(String id,
                                ContainerBindType bindType,
                                boolean primary,
-                               int declaredSize) {
+                               int declaredSize,
+                               String title) {
             this.id = id;
             this.bindType = bindType;
             this.primary = primary;
             this.declaredSize = Math.max(0, declaredSize);
+            this.title = title == null ? "" : title.trim();
         }
 
         private String id() {
@@ -276,17 +278,12 @@ public final class TemplateCompiler {
             return declaredSize;
         }
 
-        private List<Integer> explicitIndices() {
-            return List.copyOf(explicitIndices);
+        private String title() {
+            return title;
         }
 
-        private int maxExplicitIndex() {
-            int max = -1;
-            for (Integer index : explicitIndices) {
-                if (index == null || index < 0) continue;
-                if (index > max) max = index;
-            }
-            return max;
+        private int maxSlotIndex() {
+            return Math.max(-1, maxSlotIndex);
         }
 
         private void consumeSlot(Map<String, String> attributes) {
@@ -295,8 +292,9 @@ public final class TemplateCompiler {
             int repeat = parseRepeatCount(attributes.get("repeat"));
             Integer parsedSlotIndex = parseSlotIndex(attributes.get("slot-index"));
             int start = parsedSlotIndex == null ? nextImplicitIndex : parsedSlotIndex;
-            for (int offset = 0; offset < repeat; offset++) {
-                explicitIndices.add(start + offset);
+            int endIndex = start + repeat - 1;
+            if (endIndex > maxSlotIndex) {
+                maxSlotIndex = endIndex;
             }
             int candidate = start + repeat;
             if (candidate > nextImplicitIndex) {

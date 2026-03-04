@@ -12,7 +12,6 @@ import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
-import com.sighs.apricityui.resource.HTML;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -20,24 +19,14 @@ import net.minecraft.world.SimpleMenuProvider;
 import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkHooks;
 
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public final class ApricityScreenNetworkHandler {
-    private static final Pattern TAG_PATTERN =
-            Pattern.compile("<!--.*?-->|</?[a-zA-Z][a-zA-Z0-9:-]*(?:\\s+[^<>]*?)?/?>", Pattern.DOTALL);
-    private static final Pattern TAG_NAME_PATTERN =
-            Pattern.compile("<\\s*([a-zA-Z][a-zA-Z0-9:-]*)");
-    private static final Pattern ATTR_PATTERN =
-            Pattern.compile("([a-zA-Z_:][a-zA-Z0-9_:\\-]*)\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s\"'=<>`]+))");
-
     public static void requestOpenScreen(String path) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
@@ -63,7 +52,8 @@ public final class ApricityScreenNetworkHandler {
         MenuLayoutSpec layoutSpec = buildLayoutSpec(boundTemplateSpec, plan, containerSources);
         if (layoutSpec == null) return;
 
-        openScreenFromServer(player, layoutSpec, containerSources);
+        String titleLiteral = resolvePrimaryContainerTitleLiteral(boundTemplateSpec, layoutSpec.primaryContainerId());
+        openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
     }
 
     public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
@@ -82,7 +72,8 @@ public final class ApricityScreenNetworkHandler {
             MenuLayoutSpec layoutSpec = buildLayoutSpec(boundTemplateSpec, null, containerSources);
             if (layoutSpec == null) return;
 
-            openScreenFromServer(player, layoutSpec, containerSources);
+            String titleLiteral = resolvePrimaryContainerTitleLiteral(boundTemplateSpec, layoutSpec.primaryContainerId());
+            openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
         });
         context.setPacketHandled(true);
     }
@@ -132,8 +123,7 @@ public final class ApricityScreenNetworkHandler {
                     bindType,
                     containerSpec.id().equals(primaryContainerId),
                     containerSpec.requiredCapacity(),
-                    containerSpec.declaredSize(),
-                    containerSpec.explicitIndices()
+                    containerSpec.title()
             ));
         }
         return new TemplateSpec(templateSpec.templatePath(), primaryContainerId, containers);
@@ -322,10 +312,9 @@ public final class ApricityScreenNetworkHandler {
 
     private static void openScreenFromServer(ServerPlayer player,
                                              MenuLayoutSpec layoutSpec,
-                                             Map<String, ContainerDataSource> containerSources) {
+                                             Map<String, ContainerDataSource> containerSources,
+                                             String titleLiteral) {
         if (player == null || layoutSpec == null) return;
-
-        String titleLiteral = resolvePrimaryContainerTitleLiteral(layoutSpec.templatePath(), layoutSpec.primaryContainerId());
         Component titleComponent = (titleLiteral == null || titleLiteral.isBlank())
                 ? Component.empty()
                 : Component.literal(titleLiteral);
@@ -341,97 +330,15 @@ public final class ApricityScreenNetworkHandler {
         ), layoutSpec::write);
     }
 
-    private static String resolvePrimaryContainerTitleLiteral(String rawTemplatePath, String primaryContainerId) {
-        String templatePath = normalizeTemplatePath(rawTemplatePath);
-        if (templatePath == null) return null;
-
-        String rawHtml = HTML.getTemple(templatePath);
-        if (rawHtml == null || rawHtml.isBlank()) return null;
-
+    private static String resolvePrimaryContainerTitleLiteral(TemplateSpec templateSpec, String primaryContainerId) {
+        if (templateSpec == null) return null;
         String normalizedPrimaryId = normalizeContainerId(primaryContainerId);
-        String firstTopLevelTitle = null;
-        ArrayDeque<Boolean> containerDepth = new ArrayDeque<>();
-        Matcher matcher = TAG_PATTERN.matcher(rawHtml);
-        while (matcher.find()) {
-            String token = matcher.group();
-            if (token.startsWith("<!--")) continue;
-
-            boolean closingTag = token.startsWith("</");
-            String tagName = extractTagName(token);
-            if (!"container".equals(tagName)) continue;
-
-            if (closingTag) {
-                if (!containerDepth.isEmpty()) {
-                    containerDepth.pop();
-                }
-                continue;
-            }
-
-            boolean topLevel = containerDepth.isEmpty();
-            Map<String, String> attributes = parseAttributes(token);
-            if (topLevel) {
-                String title = attributes.get("title");
-                if (title != null && !title.isBlank()) {
-                    if (firstTopLevelTitle == null) {
-                        firstTopLevelTitle = title.trim();
-                    }
-                    String containerId = normalizeContainerId(attributes.get("id"));
-                    if (normalizedPrimaryId != null && normalizedPrimaryId.equals(containerId)) {
-                        return title.trim();
-                    }
-                }
-            }
-
-            containerDepth.push(Boolean.TRUE);
-            if (token.endsWith("/>") && !containerDepth.isEmpty()) {
-                containerDepth.pop();
-            }
-        }
-
-        if (normalizedPrimaryId == null || normalizedPrimaryId.isBlank()) {
-            return firstTopLevelTitle;
-        }
-        return null;
-    }
-
-    private static String extractTagName(String token) {
-        if (token == null || token.isBlank()) return "";
-        if (token.startsWith("</")) {
-            String middle = token.substring(2, token.length() - 1).trim();
-            int split = middle.indexOf(' ');
-            String rawTag = split < 0 ? middle : middle.substring(0, split);
-            return rawTag.toLowerCase(Locale.ROOT);
-        }
-        Matcher matcher = TAG_NAME_PATTERN.matcher(token);
-        if (!matcher.find()) return "";
-        String rawTag = matcher.group(1);
-        if (rawTag == null || rawTag.isBlank()) return "";
-        return rawTag.toLowerCase(Locale.ROOT);
-    }
-
-    private static Map<String, String> parseAttributes(String token) {
-        LinkedHashMap<String, String> attributes = new LinkedHashMap<>();
-        if (token == null || token.isBlank()) return attributes;
-
-        Matcher nameMatcher = TAG_NAME_PATTERN.matcher(token);
-        if (!nameMatcher.find()) return attributes;
-        int start = nameMatcher.end();
-        int end = token.endsWith("/>") ? token.length() - 2 : token.length() - 1;
-        if (end < start) return attributes;
-
-        String attrsPart = token.substring(start, end);
-        Matcher matcher = ATTR_PATTERN.matcher(attrsPart);
-        while (matcher.find()) {
-            String key = matcher.group(1);
-            if (key == null || key.isBlank()) continue;
-            String normalizedKey = key.trim().toLowerCase(Locale.ROOT);
-            String value = matcher.group(3);
-            if (value == null) value = matcher.group(4);
-            if (value == null) value = matcher.group(5);
-            if (value == null) value = "";
-            attributes.put(normalizedKey, value.trim());
-        }
-        return attributes;
+        if (normalizedPrimaryId == null) return null;
+        TemplateSpec.ContainerSpec primaryContainer = templateSpec.findContainer(normalizedPrimaryId);
+        if (primaryContainer == null) return null;
+        String title = primaryContainer.title();
+        if (title == null || title.isBlank()) return null;
+        return title.trim();
     }
 
     private static String normalizeTemplatePath(String rawTemplatePath) {
