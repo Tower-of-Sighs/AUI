@@ -1,13 +1,9 @@
 package com.sighs.apricityui.instance.container.bind;
 
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 
 public final class OpenBindPlan {
@@ -123,28 +119,13 @@ public final class OpenBindPlan {
         }
     }
 
-    public record InteractionOverride(Boolean serverAllowInteraction, Set<Integer> disabledIndices) {
-        public InteractionOverride {
-            LinkedHashSet<Integer> sanitized = new LinkedHashSet<>();
-            if (disabledIndices != null) {
-                for (Integer index : disabledIndices) {
-                    if (index == null || index < 0) continue;
-                    sanitized.add(index);
-                }
-            }
-            disabledIndices = Set.copyOf(sanitized);
-        }
-    }
-
     public record ContainerOverride(BindOverride bind,
-                                    CapacityOverride capacity,
-                                    InteractionOverride interaction) {
+                                    CapacityOverride capacity) {
         public ContainerOverride merge(ContainerOverride override) {
             if (override == null) return this;
             return new ContainerOverride(
                     override.bind != null ? override.bind : bind,
-                    override.capacity != null ? override.capacity : capacity,
-                    override.interaction != null ? override.interaction : interaction
+                    override.capacity != null ? override.capacity : capacity
             );
         }
     }
@@ -401,28 +382,7 @@ public final class OpenBindPlan {
                     : (currentCapacity == null ? null : currentCapacity.resizePolicy());
             ContainerOverride updated = new ContainerOverride(
                     current == null ? null : current.bind(),
-                    new CapacityOverride(mergedMinCapacity, mergedExactCapacity, mergedResizePolicy),
-                    current == null ? null : current.interaction()
-            );
-            containersById.put(normalizedContainerId, updated);
-            return this;
-        }
-
-        /**
-         * 设置容器交互策略覆盖。
-         *
-         * @param containerId 容器 ID
-         * @param serverAllowInteraction 是否允许服务端交互
-         * @param disabledIndices 禁用槽位索引集合
-         * @return 当前构建器
-         */
-        public Builder containerInteraction(String containerId, Boolean serverAllowInteraction, Set<Integer> disabledIndices) {
-            String normalizedContainerId = requireContainerId(containerId);
-            ContainerOverride current = containersById.get(normalizedContainerId);
-            ContainerOverride updated = new ContainerOverride(
-                    current == null ? null : current.bind(),
-                    current == null ? null : current.capacity(),
-                    new InteractionOverride(serverAllowInteraction, disabledIndices)
+                    new CapacityOverride(mergedMinCapacity, mergedExactCapacity, mergedResizePolicy)
             );
             containersById.put(normalizedContainerId, updated);
             return this;
@@ -433,8 +393,7 @@ public final class OpenBindPlan {
             ContainerOverride current = containersById.get(normalizedContainerId);
             ContainerOverride updated = new ContainerOverride(
                     bindOverride,
-                    current == null ? null : current.capacity(),
-                    current == null ? null : current.interaction()
+                    current == null ? null : current.capacity()
             );
             containersById.put(normalizedContainerId, updated);
             return this;

@@ -10,21 +10,17 @@ import com.sighs.apricityui.instance.dom.expander.RecipeExpander;
  */
 public final class DocumentExpander {
     public static void apply(Document document) {
-        apply(document, ExpandContext.from(document));
-    }
-
-    public static void apply(Document document, ExpandContext context) {
         if (document == null) return;
-        ExpandContext safeContext = context == null ? ExpandContext.from(document) : context;
+        String templatePath = document.getPath();
         try {
-            ContainerExpander.expand(document, safeContext);
+            ContainerExpander.expand(document);
         } catch (Exception e) {
-            ApricityUI.LOGGER.warn("ContainerExpander failed, template={}", safeContext.templatePath(), e);
+            ApricityUI.LOGGER.warn("ContainerExpander failed, template={}", templatePath, e);
         }
         try {
-            RecipeExpander.expand(document, safeContext);
+            RecipeExpander.expand(document);
         } catch (Exception e) {
-            ApricityUI.LOGGER.warn("RecipeExpander failed, template={}", safeContext.templatePath(), e);
+            ApricityUI.LOGGER.warn("RecipeExpander failed, template={}", templatePath, e);
         }
     }
 }

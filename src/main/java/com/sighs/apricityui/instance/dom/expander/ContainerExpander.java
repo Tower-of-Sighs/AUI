@@ -3,7 +3,6 @@ package com.sighs.apricityui.instance.dom.expander;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.dom.ExpandContext;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;
@@ -22,17 +21,17 @@ public final class ContainerExpander {
     private static final String GENERATED_CONTAINER_AUTO = "container-auto";
     private static final int PLAYER_AUTO_SLOT_COUNT = 36;
 
-    public static void expand(Document document, ExpandContext context) {
+    public static void expand(Document document) {
         if (document == null) return;
         ArrayList<Element> snapshot = new ArrayList<>(document.getElements());
         for (Element element : snapshot) {
             if (!(element instanceof Container container)) continue;
             if (!isBindableContainer(container)) continue;
-            expandSingleContainer(document, container, context);
+            expandSingleContainer(document, container);
         }
     }
 
-    private static void expandSingleContainer(Document document, Container container, ExpandContext context) {
+    private static void expandSingleContainer(Document document, Container container) {
         List<Slot> ownedSlots = collectOwnedSlots(document, container);
         if (ownedSlots.isEmpty()) {
             Integer declaredSize = parsePositiveInt(container.getAttribute("size"));
@@ -45,7 +44,7 @@ public final class ContainerExpander {
             ownedSlots = collectOwnedSlots(document, container);
         }
 
-        normalizeSlotIndices(ownedSlots, context, container);
+        normalizeSlotIndices(ownedSlots, document, container);
         injectDefaultColumnsIfNeeded(container, ownedSlots.size());
     }
 
@@ -78,7 +77,7 @@ public final class ContainerExpander {
         return result;
     }
 
-    private static void normalizeSlotIndices(List<Slot> slots, ExpandContext context, Container container) {
+    private static void normalizeSlotIndices(List<Slot> slots, Document document, Container container) {
         if (slots == null || slots.isEmpty()) return;
         Set<Integer> usedIndices = new HashSet<>();
         ArrayList<Slot> missing = new ArrayList<>();
@@ -99,7 +98,7 @@ public final class ContainerExpander {
             ensureIndexAttributes(slot, assigned);
             ApricityUI.LOGGER.warn(
                     "ContainerExpander assigned implicit slot index, template={}, containerId={}, assignedIndex={}",
-                    context == null ? "" : context.templatePath(),
+                    document == null ? "" : document.getPath(),
                     container == null ? "" : container.getAttribute("id"),
                     assigned
             );
