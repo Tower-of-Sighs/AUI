@@ -43,22 +43,17 @@ public class Base {
     }
 
     public static void beginRendering() {
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
-        GlStateManager._disableCull();
-        GlStateManager._enableBlend();
-        GlStateManager._blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ZERO.value
-        );
+        RenderSystem.enableDepthTest(); // 1.21 建议使用 RenderSystem 包装类
+        RenderSystem.depthMask(true);
+        RenderSystem.disableCull();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
         setPositionColorShader();
     }
 
     public static void finishRendering() {
-        GlStateManager._enableCull();
-        GlStateManager._disableBlend();
+        RenderSystem.enableCull();
+        RenderSystem.disableBlend();
     }
 
     public static Tesselator getBuffer() {

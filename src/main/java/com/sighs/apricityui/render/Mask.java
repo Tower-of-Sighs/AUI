@@ -27,12 +27,8 @@ public class Mask {
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
-//        clipStack.push(currentClip);
-//        AABB newMask = new AABB(x, y, width, height);
-//        currentClip = currentClip.intersection(newMask);
-
         if (depth == 0) {
-            RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
+            RenderTarget currentTarget = Minecraft.getInstance().getMainRenderTarget();
             currentTarget.enableStencil();
 
             GL11.glEnable(GL11.GL_STENCIL_TEST);
@@ -65,11 +61,12 @@ public class Mask {
 
     private static void drawToStencil(Matrix4f matrix, float x, float y, float width, float height, float[] radii) {
         Tesselator tess = Tesselator.getInstance();
-
         Base.setPositionColorShader();
 
         BufferBuilder buf = tess.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
+
         Graph.addUnifiedRoundedRectVertices(buf, matrix, x, y, width, height, radii, 0xFFFFFFFF);
+        BufferUploader.drawWithShader(buf.buildOrThrow());
     }
 
     private static void setupStencilStatePush() {

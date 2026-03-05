@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
+import org.lwjgl.system.MemoryUtil;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -21,6 +22,7 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -79,12 +81,24 @@ public class Image {
         }
     }
 
+    // 替换 Image.java 中的 loadStaticTexture 方法
     private static DecodedImage loadStaticTexture(byte[] data) {
-        try (InputStream bis = new ByteArrayInputStream(data)) {
-            NativeImage image = NativeImage.read(bis);
+        if (data == null || data.length == 0) return null;
+
+        // 尝试直接用 NativeImage 读取 (STB 原生解码)
+        try (InputStream is = new ByteArrayInputStream(data)) {
+            NativeImage image = NativeImage.read(is);
             return DecodedImage.ofStatic(image);
         } catch (IOException e) {
-            e.printStackTrace();
+            // 如果 NativeImage 报错 (比如 Bad PNG Signature)，尝试用 ImageIO 回退
+            try (InputStream is = new ByteArrayInputStream(data)) {
+                BufferedImage bi = ImageIO.read(is);
+                if (bi != null) {
+                    return DecodedImage.ofStatic(convertToNative(bi));
+                }
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
             return null;
         }
     }

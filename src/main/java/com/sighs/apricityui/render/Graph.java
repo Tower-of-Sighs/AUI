@@ -75,7 +75,7 @@ public class Graph {
     }
 
     public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
-        Tesselator tesselator = Base.getBuffer();
+        Tesselator tesselator = Tesselator.getInstance();
         BufferBuilder bufferbuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
 
         float a = (float) (color >> 24 & 255) / 255.0F;
@@ -102,10 +102,11 @@ public class Graph {
     }
 
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
-        Tesselator tesselator = Base.getBuffer();
+        Tesselator tesselator = Tesselator.getInstance();
         BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-        prepare(buf);
+
         addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
+
         Base.beginRendering();
         BufferUploader.drawWithShader(buf.buildOrThrow());
         Base.finishRendering();
@@ -229,7 +230,9 @@ public class Graph {
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
-        BufferBuilder buf = Base.getBuffer().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        Tesselator tesselator = Tesselator.getInstance();
+        // 修正点 1: 将 QUADS 改为 TRIANGLES，适配内部 addRect/addComplexCorner 的 6 顶点逻辑
+        BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
         prepare(buf);
 
         float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
@@ -251,6 +254,7 @@ public class Graph {
             addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
 
         Base.beginRendering();
+        // 修正点 2: 1.21.1 必须使用 BufferUploader 和 buildOrThrow
         BufferUploader.drawWithShader(buf.buildOrThrow());
         Base.finishRendering();
     }
