@@ -262,7 +262,8 @@ public class Graph {
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {
         boolean blink = (System.currentTimeMillis() - lastBlinkTime) % 1000 < 500;
         if (blink) {
-            BufferBuilder buf = Base.getBuffer().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
+            Tesselator tesselator = Tesselator.getInstance();
+            BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
             prepare(buf);
 
             addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
