@@ -13,6 +13,7 @@ import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -230,14 +231,14 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         LinkedHashMap<String, Container> domContainerById = new LinkedHashMap<>();
         for (Element element : linkedDocument.getElements()) {
             if (!(element instanceof Container container)) continue;
-            String normalizedId = normalizeContainerId(container.getAttribute("id"));
+            String normalizedId = NormalizeUtil.normalizeContainerId(container.getAttribute("id"));
             if (normalizedId == null) continue;
             domContainerById.putIfAbsent(normalizedId, container);
         }
 
         List<String> containerIds = menu.getLayoutSpec().containerIds();
         for (String containerId : containerIds) {
-            String normalizedId = normalizeContainerId(containerId);
+            String normalizedId = NormalizeUtil.normalizeContainerId(containerId);
             if (normalizedId == null) continue;
             Container matched = domContainerById.get(normalizedId);
             if (matched == null) continue;
@@ -422,12 +423,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if ("none".equals(boundElement.getComputedStyle().display)) return false;
         if (!boundElement.isPointerEnabled) return false;
         return boundElement.shouldAcceptPointer();
-    }
-
-    private static String normalizeContainerId(String containerId) {
-        if (containerId == null) return null;
-        String normalized = containerId.trim().toLowerCase(Locale.ROOT);
-        return normalized.isEmpty() ? null : normalized;
     }
 
     private void drawBoundSlotItems(GuiGraphics guiGraphics) {

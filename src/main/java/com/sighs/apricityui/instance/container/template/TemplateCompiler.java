@@ -3,6 +3,7 @@ package com.sighs.apricityui.instance.container.template;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.util.common.NormalizeUtil;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -23,7 +24,7 @@ public final class TemplateCompiler {
     private static final Pattern ATTR_PATTERN = Pattern.compile("([a-zA-Z_:][a-zA-Z0-9_:\\-]*)\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s\"'=<>`]+))");
 
     public static TemplateSpec compile(String rawTemplatePath) {
-        String templatePath = normalizeTemplatePath(rawTemplatePath);
+        String templatePath = NormalizeUtil.normalizeTemplatePath(rawTemplatePath);
         if (templatePath == null) return null;
 
         String rawHtml = HTML.getTemple(templatePath);
@@ -55,22 +56,6 @@ public final class TemplateCompiler {
         }
 
         return new TemplateSpec(templatePath, primaryContainerId, containers);
-    }
-
-    private static String normalizeTemplatePath(String rawTemplatePath) {
-        if (rawTemplatePath == null) return null;
-        String path = rawTemplatePath.trim().replace('\\', '/');
-        if (path.isEmpty()) return null;
-
-        if (path.startsWith("./")) path = path.substring(2);
-        if (path.startsWith("/")) path = path.substring(1);
-        if (path.startsWith("apricity/")) path = path.substring("apricity/".length());
-        if (path.contains("..")) return null;
-        if (!path.endsWith(".html")) return null;
-
-        String[] segments = path.split("/");
-        if (segments.length < 2) return null;
-        return path;
     }
 
     private static List<ContainerDraft> parseContainerDrafts(String rawHtml) {
@@ -149,8 +134,8 @@ public final class TemplateCompiler {
     }
 
     private static String normalizeContainerId(String rawContainerId) {
-        if (rawContainerId == null || rawContainerId.isBlank()) return null;
-        String containerId = rawContainerId.trim().toLowerCase(Locale.ROOT);
+        String containerId = NormalizeUtil.normalizeContainerId(rawContainerId);
+        if (containerId == null) return null;
         if (!containerId.matches("^[a-z0-9_./-]+$")) return null;
         return containerId;
     }

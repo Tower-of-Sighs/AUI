@@ -12,6 +12,7 @@ import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
+import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -22,7 +23,6 @@ import net.minecraftforge.network.NetworkHooks;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -92,8 +92,8 @@ public final class ApricityScreenNetworkHandler {
     }
 
     private static TemplateSpec resolveTemplateSpec(String rawTemplatePath, OpenBindPlan plan) {
-        String planTemplatePath = plan == null ? null : normalizeTemplatePath(plan.templatePath());
-        String requestTemplatePath = normalizeTemplatePath(rawTemplatePath);
+        String planTemplatePath = plan == null ? null : NormalizeUtil.normalizeTemplatePath(plan.templatePath());
+        String requestTemplatePath = NormalizeUtil.normalizeTemplatePath(rawTemplatePath);
 
         String selectedTemplatePath = planTemplatePath != null ? planTemplatePath : requestTemplatePath;
         if (selectedTemplatePath == null) {
@@ -227,12 +227,12 @@ public final class ApricityScreenNetworkHandler {
     private static String resolvePrimaryContainerId(OpenBindPlan plan, TemplateSpec templateSpec) {
         if (templateSpec == null) return "";
 
-        String override = plan == null ? "" : normalizeContainerId(plan.primaryContainerIdOverride());
+        String override = plan == null ? "" : NormalizeUtil.normalizeContainerId(plan.primaryContainerIdOverride());
         if (override != null && templateSpec.findContainer(override) != null) {
             return override;
         }
 
-        String primaryFromTemplate = normalizeContainerId(templateSpec.primaryContainerId());
+        String primaryFromTemplate = NormalizeUtil.normalizeContainerId(templateSpec.primaryContainerId());
         if (primaryFromTemplate != null && templateSpec.findContainer(primaryFromTemplate) != null) {
             return primaryFromTemplate;
         }
@@ -332,7 +332,7 @@ public final class ApricityScreenNetworkHandler {
 
     private static String resolvePrimaryContainerTitleLiteral(TemplateSpec templateSpec, String primaryContainerId) {
         if (templateSpec == null) return null;
-        String normalizedPrimaryId = normalizeContainerId(primaryContainerId);
+        String normalizedPrimaryId = NormalizeUtil.normalizeContainerId(primaryContainerId);
         if (normalizedPrimaryId == null) return null;
         TemplateSpec.ContainerSpec primaryContainer = templateSpec.findContainer(normalizedPrimaryId);
         if (primaryContainer == null) return null;
@@ -341,25 +341,4 @@ public final class ApricityScreenNetworkHandler {
         return title.trim();
     }
 
-    private static String normalizeTemplatePath(String rawTemplatePath) {
-        if (rawTemplatePath == null) return null;
-        String path = rawTemplatePath.trim().replace('\\', '/');
-        if (path.isEmpty()) return null;
-
-        if (path.startsWith("./")) path = path.substring(2);
-        if (path.startsWith("/")) path = path.substring(1);
-        if (path.startsWith("apricity/")) path = path.substring("apricity/".length());
-        if (path.contains("..")) return null;
-        if (!path.endsWith(".html")) return null;
-
-        String[] segments = path.split("/");
-        if (segments.length < 2) return null;
-        return path;
-    }
-
-    private static String normalizeContainerId(String containerId) {
-        if (containerId == null) return null;
-        String normalized = containerId.trim().toLowerCase(Locale.ROOT);
-        return normalized.isEmpty() ? null : normalized;
-    }
 }

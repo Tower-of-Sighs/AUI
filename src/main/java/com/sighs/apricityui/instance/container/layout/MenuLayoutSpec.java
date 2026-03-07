@@ -1,44 +1,71 @@
 package com.sighs.apricityui.instance.container.layout;
 
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
+import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
 /**
  * 菜单布局规格（服务端构建后同步给客户端）。
  */
-public record MenuLayoutSpec(
-        String templatePath,
-        List<ContainerLayout> containers
-) {
-    public MenuLayoutSpec {
-        templatePath = templatePath == null ? "" : templatePath.trim();
-        ArrayList<ContainerLayout> normalized = new ArrayList<>();
+public final class MenuLayoutSpec {
+    private final String templatePath;
+    private final List<ContainerLayout> containers;
+    private final List<String> containerIds;
+    private final Map<String, ContainerLayout> containersById;
+    private final String primaryContainerId;
+
+    public MenuLayoutSpec(String templatePath, List<ContainerLayout> containers) {
+        this.templatePath = templatePath == null ? "" : templatePath.trim();
+
+        ArrayList<ContainerLayout> normalizedContainers = new ArrayList<>();
         if (containers != null) {
             for (ContainerLayout container : containers) {
                 if (container == null) continue;
-                normalized.add(container);
+                normalizedContainers.add(container);
             }
         }
-        containers = List.copyOf(normalized);
+        this.containers = List.copyOf(normalizedContainers);
+
+        ArrayList<String> normalizedIds = new ArrayList<>(this.containers.size());
+        LinkedHashMap<String, ContainerLayout> normalizedById = new LinkedHashMap<>();
+        String resolvedPrimaryContainerId = "";
+        for (ContainerLayout container : this.containers) {
+            normalizedIds.add(container.id());
+            normalizedById.put(container.id(), container);
+            if (resolvedPrimaryContainerId.isEmpty() && container.primary()) {
+                resolvedPrimaryContainerId = container.id();
+            }
+        }
+
+        this.containerIds = List.copyOf(normalizedIds);
+        this.containersById = Map.copyOf(normalizedById);
+        this.primaryContainerId = resolvedPrimaryContainerId;
     }
 
     public static MenuLayoutSpec createUiOnly(String templatePath) {
         return new MenuLayoutSpec(templatePath, List.of());
     }
 
+    public String templatePath() {
+        return templatePath;
+    }
+
+    public List<ContainerLayout> containers() {
+        return containers;
+    }
+
     public void write(FriendlyByteBuf buf) {
-        buf.writeUtf(templatePath == null ? "" : templatePath);
+        buf.writeUtf(templatePath);
         buf.writeVarInt(containers.size());
         for (ContainerLayout container : containers) {
             buf.writeUtf(container.id());
-            buf.writeUtf(container.bindType() == null ? "" : container.bindType().id());
+            buf.writeUtf(container.bindType().id());
             buf.writeVarInt(Math.max(0, container.baseIndex()));
             buf.writeVarInt(Math.max(0, container.capacity()));
             buf.writeBoolean(container.primary());
@@ -67,41 +94,41 @@ public record MenuLayoutSpec(
     }
 
     public List<String> containerIds() {
-        ArrayList<String> ids = new ArrayList<>(containers.size());
-        for (ContainerLayout container : containers) {
-            ids.add(container.id());
-        }
-        return List.copyOf(ids);
+        return containerIds;
     }
 
     public ContainerLayout findContainer(String containerId) {
-        String normalized = normalizeContainerId(containerId);
+        String normalized = NormalizeUtil.normalizeContainerId(containerId);
         if (normalized == null) return null;
-        for (ContainerLayout container : containers) {
-            if (normalized.equals(container.id())) return container;
-        }
-        return null;
+        return containersById.get(normalized);
     }
 
     public String primaryContainerId() {
-        for (ContainerLayout container : containers) {
-            if (container.primary()) return container.id();
-        }
-        return "";
+        return primaryContainerId;
     }
 
     public Map<String, ContainerLayout> containersById() {
-        LinkedHashMap<String, ContainerLayout> mapping = new LinkedHashMap<>();
-        for (ContainerLayout container : containers) {
-            mapping.put(container.id(), container);
-        }
-        return Map.copyOf(mapping);
+        return containersById;
     }
 
-    private static String normalizeContainerId(String containerId) {
-        if (containerId == null) return null;
-        String normalized = containerId.trim().toLowerCase(Locale.ROOT);
-        return normalized.isEmpty() ? null : normalized;
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        if (!(other instanceof MenuLayoutSpec that)) return false;
+        return templatePath.equals(that.templatePath) && containers.equals(that.containers);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(templatePath, containers);
+    }
+
+    @Override
+    public String toString() {
+        return "MenuLayoutSpec[" +
+                "templatePath=" + templatePath +
+                ", containers=" + containers +
+                ']';
     }
 
     public record ContainerLayout(
@@ -112,7 +139,7 @@ public record MenuLayoutSpec(
             boolean primary
     ) {
         public ContainerLayout {
-            id = normalizeContainerId(id);
+            id = NormalizeUtil.normalizeContainerId(id);
             if (id == null) {
                 throw new IllegalArgumentException("container id cannot be blank");
             }
@@ -124,12 +151,6 @@ public record MenuLayoutSpec(
         public Integer resolveGlobalSlotIndex(int localSlotIndex) {
             if (localSlotIndex < 0 || localSlotIndex >= capacity) return null;
             return baseIndex + localSlotIndex;
-        }
-
-        private static String normalizeContainerId(String containerId) {
-            if (containerId == null) return null;
-            String normalized = containerId.trim().toLowerCase(Locale.ROOT);
-            return normalized.isEmpty() ? null : normalized;
         }
     }
 }

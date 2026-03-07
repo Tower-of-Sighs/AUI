@@ -27,9 +27,8 @@ ApricityUI.closeScreen()
 如果你需要真实容器与数据源绑定，建议走服务端权威入口（Java 或 KubeJS 服务端事件中调用）：
 ```javascript
 OpenBindPlan plan = ApricityUI.bind()
-    .containerSavedData("main", "apricityui_demo", "demo_key", 27)
-    .containerPlayer("player")
-    .primaryContainer("main")
+    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
+    .bind("player").player()
     .build()
 
 ApricityUI.openScreen(ServerPlayer player, String path, OpenBindPlan plan)
@@ -42,16 +41,14 @@ ApricityUI.openScreen(ServerPlayer player, String path, OpenBindPlan plan)
 ```javascript
 // 方块实体背包
 OpenBindPlan blockEntityPlan = ApricityUI.bind()
-    .containerBlockEntity("machine", 100, 64, 200, "up")
-    .containerPlayer("player")
-    .primaryContainer("machine")
+    .primaryBind("machine").blockEntity(100, 64, 200, "up")
+    .bind("player").player()
     .build()
 
 // 实体背包（按 uuid）
 OpenBindPlan entityPlan = ApricityUI.bind()
-    .containerEntity("entity_inv", "00000000-0000-0000-0000-000000000000")
-    .containerPlayer("player")
-    .primaryContainer("entity_inv")
+    .primaryBind("entity_inv").entity("00000000-0000-0000-0000-000000000000")
+    .bind("player").player()
     .build()
 ```
 

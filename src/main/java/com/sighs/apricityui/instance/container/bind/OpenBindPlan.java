@@ -1,8 +1,9 @@
 package com.sighs.apricityui.instance.container.bind;
 
 
+import com.sighs.apricityui.util.common.NormalizeUtil;
+
 import java.util.LinkedHashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -23,7 +24,7 @@ public final class OpenBindPlan {
         this.containersById = new LinkedHashMap<>();
         if (containersById != null) {
             containersById.forEach((containerId, override) -> {
-                String normalizedContainerId = normalizeContainerId(containerId);
+                String normalizedContainerId = NormalizeUtil.normalizeContainerId(containerId);
                 if (normalizedContainerId == null || override == null) return;
                 this.containersById.put(normalizedContainerId, override);
             });
@@ -74,7 +75,7 @@ public final class OpenBindPlan {
     }
 
     public ContainerOverride container(String containerId) {
-        String normalizedContainerId = normalizeContainerId(containerId);
+        String normalizedContainerId = NormalizeUtil.normalizeContainerId(containerId);
         if (normalizedContainerId == null) return null;
         return containersById.get(normalizedContainerId);
     }
@@ -163,7 +164,7 @@ public final class OpenBindPlan {
         }
 
         private static String requireContainerId(String containerId) {
-            String normalized = normalizeContainerId(requireText(containerId, "containerId"));
+            String normalized = NormalizeUtil.normalizeContainerId(requireText(containerId, "containerId"));
             if (normalized == null) {
                 throw new IllegalArgumentException("containerId cannot be blank");
             }
@@ -232,142 +233,16 @@ public final class OpenBindPlan {
             return new ContainerBindBuilder(normalizedContainerId);
         }
 
-        /**
-         * 为主容器快速配置 SAVED_DATA 绑定（不显式写 slotCount）。
-         *
-         * @param containerId 主容器 ID
-         * @param dataName SavedData 名称
-         * @param inventoryKey SavedData 中的库存键
-         * @return 当前构建器
-         */
-        public Builder primarySavedData(String containerId, String dataName, String inventoryKey) {
-            return primaryBind(containerId).savedData(dataName, inventoryKey).done();
-        }
-
-        /**
-         * 设置容器绑定类型（无额外参数）。
-         *
-         * @param containerId 容器 ID
-         * @param bindType 绑定类型
-         * @return 当前构建器
-         */
-        public Builder containerBind(String containerId, ContainerBindType bindType) {
-            return setContainerBind(containerId, new BindOverride(bindType, Map.of()));
-        }
-
-        /**
-         * 设置容器绑定类型，并写入一个绑定参数。
-         *
-         * @param containerId 容器 ID
-         * @param bindType 绑定类型
-         * @param argKey 参数键
-         * @param argValue 参数值
-         * @return 当前构建器
-         */
-        public Builder containerBind(String containerId, ContainerBindType bindType, String argKey, String argValue) {
-            return setContainerBind(containerId, bindWithSingleArg(new BindOverride(bindType, Map.of()), argKey, argValue));
-        }
-
-        /**
-         * 快捷设置容器为玩家库存绑定。
-         *
-         * @param containerId 容器 ID
-         * @return 当前构建器
-         */
-        public Builder containerPlayer(String containerId) {
-            return containerBind(containerId, ContainerBindType.PLAYER);
-        }
-
-        /**
-         * 设置容器为 SAVED_DATA 绑定，并携带固定容量参数。
-         *
-         * @param containerId 容器 ID
-         * @param dataName SavedData 名称
-         * @param inventoryKey SavedData 中的库存键
-         * @param slotCount 槽位数量（>0）
-         * @return 当前构建器
-         */
-        public Builder containerSavedData(String containerId, String dataName, String inventoryKey, int slotCount) {
-            LinkedHashMap<String, String> args = new LinkedHashMap<>();
-            args.put("dataName", requireText(dataName, "dataName"));
-            args.put("inventoryKey", requireText(inventoryKey, "inventoryKey"));
-            args.put("slotCount", String.valueOf(requirePositive(slotCount, "slotCount")));
-            return setContainerBind(containerId, new BindOverride(ContainerBindType.SAVED_DATA, args));
-        }
-
-        /**
-         * 设置容器为方块实体绑定。
-         *
-         * @param containerId 容器 ID
-         * @param x 方块 X 坐标
-         * @param y 方块 Y 坐标
-         * @param z 方块 Z 坐标
-         * @param side 可选朝向
-         * @return 当前构建器
-         */
-        public Builder containerBlockEntity(String containerId, int x, int y, int z, String side) {
-            LinkedHashMap<String, String> args = new LinkedHashMap<>();
-            args.put("x", String.valueOf(x));
-            args.put("y", String.valueOf(y));
-            args.put("z", String.valueOf(z));
-            if (side != null && !side.trim().isEmpty()) {
-                args.put("side", side.trim());
-            }
-            return setContainerBind(containerId, new BindOverride(ContainerBindType.BLOCK_ENTITY, args));
-        }
-
-        /**
-         * 设置容器为实体绑定（字符串 UUID）。
-         *
-         * @param containerId 容器 ID
-         * @param uuid 实体 UUID 字符串
-         * @return 当前构建器
-         */
-        public Builder containerEntity(String containerId, String uuid) {
-            return setContainerBind(containerId, new BindOverride(
-                    ContainerBindType.ENTITY,
-                    Map.of("uuid", requireText(uuid, "uuid"))
-            ));
-        }
-
-        /**
-         * 设置容器为实体绑定（UUID 对象）。
-         *
-         * @param containerId 容器 ID
-         * @param uuid 实体 UUID
-         * @return 当前构建器
-         */
-        public Builder containerEntity(String containerId, UUID uuid) {
-            return containerEntity(containerId, uuid == null ? null : uuid.toString());
-        }
-
-        /**
-         * 为已有容器绑定追加或覆盖一个参数。
-         *
-         * @param containerId 容器 ID
-         * @param argKey 参数键
-         * @param argValue 参数值
-         * @return 当前构建器
-         */
-        public Builder containerArg(String containerId, String argKey, String argValue) {
+        private Builder appendBindArg(String containerId, String argKey, String argValue) {
             String normalizedContainerId = requireContainerId(containerId);
             ContainerOverride current = containersById.get(normalizedContainerId);
             if (current == null || current.bind() == null) {
-                throw new IllegalStateException("Call containerBind(containerId, bindType) before containerArg(...)");
+                throw new IllegalStateException("Call bind(containerId).bindType(...) before arg(...)");
             }
-            return setContainerBind(normalizedContainerId, bindWithSingleArg(current.bind(), argKey, argValue));
+            return applyBind(normalizedContainerId, bindWithSingleArg(current.bind(), argKey, argValue));
         }
 
-        /**
-         * 设置容器容量策略覆盖。
-         *
-         * @param containerId 容器 ID
-         * @param minCapacity 最小容量（可空）
-         * @param exactCapacity 精确容量（可空）
-         * @param resizePolicy 容量策略（可空）
-         * @return 当前构建器
-         */
-        public Builder containerCapacity(String containerId, Integer minCapacity, Integer exactCapacity, ResizePolicy resizePolicy) {
+        private Builder mergeCapacity(String containerId, Integer minCapacity, Integer exactCapacity, ResizePolicy resizePolicy) {
             String normalizedContainerId = requireContainerId(containerId);
             ContainerOverride current = containersById.get(normalizedContainerId);
             CapacityOverride currentCapacity = current == null ? null : current.capacity();
@@ -388,7 +263,7 @@ public final class OpenBindPlan {
             return this;
         }
 
-        private Builder setContainerBind(String containerId, BindOverride bindOverride) {
+        private Builder applyBind(String containerId, BindOverride bindOverride) {
             String normalizedContainerId = requireContainerId(containerId);
             ContainerOverride current = containersById.get(normalizedContainerId);
             ContainerOverride updated = new ContainerOverride(
@@ -397,6 +272,34 @@ public final class OpenBindPlan {
             );
             containersById.put(normalizedContainerId, updated);
             return this;
+        }
+
+        private static Map<String, String> savedDataArgs(String dataName, String inventoryKey, Integer slotCount) {
+            LinkedHashMap<String, String> args = new LinkedHashMap<>();
+            args.put("dataName", requireText(dataName, "dataName"));
+            args.put("inventoryKey", requireText(inventoryKey, "inventoryKey"));
+            if (slotCount != null) {
+                args.put("slotCount", String.valueOf(requirePositive(slotCount, "slotCount")));
+            }
+            return Map.copyOf(args);
+        }
+
+        private static Map<String, String> blockEntityArgs(int x, int y, int z, String side) {
+            LinkedHashMap<String, String> args = new LinkedHashMap<>();
+            args.put("x", String.valueOf(x));
+            args.put("y", String.valueOf(y));
+            args.put("z", String.valueOf(z));
+            if (side != null && !side.trim().isEmpty()) {
+                args.put("side", side.trim());
+            }
+            return Map.copyOf(args);
+        }
+
+        private static BindOverride entityBind(String uuid) {
+            return new BindOverride(
+                    ContainerBindType.ENTITY,
+                    Map.of("uuid", requireText(uuid, "uuid"))
+            );
         }
 
         /**
@@ -424,13 +327,52 @@ public final class OpenBindPlan {
             }
 
             /**
+             * 设置通用绑定类型（无额外参数）。
+             *
+             * @param bindType 绑定类型
+             * @return 当前容器子构建器
+             */
+            public ContainerBindBuilder bindType(ContainerBindType bindType) {
+                Builder.this.applyBind(containerId, new BindOverride(bindType, Map.of()));
+                return this;
+            }
+
+            /**
+             * 结束当前容器链并返回上层构建器。
+             *
+             * @return 上层 {@link Builder}
+             */
+            public Builder bind() {
+                return Builder.this;
+            }
+
+            /**
+             * 结束当前容器链并进入另一个容器绑定链。
+             *
+             * @param containerId 下一个容器 ID
+             * @return 下一个容器的子构建器
+             */
+            public ContainerBindBuilder bind(String containerId) {
+                return Builder.this.bind(containerId);
+            }
+
+            /**
+             * 结束当前容器链并进入新的主容器绑定链。
+             *
+             * @param containerId 下一个主容器 ID
+             * @return 下一个容器的子构建器
+             */
+            public ContainerBindBuilder primaryBind(String containerId) {
+                return Builder.this.primaryBind(containerId);
+            }
+
+            /**
              * 设置为玩家库存绑定。
              *
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder player() {
-                Builder.this.containerPlayer(containerId);
-                return this;
+                return bindType(ContainerBindType.PLAYER);
             }
 
             /**
@@ -441,10 +383,10 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder savedData(String dataName, String inventoryKey) {
-                LinkedHashMap<String, String> args = new LinkedHashMap<>();
-                args.put("dataName", requireText(dataName, "dataName"));
-                args.put("inventoryKey", requireText(inventoryKey, "inventoryKey"));
-                Builder.this.setContainerBind(containerId, new BindOverride(ContainerBindType.SAVED_DATA, args));
+                Builder.this.applyBind(containerId, new BindOverride(
+                        ContainerBindType.SAVED_DATA,
+                        savedDataArgs(dataName, inventoryKey, null)
+                ));
                 return this;
             }
 
@@ -457,7 +399,10 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder savedData(String dataName, String inventoryKey, int slotCount) {
-                Builder.this.containerSavedData(containerId, dataName, inventoryKey, slotCount);
+                Builder.this.applyBind(containerId, new BindOverride(
+                        ContainerBindType.SAVED_DATA,
+                        savedDataArgs(dataName, inventoryKey, slotCount)
+                ));
                 return this;
             }
 
@@ -471,7 +416,10 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder blockEntity(int x, int y, int z, String side) {
-                Builder.this.containerBlockEntity(containerId, x, y, z, side);
+                Builder.this.applyBind(containerId, new BindOverride(
+                        ContainerBindType.BLOCK_ENTITY,
+                        blockEntityArgs(x, y, z, side)
+                ));
                 return this;
             }
 
@@ -482,7 +430,7 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder entity(String uuid) {
-                Builder.this.containerEntity(containerId, uuid);
+                Builder.this.applyBind(containerId, entityBind(uuid));
                 return this;
             }
 
@@ -493,7 +441,7 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder entity(UUID uuid) {
-                Builder.this.containerEntity(containerId, uuid);
+                Builder.this.applyBind(containerId, entityBind(uuid == null ? null : uuid.toString()));
                 return this;
             }
 
@@ -505,7 +453,7 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder arg(String argKey, String argValue) {
-                Builder.this.containerArg(containerId, argKey, argValue);
+                Builder.this.appendBindArg(containerId, argKey, argValue);
                 return this;
             }
 
@@ -516,7 +464,7 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder minCapacity(int minCapacity) {
-                Builder.this.containerCapacity(containerId, minCapacity, null, null);
+                Builder.this.mergeCapacity(containerId, minCapacity, null, null);
                 return this;
             }
 
@@ -527,7 +475,7 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder exactCapacity(int exactCapacity) {
-                Builder.this.containerCapacity(containerId, null, exactCapacity, null);
+                Builder.this.mergeCapacity(containerId, null, exactCapacity, null);
                 return this;
             }
 
@@ -538,17 +486,8 @@ public final class OpenBindPlan {
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder policy(ResizePolicy resizePolicy) {
-                Builder.this.containerCapacity(containerId, null, null, resizePolicy);
+                Builder.this.mergeCapacity(containerId, null, null, resizePolicy);
                 return this;
-            }
-
-            /**
-             * 结束容器级链式配置并返回上层构建器。
-             *
-             * @return 上层 {@link Builder}
-             */
-            public Builder done() {
-                return Builder.this;
             }
 
             /**
@@ -560,11 +499,5 @@ public final class OpenBindPlan {
                 return Builder.this.build();
             }
         }
-    }
-
-    private static String normalizeContainerId(String containerId) {
-        if (containerId == null) return null;
-        String normalized = containerId.trim().toLowerCase(Locale.ROOT);
-        return normalized.isEmpty() ? null : normalized;
     }
 }
