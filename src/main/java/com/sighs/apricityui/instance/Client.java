@@ -14,10 +14,13 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.style.Cursor;
+import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
 import net.minecraftforge.client.event.RenderGuiEvent;
@@ -311,7 +314,24 @@ public class Client {
     }
 
     public static int getDefaultFontWidth(String text) {
-        return Minecraft.getInstance().font.width(text);
+        return getDefaultFontWidth(text, false, false, 0);
+    }
+
+    public static int getDefaultFontWidth(String text, boolean bold) {
+        return getDefaultFontWidth(text, bold, false, 0);
+    }
+
+    public static int getDefaultFontWidth(String text, boolean bold, boolean oblique) {
+        return getDefaultFontWidth(text, bold, oblique, 0);
+    }
+
+    public static int getDefaultFontWidth(String text, boolean bold, boolean oblique, int strokeWidth) {
+        int stroke = Math.max(0, strokeWidth) * 2;
+        if (!bold && !oblique) return Minecraft.getInstance().font.width(text) + stroke;
+        MutableComponent renderText = Component.literal(text);
+        if (bold) renderText = renderText.withStyle(ChatFormatting.BOLD);
+        if (oblique) renderText = renderText.withStyle(ChatFormatting.ITALIC);
+        return Minecraft.getInstance().font.width(renderText) + stroke;
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
@@ -319,8 +339,26 @@ public class Client {
         poseStack.translate(position.x, position.y, 0);
         poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 0f);
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-        Minecraft.getInstance().font.drawInBatch(text.content, 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+        MutableComponent renderText = Component.literal(text.content);
+        if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
+        if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
+        int stroke = Math.max(0, text.strokeWidth);
+        if (stroke > 0) {
+            int strokeColor = text.strokeColor.getValue();
+            for (int ox = -stroke; ox <= stroke; ox++) {
+                for (int oy = -stroke; oy <= stroke; oy++) {
+                    if (ox == 0 && oy == 0) continue;
+                    if (ox * ox + oy * oy > stroke * stroke) continue;
+                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), ox, oy, strokeColor, false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+                }
+            }
+        }
+        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
         bufferSource.endBatch();
         poseStack.popPose();
     }
 }
+
+
+
+

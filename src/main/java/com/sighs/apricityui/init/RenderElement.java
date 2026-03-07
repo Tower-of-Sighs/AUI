@@ -95,7 +95,7 @@ public class RenderElement {
     private static final Set<String> CURSOR_PROPS = Set.of("cursor");
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
-            "fontSize", "lineHeight", "fontFamily"
+            "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke"
     );
 
     private static final Set<String> STRUCTURAL_PROPS = Set.of(

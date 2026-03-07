@@ -7,6 +7,11 @@ img {
     overflow: hidden;
 }
 
+a {
+    color: #0000EE;
+    cursor: pointer;
+}
+
 input {
     border-bottom: 1px solid #808080;
     width: 64px;
@@ -14,6 +19,14 @@ input {
 }
 input:focus {
     background-color: #fff;
+}
+
+i, em {
+    font-style:oblique;
+}
+
+b, strong {
+    font-weight:bold;
 }
 
 select {

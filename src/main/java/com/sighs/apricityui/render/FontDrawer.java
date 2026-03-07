@@ -61,40 +61,49 @@ public class FontDrawer {
     private static FontEntry rebuildTextureEntry(Text text) {
         String fontKey = text.fontFamily;
         java.awt.Font baseFont = Font.getBaseFont(fontKey);
+        int fontStyle = java.awt.Font.PLAIN;
+        if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
+        if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+        java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
         Color color = text.color;
+        Color strokeColor = text.strokeColor;
+        int stroke = Math.max(0, text.strokeWidth);
         String content = text.content;
 
         try {
-            // 创建临时图像以获取字体度量
             BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2d = tmp.createGraphics();
-            g2d.setFont(baseFont);
+            g2d.setFont(resolvedFont);
             FontMetrics fm = g2d.getFontMetrics();
             g2d.dispose();
 
             int textW = Math.max(1, fm.stringWidth(content));
             int textH = Math.max(1, fm.getHeight());
-            int pad = 2; // Padding 防止纹理边缘裁剪
+            int pad = 2 + stroke;
 
             int imgW = textW + pad * 2;
             int imgH = textH + pad * 2;
 
             BufferedImage img = new BufferedImage(imgW, imgH, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = img.createGraphics();
-
-            // 设置抗锯齿和渲染质量
             g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-
-            // 清空背景
             g.setComposite(AlphaComposite.Clear);
             g.fillRect(0, 0, imgW, imgH);
             g.setComposite(AlphaComposite.SrcOver);
+            g.setFont(resolvedFont);
+            if (stroke > 0) {
+                g.setColor(new java.awt.Color(strokeColor.getR(), strokeColor.getG(), strokeColor.getB(), strokeColor.getA()));
+                for (int ox = -stroke; ox <= stroke; ox++) {
+                    for (int oy = -stroke; oy <= stroke; oy++) {
+                        if (ox == 0 && oy == 0) continue;
+                        if (ox * ox + oy * oy > stroke * stroke) continue;
+                        g.drawString(content, pad + ox, pad + fm.getAscent() + oy);
+                    }
+                }
+            }
 
-            // 绘制文字
-            g.setFont(baseFont);
             g.setColor(new java.awt.Color(color.getR(), color.getG(), color.getB(), color.getA()));
-
             g.drawString(content, pad, pad + fm.getAscent());
             g.dispose();
 
@@ -147,3 +156,6 @@ public class FontDrawer {
                             int width, int height) {
     }
 }
+
+
+

@@ -10,6 +10,10 @@ import java.awt.*;
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
     public int fontSize = -1;
+    public int fontWeight = -1;
+    public boolean oblique = false;
+    public int strokeWidth = 0;
+    public Color strokeColor = null;
     public Color color = null;
     public String fontFamily = "unset";
     public String content = "";
@@ -23,6 +27,8 @@ public class Text {
         text.content = element.innerText;
         if (element.tagName.equals("INPUT")) text.content = element.value;
         String lineHeight = null;
+        boolean resolvedFontStyle = false;
+        boolean resolvedTextStroke = false;
         for (Element e : element.getRoute()) {
             Style style = e.getComputedStyle();
             boolean shouldBreak = true;
@@ -33,6 +39,26 @@ public class Text {
             if (text.fontSize == -1) {
                 shouldBreak = false;
                 if (!style.fontSize.equals("unset")) text.fontSize = Size.parse(style.fontSize);
+            }
+            if (text.fontWeight == -1) {
+                shouldBreak = false;
+                if (!style.fontWeight.equals("unset")) text.fontWeight = Style.parseFontWeight(style.fontWeight);
+            }
+            if (!resolvedFontStyle) {
+                shouldBreak = false;
+                if (!style.fontStyle.equals("unset")) {
+                    text.oblique = Style.isObliqueValue(style.fontStyle);
+                    resolvedFontStyle = true;
+                }
+            }
+            if (!resolvedTextStroke) {
+                shouldBreak = false;
+                if (!style.textStroke.equals("unset")) {
+                    Style.TextStroke stroke = Style.parseTextStroke(style.textStroke);
+                    text.strokeWidth = stroke.width();
+                    text.strokeColor = new Color(stroke.color());
+                    resolvedTextStroke = true;
+                }
             }
             if (text.color == null) {
                 shouldBreak = false;
@@ -46,7 +72,9 @@ public class Text {
         }
         if (text.fontSize == -1) text.fontSize = 16;
         text.fontSize = (int) (text.fontSize / 16d * 9);
+        if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
+        if (text.strokeColor == null) text.strokeColor = Color.BLACK;
         if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text.fontSize, lineHeight);
         double width = measureText(text);
         text.size = new Size(width, text.lineHeight);
@@ -85,24 +113,38 @@ public class Text {
     public static double measureText(Text text) {
         if (text.content == null || text.content.isEmpty()) return 0;
         if (text.fontFamily.equals("unset")) {
-            return Client.getDefaultFontWidth(text.content) * (text.fontSize / 9.0);
+            return Client.getDefaultFontWidth(text.content, text.isBold(), text.isOblique(), 0) * (text.fontSize / 9.0) + text.strokeWidth * 2.0;
         }
 
         java.awt.Font baseFont = Font.getBaseFont(text.fontFamily);
         if (baseFont == null) return 0;
+        int fontStyle = java.awt.Font.PLAIN;
+        if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
+        if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+        java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
 
-        // 获取基础宽度 (基于 BASE_FONT_SIZE = 48.0f)
-        FontMetrics fm = METRICS_CANVAS.getFontMetrics(baseFont);
+        FontMetrics fm = METRICS_CANVAS.getFontMetrics(resolvedFont);
         int baseWidth = fm.stringWidth(text.content);
 
-        // 计算缩放比例
         float currentSize = (float) text.fontSize;
         float scale = currentSize / Font.getBaseFontSize();
 
-        return baseWidth * scale;
+        return baseWidth * scale + text.strokeWidth * 2.0;
     }
 
     public String toKey() {
-        return fontSize + "/" + color + "/" + fontFamily + "/" + content;
+        return fontSize + "/" + fontWeight + "/" + oblique + "/" + strokeWidth + "/" + strokeColor + "/" + color + "/" + fontFamily + "/" + content;
+    }
+
+    public boolean isBold() {
+        return fontWeight >= 600;
+    }
+
+    public boolean isOblique() {
+        return oblique;
+    }
+
+    public boolean hasStroke() {
+        return strokeWidth > 0;
     }
 }

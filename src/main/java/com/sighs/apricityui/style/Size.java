@@ -19,8 +19,6 @@ public record Size(double width, double height) {
     public static Size getWindowSize() {
         return Client.getWindowSize();
     }
-
-    // 提取第一段数字，如提取100px中的100
     public static int parse(String str) {
         if (str == null || str.isEmpty()) {
             return -1;
@@ -34,7 +32,6 @@ public record Size(double width, double height) {
                 numberBuilder.append(c);
                 foundDigit = true;
             } else if (foundDigit) {
-                // 遇到非数字字符，且已经找到数字，结束提取
                 break;
             }
         }
@@ -43,7 +40,6 @@ public record Size(double width, double height) {
             try {
                 return Integer.parseInt(numberBuilder.toString());
             } catch (NumberFormatException e) {
-                // 如果数字太大超过int范围，返回-1
                 return -1;
             }
         }
@@ -156,20 +152,28 @@ public record Size(double width, double height) {
         if (text == null || text.isEmpty()) return 0;
 
         String fontFamily = Style.getFontFamily(element);
+        int fontWeight = Style.getFontWeight(element);
+        boolean oblique = Style.isOblique(element);
+        Style.TextStroke stroke = Style.getTextStroke(element);
 
-        if (fontFamily.equals("unset")) return Client.getDefaultFontWidth(text);
+        if (fontFamily.equals("unset")) return Client.getDefaultFontWidth(text, fontWeight >= 600, oblique, stroke.width());
 
         java.awt.Font baseFont = Font.getBaseFont(fontFamily);
         if (baseFont == null) return 0;
+        int fontStyle = java.awt.Font.PLAIN;
+        if (fontWeight >= 600) fontStyle |= java.awt.Font.BOLD;
+        if (oblique) fontStyle |= java.awt.Font.ITALIC;
+        java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
 
-        // 获取基础宽度 (基于 BASE_FONT_SIZE = 48.0f)
-        FontMetrics fm = METRICS_CANVAS.getFontMetrics(baseFont);
+        FontMetrics fm = METRICS_CANVAS.getFontMetrics(resolvedFont);
         int baseWidth = fm.stringWidth(text);
 
-        // 计算缩放比例
         float currentSize = (float) Style.getFontSize(element);
         float scale = currentSize / Font.getBaseFontSize();
 
-        return baseWidth * scale;
+        return baseWidth * scale + stroke.width() * 2.0;
     }
 }
+
+
+

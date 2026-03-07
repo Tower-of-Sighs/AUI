@@ -7,6 +7,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -72,6 +73,9 @@ public class Style implements Cloneable {
     public String selectionColor = "unset";
     public String fontSize = "unset";
     public String fontFamily = "unset";
+    public String fontWeight = "unset";
+    public String fontStyle = "unset";
+    public String textStroke = "unset";
     public String lineHeight = "unset";
 
     public String flexDirection = "column";
@@ -154,6 +158,77 @@ public class Style implements Cloneable {
             }
         }
         return fontFamily;
+    }
+    public static int getFontWeight(Element element) {
+        int fontWeight = 400;
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontWeight;
+            if (!f.equals("unset")) {
+                fontWeight = parseFontWeight(f);
+                break;
+            }
+        }
+        return fontWeight;
+    }
+    public static boolean isOblique(Element element) {
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontStyle;
+            if (!f.equals("unset")) {
+                return isObliqueValue(f);
+            }
+        }
+        return false;
+    }
+    public static int parseFontWeight(String raw) {
+        if (raw == null || raw.isBlank()) return 400;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if (value.equals("unset") || value.equals("normal")) return 400;
+        if (value.equals("bold") || value.equals("bolder")) return 700;
+        if (value.equals("lighter")) return 300;
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed < 1) return 1;
+            return Math.min(parsed, 1000);
+        } catch (NumberFormatException ignored) {}
+        return 400;
+    }
+    public static boolean isObliqueValue(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return value.equals("oblique");
+    }
+    public static TextStroke parseTextStroke(String raw) {
+        if (raw == null || raw.isBlank()) return TextStroke.NONE;
+        String value = raw.trim();
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.equals("unset") || lower.equals("none")) return TextStroke.NONE;
+
+        int width = 0;
+        String colorPart = value;
+
+        int pxIndex = lower.indexOf("px");
+        if (pxIndex > 0) {
+            int start = pxIndex - 1;
+            while (start >= 0 && Character.isDigit(lower.charAt(start))) start--;
+            String number = lower.substring(start + 1, pxIndex).trim();
+            try {
+                width = Math.max(0, Integer.parseInt(number));
+            } catch (NumberFormatException ignored) {}
+            colorPart = (value.substring(0, Math.max(0, start + 1)) + " " + value.substring(pxIndex + 2)).trim();
+        }
+
+        int color = Color.parse(colorPart.isBlank() ? "#000" : colorPart);
+        if (width <= 0) return TextStroke.NONE;
+        return new TextStroke(width, color);
+    }
+    public static TextStroke getTextStroke(Element element) {
+        for (Element e : element.getRoute()) {
+            String s = e.getComputedStyle().textStroke;
+            if (!s.equals("unset")) {
+                return parseTextStroke(s);
+            }
+        }
+        return TextStroke.NONE;
     }
     public static int getFontColor(Element element) {
         String styleColor = element.getComputedStyle().color;
@@ -296,7 +371,11 @@ public class Style implements Cloneable {
     }
 
     static Set<String> getTextProp() {
-        return Set.of("color", "font-size", "font-family");
+        return Set.of("color", "font-size", "font-family", "font-weight", "font-style", "text-stroke");
+    }
+
+    public record TextStroke(int width, int color) {
+        public static final TextStroke NONE = new TextStroke(0, 0);
     }
 
 
