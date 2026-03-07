@@ -390,7 +390,7 @@ public class Element {
             double limit = Math.min(targetScrollTop, scrollHeight - Size.of(this).height());
             limit = Math.max(limit, 0);
             if ((int) targetScrollTop != (int) limit) targetScrollTop = limit;
-            document.markDirty(this, Drawer.RELAYOUT);
+            document.markDirty(this, Drawer.REORDER);
         }
         if (!innerText.equals(lastInnerText)) {
             getRenderer().text.clear();
