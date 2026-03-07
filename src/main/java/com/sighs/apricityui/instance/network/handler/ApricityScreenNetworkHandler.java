@@ -6,9 +6,8 @@ import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.instance.container.layout.MenuLayoutSpec;
-import com.sighs.apricityui.instance.container.template.TemplateCompiler;
-import com.sighs.apricityui.instance.container.template.TemplateSpec;
 import com.sighs.apricityui.instance.element.Container;
+import com.sighs.apricityui.instance.element.Container.TemplateSpec;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
@@ -102,7 +101,7 @@ public final class ApricityScreenNetworkHandler {
             return null;
         }
 
-        TemplateSpec compiled = TemplateCompiler.compile(selectedTemplatePath);
+        TemplateSpec compiled = Container.compileTemplate(selectedTemplatePath);
         if (compiled == null) {
             ApricityUI.LOGGER.warn("Open screen ignored: template compile failed, path={}", selectedTemplatePath);
         }
