@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.style.Background;
 
 import java.io.InputStream;
 import java.util.Collection;
@@ -65,9 +66,10 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
             Style style = element.getRawComputedStyle();
             if (style == null) continue;
 
-            String backgroundPath = resolveCssUrl(document.getPath(), style.backgroundImage);
-            if (isImagePathValid(backgroundPath)) {
-                paths.add(backgroundPath);
+            for (String backgroundPath : Background.resolveImagePaths(document.getPath(), style.backgroundImage)) {
+                if (isImagePathValid(backgroundPath)) {
+                    paths.add(backgroundPath);
+                }
             }
 
             String borderImageSource = resolveFirstNonUnset(style.borderImageSource, style.borderImage);

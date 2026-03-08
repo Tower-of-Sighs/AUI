@@ -14,6 +14,7 @@ public class Box {
     public final HashMap<String, Double> margin = new HashMap<>();
     public final HashMap<String, Double> padding = new HashMap<>();
     public final ArrayList<Integer> borderRadius = new ArrayList<>();
+    public final List<Shadow> shadows = new ArrayList<>();
     public Shadow shadow = null;
     public BorderImage borderImage = null;
     public Element element;
@@ -103,7 +104,9 @@ public class Box {
             resultBox.borderRadius.addAll(List.of(0, 0, 0, 0));
         }
 
-        resultBox.shadow = parseShadow(style.boxShadow);
+        resultBox.shadows.clear();
+        resultBox.shadows.addAll(parseShadowList(style.boxShadow));
+        resultBox.shadow = resultBox.shadows.isEmpty() ? Shadow.getDefault() : resultBox.shadows.get(0);
         resultBox.borderImage = parseBorderImage(style);
         if (resultBox.borderImage != null && isZero(resultBox.borderImage.width)) {
             resultBox.borderImage.width = new int[] {
@@ -214,11 +217,27 @@ public class Box {
         return new SideBorder(Size.parse(res[0]), res[1], new Color(res[2]));
     }
     public static Shadow parseShadow(String string) {
-        String[] res = string.split(" ");
-        if (res.length != 4) return Shadow.getDefault();
-        int x = Size.parse(res[0]);
-        int y = Size.parse(res[1]);
-        return new Shadow(x, y, Size.parse(res[2]), new Color(res[3]));
+        List<Shadow> parsed = parseShadowList(string);
+        return parsed.isEmpty() ? Shadow.getDefault() : parsed.get(0);
+    }
+
+    public static List<Shadow> parseShadowList(String string) {
+        List<Shadow> result = new ArrayList<>();
+        if (string == null || string.isBlank() || "unset".equals(string) || "none".equals(string)) {
+            return result;
+        }
+
+        for (String shadowToken : Background.splitTopLevelComma(string)) {
+            String[] res = shadowToken.trim().split("\\s+");
+            if (res.length < 3) continue;
+
+            int x = Size.parse(res[0]);
+            int y = Size.parse(res[1]);
+            int blur = Size.parse(res[2]);
+            String color = res.length >= 4 ? res[res.length - 1] : "#000";
+            result.add(new Shadow(x, y, blur, new Color(color)));
+        }
+        return result;
     }
 
     public record SideBorder(int size, String type, Color color) {
