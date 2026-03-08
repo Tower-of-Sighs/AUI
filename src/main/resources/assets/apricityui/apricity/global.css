@@ -12,6 +12,25 @@ a {
     cursor: pointer;
 }
 
+blockquote {
+    display: block;
+    margin: 8px 16px;
+    padding-left: 8px;
+    border-left: 2px solid #808080;
+}
+
+code {
+    background-color: #f2f2f2;
+    padding: 1px 3px;
+}
+
+pre {
+    display: block;
+    background-color: #f2f2f2;
+    padding: 6px;
+    overflow: auto;
+}
+
 input {
     border-bottom: 1px solid #808080;
     width: 64px;
