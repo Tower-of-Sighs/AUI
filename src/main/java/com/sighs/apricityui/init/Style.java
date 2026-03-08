@@ -115,6 +115,7 @@ public class Style implements Cloneable {
     public String animationFillMode = "unset";
     public String animationTimingFunction = "unset";
     public String animationPlayState = "unset";
+    private Map<String, String> customProperties = new HashMap<>();
 
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
@@ -281,8 +282,14 @@ public class Style implements Cloneable {
     }
 
     public void update(String name, String value) {
-        String styleName = transformStyleName(name);
+        if (name == null || name.isBlank()) return;
+        if (value == null) value = "";
         if (value.startsWith(" ")) value = value.replaceFirst(" ", "");
+        if (name.startsWith("--")) {
+            customProperties.put(normalizeCustomPropertyName(name), value);
+            return;
+        }
+        String styleName = transformStyleName(name);
         try {
             Field field = FIELD_CACHE.get(styleName);
             if (field == null) {
@@ -293,17 +300,28 @@ public class Style implements Cloneable {
         } catch (NoSuchFieldException | IllegalAccessException ignored) {}
     }
     public String get(String name) {
+        if (name == null || name.isBlank()) return null;
+        if (name.startsWith("--")) {
+            return customProperties.get(normalizeCustomPropertyName(name));
+        }
         String styleName = transformStyleName(name);
         try {
             Field field = FIELD_CACHE.get(styleName);
             if (field == null) {
-                System.out.println(styleName);
                 field = this.getClass().getDeclaredField(styleName);
                 FIELD_CACHE.put(styleName, field);
             }
             return (String) field.get(this);
         } catch (NoSuchFieldException | IllegalAccessException ignored) {}
         return null;
+    }
+    public String getCustomProperty(String name) {
+        if (name == null || name.isBlank()) return null;
+        return customProperties.get(normalizeCustomPropertyName(name));
+    }
+    private static String normalizeCustomPropertyName(String name) {
+        if (name.startsWith("--")) return name;
+        return "--" + name;
     }
 
     // font-size转为fontSize这样的
@@ -353,6 +371,8 @@ public class Style implements Cloneable {
         StringBuilder css = new StringBuilder();
 
         for (Field field : Style.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers())) continue;
+            if ("customProperties".equals(field.getName())) continue;
             try {
                 field.setAccessible(true);
 
@@ -367,6 +387,7 @@ public class Style implements Cloneable {
                 }
             } catch (IllegalAccessException ignored) {}
         }
+        customProperties.forEach((name, value) -> css.append(name).append(": ").append(value).append(";"));
         return css.toString();
     }
 
@@ -382,7 +403,9 @@ public class Style implements Cloneable {
     @Override
     public Style clone() {
         try {
-            return (Style) super.clone();
+            Style style = (Style) super.clone();
+            style.customProperties = new HashMap<>(this.customProperties);
+            return style;
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
@@ -396,6 +419,9 @@ public class Style implements Cloneable {
         for (Field field : fields) {
             // 跳过静态字段
             if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            if ("customProperties".equals(field.getName())) {
                 continue;
             }
 
@@ -418,6 +444,7 @@ public class Style implements Cloneable {
                         .append(";");
             } catch (IllegalAccessException ignored) {}
         }
+        customProperties.forEach((name, value) -> sb.append(name).append(":").append(value).append(";"));
 
         return sb.toString();
     }

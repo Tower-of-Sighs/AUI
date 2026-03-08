@@ -61,6 +61,18 @@ public class Element {
         if (style == null) updateInlineStyle();
         return style;
     }
+    public String getCustomProperty(String name) {
+        return getRawComputedStyle().getCustomProperty(name);
+    }
+    public String getCustomPropertyInherit(String name) {
+        Element current = this;
+        while (current != null) {
+            String value = current.getCustomProperty(name);
+            if (value != null && !value.isBlank()) return value;
+            current = current.parentElement;
+        }
+        return null;
+    }
 
     public HashMap<String, String> getAttributes() {
         return attributes;

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.element.Body;
+import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
@@ -47,6 +48,7 @@ public class Document {
             body = (Body) Element.init(bodyElement);
             elements.add(0, body);
             body.updateCSS();
+            DocumentExpander.apply(this);
             elements.forEach(Element::clearDirtyFlags);
             dirtyElements.clear();
             paintList = Drawer.createPaintList(body);

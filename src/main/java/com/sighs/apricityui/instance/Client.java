@@ -177,6 +177,12 @@ public class Client {
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             Base.drawAllDocument(event.getGuiGraphics().pose());
+            // Shared item render pass for DOM <slot> (createDocument path).
+            for (Document document : Document.getAll()) {
+                if (!document.inWorld) {
+                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                }
+            }
             Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
         }
     }
@@ -185,6 +191,12 @@ public class Client {
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
             Base.drawAllDocument(event.getGuiGraphics().pose());
+            // Shared item render pass for DOM <slot> (createDocument path).
+            for (Document document : Document.getAll()) {
+                if (!document.inWorld) {
+                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                }
+            }
             Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
         }
     }

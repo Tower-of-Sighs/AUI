@@ -1,10 +1,11 @@
 package com.sighs.apricityui.util;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.instance.container.bind.ApricityDataSourceResolver;
+import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
-import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
 
@@ -49,7 +50,7 @@ public class ApricityUIClientUtil {
         return OpenBindPlan.builder();
     }
 
-    public static boolean hasDataSource(ContainerSchema.Descriptor.BindType bindType) {
-        return ApricityDataSourceResolver.has(bindType);
+    public static boolean hasDataSource(ContainerBindType bindType) {
+        return Container.hasBindingDataSource(bindType);
     }
 }
