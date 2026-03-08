@@ -10,7 +10,6 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Size;
-import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -253,10 +252,7 @@ public class Slot extends MinecraftElement {
     }
 
     @Override
-    public void renderTooltip(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        ItemStack stack = getTooltipStack();
-        if (stack.isEmpty()) return;
-        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+    public void renderTooltip(PoseStack poseStack, Object unusedScreen, int mouseX, int mouseY) {
     }
 
     /**

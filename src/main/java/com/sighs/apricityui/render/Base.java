@@ -10,10 +10,10 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.*;
+import com.mojang.math.Matrix4f;
+import com.mojang.math.Vector3f;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
-import org.joml.Matrix4f;
-import org.joml.Quaternionf;
 
 import java.util.List;
 
@@ -98,9 +98,9 @@ public class Base {
                         poseStack.translate(t.x(), t.y(), t.z());
                     } else if (transform instanceof Transform.Rotate r) {
                         poseStack.translate(originX, originY, 0);
-                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
-                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
-                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
+                        if (r.x() != 0) poseStack.mulPose(Vector3f.XP.rotationDegrees((float) r.x()));
+                        if (r.y() != 0) poseStack.mulPose(Vector3f.YP.rotationDegrees((float) r.y()));
+                        if (r.z() != 0) poseStack.mulPose(Vector3f.ZP.rotationDegrees((float) r.z()));
                         poseStack.translate(-originX, -originY, 0);
                     } else if (transform instanceof Transform.Scale s) {
                         poseStack.translate(originX, originY, 0);
@@ -120,7 +120,7 @@ public class Base {
     }
 
     public static void setProjectionMatrix(Matrix4f matrix) {
-        RenderSystem.setProjectionMatrix(matrix, RenderSystem.getVertexSorting());
+        RenderSystem.setProjectionMatrix(matrix);
     }
     public static Matrix4f getProjectionMatrix() {
         return RenderSystem.getProjectionMatrix();

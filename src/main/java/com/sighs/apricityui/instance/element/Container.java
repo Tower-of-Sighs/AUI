@@ -220,7 +220,7 @@ public class Container extends MinecraftElement {
 
         Direction side = parseDirection(args.get("side"));
         BlockPos pos = new BlockPos(x, y, z);
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = (ServerLevel) player.getLevel();
         if (!level.hasChunkAt(pos)) {
             return null;
         }
@@ -241,7 +241,7 @@ public class Container extends MinecraftElement {
                 handler,
                 currentPlayer -> {
                     if (currentPlayer == null) return false;
-                    ServerLevel currentLevel = currentPlayer.serverLevel();
+                    ServerLevel currentLevel = (ServerLevel) currentPlayer.getLevel();
                     if (!currentLevel.hasChunkAt(immutablePos)) return false;
                     BlockEntity current = currentLevel.getBlockEntity(immutablePos);
                     return current != null && expectedType.isInstance(current);

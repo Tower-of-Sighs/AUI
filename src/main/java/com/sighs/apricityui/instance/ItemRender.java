@@ -1,5 +1,6 @@
 package com.sighs.apricityui.instance;
 
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.element.Slot;
@@ -8,20 +9,22 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.entity.ItemRenderer;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.world.item.ItemStack;
 
 public final class ItemRender {
     private static final float ICON_SCALE_EPSILON = 0.0001F;
 
-    public static void renderDocumentUnboundSlotItems(GuiGraphics guiGraphics, Document document) {
-        if (guiGraphics == null || document == null) return;
-        renderUnboundSlotItems(guiGraphics, document.getElements());
+    public static void renderDocumentUnboundSlotItems(PoseStack poseStack, Document document) {
+        if (poseStack == null || document == null) return;
+        renderUnboundSlotItems(poseStack, document.getElements());
     }
 
-    public static void renderUnboundSlotItems(GuiGraphics guiGraphics, Iterable<? extends Element> elements) {
-        if (guiGraphics == null || elements == null) return;
+    public static void renderUnboundSlotItems(PoseStack poseStack, Iterable<? extends Element> elements) {
+        if (poseStack == null || elements == null) return;
 
+        ItemRenderer itemRenderer = Minecraft.getInstance().getItemRenderer();
         Font font = Minecraft.getInstance().font;
         for (Element element : elements) {
             if (!(element instanceof Slot slot)) continue;
@@ -49,12 +52,14 @@ public final class ItemRender {
             if (stack.isEmpty()) continue;
 
             float iconScale = Math.max(0.01F, slot.resolveIconScale(1.0F));
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + slot.resolveZIndex(0));
-            applyItemScaleTransform(guiGraphics, drawX, drawY, iconScale);
-            guiGraphics.renderItem(stack, drawX, drawY);
-            guiGraphics.renderItemDecorations(font, stack, drawX, drawY);
-            guiGraphics.pose().popPose();
+            poseStack.pushPose();
+            poseStack.translate(0.0D, 0.0D, 100.0D + slot.resolveZIndex(0));
+            applyItemScaleTransform(poseStack, drawX, drawY, iconScale);
+            itemRenderer.blitOffset = 100.0F + slot.resolveZIndex(0);
+            itemRenderer.renderAndDecorateItem(stack, drawX, drawY);
+            itemRenderer.renderGuiItemDecorations(font, stack, drawX, drawY);
+            itemRenderer.blitOffset = 0.0F;
+            poseStack.popPose();
         }
     }
 
@@ -64,12 +69,12 @@ public final class ItemRender {
         return Math.min(normalized, maxPadding);
     }
 
-    private static void applyItemScaleTransform(GuiGraphics guiGraphics, int drawX, int drawY, float iconScale) {
+    private static void applyItemScaleTransform(PoseStack poseStack, int drawX, int drawY, float iconScale) {
         if (Math.abs(iconScale - 1.0F) <= ICON_SCALE_EPSILON) return;
         float centerX = drawX + 8.0F;
         float centerY = drawY + 8.0F;
-        guiGraphics.pose().translate(centerX, centerY, 0.0D);
-        guiGraphics.pose().scale(iconScale, iconScale, 1.0F);
-        guiGraphics.pose().translate(-centerX, -centerY, 0.0D);
+        poseStack.translate(centerX, centerY, 0.0D);
+        poseStack.scale(iconScale, iconScale, 1.0F);
+        poseStack.translate(-centerX, -centerY, 0.0D);
     }
 }

@@ -91,12 +91,12 @@ dependencies {
 
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    implementation fg.deobf("curse.maven:kubejs-238086:5853326")
-    implementation fg.deobf("curse.maven:rhino-416294:6186971")
-    implementation fg.deobf("curse.maven:architectury-api-419699:5137938")
+    implementation fg.deobf("curse.maven:kubejs-238086:5408722")
+    implementation fg.deobf("curse.maven:rhino-416294:4805925")
+    implementation fg.deobf("curse.maven:architectury-api-419699:5137942")
 
-    implementation fg.deobf("curse.maven:embeddium-908741:5681725")
-    implementation fg.deobf("curse.maven:rubidium-extra-654373:6101745")
+    implementation fg.deobf("curse.maven:embeddium-908741:5322303")
+    implementation fg.deobf("curse.maven:rubidium-extra-654373:4768249")
 
 //    implementation fg.deobf("curse.maven:accelerated-rendering-1314021:7342975")
 

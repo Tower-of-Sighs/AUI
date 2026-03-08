@@ -3,7 +3,7 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.style.Gradient;
-import org.joml.Matrix4f;
+import com.mojang.math.Matrix4f;
 
 public class Graph {
     private static final int SEGMENTS = 12;

@@ -5,8 +5,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sighs.apricityui.ApricityUI;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
+import net.minecraft.core.Registry;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.TagParser;
 import net.minecraft.resources.ResourceLocation;
@@ -16,6 +15,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraftforge.common.ForgeHooks;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -152,15 +152,15 @@ public final class SlotExpressionCompiler {
     private static List<ItemStack> buildTagCandidates(ResourceLocation tagId) {
         ArrayList<ItemStack> result = new ArrayList<>();
         if (FURNACE_FUEL_TAG.equals(tagId)) {
-            for (Item item : BuiltInRegistries.ITEM) {
+            for (Item item : ForgeRegistries.ITEMS) {
                 ItemStack stack = new ItemStack(item);
                 if (ForgeHooks.getBurnTime(stack, RecipeType.SMELTING) <= 0) continue;
                 result.add(stack);
                 if (result.size() >= MAX_CANDIDATES) break;
             }
         } else {
-            TagKey<Item> tagKey = TagKey.create(Registries.ITEM, tagId);
-            for (Item item : BuiltInRegistries.ITEM) {
+            TagKey<Item> tagKey = TagKey.create(Registry.ITEM_REGISTRY, tagId);
+            for (Item item : ForgeRegistries.ITEMS) {
                 ItemStack stack = new ItemStack(item);
                 if (!stack.is(tagKey)) continue;
                 result.add(stack);
@@ -168,7 +168,7 @@ public final class SlotExpressionCompiler {
             }
         }
         result.sort(Comparator.comparing(stack -> {
-            ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            ResourceLocation id = ForgeRegistries.ITEMS.getKey(stack.getItem());
             return id == null ? "" : id.toString();
         }));
         return List.copyOf(result);
@@ -210,8 +210,9 @@ public final class SlotExpressionCompiler {
         if (itemLiteral.isBlank()) return ItemStack.EMPTY;
 
         ResourceLocation itemId = ResourceLocation.tryParse(itemLiteral.toLowerCase(Locale.ROOT));
-        if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) return ItemStack.EMPTY;
-        Item item = BuiltInRegistries.ITEM.get(itemId);
+        if (itemId == null || !ForgeRegistries.ITEMS.containsKey(itemId)) return ItemStack.EMPTY;
+        Item item = ForgeRegistries.ITEMS.getValue(itemId);
+        if (item == null) return ItemStack.EMPTY;
         ItemStack stack = new ItemStack(item);
         if (nbtStart < 0) return stack;
 

@@ -23,8 +23,9 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RenderGuiEvent;
+import net.minecraftforge.client.event.RenderGuiOverlayEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -176,28 +177,29 @@ public class Client {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
+            Base.drawAllDocument(event.getPoseStack());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentUnboundSlotItems(event.getPoseStack(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getPoseStack());
         }
     }
 
     @SubscribeEvent
-    public static void drawOverlay(RenderGuiEvent.Post event) {
+    public static void drawOverlay(RenderGuiOverlayEvent.Post event) {
+        if (!event.getOverlay().id().equals(VanillaGuiOverlay.HOTBAR.id())) return;
         if (Minecraft.getInstance().screen == null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
+            Base.drawAllDocument(event.getPoseStack());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentUnboundSlotItems(event.getPoseStack(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getPoseStack());
         }
     }
 
@@ -361,11 +363,11 @@ public class Client {
                 for (int oy = -stroke; oy <= stroke; oy++) {
                     if (ox == 0 && oy == 0) continue;
                     if (ox * ox + oy * oy > stroke * stroke) continue;
-                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), ox, oy, strokeColor, false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), (float) ox, (float) oy, strokeColor, false, poseStack.last().pose(), bufferSource, false, 0, 15728880);
                 }
             }
         }
-        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0.0F, 0.0F, text.color.getValue(), false, poseStack.last().pose(), bufferSource, false, 0, 15728880);
         bufferSource.endBatch();
         poseStack.popPose();
     }

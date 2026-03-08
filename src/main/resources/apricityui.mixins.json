@@ -2,7 +2,7 @@
   "required": true,
   "minVersion": "0.8",
   "package": "com.sighs.apricityui.mixin",
-  "compatibilityLevel": "JAVA_8",
+  "compatibilityLevel": "JAVA_17",
   "refmap": "apricityui.refmap.json",
   "mixins": [
   ],

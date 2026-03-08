@@ -12,7 +12,7 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
-import org.joml.Matrix4f;
+import com.mojang.math.Matrix4f;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
@@ -103,7 +103,7 @@ public class FilterRenderer {
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
+        Matrix4f matrix = Matrix4f.orthographic(0.0F, guiW, guiH, 0.0F, -1000.0F, 1000.0F);
         Base.setProjectionMatrix(matrix);
 
         Tesselator tesselator = Tesselator.getInstance();
@@ -150,7 +150,7 @@ public class FilterRenderer {
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
+        Matrix4f matrix = Matrix4f.orthographic(0.0F, guiW, guiH, 0.0F, -1000.0F, 1000.0F);
         Base.setProjectionMatrix(matrix);
 
         Tesselator tesselator = Tesselator.getInstance();
