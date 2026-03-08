@@ -2,10 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
-
-
-import java.util.*;
-import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.List;
 
 public class Position {
     public static final Position ZERO = new Position(0, 0);
@@ -25,28 +22,27 @@ public class Position {
     public static Position getOffset(Element element) {
         if (element == null) return ZERO;
 
-        // 缓存依然有效，但现在缓存的是本地 offset
         Position cache = element.getRenderer().position.get();
         if (cache != null) return cache;
 
         Style style = element.getComputedStyle();
         Position resultPosition = ZERO;
+        Element parent = element.parentElement;
+        String positionType = style.position == null ? "static" : style.position;
 
-        String positionType = style.position;
-        // 如果是绝对定位，计算相对于最近层叠上下文（或父级）的偏移
+        // 基础流式位置（absolute/fixed 不参与常规流布局）
+        if (!"absolute".equals(positionType) && !"fixed".equals(positionType) && parent != null) {
+            resultPosition = computeNormalFlowChildPosition(element, parent, parent.children);
+        }
+
+        // relative: 在原流位置上偏移
+        if ("relative".equals(positionType)) {
+            resultPosition = resultPosition.add(resolveRelativeShift(element));
+        }
+
+        // absolute/fixed: 以 containing block 进行偏移定位
         if ("absolute".equals(positionType) || "fixed".equals(positionType)) {
-            int top = parseSignedInt(style.top);
-            int left = parseSignedInt(style.left);
-            int bottom = parseSignedInt(style.bottom);
-            int right = parseSignedInt(style.right);
-            resultPosition = new Position(left - right, top - bottom);
-        } else {
-            // 普通流布局（Flex/Grid）
-            Element parent = element.parentElement;
-            if (parent != null) {
-                // 这里调用布局引擎计算相对于父容器 content-box 的位置
-                resultPosition = computeNormalFlowChildPosition(element, parent, parent.children);
-            }
+            resultPosition = resolveOutOfFlowOffset(element, positionType);
         }
 
         element.getRenderer().position.set(resultPosition);
@@ -59,6 +55,7 @@ public class Position {
         for (Element e : element.getRoute()) {
             resultPosition = resultPosition.add(Position.getOffset(e));
             if (!e.uuid.equals(element.uuid)) resultPosition = resultPosition.add(new Position(-e.getScrollLeft(), -e.getScrollTop()));
+            if ("fixed".equals(e.getComputedStyle().position)) break;
         }
         return resultPosition;
     }
@@ -105,6 +102,69 @@ public class Position {
         }
 
         return 0;
+    }
+
+    private static boolean isSet(String value) {
+        return value != null && !value.isBlank() && !"unset".equals(value);
+    }
+
+    private static Position resolveRelativeShift(Element element) {
+        Style style = element.getComputedStyle();
+        double basisW = Size.getScaleWidth(element);
+        double basisH = Size.getScaleHeight(element);
+        double left = isSet(style.left) ? Size.resolveLength(style.left, basisW, 0) : 0;
+        double right = isSet(style.right) ? Size.resolveLength(style.right, basisW, 0) : 0;
+        double top = isSet(style.top) ? Size.resolveLength(style.top, basisH, 0) : 0;
+        double bottom = isSet(style.bottom) ? Size.resolveLength(style.bottom, basisH, 0) : 0;
+        return new Position(left - right, top - bottom);
+    }
+
+    private static Position resolveOutOfFlowOffset(Element element, String positionType) {
+        Style style = element.getComputedStyle();
+        Size selfSize = Size.box(element);
+
+        double containerW;
+        double containerH;
+        if ("fixed".equals(positionType)) {
+            Size window = Size.getWindowSize();
+            containerW = window.width();
+            containerH = window.height();
+        } else {
+            Element parent = element.parentElement;
+            if (parent != null) {
+                Size parentContent = Box.of(parent).innerSize();
+                containerW = parentContent.width();
+                containerH = parentContent.height();
+            } else {
+                Size window = Size.getWindowSize();
+                containerW = window.width();
+                containerH = window.height();
+            }
+        }
+
+        boolean hasLeft = isSet(style.left);
+        boolean hasRight = isSet(style.right);
+        boolean hasTop = isSet(style.top);
+        boolean hasBottom = isSet(style.bottom);
+
+        double x = 0;
+        double y = 0;
+
+        if (hasLeft) {
+            x = Size.resolveLength(style.left, containerW, 0);
+        } else if (hasRight) {
+            double right = Size.resolveLength(style.right, containerW, 0);
+            x = containerW - selfSize.width() - right;
+        }
+
+        if (hasTop) {
+            y = Size.resolveLength(style.top, containerH, 0);
+        } else if (hasBottom) {
+            double bottom = Size.resolveLength(style.bottom, containerH, 0);
+            y = containerH - selfSize.height() - bottom;
+        }
+
+        return new Position(x, y);
     }
 
     @Override

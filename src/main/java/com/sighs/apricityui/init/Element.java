@@ -469,7 +469,6 @@ public class Element {
 
     private double interpolateScroll(double current, double target) {
         if (isScrollSettled(current, target)) return target;
-        renderElement.position.clear();
         double process = (System.currentTimeMillis() - lastTickTime) / SCROLL_INTERPOLATION_FRAME_MS;
         process = Math.max(0, Math.min(1, process));
         double next = current + (target - current) * SCROLL_EASING_FACTOR;

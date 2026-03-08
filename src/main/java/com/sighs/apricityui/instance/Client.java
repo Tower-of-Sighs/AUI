@@ -18,6 +18,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -171,13 +172,19 @@ public class Client {
     }
 
     @SubscribeEvent
+    public static void icon(TickEvent.ClientTickEvent event) {
+        if (Minecraft.getInstance().screen instanceof TitleScreen) {
+            if (Document.get("apricityui/icon.html").isEmpty()) Document.create("apricityui/icon.html");
+        } else Document.remove("apricityui/icon.html");
+    }
+
+    @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             Base.drawAllDocument(event.getGuiGraphics().pose());
-            // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
                     ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);

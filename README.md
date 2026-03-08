@@ -14,7 +14,6 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 - transition 完全适配和transition非线性动画
 - input溢出指示器（拓展功能，overflow-indicator属性）
 - 冷门css属性如border-width-left
-- 支持多重叠加的属性：多重背景、多重动画
 - 生命周期
 - svg？
 - markdown会用到的标签，如h系列、p、ul、ol、a、hr
