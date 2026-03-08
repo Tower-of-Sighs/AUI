@@ -24,7 +24,7 @@ import java.util.concurrent.ConcurrentHashMap;
 public class ImageDrawer {
     private static final Map<RenderKey, RenderType> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
     private static final int PLACEHOLDER_COLOR = 0x33404040;
-    // 创建一个空的 radii 数组供 Mask 使用，因为背景图片剪裁通常是矩形
+    // Empty radii array for rectangular mask clipping.
     private static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
 
     private static RenderType getRenderType(ResourceLocation texture, boolean blur) {
@@ -95,36 +95,48 @@ public class ImageDrawer {
     }
 
     public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background bg) {
-        String path = bg.imagePath;
+        if (bg == null) return;
+        Background.Layer layer = new Background.Layer();
+        layer.imagePath = bg.imagePath;
+        layer.repeat = bg.repeat;
+        layer.size = bg.size;
+        layer.position = bg.position;
+        drawComplexBackground(poseStack, x, y, width, height, layer);
+    }
+
+    public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background.Layer layer) {
+        if (layer == null) return;
+        String path = layer.imagePath;
         ReadyTexture readyTexture = requestReadyTexture(path, poseStack, x, y, width, height);
         if (readyTexture == null) return;
         int tw = readyTexture.width();
         int th = readyTexture.height();
         ResourceLocation loc = readyTexture.location();
 
-        float[] renderSize = resolveRenderSize(bg.size, width, height, tw, th);
+        float[] renderSize = resolveRenderSize(layer.size, width, height, tw, th);
         float renderW = renderSize[0];
         float renderH = renderSize[1];
         if (renderW <= 0 || renderH <= 0) return;
 
-        float[] offset = parseBackgroundPosition(bg.position, width, height, renderW, renderH);
+        float[] offset = parseBackgroundPosition(layer.position, width, height, renderW, renderH);
         float offsetX = offset[0];
         float offsetY = offset[1];
+        RepeatMode repeatMode = parseRepeatMode(layer.repeat);
 
-        // 背景绘制统一在元素区域内裁剪，repeat 与 no-repeat 行为保持一致。
         Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
-        if ("repeat".equals(bg.repeat)) {
-            float startX = normalizeRepeatStart(offsetX, renderW);
-            float startY = normalizeRepeatStart(offsetY, renderH);
-            for (float ix = startX; ix < width; ix += renderW) {
-                for (float iy = startY; iy < height; iy += renderH) {
-                    innerBlit(poseStack, loc, (int) (x + ix), (int) (y + iy), (int) renderW, (int) renderH,
-                            0, 0, tw, th, tw, th, false);
+        float startX = repeatMode.repeatX ? normalizeRepeatStart(offsetX, renderW) : offsetX;
+        float startY = repeatMode.repeatY ? normalizeRepeatStart(offsetY, renderH) : offsetY;
+
+        if (!repeatMode.repeatX && !repeatMode.repeatY) {
+            innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH, 0, 0, tw, th, tw, th, false);
+        } else {
+            float xEnd = repeatMode.repeatX ? width : startX + 1;
+            float yEnd = repeatMode.repeatY ? height : startY + 1;
+            for (float ix = startX; ix < xEnd; ix += renderW) {
+                for (float iy = startY; iy < yEnd; iy += renderH) {
+                    innerBlit(poseStack, loc, x + ix, y + iy, renderW, renderH, 0, 0, tw, th, tw, th, false);
                 }
             }
-        } else {
-            innerBlit(poseStack, loc, (int) (x + offsetX), (int) (y + offsetY), (int) renderW, (int) renderH,
-                    0, 0, tw, th, tw, th, false);
         }
         Mask.popMask(poseStack, x, y, width, height, NO_RADIUS);
     }
@@ -216,6 +228,20 @@ public class ImageDrawer {
         }
     }
 
+    private static RepeatMode parseRepeatMode(String repeat) {
+        if (repeat == null || repeat.isBlank() || "unset".equalsIgnoreCase(repeat.trim())) {
+            return new RepeatMode(false, false);
+        }
+
+        String normalized = repeat.trim().toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "repeat-x" -> new RepeatMode(true, false);
+            case "repeat-y" -> new RepeatMode(false, true);
+            case "repeat", "space", "round" -> new RepeatMode(true, true);
+            default -> new RepeatMode(false, false);
+        };
+    }
+
     public static void drawNineSlice(PoseStack poseStack, String path, int x, int y, int w, int h, Box.BorderImage bi) {
         ReadyTexture readyTexture = requestReadyTexture(path, poseStack, x, y, w, h);
         if (readyTexture == null) return;
@@ -238,19 +264,19 @@ public class ImageDrawer {
         String repeatH = bi.repeat;
         String repeatV = bi.repeat;
 
-        // 4个角
+        // 4 corners
         if (bL > 0 && bT > 0) innerBlit(poseStack, loc, finalX, finalY, bL, bT, 0, 0, sL, sT, texW, texH, false);
         if (bR > 0 && bT > 0) innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, false);
         if (bL > 0 && bB > 0) innerBlit(poseStack, loc, finalX, finalY + finalH - bB, bL, bB, 0, texH - sB, sL, sB, texW, texH, false);
         if (bR > 0 && bB > 0) innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, false);
 
-        // 4条边
+        // 4 edges
         drawTiledPart(poseStack, loc, finalX + bL, finalY, destCW, bT, sL, 0, srcCW, sT, texW, texH, repeatH, "stretch");
         drawTiledPart(poseStack, loc, finalX + bL, finalY + finalH - bB, destCW, bB, sL, texH - sB, srcCW, sB, texW, texH, repeatH, "stretch");
         drawTiledPart(poseStack, loc, finalX, finalY + bT, bL, destCH, 0, sT, sL, srcCH, texW, texH, "stretch", repeatV);
         drawTiledPart(poseStack, loc, finalX + finalW - bR, finalY + bT, bR, destCH, texW - sR, sT, sR, srcCH, texW, texH, "stretch", repeatV);
 
-        // 绘制中心
+        // center
         if (bi.fill && destCW > 0 && destCH > 0) {
             drawTiledPart(poseStack, loc, finalX + bL, finalY + bT, destCW, destCH, sL, sT, srcCW, srcCH, texW, texH, repeatH, repeatV);
         }
@@ -355,4 +381,5 @@ public class ImageDrawer {
 
     private record ReadyTexture(ResourceLocation location, int width, int height) {}
     private record RenderKey(ResourceLocation location, boolean blur) {}
+    private record RepeatMode(boolean repeatX, boolean repeatY) {}
 }

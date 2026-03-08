@@ -35,12 +35,22 @@ public class Rect {
         double w = box.elementSize().width();
         double h = box.elementSize().height();
 
-        if (box.shadow.size() > 0) {
-            double shadowSize = box.shadow.size();
-            x += box.shadow.x() - shadowSize;
-            y += box.shadow.y() - shadowSize;
-            w += shadowSize * 2;
-            h += shadowSize * 2;
+        double minExtendX = 0;
+        double minExtendY = 0;
+        double maxExtendX = 0;
+        double maxExtendY = 0;
+        for (Box.Shadow shadow : box.shadows) {
+            if (shadow.size() <= 0) continue;
+            minExtendX = Math.min(minExtendX, shadow.x() - shadow.size());
+            minExtendY = Math.min(minExtendY, shadow.y() - shadow.size());
+            maxExtendX = Math.max(maxExtendX, shadow.x() + shadow.size());
+            maxExtendY = Math.max(maxExtendY, shadow.y() + shadow.size());
+        }
+        if (minExtendX != 0 || minExtendY != 0 || maxExtendX != 0 || maxExtendY != 0) {
+            x += minExtendX;
+            y += minExtendY;
+            w += maxExtendX - minExtendX;
+            h += maxExtendY - minExtendY;
         }
 
         return new AABB((float)x, (float)y, (float)w, (float)h);
@@ -109,6 +119,24 @@ public class Rect {
         if (!background.color.equals("unset")) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), radii, new Color(background.color).getValue());
         }
+        if (!background.getLayers().isEmpty()) {
+            // CSS: background-image 第一层在最上方，因此按逆序绘制
+            for (int i = background.getLayers().size() - 1; i >= 0; i--) {
+                Background.Layer layer = background.getLayers().get(i);
+                if (layer == null) continue;
+                if (layer.gradient != null) {
+                    Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
+                            (float)p.x, (float)p.y, (float)s.width(), (float)s.height(),
+                            radii, layer.gradient);
+                }
+                if (!"unset".equals(layer.imagePath)) {
+                    ImageDrawer.drawComplexBackground(poseStack, (int)p.x, (int)p.y, (int)s.width(), (int)s.height(), layer);
+                }
+            }
+            return;
+        }
+
+        // 兼容旧单层字段
         if (background.gradient != null) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
                     (float)p.x, (float)p.y, (float)s.width(), (float)s.height(),
@@ -130,11 +158,15 @@ public class Rect {
         return new Size(width, height);
     }
     public void drawShadow(PoseStack poseStack) {
-        if (box.shadow.size() == 0) return;
-        Position p = getShadowPosition();
+        if (box.shadows.isEmpty()) return;
         Size s = getShadowSize();
         float[] radii = box.getCalculatedRadii((float)s.width(), (float)s.height(), 0);
-        Graph.drawUnifiedShadow(poseStack.last().pose(), (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii, box.shadow.size(), box.shadow.color().getValue(), Color.parse("#00000000"));
+        for (Box.Shadow shadow : box.shadows) {
+            if (shadow.size() == 0) continue;
+            double x = position.x + box.getMarginLeft() + shadow.x();
+            double y = position.y + box.getMarginTop() + shadow.y();
+            Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
+        }
     }
 
     public Position getContentPosition() {
