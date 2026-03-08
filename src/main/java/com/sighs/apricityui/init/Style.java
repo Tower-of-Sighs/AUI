@@ -97,6 +97,7 @@ public class Style implements Cloneable {
      * Custom cursor resources (png/mcmeta/gif) are intentionally not handled here.</p>
      */
     public String cursor = "auto";
+    public String userSelect = "unset";
 
     public String pointerEvents = "auto";
     public String visibility = "visible";
@@ -264,9 +265,29 @@ public class Style implements Cloneable {
             }
         }
         if (selection.equals("unset")) {
-            selection = "#3399FF80";
+            selection = "#0078D7";
         }
         return Color.parse(selection);
+    }
+
+    public static String getUserSelect(Element element) {
+        String resolved = "unset";
+        Element current = element;
+        while (current != null) {
+            String candidate = current.getComputedStyle().userSelect;
+            if (candidate != null && !candidate.isBlank() && !candidate.equals("unset")) {
+                resolved = candidate.trim().toLowerCase(Locale.ROOT);
+                break;
+            }
+            current = current.parentElement;
+        }
+        if (resolved.equals("unset")) return "auto";
+        return resolved;
+    }
+
+    public static boolean isUserSelectable(Element element) {
+        String value = getUserSelect(element);
+        return !value.equals("none");
     }
 
     public void merge(String styleString) {

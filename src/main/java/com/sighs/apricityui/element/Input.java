@@ -145,8 +145,34 @@ public class Input extends AbstractText {
         if (!isPlaceholder) {
             drawSingleLineSelection(poseStack, rectRenderer, textToShow, text.lineHeight);
         }
+        if (!isPlaceholder && hasSelection() && canSelectText()) {
+            int min = Math.max(0, Math.min(selMin(), textToShow.length()));
+            int max = Math.max(0, Math.min(selMax(), textToShow.length()));
+            String before = textToShow.substring(0, min);
+            String selected = textToShow.substring(min, max);
+            String after = textToShow.substring(max);
 
-        FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
+            float segmentX = drawX;
+            if (!before.isEmpty()) {
+                text.content = before;
+                text.color = new Color(Style.getFontColor(this));
+                FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
+                segmentX += (float) com.sighs.apricityui.style.Size.measureText(this, before);
+            }
+            if (!selected.isEmpty()) {
+                text.content = selected;
+                text.color = new Color("#FFFFFF");
+                FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
+                segmentX += (float) com.sighs.apricityui.style.Size.measureText(this, selected);
+            }
+            if (!after.isEmpty()) {
+                text.content = after;
+                text.color = new Color(Style.getFontColor(this));
+                FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
+            }
+        } else {
+            FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
+        }
         drawSingleLineCursor(poseStack, textToShow, drawX, drawY, (float) text.lineHeight);
     }
 }
