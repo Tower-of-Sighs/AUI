@@ -33,11 +33,16 @@ public class Base {
 
     public static void drawDocument(PoseStack poseStack, Document document) {
         Drawer.flushUpdates(document);
-        for (RenderNode node : document.getPaintList()) {
-            poseStack.pushPose();
-            Base.resolveOffset(poseStack);
-            node.render(poseStack);
-            poseStack.popPose();
+        FilterRenderer.beginFrame();
+        try {
+            for (RenderNode node : document.getPaintList()) {
+                poseStack.pushPose();
+                Base.resolveOffset(poseStack);
+                node.render(poseStack);
+                poseStack.popPose();
+            }
+        } finally {
+            FilterRenderer.endFrame();
         }
         AbstractAsyncHandler.tickAll();
     }

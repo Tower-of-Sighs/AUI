@@ -137,6 +137,13 @@ public class RenderElement {
             }
         }
 
+        boolean originFilterEnabled = !Filter.isDisabled(origin.filter, origin.opacity);
+        boolean currentFilterEnabled = !Filter.isDisabled(current.filter, current.opacity);
+        if (originFilterEnabled != currentFilterEnabled) {
+            // filter/opacity 离屏合成开关变化时，必须重建 Push/Pop 节点
+            dirtyMask |= Drawer.REORDER;
+        }
+
         if (!current.transform.equals(origin.transform)) {
             renderer.transform.clear();
             dirtyMask |= Drawer.REPAINT;

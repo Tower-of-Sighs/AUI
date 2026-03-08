@@ -86,7 +86,12 @@ public class Filter {
     }
 
     public static float getOpacity(String str) {
-        return Float.parseFloat(str);
+        if (str == null || str.isBlank()) return 1.0f;
+        try {
+            return Float.parseFloat(str);
+        } catch (Exception ignored) {
+            return 1.0f;
+        }
     }
 
     public static float getOpacity(Element element) {
@@ -94,8 +99,13 @@ public class Filter {
     }
 
     public static boolean isDisabled(Element element) {
-        String filterStr = element.getComputedStyle().filter;
-        return (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) && getOpacity(element) == 1.0f;
+        var style = element.getComputedStyle();
+        return isDisabled(style.filter, style.opacity);
+    }
+
+    public static boolean isDisabled(String filterStr, String opacityStr) {
+        float opacity = getOpacity(opacityStr);
+        return (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) && opacity == 1.0f;
     }
     public static boolean isDisabled(String filterStr) {
         return filterStr == null || filterStr.equals("none") || filterStr.isEmpty();
