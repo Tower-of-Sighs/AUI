@@ -9,7 +9,7 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 - 审查元素的调试台，能改attribute、innerText和行内css
 - 能输入js的控制台，调用eval
 - 网络通讯的轮子，简化发包
-- 高优先级css属性，flex-wrap、text-shadow、font-weight
+- 高优先级css属性，text-shadow、font-weight
 - 伪元素
 - transition 完全适配和transition非线性动画
 - 和浏览器一样的所有文本可选可复制
