@@ -28,9 +28,64 @@ blockquote {
     border-left: 2px solid #808080;
 }
 
+p {
+    display: block;
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    display: block;
+    margin: 10px 0 6px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+h1 { font-size: 22px; }
+h2 { font-size: 20px; }
+h3 { font-size: 18px; }
+h4 { font-size: 16px; }
+h5 { font-size: 14px; }
+h6 { font-size: 12px; }
+
+small {
+    font-size: 12px;
+}
+
+sub, sup {
+    font-size: 12px;
+    line-height: 1;
+}
+sub {
+    position: relative;
+    top: 3px;
+}
+sup {
+    position: relative;
+    top: -4px;
+}
+
+mark {
+    background-color: #ffe17a;
+    padding: 0 2px;
+}
+
+hr {
+    display: block;
+    height: 1px;
+    margin: 8px 0;
+    background-color: #808080;
+}
+
 code {
     background-color: #f2f2f2;
     padding: 1px 3px;
+}
+
+kbd {
+    background-color: #f2f2f2;
+    border: 1px solid #a0a0a0;
+    border-radius: 2px;
+    padding: 0 3px;
 }
 
 pre {

@@ -26,11 +26,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID)
 public class Loader {
+    private static final String DEV_ASSET_ROOT = "src/main/resources/assets/apricityui/apricity";
+
     @SubscribeEvent
     public static void setup(FMLCommonSetupEvent event) {
         event.enqueueWork(Loader::reload);
@@ -56,9 +63,14 @@ public class Loader {
     public static InputStream getResourceStream(String path) {
         if (path == null || path.isEmpty()) return null;
         try {
-            Path devPath = FMLPaths.GAMEDIR.get().resolve("../../src/main/resources/assets/apricityui/apricity" + path);
-            if (Files.exists(devPath)) return Files.newInputStream(devPath);
-            Path local = FMLPaths.GAMEDIR.get().resolve("apricity/" + path);
+            String normalizedPath = path.startsWith("/") ? path.substring(1) : path;
+            for (Path devRoot : getDevResourceRoots()) {
+                Path devPath = devRoot.resolve(normalizedPath).normalize();
+                if (Files.exists(devPath) && Files.isRegularFile(devPath)) {
+                    return Files.newInputStream(devPath);
+                }
+            }
+            Path local = FMLPaths.GAMEDIR.get().resolve("apricity/" + normalizedPath);
             if (Files.exists(local)) return Files.newInputStream(local);
 
             // 资源包
@@ -109,6 +121,7 @@ public class Loader {
         this.handler = handler;
         loadFromResourcePack();
         loadFromLocalFolder();
+        loadFromDevFolders();
     }
 
     private void loadFromResourcePack() {
@@ -146,6 +159,62 @@ public class Loader {
                         });
             }
         } catch (IOException ignored) {}
+    }
+
+    private void loadFromDevFolders() {
+        List<Path> devRoots = getDevResourceRoots();
+        if (devRoots.isEmpty()) return;
+
+        // 先加载更远层级，最后加载更近层级，让“最近的项目目录”优先级最高。
+        List<Path> loadOrder = new ArrayList<>(devRoots);
+        Collections.reverse(loadOrder);
+        for (Path root : loadOrder) {
+            loadFromRootFolder(root);
+        }
+    }
+
+    private void loadFromRootFolder(Path root) {
+        try {
+            if (!Files.exists(root)) return;
+            try (Stream<Path> paths = Files.walk(root)) {
+                paths.filter(Files::isRegularFile)
+                        .filter(p -> p.toString().endsWith("." + extension))
+                        .forEach(p -> {
+                            try {
+                                String content = Files.readString(p, StandardCharsets.UTF_8);
+                                String relPath = root.relativize(p).toString().replace("\\", "/");
+                                handler.accept(relPath, content);
+                            } catch (IOException ignored) {}
+                        });
+            }
+        } catch (IOException ignored) {}
+    }
+
+    private static List<Path> getDevResourceRoots() {
+        Path gameDir = FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();
+        LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+        Path base = gameDir;
+        for (int depth = 0; depth <= 6 && base != null; depth++) {
+            Path candidate = base.resolve(DEV_ASSET_ROOT).normalize();
+            if (Files.exists(candidate) && Files.isDirectory(candidate)) {
+                candidates.add(candidate);
+            }
+            base = base.getParent();
+        }
+
+        List<Path> roots = new ArrayList<>(candidates);
+        roots.sort(Comparator.comparingInt((Path path) -> distanceFrom(gameDir, path)).reversed());
+        return roots;
+    }
+
+    private static int distanceFrom(Path gameDir, Path root) {
+        try {
+            Path parent = root.getParent();
+            if (parent == null) return Integer.MAX_VALUE;
+            return parent.getNameCount() - gameDir.getNameCount();
+        } catch (Exception ignored) {
+            return Integer.MAX_VALUE;
+        }
     }
 
     public static String readGlobalCSS() {
