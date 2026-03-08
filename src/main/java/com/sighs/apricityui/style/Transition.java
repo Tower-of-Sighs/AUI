@@ -10,9 +10,13 @@ public record Transition(String name, double start, double end, double duration,
     public record Change(String name, double value) {}
 
     public static void create(Element element, Style startStyle, Style endStyle) {
-        if (!startStyle.transition.equals(Style.DEFAULT.transition)) {
-            workList.put(element.uuid, parseTransitions(startStyle, endStyle));
-        }
+        String transitionSpec = resolveTransitionSpec(startStyle, endStyle);
+        if (transitionSpec.equals(Style.DEFAULT.transition)) return;
+
+        List<Transition> parsed = parseTransitions(startStyle, endStyle, transitionSpec);
+        // 避免同一轮中后续“无变化 updateCSS”覆盖掉刚创建的 transition
+        if (parsed.isEmpty()) return;
+        workList.put(element.uuid, parsed);
     }
 
     public static boolean isActive(Element element) { return workList.containsKey(element.uuid); }
@@ -85,9 +89,16 @@ public record Transition(String name, double start, double end, double duration,
         }
     }
 
-    private static List<Transition> parseTransitions(Style startStyle, Style endStyle) {
+    private static String resolveTransitionSpec(Style startStyle, Style endStyle) {
+        // 与浏览器一致：优先使用“目标状态”上的 transition 定义（例如 :active 进入态）
+        if (endStyle.transition != null && !endStyle.transition.isBlank() && !endStyle.transition.equals("none")) {
+            return endStyle.transition;
+        }
+        return startStyle.transition == null ? "none" : startStyle.transition;
+    }
+
+    private static List<Transition> parseTransitions(Style startStyle, Style endStyle, String raw) {
         List<Transition> result = new ArrayList<>();
-        String raw = startStyle.transition;
         if (raw == null || raw.isBlank()) return result;
 
         for (String part : raw.split(",")) {
