@@ -270,7 +270,7 @@ public class Client {
         }
         if (event.getAction() != InputConstants.PRESS && event.getAction() != InputConstants.REPEAT) return;
         boolean canceled = Operation.onKeyPressed(event.getKey(), event.getAction() == InputConstants.REPEAT);
-        if (canceled) event.setCanceled(true);
+//        if (canceled) event.setCanceled(true);
     }
 
     @SubscribeEvent

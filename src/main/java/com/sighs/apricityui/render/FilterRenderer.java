@@ -25,6 +25,24 @@ public class FilterRenderer {
     private static final List<RenderTarget> fboPool = new ArrayList<>();
     private static int poolPointer = 0;
 
+    public static void beginFrame() {
+        // 防御式清理：若上帧因异常或节点错配残留栈，避免 poolPointer 无界增长
+        if (!fboStack.isEmpty()) {
+            fboStack.clear();
+        }
+        mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
+        poolPointer = 0;
+    }
+
+    public static void endFrame() {
+        if (!fboStack.isEmpty()) {
+            fboStack.clear();
+            if (mainRenderTarget != null) {
+                mainRenderTarget.bindWrite(false);
+            }
+        }
+    }
+
     public static void pushFilter() {
         boolean ON_OSX = Minecraft.ON_OSX;
 
