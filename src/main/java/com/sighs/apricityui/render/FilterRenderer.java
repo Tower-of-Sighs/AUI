@@ -12,7 +12,7 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
-import org.joml.Matrix4f;
+import com.mojang.math.Matrix4f;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
@@ -103,7 +103,7 @@ public class FilterRenderer {
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
+        Matrix4f matrix = Matrix4f.orthographic(0.0F, guiW, guiH, 0.0F, -1000.0F, 1000.0F);
         Base.setProjectionMatrix(matrix);
 
         Tesselator tesselator = Tesselator.getInstance();
@@ -115,7 +115,8 @@ public class FilterRenderer {
         bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
         bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
 
-        BufferUploader.drawWithShader(bufferbuilder.end());
+        bufferbuilder.end();
+        BufferUploader.end(bufferbuilder);
 
         GlStateManager._depthMask(true);
         GlStateManager._enableDepthTest();
@@ -150,7 +151,7 @@ public class FilterRenderer {
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
+        Matrix4f matrix = Matrix4f.orthographic(0.0F, guiW, guiH, 0.0F, -1000.0F, 1000.0F);
         Base.setProjectionMatrix(matrix);
 
         Tesselator tesselator = Tesselator.getInstance();
@@ -162,7 +163,8 @@ public class FilterRenderer {
         bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
         bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
 
-        BufferUploader.drawWithShader(bufferbuilder.end());
+        bufferbuilder.end();
+        BufferUploader.end(bufferbuilder);
 
         Mask.popMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
         Base.setProjectionMatrix(oldProjection);

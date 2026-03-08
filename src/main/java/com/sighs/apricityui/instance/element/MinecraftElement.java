@@ -6,8 +6,6 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
@@ -162,10 +160,7 @@ public abstract class MinecraftElement extends Element {
         return ItemStack.EMPTY;
     }
 
-    public void renderTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        ItemStack stack = getTooltipStack();
-        if (stack.isEmpty()) return;
-        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+    public void renderTooltip(PoseStack poseStack, Object unusedScreen, int mouseX, int mouseY) {
     }
 
     @Override

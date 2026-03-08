@@ -10,7 +10,7 @@ import java.io.IOException;
 
 public class ShaderRegistry {
     public static void register(RegisterShadersEvent event) throws IOException {
-        event.registerShader(new ShaderInstance(event.getResourceProvider(),
+        event.registerShader(new ShaderInstance(event.getResourceManager(),
                 new ResourceLocation("apricityui", "filter"), DefaultVertexFormat.POSITION_TEX), (instance) -> {
             filterShader = instance;
         });

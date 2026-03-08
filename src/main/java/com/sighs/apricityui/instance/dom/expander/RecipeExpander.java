@@ -7,8 +7,6 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.RegistryAccess;
-import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
@@ -16,6 +14,7 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RecipesUpdatedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -26,6 +25,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.lang.reflect.Field;
 
 /**
  * 在文档刷新阶段触发 recipe DOM 预览槽位生成。
@@ -211,7 +211,6 @@ public final class RecipeExpander {
                         .formatted(declaredType.id(), recipe.getClass().getSimpleName()));
             }
 
-            RegistryAccess registryAccess = minecraft.level.registryAccess();
             ArrayList<PreviewEntry> absoluteEntries = new ArrayList<>();
             ArrayList<PreviewEntry> listEntries = new ArrayList<>();
             LayoutKind layoutKind = declaredType.layoutKind();
@@ -221,33 +220,33 @@ public final class RecipeExpander {
                     if (!(recipe instanceof ShapedRecipe shapedRecipe)) {
                         return ResolveResult.empty("Declared crafting_shaped but recipe is not ShapedRecipe");
                     }
-                    buildShapedCraftingEntries(shapedRecipe, absoluteEntries, registryAccess);
+                    buildShapedCraftingEntries(shapedRecipe, absoluteEntries);
                 }
                 case CRAFTING_SHAPELESS -> {
                     if (!(recipe instanceof CraftingRecipe craftingRecipe) || recipe instanceof ShapedRecipe) {
                         return ResolveResult.empty("Declared crafting_shapeless but recipe is not shapeless crafting");
                     }
-                    buildShapelessCraftingEntries(craftingRecipe, absoluteEntries, registryAccess);
+                    buildShapelessCraftingEntries(craftingRecipe, absoluteEntries);
                 }
                 case SMELTING, BLASTING, SMOKING, CAMPFIRE_COOKING -> {
                     if (!(recipe instanceof AbstractCookingRecipe cookingRecipe)) {
                         return ResolveResult.empty("Declared cooking family but recipe is not AbstractCookingRecipe");
                     }
-                    buildCookingEntries(cookingRecipe, absoluteEntries, registryAccess);
+                    buildCookingEntries(cookingRecipe, absoluteEntries);
                 }
                 case STONECUTTING -> {
                     if (!(recipe instanceof StonecutterRecipe stonecutterRecipe)) {
                         return ResolveResult.empty("Declared stonecutting but recipe is not StonecutterRecipe");
                     }
-                    buildStonecuttingEntries(stonecutterRecipe, recipeManager, absoluteEntries, listEntries, registryAccess);
+                    buildStonecuttingEntries(stonecutterRecipe, recipeManager, absoluteEntries, listEntries);
                 }
                 case SMITHING -> {
-                    if (!(recipe instanceof SmithingRecipe smithingRecipe)) {
-                        return ResolveResult.empty("Declared smithing but recipe is not SmithingRecipe");
+                    if (!(recipe instanceof UpgradeRecipe upgradeRecipe)) {
+                        return ResolveResult.empty("Declared smithing but recipe is not UpgradeRecipe");
                     }
-                    buildSmithingEntries(smithingRecipe, absoluteEntries, registryAccess);
+                    buildSmithingEntries(upgradeRecipe, absoluteEntries);
                 }
-                case FALLBACK -> buildFallbackEntries(recipe, absoluteEntries, registryAccess);
+                case FALLBACK -> buildFallbackEntries(recipe, absoluteEntries);
             }
 
             return new ResolveResult(layoutKind, List.copyOf(absoluteEntries), List.copyOf(listEntries), "");
@@ -255,8 +254,7 @@ public final class RecipeExpander {
 
         private static void buildShapedCraftingEntries(
                 ShapedRecipe recipe,
-                List<PreviewEntry> output,
-                RegistryAccess registryAccess
+                List<PreviewEntry> output
         ) {
             int width = Math.max(1, recipe.getWidth());
             int height = Math.max(1, recipe.getHeight());
@@ -273,14 +271,13 @@ public final class RecipeExpander {
                 }
             }
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = recipe.getResultItem();
             output.add(toEntryOrAir(result, PreviewRole.OUTPUT));
         }
 
         private static void buildShapelessCraftingEntries(
                 CraftingRecipe recipe,
-                List<PreviewEntry> output,
-                RegistryAccess registryAccess
+                List<PreviewEntry> output
         ) {
             List<Ingredient> ingredients = recipe.getIngredients();
             for (int slot = 0; slot < 9; slot++) {
@@ -288,14 +285,13 @@ public final class RecipeExpander {
                 output.add(toIngredientEntryOrAir(ingredient, PreviewRole.INPUT));
             }
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = recipe.getResultItem();
             output.add(toEntryOrAir(result, PreviewRole.OUTPUT));
         }
 
         private static void buildCookingEntries(
                 AbstractCookingRecipe recipe,
-                List<PreviewEntry> output,
-                RegistryAccess registryAccess
+                List<PreviewEntry> output
         ) {
             List<Ingredient> ingredients = recipe.getIngredients();
             if (!ingredients.isEmpty()) {
@@ -309,7 +305,7 @@ public final class RecipeExpander {
             );
             output.add(fuelEntry);
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = recipe.getResultItem();
             PreviewEntry resultEntry = toEntry(result, PreviewRole.OUTPUT);
             if (resultEntry != null) output.add(resultEntry);
         }
@@ -318,8 +314,7 @@ public final class RecipeExpander {
                 StonecutterRecipe recipe,
                 RecipeManager recipeManager,
                 List<PreviewEntry> absoluteOutput,
-                List<PreviewEntry> listOutput,
-                RegistryAccess registryAccess
+                List<PreviewEntry> listOutput
         ) {
             List<Ingredient> ingredients = recipe.getIngredients();
             if (!ingredients.isEmpty()) {
@@ -327,9 +322,9 @@ public final class RecipeExpander {
                 if (inputEntry != null) absoluteOutput.add(inputEntry);
             }
 
-            ArrayList<ItemStack> outputs = collectStonecuttingOutputs(recipe, recipeManager, registryAccess);
+            ArrayList<ItemStack> outputs = collectStonecuttingOutputs(recipe, recipeManager);
             if (outputs.isEmpty()) {
-                ItemStack result = recipe.getResultItem(registryAccess);
+                ItemStack result = recipe.getResultItem();
                 if (!result.isEmpty()) outputs.add(result.copy());
             }
 
@@ -341,8 +336,7 @@ public final class RecipeExpander {
 
         private static ArrayList<ItemStack> collectStonecuttingOutputs(
                 StonecutterRecipe recipe,
-                RecipeManager recipeManager,
-                RegistryAccess registryAccess
+                RecipeManager recipeManager
         ) {
             ArrayList<ItemStack> result = new ArrayList<>();
             List<Ingredient> ingredients = recipe.getIngredients();
@@ -362,16 +356,16 @@ public final class RecipeExpander {
                     continue;
                 }
 
-                ItemStack candidateResult = candidateRecipe.getResultItem(registryAccess);
+                ItemStack candidateResult = candidateRecipe.getResultItem();
                 if (candidateResult.isEmpty()) continue;
-                ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(candidateResult.getItem());
+                ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(candidateResult.getItem());
                 if (itemId == null || !dedup.add(itemId)) continue;
                 result.add(candidateResult.copy());
             }
 
             result.sort((a, b) -> {
-                ResourceLocation ida = BuiltInRegistries.ITEM.getKey(a.getItem());
-                ResourceLocation idb = BuiltInRegistries.ITEM.getKey(b.getItem());
+                ResourceLocation ida = ForgeRegistries.ITEMS.getKey(a.getItem());
+                ResourceLocation idb = ForgeRegistries.ITEMS.getKey(b.getItem());
                 String sa = ida == null ? "" : ida.toString();
                 String sb = idb == null ? "" : idb.toString();
                 return sa.compareTo(sb);
@@ -380,33 +374,24 @@ public final class RecipeExpander {
         }
 
         private static void buildSmithingEntries(
-                SmithingRecipe recipe,
-                List<PreviewEntry> output,
-                RegistryAccess registryAccess
+                UpgradeRecipe recipe,
+                List<PreviewEntry> output
         ) {
-            List<Ingredient> ingredients = recipe.getIngredients();
-            int limit = Math.min(3, ingredients.size());
-            for (int index = 0; index < limit; index++) {
-                Ingredient ingredient = ingredients.get(index);
-                PreviewRole role = switch (index) {
-                    case 0 -> PreviewRole.TEMPLATE;
-                    case 1 -> PreviewRole.INPUT;
-                    case 2 -> PreviewRole.ADDITION;
-                    default -> PreviewRole.INPUT;
-                };
-                PreviewEntry entry = toIngredientEntry(ingredient, role);
-                if (entry != null) output.add(entry);
-            }
+            Ingredient baseIngredient = resolveUpgradeIngredient(recipe, "base");
+            Ingredient additionIngredient = resolveUpgradeIngredient(recipe, "addition");
+            PreviewEntry baseEntry = toIngredientEntry(baseIngredient, PreviewRole.INPUT);
+            PreviewEntry additionEntry = toIngredientEntry(additionIngredient, PreviewRole.ADDITION);
+            if (baseEntry != null) output.add(baseEntry);
+            if (additionEntry != null) output.add(additionEntry);
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = recipe.getResultItem();
             PreviewEntry resultEntry = toEntry(result, PreviewRole.OUTPUT);
             if (resultEntry != null) output.add(resultEntry);
         }
 
         private static void buildFallbackEntries(
                 net.minecraft.world.item.crafting.Recipe<?> recipe,
-                List<PreviewEntry> output,
-                RegistryAccess registryAccess
+                List<PreviewEntry> output
         ) {
             List<Ingredient> ingredients = recipe.getIngredients();
             int visualIndex = 0;
@@ -418,9 +403,23 @@ public final class RecipeExpander {
                 if (visualIndex >= 8) break;
             }
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = recipe.getResultItem();
             PreviewEntry outputEntry = toEntry(result, PreviewRole.OUTPUT);
             if (outputEntry != null) output.add(outputEntry);
+        }
+
+        private static Ingredient resolveUpgradeIngredient(UpgradeRecipe recipe, String fieldName) {
+            if (recipe == null || fieldName == null || fieldName.isBlank()) return Ingredient.EMPTY;
+            try {
+                Field field = UpgradeRecipe.class.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                Object value = field.get(recipe);
+                if (value instanceof Ingredient ingredient) {
+                    return ingredient;
+                }
+            } catch (ReflectiveOperationException ignored) {
+            }
+            return Ingredient.EMPTY;
         }
 
         private static ItemStack pickDisplayStack(Ingredient ingredient) {
@@ -436,7 +435,7 @@ public final class RecipeExpander {
 
         private static PreviewEntry toEntry(ItemStack stack, PreviewRole role) {
             if (stack == null || stack.isEmpty()) return null;
-            ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            ResourceLocation itemId = ForgeRegistries.ITEMS.getKey(stack.getItem());
             if (itemId == null) return null;
             int count = Math.max(1, stack.getCount());
             String expression = Slot.buildLiteralWithCount(itemId.toString(), count);
@@ -541,7 +540,7 @@ public final class RecipeExpander {
             SMITHING("smithing", LayoutKind.SMITHING) {
                 @Override
                 boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
-                    return recipe instanceof SmithingRecipe;
+                    return recipe instanceof UpgradeRecipe;
                 }
             },
             FALLBACK("fallback", LayoutKind.FALLBACK) {

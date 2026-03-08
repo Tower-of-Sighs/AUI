@@ -8,7 +8,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
-import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TranslatableComponent;
 
 @ElementRegister(Translation.TAG_NAME)
 public class Translation extends Span {
@@ -26,7 +26,7 @@ public class Translation extends Span {
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
                 Text text = Text.of(this);
-                text.content = Component.translatable(text.content).getString();
+                text.content = new TranslatableComponent(text.content).getString();
                 FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
             }
             case BORDER -> {

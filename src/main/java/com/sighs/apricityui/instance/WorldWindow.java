@@ -2,6 +2,8 @@ package com.sighs.apricityui.instance;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.math.Matrix4f;
+import com.mojang.math.Vector3f;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
@@ -13,9 +15,6 @@ import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
-import org.joml.Matrix4f;
-import org.joml.Quaternionf;
-import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
@@ -63,16 +62,13 @@ public class WorldWindow {
                 position.z - cameraPos.z
         );
 
-        poseStack.mulPose(new Quaternionf().rotationY(180.0F - this.yRot));
-        poseStack.mulPose(new Quaternionf().rotationX(this.xRot));
+        poseStack.mulPose(Vector3f.YP.rotationDegrees(180.0F - this.yRot));
+        poseStack.mulPose(Vector3f.XP.rotationDegrees(this.xRot));
 
         poseStack.scale(scale, -scale, scale);
         poseStack.translate(-width / 2.0f, -height / 2.0f, 0);
 
         MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
-
-        poseStack.last().pose().set(poseStack.last().pose());
-        poseStack.last().normal().set(poseStack.last().normal());
 
         RenderSystem.enableDepthTest();
         RenderSystem.depthFunc(GL11.GL_LEQUAL);
@@ -112,40 +108,32 @@ public class WorldWindow {
 
     public Position getRealPos() {
         Minecraft mc = Minecraft.getInstance();
-        Position invalid = new Position(-1, -1);
         if (mc.player == null) return null;
 
-        Vec3 rayOrigin = mc.player.getEyePosition(mc.getPartialTick());
-        Vec3 rayDir = mc.player.getViewVector(mc.getPartialTick());
-
-        Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate((float)position.x, (float)position.y, (float)position.z);
-        modelMatrix.rotate((float) Math.toRadians(180.0F - this.yRot), 0, 1, 0);
-        modelMatrix.rotate((float) Math.toRadians(this.xRot), 1, 0, 0);
-        modelMatrix.scale(scale, -scale, scale);
-
-        Vector4f centerWorld = modelMatrix.transform(new Vector4f(0, 0, 0, 1));
-        Vector4f normalWorld = new Vector4f(0, 0, 1, 0);
-        modelMatrix.transform(normalWorld);
-        Vec3 planeNormal = new Vec3(normalWorld.x, normalWorld.y, normalWorld.z).normalize();
-        Vec3 planeCenter = new Vec3(centerWorld.x, centerWorld.y, centerWorld.z);
+        float frameTime = mc.getFrameTime();
+        Vec3 rayOrigin = mc.player.getEyePosition(frameTime);
+        Vec3 rayDir = mc.player.getViewVector(frameTime);
+        float yRadians = (float) Math.toRadians(180.0F - this.yRot);
+        float xRadians = (float) Math.toRadians(this.xRot);
+        Vec3 basisX = new Vec3(1.0D, 0.0D, 0.0D).yRot(yRadians).xRot(xRadians).normalize();
+        Vec3 basisY = new Vec3(0.0D, -1.0D, 0.0D).yRot(yRadians).xRot(xRadians).normalize();
+        Vec3 planeNormal = new Vec3(0.0D, 0.0D, 1.0D).yRot(yRadians).xRot(xRadians).normalize();
+        Vec3 planeCenter = position;
 
         double denominator = planeNormal.dot(rayDir);
-
         if (Math.abs(denominator) < 1e-6) return null;
 
         Vec3 toCenter = planeCenter.subtract(rayOrigin);
         double t = toCenter.dot(planeNormal) / denominator;
-
         if (t < 0 || t > maxDistance) return null;
 
         Vec3 intersection = rayOrigin.add(rayDir.scale(t));
-        Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
-        Vector4f localHit = new Vector4f((float)intersection.x, (float)intersection.y, (float)intersection.z, 1.0f);
-        inverseMatrix.transform(localHit);
-
-        double localX = localHit.x + width / 2.0;
-        double localY = localHit.y + height / 2.0;
+        Vec3 topLeft = planeCenter
+                .subtract(basisX.scale(width * scale / 2.0D))
+                .subtract(basisY.scale(height * scale / 2.0D));
+        Vec3 relativeHit = intersection.subtract(topLeft);
+        double localX = relativeHit.dot(basisX) / scale;
+        double localY = relativeHit.dot(basisY) / scale;
 
         if (localX >= 0 && localX <= width && localY >= 0 && localY <= height) {
             return new Position(localX, localY);

@@ -20,9 +20,9 @@ import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
+import net.minecraftforge.items.CapabilityItemHandler;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -220,7 +220,7 @@ public class Container extends MinecraftElement {
 
         Direction side = parseDirection(args.get("side"));
         BlockPos pos = new BlockPos(x, y, z);
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = (ServerLevel) player.getLevel();
         if (!level.hasChunkAt(pos)) {
             return null;
         }
@@ -229,7 +229,7 @@ public class Container extends MinecraftElement {
             return null;
         }
 
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
+        IItemHandler handler = blockEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY, side).orElse(null);
         if (handler == null || handler.getSlots() <= 0) {
             return null;
         }
@@ -241,7 +241,7 @@ public class Container extends MinecraftElement {
                 handler,
                 currentPlayer -> {
                     if (currentPlayer == null) return false;
-                    ServerLevel currentLevel = currentPlayer.serverLevel();
+                    ServerLevel currentLevel = (ServerLevel) currentPlayer.getLevel();
                     if (!currentLevel.hasChunkAt(immutablePos)) return false;
                     BlockEntity current = currentLevel.getBlockEntity(immutablePos);
                     return current != null && expectedType.isInstance(current);
@@ -261,7 +261,7 @@ public class Container extends MinecraftElement {
         if (!(target instanceof LivingEntity livingEntity)) {
             return null;
         }
-        IItemHandler handler = livingEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
+        IItemHandler handler = livingEntity.getCapability(CapabilityItemHandler.ITEM_HANDLER_CAPABILITY).orElse(null);
         if (handler == null || handler.getSlots() <= 0) {
             return null;
         }

@@ -25,8 +25,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
-import java.util.Optional;
+import java.util.Collection;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
@@ -64,8 +63,8 @@ public class Loader {
 
             // 资源包
             ResourceLocation rl = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
-            Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(rl);
-            if (res.isPresent()) return res.get().open();
+            Resource res = Minecraft.getInstance().getResourceManager().getResource(rl);
+            if (res != null) return res.getInputStream();
         } catch (IOException ignored) {}
         return null;
     }
@@ -114,12 +113,12 @@ public class Loader {
 
     private void loadFromResourcePack() {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity",
-                loc -> loc.getPath().endsWith("." + extension));
+        Collection<ResourceLocation> resources = manager.listResources("apricity",
+                path -> path.endsWith("." + extension));
 
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
-            try (InputStream stream = entry.getValue().open()) {
-                String path = entry.getKey().getPath(); // "apricity/modid/index.html"
+        for (ResourceLocation resourceLocation : resources) {
+            try (InputStream stream = manager.getResource(resourceLocation).getInputStream()) {
+                String path = resourceLocation.getPath(); // "apricity/modid/index.html"
                 if (path.startsWith("apricity/")) path = path.substring(9);
                 handler.accept(path, IOUtils.toString(stream, StandardCharsets.UTF_8));
             } catch (IOException e) {

@@ -21,10 +21,12 @@ import net.minecraft.client.MouseHandler;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RenderGuiEvent;
 import net.minecraftforge.client.event.ScreenEvent;
+import net.minecraftforge.client.event.RenderGameOverlayEvent;
+import net.minecraftforge.client.gui.ForgeIngameGui;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -171,38 +173,39 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void drawScreen(ScreenEvent.Render.Post event) {
+    public static void drawScreen(ScreenEvent.DrawScreenEvent.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
+            Base.drawAllDocument(event.getPoseStack());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentUnboundSlotItems(event.getPoseStack(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getPoseStack());
         }
     }
 
     @SubscribeEvent
-    public static void drawOverlay(RenderGuiEvent.Post event) {
+    public static void drawOverlay(RenderGameOverlayEvent.PostLayer event) {
+        if (!event.getOverlay().equals(ForgeIngameGui.HOTBAR_ELEMENT)) return;
         if (Minecraft.getInstance().screen == null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
+            Base.drawAllDocument(event.getMatrixStack());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentUnboundSlotItems(event.getMatrixStack(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getMatrixStack());
         }
     }
 
     @SubscribeEvent
-    public static void scroll(InputEvent.MouseScrollingEvent event) {
+    public static void scroll(InputEvent.MouseScrollEvent event) {
         Operation.scroll(event.getScrollDelta());
         for (WorldWindow window : WorldWindow.windows) {
             Position realPos = window.getRealPos();
@@ -216,19 +219,19 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void scroll(ScreenEvent.MouseScrolled.Post event) {
+    public static void scroll(ScreenEvent.MouseScrollEvent.Post event) {
         Operation.scroll(event.getScrollDelta());
     }
 
     @SubscribeEvent
-    public static void onCharTyped(ScreenEvent.CharacterTyped.Pre event) {
+    public static void onCharTyped(ScreenEvent.KeyboardCharTypedEvent.Pre event) {
         if (SharedConstants.isAllowedChatCharacter(event.getCodePoint())) {
             if (Operation.onCharTyped(event.getCodePoint())) event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
-    public static void mouseButton(InputEvent.MouseButton.Pre event) {
+    public static void mouseButton(InputEvent.MouseInputEvent event) {
         if (event.getAction() == InputConstants.PRESS) Operation.onMouseDown();
         if (event.getAction() == InputConstants.RELEASE) Operation.onMouseUp();
         if (Minecraft.getInstance().screen != null) return;
@@ -260,7 +263,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void onKeyPressed(InputEvent.Key event) {
+    public static void onKeyPressed(InputEvent.KeyInputEvent event) {
         if (event.getAction() != InputConstants.PRESS) return;
         Operation.onKeyPressed(event.getKey());
         System.out.println(event.getKey());
@@ -340,7 +343,7 @@ public class Client {
     public static int getDefaultFontWidth(String text, boolean bold, boolean oblique, int strokeWidth) {
         int stroke = Math.max(0, strokeWidth) * 2;
         if (!bold && !oblique) return Minecraft.getInstance().font.width(text) + stroke;
-        MutableComponent renderText = Component.literal(text);
+        MutableComponent renderText = new TextComponent(text);
         if (bold) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (oblique) renderText = renderText.withStyle(ChatFormatting.ITALIC);
         return Minecraft.getInstance().font.width(renderText) + stroke;
@@ -351,7 +354,7 @@ public class Client {
         poseStack.translate(position.x, position.y, 0);
         poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 0f);
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-        MutableComponent renderText = Component.literal(text.content);
+        MutableComponent renderText = new TextComponent(text.content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
         int stroke = Math.max(0, text.strokeWidth);
@@ -361,11 +364,11 @@ public class Client {
                 for (int oy = -stroke; oy <= stroke; oy++) {
                     if (ox == 0 && oy == 0) continue;
                     if (ox * ox + oy * oy > stroke * stroke) continue;
-                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), ox, oy, strokeColor, false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), (float) ox, (float) oy, strokeColor, false, poseStack.last().pose(), bufferSource, false, 0, 15728880);
                 }
             }
         }
-        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0.0F, 0.0F, text.color.getValue(), false, poseStack.last().pose(), bufferSource, false, 0, 15728880);
         bufferSource.endBatch();
         poseStack.popPose();
     }

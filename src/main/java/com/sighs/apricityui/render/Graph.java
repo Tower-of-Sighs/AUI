@@ -3,7 +3,7 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.style.Gradient;
-import org.joml.Matrix4f;
+import com.mojang.math.Matrix4f;
 
 public class Graph {
     private static final int SEGMENTS = 12;
@@ -89,7 +89,8 @@ public class Graph {
         bufferbuilder.vertex(matrix, x0, y0, 0.0F).color(r, g, b, a).endVertex();
 
         Base.beginRendering();
-        BufferUploader.drawWithShader(bufferbuilder.end());
+        bufferbuilder.end();
+        BufferUploader.end(bufferbuilder);
         Base.finishRendering();
     }
 
@@ -106,7 +107,8 @@ public class Graph {
         prepare(buf);
         addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
         Base.beginRendering();
-        BufferUploader.drawWithShader(buf.end());
+        buf.end();
+        BufferUploader.end(buf);
         Base.finishRendering();
     }
 
@@ -183,7 +185,8 @@ public class Graph {
         addUnifiedShadowRingVertices(buf, mat, x, y, w, h, radii, blur, innerColor, outerColor);
 
         Base.beginRendering();
-        BufferUploader.drawWithShader(buf.end());
+        buf.end();
+        BufferUploader.end(buf);
         Base.finishRendering();
     }
 
@@ -239,7 +242,8 @@ public class Graph {
         if (bl > 0 || bW > 0 || lW > 0) addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
 
         Base.beginRendering();
-        BufferUploader.drawWithShader(buf.end());
+        buf.end();
+        BufferUploader.end(buf);
         Base.finishRendering();
     }
 
@@ -252,7 +256,8 @@ public class Graph {
             addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
 
             Base.beginRendering();
-            BufferUploader.drawWithShader(buf.end());
+            buf.end();
+            BufferUploader.end(buf);
             Base.finishRendering();
         }
     }

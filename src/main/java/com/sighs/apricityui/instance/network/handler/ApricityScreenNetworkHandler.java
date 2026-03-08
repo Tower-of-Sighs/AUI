@@ -14,6 +14,7 @@ import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.TextComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraftforge.network.NetworkEvent;
@@ -315,10 +316,10 @@ public final class ApricityScreenNetworkHandler {
                                              String titleLiteral) {
         if (player == null || layoutSpec == null) return;
         Component titleComponent = (titleLiteral == null || titleLiteral.isBlank())
-                ? Component.empty()
-                : Component.literal(titleLiteral);
+                ? TextComponent.EMPTY
+                : new TextComponent(titleLiteral);
 
-        NetworkHooks.openScreen(player, new SimpleMenuProvider(
+        NetworkHooks.openGui(player, new SimpleMenuProvider(
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,
                         playerInventory,

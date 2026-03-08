@@ -11,7 +11,7 @@ import net.minecraftforge.registries.RegistryObject;
 
 public final class ApricityMenus {
     public static final DeferredRegister<MenuType<?>> MENUS =
-            DeferredRegister.create(ForgeRegistries.MENU_TYPES, ApricityUI.MODID);
+            DeferredRegister.create(ForgeRegistries.CONTAINERS, ApricityUI.MODID);
 
     public static final RegistryObject<MenuType<ApricityContainerMenu>> APRICITY_CONTAINER =
             MENUS.register("apricity_container", () -> IForgeMenuType.create(ApricityContainerMenu::new));
