@@ -7,6 +7,8 @@ import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
@@ -19,32 +21,37 @@ public record Size(double width, double height) {
     public static Size getWindowSize() {
         return Client.getWindowSize();
     }
+    private static final Pattern LEADING_NUMBER = Pattern.compile("^\\s*([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))");
+
     public static int parse(String str) {
-        if (str == null || str.isEmpty()) {
-            return -1;
+        if (str == null || str.isBlank()) return -1;
+        Double number = parseNumber(str);
+        if (number == null) return -1;
+        return (int) Math.round(number);
+    }
+
+    public static Double parseNumber(String str) {
+        if (str == null || str.isBlank()) return null;
+        Matcher matcher = LEADING_NUMBER.matcher(str);
+        if (!matcher.find()) return null;
+        try {
+            return Double.parseDouble(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return null;
         }
+    }
 
-        StringBuilder numberBuilder = new StringBuilder();
-        boolean foundDigit = false;
+    public static boolean isPercent(String value) {
+        if (value == null) return false;
+        return value.trim().endsWith("%");
+    }
 
-        for (char c : str.toCharArray()) {
-            if (Character.isDigit(c)) {
-                numberBuilder.append(c);
-                foundDigit = true;
-            } else if (foundDigit) {
-                break;
-            }
-        }
-
-        if (!numberBuilder.isEmpty()) {
-            try {
-                return Integer.parseInt(numberBuilder.toString());
-            } catch (NumberFormatException e) {
-                return -1;
-            }
-        }
-
-        return -1;
+    public static double resolveLength(String value, double percentBasis, double fallback) {
+        if (value == null || value.isBlank() || value.equals("unset")) return fallback;
+        Double number = parseNumber(value);
+        if (number == null) return fallback;
+        if (isPercent(value)) return percentBasis * (number / 100d);
+        return number;
     }
 
     public static Size of(Element element) {
@@ -57,11 +64,8 @@ public record Size(double width, double height) {
             return ZERO;
         }
 
-        int parsedWidth = parse(style.width);
-        int parsedHeight = parse(style.height);
-
-        boolean unsetWidth = parsedWidth == -1;
-        boolean unsetHeight = parsedHeight == -1;
+        boolean unsetWidth = parseNumber(style.width) == null;
+        boolean unsetHeight = parseNumber(style.height) == null;
 
         boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
         Size bodySize = isText ? getTextSize(element) : getContentSize(element);
@@ -69,14 +73,8 @@ public record Size(double width, double height) {
         double totalWidth = bodySize.width, totalHeight = bodySize.height;
         double parentWidth = getScaleWidth(element), parentHeight = getScaleHeight(element);
 
-        if (!unsetWidth) {
-            if (!style.width.contains("%")) totalWidth = parsedWidth;
-            else if (parentWidth != 0) totalWidth = parentWidth * parsedWidth / 100d;
-        }
-        if (!unsetHeight) {
-            if (!style.height.contains("%")) totalHeight = parsedHeight;
-            else if (parentHeight != 0) totalHeight = parentHeight * parsedHeight / 100d;
-        }
+        if (!unsetWidth) totalWidth = resolveLength(style.width, parentWidth, totalWidth);
+        if (!unsetHeight) totalHeight = resolveLength(style.height, parentHeight, totalHeight);
 
         Size resultSize = new Size(totalWidth, totalHeight);
 
@@ -126,20 +124,22 @@ public record Size(double width, double height) {
         Element parent = element.parentElement;
         if (parent != null) {
             Style parentStyle = parent.getComputedStyle();
-            if (parse(parentStyle.width) != -1) {
-                if (parentStyle.width.contains("%")) return getScaleWidth(parent);
-                else return parse(parentStyle.width);
-            } else return 0;
+            if (parseNumber(parentStyle.width) != null) {
+                if (isPercent(parentStyle.width)) return getScaleWidth(parent) * parseNumber(parentStyle.width) / 100d;
+                return parseNumber(parentStyle.width);
+            }
+            return getScaleWidth(parent);
         } else return getWindowSize().width;
     }
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
             Style parentStyle = parent.getComputedStyle();
-            if (parse(parentStyle.height) != -1) {
-                if (parentStyle.height.contains("%")) return getScaleHeight(parent);
-                else return parse(parentStyle.height);
-            } else return 0;
+            if (parseNumber(parentStyle.height) != null) {
+                if (isPercent(parentStyle.height)) return getScaleHeight(parent) * parseNumber(parentStyle.height) / 100d;
+                return parseNumber(parentStyle.height);
+            }
+            return getScaleHeight(parent);
         } else return getWindowSize().height;
     }
 

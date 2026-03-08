@@ -264,9 +264,13 @@ public class Client {
 
     @SubscribeEvent
     public static void onKeyPressed(InputEvent.KeyInputEvent event) {
-        if (event.getAction() != InputConstants.PRESS) return;
-        Operation.onKeyPressed(event.getKey());
-        System.out.println(event.getKey());
+        if (event.getAction() == InputConstants.RELEASE) {
+            Operation.onKeyReleased(event.getKey());
+            return;
+        }
+        if (event.getAction() != InputConstants.PRESS && event.getAction() != InputConstants.REPEAT) return;
+        boolean canceled = Operation.onKeyPressed(event.getKey(), event.getAction() == InputConstants.REPEAT);
+        if (canceled) event.setCanceled(true);
     }
 
     @SubscribeEvent

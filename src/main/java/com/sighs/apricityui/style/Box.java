@@ -34,13 +34,13 @@ public class Box {
         SIDE.forEach(side -> applyBorder(side, value));
     }
     public void applyMargin(String side, String value) {
-        margin.put(side, (double) Size.parse(value));
+        margin.put(side, resolveBoxLength(value));
     }
     public void applyMarginAll(String value) {
         SIDE.forEach(side -> applyMargin(side, value));
     }
     public void applyPadding(String side, String value) {
-        padding.put(side, (double) Size.parse(value));
+        padding.put(side, resolveBoxLength(value));
     }
     public void applyPaddingAll(String value) {
         SIDE.forEach(side -> applyPadding(side, value));
@@ -55,6 +55,7 @@ public class Box {
         if (cache != null) return cache;
 
         Box resultBox = new Box();
+        resultBox.element = element;
         Style style = element.getComputedStyle();
 
         if (valid(style.border)) resultBox.applyBorderAll(style.border);
@@ -102,7 +103,6 @@ public class Box {
             resultBox.borderRadius.addAll(List.of(0, 0, 0, 0));
         }
 
-        resultBox.element = element;
         resultBox.shadow = parseShadow(style.boxShadow);
         resultBox.borderImage = parseBorderImage(style);
         if (resultBox.borderImage != null && isZero(resultBox.borderImage.width)) {
@@ -138,6 +138,12 @@ public class Box {
     }
     public Size elementSize() {
         return Size.of(element);
+    }
+
+    private double resolveBoxLength(String value) {
+        if (element == null) return Math.max(0, Size.resolveLength(value, 0, 0));
+        double basis = Size.getScaleWidth(element);
+        return Math.max(0, Size.resolveLength(value, basis, 0));
     }
 
     public double offset(String side) {
@@ -211,9 +217,7 @@ public class Box {
         String[] res = string.split(" ");
         if (res.length != 4) return Shadow.getDefault();
         int x = Size.parse(res[0]);
-        if (res[0].contains("-")) x *= -1;
         int y = Size.parse(res[1]);
-        if (res[1].contains("-")) y *= -1;
         return new Shadow(x, y, Size.parse(res[2]), new Color(res[3]));
     }
 

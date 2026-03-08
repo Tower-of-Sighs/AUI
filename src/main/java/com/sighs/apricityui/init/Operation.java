@@ -4,6 +4,7 @@ import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.TextArea;
+import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.Loader;
@@ -55,8 +56,13 @@ public class Operation {
     }
 
     public static boolean onKeyPressed(int key) {
+        return onKeyPressed(key, false);
+    }
+
+    public static boolean onKeyPressed(int key, boolean repeat) {
         boolean cancel = false;
         for (Document document : Document.getAll()) {
+            KeyEvent.triggerEvent(document, "keydown", key, repeat);
             Element focusedElement = document.getFocusedElement();
             String selectedText = resolveSelectedText(document, focusedElement);
 
@@ -149,13 +155,19 @@ public class Operation {
                 }
             }
         }
-        if (key == GLFW.GLFW_KEY_LEFT_ALT) {
+        if (!repeat && key == GLFW.GLFW_KEY_LEFT_ALT) {
             DevTools.toggle();
         }
-        if (key == Keybindings.RELOAD.getKey().getValue()) {
+        if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
             Loader.reload();
         }
         return cancel;
+    }
+
+    public static void onKeyReleased(int key) {
+        for (Document document : Document.getAll()) {
+            KeyEvent.triggerEvent(document, "keyup", key, false);
+        }
     }
 
     private static String getSelectedTextFromElement(Element element) {
