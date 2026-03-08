@@ -38,11 +38,7 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     public static void tiggerEvent(MouseEvent event) {
-        // 1) Apply CSS cursor from the top-most document under the pointer.
-        // We do this once per event to avoid cursor "fighting" between multiple documents.
         applyCursorForTopMostDocument(event);
-
-        // 2) Dispatch events per document.
         Document.getAll().forEach(document -> {
             // 世界内渲染的ui是在instance.Client里单独触发事件，之后可以合并过来。
             if (!document.inWorld) tiggerEvent(event, document);
@@ -58,7 +54,6 @@ public class MouseEvent extends Event implements Cloneable {
 
         Position detectionPos = new Position(event.clientX, event.clientY);
 
-        // Later-created documents are rendered on top; traverse in reverse.
         for (int i = docs.size() - 1; i >= 0; i--) {
             Document document = docs.get(i);
             if (document == null || document.inWorld) continue;
@@ -70,7 +65,6 @@ public class MouseEvent extends Event implements Cloneable {
             return;
         }
 
-        // Pointer is not over any ApricityUI element.
         Cursor.resetToDefault();
     }
 
@@ -205,8 +199,8 @@ public class MouseEvent extends Event implements Cloneable {
             }
         }
         if (target != null) {
-            if (event.shiftKey) target.setScrollLeft(target.scrollLeft + event.scrollDelta);
-            else target.setScrollTop(target.scrollTop + event.scrollDelta);
+            if (event.shiftKey) target.setScrollLeft(target.getTargetScrollLeft() + event.scrollDelta);
+            else target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
             if(target.children != null) {
                 // 清理子元素的位置缓存
                 target.children.forEach(e -> e.getRenderer().position.clear());

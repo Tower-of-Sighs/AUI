@@ -33,6 +33,7 @@ public class Element {
     public double scrollHeight = 0;
     public double scrollLeft = 0;
     public double scrollTop = 0;
+    public double targetScrollLeft = 0;
     public double targetScrollTop = 0;
     public List<String> classNames = null;
     private RenderElement renderElement = new RenderElement(this);
@@ -40,6 +41,10 @@ public class Element {
     private int textSelectionEnd = 0;
     private int textSelectionAnchor = 0;
     private boolean selectingText = false;
+    private static final double SCROLL_EASING_FACTOR = 0.2;
+    private static final double SCROLL_OVERSCROLL_DAMPING = 0.4;
+    private static final double SCROLL_INTERPOLATION_FRAME_MS = 50.0;
+    private static final double SCROLL_STOP_EPSILON = 0.01;
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
     private boolean domInitHookInvoked = false;
@@ -267,25 +272,22 @@ public class Element {
         return currentFocus != null && element.uuid.equals(currentFocus.uuid);
     }
     public void setScrollLeft(double value) {
-        value = Math.min(value, scrollWidth - Size.of(this).width());
-        value = Math.max(value, 0);
-        scrollLeft = Size.lerp(scrollLeft, value);
+        targetScrollLeft = applyOverscroll(value, getHorizontalScrollLimit());
     }
     public void setScrollTop(double value) {
-        double limitHeight = scrollHeight - Size.of(this).height();
-        if (value < 0) value *= 0.4;
-        else if (value > limitHeight) {
-            value = (value - limitHeight) * 0.4 + limitHeight;
-        }
-        targetScrollTop = value;
+        targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
+    }
+    public double getScrollLeft() {
+        return interpolateScroll(scrollLeft, targetScrollLeft);
     }
     public double getScrollTop() {
-        if (scrollTop != targetScrollTop) {
-            renderElement.position.clear();
-            double process = (System.currentTimeMillis() - lastTickTime) / 50d;
-            double nextScrollTop = (targetScrollTop - scrollTop) * 0.2 + scrollTop;
-            return  (nextScrollTop - scrollTop) * process + scrollTop;
-        } else return scrollTop;
+        return interpolateScroll(scrollTop, targetScrollTop);
+    }
+    public double getTargetScrollLeft() {
+        return targetScrollLeft;
+    }
+    public double getTargetScrollTop() {
+        return targetScrollTop;
     }
     public boolean canScroll() {
         if (getComputedStyle().overflow.equals("visible")) return false;
@@ -429,16 +431,9 @@ public class Element {
     private long lastTickTime;
     public void tick() {
         lastTickTime = System.currentTimeMillis();
-        if (scrollTop != targetScrollTop) {
-            double l = 0.2;
-//            if (scrollTop < 0 || scrollTop > scrollHeight - Size.of(this).height()) l = 0.3;
-            scrollTop = (targetScrollTop - scrollTop) * l + scrollTop;
-            if ((int) scrollTop == (int) targetScrollTop) targetScrollTop = scrollTop;
-        }
-        if ((int) scrollTop != (int) targetScrollTop) {
-            double limit = Math.min(targetScrollTop, scrollHeight - Size.of(this).height());
-            limit = Math.max(limit, 0);
-            if ((int) targetScrollTop != (int) limit) targetScrollTop = limit;
+        boolean scrollingX = stepHorizontalScroll();
+        boolean scrollingY = stepVerticalScroll();
+        if (scrollingX || scrollingY) {
             document.markDirty(this, Drawer.REORDER);
         }
         if (!innerText.equals(lastInnerText)) {
@@ -446,6 +441,66 @@ public class Element {
             lastInnerText = innerText;
         }
     }
+
+    private boolean stepHorizontalScroll() {
+        ScrollStep step = stepScrollAxis(scrollLeft, targetScrollLeft, getHorizontalScrollLimit());
+        scrollLeft = step.current();
+        targetScrollLeft = step.target();
+        return step.moving();
+    }
+
+    private boolean stepVerticalScroll() {
+        ScrollStep step = stepScrollAxis(scrollTop, targetScrollTop, getVerticalScrollLimit());
+        scrollTop = step.current();
+        targetScrollTop = step.target();
+        return step.moving();
+    }
+
+    private ScrollStep stepScrollAxis(double current, double target, double limit) {
+        if (!isScrollSettled(current, target)) {
+            current = current + (target - current) * SCROLL_EASING_FACTOR;
+        }
+        target = clampScrollTarget(target, limit);
+        if (isScrollSettled(current, target)) {
+            current = target;
+        }
+        return new ScrollStep(current, target, !isScrollSettled(current, target));
+    }
+
+    private double interpolateScroll(double current, double target) {
+        if (isScrollSettled(current, target)) return target;
+        renderElement.position.clear();
+        double process = (System.currentTimeMillis() - lastTickTime) / SCROLL_INTERPOLATION_FRAME_MS;
+        process = Math.max(0, Math.min(1, process));
+        double next = current + (target - current) * SCROLL_EASING_FACTOR;
+        return current + (next - current) * process;
+    }
+
+    private double applyOverscroll(double value, double limit) {
+        if (value < 0) return value * SCROLL_OVERSCROLL_DAMPING;
+        if (value > limit) return (value - limit) * SCROLL_OVERSCROLL_DAMPING + limit;
+        return value;
+    }
+
+    private double clampScrollTarget(double value, double limit) {
+        if (value < 0) return 0;
+        if (value > limit) return limit;
+        return value;
+    }
+
+    private double getHorizontalScrollLimit() {
+        return Math.max(0, scrollWidth - Size.of(this).width());
+    }
+
+    private double getVerticalScrollLimit() {
+        return Math.max(0, scrollHeight - Size.of(this).height());
+    }
+
+    private boolean isScrollSettled(double current, double target) {
+        return Math.abs(current - target) <= SCROLL_STOP_EPSILON;
+    }
+
+    private record ScrollStep(double current, double target, boolean moving) {}
 
     // 事件部分
     public ArrayList<Event> EventListener = new ArrayList<>();

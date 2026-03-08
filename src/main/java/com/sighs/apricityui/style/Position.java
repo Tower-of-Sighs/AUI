@@ -14,8 +14,8 @@ public class Position {
     public double y;
 
     public Position(double x, double y) {
-        this.x = (int) x;
-        this.y = (int) y;
+        this.x = x;
+        this.y = y;
     }
 
     public Position add(Position position) {
@@ -58,7 +58,7 @@ public class Position {
         Position resultPosition = new Position(0, 0);
         for (Element e : element.getRoute()) {
             resultPosition = resultPosition.add(Position.getOffset(e));
-            if (!e.uuid.equals(element.uuid)) resultPosition = resultPosition.add(new Position(-e.scrollLeft, -e.scrollTop));
+            if (!e.uuid.equals(element.uuid)) resultPosition = resultPosition.add(new Position(-e.getScrollLeft(), -e.getScrollTop()));
         }
         return resultPosition;
     }
