@@ -9,28 +9,24 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 - 审查元素的调试台，能改attribute、innerText和行内css
 - 能输入js的控制台，调用eval
 - 网络通讯的轮子，简化发包
-- 高优先级css属性，flex-wrap、text-shadow、font-weight
+- 高优先级css属性，flex-wrap、text-shadow
 - 伪元素
 - transition 完全适配和transition非线性动画
-- 和浏览器一样的所有文本可选可复制
 - input溢出指示器（拓展功能，overflow-indicator属性）
 - 冷门css属性如border-width-left
 - 支持多重叠加的属性：多重背景、多重动画
-- css变量
 - 生命周期
 - key系列事件
 - svg？
-- markdown会用到的标签，如h系列、p、i(em)、b(strong)、ul、ol、a、blockquote、code、pre、hr
+- markdown会用到的标签，如h系列、p、ul、ol、a、hr
 
 ### 优化：
 - 批处理
 - 无圆角遮罩用便宜遮罩方案
 - 精灵图字体，但老实说不太可能
 - updateCSS的时候预先算好这个元素在hover的时候需不需要updateCSS，active、focus同理
-- 布局样式属性的transition实在太卡了，感觉可以像transform那样用的时候再往上往下遍历相加，而不是存一个最终的
 
 ### 待修：
-- scrollLeft
 - backdrop-filter
 - active不支持背景图片
 

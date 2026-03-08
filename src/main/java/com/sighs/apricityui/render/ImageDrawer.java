@@ -46,10 +46,12 @@ public class ImageDrawer {
         String contextPath = element.document.getPath();
         String resolvedPath = Loader.resolve(contextPath, src);
 
-        int width = (int) size.width();
-        int height = (int) size.height();
+        float x = (float) position.x;
+        float y = (float) position.y;
+        float width = (float) size.width();
+        float height = (float) size.height();
         boolean needRelayout = width == 0 || height == 0;
-        draw(poseStack, resolvedPath, (int) position.x, (int) position.y, width, height, element.getAttribute("blur").equals("true"), element, needRelayout);
+        draw(poseStack, resolvedPath, x, y, width, height, element.getAttribute("blur").equals("true"), element, needRelayout);
     }
 
     public static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur) {
@@ -57,6 +59,10 @@ public class ImageDrawer {
     }
 
     private static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur, Element requester, boolean needRelayout) {
+        draw(poseStack, path, (float) x, (float) y, (float) width, (float) height, blur, requester, needRelayout);
+    }
+
+    private static void draw(PoseStack poseStack, String path, float x, float y, float width, float height, boolean blur, Element requester, boolean needRelayout) {
         ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, needRelayout);
         if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
             drawPlaceholder(poseStack, x, y, width, height);
@@ -66,15 +72,17 @@ public class ImageDrawer {
         Image.ITexture texture = handle.texture();
         ResourceLocation currentLocation = texture.getLocation();
         if (currentLocation == null) return;
+        int textureWidth = texture.getWidth();
+        int textureHeight = texture.getHeight();
 
-        if (width == 0 && texture.getHeight() > 0) {
-            width = (int) (1d * height / texture.getHeight() * texture.getWidth());
+        if (width == 0 && textureHeight > 0) {
+            width = (float) (1d * height / textureHeight * textureWidth);
         }
-        if (height == 0 && texture.getWidth() > 0) {
-            height = (int) (1d * width / texture.getWidth() * texture.getHeight());
+        if (height == 0 && textureWidth > 0) {
+            height = (float) (1d * width / textureWidth * textureHeight);
         }
 
-        innerBlit(poseStack, currentLocation, x, y, width, height, 0, 0, width, height, width, height, blur);
+        innerBlit(poseStack, currentLocation, x, y, width, height, 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur);
     }
 
     public static void clearCache() {
@@ -281,7 +289,7 @@ public class ImageDrawer {
         Mask.popMask(poseStack, dx, dy, dw, dh, NO_RADIUS);
     }
 
-    private static void drawPlaceholder(PoseStack poseStack, int x, int y, int width, int height) {
+    private static void drawPlaceholder(PoseStack poseStack, float x, float y, float width, float height) {
         if (width <= 0 || height <= 0) return;
         Base.resolveOffset(poseStack);
         Graph.drawFillRect(poseStack.last().pose(), x, y, x + width, y + height, PLACEHOLDER_COLOR);
