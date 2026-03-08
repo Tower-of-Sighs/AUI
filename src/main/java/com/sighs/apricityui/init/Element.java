@@ -36,6 +36,10 @@ public class Element {
     public double targetScrollTop = 0;
     public List<String> classNames = null;
     private RenderElement renderElement = new RenderElement(this);
+    private int textSelectionStart = 0;
+    private int textSelectionEnd = 0;
+    private int textSelectionAnchor = 0;
+    private boolean selectingText = false;
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
     private boolean domInitHookInvoked = false;
@@ -43,6 +47,38 @@ public class Element {
     public Element(Document document, String tagName) {
         this.document = document;
         this.tagName = tagName.toUpperCase();
+        addTextSelectionEventListeners();
+    }
+
+    private void addTextSelectionEventListeners() {
+        addEventListener("mousedown", event -> {
+            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
+            if (!canSelectInnerText()) return;
+
+            locateTextCursor(mouseEvent.offsetX);
+            if (mouseEvent.shiftKey) {
+                textSelectionStart = textSelectionAnchor;
+                textSelectionEnd = getTextCursor();
+            } else {
+                textSelectionAnchor = getTextCursor();
+                clearTextSelection();
+            }
+            selectingText = true;
+            setFocusedForTextSelection();
+        });
+
+        addEventListener("mousemove", event -> {
+            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
+            if (!canSelectInnerText()) return;
+            if (!selectingText || document.getActiveElement() != this) return;
+
+            locateTextCursor(mouseEvent.offsetX);
+            textSelectionStart = textSelectionAnchor;
+            textSelectionEnd = getTextCursor();
+            addDirtyFlags(Drawer.REPAINT);
+        });
+
+        addEventListener("mouseup", event -> selectingText = false);
     }
 
     // 从自己开始，最后是body
@@ -223,7 +259,7 @@ public class Element {
         updateCSS();
     }
     public boolean canFocus() {
-        return false;
+        return canSelectInnerText();
     }
     public static boolean isElementFocusing(Element element) {
         if (element == null || element.document == null) return false;
@@ -265,7 +301,8 @@ public class Element {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
-                FontDrawer.drawFont(poseStack, Text.of(this), rectRenderer.getContentPosition());
+                drawInnerTextSelection(poseStack, rectRenderer);
+                drawInnerText(poseStack, rectRenderer);
             }
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
@@ -434,6 +471,123 @@ public class Element {
 
     public void remove() {
         document.removeElement(this);
+    }
+
+    public boolean hasInnerTextSelection() {
+        return textSelectionStart != textSelectionEnd;
+    }
+
+    public String getSelectedInnerText() {
+        if (!canSelectInnerText() || innerText == null || innerText.isEmpty()) return "";
+        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
+        int max = Math.min(innerText.length(), Math.max(textSelectionStart, textSelectionEnd));
+        if (min >= max) return "";
+        return innerText.substring(min, max);
+    }
+
+    public void selectAllInnerText() {
+        if (!canSelectInnerText()) return;
+        textSelectionAnchor = 0;
+        textSelectionStart = 0;
+        textSelectionEnd = innerText.length();
+        addDirtyFlags(Drawer.REPAINT);
+    }
+
+    public void clearTextSelection() {
+        int cursor = getTextCursor();
+        textSelectionStart = cursor;
+        textSelectionEnd = cursor;
+        addDirtyFlags(Drawer.REPAINT);
+    }
+
+    private void setFocusedForTextSelection() {
+        if (document == null) return;
+        document.setFocusedElement(this);
+    }
+
+    public boolean canSelectInnerText() {
+        if (this instanceof com.sighs.apricityui.element.AbstractText) return false;
+        if (innerText == null || innerText.isEmpty()) return false;
+        if (!children.isEmpty()) return false;
+        return Style.isUserSelectable(this);
+    }
+
+    private int getTextCursor() {
+        return Math.max(0, Math.min(textSelectionEnd, innerText == null ? 0 : innerText.length()));
+    }
+
+    private void locateTextCursor(double mouseOffsetX) {
+        if (innerText == null || innerText.isEmpty()) {
+            textSelectionEnd = 0;
+            return;
+        }
+        Box box = Box.of(this);
+        double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
+        double relativeX = mouseOffsetX - contentStartX + scrollLeft;
+        double currentWidth = 0;
+        int cursor = 0;
+        for (int i = 0; i < innerText.length(); i++) {
+            String charStr = String.valueOf(innerText.charAt(i));
+            double charWidth = Size.measureText(this, charStr);
+            if (relativeX <= currentWidth + charWidth / 2.0) break;
+            currentWidth += charWidth;
+            cursor++;
+        }
+        textSelectionEnd = cursor;
+    }
+
+    private void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
+        if (!canSelectInnerText() || !hasInnerTextSelection()) return;
+        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
+        int max = Math.min(innerText.length(), Math.max(textSelectionStart, textSelectionEnd));
+        if (min >= max) return;
+
+        Position contentPos = rectRenderer.getContentPosition();
+        double startX = Size.measureText(this, innerText.substring(0, min)) - scrollLeft;
+        double endX = Size.measureText(this, innerText.substring(0, max)) - scrollLeft;
+
+        float x0 = (float) (contentPos.x + startX);
+        float x1 = (float) (contentPos.x + endX);
+        float y0 = (float) contentPos.y;
+        float y1 = y0 + (float) Text.of(this).lineHeight;
+        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
+    }
+
+    private void drawInnerText(PoseStack poseStack, Rect rectRenderer) {
+        Text text = Text.of(this);
+        Position contentPos = rectRenderer.getContentPosition();
+        if (!canSelectInnerText() || !hasInnerTextSelection()) {
+            text.content = innerText;
+            text.color = new Color(Style.getFontColor(this));
+            FontDrawer.drawFont(poseStack, text, contentPos);
+            return;
+        }
+
+        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
+        int max = Math.min(innerText.length(), Math.max(textSelectionStart, textSelectionEnd));
+        String before = innerText.substring(0, min);
+        String selected = innerText.substring(min, max);
+        String after = innerText.substring(max);
+
+        double drawX = contentPos.x - scrollLeft;
+        double drawY = contentPos.y;
+        if (!before.isEmpty()) {
+            text.content = before;
+            text.color = new Color(Style.getFontColor(this));
+            FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
+            drawX += Size.measureText(this, before);
+        }
+        if (!selected.isEmpty()) {
+            text.content = selected;
+            text.color = new Color("#FFFFFF");
+            FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
+            drawX += Size.measureText(this, selected);
+        }
+        if (!after.isEmpty()) {
+            text.content = after;
+            text.color = new Color(Style.getFontColor(this));
+            FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
+        }
     }
 
     @Override

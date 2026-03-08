@@ -151,11 +151,49 @@ public class TextArea extends AbstractText {
 
         drawSelection(poseStack, lines, starts, baseX, baseY, lineHeight);
 
-        text.color = new Color(Style.getFontColor(this));
         for (int i = 0; i < lines.size(); i++) {
-            text.content = lines.get(i);
+            String line = lines.get(i);
             float y = (float) (baseY + i * lineHeight);
-            FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
+            if (!canSelectText() || !hasSelection()) {
+                text.content = line;
+                text.color = new Color(Style.getFontColor(this));
+                FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
+                continue;
+            }
+
+            int lineStart = starts[i];
+            int lineEnd = lineStart + line.length();
+            int min = Math.max(selMin(), lineStart);
+            int max = Math.min(selMax(), lineEnd);
+            if (min >= max) {
+                text.content = line;
+                text.color = new Color(Style.getFontColor(this));
+                FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
+                continue;
+            }
+
+            String before = line.substring(0, min - lineStart);
+            String selected = line.substring(min - lineStart, max - lineStart);
+            String after = line.substring(max - lineStart);
+
+            float segmentX = baseX;
+            if (!before.isEmpty()) {
+                text.content = before;
+                text.color = new Color(Style.getFontColor(this));
+                FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
+                segmentX += (float) Size.measureText(this, before);
+            }
+            if (!selected.isEmpty()) {
+                text.content = selected;
+                text.color = new Color("#FFFFFF");
+                FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
+                segmentX += (float) Size.measureText(this, selected);
+            }
+            if (!after.isEmpty()) {
+                text.content = after;
+                text.color = new Color(Style.getFontColor(this));
+                FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
+            }
         }
 
         if (!Element.isElementFocusing(this)) return;
@@ -169,6 +207,7 @@ public class TextArea extends AbstractText {
     }
 
     private void drawSelection(PoseStack poseStack, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
+        if (!canSelectText()) return;
         if (!hasSelection()) return;
 
         int min = selMin();

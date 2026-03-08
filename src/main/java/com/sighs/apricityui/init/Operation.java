@@ -58,31 +58,44 @@ public class Operation {
         boolean cancel = false;
         for (Document document : Document.getAll()) {
             Element focusedElement = document.getFocusedElement();
+            String selectedText = resolveSelectedText(document, focusedElement);
 
             if (focusedElement instanceof AbstractText textElement) {
-                if (isCtrlDown() && textElement.canEditText()) {
+                if (isCtrlDown()) {
                     if (key == GLFW.GLFW_KEY_A) {
-                        textElement.selectAll();
-                        cancel = true;
-                        continue;
+                        if (textElement.canSelectText()) {
+                            textElement.selectAll();
+                            cancel = true;
+                            continue;
+                        }
                     }
                     if (key == GLFW.GLFW_KEY_C) {
-                        setClipboardText(textElement.getSelectedText());
-                        cancel = true;
-                        continue;
+                        if (textElement.canSelectText() && !selectedText.isEmpty()) {
+                            setClipboardText(selectedText);
+                            cancel = true;
+                            continue;
+                        }
                     }
                     if (key == GLFW.GLFW_KEY_X) {
-                        setClipboardText(textElement.getSelectedText());
-                        if (textElement.hasSelection()) {
+                        if (textElement.canEditText() && textElement.hasSelection()) {
+                            if (!selectedText.isEmpty()) setClipboardText(selectedText);
                             textElement.replaceSelection("");
+                            cancel = true;
+                            continue;
                         }
-                        cancel = true;
-                        continue;
                     }
                     if (key == GLFW.GLFW_KEY_V) {
-                        textElement.insertText(getClipboardText());
-                        cancel = true;
-                        continue;
+                        if (textElement.canEditText()) {
+                            textElement.insertText(getClipboardText());
+                            cancel = true;
+                            continue;
+                        }
+                    }
+                    if (key == GLFW.GLFW_KEY_Z) {
+                        if (textElement.canEditText() && textElement.undo()) {
+                            cancel = true;
+                            continue;
+                        }
                     }
                 }
 
@@ -100,10 +113,10 @@ public class Operation {
                     textElement.deleteForward();
                     cancel = true;
                 } else if (key == GLFW.GLFW_KEY_LEFT) {
-                    textElement.moveCursor(-1, isShiftDown());
+                    textElement.moveCursor(-1, isShiftDown() && textElement.canSelectText());
                     cancel = true;
                 } else if (key == GLFW.GLFW_KEY_RIGHT) {
-                    textElement.moveCursor(1, isShiftDown());
+                    textElement.moveCursor(1, isShiftDown() && textElement.canSelectText());
                     cancel = true;
                 } else if (key == GLFW.GLFW_KEY_ENTER) {
                     if (focusedElement instanceof TextArea) {
@@ -116,6 +129,24 @@ public class Operation {
                     document.clearFocus();
                     cancel = true;
                 }
+            } else if (focusedElement != null) {
+                if (isCtrlDown()) {
+                    if (key == GLFW.GLFW_KEY_A && focusedElement.canSelectInnerText()) {
+                        focusedElement.selectAllInnerText();
+                        cancel = true;
+                        continue;
+                    }
+                    if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText() && !selectedText.isEmpty()) {
+                        setClipboardText(selectedText);
+                        cancel = true;
+                        continue;
+                    }
+                }
+                if (key == GLFW.GLFW_KEY_ESCAPE && focusedElement.canSelectInnerText()) {
+                    focusedElement.clearTextSelection();
+                    document.clearFocus();
+                    cancel = true;
+                }
             }
         }
         if (key == GLFW.GLFW_KEY_LEFT_ALT) {
@@ -125,6 +156,36 @@ public class Operation {
             Loader.reload();
         }
         return cancel;
+    }
+
+    private static String getSelectedTextFromElement(Element element) {
+        if (element == null) return "";
+        if (element instanceof AbstractText textElement) {
+            String selected = textElement.getSelectedText();
+            return selected == null ? "" : selected;
+        }
+        if (element.canSelectInnerText()) {
+            String selected = element.getSelectedInnerText();
+            return selected == null ? "" : selected;
+        }
+        return "";
+    }
+
+    private static String resolveSelectedText(Document document, Element focusedElement) {
+        String selected = getSelectedTextFromElement(focusedElement);
+        if (!selected.isEmpty()) return selected;
+
+        Element active = document.getActiveElement();
+        if (active != focusedElement) {
+            selected = getSelectedTextFromElement(active);
+            if (!selected.isEmpty()) return selected;
+        }
+
+        for (Element element : document.getElements()) {
+            selected = getSelectedTextFromElement(element);
+            if (!selected.isEmpty()) return selected;
+        }
+        return "";
     }
 
     public static Position getMousePosition() {

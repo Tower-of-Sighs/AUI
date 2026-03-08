@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.element.Body;
+import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
@@ -248,6 +249,11 @@ public class Document {
 
     public void setFocusedElement(Element element) {
         if (focusedElement != null && focusedElement != element) {
+            if (focusedElement instanceof AbstractText textElement) {
+                textElement.clearSelection();
+            } else {
+                focusedElement.clearTextSelection();
+            }
             focusedElement.setFocus(false);
             for (Event event : focusedElement.EventListener) {
                 if (event.type.equals("blur")) focusedElement.triggerEvent(event.listener);
