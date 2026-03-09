@@ -15,7 +15,7 @@ public class StyleHandle {
     private final ConcurrentHashMap<String, Boolean> requestedFonts = new ConcurrentHashMap<>();
     private final AtomicInteger pendingTasks = new AtomicInteger(0);
 
-    private volatile long generation;
+    private final long generation;
     private volatile AbstractAsyncHandler.AsyncState state = AbstractAsyncHandler.AsyncState.NEW;
     private volatile long failedAtMs = 0L;
 
@@ -109,5 +109,6 @@ public class StyleHandle {
         pendingTasks.set(0);
     }
 
-    public record CssEntry(String contextPath, String cssText) {}
+    public record CssEntry(String contextPath, String cssText) {
+    }
 }

@@ -10,10 +10,10 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.style.Cursor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
@@ -338,6 +338,7 @@ public class Client {
     public static Window getWindow() {
         return Minecraft.getInstance().getWindow();
     }
+
     public static Size getWindowSize() {
         Window window = Minecraft.getInstance().getWindow();
         return new Size(window.getGuiScaledWidth(), window.getGuiScaledHeight());

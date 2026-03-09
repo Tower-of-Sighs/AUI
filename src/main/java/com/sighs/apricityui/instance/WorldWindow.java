@@ -29,9 +29,9 @@ public class WorldWindow {
     private float yRot;
     private float xRot;
     private float scale; // 缩放比例: 1px 对应多少 Block
-    private int width;
-    private int height;
-    private int maxDistance;
+    private final int width;
+    private final int height;
+    private final int maxDistance;
 
     public WorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
         this.document = Document.createInWorld(documentPath);
@@ -44,12 +44,18 @@ public class WorldWindow {
         this.maxDistance = maxDistance;
     }
 
-    public void setPosition(Vec3 position) { this.position = position; }
+    public void setPosition(Vec3 position) {
+        this.position = position;
+    }
+
     public void setRotation(float yRot, float xRot) {
         this.yRot = yRot;
         this.xRot = xRot;
     }
-    public void setScale(float scale) { this.scale = scale; }
+
+    public void setScale(float scale) {
+        this.scale = scale;
+    }
 
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
         Minecraft mc = Minecraft.getInstance();

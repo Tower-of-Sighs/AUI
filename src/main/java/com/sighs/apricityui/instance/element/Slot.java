@@ -2,7 +2,6 @@ package com.sighs.apricityui.instance.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.slot.SlotDisplaySpec;
 import com.sighs.apricityui.instance.slot.SlotExpressionCompiler;
@@ -12,10 +11,6 @@ import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 

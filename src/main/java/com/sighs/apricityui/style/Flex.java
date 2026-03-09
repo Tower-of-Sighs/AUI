@@ -115,15 +115,18 @@ public class Flex {
         return new FlexLayoutOffset(offsetStart, offsetInterval);
     }
 
-    private record FlexLayoutOffset(double offsetStart, double offsetInterval) {}
+    private record FlexLayoutOffset(double offsetStart, double offsetInterval) {
+    }
 
     public record FlexDirection(String value) {
         public boolean isColumn() {
             return value.contains("column");
         }
+
         public boolean isRow() {
             return value.contains("row");
         }
+
         public boolean isReverse() {
             return value.contains("reverse");
         }
@@ -139,18 +142,23 @@ public class Flex {
         public boolean isCenter() {
             return canWrap && value.equals("center");
         }
+
         public boolean isFlexStart() {
             return canWrap && value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return canWrap && value.equals("flex-end");
         }
+
         public boolean isSpaceAround() {
             return canWrap && value.equals("space-around");
         }
+
         public boolean isSpaceBetween() {
             return canWrap && value.equals("space-between");
         }
+
         public boolean isStretch() {
             return canWrap && value.equals("stretch");
         }
@@ -160,18 +168,23 @@ public class Flex {
         public boolean isCenter() {
             return value.equals("center");
         }
+
         public boolean isFlexStart() {
             return value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return value.equals("flex-end");
         }
+
         public boolean isSpaceBetween() {
             return value.equals("space-between");
         }
+
         public boolean isSpaceAround() {
             return value.equals("space-around");
         }
+
         public boolean isSpaceEvenly() {
             return value.equals("space-evenly");
         }
@@ -181,15 +194,19 @@ public class Flex {
         public boolean isCenter() {
             return value.equals("center");
         }
+
         public boolean isFlexStart() {
             return value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return value.equals("flex-end");
         }
+
         public boolean isStretch() {
             return value.equals("stretch");
         }
+
         public boolean isBaseline() {
             return value.equals("baseline");
         }

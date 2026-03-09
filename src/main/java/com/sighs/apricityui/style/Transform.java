@@ -1,6 +1,5 @@
 package com.sighs.apricityui.style;
 
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
 import java.util.*;
@@ -136,7 +135,8 @@ public interface Transform {
         token = token.trim().toLowerCase(Locale.ROOT);
         try {
             if (token.endsWith("deg")) return Double.parseDouble(token.substring(0, token.length() - 3));
-            if (token.endsWith("rad")) return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
+            if (token.endsWith("rad"))
+                return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
             if (token.endsWith("grad")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 0.9;
             if (token.endsWith("turn")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 360.0;
             return Double.parseDouble(token);

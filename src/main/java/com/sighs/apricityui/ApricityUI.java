@@ -5,6 +5,7 @@ import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
+import com.sighs.apricityui.script.KubeJS;
 import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterShadersEvent;
@@ -24,6 +25,8 @@ public class ApricityUI {
     @HideFromJS
     public ApricityUI() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
+        ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.instance.element");
         ApricityMenus.register(modEventBus);
         ApricityNetwork.register();
 

@@ -9,14 +9,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class Filter {
-    
+
     public record FilterState(
-        float blurRadius,   // px
-        float brightness,   // percentage (1.0 = 100%)
-        float grayscale,    // 0.0 - 1.0
-        float invert,       // 0.0 - 1.0
-        float hueRotate,     // degrees
-        float opacity
+            float blurRadius,   // px
+            float brightness,   // percentage (1.0 = 100%)
+            float grayscale,    // 0.0 - 1.0
+            float invert,       // 0.0 - 1.0
+            float hueRotate,     // degrees
+            float opacity
     ) {
         public static final FilterState EMPTY = new FilterState(0, 1, 0, 0, 0, 1);
 
@@ -77,7 +77,7 @@ public class Filter {
             } else if (val.endsWith(unit)) {
                 return Float.parseFloat(val.replace(unit, ""));
             } else if (unit.equals("px") && val.matches("[0-9.]+")) {
-                 return Float.parseFloat(val);
+                return Float.parseFloat(val);
             } else if (val.matches("[0-9.]+")) {
                 return Float.parseFloat(val);
             }
@@ -107,6 +107,7 @@ public class Filter {
         float opacity = getOpacity(opacityStr);
         return (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) && opacity == 1.0f;
     }
+
     public static boolean isDisabled(String filterStr) {
         return filterStr == null || filterStr.equals("none") || filterStr.isEmpty();
     }

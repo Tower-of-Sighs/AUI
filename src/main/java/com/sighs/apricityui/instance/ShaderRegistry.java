@@ -1,9 +1,9 @@
 package com.sighs.apricityui.instance;
 
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraftforge.client.event.RegisterShadersEvent;
 
 import java.io.IOException;

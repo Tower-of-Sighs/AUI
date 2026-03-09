@@ -227,7 +227,8 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         }
     }
 
-    private record CacheEntry(byte[] bytes, long expiresAtMs) {}
+    private record CacheEntry(byte[] bytes, long expiresAtMs) {
+    }
 
     private static final class RetryableHttpException extends IOException {
         private final int statusCode;

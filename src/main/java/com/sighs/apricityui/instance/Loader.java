@@ -77,7 +77,8 @@ public class Loader {
             ResourceLocation rl = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
             Resource res = Minecraft.getInstance().getResourceManager().getResource(rl);
             if (res != null) return res.getInputStream();
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         return null;
     }
 
@@ -111,7 +112,8 @@ public class Loader {
     }
 
     private final String extension;
-    private BiConsumer<String, String> handler = (k, c) -> {};
+    private BiConsumer<String, String> handler = (k, c) -> {
+    };
 
     public Loader(String extension) {
         this.extension = extension;
@@ -155,10 +157,12 @@ public class Loader {
                                 String content = Files.readString(p, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(p).toString().replace("\\", "/");
                                 handler.accept(relPath, content);
-                            } catch (IOException ignored) {}
+                            } catch (IOException ignored) {
+                            }
                         });
             }
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     private void loadFromDevFolders() {
@@ -184,10 +188,12 @@ public class Loader {
                                 String content = Files.readString(p, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(p).toString().replace("\\", "/");
                                 handler.accept(relPath, content);
-                            } catch (IOException ignored) {}
+                            } catch (IOException ignored) {
+                            }
                         });
             }
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
     }
 
     private static List<Path> getDevResourceRoots() {
@@ -220,7 +226,8 @@ public class Loader {
     public static String readGlobalCSS() {
         try (InputStream is = getResourceStream("global.css")) {
             if (is != null) return IOUtils.toString(is, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
         return null;
     }
 }

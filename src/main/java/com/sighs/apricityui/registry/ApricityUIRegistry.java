@@ -1,17 +1,25 @@
 package com.sighs.apricityui.registry;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.util.ReflectionUtils;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 public class ApricityUIRegistry {
     public static List<Element> ELEMENTS = new ArrayList<>();
+    public static void scanPackage(String basePackage) {
+        ReflectionUtils.addScanPackage(basePackage);
+    }
+
+    public static void scanPackages(String... basePackages) {
+        ReflectionUtils.addScanPackages(basePackages);
+    }
 
     public static void register() {
         ReflectionUtils.findAnnotationClasses(ElementRegister.class, data -> true, clazz -> {

@@ -3,12 +3,11 @@ package com.sighs.apricityui.dev;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Selector;
-import com.sighs.apricityui.script.ApricityJS;
 
 import java.util.Locale;
 
 public class DevTools {
-    private static Document document = null;
+    private static final Document document = null;
     private static Element selectedNode = null;
     private static final String PATH = "devtools/index.html";
 
@@ -63,8 +62,7 @@ public class DevTools {
             node.append(input);
             node.append(text("</" + tag + ">"));
             tree.append(node);
-        }
-        else {
+        } else {
             tree.append(node);
             element.children.forEach(child -> buildTree(tree, child));
             Element end = document.createElement("DIV");
