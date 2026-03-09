@@ -1,5 +1,8 @@
 package com.sighs.apricityui.instance.network.handler;
 
+import cc.sighs.oelib.network.api.INetworkContext;
+import cc.sighs.oelib.network.api.NetworkManager;
+import cc.sighs.oelib.registry.extra.MenuRegister;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
@@ -8,7 +11,6 @@ import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.instance.container.layout.MenuLayoutSpec;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Container.TemplateSpec;
-import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
 import com.sighs.apricityui.util.common.NormalizeUtil;
@@ -16,26 +18,22 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.NetworkHooks;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public final class ApricityScreenNetworkHandler {
     public static void requestOpenScreen(String path) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
-        ApricityNetwork.sendToServer(new OpenScreenRequestPacket(path));
+        NetworkManager.sendToServer(new OpenScreenRequestPacket(path));
     }
 
     public static void requestCloseScreen() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
-        ApricityNetwork.sendToServer(new CloseContainerRequestPacket());
+        NetworkManager.sendToServer(new CloseContainerRequestPacket());
     }
 
     public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
@@ -55,10 +53,9 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
     }
 
-    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, INetworkContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
+            ServerPlayer player = context.sender();
             if (player == null) return;
 
             TemplateSpec compiled = resolveTemplateSpec(packet.templatePath(), null);
@@ -74,20 +71,17 @@ public final class ApricityScreenNetworkHandler {
             String titleLiteral = resolvePrimaryContainerTitleLiteral(boundTemplateSpec, layoutSpec.primaryContainerId());
             openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
         });
-        context.setPacketHandled(true);
     }
 
-    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, INetworkContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
+            ServerPlayer player = context.sender();
             if (player == null) return;
 
             if (player.containerMenu instanceof ApricityContainerMenu) {
                 player.closeContainer();
             }
         });
-        context.setPacketHandled(true);
     }
 
     private static TemplateSpec resolveTemplateSpec(String rawTemplatePath, OpenBindPlan plan) {
@@ -318,7 +312,7 @@ public final class ApricityScreenNetworkHandler {
                 ? Component.empty()
                 : Component.literal(titleLiteral);
 
-        NetworkHooks.openScreen(player, new SimpleMenuProvider(
+        MenuRegister.openExtendedMenu(player, new SimpleMenuProvider(
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,
                         playerInventory,

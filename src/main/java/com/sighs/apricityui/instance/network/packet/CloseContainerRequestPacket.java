@@ -1,12 +1,17 @@
 package com.sighs.apricityui.instance.network.packet;
 
-import net.minecraft.network.FriendlyByteBuf;
+import cc.sighs.oelib.network.api.INetworkContext;
+import cc.sighs.oelib.network.api.INetworkPacket;
+import cc.sighs.oelib.network.api.NetworkPacket;
+import cc.sighs.oelib.network.api.Side;
+import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 
-public class CloseContainerRequestPacket {
-    public static void encode(CloseContainerRequestPacket packet, FriendlyByteBuf buf) {
-    }
+@NetworkPacket(modId = ApricityUI.MODID, id = "close_container_request", side = Side.SERVER)
+public record CloseContainerRequestPacket() implements INetworkPacket<CloseContainerRequestPacket> {
 
-    public static CloseContainerRequestPacket decode(FriendlyByteBuf buf) {
-        return new CloseContainerRequestPacket();
+    @Override
+    public void handle(INetworkContext context) {
+        ApricityScreenNetworkHandler.handleCloseContainerRequest(this, context);
     }
 }

@@ -1,7 +1,10 @@
 package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.style.Gradient;
 import org.joml.Matrix4f;
 
@@ -28,6 +31,7 @@ public class Graph {
 
         buf.vertex(mat, x, y, 0f).color(r, g, b, a).endVertex();
     }
+
     public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color) {
         vtx(buf, mat, x, y, color, 1.0f);
     }
@@ -78,10 +82,10 @@ public class Graph {
         BufferBuilder bufferbuilder = Base.getBuffer();
         bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
 
-        float a = (float)(color >> 24 & 255) / 255.0F;
-        float r = (float)(color >> 16 & 255) / 255.0F;
-        float g = (float)(color >> 8 & 255) / 255.0F;
-        float b = (float)(color & 255) / 255.0F;
+        float a = (float) (color >> 24 & 255) / 255.0F;
+        float r = (float) (color >> 16 & 255) / 255.0F;
+        float g = (float) (color >> 8 & 255) / 255.0F;
+        float b = (float) (color & 255) / 255.0F;
 
         bufferbuilder.vertex(matrix, x0, y1, 0.0F).color(r, g, b, a).endVertex();
         bufferbuilder.vertex(matrix, x1, y1, 0.0F).color(r, g, b, a).endVertex();
@@ -135,7 +139,8 @@ public class Graph {
         if (maxTopR > tl) addRect(buf, mat, x, y + tl, x + tl, y + maxTopR, colorRes);
         if (maxTopR > tr) addRect(buf, mat, x + width - tr, y + tr, x + width, y + maxTopR, colorRes);
         if (maxBottomR > bl) addRect(buf, mat, x, y + height - maxBottomR, x + bl, y + height - bl, colorRes);
-        if (maxBottomR > br) addRect(buf, mat, x + width - br, y + height - maxBottomR, x + width, y + height - br, colorRes);
+        if (maxBottomR > br)
+            addRect(buf, mat, x + width - br, y + height - maxBottomR, x + width, y + height - br, colorRes);
     }
 
     public static void addEllipseGeometry(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, int color) {
@@ -196,7 +201,8 @@ public class Graph {
         addRect(buf, mat, x + width, y + tr, x + width + blur, y + height - br, inC, inC, outC, outC);
 
         if (tl > 0 || blur > 0) addCornerShadow(buf, mat, x + tl, y + tl, tl, tl + blur, SEGMENTS * 2, inC, outC);
-        if (tr > 0 || blur > 0) addCornerShadow(buf, mat, x + width - tr, y + tr, tr, tr + blur, SEGMENTS * 3, inC, outC);
+        if (tr > 0 || blur > 0)
+            addCornerShadow(buf, mat, x + width - tr, y + tr, tr, tr + blur, SEGMENTS * 3, inC, outC);
         if (br > 0 || blur > 0) addCornerShadow(buf, mat, x + width - br, y + height - br, br, br + blur, 0, inC, outC);
         if (bl > 0 || blur > 0) addCornerShadow(buf, mat, x + bl, y + height - bl, bl, bl + blur, SEGMENTS, inC, outC);
     }
@@ -215,8 +221,12 @@ public class Graph {
             float ox0 = cx + c0 * rOut, oy0 = cy + s0 * rOut;
             float ox1 = cx + c1 * rOut, oy1 = cy + s1 * rOut;
 
-            vtx(buf, mat, ix0, iy0, inC); vtx(buf, mat, ox0, oy0, outC); vtx(buf, mat, ix1, iy1, inC);
-            vtx(buf, mat, ox0, oy0, outC); vtx(buf, mat, ox1, oy1, outC); vtx(buf, mat, ix1, iy1, inC);
+            vtx(buf, mat, ix0, iy0, inC);
+            vtx(buf, mat, ox0, oy0, outC);
+            vtx(buf, mat, ix1, iy1, inC);
+            vtx(buf, mat, ox0, oy0, outC);
+            vtx(buf, mat, ox1, oy1, outC);
+            vtx(buf, mat, ix1, iy1, inC);
         }
     }
 
@@ -233,10 +243,14 @@ public class Graph {
         if (lW > 0) addRect(buf, mat, x, y + tl, x + lW, y + h - bl, lC);
         if (rW > 0) addRect(buf, mat, x + w - rW, y + tr, x + w, y + h - br, rC);
 
-        if (tl > 0 || tW > 0 || lW > 0) addComplexCorner(buf, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
-        if (tr > 0 || tW > 0 || rW > 0) addComplexCorner(buf, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
-        if (br > 0 || rW > 0 || bW > 0) addComplexCorner(buf, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
-        if (bl > 0 || bW > 0 || lW > 0) addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+        if (tl > 0 || tW > 0 || lW > 0)
+            addComplexCorner(buf, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+        if (tr > 0 || tW > 0 || rW > 0)
+            addComplexCorner(buf, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+        if (br > 0 || rW > 0 || bW > 0)
+            addComplexCorner(buf, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+        if (bl > 0 || bW > 0 || lW > 0)
+            addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
 
         Base.beginRendering();
         BufferUploader.drawWithShader(buf.end());
@@ -287,10 +301,10 @@ public class Graph {
         if (c1 == c2) return c1;
         int a1 = (c1 >> 24) & 0xFF, r1 = (c1 >> 16) & 0xFF, g1 = (c1 >> 8) & 0xFF, b1 = c1 & 0xFF;
         int a2 = (c2 >> 24) & 0xFF, r2 = (c2 >> 16) & 0xFF, g2 = (c2 >> 8) & 0xFF, b2 = c2 & 0xFF;
-        return ((int)(a1 + (a2 - a1) * t) << 24) |
-                ((int)(r1 + (r2 - r1) * t) << 16) |
-                ((int)(g1 + (g2 - g1) * t) << 8) |
-                (int)(b1 + (b2 - b1) * t);
+        return ((int) (a1 + (a2 - a1) * t) << 24) |
+                ((int) (r1 + (r2 - r1) * t) << 16) |
+                ((int) (g1 + (g2 - g1) * t) << 8) |
+                (int) (b1 + (b2 - b1) * t);
     }
 
     @FunctionalInterface

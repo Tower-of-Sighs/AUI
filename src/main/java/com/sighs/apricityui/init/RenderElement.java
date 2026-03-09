@@ -52,17 +52,22 @@ public class RenderElement {
 
     public static class Cache<T> {
         T value = null;
+
         public T get() {
             return value;
         }
+
         public void set(T value) {
             this.value = value;
         }
+
         public void clear() {
             value = null;
             expandClear();
         }
-        void expandClear() {}
+
+        void expandClear() {
+        }
     }
 
     private static final Set<String> LAYOUT_PROPS = Set.of(
@@ -110,7 +115,7 @@ public class RenderElement {
                 String oVal = origin.get(s);
                 String cVal = current.get(s);
                 if (oVal == null && cVal == null) continue;
-                if (oVal == null || cVal == null || !oVal.equals(cVal)) {
+                if (oVal == null || !oVal.equals(cVal)) {
                     return true;
                 }
             }

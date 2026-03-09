@@ -12,11 +12,7 @@ import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 
-import java.util.ArrayList;
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public abstract class AbstractText extends Element {
     protected int maxLength = 256;
@@ -432,5 +428,6 @@ public abstract class AbstractText extends Element {
         return true;
     }
 
-    protected record TextState(String value, int cursor, int selectionStart, int selectionEnd, int selectionAnchor) {}
+    protected record TextState(String value, int cursor, int selectionStart, int selectionEnd, int selectionAnchor) {
+    }
 }

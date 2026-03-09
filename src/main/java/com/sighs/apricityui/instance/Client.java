@@ -10,30 +10,23 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.style.Cursor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RenderGuiEvent;
-import net.minecraftforge.client.event.ScreenEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.HashMap;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class Client {
     public static final HashMap<String, Integer> KEY_MAP = new HashMap<>();
     private static int lastWindowWidth = -1;
@@ -171,124 +164,123 @@ public class Client {
         KEY_MAP.put("key.keyboard.world.2", 162);
     }
 
-    @SubscribeEvent
-    public static void icon(TickEvent.ClientTickEvent event) {
+    public static void icon() {
+        String screenName = Minecraft.getInstance().screen == null ? "null" : Minecraft.getInstance().screen.getClass().getName();
+        ApricityUI.LOGGER.debug("ApricityUI Client.icon tick, screen={}", screenName);
         if (Minecraft.getInstance().screen instanceof TitleScreen) {
-            if (Document.get("apricityui/icon.html").isEmpty()) Document.create("apricityui/icon.html");
+            var docs = Document.get("apricityui/icon.html");
+            if (docs.isEmpty()) {
+                ApricityUI.LOGGER.info("ApricityUI Client.icon creating document: apricityui/icon.html");
+                var created = Document.create("apricityui/icon.html");
+                if (created == null) {
+                    ApricityUI.LOGGER.warn("ApricityUI Client.icon create failed: template not found apricityui/icon.html");
+                } else {
+                    ApricityUI.LOGGER.info("ApricityUI Client.icon document created: {}", created.getUuid());
+                }
+            }
         } else Document.remove("apricityui/icon.html");
     }
 
-    @SubscribeEvent
-    public static void drawScreen(ScreenEvent.Render.Post event) {
+    public static void drawScreenLike(GuiGraphics guiGraphics) {
+        ApricityUI.LOGGER.trace("ApricityUI Client.drawScreenLike enter, docs={}", Document.getAll().size());
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
+            Base.drawAllDocument(guiGraphics.pose());
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentUnboundSlotItems(guiGraphics, document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(guiGraphics.pose());
+            ApricityUI.LOGGER.trace("ApricityUI Client.drawScreenLike rendered");
         }
     }
 
-    @SubscribeEvent
-    public static void drawOverlay(RenderGuiEvent.Post event) {
+    public static void drawOverlayLike(GuiGraphics guiGraphics) {
+        ApricityUI.LOGGER.trace("ApricityUI Client.drawOverlayLike enter, docs={}", Document.getAll().size());
         if (Minecraft.getInstance().screen == null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
+            Base.drawAllDocument(guiGraphics.pose());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentUnboundSlotItems(guiGraphics, document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(guiGraphics.pose());
+            ApricityUI.LOGGER.trace("ApricityUI Client.drawOverlayLike rendered");
         }
     }
 
-    @SubscribeEvent
-    public static void scroll(InputEvent.MouseScrollingEvent event) {
-        Operation.scroll(event.getScrollDelta());
+    public static void handleMouseScroll(double scrollDelta) {
+        Operation.scroll(scrollDelta);
         for (WorldWindow window : WorldWindow.windows) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
-                mouseEvent.scrollDelta = -event.getScrollDelta() * 50;
+                mouseEvent.scrollDelta = -scrollDelta * 50;
                 MouseEvent.tiggerEvent(mouseEvent, window.document);
-                event.setCanceled(true);
             }
         }
     }
 
-    @SubscribeEvent
-    public static void scroll(ScreenEvent.MouseScrolled.Post event) {
-        Operation.scroll(event.getScrollDelta());
+    public static void handleScreenScroll(double scrollDelta) {
+        Operation.scroll(scrollDelta);
     }
 
-    @SubscribeEvent
-    public static void onCharTyped(ScreenEvent.CharacterTyped.Pre event) {
-        if (SharedConstants.isAllowedChatCharacter(event.getCodePoint())) {
-            if (Operation.onCharTyped(event.getCodePoint())) event.setCanceled(true);
+    public static void onCharTyped(int codePoint) {
+        char ch = (char) codePoint;
+        if (SharedConstants.isAllowedChatCharacter(ch)) {
+            Operation.onCharTyped(ch);
         }
     }
 
-    @SubscribeEvent
-    public static void mouseButton(InputEvent.MouseButton.Pre event) {
-        if (event.getAction() == InputConstants.PRESS) Operation.onMouseDown();
-        if (event.getAction() == InputConstants.RELEASE) Operation.onMouseUp();
+    public static void mouseButton(int action) {
+        if (action == InputConstants.PRESS) Operation.onMouseDown();
+        if (action == InputConstants.RELEASE) Operation.onMouseUp();
         if (Minecraft.getInstance().screen != null) return;
         for (WorldWindow window : WorldWindow.windows) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
-                if (event.getAction() == InputConstants.PRESS) {
+                if (action == InputConstants.PRESS) {
                     MouseEvent.tiggerEvent(new MouseEvent("mousedown", realPos), window.document);
                 } else {
                     MouseEvent.tiggerEvent(new MouseEvent("mouseup", realPos), window.document);
                 }
-                event.setCanceled(true);
             }
         }
     }
 
-    @SubscribeEvent
-    public static void mouseMove(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
-            Operation.onMouseMove(getMousePosition());
-            for (WorldWindow window : WorldWindow.windows) {
-                Position realPos = window.getRealPos();
-                if (realPos != null) {
-                    MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
-                    MouseEvent.tiggerEvent(moveEvent, window.document);
-                }
+    public static void mouseMove() {
+        Operation.onMouseMove(getMousePosition());
+        for (WorldWindow window : WorldWindow.windows) {
+            Position realPos = window.getRealPos();
+            if (realPos != null) {
+                MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
+                MouseEvent.tiggerEvent(moveEvent, window.document);
             }
         }
     }
 
-    @SubscribeEvent
-    public static void onKeyPressed(InputEvent.Key event) {
-        if (event.getAction() == InputConstants.RELEASE) {
-            Operation.onKeyReleased(event.getKey());
+    public static void onKeyPressed(int key, int action, boolean repeat) {
+        if (action == InputConstants.RELEASE) {
+            Operation.onKeyReleased(key);
             return;
         }
-        if (event.getAction() != InputConstants.PRESS && event.getAction() != InputConstants.REPEAT) return;
-        boolean canceled = Operation.onKeyPressed(event.getKey(), event.getAction() == InputConstants.REPEAT);
-//        if (canceled) event.setCanceled(true);
+        if (action != InputConstants.PRESS && !repeat) return;
+        Operation.onKeyPressed(key, repeat);
     }
 
-    @SubscribeEvent
-    public static void tick(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.START) {
-            Runtime.tick();
-            Size current = getWindowSize();
-            int w = (int) current.width();
-            int h = (int) current.height();
-            if (lastWindowWidth != w || lastWindowHeight != h) {
-                lastWindowWidth = w;
-                lastWindowHeight = h;
-                Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
-            }
+    public static void tickStart() {
+        Runtime.tick();
+        Size current = getWindowSize();
+        int w = (int) current.width();
+        int h = (int) current.height();
+        if (lastWindowWidth != w || lastWindowHeight != h) {
+            lastWindowWidth = w;
+            lastWindowHeight = h;
+            Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
         }
     }
 
@@ -331,6 +323,7 @@ public class Client {
     public static Window getWindow() {
         return Minecraft.getInstance().getWindow();
     }
+
     public static Size getWindowSize() {
         Window window = Minecraft.getInstance().getWindow();
         return new Size(window.getGuiScaledWidth(), window.getGuiScaledHeight());

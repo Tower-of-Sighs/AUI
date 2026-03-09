@@ -7,12 +7,7 @@ import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 将 container 的自动槽位前移到 Document 刷新阶段生成。

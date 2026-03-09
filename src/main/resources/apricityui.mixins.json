@@ -8,7 +8,9 @@
   ],
   "client": [
     "AbstractContainerScreenMixin",
+    "MinecraftMixin",
     "accessor.AbstractContainerScreenAccessor",
+    "accessor.KeyMappingAccessor",
     "accessor.SlotAccessor"
   ],
   "injectors": {

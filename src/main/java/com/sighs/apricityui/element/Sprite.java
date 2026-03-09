@@ -6,12 +6,10 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.style.Animation;
-import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
 import java.util.regex.Pattern;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID)
 public class Sprite extends Div {
     public static final String TAG_NAME = "SPRITE";
     private static final Set<String> MANAGED_STYLE_KEYS = Set.of(
@@ -463,7 +461,8 @@ public class Sprite extends Div {
     }
 
     // 异步纹理就绪后推导出的单帧尺寸。
-    private record FrameMetrics(int frameW, int frameH) {}
+    private record FrameMetrics(int frameW, int frameH) {
+    }
 
     // Sprite 解析后的配置快照。
     private record SpriteSpec(
@@ -513,7 +512,8 @@ public class Sprite extends Div {
             SpriteSpec.Direction direction,
             int frameW,
             int frameH
-    ) {}
+    ) {
+    }
 
     // Document 级缓存：同一文档中相同 SpriteKey 只注册一次 keyframes。
     private static class SpriteKeyframesCache {

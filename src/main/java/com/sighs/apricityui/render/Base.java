@@ -9,7 +9,10 @@ import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
@@ -99,17 +102,17 @@ public class Base {
                 float originY = (float) (h / 2.0);
 
                 for (Transform transform : functions) {
-                    if (transform instanceof Transform.Translate t) {
-                        poseStack.translate(t.x(), t.y(), t.z());
-                    } else if (transform instanceof Transform.Rotate r) {
+                    if (transform instanceof Transform.Translate(double x2, double y2, double z1)) {
+                        poseStack.translate(x2, y2, z1);
+                    } else if (transform instanceof Transform.Rotate(double x1, double y1, double z)) {
                         poseStack.translate(originX, originY, 0);
-                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
-                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
-                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
+                        if (x1 != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(x1)));
+                        if (y1 != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(y1)));
+                        if (z != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(z)));
                         poseStack.translate(-originX, -originY, 0);
-                    } else if (transform instanceof Transform.Scale s) {
+                    } else if (transform instanceof Transform.Scale(double x, double y)) {
                         poseStack.translate(originX, originY, 0);
-                        poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
+                        poseStack.scale((float) x, (float) y, 1.0f);
                         poseStack.translate(-originX, -originY, 0);
                     }
                 }
@@ -127,21 +130,27 @@ public class Base {
     public static void setProjectionMatrix(Matrix4f matrix) {
         RenderSystem.setProjectionMatrix(matrix, RenderSystem.getVertexSorting());
     }
+
     public static Matrix4f getProjectionMatrix() {
         return RenderSystem.getProjectionMatrix();
     }
+
     public static void setShader(ShaderInstance shader) {
         RenderSystem.setShader(() -> shader);
     }
+
     public static void setPositionColorShader() {
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
     }
+
     public static void setPositionTexShader() {
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
     }
+
     public static void setShaderTexture(int i, int v) {
         RenderSystem.setShaderTexture(i, v);
     }
+
     public static void setShaderColor(float a, float r, float g, float b) {
         RenderSystem.setShaderColor(a, r, g, b);
     }

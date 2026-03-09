@@ -1,7 +1,6 @@
 package com.sighs.apricityui.event;
 
 import com.sighs.apricityui.init.*;
-import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Cursor;
@@ -230,15 +229,13 @@ public class MouseEvent extends Event implements Cloneable {
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
 
-            if (node instanceof RenderNode.MaskPopNode popNode) {
-                clipStack.push(popNode.target());
-            }
-            else if (node instanceof RenderNode.MaskPushNode pushNode) {
-                if (!clipStack.isEmpty() && clipStack.peek() == pushNode.target()) {
+            if (node instanceof RenderNode.MaskPopNode(Element target2)) {
+                clipStack.push(target2);
+            } else if (node instanceof RenderNode.MaskPushNode(Element target1)) {
+                if (!clipStack.isEmpty() && clipStack.peek() == target1) {
                     clipStack.pop();
                 }
-            }
-            else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {
+            } else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {
                 Element element = phaseNode.target();
 
                 if (!element.isVisible || !element.isPointerEnabled) continue;

@@ -1,17 +1,20 @@
 package com.sighs.apricityui.instance.network.packet;
 
-import net.minecraft.network.FriendlyByteBuf;
+import cc.sighs.oelib.network.api.INetworkContext;
+import cc.sighs.oelib.network.api.INetworkPacket;
+import cc.sighs.oelib.network.api.NetworkPacket;
+import cc.sighs.oelib.network.api.Side;
+import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 
-public record OpenScreenRequestPacket(String templatePath) {
+@NetworkPacket(modId = ApricityUI.MODID, id = "open_screen_request", side = Side.SERVER)
+public record OpenScreenRequestPacket(String templatePath) implements INetworkPacket<OpenScreenRequestPacket> {
     public OpenScreenRequestPacket(String templatePath) {
         this.templatePath = templatePath == null ? "" : templatePath;
     }
 
-    public static void encode(OpenScreenRequestPacket packet, FriendlyByteBuf buf) {
-        buf.writeUtf(packet.templatePath);
-    }
-
-    public static OpenScreenRequestPacket decode(FriendlyByteBuf buf) {
-        return new OpenScreenRequestPacket(buf.readUtf());
+    @Override
+    public void handle(INetworkContext context) {
+        ApricityScreenNetworkHandler.handleOpenScreenRequest(this, context);
     }
 }

@@ -2,12 +2,14 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+
 import java.util.*;
 
 public record Transition(String name, double start, double end, double duration, double delay, long startTime) {
     private static final HashMap<UUID, List<Transition>> workList = new HashMap<>();
 
-    public record Change(String name, double value) {}
+    public record Change(String name, double value) {
+    }
 
     public static void create(Element element, Style startStyle, Style endStyle) {
         String transitionSpec = resolveTransitionSpec(startStyle, endStyle);
@@ -19,7 +21,9 @@ public record Transition(String name, double start, double end, double duration,
         workList.put(element.uuid, parsed);
     }
 
-    public static boolean isActive(Element element) { return workList.containsKey(element.uuid); }
+    public static boolean isActive(Element element) {
+        return workList.containsKey(element.uuid);
+    }
 
     public static void updateStyle(Element element, Style originStyle) {
         List<Transition> transitions = workList.get(element.uuid);
@@ -65,7 +69,9 @@ public record Transition(String name, double start, double end, double duration,
             if (t.endsWith("ms")) return Double.parseDouble(t.substring(0, t.length() - 2));
             if (t.endsWith("s")) return Double.parseDouble(t.substring(0, t.length() - 1)) * 1000;
             return Double.parseDouble(t) * 1000;
-        } catch (Exception ex) { return 0; }
+        } catch (Exception ex) {
+            return 0;
+        }
     }
 
     public static double parseStyle(String name, String value) {
@@ -108,7 +114,8 @@ public record Transition(String name, double start, double end, double duration,
             double dur = 0, del = 0;
             for (int i = 1; i < tokens.length; i++) {
                 double time = parseTime(tokens[i]);
-                if (dur == 0) dur = time; else del = time;
+                if (dur == 0) dur = time;
+                else del = time;
             }
             if ("all".equals(prop)) {
                 double finalDur = dur;

@@ -31,18 +31,23 @@ public class Box {
         SideBorder sideBorder = parseSideBorder(value);
         border.put(side, sideBorder);
     }
+
     public void applyBorderAll(String value) {
         SIDE.forEach(side -> applyBorder(side, value));
     }
+
     public void applyMargin(String side, String value) {
         margin.put(side, resolveBoxLength(value));
     }
+
     public void applyMarginAll(String value) {
         SIDE.forEach(side -> applyMargin(side, value));
     }
+
     public void applyPadding(String side, String value) {
         padding.put(side, resolveBoxLength(value));
     }
+
     public void applyPaddingAll(String value) {
         SIDE.forEach(side -> applyPadding(side, value));
     }
@@ -109,7 +114,7 @@ public class Box {
         resultBox.shadow = resultBox.shadows.isEmpty() ? Shadow.getDefault() : resultBox.shadows.get(0);
         resultBox.borderImage = parseBorderImage(style);
         if (resultBox.borderImage != null && isZero(resultBox.borderImage.width)) {
-            resultBox.borderImage.width = new int[] {
+            resultBox.borderImage.width = new int[]{
                     (int) resultBox.getBorderTop(),
                     (int) resultBox.getBorderRight(),
                     (int) resultBox.getBorderBottom(),
@@ -133,12 +138,14 @@ public class Box {
         double resultHeight = elementSize.height() + getMarginVertical();
         return new Size(resultWidth, resultHeight);
     }
+
     public Size innerSize() {
         Size elementSize = Size.of(element);
         double resultWidth = elementSize.width() - getBorderHorizontal() - getPaddingHorizontal();
         double resultHeight = elementSize.height() - getBorderVertical() - getPaddingVertical();
         return new Size(resultWidth, resultHeight);
     }
+
     public Size elementSize() {
         return Size.of(element);
     }
@@ -156,18 +163,23 @@ public class Box {
     public double getMarginHorizontal() {
         return getMarginLeft() + getMarginRight();
     }
+
     public double getMarginVertical() {
         return getMarginTop() + getMarginBottom();
     }
+
     public double getMarginLeft() {
         return margin.getOrDefault("left", 0d);
     }
+
     public double getMarginTop() {
         return margin.getOrDefault("top", 0d);
     }
+
     public double getMarginRight() {
         return margin.getOrDefault("right", 0d);
     }
+
     public double getMarginBottom() {
         return margin.getOrDefault("bottom", 0d);
     }
@@ -175,18 +187,23 @@ public class Box {
     public double getBorderHorizontal() {
         return getBorderLeft() + getBorderRight();
     }
+
     public double getBorderVertical() {
         return getBorderTop() + getBorderBottom();
     }
+
     public double getBorderLeft() {
         return border.getOrDefault("left", SideBorder.getDefault()).size;
     }
+
     public double getBorderRight() {
         return border.getOrDefault("right", SideBorder.getDefault()).size;
     }
+
     public double getBorderTop() {
         return border.getOrDefault("top", SideBorder.getDefault()).size;
     }
+
     public double getBorderBottom() {
         return border.getOrDefault("bottom", SideBorder.getDefault()).size;
     }
@@ -194,18 +211,23 @@ public class Box {
     public double getPaddingHorizontal() {
         return getPaddingLeft() + getPaddingRight();
     }
+
     public double getPaddingVertical() {
         return getPaddingTop() + getPaddingBottom();
     }
+
     public double getPaddingLeft() {
         return padding.getOrDefault("left", 0d);
     }
+
     public double getPaddingRight() {
         return padding.getOrDefault("right", 0d);
     }
+
     public double getPaddingTop() {
         return padding.getOrDefault("top", 0d);
     }
+
     public double getPaddingBottom() {
         return padding.getOrDefault("bottom", 0d);
     }
@@ -216,6 +238,7 @@ public class Box {
         if (res.length != 3) return SideBorder.getDefault();
         return new SideBorder(Size.parse(res[0]), res[1], new Color(res[2]));
     }
+
     public static Shadow parseShadow(String string) {
         List<Shadow> parsed = parseShadowList(string);
         return parsed.isEmpty() ? Shadow.getDefault() : parsed.get(0);
@@ -360,7 +383,7 @@ public class Box {
         // 防止除以0或负数
         if (scale < 0) scale = 0;
 
-        return new float[] { tl * scale, tr * scale, br * scale, bl * scale };
+        return new float[]{tl * scale, tr * scale, br * scale, bl * scale};
     }
 
     public static boolean matchStyleName(String name) {

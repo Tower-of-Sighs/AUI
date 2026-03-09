@@ -1,7 +1,10 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
 
 import java.util.*;
@@ -98,13 +101,16 @@ public class Element {
     }
 
     public Style style = null;
+
     public Style getStyle() {
         if (style == null) updateInlineStyle();
         return style;
     }
+
     public String getCustomProperty(String name) {
         return getRawComputedStyle().getCustomProperty(name);
     }
+
     public String getCustomPropertyInherit(String name) {
         Element current = this;
         while (current != null) {
@@ -118,6 +124,7 @@ public class Element {
     public HashMap<String, String> getAttributes() {
         return attributes;
     }
+
     public String getAttribute(String name) {
         if (name.equals("value")) {
             String _value = attributes.getOrDefault(name, "");
@@ -150,6 +157,7 @@ public class Element {
 //        }
         return attributes.getOrDefault(name, "");
     }
+
     public void setAttribute(String name, String value) {
         attributes.put(name, value);
         if (name.equals("style")) {
@@ -190,6 +198,7 @@ public class Element {
     public boolean hasAttribute(String name) {
         return attributes.containsKey(name);
     }
+
     public Set<String> getClassNames() {
         String classes = getAttribute("class");
         if (classes == null || classes.isBlank()) return Collections.emptySet();
@@ -242,6 +251,7 @@ public class Element {
         }
         return computedStyle;
     }
+
     public void updateInlineStyle() {
         Style newStyle = new Style();
         newStyle.merge(attributes.getOrDefault("style", ""));
@@ -254,45 +264,57 @@ public class Element {
         isHover = hover;
         updateCSS();
     }
+
     public void setActive(boolean active) {
         if (isActive == active) return;
         isActive = active;
         updateCSS();
     }
+
     public void setFocus(boolean value) {
         isFocus = value;
         updateCSS();
     }
+
     public boolean canFocus() {
         return canSelectInnerText();
     }
+
     public static boolean isElementFocusing(Element element) {
         if (element == null || element.document == null) return false;
         Element currentFocus = element.document.getFocusedElement();
         return currentFocus != null && element.uuid.equals(currentFocus.uuid);
     }
+
     public void setScrollLeft(double value) {
         targetScrollLeft = applyOverscroll(value, getHorizontalScrollLimit());
     }
+
     public void setScrollTop(double value) {
         targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
     }
+
     public double getScrollLeft() {
         return interpolateScroll(scrollLeft, targetScrollLeft);
     }
+
     public double getScrollTop() {
         return interpolateScroll(scrollTop, targetScrollTop);
     }
+
     public double getTargetScrollLeft() {
         return targetScrollLeft;
     }
+
     public double getTargetScrollTop() {
         return targetScrollTop;
     }
+
     public boolean canScroll() {
         if (getComputedStyle().overflow.equals("visible")) return false;
         return scrollHeight != Size.of(this).height();
     }
+
     public void setValue(String value) {
         this.value = value;
     }
@@ -320,7 +342,8 @@ public class Element {
      * 不会重新触发 {@link #setAttribute(String, String)} 的副作用。因此该钩子用于让子类在不强制触发
      * CSS/layout 的前提下，从 attributes 中同步一次内部状态。
      */
-    protected void onInitFromDom(Element origin) {}
+    protected void onInitFromDom(Element origin) {
+    }
 
     /**
      * 运行一次性的 DOM 初始化逻辑（含公共同步），避免重复执行。
@@ -398,6 +421,7 @@ public class Element {
     public List<Element> querySelectorAll(String selector) {
         return Selector.querySelectorAll(this, selector);
     }
+
     public Element querySelector(String selector) {
         return Selector.querySelector(this, selector);
     }
@@ -405,6 +429,7 @@ public class Element {
     public void prepend(Element element) {
         document.createRelation(init(element), this, true);
     }
+
     public void append(Element element) {
         document.createRelation(init(element), this, false);
     }
@@ -412,9 +437,19 @@ public class Element {
     public void addDirtyFlags(int mask) {
         this.dirtyFlags |= mask;
     }
-    public boolean hasDirtyFlag(int mask) { return (this.dirtyFlags & mask) != 0; }
-    public void clearDirtyFlags() { this.dirtyFlags = 0; }
-    public int getDepth() { return this.depth; }
+
+    public boolean hasDirtyFlag(int mask) {
+        return (this.dirtyFlags & mask) != 0;
+    }
+
+    public void clearDirtyFlags() {
+        this.dirtyFlags = 0;
+    }
+
+    public int getDepth() {
+        return this.depth;
+    }
+
     public Element getParentStackContext() {
         Element parent = parentElement;
         while (parent != null) {
@@ -423,12 +458,14 @@ public class Element {
         }
         return document.body;
     }
+
     public boolean isStackContext() {
         Style style = getComputedStyle();
         return !style.position.equals("static") || !style.zIndex.equals("auto");
     }
 
     private long lastTickTime;
+
     public void tick() {
         lastTickTime = System.currentTimeMillis();
         boolean scrollingX = stepHorizontalScroll();
@@ -499,19 +536,24 @@ public class Element {
         return Math.abs(current - target) <= SCROLL_STOP_EPSILON;
     }
 
-    private record ScrollStep(double current, double target, boolean moving) {}
+    private record ScrollStep(double current, double target, boolean moving) {
+    }
 
     // 事件部分
     public ArrayList<Event> EventListener = new ArrayList<>();
+
     public void addEventListener(String type, Consumer<Event> listener) {
         addEventListener(type, listener, false);
     }
+
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         EventListener.add(new Event(this, type, listener, useCapture));
     }
+
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         EventListener.removeIf(event -> type.equals(event.type) && listener.equals(event.listener) && useCapture == event.useCapture);
     }
+
     public void triggerEvent(Consumer<Event> handler) {
         EventListener.forEach(handler);
     }
@@ -519,6 +561,7 @@ public class Element {
     public RenderElement getRenderer() {
         return renderElement;
     }
+
     public void resetRenderer() {
         renderElement = new RenderElement(this);
     }

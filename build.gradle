@@ -1,80 +1,22 @@
-buildscript {
-    repositories {
-        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
-    }
-}
-
 plugins {
-    id 'eclipse'
-    id 'idea'
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'fabric-loom' version '1.13-SNAPSHOT'
+    id 'maven-publish'
 }
 
-apply plugin: 'org.spongepowered.mixin'
-apply plugin: 'maven-publish'
-
-group = mod_group_id
-version = mod_version
+version = project.mod_version
+group = project.maven_group
 
 base {
-    archivesName = mod_name
+    archivesName = "${mod_id}-fabric-${minecraft_version}"
 }
 
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(17)
-}
-
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-    copyIdeResources = true
-
+loom {
     runs {
-        configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-
-            property 'forge.logging.console.level', 'debug'
-
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
-        }
-
         client {
-            workingDirectory project.file('run')
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
-
-        server {
-            workingDirectory project.file('run/server')
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
-
-        gameTestServer {
-            property 'forge.enabledGameTestNamespaces', mod_id
-        }
-
-        data {
-            workingDirectory project.file('run-data')
-
-            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+            programArgs "--username", "Merry_Snow"
         }
     }
 }
-
-mixin {
-    add sourceSets.main, "${mod_id}.refmap.json"
-
-    config "${mod_id}.mixins.json"
-}
-
-sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
     maven {
@@ -84,22 +26,88 @@ repositories {
             includeGroup "curse.maven"
         }
     }
+    maven { url "https://maven.shedaniel.me/" }
+    // OEL
+    maven {
+        url "https://maven.sighs.cc/repository/maven-releases/"
+    }
+    maven {
+        url "https://maven.sighs.cc/repository/maven-snapshots/"
+    }
 }
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
+    // mc and fabric
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+    modImplementation "curse.maven:kubejs-238086:5853321"
+    modImplementation "curse.maven:rhino-416294:6186969"
+    modImplementation "dev.architectury:architectury-fabric:$rootProject.architectury_api_version"
+    modImplementation files("libs/OELib-fabric-1.20.1-0.1.3.jar")
+    implementation "com.electronwill.night-config:toml:3.8.3"
+    implementation "cn.6tail:lunar:1.7.3"
+    implementation "de.marhali:json5-java:3.0.0"
+}
 
-    implementation fg.deobf("curse.maven:kubejs-238086:5853326")
-    implementation fg.deobf("curse.maven:rhino-416294:6186971")
-    implementation fg.deobf("curse.maven:architectury-api-419699:5137938")
+processResources {
+    inputs.property "minecraft_version", project.minecraft_version
+    inputs.property "loader_version", project.loader_version
+    inputs.property "mod_id", project.mod_id
+    inputs.property "mod_name", project.mod_name
+    inputs.property "mod_license", project.mod_license
+    inputs.property "mod_version", project.mod_version
+    inputs.property "mod_authors", project.mod_authors
+    inputs.property "mod_description", project.mod_description
+    filteringCharset "UTF-8"
 
-    implementation fg.deobf("curse.maven:embeddium-908741:5681725")
-    implementation fg.deobf("curse.maven:rubidium-extra-654373:6101745")
+    filesMatching("fabric.mod.json") {
+        expand  "minecraft_version"      : minecraft_version,
+                loader_version           : loader_version,
+                "mod_id"                 : mod_id,
+                "mod_name"               : mod_name,
+                "mod_license"            : mod_license,
+                "mod_version"            : mod_version,
+                "mod_authors"            : mod_authors,
+                "mod_description"        : mod_description
+    }
+}
 
-//    implementation fg.deobf("curse.maven:accelerated-rendering-1314021:7342975")
+def targetJavaVersion = 21
+tasks.withType(JavaCompile).configureEach {
+    // ensure that the encoding is set to UTF-8, no matter what the system default is
+    // this fixes some edge cases with special characters not displaying correctly
+    // see http://yodaconditions.net/blog/fix-for-java-file-encoding-problems-with-gradle.html
+    // If Javadoc is generated, this must be specified in that task too.
+    it.options.encoding = "UTF-8"
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        it.options.release.set(targetJavaVersion)
+    }
+}
 
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+    // Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+    // if it is present.
+    // If you remove this line, sources will not be generated.
+    withSourcesJar()
+}
+
+tasks.named("runClient").configure {
+    jvmArgs += [
+            "-Dsodium.checks.issue2561=false"
+    ]
+}
+
+jar {
+    from("LICENSE") {
+        rename { "${it}_${project.archivesBaseName}" }
+    }
 }
 
 publishing {
@@ -133,36 +141,4 @@ publishing {
             }
         }
     }
-}
-
-tasks.named('processResources', ProcessResources).configure {
-    var replaceProperties = [minecraft_version   : minecraft_version, minecraft_version_range: minecraft_version_range,
-                             forge_version       : forge_version, forge_version_range: forge_version_range,
-                             loader_version_range: loader_version_range,
-                             mod_id              : mod_id, mod_name: mod_name, mod_license: mod_license, mod_version: mod_version,
-                             mod_authors         : mod_authors, mod_description: mod_description,]
-
-    inputs.properties replaceProperties
-
-    filesMatching(['META-INF/mods.toml', 'pack.mcmeta']) {
-        expand replaceProperties + [project: project]
-    }
-}
-
-tasks.named('jar', Jar).configure {
-    manifest {
-        attributes(["Specification-Title"     : mod_id,
-                    "Specification-Vendor"    : mod_authors,
-                    "Specification-Version"   : "1",
-                    "Implementation-Title"    : project.name,
-                    "Implementation-Version"  : project.jar.archiveVersion,
-                    "Implementation-Vendor"   : mod_authors,
-                    "Implementation-Timestamp": new Date().format("yyyy-MM-dd'T'HH:mm:ssZ")])
-    }
-
-    finalizedBy 'reobfJar'
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
 }

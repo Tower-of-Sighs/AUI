@@ -1,5 +1,6 @@
 package com.sighs.apricityui.instance.slot;
 
+import cc.sighs.oelib.registry.extra.FuelRegister;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
@@ -14,15 +15,8 @@ import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
-import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraftforge.common.ForgeHooks;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -154,7 +148,7 @@ public final class SlotExpressionCompiler {
         if (FURNACE_FUEL_TAG.equals(tagId)) {
             for (Item item : BuiltInRegistries.ITEM) {
                 ItemStack stack = new ItemStack(item);
-                if (ForgeHooks.getBurnTime(stack, RecipeType.SMELTING) <= 0) continue;
+                if (FuelRegister.get(stack) <= 0) continue;
                 result.add(stack);
                 if (result.size() >= MAX_CANDIDATES) break;
             }

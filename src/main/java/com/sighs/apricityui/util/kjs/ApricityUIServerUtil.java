@@ -1,4 +1,4 @@
-package com.sighs.apricityui.util;
+package com.sighs.apricityui.util.kjs;
 
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;

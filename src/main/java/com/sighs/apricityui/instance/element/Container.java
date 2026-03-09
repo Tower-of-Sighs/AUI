@@ -7,30 +7,22 @@ import com.sighs.apricityui.instance.ApricitySavedData;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
-import com.sighs.apricityui.instance.container.datasource.ForgeItemHandlerDataSource;
+import com.sighs.apricityui.instance.container.datasource.FabricItemHandlerDataSource;
 import com.sighs.apricityui.instance.container.datasource.PlayerInventoryDataSource;
 import com.sighs.apricityui.instance.container.datasource.SavedDataDataSource;
-import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
+import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
-import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemStackHandler;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @ElementRegister(Container.TAG_NAME)
 public class Container extends MinecraftElement {
@@ -202,8 +194,8 @@ public class Container extends MinecraftElement {
         int initialCapacity = Math.max(1, Math.max(declaredSlotCount, requiredCapacity));
 
         ApricitySavedData savedData = ApricitySavedData.get(player.server, dataName);
-        ItemStackHandler handler = savedData.getOrCreate(inventoryKey, initialCapacity, resizePolicy);
-        return new SavedDataDataSource(bindType, savedData, inventoryKey, handler);
+        var container = savedData.getOrCreate(inventoryKey, initialCapacity, resizePolicy);
+        return new SavedDataDataSource(bindType, savedData, inventoryKey, container);
     }
 
     private static ContainerDataSource resolveBlockEntity(
@@ -228,23 +220,24 @@ public class Container extends MinecraftElement {
         if (blockEntity == null) {
             return null;
         }
-
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
-        if (handler == null || handler.getSlots() <= 0) {
+        if (!(blockEntity instanceof net.minecraft.world.Container container)) {
+            return null;
+        }
+        if (container.getContainerSize() <= 0) {
             return null;
         }
 
         Class<?> expectedType = blockEntity.getClass();
         BlockPos immutablePos = pos.immutable();
-        return new ForgeItemHandlerDataSource(
+        return new FabricItemHandlerDataSource(
                 bindType,
-                handler,
+                container,
                 currentPlayer -> {
                     if (currentPlayer == null) return false;
                     ServerLevel currentLevel = currentPlayer.serverLevel();
                     if (!currentLevel.hasChunkAt(immutablePos)) return false;
                     BlockEntity current = currentLevel.getBlockEntity(immutablePos);
-                    return current != null && expectedType.isInstance(current);
+                    return expectedType.isInstance(current);
                 }
         );
     }
@@ -258,21 +251,21 @@ public class Container extends MinecraftElement {
         if (uuid == null) return null;
 
         Entity target = findEntityByUuid(player, uuid);
-        if (!(target instanceof LivingEntity livingEntity)) {
+        if (!(target instanceof Player playerEntity)) {
             return null;
         }
-        IItemHandler handler = livingEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
-        if (handler == null || handler.getSlots() <= 0) {
+        Inventory inventory = playerEntity.getInventory();
+        if (inventory.items.size() <= 0) {
             return null;
         }
 
-        Class<?> expectedType = livingEntity.getClass();
-        return new ForgeItemHandlerDataSource(
+        Class<?> expectedType = playerEntity.getClass();
+        return new FabricItemHandlerDataSource(
                 bindType,
-                handler,
+                inventory,
                 currentPlayer -> {
                     Entity current = findEntityByUuid(currentPlayer, uuid);
-                    return current != null && expectedType.isInstance(current);
+                    return expectedType.isInstance(current);
                 }
         );
     }

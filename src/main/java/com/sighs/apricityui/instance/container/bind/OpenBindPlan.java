@@ -378,7 +378,7 @@ public final class OpenBindPlan {
             /**
              * 设置为 SAVED_DATA 绑定（不显式写 slotCount）。
              *
-             * @param dataName SavedData 名称
+             * @param dataName     SavedData 名称
              * @param inventoryKey SavedData 中的库存键
              * @return 当前容器子构建器
              */
@@ -393,9 +393,9 @@ public final class OpenBindPlan {
             /**
              * 设置为 SAVED_DATA 绑定并指定容量。
              *
-             * @param dataName SavedData 名称
+             * @param dataName     SavedData 名称
              * @param inventoryKey SavedData 中的库存键
-             * @param slotCount 槽位数量（>0）
+             * @param slotCount    槽位数量（>0）
              * @return 当前容器子构建器
              */
             public ContainerBindBuilder savedData(String dataName, String inventoryKey, int slotCount) {
@@ -409,9 +409,9 @@ public final class OpenBindPlan {
             /**
              * 设置为方块实体绑定。
              *
-             * @param x 方块 X 坐标
-             * @param y 方块 Y 坐标
-             * @param z 方块 Z 坐标
+             * @param x    方块 X 坐标
+             * @param y    方块 Y 坐标
+             * @param z    方块 Z 坐标
              * @param side 可选朝向
              * @return 当前容器子构建器
              */
@@ -448,7 +448,7 @@ public final class OpenBindPlan {
             /**
              * 追加或覆盖绑定参数。
              *
-             * @param argKey 参数键
+             * @param argKey   参数键
              * @param argValue 参数值
              * @return 当前容器子构建器
              */

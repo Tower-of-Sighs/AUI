@@ -1,6 +1,9 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.render.AABB;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -150,17 +153,18 @@ public class Drawer {
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
 
-    private record Paintable(Element element, int zValue, int domOrder) {}
+    private record Paintable(Element element, int zValue, int domOrder) {
+    }
 
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
-        if (node instanceof RenderNode.MaskPushNode n) return n.target();
-        if (node instanceof RenderNode.MaskPopNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
-        if (node instanceof RenderNode.FilterPushNode n) return n.target();
-        if (node instanceof RenderNode.FilterPopNode n) return n.target();
+        if (node instanceof RenderNode.MaskPushNode(Element target5)) return target5;
+        if (node instanceof RenderNode.MaskPopNode(Element target4)) return target4;
+        if (node instanceof RenderNode.ClipPathPushNode(Element target3)) return target3;
+        if (node instanceof RenderNode.ClipPathPopNode(Element target2)) return target2;
+        if (node instanceof RenderNode.FilterPushNode(Element target1)) return target1;
+        if (node instanceof RenderNode.FilterPopNode(Element target)) return target;
         return null;
     }
 

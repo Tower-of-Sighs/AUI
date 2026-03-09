@@ -1,117 +1,115 @@
 package com.sighs.apricityui.util;
 
-import com.sighs.apricityui.ApricityUI;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.forgespi.language.ModFileScanData;
 import org.jetbrains.annotations.Nullable;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.Annotation;
-import java.lang.annotation.ElementType;
-import java.lang.reflect.*;
-import java.util.Map;
-import java.util.function.BiConsumer;
+import java.lang.reflect.Method;
+import java.net.JarURLConnection;
+import java.net.URL;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 
-// 代码参考ldlib2
-// https://github.com/Low-Drag-MC/LDLib2/blob/1.21/src/main/java/com/lowdragmc/lowdraglib2/utils/ReflectionUtils.java
 public final class ReflectionUtils {
+    private static final Set<String> SCAN_PACKAGES = new LinkedHashSet<>();
 
-    public static Class<?> getRawType(Type type, Class<?> fallback) {
-        var rawType = getRawType(type);
-        return rawType != null ? rawType : fallback;
-    }
-
-    public static Class<?> getRawType(Type type) {
-        if (type instanceof Class<?> aClass) {
-            return aClass;
-        } else if (type instanceof GenericArrayType genericArrayType) {
-            return getRawType(genericArrayType.getGenericComponentType());
-        } else if (type instanceof ParameterizedType parameterizedType) {
-            return getRawType(parameterizedType.getRawType());
-        } else {
-            return null;
+    public static void addScanPackage(String basePackage) {
+        if (basePackage != null && !basePackage.isBlank()) {
+            SCAN_PACKAGES.add(basePackage);
         }
     }
 
-    public static <A extends Annotation> void findAnnotationClasses(Class<A> annotationClass,
-                                                                    @Nullable Predicate<Map<String, Object>> annotationPredicate,
-                                                                    Consumer<Class<?>> consumer,
-                                                                    Runnable onFinished) {
-        org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
-        for (ModFileScanData data : ModList.get().getAllScanData()) {
-            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
-                if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.TYPE) {
-                    if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
-                        try {
-                            consumer.accept(Class.forName(annotation.memberName(), false, ReflectionUtils.class.getClassLoader()));
-                        } catch (Throwable throwable) {
-                            ApricityUI.LOGGER.error("Failed to load class for notation: {}", annotation.memberName(), throwable);
-                        }
-                    }
-                }
+    public static void addScanPackages(String... packages) {
+        if (packages != null) {
+            for (String pkg : packages) {
+                addScanPackage(pkg);
             }
         }
-        onFinished.run();
     }
 
-    public static <A extends Annotation> void findAnnotationStaticField(Class<A> annotationClass,
-                                                                        @Nullable Predicate<Map<String, Object>> annotationPredicate,
-                                                                        BiConsumer<Field, Object> consumer,
-                                                                        Runnable onFinished) {
-        org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
-        for (ModFileScanData data : ModList.get().getAllScanData()) {
-            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
-                if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.FIELD) {
-                    if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
-                        var clazz = annotation.clazz();
-                        var fieldName = annotation.memberName();
-                        try {
-                            var field = Class.forName(annotation.clazz().getClassName()).getDeclaredField(fieldName);
-                            if (Modifier.isStatic(field.getModifiers())) {
-                                consumer.accept(field, field.get(null));
-                            } else {
-                                ApricityUI.LOGGER.error("Field is not static for notation: {} in {}", fieldName, clazz);
-                            }
-                        } catch (Throwable throwable) {
-                            ApricityUI.LOGGER.error("Failed to load static field for notation: {} in {}", fieldName, clazz, throwable);
-                        }
-                    }
-                }
+    private static <A extends Annotation> void scanDirectory(File directory, String basePackage, Class<A> annotationClass, @Nullable Predicate<Map<String, Object>> annotationPredicate, Consumer<Class<?>> consumer, ClassLoader loader) {
+        if (!directory.exists() || !directory.isDirectory()) {
+            return;
+        }
+        File[] files = directory.listFiles();
+        if (files == null) {
+            return;
+        }
+        for (File file : files) {
+            if (file.isDirectory()) {
+                String subPackage = basePackage + "." + file.getName();
+                scanDirectory(file, subPackage, annotationClass, annotationPredicate, consumer, loader);
+            } else if (file.getName().endsWith(".class")) {
+                String className = basePackage + "." + file.getName().substring(0, file.getName().length() - 6);
+                maybeAddAnnotatedClass(className, annotationClass, annotationPredicate, consumer, loader);
             }
         }
-        onFinished.run();
     }
 
-    public static <A extends Annotation> void findAnnotationStaticMethod(Class<A> annotationClass,
-                                                                         @Nullable Predicate<Map<String, Object>> annotationPredicate,
-                                                                         Consumer<Method> consumer,
-                                                                         Runnable onFinished) {
-        org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
-        for (ModFileScanData data : ModList.get().getAllScanData()) {
-            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
-                if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.METHOD) {
-                    if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
-                        var clazz = annotation.clazz();
-                        var methodFullDesc = annotation.memberName();
-                        var methodName = methodFullDesc.substring(0, methodFullDesc.indexOf('('));
-                        var methodDesc = methodFullDesc.substring(methodFullDesc.indexOf('('));
-                        try {
-                            for (var method : Class.forName(annotation.clazz().getClassName()).getDeclaredMethods()) {
-                                if (method.getName().equals(methodName) &&
-                                        methodDesc.equals(org.objectweb.asm.Type.getMethodDescriptor(method))) {
-                                    if (Modifier.isStatic(method.getModifiers())) {
-                                        consumer.accept(method);
-                                    } else {
-                                        ApricityUI.LOGGER.error("Method is not static for notation: {} in {}", methodDesc, clazz);
-                                    }
-                                }
-                            }
-                        } catch (Throwable throwable) {
-                            ApricityUI.LOGGER.error("Failed to load static method for notation: {} in {}", methodDesc, clazz, throwable);
-                        }
+    private static <A extends Annotation> void scanJar(URL url, String path, Class<A> annotationClass, @Nullable Predicate<Map<String, Object>> annotationPredicate, Consumer<Class<?>> consumer, ClassLoader loader) {
+        try {
+            JarURLConnection connection = (JarURLConnection) url.openConnection();
+            try (JarFile jarFile = connection.getJarFile()) {
+                Enumeration<JarEntry> entries = jarFile.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    String name = entry.getName();
+                    if (!name.startsWith(path) || !name.endsWith(".class") || entry.isDirectory()) {
+                        continue;
+                    }
+                    String className = name.replace('/', '.').substring(0, name.length() - 6);
+                    maybeAddAnnotatedClass(className, annotationClass, annotationPredicate, consumer, loader);
+                }
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static <A extends Annotation> void maybeAddAnnotatedClass(String className, Class<A> annotationClass, @Nullable Predicate<Map<String, Object>> annotationPredicate, Consumer<Class<?>> consumer, ClassLoader loader) {
+        try {
+            Class<?> clazz = Class.forName(className, false, loader);
+            A ann = clazz.getAnnotation(annotationClass);
+            if (ann == null) {
+                return;
+            }
+            Map<String, Object> data = new HashMap<>();
+            for (Method m : annotationClass.getDeclaredMethods()) {
+                try {
+                    Object value = m.invoke(ann);
+                    data.put(m.getName(), value);
+                } catch (Throwable ignored) {
+                }
+            }
+            if (annotationPredicate == null || annotationPredicate.test(data)) {
+                consumer.accept(clazz);
+            }
+        } catch (ClassNotFoundException | NoClassDefFoundError ignored) {
+        }
+    }
+
+    public static <A extends Annotation> void findAnnotationClasses(Class<A> annotationClass, @Nullable Predicate<Map<String, Object>> annotationPredicate, Consumer<Class<?>> consumer, Runnable onFinished) {
+        ClassLoader loader = Thread.currentThread().getContextClassLoader();
+        if (loader == null) {
+            loader = ReflectionUtils.class.getClassLoader();
+        }
+        for (String basePackage : SCAN_PACKAGES) {
+            String path = basePackage.replace('.', '/');
+            try {
+                Enumeration<URL> resources = loader.getResources(path);
+                while (resources.hasMoreElements()) {
+                    URL url = resources.nextElement();
+                    String protocol = url.getProtocol();
+                    if ("file".equals(protocol)) {
+                        scanDirectory(new File(url.getPath()), basePackage, annotationClass, annotationPredicate, consumer, loader);
+                    } else if ("jar".equals(protocol)) {
+                        scanJar(url, path, annotationClass, annotationPredicate, consumer, loader);
                     }
                 }
+            } catch (IOException ignored) {
             }
         }
         onFinished.run();
