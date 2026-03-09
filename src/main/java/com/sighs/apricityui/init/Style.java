@@ -4,7 +4,6 @@ import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Size;
 
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
 import java.util.Locale;
@@ -150,6 +149,7 @@ public class Style implements Cloneable {
         }
         return (int) (fontSize / 16d * 9);
     }
+
     public static String getFontFamily(Element element) {
         String fontFamily = "unset";
         for (Element e : element.getRoute()) {
@@ -161,6 +161,7 @@ public class Style implements Cloneable {
         }
         return fontFamily;
     }
+
     public static int getFontWeight(Element element) {
         int fontWeight = 400;
         for (Element e : element.getRoute()) {
@@ -172,6 +173,7 @@ public class Style implements Cloneable {
         }
         return fontWeight;
     }
+
     public static boolean isOblique(Element element) {
         for (Element e : element.getRoute()) {
             String f = e.getComputedStyle().fontStyle;
@@ -181,6 +183,7 @@ public class Style implements Cloneable {
         }
         return false;
     }
+
     public static int parseFontWeight(String raw) {
         if (raw == null || raw.isBlank()) return 400;
         String value = raw.trim().toLowerCase(Locale.ROOT);
@@ -191,14 +194,17 @@ public class Style implements Cloneable {
             int parsed = Integer.parseInt(value);
             if (parsed < 1) return 1;
             return Math.min(parsed, 1000);
-        } catch (NumberFormatException ignored) {}
+        } catch (NumberFormatException ignored) {
+        }
         return 400;
     }
+
     public static boolean isObliqueValue(String raw) {
         if (raw == null || raw.isBlank()) return false;
         String value = raw.trim().toLowerCase(Locale.ROOT);
         return value.equals("oblique");
     }
+
     public static TextStroke parseTextStroke(String raw) {
         if (raw == null || raw.isBlank()) return TextStroke.NONE;
         String value = raw.trim();
@@ -215,7 +221,8 @@ public class Style implements Cloneable {
             String number = lower.substring(start + 1, pxIndex).trim();
             try {
                 width = Math.max(0, Integer.parseInt(number));
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
             colorPart = (value.substring(0, Math.max(0, start + 1)) + " " + value.substring(pxIndex + 2)).trim();
         }
 
@@ -223,6 +230,7 @@ public class Style implements Cloneable {
         if (width <= 0) return TextStroke.NONE;
         return new TextStroke(width, color);
     }
+
     public static TextStroke getTextStroke(Element element) {
         for (Element e : element.getRoute()) {
             String s = e.getComputedStyle().textStroke;
@@ -232,6 +240,7 @@ public class Style implements Cloneable {
         }
         return TextStroke.NONE;
     }
+
     public static int getFontColor(Element element) {
         String styleColor = element.getComputedStyle().color;
         if (styleColor.equals("unset")) {
@@ -318,8 +327,10 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             field.set(this, value);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
     }
+
     public String get(String name) {
         if (name == null || name.isBlank()) return null;
         if (name.startsWith("--")) {
@@ -333,13 +344,16 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             return (String) field.get(this);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
         return null;
     }
+
     public String getCustomProperty(String name) {
         if (name == null || name.isBlank()) return null;
         return customProperties.get(normalizeCustomPropertyName(name));
     }
+
     private static String normalizeCustomPropertyName(String name) {
         if (name.startsWith("--")) return name;
         return "--" + name;
@@ -375,6 +389,7 @@ public class Style implements Cloneable {
         STYLE_NAME.put(input, result.toString());
         return result.toString();
     }
+
     // fontSize -> font-size
     private static String camelToKebab(String input) {
         StringBuilder result = new StringBuilder();
@@ -406,7 +421,8 @@ public class Style implements Cloneable {
                             .append(value)
                             .append(";");
                 }
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
         customProperties.forEach((name, value) -> css.append(name).append(": ").append(value).append(";"));
         return css.toString();
@@ -463,7 +479,8 @@ public class Style implements Cloneable {
                         .append(":")
                         .append(value)
                         .append(";");
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
         customProperties.forEach((name, value) -> sb.append(name).append(":").append(value).append(";"));
 

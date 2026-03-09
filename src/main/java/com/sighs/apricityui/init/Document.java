@@ -1,7 +1,7 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
@@ -27,7 +27,7 @@ public class Document {
     public final Map<String, Map<String, String>> CSSCache = new HashMap<>();
     public final List<String> JSCache = new ArrayList<>();
     public Body body;
-    private UUID uuid = UUID.randomUUID();
+    private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
 
     public Document(String path, boolean inWorld) {
@@ -67,7 +67,8 @@ public class Document {
             for (Event eventListener : body.EventListener) {
                 if (eventListener.type.equals("load")) body.triggerEvent(eventListener.listener);
             }
-        } catch (Exception ignored) {}
+        } catch (Exception ignored) {
+        }
     }
 
     // 绘制队列，详见Drawer类
@@ -109,18 +110,23 @@ public class Document {
     public boolean is(String path) {
         return this.path.equals(path);
     }
+
     public boolean is(UUID uuid) {
         return this.uuid.equals(uuid);
     }
 
-    public String getPath() { return path; }
+    public String getPath() {
+        return path;
+    }
 
     public Element createHTML(String html) {
         return HTML.createElement(this, html);
     }
+
     public Element createElement(String tagName) {
         return new Element(this, tagName);
     }
+
     public void createRelation(Element child, Element parent, boolean head) {
         if (child.parentElement != null) child.parentElement.children.remove(child);
         child.parentElement = parent;
@@ -145,15 +151,19 @@ public class Document {
         // 需要判断一下是否为影响布局的属性，待补充
         markDirty(parent, Drawer.RELAYOUT);
     }
+
     public List<Element> querySelectorAll(String selector) {
         return Selector.querySelectorAll(body, selector);
     }
+
     public Element querySelector(String selector) {
         return Selector.querySelector(body, selector);
     }
+
     public void recordID(Element element) {
         IDMap.put(element.id, element);
     }
+
     public Element getElementById(String id) {
         return IDMap.get(id);
     }
@@ -170,6 +180,7 @@ public class Document {
         document.refresh();
         return document;
     }
+
     public static Document createInWorld(String path) {
         if (HTML.getTemple(path) == null) return null;
         Document document = new Document(path, true);
@@ -185,6 +196,7 @@ public class Document {
         }
         return result;
     }
+
     public static Document getByUUID(String uuid) {
         for (Document document : documents) {
             if (document.uuid.toString().equals(uuid)) return document;
@@ -195,6 +207,7 @@ public class Document {
     public static List<Document> getAll() {
         return documents;
     }
+
     public ArrayList<Element> getElements() {
         return elements;
     }
@@ -202,9 +215,11 @@ public class Document {
     public static void remove(String path) {
         documents.removeIf(document -> document.is(path));
     }
+
     public static void remove(UUID uuid) {
         documents.removeIf(document -> document.is(uuid));
     }
+
     public void remove() {
         Document.remove(uuid);
     }

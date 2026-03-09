@@ -73,7 +73,8 @@ public class HTML {
                     if (stack.isEmpty()) return null;
                     if (!token.content.isBlank()) stack.peek().innerText += token.content;
                 }
-                case COMMENT -> {}
+                case COMMENT -> {
+                }
             }
         }
         return stack.isEmpty() ? root : null;

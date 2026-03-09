@@ -1,7 +1,7 @@
 package com.sighs.apricityui.instance.container.datasource;
 
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
+import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 

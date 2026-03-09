@@ -173,12 +173,16 @@ public class Image {
         return new TextureInfo(textureId, location, image.getWidth(), image.getHeight());
     }
 
-    private record TextureInfo(int textureId, ResourceLocation location, int width, int height) {}
+    private record TextureInfo(int textureId, ResourceLocation location, int width, int height) {
+    }
 
     public interface ITexture {
         ResourceLocation getLocation();
+
         int getWidth();
+
         int getHeight();
+
         void destroy();
     }
 
@@ -195,16 +199,31 @@ public class Image {
             this.height = height;
         }
 
-        @Override public ResourceLocation getLocation() { return location; }
-        @Override public int getWidth() { return width; }
-        @Override public int getHeight() { return height; }
-        @Override public void destroy() {
+        @Override
+        public ResourceLocation getLocation() {
+            return location;
+        }
+
+        @Override
+        public int getWidth() {
+            return width;
+        }
+
+        @Override
+        public int getHeight() {
+            return height;
+        }
+
+        @Override
+        public void destroy() {
             RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(textureId));
         }
     }
 
     public static class AnimatedTexture implements ITexture {
-        public record Frame(ResourceLocation location, int textureId, int durationMs) {}
+        public record Frame(ResourceLocation location, int textureId, int durationMs) {
+        }
+
         private final List<Frame> frames;
         private final int width;
         private final int height;
@@ -231,9 +250,18 @@ public class Image {
             return frames.get(0).location;
         }
 
-        @Override public int getWidth() { return width; }
-        @Override public int getHeight() { return height; }
-        @Override public void destroy() {
+        @Override
+        public int getWidth() {
+            return width;
+        }
+
+        @Override
+        public int getHeight() {
+            return height;
+        }
+
+        @Override
+        public void destroy() {
             for (Frame frame : frames) {
                 RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(frame.textureId));
             }
@@ -242,8 +270,18 @@ public class Image {
 
     public static class SimpleTextureWrapper extends AbstractTexture {
         private final int textureId;
-        public SimpleTextureWrapper(int textureId) { this.textureId = textureId; }
-        @Override public int getId() { return textureId; }
-        @Override public void load(ResourceManager manager) { }
+
+        public SimpleTextureWrapper(int textureId) {
+            this.textureId = textureId;
+        }
+
+        @Override
+        public int getId() {
+            return textureId;
+        }
+
+        @Override
+        public void load(ResourceManager manager) {
+        }
     }
 }

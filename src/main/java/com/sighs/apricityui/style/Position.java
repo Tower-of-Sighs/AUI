@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+
 import java.util.List;
 
 public class Position {
@@ -54,7 +55,8 @@ public class Position {
         Position resultPosition = new Position(0, 0);
         for (Element e : element.getRoute()) {
             resultPosition = resultPosition.add(Position.getOffset(e));
-            if (!e.uuid.equals(element.uuid)) resultPosition = resultPosition.add(new Position(-e.getScrollLeft(), -e.getScrollTop()));
+            if (!e.uuid.equals(element.uuid))
+                resultPosition = resultPosition.add(new Position(-e.getScrollLeft(), -e.getScrollTop()));
             if ("fixed".equals(e.getComputedStyle().position)) break;
         }
         return resultPosition;
@@ -83,12 +85,10 @@ public class Position {
             if (c == '-' && !foundNumber && i + 1 < chars.length && Character.isDigit(chars[i + 1])) {
                 numberBuilder.append(c);
                 foundNumber = true;
-            }
-            else if (Character.isDigit(c)) {
+            } else if (Character.isDigit(c)) {
                 numberBuilder.append(c);
                 foundNumber = true;
-            }
-            else if (foundNumber) {
+            } else if (foundNumber) {
                 break;
             }
         }

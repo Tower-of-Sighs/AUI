@@ -57,7 +57,7 @@ public class FilterRenderer {
 
         if (poolPointer < fboPool.size()) {
             temp = fboPool.get(poolPointer);
-            if (temp.width != (int)width || temp.height != (int)height) {
+            if (temp.width != (int) width || temp.height != (int) height) {
                 temp.destroyBuffers();
                 temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
                 // --- 修复点 1: 必须手动开启 Stencil ---
@@ -164,7 +164,7 @@ public class FilterRenderer {
         Size s = rect.getBodyRectSize();
 
         PoseStack poseStack = new PoseStack();
-        Mask.pushMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
+        Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
 
         float guiW = (float) Client.getWindow().getGuiScaledWidth();
         float guiH = (float) Client.getWindow().getGuiScaledHeight();
@@ -182,7 +182,7 @@ public class FilterRenderer {
 
         BufferUploader.drawWithShader(bufferbuilder.end());
 
-        Mask.popMask(poseStack, (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), rect.getBodyRadius());
+        Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
         Base.setProjectionMatrix(oldProjection);
     }
 
@@ -193,6 +193,6 @@ public class FilterRenderer {
         if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
         if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
         if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
-        if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float)fbo.width, (float)fbo.height);
+        if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float) fbo.width, (float) fbo.height);
     }
 }

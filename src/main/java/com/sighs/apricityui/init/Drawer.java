@@ -1,6 +1,9 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.render.AABB;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -150,7 +153,8 @@ public class Drawer {
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
 
-    private record Paintable(Element element, int zValue, int domOrder) {}
+    private record Paintable(Element element, int zValue, int domOrder) {
+    }
 
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;

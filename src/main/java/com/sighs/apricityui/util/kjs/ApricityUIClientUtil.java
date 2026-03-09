@@ -1,6 +1,5 @@
 package com.sighs.apricityui.util;
 
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;

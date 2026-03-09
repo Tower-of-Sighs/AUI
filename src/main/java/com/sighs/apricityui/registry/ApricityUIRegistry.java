@@ -1,9 +1,9 @@
 package com.sighs.apricityui.registry;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.util.ReflectionUtils;
 
 import java.lang.reflect.Constructor;

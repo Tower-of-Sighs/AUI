@@ -53,7 +53,7 @@ public class Rect {
             h += maxExtendY - minExtendY;
         }
 
-        return new AABB((float)x, (float)y, (float)w, (float)h);
+        return new AABB((float) x, (float) y, (float) w, (float) h);
     }
 
     private int getMinBorderSize() {
@@ -79,14 +79,14 @@ public class Rect {
         double h = box.elementSize().height();
 
         float[] radii = box.getCalculatedRadii((float) w, (float) h, 0);
-        float[] borders = new float[] {topW, rightW, bottomW, leftW};
-        int[] colors = new int[] {topC, rightC, bottomC, leftC};
-        Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float)x, (float)y, (float)w, (float)h, radii, borders, colors);
+        float[] borders = new float[]{topW, rightW, bottomW, leftW};
+        int[] colors = new int[]{topC, rightC, bottomC, leftC};
+        Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
 
         if (box.borderImage != null) {
             if (box.borderImage.gradient != null) {
                 Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
-                        (float)x, (float)y, (float)w, (float)h,
+                        (float) x, (float) y, (float) w, (float) h,
                         radii, box.borderImage.gradient);
             }
             Position p = position.add(new Position(box.getMarginLeft(), box.getMarginTop()));
@@ -101,23 +101,27 @@ public class Rect {
         double y = position.y + box.getMarginTop() + box.getBorderTop();
         return new Position(x, y);
     }
+
     public Size getBodyRectSize() {
         double width = box.elementSize().width() - box.getBorderHorizontal();
         double height = box.elementSize().height() - box.getBorderVertical();
         return new Size(width, height);
     }
+
     public float[] getBodyRadius() {
         Size s = box.elementSize();
-        return box.getCalculatedRadii((float)s.width(), (float)s.height(), getMinBorderSize());
+        return box.getCalculatedRadii((float) s.width(), (float) s.height(), getMinBorderSize());
     }
+
     public void drawBody(PoseStack poseStack) {
         drawBody(poseStack, getBodyRectSize());
     }
+
     public void drawBody(PoseStack poseStack, Size s) {
         Position p = getBodyRectPosition();
         float[] radii = getBodyRadius();
         if (!background.color.equals("unset")) {
-            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float)p.x, (float)p.y, (float)s.width(), (float)s.height(), radii, new Color(background.color).getValue());
+            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii, new Color(background.color).getValue());
         }
         if (!background.getLayers().isEmpty()) {
             // CSS: background-image 第一层在最上方，因此按逆序绘制
@@ -126,11 +130,11 @@ public class Rect {
                 if (layer == null) continue;
                 if (layer.gradient != null) {
                     Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
-                            (float)p.x, (float)p.y, (float)s.width(), (float)s.height(),
+                            (float) p.x, (float) p.y, (float) s.width(), (float) s.height(),
                             radii, layer.gradient);
                 }
                 if (!"unset".equals(layer.imagePath)) {
-                    ImageDrawer.drawComplexBackground(poseStack, (int)p.x, (int)p.y, (int)s.width(), (int)s.height(), layer);
+                    ImageDrawer.drawComplexBackground(poseStack, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), layer);
                 }
             }
             return;
@@ -139,11 +143,11 @@ public class Rect {
         // 兼容旧单层字段
         if (background.gradient != null) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
-                    (float)p.x, (float)p.y, (float)s.width(), (float)s.height(),
+                    (float) p.x, (float) p.y, (float) s.width(), (float) s.height(),
                     radii, background.gradient);
         }
         if (!background.imagePath.equals("unset")) {
-            ImageDrawer.drawComplexBackground(poseStack, (int)p.x, (int)p.y, (int)s.width(), (int)s.height(), background);
+            ImageDrawer.drawComplexBackground(poseStack, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), background);
         }
     }
 
@@ -152,15 +156,17 @@ public class Rect {
         double y = position.y + box.getMarginTop() + box.shadow.y();
         return new Position(x, y);
     }
+
     public Size getShadowSize() {
         double width = box.elementSize().width();
         double height = box.elementSize().height();
         return new Size(width, height);
     }
+
     public void drawShadow(PoseStack poseStack) {
         if (box.shadows.isEmpty()) return;
         Size s = getShadowSize();
-        float[] radii = box.getCalculatedRadii((float)s.width(), (float)s.height(), 0);
+        float[] radii = box.getCalculatedRadii((float) s.width(), (float) s.height(), 0);
         for (Box.Shadow shadow : box.shadows) {
             if (shadow.size() == 0) continue;
             double x = position.x + box.getMarginLeft() + shadow.x();

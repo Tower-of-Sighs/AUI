@@ -17,15 +17,7 @@ import net.minecraftforge.client.event.RecipesUpdatedEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
-import java.util.ArrayList;
-import java.util.EnumMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.*;
 
 /**
  * 在文档刷新阶段触发 recipe DOM 预览槽位生成。
@@ -426,7 +418,7 @@ public final class RecipeExpander {
         private static ItemStack pickDisplayStack(Ingredient ingredient) {
             if (ingredient == null) return ItemStack.EMPTY;
             ItemStack[] options = ingredient.getItems();
-            if (options == null || options.length == 0) return ItemStack.EMPTY;
+            if (options == null) return ItemStack.EMPTY;
             for (ItemStack candidate : options) {
                 if (candidate == null || candidate.isEmpty()) continue;
                 return candidate.copy();

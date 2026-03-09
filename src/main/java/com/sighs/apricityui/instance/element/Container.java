@@ -10,8 +10,8 @@ import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.instance.container.datasource.ForgeItemHandlerDataSource;
 import com.sighs.apricityui.instance.container.datasource.PlayerInventoryDataSource;
 import com.sighs.apricityui.instance.container.datasource.SavedDataDataSource;
-import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
+import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -24,13 +24,7 @@ import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
 @ElementRegister(Container.TAG_NAME)
 public class Container extends MinecraftElement {
@@ -244,7 +238,7 @@ public class Container extends MinecraftElement {
                     ServerLevel currentLevel = currentPlayer.serverLevel();
                     if (!currentLevel.hasChunkAt(immutablePos)) return false;
                     BlockEntity current = currentLevel.getBlockEntity(immutablePos);
-                    return current != null && expectedType.isInstance(current);
+                    return expectedType.isInstance(current);
                 }
         );
     }
@@ -272,7 +266,7 @@ public class Container extends MinecraftElement {
                 handler,
                 currentPlayer -> {
                     Entity current = findEntityByUuid(currentPlayer, uuid);
-                    return current != null && expectedType.isInstance(current);
+                    return expectedType.isInstance(current);
                 }
         );
     }

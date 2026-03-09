@@ -208,5 +208,6 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         }
     }
 
-    public record ImageApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {}
+    public record ImageApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {
+    }
 }
