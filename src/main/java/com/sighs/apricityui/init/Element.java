@@ -555,7 +555,8 @@ public class Element {
     }
 
     public void triggerEvent(Consumer<Event> handler) {
-        EventListener.forEach(handler);
+        ArrayList<Event> snapshot = new ArrayList<>(EventListener);
+        snapshot.forEach(handler);
     }
 
     public RenderElement getRenderer() {
