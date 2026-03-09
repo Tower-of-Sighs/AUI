@@ -1,8 +1,8 @@
 package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
-import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
@@ -12,12 +12,7 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.regex.Matcher;
@@ -111,7 +106,8 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
             boolean success = false;
             try (ByteArrayInputStream stream = new ByteArrayInputStream(fontLoadedTask.bytes())) {
                 success = Font.registerFont(fontLoadedTask.fontFamily(), stream);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
             if (success) {
                 FontDrawer.clearCache();
                 document.reapplyStylesFromCache();
@@ -207,7 +203,8 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
                 try {
                     String imported = loadCssWithImports(resolved, depth + 1, visited);
                     if (!imported.isBlank()) merged.append(imported).append('\n');
-                } catch (IOException ignored) {}
+                } catch (IOException ignored) {
+                }
             }
         }
         merged.append(cssWithoutImport);
@@ -328,26 +325,32 @@ public class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHandler.Ap
             String contextPath,
             String cssText,
             List<FontTask> fontTasks
-    ) implements ApplyTask {}
+    ) implements ApplyTask {
+    }
 
     private record FontLoadedTask(
             StyleHandle handle,
             String fontFamily,
             String path,
             byte[] bytes
-    ) implements ApplyTask {}
+    ) implements ApplyTask {
+    }
 
     private record FailedTask(
             StyleHandle handle,
             String path,
             Exception error
-    ) implements ApplyTask {}
+    ) implements ApplyTask {
+    }
 
-    private record ParsedCss(String cssText, List<FontTask> fontTasks) {}
+    private record ParsedCss(String cssText, List<FontTask> fontTasks) {
+    }
 
-    private record FontTask(String fontFamily, String path) {}
+    private record FontTask(String fontFamily, String path) {
+    }
 
-    private record CacheEntry(byte[] bytes, long expiresAtMs) {}
+    private record CacheEntry(byte[] bytes, long expiresAtMs) {
+    }
 
     private static final class InFlightEntry {
         private final CountDownLatch latch = new CountDownLatch(1);

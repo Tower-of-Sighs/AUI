@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import org.joml.Matrix4f;
+
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -37,9 +38,11 @@ public class ClipPath {
             String[] coords = points[i].trim().split("\\s+");
             px[i] = x + parseLength(coords[0], w);
             py[i] = y + parseLength(coords[1], h);
-            cx += px[i]; cy += py[i];
+            cx += px[i];
+            cy += py[i];
         }
-        cx /= points.length; cy /= points.length;
+        cx /= points.length;
+        cy /= points.length;
 
         for (int i = 0; i < points.length; i++) {
             Graph.vtx(buf, mat, cx, cy, 0xFFFFFFFF);
@@ -75,15 +78,19 @@ public class ClipPath {
     }
 
     private static float[] parsePosition(String args, float x, float y, float w, float h) {
-        if (!args.contains(" at ")) return new float[]{x + w/2, y + h/2};
+        if (!args.contains(" at ")) return new float[]{x + w / 2, y + h / 2};
         String[] pos = args.split(" at ")[1].trim().split("\\s+");
         return new float[]{x + parseLength(pos[0], w), y + parseLength(pos[1], h)};
     }
 
     private static float parseLength(String val, float ref) {
         val = val.trim();
-        if (val.endsWith("%")) return Float.parseFloat(val.substring(0, val.length()-1)) / 100f * ref;
-        if (val.endsWith("px")) return Float.parseFloat(val.substring(0, val.length()-2));
-        try { return Float.parseFloat(val); } catch (Exception e) { return 0; }
+        if (val.endsWith("%")) return Float.parseFloat(val.substring(0, val.length() - 1)) / 100f * ref;
+        if (val.endsWith("px")) return Float.parseFloat(val.substring(0, val.length() - 2));
+        try {
+            return Float.parseFloat(val);
+        } catch (Exception e) {
+            return 0;
+        }
     }
 }

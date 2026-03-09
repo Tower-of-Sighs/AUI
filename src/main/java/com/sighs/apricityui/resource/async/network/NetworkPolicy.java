@@ -14,6 +14,7 @@ public final class NetworkPolicy {
     public static final long RETRY_DELAY_429_MS = 20_000L;
     public static final long RETRY_DELAY_5XX_OR_TIMEOUT_MS = 2_000L;
 
-    private NetworkPolicy() {}
+    private NetworkPolicy() {
+    }
 }
 

@@ -9,6 +9,8 @@ import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.reflect.*;
 import java.util.Map;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -16,6 +18,33 @@ import java.util.function.Predicate;
 // 代码参考ldlib2
 // https://github.com/Low-Drag-MC/LDLib2/blob/1.21/src/main/java/com/lowdragmc/lowdraglib2/utils/ReflectionUtils.java
 public final class ReflectionUtils {
+    private static final Set<String> SCAN_PACKAGES = new LinkedHashSet<>();
+
+    public static void addScanPackage(String basePackage) {
+        if (basePackage != null && !basePackage.isBlank()) {
+            SCAN_PACKAGES.add(basePackage);
+        }
+    }
+
+    public static void addScanPackages(String... basePackages) {
+        if (basePackages != null) {
+            for (String p : basePackages) {
+                addScanPackage(p);
+            }
+        }
+    }
+
+    private static boolean isPackageAllowed(String className) {
+        if (SCAN_PACKAGES.isEmpty()) {
+            return true;
+        }
+        for (String p : SCAN_PACKAGES) {
+            if (className.startsWith(p + ".")) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public static Class<?> getRawType(Type type, Class<?> fallback) {
         var rawType = getRawType(type);
@@ -44,7 +73,11 @@ public final class ReflectionUtils {
                 if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.TYPE) {
                     if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
                         try {
-                            consumer.accept(Class.forName(annotation.memberName(), false, ReflectionUtils.class.getClassLoader()));
+                            String className = annotation.memberName();
+                            if (!isPackageAllowed(className)) {
+                                continue;
+                            }
+                            consumer.accept(Class.forName(className, false, ReflectionUtils.class.getClassLoader()));
                         } catch (Throwable throwable) {
                             ApricityUI.LOGGER.error("Failed to load class for notation: {}", annotation.memberName(), throwable);
                         }
@@ -67,7 +100,11 @@ public final class ReflectionUtils {
                         var clazz = annotation.clazz();
                         var fieldName = annotation.memberName();
                         try {
-                            var field = Class.forName(annotation.clazz().getClassName()).getDeclaredField(fieldName);
+                            String className = annotation.clazz().getClassName();
+                            if (!isPackageAllowed(className)) {
+                                continue;
+                            }
+                            var field = Class.forName(className).getDeclaredField(fieldName);
                             if (Modifier.isStatic(field.getModifiers())) {
                                 consumer.accept(field, field.get(null));
                             } else {
@@ -97,7 +134,11 @@ public final class ReflectionUtils {
                         var methodName = methodFullDesc.substring(0, methodFullDesc.indexOf('('));
                         var methodDesc = methodFullDesc.substring(methodFullDesc.indexOf('('));
                         try {
-                            for (var method : Class.forName(annotation.clazz().getClassName()).getDeclaredMethods()) {
+                            String className = annotation.clazz().getClassName();
+                            if (!isPackageAllowed(className)) {
+                                continue;
+                            }
+                            for (var method : Class.forName(className).getDeclaredMethods()) {
                                 if (method.getName().equals(methodName) &&
                                         methodDesc.equals(org.objectweb.asm.Type.getMethodDescriptor(method))) {
                                     if (Modifier.isStatic(method.getModifiers())) {

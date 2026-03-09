@@ -21,6 +21,7 @@ public record Size(double width, double height) {
     public static Size getWindowSize() {
         return Client.getWindowSize();
     }
+
     private static final Pattern LEADING_NUMBER = Pattern.compile("^\\s*([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))");
 
     public static int parse(String str) {
@@ -99,7 +100,8 @@ public record Size(double width, double height) {
 
         for (Element child : element.children) {
             Style childStyle = child.getComputedStyle();
-            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display)) continue;
+            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display))
+                continue;
             Size size = Size.box(child);
             if (flexColumn) {
                 totalWidth = Math.max(totalWidth, size.width);
@@ -131,12 +133,14 @@ public record Size(double width, double height) {
             return getScaleWidth(parent);
         } else return getWindowSize().width;
     }
+
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
             Style parentStyle = parent.getComputedStyle();
             if (parseNumber(parentStyle.height) != null) {
-                if (isPercent(parentStyle.height)) return getScaleHeight(parent) * parseNumber(parentStyle.height) / 100d;
+                if (isPercent(parentStyle.height))
+                    return getScaleHeight(parent) * parseNumber(parentStyle.height) / 100d;
                 return parseNumber(parentStyle.height);
             }
             return getScaleHeight(parent);
@@ -148,6 +152,7 @@ public record Size(double width, double height) {
     }
 
     private static final Canvas METRICS_CANVAS = new Canvas();
+
     public static double measureText(Element element, String text) {
         if (text == null || text.isEmpty()) return 0;
 
@@ -156,7 +161,8 @@ public record Size(double width, double height) {
         boolean oblique = Style.isOblique(element);
         Style.TextStroke stroke = Style.getTextStroke(element);
 
-        if (fontFamily.equals("unset")) return Client.getDefaultFontWidth(text, fontWeight >= 600, oblique, stroke.width());
+        if (fontFamily.equals("unset"))
+            return Client.getDefaultFontWidth(text, fontWeight >= 600, oblique, stroke.width());
 
         java.awt.Font baseFont = Font.getBaseFont(fontFamily);
         if (baseFont == null) return 0;

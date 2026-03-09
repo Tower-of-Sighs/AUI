@@ -5,7 +5,10 @@ import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

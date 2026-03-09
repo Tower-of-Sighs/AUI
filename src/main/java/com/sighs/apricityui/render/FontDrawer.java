@@ -139,7 +139,8 @@ public class FontDrawer {
             if (entry == null) continue;
             try {
                 entry.dynamicTexture().close();
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
         CACHE.clear();
     }

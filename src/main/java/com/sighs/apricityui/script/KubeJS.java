@@ -8,6 +8,14 @@ import dev.latvian.mods.kubejs.script.ScriptType;
 import net.minecraftforge.fml.ModList;
 
 public class KubeJS extends KubeJSPlugin {
+    public static void scanPackage(String basePackage) {
+        ReflectionUtils.addScanPackage(basePackage);
+    }
+
+    public static void scanPackages(String... basePackages) {
+        ReflectionUtils.addScanPackages(basePackages);
+    }
+
     @Override
     public void registerBindings(BindingsEvent event) {
         ScriptType scriptType = event.getType();

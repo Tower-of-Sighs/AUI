@@ -4,11 +4,7 @@ import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.network.FriendlyByteBuf;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * 菜单布局规格（服务端构建后同步给客户端）。

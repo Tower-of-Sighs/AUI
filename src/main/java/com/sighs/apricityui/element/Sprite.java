@@ -463,7 +463,8 @@ public class Sprite extends Div {
     }
 
     // 异步纹理就绪后推导出的单帧尺寸。
-    private record FrameMetrics(int frameW, int frameH) {}
+    private record FrameMetrics(int frameW, int frameH) {
+    }
 
     // Sprite 解析后的配置快照。
     private record SpriteSpec(
@@ -513,7 +514,8 @@ public class Sprite extends Div {
             SpriteSpec.Direction direction,
             int frameW,
             int frameH
-    ) {}
+    ) {
+    }
 
     // Document 级缓存：同一文档中相同 SpriteKey 只注册一次 keyframes。
     private static class SpriteKeyframesCache {

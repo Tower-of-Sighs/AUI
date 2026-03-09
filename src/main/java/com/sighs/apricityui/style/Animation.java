@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+
 import java.util.*;
 import java.util.regex.Pattern;
 
@@ -16,18 +17,26 @@ public class Animation {
 
     private static class AnimationState {
         final Map<String, Long> starts = new HashMap<>();
-        void forgetExcept(Set<String> names) { starts.keySet().retainAll(names); }
+
+        void forgetExcept(Set<String> names) {
+            starts.keySet().retainAll(names);
+        }
     }
 
     public static void registerKeyframe(String name, double percent, Map<String, String> props) {
         KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>()).put(percent, props);
     }
 
-    public static boolean isActive(Element e) { return ACTIVE_ANIMATIONS.containsKey(e.uuid); }
+    public static boolean isActive(Element e) {
+        return ACTIVE_ANIMATIONS.containsKey(e.uuid);
+    }
 
     public static void updateStyle(Element element, Style style) {
         List<AnimationConfig> configs = resolve(style);
-        if (configs.isEmpty()) { ACTIVE_ANIMATIONS.remove(element.uuid); return; }
+        if (configs.isEmpty()) {
+            ACTIVE_ANIMATIONS.remove(element.uuid);
+            return;
+        }
 
         AnimationState state = ACTIVE_ANIMATIONS.computeIfAbsent(element.uuid, k -> new AnimationState());
         long now = System.currentTimeMillis();
@@ -52,13 +61,15 @@ public class Animation {
         long elapsed = now - start;
         double activeTime = elapsed - delay;
         if (activeTime < 0) {
-            if (config.fill.equals("backwards") || config.fill.equals("both")) renderFrame(element, style, config.name, 0.0);
+            if (config.fill.equals("backwards") || config.fill.equals("both"))
+                renderFrame(element, style, config.name, 0.0);
             return;
         }
 
         double count = "infinite".equals(config.count) ? Double.MAX_VALUE : Double.parseDouble(config.count);
         if (activeTime >= dur * count) {
-            if (config.fill.equals("forwards") || config.fill.equals("both")) renderFrame(element, style, config.name, 100.0);
+            if (config.fill.equals("forwards") || config.fill.equals("both"))
+                renderFrame(element, style, config.name, 100.0);
             return;
         }
 
@@ -130,10 +141,11 @@ public class Animation {
                 AnimationConfig c = new AnimationConfig();
                 for (String t : part.trim().split("\\s+")) {
                     if (t.matches("^[0-9.]+(s|ms)$")) {
-                        if (c.duration.equals("0s")) c.duration = t; else c.delay = t;
+                        if (c.duration.equals("0s")) c.duration = t;
+                        else c.delay = t;
                     } else if (t.equals("infinite") || t.matches("^[0-9.]+$")) c.count = t;
-                    else if (Set.of("normal","reverse","alternate","alternate-reverse").contains(t)) c.direction = t;
-                    else if (Set.of("none","forwards","backwards","both").contains(t)) c.fill = t;
+                    else if (Set.of("normal", "reverse", "alternate", "alternate-reverse").contains(t)) c.direction = t;
+                    else if (Set.of("none", "forwards", "backwards", "both").contains(t)) c.fill = t;
                     else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
                     else c.name = t;
                 }
