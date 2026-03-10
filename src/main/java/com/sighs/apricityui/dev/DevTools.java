@@ -1,10 +1,12 @@
 package com.sighs.apricityui.dev;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Selector;
+import com.sighs.apricityui.instance.element.MinecraftElement;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -24,6 +26,113 @@ public class DevTools {
     private static final Set<String> collapseInitializedDocUuids = new LinkedHashSet<>();
 
     private DevTools() {}
+
+    public static boolean isOpen() {
+        return toolDocument != null && !Document.get(PATH).isEmpty();
+    }
+
+    public static Document getToolDocument() {
+        return toolDocument;
+    }
+
+    public static boolean ensureOpen() {
+        if (isOpen()) return true;
+        toggle();
+        return isOpen();
+    }
+
+    public static boolean selectDocument(Document document) {
+        if (document == null || document.body == null) return false;
+        selectedDocumentUuid = document.getUuid().toString();
+        selectedElementUuid = document.body.uuid.toString();
+        refresh();
+        return true;
+    }
+
+    public static boolean selectElement(Element element) {
+        if (element == null || element.document == null) return false;
+        selectedDocumentUuid = element.document.getUuid().toString();
+        selectedElementUuid = element.uuid.toString();
+        refresh();
+        return true;
+    }
+
+    public static boolean applyInlineStyle(Element element, String key, String value) {
+        if (element == null || element.document == null) return false;
+        String normalizedKey = normalizeStyleKey(key);
+        if (normalizedKey.isBlank()) return false;
+        LinkedHashMap<String, String> map = parseInlineStyle(element.getAttribute("style"));
+        map.put(normalizedKey, safe(value));
+        applyInlineStyleMap(element, map);
+        markDirty(element.document);
+        syncRuntimeInlineStyleCache(element);
+        syncStyleAttributeEditors(element);
+        refresh();
+        return true;
+    }
+
+    public static boolean devTestApplyInlineStyleViaInspector(Element element, String key, String value) {
+        if (element == null || element.document == null) return false;
+        if (key == null || key.isBlank()) return false;
+        if (!ensureOpen()) return false;
+        selectElement(element);
+        refresh();
+
+        Element keyInput = null;
+        Element valueInput = null;
+        Element addBtn = null;
+        int actionCount = 0;
+        for (Element candidate : toolDocument.getElements()) {
+            if (candidate == null) continue;
+            if ("INPUT".equalsIgnoreCase(candidate.tagName)) {
+                String cls = candidate.getAttribute("class");
+                if (cls != null && cls.contains("edit-input")) {
+                    String placeholder = candidate.getAttribute("placeholder");
+                    if ("prop".equalsIgnoreCase(placeholder)) keyInput = candidate;
+                    if ("value".equalsIgnoreCase(placeholder)) valueInput = candidate;
+                }
+            } else if ("DIV".equalsIgnoreCase(candidate.tagName)) {
+                String cls = candidate.getAttribute("class");
+                if (cls != null && cls.contains("action")) {
+                    actionCount++;
+                    if ("Add".equalsIgnoreCase(candidate.innerText)) {
+                        addBtn = candidate;
+                    } else if (addBtn == null) {
+                        addBtn = candidate;
+                    }
+                }
+            }
+        }
+
+        ApricityUI.LOGGER.info("[DevTools] DevTest inspector controls keyInput={} valueInput={} addBtn={} actionCount={}",
+                keyInput != null, valueInput != null, addBtn != null, actionCount);
+
+        if (addBtn != null && addBtn.parentElement != null) {
+            Element row = addBtn.parentElement;
+            for (Element sibling : row.children) {
+                if (sibling == null || !"INPUT".equalsIgnoreCase(sibling.tagName)) continue;
+                if (keyInput == null) {
+                    keyInput = sibling;
+                } else if (valueInput == null) {
+                    valueInput = sibling;
+                }
+            }
+        }
+
+        if (keyInput == null || valueInput == null || addBtn == null) return false;
+        ApricityUI.LOGGER.info("[DevTools] DevTest apply via inspector target={} key={} value={}", element.uuid, key, value);
+        ApricityUI.LOGGER.info("[DevTools] DevTest input before set keyValue={} valValue={}", keyInput.value, valueInput.value);
+        keyInput.value = key;
+        keyInput.setAttribute("value", key);
+        valueInput.value = safe(value);
+        valueInput.setAttribute("value", safe(value));
+        ApricityUI.LOGGER.info("[DevTools] DevTest input after set keyValue={} valValue={}", keyInput.value, valueInput.value);
+
+        Event.tiggerEvent(new Event(addBtn, "mousedown", null, true));
+        Event.tiggerEvent(new Event(addBtn, "mouseup", null, true));
+        ApricityUI.LOGGER.info("[DevTools] DevTest add events fired for target={}", element.uuid);
+        return true;
+    }
 
     public static void toggle() {
         if (Document.get(PATH).isEmpty()) {
@@ -117,16 +226,16 @@ public class DevTools {
     private static void buildDocumentSwitcher(Element switcher, List<Document> docs, Document selectedDocument) {
         clearChildren(switcher);
 
-        Element prev = toolDocument.createElement("DIV");
+        Element prev = createToolElement("DIV");
         prev.setAttribute("class", "doc-arrow doc-prev");
         prev.innerText = "<";
         prev.addEventListener("mousedown", event -> switchDocumentByOffset(docs, selectedDocument, -1));
 
-        Element name = toolDocument.createElement("DIV");
+        Element name = createToolElement("DIV");
         name.setAttribute("class", "doc-name");
         name.innerText = selectedDocument.getPath();
 
-        Element next = toolDocument.createElement("DIV");
+        Element next = createToolElement("DIV");
         next.setAttribute("class", "doc-arrow doc-next");
         next.innerText = ">";
         next.addEventListener("mousedown", event -> switchDocumentByOffset(docs, selectedDocument, 1));
@@ -157,11 +266,11 @@ public class DevTools {
         boolean collapsed = collapsedNodeUuids.contains(uuid);
         boolean selected = selectedElementUuid != null && selectedElementUuid.equals(uuid);
 
-        Element openRow = toolDocument.createElement("DIV");
+        Element openRow = createToolElement("DIV");
         openRow.setAttribute("class", selectedClass(uuid, "tree-row"));
         openRow.setAttribute("style", "padding-left:" + (depth * 10) + "px;");
 
-        Element toggle = toolDocument.createElement("SPAN");
+        Element toggle = createToolElement("SPAN");
         toggle.setAttribute("class", "toggle");
         toggle.innerText = hasChildren ? (collapsed ? ">" : "v") : ".";
         if (hasChildren) {
@@ -212,10 +321,10 @@ public class DevTools {
             buildTree(container, child, depth + 1);
         }
 
-        Element closeRow = toolDocument.createElement("DIV");
+        Element closeRow = createToolElement("DIV");
         closeRow.setAttribute("class", selectedClass(uuid, "tree-row end-row"));
         closeRow.setAttribute("style", "padding-left:" + (depth * 10) + "px;");
-        Element closeLabel = toolDocument.createElement("SPAN");
+        Element closeLabel = createToolElement("SPAN");
         closeLabel.setAttribute("class", "node-label");
         closeLabel.innerText = "</" + tag + ">";
         closeRow.append(closeLabel);
@@ -245,7 +354,7 @@ public class DevTools {
         String nodeUuid = node.uuid.toString();
         Document targetDoc = node.document;
 
-        Element input = toolDocument.createElement("INPUT");
+        Element input = createToolElement("INPUT");
         input.setAttribute("class", "tree-edit-input tree-attr-input");
         input.setAttribute("data-editor-type", "attr");
         input.setAttribute("data-node-uuid", nodeUuid);
@@ -264,12 +373,12 @@ public class DevTools {
     private static Element innerTextTreeRow(Element node, int depth) {
         String nodeUuid = node.uuid.toString();
         Document targetDoc = node.document;
-        Element row = toolDocument.createElement("DIV");
+        Element row = createToolElement("DIV");
         row.setAttribute("class", "tree-edit-row");
         row.setAttribute("style", "padding-left:" + (depth * 10) + "px;");
         row.addEventListener("mousedown", event -> selectedElementUuid = nodeUuid);
 
-        Element input = toolDocument.createElement("INPUT");
+        Element input = createToolElement("INPUT");
         input.setAttribute("class", "tree-edit-input tree-text-input");
         input.setAttribute("data-editor-type", "text");
         input.setAttribute("data-node-uuid", nodeUuid);
@@ -285,7 +394,7 @@ public class DevTools {
     }
 
     private static Element innerTextReadonlyRow(Element node, int depth) {
-        Element row = toolDocument.createElement("DIV");
+        Element row = createToolElement("DIV");
         row.setAttribute("class", "tree-edit-row");
         row.setAttribute("style", "padding-left:" + (depth * 10) + "px;");
         row.append(textLiteral(node.innerText));
@@ -295,7 +404,7 @@ public class DevTools {
     private static Element inlineInnerTextInput(Element node) {
         String nodeUuid = node.uuid.toString();
         Document targetDoc = node.document;
-        Element input = toolDocument.createElement("INPUT");
+        Element input = createToolElement("INPUT");
         input.setAttribute("class", "tree-edit-input tree-inline-text-input");
         input.setAttribute("data-editor-type", "text");
         input.setAttribute("data-node-uuid", nodeUuid);
@@ -323,7 +432,7 @@ public class DevTools {
         LinkedHashMap<String, String> styleMap = parseInlineStyle(target.getAttribute("style"));
         styleMap.forEach((key, value) -> section.append(styleRow(target, key, value)));
 
-        Element add = toolDocument.createElement("DIV");
+        Element add = createToolElement("DIV");
         add.setAttribute("class", "edit-row");
         Element keyInput = textInput("prop");
         Element valueInput = textInput("value");
@@ -349,10 +458,10 @@ public class DevTools {
     private static Element styleRow(Element target, String key, String value) {
         String nodeUuid = target.uuid.toString();
         Document targetDoc = target.document;
-        Element row = toolDocument.createElement("DIV");
+        Element row = createToolElement("DIV");
         row.setAttribute("class", "edit-row");
 
-        Element keyText = toolDocument.createElement("SPAN");
+        Element keyText = createToolElement("SPAN");
         keyText.setAttribute("class", "k");
         keyText.innerText = key;
 
@@ -388,7 +497,7 @@ public class DevTools {
         }
 
         styles.forEach((selector, props) -> {
-            Element block = toolDocument.createElement("DIV");
+            Element block = createToolElement("DIV");
             block.setAttribute("class", "style-block");
 
             Element selectorLine = span(selector);
@@ -413,7 +522,7 @@ public class DevTools {
             if (entry == null || entry.isBlank()) continue;
             String[] kv = entry.split(":", 2);
             if (kv.length != 2) continue;
-            String key = kv[0].trim();
+            String key = normalizeStyleKey(kv[0]);
             String value = kv[1].trim();
             if (key.isBlank()) continue;
             result.put(key, value);
@@ -446,35 +555,35 @@ public class DevTools {
     }
 
     private static Element textInput(String placeholder) {
-        Element input = toolDocument.createElement("INPUT");
+        Element input = createToolElement("INPUT");
         input.setAttribute("class", "edit-input");
         if (placeholder != null && !placeholder.isBlank()) input.setAttribute("placeholder", placeholder);
         return input;
     }
 
     private static Element action(String text) {
-        Element action = toolDocument.createElement("DIV");
+        Element action = createToolElement("DIV");
         action.setAttribute("class", "action");
         action.innerText = text;
         return action;
     }
 
     private static Element section(String titleText) {
-        Element section = toolDocument.createElement("DIV");
+        Element section = createToolElement("DIV");
         section.setAttribute("class", "section");
         section.append(sectionTitle(titleText));
         return section;
     }
 
     private static Element sectionTitle(String text) {
-        Element title = toolDocument.createElement("DIV");
+        Element title = createToolElement("DIV");
         title.setAttribute("class", "section-title");
         title.innerText = text;
         return title;
     }
 
     private static Element span(String text) {
-        Element span = toolDocument.createElement("SPAN");
+        Element span = createToolElement("SPAN");
         span.innerText = text;
         return span;
     }
@@ -535,16 +644,31 @@ public class DevTools {
     }
 
     private static void commitInlineStyleAdd(Document preferredDoc, String nodeUuid, Element fallback, Element keyInput, Element valueInput) {
-        String key = safe(readEditorValue(keyInput)).trim();
-        if (key.isBlank()) return;
-        String value = safe(readEditorValue(valueInput));
+        String rawKey = readEditorValue(keyInput);
+        String rawValue = readEditorValue(valueInput);
+        String key = normalizeStyleKey(rawKey);
+        if (key.isBlank()) {
+            ApricityUI.LOGGER.info("[DevTools] InlineStyleAdd ignored: blank key (rawKey={}, rawValue={}, keyInputVal={}, valueInputVal={})",
+                    rawKey, rawValue, keyInput == null ? null : keyInput.value, valueInput == null ? null : valueInput.value);
+            return;
+        }
+        String value = safe(rawValue);
 
         Element target = resolveTargetElement(preferredDoc, nodeUuid, fallback);
-        if (target == null) return;
-        LinkedHashMap<String, String> map = parseInlineStyle(target.getAttribute("style"));
+        if (target == null) {
+            ApricityUI.LOGGER.warn("[DevTools] InlineStyleAdd ignored: target missing (nodeUuid={}, rawKey={}, rawValue={})", nodeUuid, rawKey, rawValue);
+            return;
+        }
+        String before = safe(target.getAttribute("style"));
+        ApricityUI.LOGGER.info("[DevTools] InlineStyleAdd target={} key={} value={} beforeStyle=[{}]", target.uuid, key, value, before);
+        LinkedHashMap<String, String> map = parseInlineStyle(before);
         map.put(key, value);
         applyInlineStyleMap(target, map);
         markDirty(target.document);
+        syncRuntimeInlineStyleCache(target);
+        syncStyleAttributeEditors(target);
+        ApricityUI.LOGGER.info("[DevTools] InlineStyleAdd applied target={} afterStyle=[{}] mapSize={}",
+                target.uuid, safe(target.getAttribute("style")), map.size());
 
         keyInput.value = "";
         valueInput.value = "";
@@ -552,25 +676,47 @@ public class DevTools {
     }
 
     private static void commitInlineStyleUpdate(Document preferredDoc, String nodeUuid, Element fallback, String key, String value, boolean refreshAfter) {
-        if (key == null || key.isBlank()) return;
+        String normalizedKey = normalizeStyleKey(key);
+        if (normalizedKey.isBlank()) return;
         Element target = resolveTargetElement(preferredDoc, nodeUuid, fallback);
-        if (target == null) return;
-        LinkedHashMap<String, String> map = parseInlineStyle(target.getAttribute("style"));
-        if (!map.containsKey(key)) return;
-        map.put(key, safe(value));
+        if (target == null) {
+            ApricityUI.LOGGER.warn("[DevTools] InlineStyleUpdate ignored: target missing (nodeUuid={}, key={}, value={})", nodeUuid, key, value);
+            return;
+        }
+        String before = safe(target.getAttribute("style"));
+        LinkedHashMap<String, String> map = parseInlineStyle(before);
+        boolean existed = map.containsKey(normalizedKey);
+        ApricityUI.LOGGER.info("[DevTools] InlineStyleUpdate target={} key={} normalizedKey={} existed={} value={} beforeStyle=[{}]",
+                target.uuid, key, normalizedKey, existed, value, before);
+        map.put(normalizedKey, safe(value));
         applyInlineStyleMap(target, map);
         markDirty(target.document);
+        syncRuntimeInlineStyleCache(target);
+        syncStyleAttributeEditors(target);
+        ApricityUI.LOGGER.info("[DevTools] InlineStyleUpdate applied target={} afterStyle=[{}] mapSize={}",
+                target.uuid, safe(target.getAttribute("style")), map.size());
         if (refreshAfter) refresh();
     }
 
     private static void commitInlineStyleRemove(Document preferredDoc, String nodeUuid, Element fallback, String key, boolean refreshAfter) {
-        if (key == null || key.isBlank()) return;
+        String normalizedKey = normalizeStyleKey(key);
+        if (normalizedKey.isBlank()) return;
         Element target = resolveTargetElement(preferredDoc, nodeUuid, fallback);
-        if (target == null) return;
-        LinkedHashMap<String, String> map = parseInlineStyle(target.getAttribute("style"));
-        map.remove(key);
+        if (target == null) {
+            ApricityUI.LOGGER.warn("[DevTools] InlineStyleRemove ignored: target missing (nodeUuid={}, key={})", nodeUuid, key);
+            return;
+        }
+        String before = safe(target.getAttribute("style"));
+        ApricityUI.LOGGER.info("[DevTools] InlineStyleRemove target={} key={} normalizedKey={} beforeStyle=[{}]",
+                target.uuid, key, normalizedKey, before);
+        LinkedHashMap<String, String> map = parseInlineStyle(before);
+        map.remove(normalizedKey);
         applyInlineStyleMap(target, map);
         markDirty(target.document);
+        syncRuntimeInlineStyleCache(target);
+        syncStyleAttributeEditors(target);
+        ApricityUI.LOGGER.info("[DevTools] InlineStyleRemove applied target={} afterStyle=[{}] mapSize={}",
+                target.uuid, safe(target.getAttribute("style")), map.size());
         if (refreshAfter) refresh();
     }
 
@@ -581,8 +727,12 @@ public class DevTools {
 
         String normalizedValue = safe(value);
         if ("style".equalsIgnoreCase(key)) {
+            String before = safe(target.getAttribute("style"));
             if (normalizedValue.isBlank()) target.removeAttribute("style");
             else target.setAttribute("style", normalizedValue);
+            syncRuntimeInlineStyleCache(target);
+            syncStyleAttributeEditors(target);
+            ApricityUI.LOGGER.info("[DevTools] AttributeEdit style target={} beforeStyle=[{}] value=[{}]", target.uuid, before, normalizedValue);
         } else {
             target.setAttribute(key, normalizedValue);
         }
@@ -603,6 +753,54 @@ public class DevTools {
         String inlineStyle = toInlineStyle(styleMap).trim();
         if (inlineStyle.isBlank()) target.removeAttribute("style");
         else target.setAttribute("style", inlineStyle);
+    }
+
+    private static String normalizeStyleKey(String key) {
+        if (key == null) return "";
+        String trimmed = key.trim();
+        if (trimmed.isEmpty()) return "";
+        if (trimmed.startsWith("--")) return trimmed;
+        return trimmed.toLowerCase(Locale.ROOT);
+    }
+
+    private static Element createToolElement(String tagName) {
+        if (toolDocument == null) return null;
+        Element element = toolDocument.createElement(tagName);
+        return Element.init(element);
+    }
+
+    private static void syncStyleAttributeEditors(Element target) {
+        if (toolDocument == null || target == null) return;
+        String targetUuid = target.uuid.toString();
+        String inlineStyle = safe(target.getAttribute("style"));
+        int updated = 0;
+        for (Element element : toolDocument.getElements()) {
+            if (element == null) continue;
+            if (!"INPUT".equalsIgnoreCase(element.tagName)) continue;
+            String type = element.getAttribute("data-editor-type");
+            if (!"attr".equals(type)) continue;
+            String nodeUuid = element.getAttribute("data-node-uuid");
+            String key = element.getAttribute("data-attr-key");
+            if (!targetUuid.equals(nodeUuid)) continue;
+            if (!"style".equalsIgnoreCase(key)) continue;
+            element.value = inlineStyle;
+            element.setAttribute("value", inlineStyle);
+            updated++;
+        }
+        if (updated > 0) {
+            ApricityUI.LOGGER.info("[DevTools] Synced {} style attr editor(s) for {}", updated, targetUuid);
+        }
+    }
+
+    private static void syncRuntimeInlineStyleCache(Element target) {
+        if (!(target instanceof MinecraftElement minecraftElement)) return;
+        String raw = target.getAttribute("style");
+        if (minecraftElement.getRuntimeCache("bound-base-inline-style") != null) {
+            minecraftElement.putRuntimeCache("bound-base-inline-style", raw == null ? "" : raw);
+        }
+        if (minecraftElement.getRuntimeCache("bound-last-inline-style") != null) {
+            minecraftElement.putRuntimeCache("bound-last-inline-style", raw == null ? "" : raw);
+        }
     }
 
     private static Element resolveTargetElement(Document preferredDoc, String nodeUuid, Element fallback) {
