@@ -45,6 +45,7 @@ public class Base {
                 poseStack.popPose();
             }
         } finally {
+            ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
         AbstractAsyncHandler.tickAll();

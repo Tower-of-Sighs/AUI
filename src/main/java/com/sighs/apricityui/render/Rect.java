@@ -68,6 +68,7 @@ public class Rect {
 
         if (topW == 0 && bottomW == 0 && leftW == 0 && rightW == 0) return;
 
+        Graph.beginBatch();
         int topC = box.border.get("top").color().getValue();
         int bottomC = box.border.get("bottom").color().getValue();
         int leftC = box.border.get("left").color().getValue();
@@ -92,8 +93,13 @@ public class Rect {
             Position p = position.add(new Position(box.getMarginLeft(), box.getMarginTop()));
             Size s = getShadowSize();
             String path = Loader.resolve(documentPath, box.borderImage.source);
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
             ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage);
+            return;
         }
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
     }
 
     public Position getBodyRectPosition() {
@@ -120,6 +126,7 @@ public class Rect {
     public void drawBody(PoseStack poseStack, Size s) {
         Position p = getBodyRectPosition();
         float[] radii = getBodyRadius();
+        Graph.beginBatch();
         if (!background.color.equals("unset")) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii, new Color(background.color).getValue());
         }
@@ -134,9 +141,13 @@ public class Rect {
                             radii, layer.gradient);
                 }
                 if (!"unset".equals(layer.imagePath)) {
+                    Graph.endBatch();
                     ImageDrawer.drawComplexBackground(poseStack, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), layer);
+                    Graph.beginBatch();
                 }
             }
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
             return;
         }
 
@@ -147,8 +158,12 @@ public class Rect {
                     radii, background.gradient);
         }
         if (!background.imagePath.equals("unset")) {
+            Graph.endBatch();
             ImageDrawer.drawComplexBackground(poseStack, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), background);
+            return;
         }
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
     }
 
     public Position getShadowPosition() {
@@ -167,12 +182,14 @@ public class Rect {
         if (box.shadows.isEmpty()) return;
         Size s = getShadowSize();
         float[] radii = box.getCalculatedRadii((float) s.width(), (float) s.height(), 0);
+        Graph.beginBatch();
         for (Box.Shadow shadow : box.shadows) {
             if (shadow.size() == 0) continue;
             double x = position.x + box.getMarginLeft() + shadow.x();
             double y = position.y + box.getMarginTop() + shadow.y();
             Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
         }
+        Graph.endBatch();
     }
 
     public Position getContentPosition() {

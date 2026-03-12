@@ -28,10 +28,15 @@ public class Mask {
         return currentClip;
     }
 
+    public static boolean isActive() {
+        return depth > 0;
+    }
+
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
 //        clipStack.push(currentClip);
 //        AABB newMask = new AABB(x, y, width, height);
 //        currentClip = currentClip.intersection(newMask);
+        ImageDrawer.flushBatch();
 
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
@@ -104,6 +109,7 @@ public class Mask {
         clipStack.push(currentClip);
         AABB newMask = new AABB(x, y, width, height);
         currentClip = currentClip.intersection(newMask);
+        ImageDrawer.flushBatch();
 
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
