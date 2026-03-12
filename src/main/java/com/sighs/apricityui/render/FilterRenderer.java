@@ -218,6 +218,8 @@ public class FilterRenderer {
     }
 
     private static void drawBackdropWithShader(RenderTarget sourceFbo, Element target, PoseStack poseStack) {
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
         ShaderInstance shader = ShaderRegistry.getFilterShader();
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
 //        if (shader == null || state == null) {

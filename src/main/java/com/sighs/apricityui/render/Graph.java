@@ -13,6 +13,9 @@ public class Graph {
     private static final int TOTAL_STEPS = SEGMENTS * 4;
     private static final float[] COS_TABLE = new float[TOTAL_STEPS + 1];
     private static final float[] SIN_TABLE = new float[TOTAL_STEPS + 1];
+    private static boolean batchActive = false;
+    private static boolean batchHasVertices = false;
+    private static boolean batchStarted = false;
 
     static {
         double stepAngle = 360.0 / TOTAL_STEPS;
@@ -24,12 +27,14 @@ public class Graph {
     }
 
     public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color, float alphaMultiplier) {
+        ensureBatchStarted();
         int a = (int) (((color >> 24) & 0xFF) * alphaMultiplier);
         int r = (color >> 16) & 0xFF;
         int g = (color >> 8) & 0xFF;
         int b = color & 0xFF;
 
         buf.vertex(mat, x, y, 0f).color(r, g, b, a).endVertex();
+        if (batchActive) batchHasVertices = true;
     }
 
     public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color) {
@@ -78,21 +83,45 @@ public class Graph {
         buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
     }
 
-    public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
-        BufferBuilder bufferbuilder = Base.getBuffer();
-        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+    public static void beginBatch() {
+        if (batchActive) return;
+        ImageDrawer.flushBatch();
+        batchActive = true;
+        batchHasVertices = false;
+        batchStarted = false;
+    }
 
-        float a = (float) (color >> 24 & 255) / 255.0F;
-        float r = (float) (color >> 16 & 255) / 255.0F;
-        float g = (float) (color >> 8 & 255) / 255.0F;
-        float b = (float) (color & 255) / 255.0F;
+    public static void endBatch() {
+        if (!batchActive) return;
+        if (batchStarted) {
+            BufferBuilder buf = Base.getBuffer();
+            buf.end();
+            BufferUploader.end(buf);
+            Base.finishRendering();
+        }
+        batchActive = false;
+        batchHasVertices = false;
+        batchStarted = false;
+    }
 
-        bufferbuilder.vertex(matrix, x0, y1, 0.0F).color(r, g, b, a).endVertex();
-        bufferbuilder.vertex(matrix, x1, y1, 0.0F).color(r, g, b, a).endVertex();
-        bufferbuilder.vertex(matrix, x1, y0, 0.0F).color(r, g, b, a).endVertex();
-        bufferbuilder.vertex(matrix, x0, y0, 0.0F).color(r, g, b, a).endVertex();
-
+    private static void ensureBatchStarted() {
+        if (!batchActive || batchStarted) return;
+        BufferBuilder buf = Base.getBuffer();
         Base.beginRendering();
+        prepare(buf);
+        batchStarted = true;
+    }
+
+    public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+            addRect(buf, matrix, x0, y0, x1, y1, color);
+            return;
+        }
+        BufferBuilder bufferbuilder = Base.getBuffer();
+        Base.beginRendering();
+        prepare(bufferbuilder);
+        addRect(bufferbuilder, matrix, x0, y0, x1, y1, color);
         bufferbuilder.end();
         BufferUploader.end(bufferbuilder);
         Base.finishRendering();
@@ -107,10 +136,15 @@ public class Graph {
     }
 
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+            addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
+            return;
+        }
         BufferBuilder buf = Base.getBuffer();
+        Base.beginRendering();
         prepare(buf);
         addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
-        Base.beginRendering();
         buf.end();
         BufferUploader.end(buf);
         Base.finishRendering();
@@ -183,13 +217,17 @@ public class Graph {
     }
 
     public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+            addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, innerColor);
+            addUnifiedShadowRingVertices(buf, mat, x, y, w, h, radii, blur, innerColor, outerColor);
+            return;
+        }
         BufferBuilder buf = Base.getBuffer();
+        Base.beginRendering();
         prepare(buf);
-
         addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, innerColor);
         addUnifiedShadowRingVertices(buf, mat, x, y, w, h, radii, blur, innerColor, outerColor);
-
-        Base.beginRendering();
         buf.end();
         BufferUploader.end(buf);
         Base.finishRendering();
@@ -234,7 +272,31 @@ public class Graph {
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+
+            float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
+            int tC = colors[0], rC = colors[1], bC = colors[2], lC = colors[3];
+            float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
+
+            if (tW > 0) addRect(buf, mat, x + tl, y, x + w - tr, y + tW, tC);
+            if (bW > 0) addRect(buf, mat, x + bl, y + h - bW, x + w - br, y + h, bC);
+            if (lW > 0) addRect(buf, mat, x, y + tl, x + lW, y + h - bl, lC);
+            if (rW > 0) addRect(buf, mat, x + w - rW, y + tr, x + w, y + h - br, rC);
+
+            if (tl > 0 || tW > 0 || lW > 0)
+                addComplexCorner(buf, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+            if (tr > 0 || tW > 0 || rW > 0)
+                addComplexCorner(buf, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+            if (br > 0 || rW > 0 || bW > 0)
+                addComplexCorner(buf, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+            if (bl > 0 || bW > 0 || lW > 0)
+                addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+            return;
+        }
+
         BufferBuilder buf = Base.getBuffer();
+        Base.beginRendering();
         prepare(buf);
 
         float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
@@ -255,7 +317,6 @@ public class Graph {
         if (bl > 0 || bW > 0 || lW > 0)
             addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
 
-        Base.beginRendering();
         buf.end();
         BufferUploader.end(buf);
         Base.finishRendering();
@@ -264,12 +325,15 @@ public class Graph {
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {
         boolean blink = (System.currentTimeMillis() - lastBlinkTime) % 1000 < 500;
         if (blink) {
+            if (batchActive) {
+                BufferBuilder buf = Base.getBuffer();
+                addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
+                return;
+            }
             BufferBuilder buf = Base.getBuffer();
-            prepare(buf);
-
-            addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
-
             Base.beginRendering();
+            prepare(buf);
+            addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
             buf.end();
             BufferUploader.end(buf);
             Base.finishRendering();
