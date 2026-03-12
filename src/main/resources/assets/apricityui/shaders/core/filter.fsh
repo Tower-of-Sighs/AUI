@@ -2,12 +2,17 @@
 
 uniform sampler2D Sampler0;
 uniform vec2 InSize;
+uniform vec2 GuiSize;
 uniform float BlurRadius;
 uniform float Brightness;
 uniform float Grayscale;
 uniform float Invert;
 uniform float HueRotate;
 uniform float Opacity;
+uniform float ForceAlpha;
+uniform vec4 ClipRect;
+uniform vec4 ClipRadii;
+uniform float ClipEnabled;
 
 in vec2 texCoord;
 out vec4 fragColor;
@@ -20,7 +25,44 @@ vec3 applyHue(vec3 color, float angle) {
 }
 
 void main() {
+    if (ClipEnabled > 0.5) {
+        vec2 pos = texCoord * GuiSize;
+        vec2 rectPos = ClipRect.xy;
+        vec2 rectSize = ClipRect.zw;
+        vec2 local = pos - rectPos;
+
+        if (local.x < 0.0 || local.y < 0.0 || local.x > rectSize.x || local.y > rectSize.y) {
+            discard;
+        }
+
+        float tl = ClipRadii.x;
+        float tr = ClipRadii.y;
+        float br = ClipRadii.z;
+        float bl = ClipRadii.w;
+        float maxR = min(rectSize.x, rectSize.y) * 0.5;
+        tl = min(tl, maxR);
+        tr = min(tr, maxR);
+        br = min(br, maxR);
+        bl = min(bl, maxR);
+
+        if (tl > 0.0 && local.x < tl && local.y < tl) {
+            if (distance(local, vec2(tl, tl)) > tl) discard;
+        }
+        if (tr > 0.0 && local.x > rectSize.x - tr && local.y < tr) {
+            if (distance(local, vec2(rectSize.x - tr, tr)) > tr) discard;
+        }
+        if (br > 0.0 && local.x > rectSize.x - br && local.y > rectSize.y - br) {
+            if (distance(local, vec2(rectSize.x - br, rectSize.y - br)) > br) discard;
+        }
+        if (bl > 0.0 && local.x < bl && local.y > rectSize.y - bl) {
+            if (distance(local, vec2(bl, rectSize.y - bl)) > bl) discard;
+        }
+    }
+
     vec4 rawColor = texture(Sampler0, texCoord);
+    if (ForceAlpha > 0.5) {
+        rawColor.a = 1.0;
+    }
     if (rawColor.a <= 0.001) discard;
 
     vec4 color;
@@ -40,12 +82,13 @@ void main() {
             for (int y = -radius; y <= radius; ++y) {
                 vec2 offset = vec2(x, y) * texelSize;
                 vec4 sampleCol = texture(Sampler0, texCoord + offset);
+                float sampleAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
 
                 vec3 linearColor = pow(sampleCol.rgb, vec3(2.2));
                 float weight = exp(-float(x*x + y*y) / twoSigmaSq);
 
-                blurSumLinear += linearColor * sampleCol.a * weight;
-                totalAlphaWeight += sampleCol.a * weight;
+                blurSumLinear += linearColor * sampleAlpha * weight;
+                totalAlphaWeight += sampleAlpha * weight;
                 totalWeight += weight;
             }
         }

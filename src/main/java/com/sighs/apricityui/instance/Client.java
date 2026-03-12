@@ -191,6 +191,7 @@ public class Client {
                 }
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+//            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
 
@@ -205,6 +206,7 @@ public class Client {
                 }
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+//            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
 
@@ -281,6 +283,7 @@ public class Client {
     public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             Runtime.tick();
+//            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             Size current = getWindowSize();
             int w = (int) current.width();
             int h = (int) current.height();
