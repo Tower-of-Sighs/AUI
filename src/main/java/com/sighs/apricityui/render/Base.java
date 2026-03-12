@@ -79,13 +79,35 @@ public class Base {
         double lastAbsX = 0;
         double lastAbsY = 0;
 
-        for (Element e : route) {
-            Position pos = Position.of(e);
+        int routeSize = route.size();
+        double[] absX = new double[routeSize];
+        double[] absY = new double[routeSize];
+
+        for (int i = routeSize - 1; i >= 0; i--) {
+            Element e = route.get(i);
+            Position offset = Position.getOffset(e);
+            if ("fixed".equals(e.getComputedStyle().position)) {
+                absX[i] = offset.x;
+                absY[i] = offset.y;
+            } else if (i == routeSize - 1) {
+                absX[i] = offset.x;
+                absY[i] = offset.y;
+            } else {
+                Element parent = route.get(i + 1);
+                absX[i] = offset.x + absX[i + 1] - parent.getScrollLeft();
+                absY[i] = offset.y + absY[i + 1] - parent.getScrollTop();
+            }
+        }
+
+        for (int i = 0; i < routeSize; i++) {
+            Element e = route.get(i);
+            double posX = absX[i];
+            double posY = absY[i];
             Box box = Box.of(e);
             Size size = Size.of(e);
 
-            double currentAbsX = pos.x + box.getMarginLeft();
-            double currentAbsY = pos.y + box.getMarginTop();
+            double currentAbsX = posX + box.getMarginLeft();
+            double currentAbsY = posY + box.getMarginTop();
             poseStack.translate(currentAbsX - lastAbsX, currentAbsY - lastAbsY, 0);
 
             List<Transform> functions = e.getRenderer().transform.get();
