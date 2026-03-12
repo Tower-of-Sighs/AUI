@@ -30,20 +30,25 @@ public record Transition(String name, double start, double end, double duration,
         if (transitions == null) return;
 
         long now = System.currentTimeMillis();
-        List<Change> changes = new ArrayList<>();
+        List<Change> changes = null;
 
-        transitions.removeIf(t -> {
+        for (Iterator<Transition> it = transitions.iterator(); it.hasNext(); ) {
+            Transition t = it.next();
             double progress = (now - t.startTime - t.delay) / t.duration;
-            if (progress < 0) return false; // 延迟中
+            if (progress < 0) continue;
             if (progress > 1) progress = 1;
 
+            if (changes == null) changes = new ArrayList<>();
             changes.add(new Change(t.name, getOffset(t.name, t.start, t.end, progress)));
-            return progress >= 1;
-        });
+            if (progress >= 1) it.remove();
+        }
 
-        if (!changes.isEmpty()) {
+        if (changes != null && !changes.isEmpty()) {
             applyChanges(originStyle, changes);
-        } else if (transitions.isEmpty()) {
+            return;
+        }
+
+        if (transitions.isEmpty()) {
             workList.remove(element.uuid);
         }
     }
@@ -90,7 +95,6 @@ public record Transition(String name, double start, double end, double duration,
         } else if (name.equals("opacity")) {
             style.opacity = String.valueOf(value);
         } else {
-            // Box 相关属性（margin, padding, border-width, top, left 等）统一转回 px 字符串
             style.update(name, String.format("%.2fpx", value));
         }
     }
