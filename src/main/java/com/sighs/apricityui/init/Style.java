@@ -302,7 +302,10 @@ public class Style implements Cloneable {
     public void merge(String styleString) {
         if (styleString.length() < 3) return;
         if (!styleString.contains(";")) styleString += ";";
-        String[] entries = styleString.replaceAll("\n", "").split(";");
+        if (styleString.indexOf('\n') >= 0) {
+            styleString = styleString.replace("\n", "");
+        }
+        String[] entries = styleString.split(";");
         for (String entry : entries) {
             String[] content = entry.split(":");
             if (content.length == 2) {
