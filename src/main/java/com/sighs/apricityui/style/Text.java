@@ -9,6 +9,8 @@ import java.awt.*;
 
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
+    private String cachedKey = null;
+    private int cachedKeyHash = 0;
     public int fontSize = -1;
     public int fontWeight = -1;
     public boolean oblique = false;
@@ -133,7 +135,29 @@ public class Text {
     }
 
     public String toKey() {
-        return fontSize + "/" + fontWeight + "/" + oblique + "/" + strokeWidth + "/" + strokeColor + "/" + color + "/" + fontFamily + "/" + content;
+        int h = 1;
+        h = 31 * h + fontSize;
+        h = 31 * h + fontWeight;
+        h = 31 * h + (oblique ? 1 : 0);
+        h = 31 * h + strokeWidth;
+        h = 31 * h + (strokeColor == null ? 0 : strokeColor.getValue());
+        h = 31 * h + (color == null ? 0 : color.getValue());
+        h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
+        h = 31 * h + (content == null ? 0 : content.hashCode());
+        if (cachedKey != null && cachedKeyHash == h) return cachedKey;
+
+        StringBuilder sb = new StringBuilder(64);
+        sb.append(fontSize).append('/')
+                .append(fontWeight).append('/')
+                .append(oblique).append('/')
+                .append(strokeWidth).append('/')
+                .append(strokeColor == null ? 0 : strokeColor.getValue()).append('/')
+                .append(color == null ? 0 : color.getValue()).append('/')
+                .append(fontFamily == null ? "" : fontFamily).append('/')
+                .append(content == null ? "" : content);
+        cachedKey = sb.toString();
+        cachedKeyHash = h;
+        return cachedKey;
     }
 
     public boolean isBold() {

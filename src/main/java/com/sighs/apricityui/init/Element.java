@@ -393,7 +393,7 @@ public class Element {
             Element element = creator.apply(origin.document, origin.tagName);
             element.id = origin.id;
             element.uuid = origin.uuid;
-            element.innerText = origin.innerText.replaceAll("\n", "");
+            element.innerText = origin.innerText.replace("\n", "");
             element.attributes = origin.attributes;
             element.parentElement = origin.parentElement;
             element.value = origin.value;

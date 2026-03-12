@@ -10,6 +10,10 @@ public class Animation {
     private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
     private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(\\s*([0-9]+)\\s*(?:,\\s*(start|end)\\s*)?\\)\\s*$");
+    private static final Pattern TIME_TOKEN = Pattern.compile("^[0-9.]+(s|ms)$");
+    private static final Pattern NUMBER_TOKEN = Pattern.compile("^[0-9.]+$");
+    private static final Set<String> DIRECTION_SET = Set.of("normal", "reverse", "alternate", "alternate-reverse");
+    private static final Set<String> FILL_SET = Set.of("none", "forwards", "backwards", "both");
 
     private static class AnimationConfig {
         String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "linear";
@@ -140,12 +144,12 @@ public class Animation {
             for (String part : s.animation.split(",")) {
                 AnimationConfig c = new AnimationConfig();
                 for (String t : part.trim().split("\\s+")) {
-                    if (t.matches("^[0-9.]+(s|ms)$")) {
+                    if (TIME_TOKEN.matcher(t).matches()) {
                         if (c.duration.equals("0s")) c.duration = t;
                         else c.delay = t;
-                    } else if (t.equals("infinite") || t.matches("^[0-9.]+$")) c.count = t;
-                    else if (Set.of("normal", "reverse", "alternate", "alternate-reverse").contains(t)) c.direction = t;
-                    else if (Set.of("none", "forwards", "backwards", "both").contains(t)) c.fill = t;
+                    } else if (t.equals("infinite") || NUMBER_TOKEN.matcher(t).matches()) c.count = t;
+                    else if (DIRECTION_SET.contains(t)) c.direction = t;
+                    else if (FILL_SET.contains(t)) c.fill = t;
                     else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
                     else c.name = t;
                 }
