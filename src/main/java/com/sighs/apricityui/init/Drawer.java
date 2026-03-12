@@ -74,7 +74,16 @@ public class Drawer {
         if (backdropFilterStr != null && !backdropFilterStr.equals("none")) {
             Filter.FilterState bfState = Filter.getBackdropFilterOf(contextRoot);
             if (!bfState.isEmpty()) {
+//                com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                        "[Drawer] Add BackdropFilterNode target={} style='{}' state={}",
+//                        contextRoot.uuid, backdropFilterStr, bfState
+//                );
                 paintList.add(new RenderNode.BackdropFilterNode(contextRoot));
+            } else {
+//                com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                        "[Drawer] Skip BackdropFilterNode target={} style='{}' -> empty",
+//                        contextRoot.uuid, backdropFilterStr
+//                );
             }
         }
 
