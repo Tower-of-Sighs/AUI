@@ -26,7 +26,7 @@ vec3 applyHue(vec3 color, float angle) {
 
 void main() {
     if (ClipEnabled > 0.5) {
-        vec2 pos = texCoord * GuiSize;
+        vec2 pos = vec2(texCoord.x, 1.0 - texCoord.y) * GuiSize;
         vec2 rectPos = ClipRect.xy;
         vec2 rectSize = ClipRect.zw;
         vec2 local = pos - rectPos;

@@ -119,3 +119,5 @@ runs/
 !gradle-wrapper.jar
 
 src/main/java/com/sighs/apricityui/event/Test.java
+
+profiler
