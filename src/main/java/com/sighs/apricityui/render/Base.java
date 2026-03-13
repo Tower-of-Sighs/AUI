@@ -45,6 +45,7 @@ public class Base {
                 poseStack.popPose();
             }
         } finally {
+            ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
         AbstractAsyncHandler.tickAll();
@@ -78,13 +79,35 @@ public class Base {
         double lastAbsX = 0;
         double lastAbsY = 0;
 
-        for (Element e : route) {
-            Position pos = Position.of(e);
+        int routeSize = route.size();
+        double[] absX = new double[routeSize];
+        double[] absY = new double[routeSize];
+
+        for (int i = routeSize - 1; i >= 0; i--) {
+            Element e = route.get(i);
+            Position offset = Position.getOffset(e);
+            if ("fixed".equals(e.getComputedStyle().position)) {
+                absX[i] = offset.x;
+                absY[i] = offset.y;
+            } else if (i == routeSize - 1) {
+                absX[i] = offset.x;
+                absY[i] = offset.y;
+            } else {
+                Element parent = route.get(i + 1);
+                absX[i] = offset.x + absX[i + 1] - parent.getScrollLeft();
+                absY[i] = offset.y + absY[i + 1] - parent.getScrollTop();
+            }
+        }
+
+        for (int i = 0; i < routeSize; i++) {
+            Element e = route.get(i);
+            double posX = absX[i];
+            double posY = absY[i];
             Box box = Box.of(e);
             Size size = Size.of(e);
 
-            double currentAbsX = pos.x + box.getMarginLeft();
-            double currentAbsY = pos.y + box.getMarginTop();
+            double currentAbsX = posX + box.getMarginLeft();
+            double currentAbsY = posY + box.getMarginTop();
             poseStack.translate(currentAbsX - lastAbsX, currentAbsY - lastAbsY, 0);
 
             List<Transform> functions = e.getRenderer().transform.get();
@@ -102,12 +125,12 @@ public class Base {
                 float originY = (float) (h / 2.0);
 
                 for (Transform transform : functions) {
-                    if (transform instanceof Transform.Translate(double x2, double y2, double z1)) {
-                        poseStack.translate(x2, y2, z1);
-                    } else if (transform instanceof Transform.Rotate(double x1, double y1, double z)) {
+                    if (transform instanceof Transform.Translate(double x, double y, double z)) {
+                        poseStack.translate(x, y, z);
+                    } else if (transform instanceof Transform.Rotate(double x, double y, double z)) {
                         poseStack.translate(originX, originY, 0);
-                        if (x1 != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(x1)));
-                        if (y1 != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(y1)));
+                        if (x != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(x)));
+                        if (y != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(y)));
                         if (z != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(z)));
                         poseStack.translate(-originX, -originY, 0);
                     } else if (transform instanceof Transform.Scale(double x, double y)) {

@@ -8,8 +8,13 @@ import java.util.regex.Pattern;
 
 public class Animation {
     private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
+    private static final Map<String, Set<String>> KEYFRAME_PROPS = new HashMap<>();
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
     private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(\\s*([0-9]+)\\s*(?:,\\s*(start|end)\\s*)?\\)\\s*$");
+    private static final Pattern TIME_TOKEN = Pattern.compile("^[0-9.]+(s|ms)$");
+    private static final Pattern NUMBER_TOKEN = Pattern.compile("^[0-9.]+$");
+    private static final Set<String> DIRECTION_SET = Set.of("normal", "reverse", "alternate", "alternate-reverse");
+    private static final Set<String> FILL_SET = Set.of("none", "forwards", "backwards", "both");
 
     private static class AnimationConfig {
         String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "linear";
@@ -17,6 +22,9 @@ public class Animation {
 
     private static class AnimationState {
         final Map<String, Long> starts = new HashMap<>();
+        String lastSpec = null;
+        List<AnimationConfig> cachedConfigs = List.of();
+        final Set<String> live = new HashSet<>();
 
         void forgetExcept(Set<String> names) {
             starts.keySet().retainAll(names);
@@ -25,6 +33,7 @@ public class Animation {
 
     public static void registerKeyframe(String name, double percent, Map<String, String> props) {
         KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>()).put(percent, props);
+        KEYFRAME_PROPS.computeIfAbsent(name, k -> new HashSet<>()).addAll(props.keySet());
     }
 
     public static boolean isActive(Element e) {
@@ -32,15 +41,22 @@ public class Animation {
     }
 
     public static void updateStyle(Element element, Style style) {
-        List<AnimationConfig> configs = resolve(style);
-        if (configs.isEmpty()) {
+        String spec = style.animation;
+        if (spec == null || spec.equals("none")) {
             ACTIVE_ANIMATIONS.remove(element.uuid);
             return;
         }
 
         AnimationState state = ACTIVE_ANIMATIONS.computeIfAbsent(element.uuid, k -> new AnimationState());
+        List<AnimationConfig> configs = resolve(spec, state);
+        if (configs.isEmpty()) {
+            ACTIVE_ANIMATIONS.remove(element.uuid);
+            return;
+        }
+
         long now = System.currentTimeMillis();
-        Set<String> live = new HashSet<>();
+        Set<String> live = state.live;
+        live.clear();
 
         for (AnimationConfig config : configs) {
             apply(state, element, style, config, now, live);
@@ -96,10 +112,10 @@ public class Animation {
         double highP = highEntry.getKey();
         double fraction = (lowP == highP) ? 0 : (percent - lowP) / (highP - lowP);
 
-        Set<String> allProps = new HashSet<>();
-        timeline.values().forEach(m -> allProps.addAll(m.keySet()));
+        Set<String> allProps = KEYFRAME_PROPS.get(name);
+        if (allProps == null || allProps.isEmpty()) return;
 
-        List<Transition.Change> changes = new ArrayList<>();
+        List<Transition.Change> changes = new ArrayList<>(allProps.size());
         for (String p : allProps) {
             String vS = findProperty(timeline, percent, p, true, style.get(p));
             String vE = findProperty(timeline, percent, p, false, vS);
@@ -134,24 +150,27 @@ public class Animation {
         return p;
     }
 
-    private static List<AnimationConfig> resolve(Style s) {
-        List<AnimationConfig> configs = new ArrayList<>();
-        if (s.animation != null && !s.animation.equals("none")) {
-            for (String part : s.animation.split(",")) {
-                AnimationConfig c = new AnimationConfig();
-                for (String t : part.trim().split("\\s+")) {
-                    if (t.matches("^[0-9.]+(s|ms)$")) {
-                        if (c.duration.equals("0s")) c.duration = t;
-                        else c.delay = t;
-                    } else if (t.equals("infinite") || t.matches("^[0-9.]+$")) c.count = t;
-                    else if (Set.of("normal", "reverse", "alternate", "alternate-reverse").contains(t)) c.direction = t;
-                    else if (Set.of("none", "forwards", "backwards", "both").contains(t)) c.fill = t;
-                    else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
-                    else c.name = t;
-                }
-                configs.add(c);
-            }
+    private static List<AnimationConfig> resolve(String spec, AnimationState state) {
+        if (spec.equals(state.lastSpec)) {
+            return state.cachedConfigs;
         }
+        List<AnimationConfig> configs = new ArrayList<>();
+        for (String part : spec.split(",")) {
+            AnimationConfig c = new AnimationConfig();
+            for (String t : part.trim().split("\\s+")) {
+                if (TIME_TOKEN.matcher(t).matches()) {
+                    if (c.duration.equals("0s")) c.duration = t;
+                    else c.delay = t;
+                } else if (t.equals("infinite") || NUMBER_TOKEN.matcher(t).matches()) c.count = t;
+                else if (DIRECTION_SET.contains(t)) c.direction = t;
+                else if (FILL_SET.contains(t)) c.fill = t;
+                else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
+                else c.name = t;
+            }
+            configs.add(c);
+        }
+        state.lastSpec = spec;
+        state.cachedConfigs = configs.isEmpty() ? List.of() : configs;
         return configs;
     }
 }

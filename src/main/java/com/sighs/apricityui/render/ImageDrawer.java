@@ -29,6 +29,8 @@ public class ImageDrawer {
     private static final int PLACEHOLDER_COLOR = 0x33404040;
     // Empty radii array for rectangular mask clipping.
     private static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
+    private static RenderType batchRenderType = null;
+    private static MultiBufferSource.BufferSource batchBufferSource = null;
 
     private static RenderType getRenderType(ResourceLocation texture, boolean blur) {
         return RENDER_TYPE_CACHE.computeIfAbsent(new RenderKey(texture, blur), key -> CustomRenderType.createSmooth(key.location(), key.blur()));
@@ -97,6 +99,13 @@ public class ImageDrawer {
         RENDER_TYPE_CACHE.clear();
     }
 
+    public static void flushBatch() {
+        if (batchRenderType == null || batchBufferSource == null) return;
+        batchBufferSource.endBatch(batchRenderType);
+        batchRenderType = null;
+        batchBufferSource = null;
+    }
+
     public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background bg) {
         if (bg == null) return;
         Background.Layer layer = new Background.Layer();
@@ -126,6 +135,7 @@ public class ImageDrawer {
         float offsetY = offset[1];
         RepeatMode repeatMode = parseRepeatMode(layer.repeat);
 
+        flushBatch();
         Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
         float startX = repeatMode.repeatX ? normalizeRepeatStart(offsetX, renderW) : offsetX;
         float startY = repeatMode.repeatY ? normalizeRepeatStart(offsetY, renderH) : offsetY;
@@ -308,6 +318,7 @@ public class ImageDrawer {
             return;
         }
 
+        flushBatch();
         Mask.pushMask(poseStack, dx, dy, dw, dh, NO_RADIUS);
 
         for (float curX = 0; curX < dw; curX += tileW) {
@@ -323,6 +334,7 @@ public class ImageDrawer {
 
     private static void drawPlaceholder(PoseStack poseStack, float x, float y, float width, float height) {
         if (width <= 0 || height <= 0) return;
+        flushBatch();
         Base.resolveOffset(poseStack);
         Graph.drawFillRect(poseStack.last().pose(), x, y, x + width, y + height, PLACEHOLDER_COLOR);
     }
@@ -345,10 +357,28 @@ public class ImageDrawer {
 
     private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur) {
         RenderType renderType = getRenderType(texture, blur);
-        MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-        VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
-        Matrix4f matrix = poseStack.last().pose();
+        if (Mask.isActive()) {
+            flushBatch();
+            MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+            VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
+            emitQuad(vertexConsumer, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
+            bufferSource.endBatch(renderType);
+            return;
+        }
 
+        if (batchRenderType == null || batchRenderType != renderType) {
+            flushBatch();
+            batchRenderType = renderType;
+            batchBufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+        }
+        VertexConsumer vertexConsumer = batchBufferSource.getBuffer(renderType);
+        emitQuad(vertexConsumer, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
+    }
+
+    private static void emitQuad(VertexConsumer vertexConsumer, Matrix4f matrix,
+                                 float x, float y, float width, float height,
+                                 float uTexture, float vTexture, int widthTexture, int heightTexture,
+                                 int textureWidth, int textureHeight) {
         float minU = uTexture / (float) textureWidth;
         float maxU = (uTexture + widthTexture) / (float) textureWidth;
         float minV = vTexture / (float) textureHeight;
@@ -358,8 +388,6 @@ public class ImageDrawer {
         vertexConsumer.vertex(matrix, x + width, y + height, 0.0F).color(255, 255, 255, 255).uv(maxU, maxV).uv2(0xF000F0).endVertex();
         vertexConsumer.vertex(matrix, x + width, y, 0.0F).color(255, 255, 255, 255).uv(maxU, minV).uv2(0xF000F0).endVertex();
         vertexConsumer.vertex(matrix, x, y, 0.0F).color(255, 255, 255, 255).uv(minU, minV).uv2(0xF000F0).endVertex();
-
-        bufferSource.endBatch(renderType);
     }
 
     static class CustomRenderType extends RenderType {

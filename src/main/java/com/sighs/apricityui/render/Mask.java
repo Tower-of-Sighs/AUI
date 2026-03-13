@@ -33,6 +33,10 @@ public class Mask {
         return currentClip;
     }
 
+    public static boolean isActive() {
+        return depth > 0;
+    }
+
     public static void ensureStencil(RenderTarget target) {
         if (target == null) return;
 
@@ -87,6 +91,7 @@ public class Mask {
 //        clipStack.push(currentClip);
 //        AABB newMask = new AABB(x, y, width, height);
 //        currentClip = currentClip.intersection(newMask);
+        ImageDrawer.flushBatch();
 
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
