@@ -50,8 +50,19 @@ public class Filter {
 
         Style style = element.getComputedStyle();
         FilterState state;
-        if (isDisabled(style.backdropFilter)) state = FilterState.EMPTY;
-        else state = parse(element.getComputedStyle().backdropFilter, 1);
+        if (isDisabled(style.backdropFilter)) {
+            state = FilterState.EMPTY;
+//            com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                    "[Filter] Backdrop disabled target={} style='{}'",
+//                    element.uuid, style.backdropFilter
+//            );
+        } else {
+            state = parse(element.getComputedStyle().backdropFilter, 1);
+//            com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                    "[Filter] Backdrop parsed target={} style='{}' -> {}",
+//                    element.uuid, style.backdropFilter, state
+//            );
+        }
 
         element.getRenderer().backdropFilter.set(state);
         return state;

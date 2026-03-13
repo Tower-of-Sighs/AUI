@@ -3,7 +3,6 @@ package com.sighs.apricityui.instance;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -165,24 +164,12 @@ public class Client {
     }
 
     public static void icon() {
-        String screenName = Minecraft.getInstance().screen == null ? "null" : Minecraft.getInstance().screen.getClass().getName();
-        ApricityUI.LOGGER.debug("ApricityUI Client.icon tick, screen={}", screenName);
         if (Minecraft.getInstance().screen instanceof TitleScreen) {
-            var docs = Document.get("apricityui/icon.html");
-            if (docs.isEmpty()) {
-                ApricityUI.LOGGER.info("ApricityUI Client.icon creating document: apricityui/icon.html");
-                var created = Document.create("apricityui/icon.html");
-                if (created == null) {
-                    ApricityUI.LOGGER.warn("ApricityUI Client.icon create failed: template not found apricityui/icon.html");
-                } else {
-                    ApricityUI.LOGGER.info("ApricityUI Client.icon document created: {}", created.getUuid());
-                }
-            }
+            if (Document.get("apricityui/icon.html").isEmpty()) Document.create("apricityui/icon.html");
         } else Document.remove("apricityui/icon.html");
     }
 
     public static void drawScreenLike(GuiGraphics guiGraphics) {
-        ApricityUI.LOGGER.trace("ApricityUI Client.drawScreenLike enter, docs={}", Document.getAll().size());
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
@@ -194,12 +181,11 @@ public class Client {
                 }
             }
             Cursor.drawPseudoCursor(guiGraphics.pose());
-            ApricityUI.LOGGER.trace("ApricityUI Client.drawScreenLike rendered");
+//            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
 
     public static void drawOverlayLike(GuiGraphics guiGraphics) {
-        ApricityUI.LOGGER.trace("ApricityUI Client.drawOverlayLike enter, docs={}", Document.getAll().size());
         if (Minecraft.getInstance().screen == null) {
             Base.drawAllDocument(guiGraphics.pose());
             // Shared item render pass for DOM <slot> (createDocument path).
@@ -209,7 +195,7 @@ public class Client {
                 }
             }
             Cursor.drawPseudoCursor(guiGraphics.pose());
-            ApricityUI.LOGGER.trace("ApricityUI Client.drawOverlayLike rendered");
+//            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
 
@@ -274,6 +260,7 @@ public class Client {
 
     public static void tickStart() {
         Runtime.tick();
+//            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
         Size current = getWindowSize();
         int w = (int) current.width();
         int h = (int) current.height();

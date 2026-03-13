@@ -74,7 +74,16 @@ public class Drawer {
         if (backdropFilterStr != null && !backdropFilterStr.equals("none")) {
             Filter.FilterState bfState = Filter.getBackdropFilterOf(contextRoot);
             if (!bfState.isEmpty()) {
+//                com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                        "[Drawer] Add BackdropFilterNode target={} style='{}' state={}",
+//                        contextRoot.uuid, backdropFilterStr, bfState
+//                );
                 paintList.add(new RenderNode.BackdropFilterNode(contextRoot));
+            } else {
+//                com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                        "[Drawer] Skip BackdropFilterNode target={} style='{}' -> empty",
+//                        contextRoot.uuid, backdropFilterStr
+//                );
             }
         }
 
@@ -159,12 +168,12 @@ public class Drawer {
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
-        if (node instanceof RenderNode.MaskPushNode(Element target5)) return target5;
-        if (node instanceof RenderNode.MaskPopNode(Element target4)) return target4;
-        if (node instanceof RenderNode.ClipPathPushNode(Element target3)) return target3;
-        if (node instanceof RenderNode.ClipPathPopNode(Element target2)) return target2;
-        if (node instanceof RenderNode.FilterPushNode(Element target1)) return target1;
-        if (node instanceof RenderNode.FilterPopNode(Element target)) return target;
+        if (node instanceof RenderNode.MaskPushNode n) return n.target();
+        if (node instanceof RenderNode.MaskPopNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
+        if (node instanceof RenderNode.FilterPushNode n) return n.target();
+        if (node instanceof RenderNode.FilterPopNode n) return n.target();
         return null;
     }
 

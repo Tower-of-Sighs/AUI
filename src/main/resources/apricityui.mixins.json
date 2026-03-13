@@ -8,6 +8,7 @@
   ],
   "client": [
     "AbstractContainerScreenMixin",
+    "KeyboardMixin",
     "MinecraftMixin",
     "accessor.AbstractContainerScreenAccessor",
     "accessor.KeyMappingAccessor",

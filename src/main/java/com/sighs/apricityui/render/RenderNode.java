@@ -124,7 +124,7 @@ public interface RenderNode {
             if (shouldSkip(target)) return;
             AABB clip = Mask.getCurrentClip();
             if (clip.isValid() && Rect.of(target).getVisualBounds().intersects(clip)) {
-                FilterRenderer.renderBackdrop(target);
+                FilterRenderer.renderBackdrop(target, poseStack);
             }
         }
     }
