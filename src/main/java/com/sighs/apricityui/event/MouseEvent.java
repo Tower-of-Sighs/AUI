@@ -41,26 +41,18 @@ public class MouseEvent extends Event implements Cloneable {
         List<Document> docs = Document.getAll();
         if (docs == null || docs.isEmpty()) return;
 
-        Document topMost = null;
         for (int i = docs.size() - 1; i >= 0; i--) {
             Document document = docs.get(i);
             if (document == null || document.inWorld) continue;
             Element target = hitTest(document.getPaintList(), new Position(event.clientX, event.clientY));
             if (target != null) {
-                topMost = document;
-                break;
+                tiggerEvent(event, document);
+                if (target != document.body) {
+                    return; // non-body element intercepts
+                }
+                continue; // body does not intercept; continue to next document
             }
-        }
-
-        if (topMost != null) {
-            // ???????????? Document?????????/?????
-            tiggerEvent(event, topMost);
-            return;
-        }
-
-        // Fallback: no hit target, propagate to all non-world documents.
-        for (Document document : docs) {
-            if (document == null || document.inWorld) continue;
+            // No hit target on this document; still send event to clear hover/focus, then continue.
             tiggerEvent(event, document);
         }
     }
@@ -80,6 +72,7 @@ public class MouseEvent extends Event implements Cloneable {
 
             Element target = hitTest(document.getPaintList(), detectionPos);
             if (target == null) continue;
+            if (target == document.body) continue;
 
             Cursor.applyCssCursor(document.getPath(), resolveCursor(target));
             return;
