@@ -5,9 +5,10 @@ import com.sighs.apricityui.util.ReflectionUtils;
 import dev.latvian.mods.kubejs.KubeJSPlugin;
 import dev.latvian.mods.kubejs.script.BindingsEvent;
 import dev.latvian.mods.kubejs.script.ScriptType;
-import net.minecraftforge.fml.ModList;
+import net.fabricmc.loader.api.FabricLoader;
 
 public class KubeJS extends KubeJSPlugin {
+
     public static void scanPackage(String basePackage) {
         ReflectionUtils.addScanPackage(basePackage);
     }
@@ -22,7 +23,7 @@ public class KubeJS extends KubeJSPlugin {
         ReflectionUtils.findAnnotationClasses(KJSBindings.class, data -> {
             String modId = data.getOrDefault("modId", "").toString();
             if (modId.isEmpty()) return true;
-            return ModList.get().isLoaded(modId);
+            return FabricLoader.getInstance().isModLoaded(modId);
         }, clazz -> {
             KJSBindings annotation = clazz.getAnnotation(KJSBindings.class);
             String value = annotation.value();

@@ -1,45 +1,22 @@
 package com.sighs.apricityui;
 
 import com.mojang.logging.LogUtils;
-import com.sighs.apricityui.instance.ShaderRegistry;
-import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import dev.latvian.mods.rhino.util.HideFromJS;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterShadersEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.fml.loading.FMLEnvironment;
+import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 
-import java.io.IOException;
-
-@Mod(ApricityUI.MODID)
-public class ApricityUI {
+public class ApricityUI implements ModInitializer {
     public static final String MODID = "apricityui";
     public static final Logger LOGGER = LogUtils.getLogger();
 
     @HideFromJS
-    public ApricityUI() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+    @Override
+    public void onInitialize() {
         KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.instance.element");
-        ApricityMenus.register(modEventBus);
-        ApricityNetwork.register();
-
-        if (FMLEnvironment.dist == Dist.CLIENT) {
-            ApricityUIRegistry.register();
-            modEventBus.addListener(this::onRegisterShaders);
-        }
-    }
-
-    private void onRegisterShaders(RegisterShadersEvent event) {
-        try {
-            ShaderRegistry.register(event);
-        } catch (IOException ignored) {
-        }
+        ApricityMenus.register();
     }
 }

@@ -12,10 +12,6 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RecipesUpdatedEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
 
@@ -149,7 +145,7 @@ public final class RecipeExpander {
     /**
      * 解析客户端配方并生成 UI 预览槽位数据。
      */
-    private static final class RecipeResolver {
+    public static final class RecipeResolver {
         public static final int STONECUTTING_LIST_VISIBLE_ROWS = 3;
 
         private static final String AIR_ITEM_LITERAL = "minecraft:air";
@@ -591,13 +587,9 @@ public final class RecipeExpander {
         private record RecipeCacheKey(ResourceLocation recipeId, DeclaredType declaredType) {
         }
 
-        @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
-        public static class ForgeEvents {
-            @SubscribeEvent
-            public static void onRecipesUpdated(RecipesUpdatedEvent event) {
-                clearCache();
-                Slot.clearCandidateCache();
-            }
+        public static void onRecipesUpdated() {
+            clearCache();
+            Slot.clearCandidateCache();
         }
     }
 }

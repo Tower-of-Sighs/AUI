@@ -20,7 +20,7 @@ public enum NameConverter {
                 return "";
             }
 
-            StringBuilder result = new StringBuilder(words.get(0).toLowerCase(Locale.ROOT));
+            StringBuilder result = new StringBuilder(words.getFirst().toLowerCase(Locale.ROOT));
             for (int i = 1; i < words.size(); i++) {
                 String word = words.get(i);
                 if (!word.isEmpty()) {

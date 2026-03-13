@@ -146,16 +146,14 @@ public class Text {
         h = 31 * h + (content == null ? 0 : content.hashCode());
         if (cachedKey != null && cachedKeyHash == h) return cachedKey;
 
-        StringBuilder sb = new StringBuilder(64);
-        sb.append(fontSize).append('/')
-                .append(fontWeight).append('/')
-                .append(oblique).append('/')
-                .append(strokeWidth).append('/')
-                .append(strokeColor == null ? 0 : strokeColor.getValue()).append('/')
-                .append(color == null ? 0 : color.getValue()).append('/')
-                .append(fontFamily == null ? "" : fontFamily).append('/')
-                .append(content == null ? "" : content);
-        cachedKey = sb.toString();
+        cachedKey = String.valueOf(fontSize) + '/' +
+                fontWeight + '/' +
+                oblique + '/' +
+                strokeWidth + '/' +
+                (strokeColor == null ? 0 : strokeColor.getValue()) + '/' +
+                (color == null ? 0 : color.getValue()) + '/' +
+                (fontFamily == null ? "" : fontFamily) + '/' +
+                (content == null ? "" : content);
         cachedKeyHash = h;
         return cachedKey;
     }

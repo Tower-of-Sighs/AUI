@@ -1,10 +1,10 @@
 package com.sighs.apricityui.dev;
 
+import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
-import com.mojang.blaze3d.pipeline.RenderTarget;
 import net.minecraft.network.chat.Component;
 
 import java.io.File;

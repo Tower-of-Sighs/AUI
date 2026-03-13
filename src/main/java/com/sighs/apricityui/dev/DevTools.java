@@ -1,20 +1,10 @@
 package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.Selector;
+import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class DevTools {
     private static final String PATH = "devtools/index.html";

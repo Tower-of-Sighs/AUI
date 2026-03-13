@@ -125,17 +125,17 @@ public class Base {
                 float originY = (float) (h / 2.0);
 
                 for (Transform transform : functions) {
-                    if (transform instanceof Transform.Translate t) {
-                        poseStack.translate(t.x(), t.y(), t.z());
-                    } else if (transform instanceof Transform.Rotate r) {
+                    if (transform instanceof Transform.Translate(double x, double y, double z)) {
+                        poseStack.translate(x, y, z);
+                    } else if (transform instanceof Transform.Rotate(double x, double y, double z)) {
                         poseStack.translate(originX, originY, 0);
-                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
-                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
-                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
+                        if (x != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(x)));
+                        if (y != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(y)));
+                        if (z != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(z)));
                         poseStack.translate(-originX, -originY, 0);
-                    } else if (transform instanceof Transform.Scale s) {
+                    } else if (transform instanceof Transform.Scale(double x, double y)) {
                         poseStack.translate(originX, originY, 0);
-                        poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
+                        poseStack.scale((float) x, (float) y, 1.0f);
                         poseStack.translate(-originX, -originY, 0);
                     }
                 }

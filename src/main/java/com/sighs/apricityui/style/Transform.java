@@ -232,17 +232,17 @@ public interface Transform {
             Transform s = (i < sTs.size()) ? sTs.get(i) : (i < eTs.size() ? getIdentity(eTs.get(i)) : null);
             Transform e = (i < eTs.size()) ? eTs.get(i) : (i < sTs.size() ? getIdentity(sTs.get(i)) : null);
 
-            if (s instanceof Transform.Translate st && e instanceof Transform.Translate et) {
-                changes.add(new Transition.Change("transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress)));
-                changes.add(new Transition.Change("transform-translatey", Transition.getOffset("y", st.y(), et.y(), progress)));
-                changes.add(new Transition.Change("transform-translatez", Transition.getOffset("z", st.z(), et.z(), progress)));
-            } else if (s instanceof Transform.Rotate sr && e instanceof Transform.Rotate er) {
-                changes.add(new Transition.Change("transform-rotatex", Transition.getOffset("x", sr.x(), er.x(), progress)));
-                changes.add(new Transition.Change("transform-rotatey", Transition.getOffset("y", sr.y(), er.y(), progress)));
-                changes.add(new Transition.Change("transform-rotatez", Transition.getOffset("z", sr.z(), er.z(), progress)));
-            } else if (s instanceof Transform.Scale ss && e instanceof Transform.Scale es) {
-                changes.add(new Transition.Change("transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress)));
-                changes.add(new Transition.Change("transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress)));
+            if (s instanceof Translate(double x5, double y5, double z3) && e instanceof Translate(double x4, double y4, double z2)) {
+                changes.add(new Transition.Change("transform-translatex", Transition.getOffset("x", x5, x4, progress)));
+                changes.add(new Transition.Change("transform-translatey", Transition.getOffset("y", y5, y4, progress)));
+                changes.add(new Transition.Change("transform-translatez", Transition.getOffset("z", z3, z2, progress)));
+            } else if (s instanceof Rotate(double x3, double y3, double z1) && e instanceof Rotate(double x2, double y2, double z)) {
+                changes.add(new Transition.Change("transform-rotatex", Transition.getOffset("x", x3, x2, progress)));
+                changes.add(new Transition.Change("transform-rotatey", Transition.getOffset("y", y3, y2, progress)));
+                changes.add(new Transition.Change("transform-rotatez", Transition.getOffset("z", z1, z, progress)));
+            } else if (s instanceof Scale(double x1, double y1) && e instanceof Scale(double x, double y)) {
+                changes.add(new Transition.Change("transform-scalex", Transition.getOffset("x", x1, x, progress)));
+                changes.add(new Transition.Change("transform-scaley", Transition.getOffset("y", y1, y, progress)));
             }
         }
     }

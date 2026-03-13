@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.*;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.ShaderRegistry;
@@ -16,11 +17,7 @@ import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Stack;
+import java.util.*;
 
 public class FilterRenderer {
     private static final Stack<RenderTarget> fboStack = new Stack<>();
@@ -49,7 +46,7 @@ public class FilterRenderer {
         }
         mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
         if (mainRenderTarget != null) {
-            mainRenderTarget.enableStencil();
+            Mask.ensureStencil(mainRenderTarget);
         }
         poolPointer = 0;
         backdropPoolPointer = 0;
@@ -93,7 +90,7 @@ public class FilterRenderer {
             if (temp.width != (int) width || temp.height != (int) height) {
                 temp.destroyBuffers();
                 temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-                temp.enableStencil();
+                Mask.ensureStencil(temp);
                 fboPool.set(poolPointer, temp);
 //                com.sighs.apricityui.ApricityUI.LOGGER.info(
 //                        "[FilterRenderer] pushFilter resized temp target index={} size={}x{}",
@@ -102,7 +99,7 @@ public class FilterRenderer {
             }
         } else {
             temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-            temp.enableStencil();
+            Mask.ensureStencil(temp);
             fboPool.add(temp);
 //            com.sighs.apricityui.ApricityUI.LOGGER.info(
 //                    "[FilterRenderer] pushFilter created temp target index={} size={}x{}",
@@ -309,7 +306,7 @@ public class FilterRenderer {
         } else {
             temp = new TextureTarget(width, height, true, ON_OSX);
             backdropPool.add(temp);
-            com.sighs.apricityui.ApricityUI.LOGGER.info(
+            ApricityUI.LOGGER.info(
                     "[FilterRenderer] backdrop create index={} size={}x{}",
                     backdropPoolPointer, width, height
             );

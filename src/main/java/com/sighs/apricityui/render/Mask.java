@@ -3,18 +3,23 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL30;
 
+import java.util.Map;
 import java.util.Stack;
+import java.util.WeakHashMap;
 
 public class Mask {
     private static int depth = 0;
     private static final Stack<AABB> clipStack = new Stack<>();
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
+    private static final Map<RenderTarget, StencilState> stencilStates = new WeakHashMap<>();
 
     public static void resetDepth() {
         depth = 0;
@@ -32,6 +37,56 @@ public class Mask {
         return depth > 0;
     }
 
+    public static void ensureStencil(RenderTarget target) {
+        if (target == null) return;
+
+        RenderSystem.assertOnRenderThreadOrInit();
+
+        StencilState state = stencilStates.get(target);
+
+        if (state != null
+                && state.framebufferId == target.frameBufferId
+                && state.width == target.width
+                && state.height == target.height) {
+            return;
+        }
+
+        if (state != null) {
+            GL30.glDeleteRenderbuffers(state.renderbufferId);
+        }
+
+        int rb = GL30.glGenRenderbuffers();
+        GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, rb);
+
+        GL30.glRenderbufferStorage(
+                GL30.GL_RENDERBUFFER,
+                GL30.GL_DEPTH24_STENCIL8,
+                target.width,
+                target.height
+        );
+
+        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, target.frameBufferId);
+
+        GL30.glFramebufferRenderbuffer(
+                GL30.GL_FRAMEBUFFER,
+                GL30.GL_DEPTH_STENCIL_ATTACHMENT,
+                GL30.GL_RENDERBUFFER,
+                rb
+        );
+
+        if (GL30.glCheckFramebufferStatus(GL30.GL_FRAMEBUFFER)
+                == GL30.GL_FRAMEBUFFER_COMPLETE) {
+
+            stencilStates.put(target,
+                    new StencilState(rb, target.frameBufferId, target.width, target.height));
+
+        } else {
+            GL30.glDeleteRenderbuffers(rb);
+        }
+
+        GL30.glBindRenderbuffer(GL30.GL_RENDERBUFFER, 0);
+    }
+
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
 //        clipStack.push(currentClip);
 //        AABB newMask = new AABB(x, y, width, height);
@@ -40,7 +95,7 @@ public class Mask {
 
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
-            currentTarget.enableStencil();
+            ensureStencil(currentTarget);
 
             GL11.glEnable(GL11.GL_STENCIL_TEST);
             GL11.glStencilMask(0xFF);
@@ -113,7 +168,7 @@ public class Mask {
 
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
-            currentTarget.enableStencil();
+            ensureStencil(currentTarget);
 
             GL11.glEnable(GL11.GL_STENCIL_TEST);
             GL11.glStencilMask(0xFF);
@@ -182,5 +237,8 @@ public class Mask {
 
     public static void disableScissor() {
         GlStateManager._disableScissorTest();
+    }
+
+    private record StencilState(int renderbufferId, int framebufferId, int width, int height) {
     }
 }

@@ -26,7 +26,7 @@ public abstract class AbstractContainerScreenMixin {
         }
     }
 
-    @Inject(method = "renderSlotHighlight(Lnet/minecraft/client/gui/GuiGraphics;IIII)V", at = @At("HEAD"), cancellable = true, remap = false)
+    @Inject(method = "renderSlotHighlight(Lnet/minecraft/client/gui/GuiGraphics;III)V", at = @At("HEAD"), cancellable = true, remap = false)
     private static void apricityui$cancelVanillaSlotHighlightLegacy(CallbackInfo ci) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             ci.cancel();

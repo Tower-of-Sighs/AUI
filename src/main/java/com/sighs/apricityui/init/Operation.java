@@ -8,6 +8,7 @@ import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.mixin.accessor.KeyMappingAccessor;
 import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.client.Minecraft;
@@ -162,7 +163,8 @@ public class Operation {
         if (!repeat && key == GLFW.GLFW_KEY_LEFT_ALT) {
             DevTools.toggle();
         }
-        if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
+        var reloadKey = (KeyMappingAccessor) Keybindings.RELOAD;
+        if (!repeat && key == reloadKey.getKey().getValue()) {
             Loader.reload();
         }
         return cancel;

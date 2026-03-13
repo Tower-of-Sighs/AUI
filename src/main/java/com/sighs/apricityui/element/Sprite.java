@@ -6,12 +6,10 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.style.Animation;
-import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
 import java.util.regex.Pattern;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID)
 public class Sprite extends Div {
     public static final String TAG_NAME = "SPRITE";
     private static final Set<String> MANAGED_STYLE_KEYS = Set.of(

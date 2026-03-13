@@ -62,11 +62,11 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     public int getGuiLeft() {
-        return super.getGuiLeft();
+        return super.leftPos;
     }
 
     public int getGuiTop() {
-        return super.getGuiTop();
+        return super.topPos;
     }
 
     public int findSlotIndexAt(double mouseX, double mouseY) {

@@ -10,14 +10,11 @@ import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
 import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
@@ -29,24 +26,27 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID)
 public class Loader {
     private static final String DEV_ASSET_ROOT = "src/main/resources/assets/apricityui/apricity";
 
-    @SubscribeEvent
-    public static void setup(FMLCommonSetupEvent event) {
-        event.enqueueWork(Loader::reload);
+    public static void setup() {
+        ApricityUI.LOGGER.info("ApricityUI Loader.setup invoked (client started)");
+        reload();
     }
 
     public static void reload() {
+        ApricityUI.LOGGER.info("ApricityUI Loader.reload begin");
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
         FontDrawer.clearCache();
         Font.clear();
+        ApricityUI.LOGGER.info("ApricityUI HTML.scan begin");
         HTML.scan();
+        ApricityUI.LOGGER.info("ApricityUI HTML.scan end");
         Document.refreshAll();
         WorldWindow.windows.forEach(worldWindow -> worldWindow.document.refresh());
+        ApricityUI.LOGGER.info("ApricityUI Loader.reload end");
     }
 
     private static void ensureAsyncHandlersInitialized() {
@@ -65,13 +65,16 @@ public class Loader {
                     return Files.newInputStream(devPath);
                 }
             }
-            Path local = FMLPaths.GAMEDIR.get().resolve("apricity/" + normalizedPath);
+            Path local = FabricLoader.getInstance().getGameDir().resolve("apricity/" + normalizedPath);
             if (Files.exists(local)) return Files.newInputStream(local);
 
             // 资源包
             ResourceLocation rl = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
-            Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(rl);
-            if (res.isPresent()) return res.get().open();
+            var minecraft = Minecraft.getInstance();
+            if (minecraft != null && minecraft.getResourceManager() != null) {
+                Optional<Resource> res = minecraft.getResourceManager().getResource(rl);
+                if (res.isPresent()) return res.get().open();
+            }
         } catch (IOException ignored) {
         }
         return null;
@@ -116,32 +119,48 @@ public class Loader {
 
     public void loadResources(BiConsumer<String, String> handler) {
         this.handler = handler;
+        ApricityUI.LOGGER.info("ApricityUI Loader.loadResources: start extension={}", extension);
         loadFromResourcePack();
         loadFromLocalFolder();
         loadFromDevFolders();
+        ApricityUI.LOGGER.info("ApricityUI Loader.loadResources: end extension={}", extension);
     }
 
     private void loadFromResourcePack() {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
+        if (manager == null) {
+            ApricityUI.LOGGER.warn("ApricityUI Loader.loadFromResourcePack: ResourceManager is null, skip pack scan");
+            return;
+        }
         Map<ResourceLocation, Resource> resources = manager.listResources("apricity",
-                loc -> loc.getPath().endsWith("." + extension));
+                loc -> {
+                    boolean match = loc.getPath().endsWith("." + extension);
+                    if (match) {
+                        ApricityUI.LOGGER.debug("ApricityUI Loader.loadFromResourcePack: matched {}", loc);
+                    }
+                    return match;
+                });
+        ApricityUI.LOGGER.info("ApricityUI Loader.loadFromResourcePack: found {} resources", resources.size());
 
         for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
             try (InputStream stream = entry.getValue().open()) {
                 String path = entry.getKey().getPath(); // "apricity/modid/index.html"
                 if (path.startsWith("apricity/")) path = path.substring(9);
+                ApricityUI.LOGGER.debug("ApricityUI Loader.loadFromResourcePack: put temple path={}", path);
                 handler.accept(path, IOUtils.toString(stream, StandardCharsets.UTF_8));
             } catch (IOException e) {
-                e.printStackTrace();
+                ApricityUI.LOGGER.error("ApricityUI Loader.loadFromResourcePack: error reading {}", entry.getKey(), e);
             }
         }
     }
 
     private void loadFromLocalFolder() {
         try {
-            Path root = FMLPaths.GAMEDIR.get().resolve("apricity");
+            Path root = FabricLoader.getInstance().getGameDir().resolve("apricity");
+            ApricityUI.LOGGER.info("ApricityUI Loader.loadFromLocalFolder: root={}", root);
             if (!Files.exists(root)) {
                 Files.createDirectories(root);
+                ApricityUI.LOGGER.info("ApricityUI Loader.loadFromLocalFolder: created root, nothing to load");
                 return;
             }
             try (Stream<Path> paths = Files.walk(root)) {
@@ -151,6 +170,7 @@ public class Loader {
                             try {
                                 String content = Files.readString(p, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(p).toString().replace("\\", "/");
+                                ApricityUI.LOGGER.debug("ApricityUI Loader.loadFromLocalFolder: put temple path={}", relPath);
                                 handler.accept(relPath, content);
                             } catch (IOException ignored) {
                             }
@@ -162,6 +182,7 @@ public class Loader {
 
     private void loadFromDevFolders() {
         List<Path> devRoots = getDevResourceRoots();
+        ApricityUI.LOGGER.info("ApricityUI Loader.loadFromDevFolders: devRoots={}", devRoots);
         if (devRoots.isEmpty()) return;
 
         // 先加载更远层级，最后加载更近层级，让“最近的项目目录”优先级最高。
@@ -182,6 +203,7 @@ public class Loader {
                             try {
                                 String content = Files.readString(p, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(p).toString().replace("\\", "/");
+                                ApricityUI.LOGGER.debug("ApricityUI Loader.loadFromRootFolder: put temple path={}", relPath);
                                 handler.accept(relPath, content);
                             } catch (IOException ignored) {
                             }
@@ -192,7 +214,7 @@ public class Loader {
     }
 
     private static List<Path> getDevResourceRoots() {
-        Path gameDir = FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();
+        Path gameDir = FabricLoader.getInstance().getGameDir().toAbsolutePath().normalize();
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
         Path base = gameDir;
         for (int depth = 0; depth <= 6 && base != null; depth++) {
