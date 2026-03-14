@@ -96,3 +96,16 @@
 - 晴雪UI相关魔改交流群：211573328
 - 开发者与建设者交流群：895176696
 - Discord：https://discord.gg/C8epbbwjrS
+
+### AI自动化
+
+遵从doc/agent.md的引导。
+run/screenshots/aui文件夹中每一秒都会输出游戏截图，最多保存20张截图。
+调试模式下，静态资源会自动监听变更，并触发重载。
+测试流程：修改html/css/js文件 -> 监听日志中的重载消息“[DebugReload] change detected:”和“[DebugReload] reload completed” -> 等待三秒后检查截图文件夹中的游戏截图 -> 判断截图是否满足需求效果，若不满足就继续修改html/css/js文件，若满足，结束流程。
+
+在本次对话中：
+仅修改html和css。
+需要修改的html文件是：src/main/resources/assets/apricityui/apricity/devtools/index.html
+需要满足的效果是：简洁的调试工具，大小适中，样式美观，参考图：......。
+我已启动游戏，请你开始测试流程，先迭代5次。
