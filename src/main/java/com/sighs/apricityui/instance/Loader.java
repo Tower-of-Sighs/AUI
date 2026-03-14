@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.FontDrawer;
@@ -54,6 +55,8 @@ public class Loader {
         HTML.scan();
         Document.refreshAll();
         WorldWindow.windows.forEach(worldWindow -> worldWindow.document.refresh());
+        DevTools.toggle();
+        if (Document.get("devtools/index.html").isEmpty()) DevTools.toggle();
     }
 
     private static void ensureAsyncHandlersInitialized() {
@@ -212,6 +215,15 @@ public class Loader {
 
         List<Path> roots = new ArrayList<>(candidates);
         roots.sort(Comparator.comparingInt((Path path) -> distanceFrom(gameDir, path)).reversed());
+        return roots;
+    }
+
+    public static List<Path> getWatchRoots() {
+        List<Path> roots = new ArrayList<>(getDevResourceRoots());
+        Path localRoot = FMLPaths.GAMEDIR.get().resolve("apricity").toAbsolutePath().normalize();
+        if (Files.exists(localRoot) && Files.isDirectory(localRoot)) {
+            roots.add(localRoot);
+        }
         return roots;
     }
 

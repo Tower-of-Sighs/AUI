@@ -277,13 +277,47 @@ public class Client {
 
     @SubscribeEvent
     public static void onKeyPressed(InputEvent.KeyInputEvent event) {
-        if (event.getAction() == InputConstants.RELEASE) {
-            Operation.onKeyReleased(event.getKey());
+        if (Minecraft.getInstance().screen != null) {
             return;
         }
-        if (event.getAction() != InputConstants.PRESS && event.getAction() != InputConstants.REPEAT) return;
-        boolean canceled = Operation.onKeyPressed(event.getKey(), event.getAction() == InputConstants.REPEAT);
-        if (canceled) event.setCanceled(true);
+        int action = event.getAction();
+        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        boolean canceled = Operation.handleKeyInput(
+                event.getKey(),
+                event.getScanCode(),
+                action,
+                event.getModifiers(),
+                action == InputConstants.REPEAT,
+                com.sighs.apricityui.event.KeyEvent.Source.INPUT_EVENT
+        );
+//        if (canceled) event.setCanceled(true);
+    }
+
+    @SubscribeEvent
+    public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+        int action = InputConstants.PRESS;
+        boolean canceled = Operation.handleKeyInput(
+                event.getKeyCode(),
+                event.getScanCode(),
+                action,
+                event.getModifiers(),
+                false,
+                com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
+        );
+//        if (canceled) event.setCanceled(true);
+    }
+
+    @SubscribeEvent
+    public static void onScreenKeyReleased(ScreenEvent.KeyReleased.Pre event) {
+        int action = InputConstants.RELEASE;
+        Operation.handleKeyInput(
+                event.getKeyCode(),
+                event.getScanCode(),
+                action,
+                event.getModifiers(),
+                false,
+                com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
+        );
     }
 
     @SubscribeEvent
@@ -291,6 +325,8 @@ public class Client {
         if (event.phase == TickEvent.Phase.START) {
             Runtime.tick();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
+            DebugReloadWatcher.tick();
+            DebugAIScreenshotTicker.tick();
             Size current = getWindowSize();
             int w = (int) current.width();
             int h = (int) current.height();
