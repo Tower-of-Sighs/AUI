@@ -115,9 +115,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     private void addPlayerInventorySlots(Inventory playerInventory, int capacity) {
         int normalized = Math.max(0, Math.min(ContainerBindType.PLAYER_SLOT_COUNT, capacity));
         for (int localIndex = 0; localIndex < normalized; localIndex++) {
-            int inventoryIndex = localIndex < 27
-                    ? localIndex + 9
-                    : localIndex - 27;
+            int inventoryIndex = localIndex;
             addSlot(new UiSlot(playerInventory, inventoryIndex, 0, 0));
         }
     }
