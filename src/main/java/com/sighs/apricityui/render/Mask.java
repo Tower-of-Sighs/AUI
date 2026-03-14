@@ -14,11 +14,18 @@ import java.util.Stack;
 public class Mask {
     private static int depth = 0;
     private static final Stack<AABB> clipStack = new Stack<>();
+    private static final Stack<AABB> scissorStack = new Stack<>();
+    private static final Stack<Boolean> maskScissorStack = new Stack<>();
+    private static AABB currentScissor = null;
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
 
     public static void resetDepth() {
         depth = 0;
         clipStack.clear();
+        scissorStack.clear();
+        maskScissorStack.clear();
+        currentScissor = null;
+        disableScissor();
         int screenWidth = (int) Size.getWindowSize().width();
         int screenHeight = (int) Size.getWindowSize().height();
         currentClip = new AABB(0, 0, screenWidth, screenHeight);
@@ -33,9 +40,17 @@ public class Mask {
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
-//        clipStack.push(currentClip);
-//        AABB newMask = new AABB(x, y, width, height);
-//        currentClip = currentClip.intersection(newMask);
+        boolean useScissor = isRectMask(radii);
+        maskScissorStack.push(useScissor);
+        if (useScissor) {
+            ImageDrawer.flushBatch();
+            scissorStack.push(currentScissor);
+            AABB newMask = new AABB(x, y, width, height);
+            currentScissor = currentScissor == null ? newMask : currentScissor.intersection(newMask);
+            applyScissor(currentScissor);
+            return;
+        }
+
         ImageDrawer.flushBatch();
 
         if (depth == 0) {
@@ -61,6 +76,14 @@ public class Mask {
     }
 
     public static void popMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
+        boolean useScissor = !maskScissorStack.isEmpty() && maskScissorStack.pop();
+        if (useScissor) {
+            currentScissor = scissorStack.isEmpty() ? null : scissorStack.pop();
+            if (currentScissor == null) disableScissor();
+            else applyScissor(currentScissor);
+            return;
+        }
+
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
         depth--;
         if (depth > 0) {
@@ -182,5 +205,21 @@ public class Mask {
 
     public static void disableScissor() {
         GlStateManager._disableScissorTest();
+    }
+
+    private static void applyScissor(AABB rect) {
+        if (rect == null || !rect.isValid()) {
+            disableScissor();
+            return;
+        }
+        enableScissor((int) rect.x(), (int) rect.y(), (int) rect.width(), (int) rect.height());
+    }
+
+    private static boolean isRectMask(float[] radii) {
+        if (radii == null || radii.length == 0) return true;
+        for (float r : radii) {
+            if (r > 0.001f) return false;
+        }
+        return true;
     }
 }

@@ -11,8 +11,6 @@ public class Animation {
     private static final Map<String, Set<String>> KEYFRAME_PROPS = new HashMap<>();
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
     private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(\\s*([0-9]+)\\s*(?:,\\s*(start|end)\\s*)?\\)\\s*$");
-    private static final Pattern TIME_TOKEN = Pattern.compile("^[0-9.]+(s|ms)$");
-    private static final Pattern NUMBER_TOKEN = Pattern.compile("^[0-9.]+$");
     private static final Set<String> DIRECTION_SET = Set.of("normal", "reverse", "alternate", "alternate-reverse");
     private static final Set<String> FILL_SET = Set.of("none", "forwards", "backwards", "both");
 
@@ -155,22 +153,68 @@ public class Animation {
             return state.cachedConfigs;
         }
         List<AnimationConfig> configs = new ArrayList<>();
-        for (String part : spec.split(",")) {
-            AnimationConfig c = new AnimationConfig();
-            for (String t : part.trim().split("\\s+")) {
-                if (TIME_TOKEN.matcher(t).matches()) {
-                    if (c.duration.equals("0s")) c.duration = t;
-                    else c.delay = t;
-                } else if (t.equals("infinite") || NUMBER_TOKEN.matcher(t).matches()) c.count = t;
-                else if (DIRECTION_SET.contains(t)) c.direction = t;
-                else if (FILL_SET.contains(t)) c.fill = t;
-                else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
-                else c.name = t;
+        int depth = 0;
+        int partStart = 0;
+        int len = spec.length();
+        for (int i = 0; i < len; i++) {
+            char ch = spec.charAt(i);
+            if (ch == '(') depth++;
+            else if (ch == ')' && depth > 0) depth--;
+            else if (ch == ',' && depth == 0) {
+                parsePart(spec, partStart, i, configs);
+                partStart = i + 1;
             }
-            configs.add(c);
         }
+        parsePart(spec, partStart, len, configs);
         state.lastSpec = spec;
         state.cachedConfigs = configs.isEmpty() ? List.of() : configs;
         return configs;
+    }
+
+    private static void parsePart(String spec, int start, int end, List<AnimationConfig> configs) {
+        while (start < end && Character.isWhitespace(spec.charAt(start))) start++;
+        while (end > start && Character.isWhitespace(spec.charAt(end - 1))) end--;
+        if (start >= end) return;
+
+        AnimationConfig c = new AnimationConfig();
+        int i = start;
+        while (i < end) {
+            while (i < end && Character.isWhitespace(spec.charAt(i))) i++;
+            if (i >= end) break;
+            int tokStart = i;
+            while (i < end && !Character.isWhitespace(spec.charAt(i))) i++;
+            String t = spec.substring(tokStart, i);
+
+            if (isTimeToken(t)) {
+                if (c.duration.equals("0s")) c.duration = t;
+                else c.delay = t;
+            } else if (t.equals("infinite") || isNumberToken(t)) c.count = t;
+            else if (DIRECTION_SET.contains(t)) c.direction = t;
+            else if (FILL_SET.contains(t)) c.fill = t;
+            else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
+            else c.name = t;
+        }
+        configs.add(c);
+    }
+
+    private static boolean isTimeToken(String t) {
+        int len = t.length();
+        if (len < 2) return false;
+        if (t.endsWith("ms")) {
+            return isNumberToken(t.substring(0, len - 2));
+        }
+        if (t.charAt(len - 1) == 's') {
+            return isNumberToken(t.substring(0, len - 1));
+        }
+        return false;
+    }
+
+    private static boolean isNumberToken(String t) {
+        if (t.isEmpty()) return false;
+        for (int i = 0; i < t.length(); i++) {
+            char ch = t.charAt(i);
+            if ((ch < '0' || ch > '9') && ch != '.') return false;
+        }
+        return true;
     }
 }
