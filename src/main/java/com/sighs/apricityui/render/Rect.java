@@ -19,7 +19,11 @@ public class Rect {
     }
 
     public static Rect of(Element element) {
-        return new Rect(element);
+        Rect cached = RectFrameCache.get(element);
+        if (cached != null) return cached;
+        Rect result = new Rect(element);
+        RectFrameCache.put(element, result);
+        return result;
 //        Rect cache = Cache.rect.get(element);
 //        if (cache != null) return cache;
 //        else {

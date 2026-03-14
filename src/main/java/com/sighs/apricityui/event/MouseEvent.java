@@ -6,6 +6,7 @@ import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.StyleFrameCache;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -37,23 +38,28 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     public static void tiggerEvent(MouseEvent event) {
-        applyCursorForTopMostDocument(event);
-        List<Document> docs = Document.getAll();
-        if (docs == null || docs.isEmpty()) return;
+        StyleFrameCache.begin();
+        try {
+            applyCursorForTopMostDocument(event);
+            List<Document> docs = Document.getAll();
+            if (docs == null || docs.isEmpty()) return;
 
-        for (int i = docs.size() - 1; i >= 0; i--) {
-            Document document = docs.get(i);
-            if (document == null || document.inWorld) continue;
-            Element target = hitTest(document.getPaintList(), new Position(event.clientX, event.clientY));
-            if (target != null) {
-                tiggerEvent(event, document);
-                if (target != document.body) {
-                    return; // non-body element intercepts
+            for (int i = docs.size() - 1; i >= 0; i--) {
+                Document document = docs.get(i);
+                if (document == null || document.inWorld) continue;
+                Element target = hitTest(document.getPaintList(), new Position(event.clientX, event.clientY));
+                if (target != null) {
+                    tiggerEvent(event, document);
+                    if (target != document.body) {
+                        return; // non-body element intercepts
+                    }
+                    continue; // body does not intercept; continue to next document
                 }
-                continue; // body does not intercept; continue to next document
+                // No hit target on this document; still send event to clear hover/focus, then continue.
+                tiggerEvent(event, document);
             }
-            // No hit target on this document; still send event to clear hover/focus, then continue.
-            tiggerEvent(event, document);
+        } finally {
+            StyleFrameCache.end();
         }
     }
 
@@ -105,48 +111,53 @@ public class MouseEvent extends Event implements Cloneable {
 
     // 触发鼠标事件的主体
     public static void tiggerEvent(MouseEvent event, Document document) {
-        List<RenderNode> paintList = document.getPaintList();
-        Element activeElement = document.getActiveElement();
-        Position detectionPos = new Position(event.clientX, event.clientY);
-        Element target = hitTest(paintList, detectionPos);
+        StyleFrameCache.begin();
+        try {
+            List<RenderNode> paintList = document.getPaintList();
+            Element activeElement = document.getActiveElement();
+            Position detectionPos = new Position(event.clientX, event.clientY);
+            Element target = hitTest(paintList, detectionPos);
 
-        if (target != null) {
-            Position targetPosition = Position.of(target);
-            event.offsetX = event.clientX - targetPosition.x;
-            event.offsetY = event.clientY - targetPosition.y;
-        }
-
-        event.target = target;
-
-        if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
-        if (event.type.equals("mousedown")) {
             if (target != null) {
-                document.setActiveElement(target);
-                if (target.canFocus()) {
-                    // 这里先清除全局焦点，再设置某个焦点，确保只能focus一个元素，不然多个document的时候确实可能多个input一起输入。
-                    clearGlobalFocusExcept(document);
-                    document.setFocusedElement(target);
-                } else {
-                    // 点击了不能 Focus 的地方（比如背景），通常是清除当前 Document 的焦点
-                    document.setFocusedElement(null);
+                Position targetPosition = Position.of(target);
+                event.offsetX = event.clientX - targetPosition.x;
+                event.offsetY = event.clientY - targetPosition.y;
+            }
+
+            event.target = target;
+
+            if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
+            if (event.type.equals("mousedown")) {
+                if (target != null) {
+                    document.setActiveElement(target);
+                    if (target.canFocus()) {
+                        // ??????????????????????????????????ocus??????????????document??????????????nput?????????
+                        clearGlobalFocusExcept(document);
+                        document.setFocusedElement(target);
+                    } else {
+                        // ????????Focus ??????????????????????????Document ?????
+                        document.setFocusedElement(null);
+                    }
                 }
             }
-        }
 
-        if (target != null && event.type.equals("scroll")) scroll(event);
-        if (target != null) Event.tiggerEvent(event);
+            if (target != null && event.type.equals("scroll")) scroll(event);
+            if (target != null) Event.tiggerEvent(event);
 
-        if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
-            MouseEvent activeEvent = event.clone();
-            activeEvent.target = activeElement;
-            Position activePosition = Position.of(activeElement);
-            activeEvent.offsetX = activeEvent.clientX - activePosition.x;
-            activeEvent.offsetY = activeEvent.clientY - activePosition.y;
-            Event.triggerSingle(activeEvent);
-        }
+            if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
+                MouseEvent activeEvent = event.clone();
+                activeEvent.target = activeElement;
+                Position activePosition = Position.of(activeElement);
+                activeEvent.offsetX = activeEvent.clientX - activePosition.x;
+                activeEvent.offsetY = activeEvent.clientY - activePosition.y;
+                Event.triggerSingle(activeEvent);
+            }
 
-        if (event.type.equals("mouseup")) {
-            document.setActiveElement(null);
+            if (event.type.equals("mouseup")) {
+                document.setActiveElement(null);
+            }
+        } finally {
+            StyleFrameCache.end();
         }
     }
 
@@ -224,11 +235,27 @@ public class MouseEvent extends Event implements Cloneable {
     // 肥简单的范围检查，看鼠标位置是否在某元素的范围内。
     public static boolean checkCursor(Element element, Position mousePos) {
         if (mousePos == null) return false;
-        Position elementPos = Position.of(element);
+        double absX = 0;
+        double absY = 0;
+        boolean first = true;
+        Element current = element;
+        while (current != null) {
+            Position offset = Position.getOffset(current);
+            absX += offset.x;
+            absY += offset.y;
+            if (!first) {
+                absX -= current.getScrollLeft();
+                absY -= current.getScrollTop();
+            }
+            if ("fixed".equals(current.getComputedStyle().position)) break;
+            current = current.parentElement;
+            first = false;
+        }
+
         Size size = Size.of(element);
         Box box = Box.of(element);
-        double elementX = elementPos.x + box.getMarginLeft();
-        double elementY = elementPos.y + box.getMarginTop();
+        double elementX = absX + box.getMarginLeft();
+        double elementY = absY + box.getMarginTop();
         return (mousePos.x >= elementX && mousePos.x <= elementX + size.width()) &&
                 (mousePos.y >= elementY && mousePos.y <= elementY + size.height());
     }

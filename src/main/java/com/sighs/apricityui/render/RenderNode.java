@@ -21,7 +21,7 @@ public interface RenderNode {
     }
 
     static boolean shouldSkip(Element target) {
-        return target.getComputedStyle().display.equals("none");
+        return target.getRawComputedStyle().display.equals("none");
     }
 
     record MaskPushNode(Element target) implements RenderNode {

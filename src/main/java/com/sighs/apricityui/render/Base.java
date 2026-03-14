@@ -14,6 +14,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -35,6 +36,8 @@ public class Base {
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        RectFrameCache.begin();
+        StyleFrameCache.begin();
         Drawer.flushUpdates(document);
         FilterRenderer.beginFrame();
         try {
@@ -45,6 +48,8 @@ public class Base {
                 poseStack.popPose();
             }
         } finally {
+            StyleFrameCache.end();
+            RectFrameCache.end();
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
