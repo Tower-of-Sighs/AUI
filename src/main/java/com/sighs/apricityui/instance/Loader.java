@@ -50,8 +50,6 @@ public class Loader {
         HTML.scan();
         Document.refreshAll();
         WorldWindow.windows.forEach(worldWindow -> worldWindow.document.refresh());
-        DevTools.toggle();
-        if (Document.get("devtools/index.html").isEmpty()) DevTools.toggle();
     }
 
     private static void ensureAsyncHandlersInitialized() {
