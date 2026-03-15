@@ -210,6 +210,7 @@ public class Element {
 
         cssCache = Selector.matchCSS(this);
         renderElement.computedStyle.clear();
+        StyleFrameCache.clear();
 
         Style currentStyle = getRawComputedStyle();
 
@@ -225,6 +226,9 @@ public class Element {
     }
 
     public Style getComputedStyle() {
+        Style cached = StyleFrameCache.get(this);
+        if (cached != null) return cached;
+
         Style computedStyle = getRawComputedStyle();
         Style originStyle = computedStyle.clone();
         Transition.updateStyle(this, originStyle);
@@ -232,6 +236,9 @@ public class Element {
         if (Transition.isActive(this) || Animation.isActive(this)) {
             RenderElement.observeStyle(this, computedStyle, originStyle);
             computedStyle = originStyle;
+        }
+        if (StyleFrameCache.isActive()) {
+            StyleFrameCache.put(this, computedStyle);
         }
         return computedStyle;
     }

@@ -12,6 +12,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -35,6 +36,8 @@ public class Base {
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        RectFrameCache.begin();
+        StyleFrameCache.begin();
         Drawer.flushUpdates(document);
         FilterRenderer.beginFrame();
         try {
@@ -45,6 +48,8 @@ public class Base {
                 poseStack.popPose();
             }
         } finally {
+            StyleFrameCache.end();
+            RectFrameCache.end();
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
@@ -125,17 +130,17 @@ public class Base {
                 float originY = (float) (h / 2.0);
 
                 for (Transform transform : functions) {
-                    if (transform instanceof Transform.Translate(double x, double y, double z)) {
-                        poseStack.translate(x, y, z);
-                    } else if (transform instanceof Transform.Rotate(double x, double y, double z)) {
+                    if (transform instanceof Transform.Translate t) {
+                        poseStack.translate(t.x(), t.y(), t.z());
+                    } else if (transform instanceof Transform.Rotate r) {
                         poseStack.translate(originX, originY, 0);
-                        if (x != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(x)));
-                        if (y != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(y)));
-                        if (z != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(z)));
+                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
+                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
+                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
                         poseStack.translate(-originX, -originY, 0);
-                    } else if (transform instanceof Transform.Scale(double x, double y)) {
+                    } else if (transform instanceof Transform.Scale s) {
                         poseStack.translate(originX, originY, 0);
-                        poseStack.scale((float) x, (float) y, 1.0f);
+                        poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
                         poseStack.translate(-originX, -originY, 0);
                     }
                 }
