@@ -11,4 +11,8 @@ public class ApricityJS {
         var top = manager.topLevelScope;
         context.evaluateString(top, code, "eval", 1, null);
     }
+    public static void reload() {
+        if (!FabricLoader.getInstance().isModLoaded("kubejs")) return;
+        KubeJS.PROXY.reloadClientInternal();
+    }
 }

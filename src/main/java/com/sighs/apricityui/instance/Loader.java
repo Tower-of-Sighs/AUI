@@ -10,6 +10,7 @@ import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.script.ApricityJS;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
@@ -30,23 +31,19 @@ public class Loader {
     private static final String DEV_ASSET_ROOT = "src/main/resources/assets/apricityui/apricity";
 
     public static void setup() {
-        ApricityUI.LOGGER.info("ApricityUI Loader.setup invoked (client started)");
         reload();
     }
 
     public static void reload() {
-        ApricityUI.LOGGER.info("ApricityUI Loader.reload begin");
+        ApricityJS.reload();
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
         FontDrawer.clearCache();
         Font.clear();
-        ApricityUI.LOGGER.info("ApricityUI HTML.scan begin");
         HTML.scan();
-        ApricityUI.LOGGER.info("ApricityUI HTML.scan end");
         Document.refreshAll();
         WorldWindow.windows.forEach(worldWindow -> worldWindow.document.refresh());
-        ApricityUI.LOGGER.info("ApricityUI Loader.reload end");
     }
 
     private static void ensureAsyncHandlersInitialized() {
