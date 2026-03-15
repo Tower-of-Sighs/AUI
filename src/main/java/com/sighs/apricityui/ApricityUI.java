@@ -1,6 +1,8 @@
 package com.sighs.apricityui;
 
+import cc.sighs.oelib.event.EventAutoRegistration;
 import com.mojang.logging.LogUtils;
+import com.sighs.apricityui.instance.ApricityUIConfig;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
@@ -15,8 +17,10 @@ public class ApricityUI implements ModInitializer {
     @HideFromJS
     @Override
     public void onInitialize() {
+        EventAutoRegistration.registerBasePackage("com.sighs.apricityui.instance");
         KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.instance.element");
+        ApricityUIConfig.register();
         ApricityMenus.register();
     }
 }

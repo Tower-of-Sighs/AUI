@@ -21,15 +21,6 @@ public class ApricityUIRegistry {
         ReflectionUtils.addScanPackages(basePackages);
     }
 
-    public static void scanPackage(String basePackage) {
-        ReflectionUtils.addScanPackage(basePackage);
-    }
-
-    public static void scanPackages(String... basePackages) {
-        ReflectionUtils.addScanPackages(basePackages);
-    }
-
-
     public static void register() {
         ReflectionUtils.findAnnotationClasses(ElementRegister.class, data -> true, clazz -> {
             if (!Element.class.isAssignableFrom(clazz)) {

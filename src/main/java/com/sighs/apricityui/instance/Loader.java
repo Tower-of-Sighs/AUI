@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.FontDrawer;
@@ -224,6 +225,15 @@ public class Loader {
 
         List<Path> roots = new ArrayList<>(candidates);
         roots.sort(Comparator.comparingInt((Path path) -> distanceFrom(gameDir, path)).reversed());
+        return roots;
+    }
+
+    public static List<Path> getWatchRoots() {
+        List<Path> roots = new ArrayList<>(getDevResourceRoots());
+        Path localRoot = FabricLoader.getInstance().getGameDir().resolve("apricity").toAbsolutePath().normalize();
+        if (Files.exists(localRoot) && Files.isDirectory(localRoot)) {
+            roots.add(localRoot);
+        }
         return roots;
     }
 

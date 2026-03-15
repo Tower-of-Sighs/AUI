@@ -7,37 +7,60 @@ import com.sighs.apricityui.init.Operation;
 import org.lwjgl.glfw.GLFW;
 
 public class KeyEvent extends Event {
+    public enum Source {
+        INPUT_EVENT,
+        SCREEN_EVENT
+    }
+
     public final int keyCode;
+    public final int scanCode;
+    public final int modifiers;
     public final String key;
     public final String code;
     public final boolean repeat;
+    public final Source source;
     public boolean altKey;
     public boolean shiftKey;
     public boolean controlKey;
     public boolean metaKey;
 
-    public KeyEvent(Element target, String type, int keyCode, boolean repeat) {
+    public KeyEvent(Element target, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
         super(target, type, null, true);
         this.keyCode = keyCode;
+        this.scanCode = scanCode;
+        this.modifiers = modifiers;
         this.repeat = repeat;
-        this.key = resolveKey(keyCode);
+        this.key = resolveKey(keyCode, scanCode);
         this.code = resolveCode(keyCode);
-        this.altKey = Operation.isKeyPressed("key.keyboard.left.alt") || Operation.isKeyPressed("key.keyboard.right.alt");
-        this.shiftKey = Operation.isKeyPressed("key.keyboard.left.shift") || Operation.isKeyPressed("key.keyboard.right.shift");
-        this.controlKey = Operation.isKeyPressed("key.keyboard.left.control") || Operation.isKeyPressed("key.keyboard.right.control");
-        this.metaKey = Operation.isKeyPressed("key.keyboard.left.win") || Operation.isKeyPressed("key.keyboard.right.win");
+        this.source = source == null ? Source.INPUT_EVENT : source;
+        this.altKey = ((modifiers & GLFW.GLFW_MOD_ALT) != 0)
+                || Operation.isKeyPressed("key.keyboard.left.alt")
+                || Operation.isKeyPressed("key.keyboard.right.alt");
+        this.shiftKey = ((modifiers & GLFW.GLFW_MOD_SHIFT) != 0)
+                || Operation.isKeyPressed("key.keyboard.left.shift")
+                || Operation.isKeyPressed("key.keyboard.right.shift");
+        this.controlKey = ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0)
+                || Operation.isKeyPressed("key.keyboard.left.control")
+                || Operation.isKeyPressed("key.keyboard.right.control");
+        this.metaKey = ((modifiers & GLFW.GLFW_MOD_SUPER) != 0)
+                || Operation.isKeyPressed("key.keyboard.left.win")
+                || Operation.isKeyPressed("key.keyboard.right.win");
     }
 
-    public static void triggerEvent(Document document, String type, int keyCode, boolean repeat) {
+    public static void triggerEvent(Document document, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
         if (document == null) return;
         Element target = document.getFocusedElement();
         if (target == null) target = document.getActiveElement();
         if (target == null) target = document.body;
         if (target == null) return;
-        Event.tiggerEvent(new KeyEvent(target, type, keyCode, repeat));
+        Event.tiggerEvent(new KeyEvent(target, type, keyCode, scanCode, modifiers, repeat, source));
     }
 
-    private static String resolveKey(int keyCode) {
+    public static void triggerEvent(Document document, String type, int keyCode, boolean repeat) {
+        triggerEvent(document, type, keyCode, 0, 0, repeat, Source.INPUT_EVENT);
+    }
+
+    private static String resolveKey(int keyCode, int scanCode) {
         return switch (keyCode) {
             case GLFW.GLFW_KEY_ENTER -> "Enter";
             case GLFW.GLFW_KEY_ESCAPE -> "Escape";
@@ -58,7 +81,7 @@ public class KeyEvent extends Event {
             case GLFW.GLFW_KEY_LEFT_ALT, GLFW.GLFW_KEY_RIGHT_ALT -> "Alt";
             case GLFW.GLFW_KEY_LEFT_SUPER, GLFW.GLFW_KEY_RIGHT_SUPER -> "Meta";
             default -> {
-                String glfwName = GLFW.glfwGetKeyName(keyCode, 0);
+                String glfwName = GLFW.glfwGetKeyName(keyCode, scanCode);
                 if (glfwName == null || glfwName.isBlank()) yield "Unidentified";
                 yield glfwName.length() == 1 ? glfwName.toLowerCase() : glfwName;
             }

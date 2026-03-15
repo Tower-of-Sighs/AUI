@@ -16,6 +16,12 @@ import org.lwjgl.glfw.GLFW;
 
 public class Operation {
     public static Position cachedMousePosition = null;
+    private static final long KEY_DEDUP_WINDOW_NS = 5_000_000L; // 5ms
+    private static long lastKeyEventTimeNs = 0L;
+    private static int lastKeyCode = -1;
+    private static int lastScanCode = -1;
+    private static int lastAction = -1;
+    private static int lastModifiers = -1;
 
     public static void onMouseDown() {
         onMouseDown(-1);
@@ -65,9 +71,13 @@ public class Operation {
     }
 
     public static boolean onKeyPressed(int key, boolean repeat) {
+        return onKeyPressed(key, 0, 0, repeat, KeyEvent.Source.INPUT_EVENT);
+    }
+
+    public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, KeyEvent.Source source) {
         boolean cancel = false;
         for (Document document : Document.getAll()) {
-            KeyEvent.triggerEvent(document, "keydown", key, repeat);
+            KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
             Element focusedElement = document.getFocusedElement();
             String selectedText = resolveSelectedText(document, focusedElement);
 
@@ -160,7 +170,7 @@ public class Operation {
                 }
             }
         }
-        if (!repeat && key == GLFW.GLFW_KEY_LEFT_ALT) {
+        if (!repeat && key == GLFW.GLFW_KEY_F12) {
             DevTools.toggle();
         }
         var reloadKey = (KeyMappingAccessor) Keybindings.RELOAD;
@@ -171,8 +181,12 @@ public class Operation {
     }
 
     public static void onKeyReleased(int key) {
+        onKeyReleased(key, 0, 0, KeyEvent.Source.INPUT_EVENT);
+    }
+
+    public static void onKeyReleased(int key, int scanCode, int modifiers, KeyEvent.Source source) {
         for (Document document : Document.getAll()) {
-            KeyEvent.triggerEvent(document, "keyup", key, false);
+            KeyEvent.triggerEvent(document, "keyup", key, scanCode, modifiers, false, source);
         }
     }
 
@@ -233,5 +247,33 @@ public class Operation {
 
     public static boolean isKeyPressed(String key) {
         return Client.isKeyPressed(key);
+    }
+
+    public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers, boolean repeat, KeyEvent.Source source) {
+        if (isDuplicateKeyEvent(key, scanCode, action, modifiers)) {
+            return false;
+        }
+        if (action == GLFW.GLFW_RELEASE) {
+            onKeyReleased(key, scanCode, modifiers, source);
+            return false;
+        }
+        return onKeyPressed(key, scanCode, modifiers, repeat, source);
+    }
+
+    private static boolean isDuplicateKeyEvent(int key, int scanCode, int action, int modifiers) {
+        long now = System.nanoTime();
+        if (key == lastKeyCode
+                && scanCode == lastScanCode
+                && action == lastAction
+                && modifiers == lastModifiers
+                && (now - lastKeyEventTimeNs) <= KEY_DEDUP_WINDOW_NS) {
+            return true;
+        }
+        lastKeyEventTimeNs = now;
+        lastKeyCode = key;
+        lastScanCode = scanCode;
+        lastAction = action;
+        lastModifiers = modifiers;
+        return false;
     }
 }
