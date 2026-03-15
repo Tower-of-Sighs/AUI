@@ -30,15 +30,15 @@ public class WorldWindow {
     private float yRot;
     private float xRot;
     private float scale; // 缩放比例: 1px 对应多少 Block
-    private final int width;
-    private final int height;
+    private final float width;
+    private final float height;
     private final int maxDistance;
 
     public WorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
         this.document = Document.createInWorld(documentPath);
         this.position = position;
-        this.width = (int) width;
-        this.height = (int) height;
+        this.width = width;
+        this.height = height;
         this.yRot = 0;
         this.xRot = 0;
         this.scale = 0.02f; // 默认缩放: 50px = 1 block
@@ -56,6 +56,14 @@ public class WorldWindow {
 
     public void setScale(float scale) {
         this.scale = scale;
+    }
+
+    public float getWidth() {
+        return width;
+    }
+
+    public float getHeight() {
+        return height;
     }
 
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
