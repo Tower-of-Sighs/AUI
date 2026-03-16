@@ -199,7 +199,7 @@ public class DevTools {
                 }
             }
         }
-        Document fallback = candidates.get(candidates.size() - 1);
+        Document fallback = candidates.getLast();
         selectedDocumentUuid = fallback.getUuid().toString();
         selectedElementUuid = fallback.body.uuid.toString();
         return fallback;

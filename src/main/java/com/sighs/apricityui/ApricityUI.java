@@ -17,7 +17,7 @@ public class ApricityUI implements ModInitializer {
     @HideFromJS
     @Override
     public void onInitialize() {
-        EventAutoRegistration.registerBasePackage("com.sighs.apricityui.instance");
+        EventAutoRegistration.registerBasePackage("com.sighs.apricityui.instance.handler");
         KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.instance.element");
         ApricityUIConfig.register();

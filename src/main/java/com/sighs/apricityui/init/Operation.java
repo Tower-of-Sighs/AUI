@@ -221,6 +221,13 @@ public class Operation {
     }
 
     public static Position getMousePosition() {
+        Position live = Client.getMousePosition();
+        if (live != null) {
+            if (cachedMousePosition == null) {
+                cachedMousePosition = live;
+            }
+            return live;
+        }
         return cachedMousePosition;
     }
 

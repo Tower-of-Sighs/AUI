@@ -1,5 +1,6 @@
 package com.sighs.apricityui.instance;
 
+import cc.sighs.oelib.event.EventSide;
 import cc.sighs.oelib.event.Subscribe;
 import cc.sighs.oelib.event.events.InputEvent;
 import cc.sighs.oelib.event.events.ScreenEvent;
@@ -218,36 +219,6 @@ public class Client {
         Operation.scroll(scrollDelta);
     }
 
-    @Subscribe
-    public static void scroll(ScreenEvent.MouseScrolled.Post event) {
-        Operation.scroll(event.getScrollDelta());
-    }
-
-    @Subscribe
-    public static void onCharTyped(ScreenEvent.CharacterTyped.Pre event) {
-        if (SharedConstants.isAllowedChatCharacter(event.getCodePoint())) {
-            if (Operation.onCharTyped(event.getCodePoint())) event.setCanceled(true);
-        }
-    }
-
-    @Subscribe
-    public static void mouseButton(InputEvent.MouseButton.Pre event) {
-        if (event.getAction() == InputConstants.PRESS) Operation.onMouseDown();
-        if (event.getAction() == InputConstants.RELEASE) Operation.onMouseUp();
-        if (Minecraft.getInstance().screen != null) return;
-        for (WorldWindow window : WorldWindow.windows) {
-            Position realPos = window.getRealPos();
-            if (realPos != null) {
-                if (event.getAction() == InputConstants.PRESS) {
-                    MouseEvent.tiggerEvent(new MouseEvent("mousedown", realPos), window.document);
-                } else {
-                    MouseEvent.tiggerEvent(new MouseEvent("mouseup", realPos), window.document);
-                }
-                event.setCanceled(true);
-            }
-        }
-    }
-
     public static void mouseMove() {
         Operation.onMouseMove(getMousePosition());
         for (WorldWindow window : WorldWindow.windows) {
@@ -257,51 +228,6 @@ public class Client {
                 MouseEvent.tiggerEvent(moveEvent, window.document);
             }
         }
-    }
-
-    @Subscribe
-    public static void onKeyPressed(InputEvent.Key event) {
-        if (Minecraft.getInstance().screen != null) {
-            return;
-        }
-        int action = event.getAction();
-        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
-        boolean canceled = Operation.handleKeyInput(
-                event.getKey(),
-                event.getScanCode(),
-                action,
-                event.getModifiers(),
-                action == InputConstants.REPEAT,
-                com.sighs.apricityui.event.KeyEvent.Source.INPUT_EVENT
-        );
-//        if (canceled) event.setCanceled(true);
-    }
-
-    @Subscribe
-    public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
-        int action = InputConstants.PRESS;
-        boolean canceled = Operation.handleKeyInput(
-                event.getKeyCode(),
-                event.getScanCode(),
-                action,
-                event.getModifiers(),
-                false,
-                com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
-        );
-//        if (canceled) event.setCanceled(true);
-    }
-
-    @Subscribe
-    public static void onScreenKeyReleased(ScreenEvent.KeyReleased.Pre event) {
-        int action = InputConstants.RELEASE;
-        Operation.handleKeyInput(
-                event.getKeyCode(),
-                event.getScanCode(),
-                action,
-                event.getModifiers(),
-                false,
-                com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
-        );
     }
 
 
@@ -323,8 +249,18 @@ public class Client {
     public static Position getMousePosition() {
         MouseHandler mouseHandler = Minecraft.getInstance().mouseHandler;
         Window window = Minecraft.getInstance().getWindow();
+        long windowHandle = window.getWindow();
+        double rawX = mouseHandler.xpos();
+        double rawY = mouseHandler.ypos();
+        if (windowHandle != 0L) {
+            double[] xBuf = new double[1];
+            double[] yBuf = new double[1];
+            GLFW.glfwGetCursorPos(windowHandle, xBuf, yBuf);
+            rawX = xBuf[0];
+            rawY = yBuf[0];
+        }
         double scale = window.getGuiScale();
-        return new Position(mouseHandler.xpos() / scale, mouseHandler.ypos() / scale);
+        return new Position(rawX / scale, rawY / scale);
     }
 
     public static boolean isKeyPressed(String keyName) {
@@ -410,7 +346,6 @@ public class Client {
         poseStack.popPose();
     }
 }
-
 
 
 

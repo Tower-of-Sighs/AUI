@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class WorldWindow {
-    static final List<WorldWindow> windows = new ArrayList<>();
+    public static final List<WorldWindow> windows = new ArrayList<>();
 
     public Document document;
     private Vec3 position;
