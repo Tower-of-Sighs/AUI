@@ -110,11 +110,19 @@ jar {
     }
 }
 
+def whiteList = ['OELib-fabric-1.20.1']
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
-
+            pom.withXml {
+                asNode().dependencies.dependency.each { dep ->
+                    if (!whiteList.contains(dep.artifactId.text())) {
+                        dep.parent().remove(dep)
+                    }
+                }
+            }
             groupId = project.group
             artifactId = base.archivesName.get()
             version = project.version
@@ -140,5 +148,22 @@ publishing {
                 password = publishPassword
             }
         }
+    }
+}
+
+tasks.withType(GenerateModuleMetadata) {
+    doLast {
+        def file = outputFile.get().asFile
+        def json = new groovy.json.JsonSlurper().parseText(file.text)
+
+        json.variants.each { variant ->
+            if (variant.dependencies) {
+                variant.dependencies.removeAll { dep ->
+                    !whiteList.contains(dep.module)
+                }
+            }
+        }
+
+        file.text = groovy.json.JsonOutput.toJson(json)
     }
 }
