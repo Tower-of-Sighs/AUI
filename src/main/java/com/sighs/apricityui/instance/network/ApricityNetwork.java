@@ -16,7 +16,7 @@ public final class ApricityNetwork {
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(ApricityUI.MODID, "main"),
             () -> CURRENT_PROTOCOL_VERSION,
-            ApricityNetwork::isCompatibleProtocol,
+            s -> true,
             ApricityNetwork::isCompatibleProtocol
     );
 
