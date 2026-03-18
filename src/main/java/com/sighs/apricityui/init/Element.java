@@ -661,38 +661,9 @@ public class Element {
     private void drawInnerText(PoseStack poseStack, Rect rectRenderer) {
         Text text = Text.of(this);
         Position contentPos = rectRenderer.getContentPosition();
-        if (!canSelectInnerText() || !hasInnerTextSelection()) {
-            text.content = innerText;
-            text.color = new Color(Style.getFontColor(this));
-            FontDrawer.drawFont(poseStack, text, contentPos);
-            return;
-        }
-
-        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
-        int max = Math.min(innerText.length(), Math.max(textSelectionStart, textSelectionEnd));
-        String before = innerText.substring(0, min);
-        String selected = innerText.substring(min, max);
-        String after = innerText.substring(max);
-
-        double drawX = contentPos.x - scrollLeft;
-        double drawY = contentPos.y;
-        if (!before.isEmpty()) {
-            text.content = before;
-            text.color = new Color(Style.getFontColor(this));
-            FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
-            drawX += Size.measureText(this, before);
-        }
-        if (!selected.isEmpty()) {
-            text.content = selected;
-            text.color = new Color("#FFFFFF");
-            FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
-            drawX += Size.measureText(this, selected);
-        }
-        if (!after.isEmpty()) {
-            text.content = after;
-            text.color = new Color(Style.getFontColor(this));
-            FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
-        }
+        text.content = innerText;
+        text.color = new Color(Style.getFontColor(this));
+        FontDrawer.drawFont(poseStack, text, contentPos);
     }
 
     @Override

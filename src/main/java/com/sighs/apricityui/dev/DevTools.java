@@ -3,13 +3,16 @@ package com.sighs.apricityui.dev;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.element.MinecraftElement;
+import net.fabricmc.loader.api.FabricLoader;
 
 import java.util.*;
 
 public class DevTools {
     private static final String PATH = "devtools/index.html";
+    private static final String EXAMPLE_PATH = "devtools/example-k.html";
 
     private static Document toolDocument = null;
+    private static Document exampleDocument = null;
     private static String selectedDocumentUuid = null;
     private static String selectedElementUuid = null;
     private static final Set<String> collapsedNodeUuids = new LinkedHashSet<>();
@@ -29,6 +32,25 @@ public class DevTools {
         if (isOpen()) return true;
         toggle();
         return isOpen();
+    }
+
+    public static boolean isExampleOpen() {
+        return exampleDocument != null && !Document.get(EXAMPLE_PATH).isEmpty();
+    }
+
+    public static void toggleExample() {
+        if (FabricLoader.getInstance().isDevelopmentEnvironment()) {
+            if (Document.get(EXAMPLE_PATH).isEmpty()) {
+                exampleDocument = Document.create(EXAMPLE_PATH);
+                return;
+            }
+            closeExample();
+        }
+    }
+
+    public static void closeExample() {
+        exampleDocument = null;
+        Document.remove(EXAMPLE_PATH);
     }
 
     public static boolean selectDocument(Document document) {

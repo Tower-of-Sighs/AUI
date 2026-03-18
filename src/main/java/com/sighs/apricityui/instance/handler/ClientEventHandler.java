@@ -5,12 +5,15 @@ import cc.sighs.oelib.event.Subscribe;
 import cc.sighs.oelib.event.events.InputEvent;
 import cc.sighs.oelib.event.events.ScreenEvent;
 import com.mojang.blaze3d.platform.InputConstants;
+import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
+import org.lwjgl.glfw.GLFW;
 
 public class ClientEventHandler {
     @Subscribe(side = EventSide.CLIENT)
@@ -45,7 +48,11 @@ public class ClientEventHandler {
 
     @Subscribe(side = EventSide.CLIENT)
     public static void onKeyPressed(InputEvent.Key event) {
-        if (Minecraft.getInstance().screen != null) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.screen == null && event.getAction() == InputConstants.PRESS && event.getKey() == GLFW.GLFW_KEY_K) {
+            DevTools.toggleExample();
+        }
+        if (minecraft.screen != null) {
             return;
         }
         int action = event.getAction();
@@ -56,13 +63,16 @@ public class ClientEventHandler {
                 action,
                 event.getModifiers(),
                 action == InputConstants.REPEAT,
-                com.sighs.apricityui.event.KeyEvent.Source.INPUT_EVENT
+                KeyEvent.Source.INPUT_EVENT
         );
 //        if (canceled) event.setCanceled(true);
     }
 
     @Subscribe(side = EventSide.CLIENT)
     public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+        if (event.getKeyCode() == GLFW.GLFW_KEY_K) {
+            DevTools.toggleExample();
+        }
         int action = InputConstants.PRESS;
         boolean canceled = Operation.handleKeyInput(
                 event.getKeyCode(),
@@ -70,7 +80,7 @@ public class ClientEventHandler {
                 action,
                 event.getModifiers(),
                 false,
-                com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
+                KeyEvent.Source.SCREEN_EVENT
         );
 //        if (canceled) event.setCanceled(true);
     }
@@ -84,7 +94,7 @@ public class ClientEventHandler {
                 action,
                 event.getModifiers(),
                 false,
-                com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
+                KeyEvent.Source.SCREEN_EVENT
         );
     }
 }
