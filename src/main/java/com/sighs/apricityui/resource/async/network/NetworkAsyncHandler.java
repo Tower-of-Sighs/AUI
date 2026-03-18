@@ -19,72 +19,23 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
     public static final NetworkAsyncHandler INSTANCE = new NetworkAsyncHandler();
 
     private static final Map<String, CacheEntry> SUCCESS_CACHE = new ConcurrentHashMap<>();
-    private static final Map<String, InFlightEntry> IN_FLIGHT = new ConcurrentHashMap<>();
+    private static final Map<String, InFlightRequest> IN_FLIGHT = new ConcurrentHashMap<>();
     private static final Map<String, NetworkHandle> HANDLES = new ConcurrentHashMap<>();
-    private static final Semaphore DOWNLOAD_PERMITS = new Semaphore(NetworkPolicy.MAX_IN_FLIGHT_REQUESTS, true);
+    private static final Semaphore PERMITS = new Semaphore(NetworkPolicy.MAX_IN_FLIGHT_REQUESTS, true);
 
     private NetworkAsyncHandler() {
-        super("network", 16, 1, 1_500_000L, "ApricityUI-NetworkWorker");
+        super("network", 32, 1, 1_500_000L, "ApricityUI-NetworkWorker");
     }
 
-    public byte[] fetchBytes(String url) throws IOException {
-        if (!Loader.isRemotePath(url)) {
-            throw new IOException("仅允许 HTTPS 远程资源: " + url);
+    private static NetworkHandle prepareHandle(NetworkHandle existing, String url, long generation, long now) {
+        NetworkHandle handle = existing;
+        if (handle == null || handle.generation() != generation || handle.state() == AsyncState.STALE) {
+            return new NetworkHandle(url, generation);
         }
-
-        long now = System.currentTimeMillis();
-        long currentGeneration = currentGeneration();
-        NetworkHandle handle = HANDLES.compute(url, (key, old) -> {
-            if (old == null || old.generation() != currentGeneration) return new NetworkHandle(key, currentGeneration);
-            return old;
-        });
-        if (handle.state() == AbstractAsyncHandler.AsyncState.FAILED && now - handle.failedAtMs() >= 5_000L) {
-            handle.resetForRetry(currentGeneration);
+        if (handle.state() == AsyncState.FAILED && now - handle.failedAtMs() >= NetworkPolicy.FAILURE_RETRY_DELAY_MS) {
+            handle.reset(generation);
         }
-
-        CacheEntry cached = SUCCESS_CACHE.get(url);
-        if (cached != null && cached.expiresAtMs > now) {
-            handle.markReady();
-            return cached.bytes;
-        }
-        if (cached != null) SUCCESS_CACHE.remove(url, cached);
-
-        InFlightEntry own = new InFlightEntry();
-        InFlightEntry existing = IN_FLIGHT.putIfAbsent(url, own);
-        if (existing != null) {
-            byte[] bytes = existing.await(url);
-            handle.markReady();
-            return bytes;
-        }
-
-        try {
-            byte[] bytes = downloadWithRetry(url);
-            SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
-            own.complete(bytes, null);
-            handle.markReady();
-            return bytes;
-        } catch (IOException ex) {
-            own.complete(null, ex);
-            handle.markFailed(System.currentTimeMillis());
-            throw ex;
-        } finally {
-            IN_FLIGHT.remove(url, own);
-        }
-    }
-
-    @Override
-    protected void applyOnMainThread(Void task, long currentGeneration) {
-        // 网络层不需要主线程 apply 队列。
-    }
-
-    @Override
-    protected void onBeforeClear(long nextGeneration) {
-        for (NetworkHandle handle : HANDLES.values()) {
-            handle.markStale();
-        }
-        HANDLES.clear();
-        SUCCESS_CACHE.clear();
-        IN_FLIGHT.clear();
+        return handle;
     }
 
     private static byte[] downloadWithRetry(String url) throws IOException {
@@ -96,11 +47,11 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                 if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
                     throw new IOException("下载失败: " + url + " (HTTP " + retryable.statusCode + ")", retryable);
                 }
-                sleepQuietly(retryable.retryDelayMs);
+                sleepQuietly(retryable.delayMs);
                 attempt++;
-            } catch (SocketTimeoutException timeoutEx) {
+            } catch (SocketTimeoutException timeout) {
                 if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
-                    throw new IOException("下载超时: " + url, timeoutEx);
+                    throw new IOException("下载超时: " + url, timeout);
                 }
                 sleepQuietly(NetworkPolicy.RETRY_DELAY_5XX_OR_TIMEOUT_MS);
                 attempt++;
@@ -108,23 +59,18 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         }
     }
 
-    private static byte[] downloadOnce(String url) throws IOException {
+    private static byte[] downloadOnce(String originUrl) throws IOException {
         acquirePermit();
         try {
-            String requestUrl = url;
+            String requestUrl = originUrl;
             for (int i = 0; i <= NetworkPolicy.MAX_REDIRECTS; i++) {
                 HttpsURLConnection connection = openConnection(requestUrl);
                 try {
                     int status = connection.getResponseCode();
                     if (isRedirect(status)) {
-                        String location = connection.getHeaderField("Location");
-                        if (location == null || location.isBlank()) {
-                            throw new IOException("重定向缺失 Location: " + requestUrl);
-                        }
-                        requestUrl = resolveRedirect(requestUrl, location);
+                        requestUrl = resolveRedirect(requestUrl, connection.getHeaderField("Location"));
                         continue;
                     }
-
                     if (status == 429) {
                         throw new RetryableHttpException(status, NetworkPolicy.RETRY_DELAY_429_MS);
                     }
@@ -136,8 +82,8 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                     }
 
                     validateContentType(connection.getContentType(), requestUrl);
-                    int length = connection.getContentLength();
-                    if (length > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) {
+                    int contentLength = connection.getContentLength();
+                    if (contentLength > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) {
                         throw new IOException("资源超出大小限制(8MB): " + requestUrl);
                     }
 
@@ -148,25 +94,27 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                     connection.disconnect();
                 }
             }
-            throw new IOException("重定向次数超限: " + url);
+            throw new IOException("重定向次数超限: " + originUrl);
         } finally {
-            DOWNLOAD_PERMITS.release();
+            PERMITS.release();
         }
     }
 
-    private static void validateContentType(String contentType, String url) throws IOException {
-        if (contentType == null || contentType.isBlank()) return;
-        String lower = contentType.toLowerCase();
-        if (!lower.startsWith("image/") && !lower.startsWith("text/css") && !lower.startsWith("font/") && !lower.startsWith("application/font")) {
-            throw new IOException("远程资源类型不支持: " + url + " (Content-Type: " + contentType + ")");
+    private static String resolveRedirect(String fromUrl, String location) throws IOException {
+        if (location == null || location.isBlank()) {
+            throw new IOException("重定向缺失 Location: " + fromUrl);
         }
+        URI base = URI.create(fromUrl);
+        URI target = base.resolve(location);
+        String resolved = target.toString();
+        if (!Loader.isRemotePath(resolved)) {
+            throw new IOException("重定向目标非 HTTPS，已拒绝: " + resolved);
+        }
+        return resolved;
     }
 
     private static HttpsURLConnection openConnection(String url) throws IOException {
         URL target = URI.create(url).toURL();
-        if (!Loader.isRemotePath(url)) {
-            throw new IOException("仅允许 HTTPS 远程资源: " + url);
-        }
         HttpsURLConnection connection = (HttpsURLConnection) target.openConnection();
         connection.setRequestMethod("GET");
         connection.setUseCaches(false);
@@ -178,14 +126,23 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         return connection;
     }
 
-    private static String resolveRedirect(String fromUrl, String location) throws IOException {
-        URI base = URI.create(fromUrl);
-        URI target = base.resolve(location);
-        String resolved = target.toString();
-        if (!Loader.isRemotePath(resolved)) {
-            throw new IOException("重定向目标非 HTTPS，已拒绝: " + resolved);
+    private static void validateContentType(String contentType, String url) throws IOException {
+        if (contentType == null || contentType.isBlank()) return;
+        String normalized = contentType.toLowerCase();
+        if (normalized.startsWith("image/")) return;
+        if (normalized.startsWith("text/css")) return;
+        if (normalized.startsWith("font/")) return;
+        if (normalized.startsWith("application/font")) return;
+        throw new IOException("远程资源类型不支持: " + url + " (Content-Type: " + contentType + ")");
+    }
+
+    private static void acquirePermit() throws IOException {
+        try {
+            PERMITS.acquire();
+        } catch (InterruptedException interruptedException) {
+            Thread.currentThread().interrupt();
+            throw new IOException("下载线程被中断", interruptedException);
         }
-        return resolved;
     }
 
     private static byte[] readAllBytesWithLimit(InputStream inputStream, String url) throws IOException {
@@ -218,13 +175,60 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         }
     }
 
-    private static void acquirePermit() throws IOException {
-        try {
-            DOWNLOAD_PERMITS.acquire();
-        } catch (InterruptedException interruptedException) {
-            Thread.currentThread().interrupt();
-            throw new IOException("下载线程被中断", interruptedException);
+    public byte[] fetchBytes(String url) throws IOException {
+        if (!Loader.isRemotePath(url)) {
+            throw new IOException("仅允许 HTTPS 远程资源: " + url);
         }
+
+        long now = System.currentTimeMillis();
+        long generation = currentGeneration();
+        NetworkHandle handle = HANDLES.compute(url, (key, existing) -> prepareHandle(existing, key, generation, now));
+
+        CacheEntry cached = SUCCESS_CACHE.get(url);
+        if (cached != null && cached.expiresAtMs > now) {
+            handle.markReady();
+            return cached.bytes;
+        }
+        if (cached != null) {
+            SUCCESS_CACHE.remove(url, cached);
+        }
+
+        InFlightRequest own = new InFlightRequest();
+        InFlightRequest existing = IN_FLIGHT.putIfAbsent(url, own);
+        if (existing != null) {
+            byte[] bytes = existing.await(url);
+            handle.markReady();
+            return bytes;
+        }
+
+        handle.markLoading();
+        try {
+            byte[] bytes = downloadWithRetry(url);
+            SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            own.complete(bytes, null);
+            handle.markReady();
+            return bytes;
+        } catch (IOException exception) {
+            own.complete(null, exception);
+            handle.markFailed(exception, System.currentTimeMillis());
+            throw exception;
+        } finally {
+            IN_FLIGHT.remove(url, own);
+        }
+    }
+
+    @Override
+    protected void applyOnMainThread(Void task, long currentGeneration) {
+    }
+
+    @Override
+    protected void onBeforeClear(long nextGeneration) {
+        for (NetworkHandle handle : HANDLES.values()) {
+            handle.markStale();
+        }
+        HANDLES.clear();
+        SUCCESS_CACHE.clear();
+        IN_FLIGHT.clear();
     }
 
     private record CacheEntry(byte[] bytes, long expiresAtMs) {
@@ -232,16 +236,15 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
 
     private static final class RetryableHttpException extends IOException {
         private final int statusCode;
-        private final long retryDelayMs;
+        private final long delayMs;
 
-        private RetryableHttpException(int statusCode, long retryDelayMs) {
-            super("可重试的 HTTP 状态码: " + statusCode);
+        private RetryableHttpException(int statusCode, long delayMs) {
             this.statusCode = statusCode;
-            this.retryDelayMs = retryDelayMs;
+            this.delayMs = delayMs;
         }
     }
 
-    private static final class InFlightEntry {
+    private static final class InFlightRequest {
         private final CountDownLatch latch = new CountDownLatch(1);
         private volatile byte[] bytes;
         private volatile IOException error;
