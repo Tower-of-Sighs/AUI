@@ -127,8 +127,32 @@ publishing {
             groupId = project.group
             artifactId = base.archivesName.get()
             version = project.version
+
+            pom.withXml {
+                def dependenciesNode = asNode().getAt("dependencies")[0]
+                if (dependenciesNode != null) {
+                    // 这里添加你希望保留在 POM 中的 groupId 或 artifactId，也就是从 Maven 拉依赖时会附带的库、模组啥的
+                    def whiteList = [
+                    ]
+
+                    def dependencies = dependenciesNode.children()
+                    def toRemove = []
+
+                    dependencies.each { dep ->
+                        def artifactId = dep.artifactId.text()
+                        def groupId = dep.groupId.text()
+
+                        if (!whiteList.contains(artifactId) && !whiteList.contains(groupId)) {
+                            toRemove.add(dep)
+                        }
+                    }
+
+                    toRemove.each { dependenciesNode.remove(it) }
+                }
+            }
         }
     }
+
     repositories {
         def modVersion = project.findProperty('mod_version') ?: 'unknown'
 
