@@ -8,6 +8,7 @@ import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import dev.latvian.mods.rhino.util.HideFromJS;
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import org.slf4j.Logger;
 
 public class ApricityUI implements ModInitializer {
@@ -18,7 +19,9 @@ public class ApricityUI implements ModInitializer {
     @Override
     public void onInitialize() {
         EventAutoRegistration.registerBasePackage("com.sighs.apricityui.instance.handler");
-        KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
+        if (FabricLoader.getInstance().isModLoaded("kubejs")) {
+            KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
+        }
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.instance.element");
         ApricityUIConfig.register();
         ApricityMenus.register();
