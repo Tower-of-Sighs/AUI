@@ -13,10 +13,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.ImageApplyTask> {
+public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.ApplyTask> {
     public static final ImageAsyncHandler INSTANCE = new ImageAsyncHandler();
 
-    private static final long FAILED_TTL_MS = 5_000L;
+    private static final long FAILED_RETRY_MS = 5_000L;
     private static final Map<String, ImageHandle> HANDLES = new ConcurrentHashMap<>();
 
     private ImageAsyncHandler() {
@@ -27,71 +27,46 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         return request(path, null, false);
     }
 
-    public ImageHandle request(String path, Element requester, boolean needRelayout) {
-        if (path == null || path.isBlank() || "unset".equals(path)) return null;
-
-        long now = System.currentTimeMillis();
-        long generation = currentGeneration();
-
-        ImageHandle handle = HANDLES.compute(path, (key, current) -> {
-            ImageHandle target = current;
-            if (target == null || target.generation() != generation) {
-                if (target != null) target.destroyTextureIfPresent();
-                target = new ImageHandle(key, generation);
-            }
-            if (requester != null && target.state() != AsyncState.READY) {
-                target.addRequester(requester, needRelayout);
-            }
-            if (target.state() == AsyncState.FAILED && now - target.failedAtMs() >= FAILED_TTL_MS) {
-                target.resetForRetry(generation);
-            }
-            return target;
-        });
-
-        submitIfNeeded(handle);
-        return handle;
-    }
-
     public static void prefetchImages(Document document) {
+        if (document == null) return;
         Set<String> paths = new HashSet<>();
         for (Element element : document.getElements()) {
             String src = element.getAttribute("src");
             if (!src.isEmpty() && "IMG".equals(element.tagName)) {
-                String resolved = Loader.resolve(document.getPath(), src);
-                if (isImagePathValid(resolved)) {
-                    paths.add(resolved);
-                }
+                addIfValid(paths, Loader.resolve(document.getPath(), src));
             }
 
             Style style = element.getRawComputedStyle();
             if (style == null) continue;
-
             for (String backgroundPath : Background.resolveImagePaths(document.getPath(), style.backgroundImage)) {
-                if (isImagePathValid(backgroundPath)) {
-                    paths.add(backgroundPath);
-                }
+                addIfValid(paths, backgroundPath);
             }
-
-            String borderImageSource = resolveFirstNonUnset(style.borderImageSource, style.borderImage);
-            String borderImagePath = resolveCssUrl(document.getPath(), borderImageSource);
-            if (isImagePathValid(borderImagePath)) {
-                paths.add(borderImagePath);
-            }
+            String borderSource = firstNonUnset(style.borderImageSource, style.borderImage);
+            addIfValid(paths, resolveCssUrl(document.getPath(), borderSource));
         }
-        ImageAsyncHandler.INSTANCE.prefetch(paths);
+        INSTANCE.prefetch(paths);
     }
 
-    private static boolean isImagePathValid(String path) {
-        return path != null && !path.isBlank() && !"unset".equals(path);
+    private static ImageHandle prepareHandle(ImageHandle existing, String path, long generation, long now) {
+        ImageHandle handle = existing;
+        if (handle == null || handle.generation() != generation || handle.state() == AsyncState.STALE) {
+            if (handle != null) handle.destroyTextureIfPresent();
+            return new ImageHandle(path, generation);
+        }
+        if (handle.state() == AsyncState.FAILED && now - handle.failedAtMs() >= FAILED_RETRY_MS) {
+            handle.reset(generation);
+        }
+        return handle;
     }
 
-    private static String resolveFirstNonUnset(String primary, String fallback) {
-        if (primary != null && !primary.isBlank() && !"unset".equals(primary)) {
-            return primary;
-        }
-        if (fallback != null && !fallback.isBlank() && !"unset".equals(fallback)) {
-            return fallback;
-        }
+    private static void addIfValid(Set<String> target, String path) {
+        if (path == null || path.isBlank() || "unset".equals(path)) return;
+        target.add(path);
+    }
+
+    private static String firstNonUnset(String first, String second) {
+        if (first != null && !first.isBlank() && !"unset".equals(first)) return first;
+        if (second != null && !second.isBlank() && !"unset".equals(second)) return second;
         return null;
     }
 
@@ -102,48 +77,48 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
         int end = cssValue.indexOf(')', start + 4);
         if (end < 0) return null;
         String raw = cssValue.substring(start + 4, end).replace("\"", "").replace("'", "").trim();
-        if (raw.isEmpty()) return null;
+        if (raw.isBlank()) return null;
         return Loader.resolve(contextPath, raw);
+    }
+
+    public ImageHandle request(String path, Element requester, boolean needRelayout) {
+        if (path == null || path.isBlank() || "unset".equals(path)) return null;
+
+        long generation = currentGeneration();
+        long now = System.currentTimeMillis();
+        ImageHandle handle = HANDLES.compute(path, (key, existing) -> prepareHandle(existing, key, generation, now));
+        if (requester != null && handle.state() != AsyncState.READY) {
+            handle.addRequester(requester, needRelayout);
+        }
+        submitDecodeIfNeeded(handle);
+        return handle;
     }
 
     public void prefetch(Collection<String> paths) {
         if (paths == null || paths.isEmpty()) return;
-        HashSet<String> unique = new HashSet<>(paths);
-        for (String path : unique) {
-            request(path, null, false);
+        HashSet<String> uniquePaths = new HashSet<>(paths);
+        for (String path : uniquePaths) {
+            request(path);
         }
     }
 
-    private void submitIfNeeded(ImageHandle handle) {
-        if (handle == null) return;
-        if (!handle.transition(AsyncState.NEW, AsyncState.LOADING)) return;
-
+    private void submitDecodeIfNeeded(ImageHandle handle) {
+        if (handle == null || !handle.tryEnterLoading()) return;
         submitWorker(() -> decodeOnWorker(handle), ex -> handle.markFailed(ex, System.currentTimeMillis()));
     }
 
     private void decodeOnWorker(ImageHandle handle) {
         DecodedImage decodedImage = null;
         try {
-            if (Loader.isRemotePath(handle.path())) {
-                byte[] bytes = NetworkAsyncHandler.INSTANCE.fetchBytes(handle.path());
-                decodedImage = Image.decode(handle.path(), bytes);
-            } else {
-                try (InputStream is = Loader.getResourceStream(handle.path())) {
-                    if (is == null) {
-                        handle.markFailed(new IllegalStateException("未找到图片资源: " + handle.path()), System.currentTimeMillis());
-                        return;
-                    }
-                    byte[] bytes = is.readAllBytes();
-                    decodedImage = Image.decode(handle.path(), bytes);
-                }
-            }
+            byte[] bytes = readResourceBytes(handle.path());
+            decodedImage = Image.decode(handle.path(), bytes);
             if (decodedImage == null) {
                 handle.markFailed(new IllegalStateException("图片解码失败: " + handle.path()), System.currentTimeMillis());
                 return;
             }
-        } catch (Exception ex) {
+        } catch (Exception exception) {
             if (decodedImage != null) decodedImage.close();
-            handle.markFailed(ex, System.currentTimeMillis());
+            handle.markFailed(exception, System.currentTimeMillis());
             return;
         }
 
@@ -152,38 +127,52 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
             handle.markStale();
             return;
         }
-        if (!handle.transition(AsyncState.LOADING, AsyncState.APPLYING)) {
+        if (!handle.tryEnterApplying()) {
             decodedImage.close();
             return;
         }
-        enqueueApplyTask(new ImageApplyTask(handle, decodedImage, handle.generation()));
+        enqueueApplyTask(new ApplyTask(handle, decodedImage, handle.generation()));
+    }
+
+    private byte[] readResourceBytes(String path) throws Exception {
+        if (Loader.isRemotePath(path)) {
+            return NetworkAsyncHandler.INSTANCE.fetchBytes(path);
+        }
+        try (InputStream stream = Loader.getResourceStream(path)) {
+            if (stream == null) {
+                throw new IllegalStateException("未找到图片资源: " + path);
+            }
+            return stream.readAllBytes();
+        }
     }
 
     @Override
-    protected void applyOnMainThread(ImageApplyTask task, long currentGeneration) {
-        if (task.generation() != currentGeneration || task.handle().generation() != task.generation()) {
-            task.decodedImage().close();
-            task.handle().markStale();
+    protected void applyOnMainThread(ApplyTask task, long currentGeneration) {
+        if (task.generation != currentGeneration || task.handle.generation() != task.generation) {
+            task.decodedImage.close();
+            task.handle.markStale();
             return;
         }
 
         Image.ITexture texture;
         try {
-            texture = Image.uploadDecoded(task.handle().path(), task.decodedImage());
-        } catch (Exception ex) {
-            task.handle().markFailed(ex, System.currentTimeMillis());
+            texture = Image.uploadDecoded(task.handle.path(), task.decodedImage);
+        } catch (Exception exception) {
+            task.handle.markFailed(exception, System.currentTimeMillis());
             return;
         }
         if (texture == null) {
-            task.handle().markFailed(new IllegalStateException("上传纹理失败: " + task.handle().path()), System.currentTimeMillis());
-            return;
-        }
-        if (!task.handle().markReady(texture)) {
-            texture.destroy();
+            task.handle.markFailed(new IllegalStateException("上传纹理失败: " + task.handle.path()), System.currentTimeMillis());
             return;
         }
 
-        for (ImageHandle.RequesterRef requesterRef : task.handle().drainRequesters()) {
+        if (task.handle.state() != AsyncState.APPLYING) {
+            texture.destroy();
+            return;
+        }
+        task.handle.markReady(texture);
+
+        for (ImageHandle.RequesterRef requesterRef : task.handle.drainRequesters()) {
             Element element = requesterRef.getElement();
             if (element == null || element.document == null) continue;
             int dirtyMask = requesterRef.needRelayout() ? Drawer.RELAYOUT : Drawer.REPAINT;
@@ -201,13 +190,11 @@ public class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHandler.Im
     }
 
     @Override
-    protected void onDiscardApplyTask(ImageApplyTask task) {
-        if (task == null) return;
-        if (task.decodedImage() != null) {
-            task.decodedImage().close();
-        }
+    protected void onDiscardApplyTask(ApplyTask task) {
+        if (task == null || task.decodedImage == null) return;
+        task.decodedImage.close();
     }
 
-    public record ImageApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {
+    public record ApplyTask(ImageHandle handle, DecodedImage decodedImage, long generation) {
     }
 }
