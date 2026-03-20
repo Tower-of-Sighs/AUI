@@ -69,13 +69,27 @@ public record Size(double width, double height) {
         boolean unsetHeight = parseNumber(style.height) == null;
 
         boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
-        Size bodySize = isText ? getTextSize(element) : getContentSize(element);
+        Size contentSize = isText ? getTextSize(element) : getContentSize(element);
+        Box box = Box.of(element);
+        double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
+        double verticalBox = box.getBorderVertical() + box.getPaddingVertical();
 
-        double totalWidth = bodySize.width, totalHeight = bodySize.height;
+        double contentWidth = contentSize.width;
+        double contentHeight = contentSize.height;
         double parentWidth = getScaleWidth(element), parentHeight = getScaleHeight(element);
+        boolean borderBox = box.isBorderBox();
 
-        if (!unsetWidth) totalWidth = resolveLength(style.width, parentWidth, totalWidth);
-        if (!unsetHeight) totalHeight = resolveLength(style.height, parentHeight, totalHeight);
+        if (!unsetWidth) {
+            double resolved = resolveLength(style.width, parentWidth, contentWidth);
+            contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
+        }
+        if (!unsetHeight) {
+            double resolved = resolveLength(style.height, parentHeight, contentHeight);
+            contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
+        }
+
+        double totalWidth = contentWidth + horizontalBox;
+        double totalHeight = contentHeight + verticalBox;
 
         Size resultSize = new Size(totalWidth, totalHeight);
 
@@ -84,10 +98,7 @@ public record Size(double width, double height) {
     }
 
     public static Size getTextSize(Element element) {
-        Box box = Box.of(element);
-        double fontWidth = box.getPaddingHorizontal();
-        double fontHeight = box.getPaddingVertical();
-        return Text.of(element).size.add(new Size(fontWidth, fontHeight));
+        return Text.of(element).size;
     }
 
     public static Size getContentSize(Element element) {
@@ -111,10 +122,6 @@ public record Size(double width, double height) {
                 totalWidth += size.width;
             }
         }
-
-        Box box = Box.of(element);
-        totalWidth += box.getBorderHorizontal() + box.getPaddingHorizontal();
-        totalHeight += box.getBorderVertical() + box.getPaddingVertical();
         return new Size(totalWidth, totalHeight);
     }
 
@@ -127,8 +134,17 @@ public record Size(double width, double height) {
         if (parent != null) {
             Style parentStyle = parent.getComputedStyle();
             if (parseNumber(parentStyle.width) != null) {
-                if (isPercent(parentStyle.width)) return getScaleWidth(parent) * parseNumber(parentStyle.width) / 100d;
-                return parseNumber(parentStyle.width);
+                double resolvedWidth;
+                if (isPercent(parentStyle.width)) {
+                    resolvedWidth = getScaleWidth(parent) * parseNumber(parentStyle.width) / 100d;
+                } else {
+                    resolvedWidth = parseNumber(parentStyle.width);
+                }
+                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
+                    Box parentBox = Box.of(parent);
+                    resolvedWidth -= parentBox.getBorderHorizontal() + parentBox.getPaddingHorizontal();
+                }
+                return Math.max(0, resolvedWidth);
             }
             return getScaleWidth(parent);
         } else return getWindowSize().width;
@@ -139,9 +155,17 @@ public record Size(double width, double height) {
         if (parent != null) {
             Style parentStyle = parent.getComputedStyle();
             if (parseNumber(parentStyle.height) != null) {
-                if (isPercent(parentStyle.height))
-                    return getScaleHeight(parent) * parseNumber(parentStyle.height) / 100d;
-                return parseNumber(parentStyle.height);
+                double resolvedHeight;
+                if (isPercent(parentStyle.height)) {
+                    resolvedHeight = getScaleHeight(parent) * parseNumber(parentStyle.height) / 100d;
+                } else {
+                    resolvedHeight = parseNumber(parentStyle.height);
+                }
+                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
+                    Box parentBox = Box.of(parent);
+                    resolvedHeight -= parentBox.getBorderVertical() + parentBox.getPaddingVertical();
+                }
+                return Math.max(0, resolvedHeight);
             }
             return getScaleHeight(parent);
         } else return getWindowSize().height;
