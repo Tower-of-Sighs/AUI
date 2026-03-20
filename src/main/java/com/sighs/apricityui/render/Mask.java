@@ -186,15 +186,23 @@ public class Mask {
         tess.end();
     }
 
-    public static void enableScissor(int x, int y, int width, int height) {
+    public static void enableScissor(double x, double y, double width, double height) {
         Window window = Minecraft.getInstance().getWindow();
         double scale = window.getGuiScale();
         int windowHeight = window.getHeight();
 
-        int scissorX = (int) (x * scale);
-        int scissorY = (int) (windowHeight - (y + height) * scale);
-        int scissorW = (int) (width * scale);
-        int scissorH = (int) (height * scale);
+        // Use floor/ceil on edges to avoid 1px flicker when scrolling with fractional offsets.
+        double left = x * scale;
+        double top = y * scale;
+        double right = (x + width) * scale;
+        double bottom = (y + height) * scale;
+
+        int scissorX = (int) Math.floor(left);
+        int scissorY = (int) Math.floor(windowHeight - bottom);
+        int scissorRight = (int) Math.ceil(right);
+        int scissorTop = (int) Math.ceil(windowHeight - top);
+        int scissorW = scissorRight - scissorX;
+        int scissorH = scissorTop - scissorY;
 
         scissorW = Math.max(0, scissorW);
         scissorH = Math.max(0, scissorH);
@@ -212,7 +220,7 @@ public class Mask {
             disableScissor();
             return;
         }
-        enableScissor((int) rect.x(), (int) rect.y(), (int) rect.width(), (int) rect.height());
+        enableScissor(rect.x(), rect.y(), rect.width(), rect.height());
     }
 
     private static boolean isRectMask(float[] radii) {

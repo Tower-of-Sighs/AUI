@@ -1,6 +1,7 @@
 package com.sighs.apricityui.util.kjs;
 
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.ToastManager;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
@@ -35,6 +36,34 @@ public class ApricityUIClientUtil {
 
     public static List<Document> getAllDocument() {
         return Document.getAll();
+    }
+
+    public static String toast(String message) {
+        return ToastManager.show(message);
+    }
+
+    public static String toast(String message, int durationMs) {
+        return ToastManager.show(message, durationMs);
+    }
+
+    public static String toast(String message, int durationMs, String backgroundColor, String textColor, String borderColor, boolean dismissOnClick, String customStyle) {
+        ToastManager.ToastOptions options = new ToastManager.ToastOptions(
+                durationMs,
+                dismissOnClick,
+                backgroundColor,
+                textColor,
+                borderColor,
+                customStyle
+        );
+        return ToastManager.show(message, options);
+    }
+
+    public static void dismissToast(String id) {
+        ToastManager.dismiss(id);
+    }
+
+    public static void clearToasts() {
+        ToastManager.clear();
     }
 
     public static void openScreen(String path) {

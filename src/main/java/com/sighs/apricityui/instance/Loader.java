@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.ToastManager;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
@@ -46,15 +47,27 @@ public class Loader {
     }
 
     public static void reload() {
+        long beginNs = System.nanoTime();
         ApricityJS.reload();
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
         FontDrawer.clearCache();
         Font.clear();
+        long scanStartNs = System.nanoTime();
         HTML.scan();
+        long scanCostMs = (System.nanoTime() - scanStartNs) / 1_000_000L;
+
+        long refreshStartNs = System.nanoTime();
         Document.refreshAll();
         WorldWindow.windows.forEach(worldWindow -> worldWindow.document.refresh());
+        long refreshCostMs = (System.nanoTime() - refreshStartNs) / 1_000_000L;
+
+        long totalCostMs = (System.nanoTime() - beginNs) / 1_000_000L;
+        ToastManager.show(
+                "重载完成 " + totalCostMs + "ms (扫描 " + scanCostMs + "ms, 刷新 " + refreshCostMs + "ms)",
+                new ToastManager.ToastOptions(4200, true, "#0f172a", "#e2e8f0", "#334155", "")
+        );
     }
 
     private static void ensureAsyncHandlersInitialized() {

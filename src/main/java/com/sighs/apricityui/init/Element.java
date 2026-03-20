@@ -664,6 +664,35 @@ public class Element {
         text.content = innerText;
         text.color = new Color(Style.getFontColor(this));
         FontDrawer.drawFont(poseStack, text, contentPos);
+
+        if (!canSelectInnerText() || !hasInnerTextSelection() || innerText == null || innerText.isEmpty()) return;
+        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
+        int max = Math.min(innerText.length(), Math.max(textSelectionStart, textSelectionEnd));
+        if (min >= max) return;
+
+        String selected = innerText.substring(min, max);
+        if (selected.isEmpty()) return;
+
+        double startX = Size.measureText(this, innerText.substring(0, min)) - scrollLeft;
+        Position selectedPos = new Position(contentPos.x + startX, contentPos.y);
+        Text selectedText = cloneTextForSegment(text, selected, Color.BLACK);
+        selectedText.color = new Color("#ffffff");
+        FontDrawer.drawFont(poseStack, selectedText, selectedPos);
+    }
+
+    private static Text cloneTextForSegment(Text base, String content, Color fallbackStrokeColor) {
+        Text copy = new Text();
+        copy.fontSize = base.fontSize;
+        copy.fontWeight = base.fontWeight;
+        copy.oblique = base.oblique;
+        copy.strokeWidth = base.strokeWidth;
+        copy.strokeColor = base.strokeColor == null ? fallbackStrokeColor : base.strokeColor;
+        copy.color = base.color == null ? Color.BLACK : base.color;
+        copy.fontFamily = base.fontFamily;
+        copy.lineHeight = base.lineHeight;
+        copy.content = content == null ? "" : content;
+        copy.size = new Size(Text.measureText(copy), copy.lineHeight);
+        return copy;
     }
 
     @Override
