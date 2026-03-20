@@ -319,7 +319,7 @@ public class Element {
 
     public boolean canScroll() {
         if (getComputedStyle().overflow.equals("visible")) return false;
-        return scrollHeight != Size.of(this).height();
+        return scrollHeight > Box.of(this).innerSize().height();
     }
 
     public void setValue(String value) {
@@ -532,11 +532,11 @@ public class Element {
     }
 
     private double getHorizontalScrollLimit() {
-        return Math.max(0, scrollWidth - Size.of(this).width());
+        return Math.max(0, scrollWidth - Box.of(this).innerSize().width());
     }
 
     private double getVerticalScrollLimit() {
-        return Math.max(0, scrollHeight - Size.of(this).height());
+        return Math.max(0, scrollHeight - Box.of(this).innerSize().height());
     }
 
     private boolean isScrollSettled(double current, double target) {
@@ -643,17 +643,27 @@ public class Element {
 
     private void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
         if (!canSelectInnerText() || !hasInnerTextSelection()) return;
+        Text baseText = Text.of(this);
+        if (baseText.content == null || baseText.content.isEmpty()) return;
+        List<String> lines = Text.splitLines(baseText.content);
+        if (lines.size() != 1) return;
+
         int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
-        int max = Math.min(innerText.length(), Math.max(textSelectionStart, textSelectionEnd));
+        int max = Math.min(baseText.content.length(), Math.max(textSelectionStart, textSelectionEnd));
         if (min >= max) return;
 
         Position contentPos = rectRenderer.getContentPosition();
-        double startX = Size.measureText(this, innerText.substring(0, min)) - scrollLeft;
-        double endX = Size.measureText(this, innerText.substring(0, max)) - scrollLeft;
+        double contentWidth = Box.of(this).innerSize().width();
+        String line = lines.get(0);
+        double lineWidth = Text.measureLine(baseText, line);
+        double drawX = contentPos.x + computeAlignedX(baseText, contentWidth, lineWidth, true);
 
-        float x0 = (float) (contentPos.x + startX);
-        float x1 = (float) (contentPos.x + endX);
-        float y0 = (float) contentPos.y;
+        double startX = Text.measureLine(baseText, line.substring(0, min)) - scrollLeft;
+        double endX = Text.measureLine(baseText, line.substring(0, max)) - scrollLeft;
+
+        float x0 = (float) (drawX + startX);
+        float x1 = (float) (drawX + endX);
+        float y0 = (float) (contentPos.y + computeVerticalOffset(baseText, Box.of(this).innerSize().height(), baseText.lineHeight));
         float y1 = y0 + (float) Text.of(this).lineHeight;
         Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
     }
@@ -661,20 +671,38 @@ public class Element {
     private void drawInnerText(PoseStack poseStack, Rect rectRenderer) {
         Text text = Text.of(this);
         Position contentPos = rectRenderer.getContentPosition();
-        text.content = innerText;
+        text.content = Text.normalizeWhiteSpaceContent(innerText, text.whiteSpace);
         text.color = new Color(Style.getFontColor(this));
-        FontDrawer.drawFont(poseStack, text, contentPos);
+
+        double contentWidth = Box.of(this).innerSize().width();
+        double contentHeight = Box.of(this).innerSize().height();
+        List<String> lines = Text.splitLines(text.content);
+        double textHeight = text.lineHeight * Math.max(1, lines.size());
+        double drawY = contentPos.y + computeVerticalOffset(text, contentHeight, textHeight);
+
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            double lineWidth = Text.measureLine(text, line);
+            double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, i == 0);
+            Text lineText = cloneTextForSegment(text, line, Color.BLACK);
+            FontDrawer.drawFont(poseStack, lineText, new Position(drawX, drawY + i * text.lineHeight));
+        }
 
         if (!canSelectInnerText() || !hasInnerTextSelection() || innerText == null || innerText.isEmpty()) return;
+        if (lines.size() != 1) return;
         int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
-        int max = Math.min(innerText.length(), Math.max(textSelectionStart, textSelectionEnd));
+        int max = Math.min(text.content.length(), Math.max(textSelectionStart, textSelectionEnd));
         if (min >= max) return;
 
-        String selected = innerText.substring(min, max);
+        String selected = text.content.substring(min, max);
         if (selected.isEmpty()) return;
 
-        double startX = Size.measureText(this, innerText.substring(0, min)) - scrollLeft;
-        Position selectedPos = new Position(contentPos.x + startX, contentPos.y);
+        String line = lines.get(0);
+        double lineWidth = Text.measureLine(text, line);
+        double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, true);
+        double drawBaseY = contentPos.y + computeVerticalOffset(text, contentHeight, text.lineHeight);
+        double startX = Text.measureLine(text, line.substring(0, min)) - scrollLeft;
+        Position selectedPos = new Position(drawX + startX, drawBaseY);
         Text selectedText = cloneTextForSegment(text, selected, Color.BLACK);
         selectedText.color = new Color("#ffffff");
         FontDrawer.drawFont(poseStack, selectedText, selectedPos);
@@ -690,9 +718,43 @@ public class Element {
         copy.color = base.color == null ? Color.BLACK : base.color;
         copy.fontFamily = base.fontFamily;
         copy.lineHeight = base.lineHeight;
+        copy.direction = base.direction;
+        copy.textAlign = base.textAlign;
+        copy.verticalAlign = base.verticalAlign;
+        copy.whiteSpace = base.whiteSpace;
+        copy.textIndent = 0;
+        copy.letterSpacing = base.letterSpacing;
         copy.content = content == null ? "" : content;
         copy.size = new Size(Text.measureText(copy), copy.lineHeight);
         return copy;
+    }
+
+    private static double computeAlignedX(Text text, double contentWidth, double lineWidth, boolean firstLine) {
+        double alignOffset = switch (resolveLogicalTextAlign(text)) {
+            case "center" -> (contentWidth - lineWidth) / 2.0;
+            case "right" -> contentWidth - lineWidth;
+            default -> 0;
+        };
+        double indent = firstLine ? text.textIndent : 0;
+        if (text.isRtl()) indent = -indent;
+        return alignOffset + indent;
+    }
+
+    private static String resolveLogicalTextAlign(Text text) {
+        String align = text.textAlign == null ? "start" : text.textAlign;
+        if (align.equals("start")) return text.isRtl() ? "right" : "left";
+        if (align.equals("end")) return text.isRtl() ? "left" : "right";
+        if (align.equals("justify")) return text.isRtl() ? "right" : "left";
+        return align;
+    }
+
+    private static double computeVerticalOffset(Text text, double contentHeight, double textHeight) {
+        String align = text.verticalAlign == null ? "top" : text.verticalAlign;
+        return switch (align) {
+            case "middle", "center" -> (contentHeight - textHeight) / 2.0;
+            case "bottom", "text-bottom" -> contentHeight - textHeight;
+            default -> 0;
+        };
     }
 
     @Override

@@ -77,6 +77,12 @@ public class Style implements Cloneable {
     public String fontStyle = "unset";
     public String textStroke = "unset";
     public String lineHeight = "unset";
+    public String direction = "unset";
+    public String letterSpacing = "unset";
+    public String textAlign = "unset";
+    public String verticalAlign = "unset";
+    public String textIndent = "unset";
+    public String whiteSpace = "unset";
 
     public String flexDirection = "column";
     public String flexWrap = "nowrap";
@@ -240,6 +246,62 @@ public class Style implements Cloneable {
             }
         }
         return TextStroke.NONE;
+    }
+
+    public static String getTextDirection(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().direction;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "ltr";
+    }
+
+    public static String getTextAlign(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().textAlign;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "start";
+    }
+
+    public static String getVerticalAlign(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().verticalAlign;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "top";
+    }
+
+    public static String getWhiteSpace(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().whiteSpace;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "normal";
+    }
+
+    public static double getTextIndent(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().textIndent;
+            if (!value.equals("unset")) {
+                Double indent = Size.parseNumber(value);
+                return indent == null ? 0 : indent;
+            }
+        }
+        return 0;
+    }
+
+    public static double getLetterSpacing(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().letterSpacing;
+            if (!value.equals("unset")) {
+                String normalized = value.trim().toLowerCase(Locale.ROOT);
+                if (normalized.equals("normal")) return 0;
+                Double spacing = Size.parseNumber(value);
+                return spacing == null ? 0 : spacing;
+            }
+        }
+        return 0;
     }
 
     public static int getFontColor(Element element) {
@@ -433,7 +495,10 @@ public class Style implements Cloneable {
     }
 
     static Set<String> getTextProp() {
-        return Set.of("color", "font-size", "font-family", "font-weight", "font-style", "text-stroke");
+        return Set.of(
+                "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "line-height",
+                "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space"
+        );
     }
 
     public record TextStroke(int width, int color) {
