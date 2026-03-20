@@ -338,11 +338,31 @@ public class Client {
         }
     }
 
+    /**
+     * FIXME:
+     * 如果在某些情况（如窗口拖动等）鼠标位置缓存为空或者是读到旧的缓存值时请参考 {@link #getMousePositionDirectly()} 的实现。
+     * 未来建议重构，统一输入源，或在输入更新链中保证鼠标坐标始终同步。
+     *
+     * @see Operation#getMousePosition()
+     */
     public static Position getMousePosition() {
         MouseHandler mouseHandler = Minecraft.getInstance().mouseHandler;
         Window window = Minecraft.getInstance().getWindow();
         double scale = window.getGuiScale();
         return new Position(mouseHandler.xpos() / scale, mouseHandler.ypos() / scale);
+    }
+
+    /** 通过 GLFW 直接从窗口句柄获取实时坐标 */
+    public static Position getMousePositionDirectly() {
+        Window window = Minecraft.getInstance().getWindow();
+        long handle = window.getWindow();
+        if (handle != 0L) {
+            double[] xBuf = new double[1];
+            double[] yBuf = new double[1];
+            GLFW.glfwGetCursorPos(handle, xBuf, yBuf);
+            return new Position(xBuf[0] / window.getGuiScale(), yBuf[0] / window.getGuiScale());
+        }
+        return null;
     }
 
     public static boolean isKeyPressed(String keyName) {
