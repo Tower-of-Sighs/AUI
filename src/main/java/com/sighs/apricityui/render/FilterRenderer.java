@@ -345,6 +345,16 @@ public class FilterRenderer {
         if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
         if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
         if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
+        if (shader.getUniform("ShadowOffset") != null) shader.getUniform("ShadowOffset").set(state.dropShadowX(), state.dropShadowY());
+        if (shader.getUniform("ShadowBlur") != null) shader.getUniform("ShadowBlur").set(state.dropShadowBlur());
+        if (shader.getUniform("ShadowColor") != null) {
+            int c = state.dropShadowColor();
+            float a = ((c >>> 24) & 0xFF) / 255f;
+            float r = ((c >>> 16) & 0xFF) / 255f;
+            float g = ((c >>> 8) & 0xFF) / 255f;
+            float b = (c & 0xFF) / 255f;
+            shader.getUniform("ShadowColor").set(r, g, b, a);
+        }
         if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float) fbo.width, (float) fbo.height);
         if (shader.getUniform("ForceAlpha") != null) shader.getUniform("ForceAlpha").set(forceAlpha ? 1.0f : 0.0f);
         if (shader.getUniform("ClipEnabled") != null) shader.getUniform("ClipEnabled").set(0.0f);
