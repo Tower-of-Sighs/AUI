@@ -9,6 +9,9 @@ uniform float Grayscale;
 uniform float Invert;
 uniform float HueRotate;
 uniform float Opacity;
+uniform vec2 ShadowOffset;
+uniform float ShadowBlur;
+uniform vec4 ShadowColor;
 uniform float ForceAlpha;
 uniform vec4 ClipRect;
 uniform vec4 ClipRadii;
@@ -63,7 +66,7 @@ void main() {
     if (ForceAlpha > 0.5) {
         rawColor.a = 1.0;
     }
-    if (rawColor.a <= 0.001) discard;
+    if (rawColor.a <= 0.001 && ShadowColor.a <= 0.001) discard;
 
     vec4 color;
     if (BlurRadius >= 1) {
@@ -71,7 +74,7 @@ void main() {
         vec2 texelSize = vec2(1.0 / texSize.x, 1.0 / texSize.y);
 
         int radius = int(BlurRadius);
-        float sigma = float(radius) / 3.0;
+        float sigma = max(0.001, float(radius) / 3.0);
         float twoSigmaSq = 2.0 * sigma * sigma;
 
         vec3 blurSumLinear = vec3(0.0);
@@ -99,16 +102,46 @@ void main() {
             color.rgb = vec3(0.0);
         }
 
-        color.a = totalAlphaWeight / totalWeight;
+        color.a = (totalWeight > 0.0) ? (totalAlphaWeight / totalWeight) : 0.0;
     } else {
         color = rawColor;
+    }
+
+    vec4 shadow = vec4(0.0);
+    if (ShadowColor.a > 0.001) {
+        ivec2 texSize = textureSize(Sampler0, 0);
+        vec2 texelSize = vec2(1.0 / texSize.x, 1.0 / texSize.y);
+        vec2 shadowBaseUv = texCoord + vec2(-ShadowOffset.x, ShadowOffset.y) / InSize;
+
+        float shadowAlpha = 0.0;
+        if (ShadowBlur >= 1.0) {
+            int radius = int(ShadowBlur);
+            float sigma = max(0.001, float(radius) / 3.0);
+            float twoSigmaSq = 2.0 * sigma * sigma;
+            float totalWeight = 0.0;
+
+            for (int x = -radius; x <= radius; ++x) {
+                for (int y = -radius; y <= radius; ++y) {
+                    vec2 offset = vec2(x, y) * texelSize;
+                    vec4 sampleCol = texture(Sampler0, shadowBaseUv + offset);
+                    float sampleAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
+                    float weight = exp(-float(x*x + y*y) / twoSigmaSq);
+                    shadowAlpha += sampleAlpha * weight;
+                    totalWeight += weight;
+                }
+            }
+            shadowAlpha = (totalWeight > 0.0) ? (shadowAlpha / totalWeight) : 0.0;
+        } else {
+            vec4 sampleCol = texture(Sampler0, shadowBaseUv);
+            shadowAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
+        }
+        shadow = vec4(ShadowColor.rgb, ShadowColor.a * shadowAlpha);
     }
 
     if (color.a > 0.001) {
         color.rgb /= color.a;
     }
 
-    // 亮度、灰度、反色、色相旋转
     color.rgb *= Brightness;
     float gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
     color.rgb = mix(color.rgb, vec3(gray), Grayscale);
@@ -118,10 +151,12 @@ void main() {
         color.rgb = applyHue(color.rgb, HueRotate);
     }
 
-    float finalAlpha = color.a * Opacity;
+    float srcA = max(0.0, color.a * Opacity);
+    float shA = max(0.0, shadow.a);
+    float outA = srcA + shA * (1.0 - srcA);
+    if (outA <= 0.001) discard;
 
-    // 如果最终透明度太低再丢弃，提高性能
-    if (finalAlpha <= 0.001) discard;
-
-    fragColor = vec4(color.rgb, finalAlpha);
+    vec3 outPremul = color.rgb * srcA + shadow.rgb * shA * (1.0 - srcA);
+    vec3 outRgb = outPremul / outA;
+    fragColor = vec4(outRgb, outA);
 }

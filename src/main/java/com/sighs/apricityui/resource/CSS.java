@@ -66,6 +66,8 @@ public class CSS {
     }
 
     static class Parser {
+        private static final Pattern COMMENT_PATTERN = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
+        private static final Pattern RULE_PATTERN = Pattern.compile("(.*?)\\s*\\{([^}]*)}");
         private static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
         private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile(
                 "(?i)@(?:-webkit-)?keyframes\\s+((?:\"[^\"]+\"|'[^']+'|[\\w-]+))\\s*\\{"
@@ -74,7 +76,7 @@ public class CSS {
 
         public static String parseAndRegisterAnimations(String css, String contextPath) {
             if (css == null) return "";
-            StringBuilder cleanCss = new StringBuilder(css.replaceAll("/\\*.*?\\*/", ""));
+            StringBuilder cleanCss = new StringBuilder(COMMENT_PATTERN.matcher(css).replaceAll(""));
             Matcher matcher = KEYFRAMES_HEAD_PATTERN.matcher(cleanCss);
 
             int offset = 0;
@@ -124,8 +126,7 @@ public class CSS {
             if (css == null || css.isBlank()) return;
             String normalizedCss = parseAndRegisterAnimations(css, contextPath);
 
-            Pattern pattern = Pattern.compile("(.*?)\\s*\\{([^}]*)}");
-            Matcher matcher = pattern.matcher(normalizedCss);
+            Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
 
             while (matcher.find()) {
                 String selector = matcher.group(1).trim();

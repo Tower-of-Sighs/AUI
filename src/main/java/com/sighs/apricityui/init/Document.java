@@ -29,6 +29,7 @@ public class Document {
     public Body body;
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
+    private volatile boolean reloadPersistent = false;
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -41,24 +42,27 @@ public class Document {
 
     public void refresh() {
         CSSCache.clear();
+        JSCache.clear();
+        IDMap.clear();
         elements.clear();
         Element bodyElement = HTML.create(this, path);
         try {
-            // 特殊处理，手动转移body的事件。
+            if (bodyElement == null) return;
             if (body != null) bodyElement.EventListener = body.EventListener;
             body = (Body) Element.init(bodyElement);
-            elements.add(0, body);
+            rebuildElementIndexFromBody();
+
+            // First pass: ensure computed styles exist for DOM expanders.
             body.updateCSS();
             DocumentExpander.apply(this);
+
+            // Final pass: apply styles once after expansion.
+            body.updateCSS();
             elements.forEach(Element::clearDirtyFlags);
             dirtyElements.clear();
             paintList = Drawer.createPaintList(body);
-            elements.forEach(Element::updateCSS);
-            // 预加载图片
             ImageAsyncHandler.prefetchImages(this);
 
-            // 运行html内嵌js，写得肥肠简单，目前是简单的运行，也就是说会随刷新累积，原来挂着的内容比如Interval，还会继续运作。
-            // 目前是推荐写道load事件里，这样起码旧的DOM操作会在刷新的时候随着旧的EventListener列表被干掉。
             for (String js : JSCache) {
                 String head = "let document = ApricityUI.getDocumentByUUID(\"" + uuid + "\");\n";
                 head += "let window = ApricityUI.getWindow();";
@@ -70,6 +74,38 @@ public class Document {
         } catch (Exception ignored) {
         }
     }
+
+    private void rebuildElementIndexFromBody() {
+        elements.clear();
+        IDMap.clear();
+        if (body == null) return;
+
+        body.parentElement = null;
+        body.depth = 0;
+
+        Deque<Element> stack = new ArrayDeque<>();
+        stack.push(body);
+
+        while (!stack.isEmpty()) {
+            Element current = stack.pop();
+            elements.add(current);
+
+            current.runInitFromDomOnce(current);
+            if (current.id != null && !current.id.isBlank()) {
+                IDMap.put(current.id, current);
+            }
+
+            List<Element> children = current.children;
+            for (int i = children.size() - 1; i >= 0; i--) {
+                Element child = children.get(i);
+                if (child == null) continue;
+                child.parentElement = current;
+                child.depth = current.depth + 1;
+                stack.push(child);
+            }
+        }
+    }
+
 
     // 绘制队列，详见Drawer类
     public ArrayList<RenderNode> getPaintList() {
@@ -117,6 +153,14 @@ public class Document {
 
     public String getPath() {
         return path;
+    }
+
+    public boolean isReloadPersistent() {
+        return reloadPersistent;
+    }
+
+    public void setReloadPersistent(boolean reloadPersistent) {
+        this.reloadPersistent = reloadPersistent;
     }
 
     public Element createHTML(String html) {
@@ -169,7 +213,10 @@ public class Document {
     }
 
     public static void refreshAll() {
-        documents.forEach(Document::refresh);
+        for (Document document : documents) {
+            if (document == null || document.isReloadPersistent()) continue;
+            document.refresh();
+        }
     }
 
     // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
