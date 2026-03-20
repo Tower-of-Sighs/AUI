@@ -91,20 +91,15 @@ public final class Grid {
 
     public static Size computeContentSize(Element gridContainer) {
         Layout layout = computeLayout(gridContainer, gridContainer.children);
-        Box box = Box.of(gridContainer);
 
         if (layout.flow.isEmpty()) {
-            double w = box.getBorderHorizontal() + box.getPaddingHorizontal();
-            double h = box.getBorderVertical() + box.getPaddingVertical();
-            return new Size(w, h);
+            return Size.ZERO;
         }
 
         double gridW = sum(layout.colW) + (double) layout.gaps.colGap * Math.max(0, layout.colW.length - 1);
         double gridH = sum(layout.rowH) + (double) layout.gaps.rowGap * Math.max(0, layout.rowH.length - 1);
 
-        double totalW = gridW + box.getBorderHorizontal() + box.getPaddingHorizontal();
-        double totalH = gridH + box.getBorderVertical() + box.getPaddingVertical();
-        return new Size(totalW, totalH);
+        return new Size(gridW, gridH);
     }
 
     // ---------------- layout core ----------------
