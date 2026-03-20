@@ -417,12 +417,12 @@ public class Client {
         return Minecraft.getInstance().font.width(renderText) + stroke;
     }
 
-    public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
+    public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
         poseStack.pushPose();
         poseStack.translate(position.x, position.y, 0);
         poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 0f);
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-        MutableComponent renderText = Component.literal(text.content);
+        MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
         int stroke = Math.max(0, text.strokeWidth);
@@ -439,6 +439,10 @@ public class Client {
         Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
         bufferSource.endBatch();
         poseStack.popPose();
+    }
+
+    public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
+        drawDefaultFont(poseStack, text, text.content, position);
     }
 }
 

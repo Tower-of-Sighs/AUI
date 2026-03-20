@@ -1,0 +1,328 @@
+﻿<body>
+<div class="title">Text Style Regression Test</div>
+<div class="desc">用途: 专门回归文本相关样式。每个测试块都附带属性说明和预期效果，方便逐项核对。</div>
+
+<div class="layout">
+    <div class="panel left">
+        <div class="group">
+            <div class="group-title">基础字体属性</div>
+            <div class="line">1. color: 文本颜色。</div>
+            <div class="line">2. font-size: 字号，应影响测量和绘制。</div>
+            <div class="line">3. font-family: 字体族。</div>
+            <div class="line">4. font-weight: 字重，700 应明显更粗。</div>
+            <div class="line">5. font-style: oblique 斜体。</div>
+            <div class="line">6. line-height: 行高，应影响多行间距。</div>
+            <div class="line">7. text-stroke: 描边颜色和宽度。</div>
+        </div>
+
+        <div class="group">
+            <div class="group-title">新增文本属性</div>
+            <div class="line">1. direction: ltr / rtl，影响逻辑方向。</div>
+            <div class="line">2. letter-spacing: 字符间距。</div>
+            <div class="line">3. text-align: left / center / right / start / end。</div>
+            <div class="line">4. vertical-align: top / middle / bottom。</div>
+            <div class="line">5. text-indent: 首行缩进。</div>
+            <div class="line">6. white-space: normal / nowrap / pre / pre-line / pre-wrap。</div>
+        </div>
+
+        <div class="group">
+            <div class="group-title">预期检查重点</div>
+            <div class="line">1. 文本宽度计算应与绘制一致（含 letter-spacing）。</div>
+            <div class="line">2. 对齐应在容器内正确定位，不应被 padding/border 干扰。</div>
+            <div class="line">3. white-space 对空格和换行处理应可见差异。</div>
+            <div class="line">4. direction=rtl 时 start/end 与缩进方向应变化。</div>
+        </div>
+    </div>
+
+    <div class="panel right">
+        <div class="case">
+            <div class="case-title">A. 基础字体属性组合</div>
+            <div class="hint">预期: 第二行更大更粗更斜，且描边可见，行距明显拉开。</div>
+            <div class="box sample">
+                <span class="fs-normal lh-tight">Normal 11px / line-height 1.0</span>
+                <span class="fs-large fw-bold fst-oblique lh-loose stroke">Large Bold Oblique Stroke</span>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">B. letter-spacing 对比</div>
+            <div class="hint">预期: same text 从 normal 到 4px 字距逐渐变宽。</div>
+            <div class="box sample">
+                <span class="ls-normal">LETTER SPACING SAMPLE</span>
+                <span class="ls-2">LETTER SPACING SAMPLE</span>
+                <span class="ls-4">LETTER SPACING SAMPLE</span>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">C. text-align 对比</div>
+            <div class="hint">预期: 文本分别靠左/居中/靠右。</div>
+            <div>
+                <div class="col">
+                    <span class="box sample ta-left">text-align: left</span>
+                </div>
+                <div class="col">
+                    <span class="box sample ta-center">text-align: center</span>
+                </div>
+                <div class="col">
+                    <span class="box sample ta-right">text-align: right</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">D. vertical-align 对比</div>
+            <div class="hint">预期: 同高度容器内文本显示在顶部/中部/底部。</div>
+            <div>
+                <div class="col">
+                    <span class="box va-host sample va-top">vertical-align: top</span>
+                </div>
+                <div class="col">
+                    <span class="box va-host sample va-middle">vertical-align: middle</span>
+                </div>
+                <div class="col">
+                    <span class="box va-host sample va-bottom">vertical-align: bottom</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">E. text-indent 首行缩进</div>
+            <div class="hint">预期: 仅首行缩进，后续行不缩进。</div>
+            <div>
+                <div class="col">
+                    <div class="box sample ti-0 ws-pre-wrap" id="indent0">Indent test fallback text A   B   C</div>
+                </div>
+                <div class="col">
+                    <div class="box sample ti-16 ws-pre-wrap" id="indent16">Indent test fallback text A   B   C</div>
+                </div>
+                <div class="col">
+                    <div class="box sample ti-32 ws-pre-wrap" id="indent32">Indent test fallback text A   B   C</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">F. white-space 对比</div>
+            <div class="hint">预期: normal 折叠空白; nowrap 不换行; pre 保留空格和换行; pre-line 折叠空格保留换行; pre-wrap 同时保留并可换行。</div>
+            <div>
+                <div class="col"><div class="box sample ws-normal" id="ws-normal">A   B    C   fallback</div></div>
+                <div class="col"><div class="box sample ws-nowrap" id="ws-nowrap">A   B    C   fallback</div></div>
+            </div>
+            <div>
+                <div class="col"><div class="box sample ws-pre" id="ws-pre">A   B    C   fallback</div></div>
+                <div class="col"><div class="box sample ws-pre-line" id="ws-pre-line">A   B    C   fallback</div></div>
+                <div class="col"><div class="box sample ws-pre-wrap" id="ws-pre-wrap">A   B    C   fallback</div></div>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">G. direction + text-align:start/end</div>
+            <div class="hint">预期: ltr-start 靠左、ltr-end 靠右；rtl-start 靠右、rtl-end 靠左。</div>
+            <div>
+                <div class="col">
+                    <span class="box sample dir-ltr" style="text-align:start;">LTR start | ABC 123</span>
+                    <span class="box sample dir-ltr" style="text-align:end;">LTR end | ABC 123</span>
+                </div>
+                <div class="col">
+                    <span class="box sample dir-rtl" style="text-align:start;">RTL start | ABC 123</span>
+                    <span class="box sample dir-rtl" style="text-align:end;">RTL end | ABC 123</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 2px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        background-image: linear-gradient(160deg, #151a22 0%, #1f2a37 55%, #2e3f52 100%);
+        color: #eaf2ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        transform: translateZ(2px);
+    }
+
+    .title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #f9fbff;
+    }
+
+    .desc {
+        color: #bfd0ea;
+        font-size: 10px;
+        margin-top: 4px;
+    }
+
+    .layout {
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+    }
+
+    .panel {
+        border: 1px solid #5f7ba0;
+        border-radius: 8px;
+        background: rgba(8, 14, 24, 0.55);
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        overflow: hidden;
+        align-items: center;
+    }
+
+    .left {
+        width: 160px;
+        margin-right: 5px;
+    }
+
+    .right {
+        flex: 1;
+        overflow: hidden;
+        height: 204px;
+        width: 270px;
+    }
+
+    .group {
+        border: 1px dashed #6e8caf;
+        border-radius: 6px;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 150px;
+    }
+
+    .group-title {
+        color: #ffe49a;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .line {
+        color: #d3e2f6;
+        font-size: 10px;
+    }
+
+    .case {
+        border: 1px solid #49617f;
+        border-radius: 6px;
+        padding: 6px;
+        background: rgba(24, 35, 49, 0.5);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        width: 260px;
+    }
+
+    .case-title {
+        color: #ffcf7f;
+        font-size: 10px;
+    }
+
+    .hint {
+        color: #9fb5d6;
+        font-size: 9px;
+    }
+
+    .box {
+        width: 100%;
+        min-height: 36px;
+        max-height: 100px;
+        border: 1px solid #7ea0c8;
+        background: rgba(12, 18, 27, 0.75);
+        padding: 4px;
+        box-sizing: border-box;
+        color: #ffffff;
+    }
+
+    .col {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .sample {
+        color: #fff;
+        font-size: 11px;
+        line-height: 1.4;
+    }
+
+    .va-host {
+        height: 36px;
+        border: 1px dashed #7ea0c8;
+        padding: 4px;
+        box-sizing: border-box;
+    }
+
+    .fs-normal { font-size: 11px; }
+    .fs-large { font-size: 18px; }
+    .fw-bold { font-weight: 700; }
+    .fst-oblique { font-style: oblique; }
+    .lh-tight { line-height: 1.0; }
+    .lh-loose { line-height: 2.0; }
+    .stroke { text-stroke: 3px #7ea0c8; }
+
+    .ls-normal { letter-spacing: normal; }
+    .ls-2 { letter-spacing: 2px; }
+    .ls-4 { letter-spacing: 4px; }
+
+    .ta-left { text-align: left; }
+    .ta-center { text-align: center; }
+    .ta-right { text-align: right; }
+
+    .ti-0 { text-indent: 0; }
+    .ti-16 { text-indent: 16px; }
+    .ti-32 { text-indent: 32px; }
+
+    .dir-ltr { direction: ltr; }
+    .dir-rtl { direction: rtl; }
+
+    .ws-normal { white-space: normal; }
+    .ws-nowrap { white-space: nowrap; }
+    .ws-pre { white-space: pre; }
+    .ws-pre-line { white-space: pre-line; }
+    .ws-pre-wrap { white-space: pre-wrap; }
+
+    .va-top { vertical-align: top; }
+    .va-middle { vertical-align: middle; }
+    .va-bottom { vertical-align: bottom; }
+</style>
+
+<script>
+    let paragraph = "FIRST LINE for indent test.\nSecond line should not be indented.\nThird line checks wrapping behavior.";
+    let indent0 = document.querySelector("#indent0");
+    let indent16 = document.querySelector("#indent16");
+    let indent32 = document.querySelector("#indent32");
+    if (indent0) indent0.innerText = paragraph;
+    if (indent16) indent16.innerText = paragraph;
+    if (indent32) indent32.innerText = paragraph;
+
+    let wsText = "A   B    C\nD     E  F\nLongLongLongLongLong token";
+    let wsNormal = document.querySelector("#ws-normal");
+    let wsNoWrap = document.querySelector("#ws-nowrap");
+    let wsPre = document.querySelector("#ws-pre");
+    let wsPreLine = document.querySelector("#ws-pre-line");
+    let wsPreWrap = document.querySelector("#ws-pre-wrap");
+    if (wsNormal) wsNormal.innerText = wsText;
+    if (wsNoWrap) wsNoWrap.innerText = wsText;
+    if (wsPre) wsPre.innerText = wsText;
+    if (wsPreLine) wsPreLine.innerText = wsText;
+    if (wsPreWrap) wsPreWrap.innerText = wsText;
+</script>
+</body>
+
+

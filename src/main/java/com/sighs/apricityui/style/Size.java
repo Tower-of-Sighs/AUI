@@ -179,29 +179,24 @@ public record Size(double width, double height) {
 
     public static double measureText(Element element, String text) {
         if (text == null || text.isEmpty()) return 0;
-
-        String fontFamily = Style.getFontFamily(element);
-        int fontWeight = Style.getFontWeight(element);
-        boolean oblique = Style.isOblique(element);
-        Style.TextStroke stroke = Style.getTextStroke(element);
-
-        if (fontFamily.equals("unset"))
-            return Client.getDefaultFontWidth(text, fontWeight >= 600, oblique, stroke.width());
-
-        java.awt.Font baseFont = Font.getBaseFont(fontFamily);
-        if (baseFont == null) return 0;
-        int fontStyle = java.awt.Font.PLAIN;
-        if (fontWeight >= 600) fontStyle |= java.awt.Font.BOLD;
-        if (oblique) fontStyle |= java.awt.Font.ITALIC;
-        java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
-
-        FontMetrics fm = METRICS_CANVAS.getFontMetrics(resolvedFont);
-        int baseWidth = fm.stringWidth(text);
-
-        float currentSize = (float) Style.getFontSize(element);
-        float scale = currentSize / Font.getBaseFontSize();
-
-        return baseWidth * scale + stroke.width() * 2.0;
+        Text base = Text.of(element);
+        Text measuring = new Text();
+        measuring.fontSize = base.fontSize;
+        measuring.fontWeight = base.fontWeight;
+        measuring.oblique = base.oblique;
+        measuring.strokeWidth = base.strokeWidth;
+        measuring.strokeColor = base.strokeColor;
+        measuring.color = base.color;
+        measuring.fontFamily = base.fontFamily;
+        measuring.lineHeight = base.lineHeight;
+        measuring.direction = base.direction;
+        measuring.textAlign = base.textAlign;
+        measuring.verticalAlign = base.verticalAlign;
+        measuring.whiteSpace = base.whiteSpace;
+        measuring.textIndent = 0;
+        measuring.letterSpacing = base.letterSpacing;
+        measuring.content = text;
+        return Text.measureText(measuring);
     }
 }
 
