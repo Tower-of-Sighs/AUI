@@ -70,10 +70,10 @@ public class Operation {
     }
 
     public static boolean onKeyPressed(int key, boolean repeat) {
-        return onKeyPressed(key, 0, 0, repeat, com.sighs.apricityui.event.KeyEvent.Source.INPUT_EVENT);
+        return onKeyPressed(key, 0, 0, repeat, KeyEvent.Source.INPUT_EVENT);
     }
 
-    public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, com.sighs.apricityui.event.KeyEvent.Source source) {
+    public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, KeyEvent.Source source) {
         boolean cancel = false;
         for (Document document : Document.getAll()) {
             KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
@@ -179,10 +179,10 @@ public class Operation {
     }
 
     public static void onKeyReleased(int key) {
-        onKeyReleased(key, 0, 0, com.sighs.apricityui.event.KeyEvent.Source.INPUT_EVENT);
+        onKeyReleased(key, 0, 0, KeyEvent.Source.INPUT_EVENT);
     }
 
-    public static void onKeyReleased(int key, int scanCode, int modifiers, com.sighs.apricityui.event.KeyEvent.Source source) {
+    public static void onKeyReleased(int key, int scanCode, int modifiers, KeyEvent.Source source) {
         for (Document document : Document.getAll()) {
             KeyEvent.triggerEvent(document, "keyup", key, scanCode, modifiers, false, source);
         }
@@ -218,7 +218,25 @@ public class Operation {
         return "";
     }
 
+    /**
+     * FIXME:
+     * 如果在某些情况（如窗口拖动等）鼠标位置缓存为空或者是读到旧的缓存值时请参考{@link #getMousePositionDirectly()}
+     * 未来建议重构，统一输入源，或在输入更新链中保证鼠标坐标始终同步。
+     *
+     * @see Client#getMousePosition()
+     */
     public static Position getMousePosition() {
+        return cachedMousePosition;
+    }
+
+    public static Position getMousePositionDirectly() {
+        Position live = Client.getMousePositionDirectly();
+        if (live != null) {
+            if (cachedMousePosition == null) {
+                cachedMousePosition = live;
+            }
+            return live;
+        }
         return cachedMousePosition;
     }
 
@@ -247,7 +265,7 @@ public class Operation {
         return Client.isKeyPressed(key);
     }
 
-    public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers, boolean repeat, com.sighs.apricityui.event.KeyEvent.Source source) {
+    public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers, boolean repeat, KeyEvent.Source source) {
         if (isDuplicateKeyEvent(key, scanCode, action, modifiers)) {
             return false;
         }
