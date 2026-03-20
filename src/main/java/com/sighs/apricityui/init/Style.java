@@ -15,6 +15,7 @@ public class Style implements Cloneable {
 
     public String width = "unset";
     public String height = "unset";
+    public String boxSizing = "content-box";
     public String overflow = "visible";
     public String opacity = "1.0";
     public String boxShadow = "unset";

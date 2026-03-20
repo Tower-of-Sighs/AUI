@@ -6,10 +6,13 @@ import com.sighs.apricityui.init.Style;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 public class Box {
     public static final List<String> SIDE = List.of("top", "bottom", "left", "right");
+    public static final String BOX_SIZING_CONTENT_BOX = "content-box";
+    public static final String BOX_SIZING_BORDER_BOX = "border-box";
     public final HashMap<String, SideBorder> border = new HashMap<>();
     public final HashMap<String, Double> margin = new HashMap<>();
     public final HashMap<String, Double> padding = new HashMap<>();
@@ -148,6 +151,22 @@ public class Box {
 
     public Size elementSize() {
         return Size.of(element);
+    }
+
+    public String getBoxSizing() {
+        if (element == null) return BOX_SIZING_CONTENT_BOX;
+        return normalizeBoxSizing(element.getComputedStyle().boxSizing);
+    }
+
+    public boolean isBorderBox() {
+        return BOX_SIZING_BORDER_BOX.equals(getBoxSizing());
+    }
+
+    public static String normalizeBoxSizing(String raw) {
+        if (raw == null) return BOX_SIZING_CONTENT_BOX;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if (BOX_SIZING_BORDER_BOX.equals(value)) return BOX_SIZING_BORDER_BOX;
+        return BOX_SIZING_CONTENT_BOX;
     }
 
     private double resolveBoxLength(String value) {
