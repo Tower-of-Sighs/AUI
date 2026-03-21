@@ -102,27 +102,7 @@ public record Size(double width, double height) {
     }
 
     public static Size getContentSize(Element element) {
-        Style style = element.getComputedStyle();
-        if ("grid".equals(style.display)) {
-            return Grid.computeContentSize(element);
-        }
-        boolean flexColumn = Flex.of(element).flexDirection.isColumn();
-        double totalWidth = 0, totalHeight = 0;
-
-        for (Element child : element.children) {
-            Style childStyle = child.getComputedStyle();
-            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display))
-                continue;
-            Size size = Size.box(child);
-            if (flexColumn) {
-                totalWidth = Math.max(totalWidth, size.width);
-                totalHeight += size.height;
-            } else {
-                totalHeight = Math.max(totalHeight, size.height);
-                totalWidth += size.width;
-            }
-        }
-        return new Size(totalWidth, totalHeight);
+        return Layout.computeContentSize(element);
     }
 
     public static Size box(Element element) {

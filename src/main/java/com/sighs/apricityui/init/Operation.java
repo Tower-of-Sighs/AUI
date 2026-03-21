@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.TextArea;
@@ -22,20 +23,20 @@ public class Operation {
     private static int lastAction = -1;
     private static int lastModifiers = -1;
 
-    public static void onMouseDown() {
-        onMouseDown(-1);
+    public static boolean onMouseDown() {
+        return onMouseDown(-1);
     }
 
-    public static void onMouseDown(int button) {
-        MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition()));
+    public static boolean onMouseDown(int button) {
+        return MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition(), button));
     }
 
-    public static void onMouseUp() {
-        onMouseUp(-1);
+    public static boolean onMouseUp() {
+        return onMouseUp(-1);
     }
 
-    public static void onMouseUp(int button) {
-        MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition()));
+    public static boolean onMouseUp(int button) {
+        return MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition(), button));
     }
 
     public static void onMouseMove(Position currentMousePosition) {
@@ -48,10 +49,10 @@ public class Operation {
         cachedMousePosition = currentMousePosition;
     }
 
-    public static void scroll(double delta) {
+    public static boolean scroll(double delta) {
         MouseEvent mouseEvent = new MouseEvent("scroll", getMousePosition());
         mouseEvent.scrollDelta = -delta * 50;
-        MouseEvent.tiggerEvent(mouseEvent);
+        return MouseEvent.tiggerEvent(mouseEvent);
     }
 
     public static boolean onCharTyped(char code) {
@@ -171,6 +172,9 @@ public class Operation {
         }
         if (!repeat && key == GLFW.GLFW_KEY_F12) {
             DevTools.toggle();
+        }
+        if (!repeat && key == GLFW.GLFW_KEY_F10) {
+            ResourceManager.toggle();
         }
         if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
             Loader.reload();

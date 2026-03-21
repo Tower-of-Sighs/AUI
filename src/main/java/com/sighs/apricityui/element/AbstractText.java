@@ -40,6 +40,16 @@ public abstract class AbstractText extends Element {
         addEventListener("mousedown", event -> {
             if (!(event instanceof MouseEvent mouseEvent)) return;
             if (!canEditText() && !canSelectText()) return;
+            if (document != null) {
+                document.clearAllTextSelectionsExcept(this);
+            }
+
+            if (canSelectText() && Style.isUserSelectAll(this)) {
+                selectAll();
+                selecting = false;
+                clampScroll();
+                return;
+            }
 
             locateCursor(mouseEvent.offsetX, mouseEvent.offsetY);
             if (canSelectText() && mouseEvent.shiftKey) {

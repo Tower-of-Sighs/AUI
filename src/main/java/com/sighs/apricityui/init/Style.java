@@ -20,7 +20,7 @@ public class Style implements Cloneable {
     public String opacity = "1.0";
     public String boxShadow = "unset";
     public String zIndex = "auto";
-    public String display = "flex";
+    public String display = "block";
 
     public String gridTemplateColumns = "unset";
     public String gridTemplateRows = "unset";
@@ -354,12 +354,24 @@ public class Style implements Cloneable {
             current = current.parentElement;
         }
         if (resolved.equals("unset")) return "auto";
-        return resolved;
+        return normalizeUserSelect(resolved);
+    }
+
+    public static String normalizeUserSelect(String raw) {
+        if (raw == null || raw.isBlank()) return "auto";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "none", "text", "all", "auto" -> value;
+            default -> "auto";
+        };
+    }
+
+    public static boolean isUserSelectAll(Element element) {
+        return getUserSelect(element).equals("all");
     }
 
     public static boolean isUserSelectable(Element element) {
-        String value = getUserSelect(element);
-        return !value.equals("none");
+        return !getUserSelect(element).equals("none");
     }
 
     public void merge(String styleString) {
@@ -370,7 +382,7 @@ public class Style implements Cloneable {
         }
         String[] entries = styleString.split(";");
         for (String entry : entries) {
-            String[] content = entry.split(":");
+            String[] content = entry.split(":", 2);
             if (content.length == 2) {
                 update(content[0].trim(), content[1]);
             }
@@ -386,6 +398,10 @@ public class Style implements Cloneable {
             return;
         }
         String styleName = transformStyleName(name);
+        if ("background".equals(styleName)) {
+            applyBackgroundShorthand(value);
+            return;
+        }
         try {
             Field field = FIELD_CACHE.get(styleName);
             if (field == null) {
@@ -395,6 +411,48 @@ public class Style implements Cloneable {
             field.set(this, value);
         } catch (NoSuchFieldException | IllegalAccessException ignored) {
         }
+    }
+
+    private void applyBackgroundShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+
+        backgroundColor = "unset";
+        backgroundImage = "unset";
+        backgroundRepeat = "unset";
+        backgroundSize = "unset";
+        backgroundPosition = "unset";
+
+        if (value.isEmpty() || "unset".equalsIgnoreCase(value)) return;
+        if ("none".equalsIgnoreCase(value)) {
+            backgroundImage = "none";
+            return;
+        }
+
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.contains("url(") || lower.contains("gradient(")) {
+            backgroundImage = value;
+        }
+
+        if (isColorToken(value)) {
+            backgroundColor = value;
+            return;
+        }
+
+        String[] tokens = value.split("\\s+");
+        for (String token : tokens) {
+            if (isColorToken(token)) {
+                backgroundColor = token;
+                break;
+            }
+        }
+    }
+
+    private static boolean isColorToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        String value = token.trim().toLowerCase(Locale.ROOT);
+        if ("transparent".equals(value)) return true;
+        if (value.startsWith("#")) return true;
+        return value.startsWith("rgb(") || value.startsWith("rgba(") || value.startsWith("hsl(") || value.startsWith("hsla(");
     }
 
     public String get(String name) {

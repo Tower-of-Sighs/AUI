@@ -212,21 +212,24 @@ public class Client {
 
     @SubscribeEvent
     public static void scroll(InputEvent.MouseScrollingEvent event) {
-        Operation.scroll(event.getScrollDelta());
+        if (Minecraft.getInstance().screen != null) return;
+        boolean consumed = Operation.scroll(event.getScrollDelta());
         for (WorldWindow window : WorldWindow.windows) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
                 mouseEvent.scrollDelta = -event.getScrollDelta() * 50;
-                MouseEvent.tiggerEvent(mouseEvent, window.document);
-                event.setCanceled(true);
+                consumed |= MouseEvent.tiggerEvent(mouseEvent, window.document);
             }
         }
+        if (consumed) event.setCanceled(true);
     }
 
     @SubscribeEvent
-    public static void scroll(ScreenEvent.MouseScrolled.Post event) {
-        Operation.scroll(event.getScrollDelta());
+    public static void scroll(ScreenEvent.MouseScrolled.Pre event) {
+        if (Operation.scroll(event.getScrollDelta())) {
+            event.setCanceled(true);
+        }
     }
 
     @SubscribeEvent
@@ -238,20 +241,24 @@ public class Client {
 
     @SubscribeEvent
     public static void mouseButton(InputEvent.MouseButton.Pre event) {
-        if (event.getAction() == InputConstants.PRESS) Operation.onMouseDown();
-        if (event.getAction() == InputConstants.RELEASE) Operation.onMouseUp();
-        if (Minecraft.getInstance().screen != null) return;
+        boolean consumed = false;
+        if (event.getAction() == InputConstants.PRESS) consumed = Operation.onMouseDown(event.getButton());
+        if (event.getAction() == InputConstants.RELEASE) consumed = Operation.onMouseUp(event.getButton());
+        if (Minecraft.getInstance().screen != null) {
+            if (consumed) event.setCanceled(true);
+            return;
+        }
         for (WorldWindow window : WorldWindow.windows) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 if (event.getAction() == InputConstants.PRESS) {
-                    MouseEvent.tiggerEvent(new MouseEvent("mousedown", realPos), window.document);
+                    consumed |= MouseEvent.tiggerEvent(new MouseEvent("mousedown", realPos, event.getButton()), window.document);
                 } else {
-                    MouseEvent.tiggerEvent(new MouseEvent("mouseup", realPos), window.document);
+                    consumed |= MouseEvent.tiggerEvent(new MouseEvent("mouseup", realPos, event.getButton()), window.document);
                 }
-                event.setCanceled(true);
             }
         }
+        if (consumed) event.setCanceled(true);
     }
 
     @SubscribeEvent

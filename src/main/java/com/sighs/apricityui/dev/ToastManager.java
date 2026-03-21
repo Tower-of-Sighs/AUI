@@ -1,5 +1,8 @@
-package com.sighs.apricityui.init;
+package com.sighs.apricityui.dev;
 
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.resource.HTML;
 
 import java.util.Map;
@@ -14,7 +17,7 @@ public final class ToastManager {
     private static final Map<String, ToastRef> ACTIVE = new ConcurrentHashMap<>();
 
     private static final String DOC_TEMPLATE = """
-            <body style="position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:2147483000;">
+            <body style="transform:translateZ(10000px);position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;">
               <div id="aui-toast-list" style="position:fixed;top:12px;right:12px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:38%;pointer-events:none;"></div>
             </body>
             """;
