@@ -35,11 +35,14 @@ public class Event {
         return result;
     }
 
-    public static void tiggerEvent(Event targetEvent) {
+    public static boolean tiggerEvent(Event targetEvent) {
         Element target = targetEvent.target;
+        if (target == null) return false;
+
         String type = targetEvent.type;
         ArrayList<Element> route = target.getRoute();
         route.remove(target);
+        AtomicBoolean listenerTriggered = new AtomicBoolean(false);
 
         // 捕获阶段，从body一直传递到目标元素的父元素。
         Collections.reverse(route);
@@ -48,22 +51,24 @@ public class Event {
                 if (event.type.equals(type) && event.useCapture) {
                     targetEvent.currentTarget = element;
                     targetEvent.listener = event.listener;
+                    listenerTriggered.set(true);
                     event.listener.accept(targetEvent);
                 }
             });
         }
-        if (targetEvent.stoppedPropagation) return;
-        // 目标阶段
-//        triggerSingle(targetEvent);
+        if (targetEvent.stoppedPropagation) return listenerTriggered.get();
+
         target.triggerEvent(event -> {
             if (event.type.equals(type)) {
                 targetEvent.currentTarget = target;
                 targetEvent.listener = event.listener;
+                listenerTriggered.set(true);
                 event.listener.accept(targetEvent);
             }
         });
-        if (targetEvent.stoppedPropagation) return;
         // 冒泡阶段，事件从目标元素的父元素开始向上冒泡回body。
+        if (targetEvent.stoppedPropagation) return listenerTriggered.get();
+
         Collections.reverse(route);
         for (Element element : route) {
             AtomicBoolean stoppedPropagation = new AtomicBoolean(false);
@@ -71,23 +76,31 @@ public class Event {
                 if (event.type.equals(type) && !event.useCapture) {
                     targetEvent.currentTarget = element;
                     targetEvent.listener = event.listener;
+                    listenerTriggered.set(true);
                     event.listener.accept(targetEvent);
                     stoppedPropagation.set(targetEvent.stoppedPropagation);
                 }
             });
             if (stoppedPropagation.get()) break;
         }
+
+        return listenerTriggered.get();
     }
 
-    public static void triggerSingle(Event targetEvent) {
+    public static boolean triggerSingle(Event targetEvent) {
         Element target = targetEvent.target;
+        if (target == null) return false;
+
         String type = targetEvent.type;
+        AtomicBoolean listenerTriggered = new AtomicBoolean(false);
         target.triggerEvent(event -> {
             if (event.type.equals(type)) {
                 targetEvent.currentTarget = target;
                 targetEvent.listener = event.listener;
+                listenerTriggered.set(true);
                 event.listener.accept(targetEvent);
             }
         });
+        return listenerTriggered.get();
     }
 }

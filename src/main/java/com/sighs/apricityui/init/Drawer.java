@@ -62,8 +62,12 @@ public class Drawer {
     }
 
     private static void processStackingContext(Element contextRoot, List<RenderNode> paintList, AABB currentClip) {
-        Rect rootRect = Rect.of(contextRoot);
         Style rootStyle = contextRoot.getComputedStyle();
+        if ("none".equals(rootStyle.display)) {
+            // CSS display:none should suppress the entire subtree, not just the node itself.
+            return;
+        }
+        Rect rootRect = Rect.of(contextRoot);
 
         boolean hasClipPath = !"none".equals(rootStyle.clipPath);
         if (hasClipPath) {
@@ -124,6 +128,9 @@ public class Drawer {
 
         for (int i = 0; i < children.size(); i++) {
             Element child = children.get(i);
+            if ("none".equals(child.getComputedStyle().display)) {
+                continue;
+            }
             Rect childRect = Rect.of(child);
             if (!childRect.getVisualBounds().intersects(childClip)) {
                 continue;

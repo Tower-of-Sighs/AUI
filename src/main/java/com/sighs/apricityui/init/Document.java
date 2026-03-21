@@ -317,8 +317,10 @@ public class Document {
                 focusedElement.clearTextSelection();
             }
             focusedElement.setFocus(false);
-            for (Event event : focusedElement.EventListener) {
-                if (event.type.equals("blur")) focusedElement.triggerEvent(event.listener);
+            ArrayList<Event> blurSnapshot = new ArrayList<>(focusedElement.EventListener);
+            for (Event event : blurSnapshot) {
+                if (!"blur".equals(event.type) || event.listener == null) continue;
+                event.listener.accept(event);
             }
         }
 
@@ -326,14 +328,43 @@ public class Document {
 
         if (element != null) {
             element.setFocus(true);
-            for (Event event : element.EventListener) {
-                if (event.type.equals("focus")) element.triggerEvent(event.listener);
+            ArrayList<Event> focusSnapshot = new ArrayList<>(element.EventListener);
+            for (Event event : focusSnapshot) {
+                if (!"focus".equals(event.type) || event.listener == null) continue;
+                event.listener.accept(event);
             }
         }
     }
 
+
+    public boolean hasAnyTextSelection() {
+        for (Element element : elements) {
+            if (element instanceof AbstractText textElement) {
+                if (textElement.hasSelection()) return true;
+                continue;
+            }
+            if (element.hasInnerTextSelection()) return true;
+        }
+        return false;
+    }
+
+    public void clearAllTextSelections() {
+        clearAllTextSelectionsExcept(null);
+    }
+
+    public void clearAllTextSelectionsExcept(Element keep) {
+        for (Element element : elements) {
+            if (element == keep) continue;
+            if (element instanceof AbstractText textElement) {
+                if (textElement.hasSelection()) textElement.clearSelection();
+                continue;
+            }
+            if (element.hasInnerTextSelection()) element.clearTextSelection();
+        }
+    }
     // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
     public void clearFocus() {
         setFocusedElement(null);
     }
 }
+

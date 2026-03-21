@@ -4,7 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.ToastManager;
+import com.sighs.apricityui.dev.ToastManager;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
@@ -40,6 +40,21 @@ import java.util.stream.Stream;
 @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID)
 public class Loader {
     private static final String DEV_ASSET_ROOT = "src/main/resources/assets/apricityui/apricity";
+    public enum ResourceLayer {
+        RESOURCE_PACK,
+        LOCAL_FOLDER,
+        DEV_FOLDER
+    }
+
+    public record StaticResourceEntry(
+            String path,
+            String extension,
+            ResourceLayer layer,
+            String sourceRoot,
+            String sourceDetail,
+            long sizeBytes
+    ) {
+    }
 
     @SubscribeEvent
     public static void setup(FMLCommonSetupEvent event) {
@@ -61,6 +76,8 @@ public class Loader {
         long refreshStartNs = System.nanoTime();
         Document.refreshAll();
         WorldWindow.windows.forEach(worldWindow -> worldWindow.document.refresh());
+        DevTools.refresh();
+        com.sighs.apricityui.dev.ResourceManager.refresh();
         long refreshCostMs = (System.nanoTime() - refreshStartNs) / 1_000_000L;
 
         long totalCostMs = (System.nanoTime() - beginNs) / 1_000_000L;
@@ -96,6 +113,16 @@ public class Loader {
         } catch (IOException ignored) {
         }
         return null;
+    }
+
+    public static List<StaticResourceEntry> listFinalStaticResources() {
+        LinkedHashMap<String, StaticResourceEntry> merged = new LinkedHashMap<>();
+        loadResourcePackEntries(merged);
+        loadLocalFolderEntries(merged);
+        loadDevFolderEntries(merged);
+        return merged.values().stream()
+                .sorted(Comparator.comparing(StaticResourceEntry::path))
+                .toList();
     }
 
     public static boolean isRemotePath(String path) {
@@ -227,6 +254,86 @@ public class Loader {
         List<Path> roots = new ArrayList<>(candidates);
         roots.sort(Comparator.comparingInt((Path path) -> distanceFrom(gameDir, path)).reversed());
         return roots;
+    }
+
+    private static void loadResourcePackEntries(Map<String, StaticResourceEntry> merged) {
+        ResourceManager manager = Minecraft.getInstance().getResourceManager();
+        Map<ResourceLocation, Resource> resources = manager.listResources("apricity", loc -> true);
+        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
+            ResourceLocation location = entry.getKey();
+            String path = location.getPath();
+            if (path.startsWith("apricity/")) path = path.substring(9);
+            if (path.isBlank()) continue;
+            Resource resource = entry.getValue();
+            String sourcePack = safe(resource.sourcePackId());
+            merged.put(path, new StaticResourceEntry(
+                    path,
+                    extensionOf(path),
+                    ResourceLayer.RESOURCE_PACK,
+                    "resource-pack",
+                    sourcePack,
+                    -1L
+            ));
+        }
+    }
+
+    private static void loadLocalFolderEntries(Map<String, StaticResourceEntry> merged) {
+        Path root = FMLPaths.GAMEDIR.get().resolve("apricity").toAbsolutePath().normalize();
+        loadFromRootEntries(merged, root, ResourceLayer.LOCAL_FOLDER, root.toString(), root.toString());
+    }
+
+    private static void loadDevFolderEntries(Map<String, StaticResourceEntry> merged) {
+        List<Path> devRoots = getDevResourceRoots();
+        if (devRoots.isEmpty()) return;
+        List<Path> loadOrder = new ArrayList<>(devRoots);
+        Collections.reverse(loadOrder);
+        for (Path root : loadOrder) {
+            String sourceRoot = root.toAbsolutePath().normalize().toString();
+            loadFromRootEntries(merged, root, ResourceLayer.DEV_FOLDER, sourceRoot, sourceRoot);
+        }
+    }
+
+    private static void loadFromRootEntries(
+            Map<String, StaticResourceEntry> merged,
+            Path root,
+            ResourceLayer layer,
+            String sourceRoot,
+            String sourceDetail
+    ) {
+        try {
+            if (!Files.exists(root) || !Files.isDirectory(root)) return;
+            try (Stream<Path> paths = Files.walk(root)) {
+                paths.filter(Files::isRegularFile)
+                        .forEach(path -> {
+                            try {
+                                String relPath = root.relativize(path).toString().replace("\\", "/");
+                                if (relPath.isBlank()) return;
+                                long size = Files.size(path);
+                                merged.put(relPath, new StaticResourceEntry(
+                                        relPath,
+                                        extensionOf(relPath),
+                                        layer,
+                                        sourceRoot,
+                                        sourceDetail,
+                                        size
+                                ));
+                            } catch (IOException ignored) {
+                            }
+                        });
+            }
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static String extensionOf(String path) {
+        if (path == null) return "";
+        int idx = path.lastIndexOf('.');
+        if (idx < 0 || idx == path.length() - 1) return "";
+        return path.substring(idx + 1).toLowerCase(Locale.ROOT);
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
     }
 
     public static List<Path> getWatchRoots() {

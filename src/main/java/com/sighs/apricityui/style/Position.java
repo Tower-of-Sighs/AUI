@@ -63,11 +63,7 @@ public class Position {
     }
 
     private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {
-        Style ps = parent.getComputedStyle();
-        if ("grid".equals(ps.display)) {
-            return Grid.computeChildPosition(element, parent, siblings);
-        }
-        return Flex.computeChildPosition(element, parent, siblings);
+        return Layout.computeChildPosition(element, parent, siblings);
     }
 
     public static int parseSignedInt(String str) {
