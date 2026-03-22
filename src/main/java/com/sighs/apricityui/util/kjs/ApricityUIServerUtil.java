@@ -11,4 +11,8 @@ public class ApricityUIServerUtil {
     public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
         ApricityScreenNetworkHandler.openScreen(player, path, plan);
     }
+
+    public static OpenBindPlan.Builder bind() {
+        return OpenBindPlan.builder();
+    }
 }
