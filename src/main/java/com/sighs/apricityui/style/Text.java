@@ -7,6 +7,7 @@ import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -37,6 +38,7 @@ public class Text {
         Text text = new Text();
         text.content = element.innerText;
         if (element.tagName.equals("INPUT")) text.content = element.value;
+        if (element.tagName.equals("TEXTAREA")) text.content = element.value;
         String lineHeight = null;
         boolean resolvedFontStyle = false;
         boolean resolvedTextStroke = false;
@@ -135,14 +137,17 @@ public class Text {
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
+        if (!resolvedWhiteSpace) {
+            if (element.tagName.equals("PRE")) text.whiteSpace = "pre";
+            else if (element.tagName.equals("TEXTAREA")) text.whiteSpace = "pre-wrap";
+        }
         if (!(element instanceof AbstractText)) {
             text.content = normalizeWhiteSpaceContent(text.content, text.whiteSpace);
         }
 
-        int lineCount = splitLines(text.content).size();
         if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text.fontSize, lineHeight);
-        double width = measureText(text);
-        text.size = new Size(width, text.lineHeight * Math.max(1, lineCount));
+        WrappedText wrapped = wrap(element, text);
+        text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
 
         element.getRenderer().text.set(text);
         return text;
@@ -186,6 +191,7 @@ public class Text {
     }
 
     public static double measureLine(Text text, String line) {
+        if (text == null) return 0;
         if (line == null || line.isEmpty()) return 0;
         int glyphCount = line.codePointCount(0, line.length());
         double letterSpacingWidth = glyphCount > 1 ? text.letterSpacing * (glyphCount - 1) : 0;
@@ -202,7 +208,7 @@ public class Text {
         java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
 
         FontMetrics fm = METRICS_CANVAS.getFontMetrics(resolvedFont);
-        int baseWidth = fm.stringWidth(text.content);
+        int baseWidth = fm.stringWidth(line);
 
         float currentSize = (float) text.fontSize;
         float scale = currentSize / Font.getBaseFontSize();
@@ -268,6 +274,141 @@ public class Text {
         return List.of((content == null ? "" : content).split("\n", -1));
     }
 
+    public static WrappedText wrap(Element element) {
+        return wrap(element, Text.of(element));
+    }
+
+    public static WrappedText wrap(Element element, Text text) {
+        return wrap(text, resolveWrapWidth(element, text));
+    }
+
+    public static WrappedText wrap(Text text, double wrapWidth) {
+        String content = text == null || text.content == null ? "" : text.content;
+        List<String> hardLines = splitLines(content);
+        List<String> lines = new ArrayList<>();
+        List<Integer> starts = new ArrayList<>();
+        double maxWidth = 0;
+        boolean allowsSoftWrap = allowsSoftWrap(text == null ? null : text.whiteSpace) && wrapWidth > 0;
+        int cursor = 0;
+
+        for (String hardLine : hardLines) {
+            if (!allowsSoftWrap) {
+                lines.add(hardLine);
+                starts.add(cursor);
+                maxWidth = Math.max(maxWidth, measureLine(text, hardLine));
+            } else {
+                wrapHardLine(text, hardLine, cursor, wrapWidth, lines, starts);
+            }
+            cursor += hardLine.length() + 1;
+        }
+
+        if (lines.isEmpty()) {
+            lines.add("");
+            starts.add(0);
+        }
+        for (int i = 0; i < lines.size(); i++) {
+            maxWidth = Math.max(maxWidth, measureLine(text, lines.get(i)));
+        }
+        if (wrapWidth > 0 && allowsSoftWrap(text == null ? null : text.whiteSpace)) {
+            maxWidth = Math.min(maxWidth, wrapWidth);
+        }
+
+        int[] startArray = new int[starts.size()];
+        for (int i = 0; i < starts.size(); i++) startArray[i] = starts.get(i);
+        return new WrappedText(lines, startArray, maxWidth);
+    }
+
+    private static void wrapHardLine(Text text, String hardLine, int baseIndex, double wrapWidth,
+                                     List<String> lines, List<Integer> starts) {
+        if (hardLine.isEmpty()) {
+            lines.add("");
+            starts.add(baseIndex);
+            return;
+        }
+
+        int lineStart = 0;
+        while (lineStart < hardLine.length()) {
+            double width = 0;
+            int lineEnd = lineStart;
+            int lastBreak = -1;
+
+            while (lineEnd < hardLine.length()) {
+                char c = hardLine.charAt(lineEnd);
+                double charWidth = measureLine(text, String.valueOf(c));
+                if (lineEnd > lineStart && width + charWidth > wrapWidth) break;
+                width += charWidth;
+                if (isPreferredBreakChar(text == null ? null : text.whiteSpace, c)) {
+                    lastBreak = lineEnd;
+                }
+                lineEnd++;
+                if (lineEnd == lineStart && width > wrapWidth) break;
+            }
+
+            if (lineEnd >= hardLine.length()) {
+                lines.add(hardLine.substring(lineStart));
+                starts.add(baseIndex + lineStart);
+                return;
+            }
+
+            if (lineEnd == lineStart) lineEnd++;
+
+            if (lastBreak >= lineStart && consumesBreakChar(text == null ? null : text.whiteSpace, hardLine.charAt(lastBreak))) {
+                lines.add(hardLine.substring(lineStart, lastBreak));
+                starts.add(baseIndex + lineStart);
+                lineStart = lastBreak + 1;
+                continue;
+            }
+
+            int resolvedEnd = lastBreak >= lineStart ? lastBreak + 1 : lineEnd;
+            lines.add(hardLine.substring(lineStart, resolvedEnd));
+            starts.add(baseIndex + lineStart);
+            lineStart = resolvedEnd;
+        }
+
+    }
+
+    private static boolean isPreferredBreakChar(String whiteSpace, char c) {
+        String value = whiteSpace == null ? "normal" : whiteSpace;
+        if ("normal".equals(value) || "pre-line".equals(value)) return c == ' ';
+        return c == ' ' || c == '\t';
+    }
+
+    private static boolean consumesBreakChar(String whiteSpace, char c) {
+        String value = whiteSpace == null ? "normal" : whiteSpace;
+        if ("normal".equals(value) || "pre-line".equals(value)) return c == ' ';
+        return false;
+    }
+
+    public static boolean allowsSoftWrap(String whiteSpace) {
+        String value = whiteSpace == null ? "normal" : whiteSpace;
+        return switch (value) {
+            case "normal", "pre-wrap", "pre-line", "break-spaces" -> true;
+            default -> false;
+        };
+    }
+
+    private static double resolveWrapWidth(Element element, Text text) {
+        if (element == null || text == null || !allowsSoftWrap(text.whiteSpace)) return 0;
+        Style style = element.getComputedStyle();
+        Double explicitWidth = Size.parseNumber(style.width);
+        Box box = Box.of(element);
+        double resolved;
+        if (explicitWidth != null) {
+            resolved = Size.resolveLength(style.width, Size.getScaleWidth(element), explicitWidth);
+            if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+                resolved -= box.getBorderHorizontal() + box.getPaddingHorizontal();
+            }
+        } else {
+            String display = style.display == null ? "block" : style.display.trim().toLowerCase(Locale.ROOT);
+            if ("inline".equals(display) || "inline-block".equals(display)) return 0;
+            resolved = Size.getScaleWidth(element) - box.getBorderHorizontal() - box.getPaddingHorizontal();
+        }
+        if (Math.abs(text.textIndent) > 1e-4) {
+            resolved -= Math.abs(text.textIndent);
+        }
+        return Math.max(0, resolved);
+    }
+
     private static String normalizeDirection(String raw) {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
         return "rtl".equals(value) ? "rtl" : "ltr";
@@ -331,5 +472,11 @@ public class Text {
             sb.append(lines[i].replaceAll("[\\t\\x0B\\f ]+", " ").trim());
         }
         return sb.toString();
+    }
+
+    public record WrappedText(List<String> lines, int[] starts, double width) {
+        public double height(double lineHeight) {
+            return Math.max(lineHeight, lines.size() * lineHeight);
+        }
     }
 }
