@@ -192,5 +192,6 @@ public class Cursor {
         return new CursorUrlSpec(resolved, hotspotX, hotspotY);
     }
 
-    private record CursorUrlSpec(String path, int hotspotX, int hotspotY) {}
+    private record CursorUrlSpec(String path, int hotspotX, int hotspotY) {
+    }
 }

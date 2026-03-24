@@ -1,4 +1,4 @@
-package com.sighs.apricityui.util;
+package com.sighs.apricityui.util.kjs;
 
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
@@ -10,5 +10,9 @@ public class ApricityUIServerUtil {
 
     public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
         ApricityScreenNetworkHandler.openScreen(player, path, plan);
+    }
+
+    public static OpenBindPlan.Builder bind() {
+        return OpenBindPlan.builder();
     }
 }

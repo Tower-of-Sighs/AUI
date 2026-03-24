@@ -45,41 +45,6 @@ public class HTML {
         return buildDOM(document, html);
     }
 
-    private static Element buildDOM(Document document, String html) {
-        List<Token> tokens = HtmlTokenizer.tokenize(html);
-        if (tokens.isEmpty()) return null;
-
-        Deque<Element> stack = new ArrayDeque<>();
-        Element root = null;
-
-        for (Token token : tokens) {
-            switch (token.type) {
-                case START_TAG -> {
-                    Element el = document.createElement(token.tagName);
-                    token.attributes.forEach(el::setAttribute);
-                    if (stack.isEmpty()) {
-                        if (root != null) return root;
-                        root = el;
-                    }
-                    if (!token.selfClosing) stack.push(el);
-                    else if (!stack.isEmpty()) stack.peek().append(el);
-                }
-                case END_TAG -> {
-                    if (stack.isEmpty()) return null;
-                    Element finished = stack.pop();
-                    if (!stack.isEmpty()) stack.peek().append(finished);
-                }
-                case TEXT -> {
-                    if (stack.isEmpty()) return null;
-                    if (!token.content.isBlank()) stack.peek().innerText += token.content;
-                }
-                case COMMENT -> {}
-            }
-        }
-        return stack.isEmpty() ? root : null;
-    }
-
-
     enum TokenType {
         START_TAG,
         END_TAG,
@@ -127,13 +92,13 @@ public class HTML {
 
         private static final Pattern TOKEN_PATTERN =
                 Pattern.compile("<!--.*?-->|</?[^>]+>|[^<]+", Pattern.DOTALL);
+        private static final Pattern TAG_NAME_PATTERN = Pattern.compile("^([\\w-]+)");
 
         private static final Pattern ATTR_PATTERN =
                 Pattern.compile("([\\w-]+)(?:\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s\"'>]+))?");
 
         static List<Token> tokenize(String html) {
             List<Token> tokens = new ArrayList<>();
-            Deque<String> tagStack = new ArrayDeque<>();
 
             Matcher matcher = TOKEN_PATTERN.matcher(html);
 
@@ -150,9 +115,6 @@ public class HTML {
                 if (part.startsWith("</")) {
                     String name = part.substring(2, part.length() - 1).trim();
                     tokens.add(Token.end(name));
-                    if (!tagStack.isEmpty()) {
-                        tagStack.pop();
-                    }
                     continue;
                 }
 
@@ -161,7 +123,7 @@ public class HTML {
                     boolean selfClosing = part.endsWith("/>");
                     String body = part.substring(1, part.length() - (selfClosing ? 2 : 1)).trim();
 
-                    Matcher nameMatcher = Pattern.compile("^([\\w-]+)").matcher(body);
+                    Matcher nameMatcher = TAG_NAME_PATTERN.matcher(body);
                     if (nameMatcher.find()) {
                         String tagName = nameMatcher.group(1);
                         Token token = Token.start(tagName, selfClosing);
@@ -172,9 +134,6 @@ public class HTML {
                         }
 
                         tokens.add(token);
-                        if (!selfClosing) {
-                            tagStack.push(tagName);
-                        }
                     }
                     continue;
                 }
@@ -193,12 +152,77 @@ public class HTML {
                 String key = matcher.group(1);
                 String val = matcher.group(2);
                 if (val != null) {
-                    val = val.replaceAll("^['\"]|['\"]$", "");
+                    if (val.length() >= 2) {
+                        char first = val.charAt(0);
+                        char last = val.charAt(val.length() - 1);
+                        if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                            val = val.substring(1, val.length() - 1);
+                        }
+                    }
                 } else {
                     val = "";
                 }
                 out.put(key, val);
             }
         }
+    }
+
+    private static Element buildDOM(Document document, String html) {
+        List<Token> tokens = HtmlTokenizer.tokenize(html);
+        if (tokens.isEmpty()) return null;
+
+        Deque<Element> stack = new ArrayDeque<>();
+        Element root = null;
+
+        for (Token token : tokens) {
+            switch (token.type) {
+                case START_TAG -> {
+                    Element el = document.createElement(token.tagName);
+                    applyAttributesFast(el, token.attributes);
+
+                    if (token.selfClosing) {
+                        Element finalized = Element.init(el);
+                        if (!stack.isEmpty()) {
+                            attachChildFast(stack.peek(), finalized);
+                        } else if (root == null) {
+                            root = finalized;
+                        } else {
+                            return root;
+                        }
+                    } else {
+                        stack.push(el);
+                    }
+                }
+                case END_TAG -> {
+                    if (stack.isEmpty()) return null;
+                    Element finished = Element.init(stack.pop());
+                    if (!stack.isEmpty()) {
+                        attachChildFast(stack.peek(), finished);
+                    } else if (root == null) {
+                        root = finished;
+                    } else {
+                        return root;
+                    }
+                }
+                case TEXT -> {
+                    if (stack.isEmpty()) return null;
+                    if (!token.content.isBlank()) stack.peek().innerText += token.content;
+                }
+                case COMMENT -> {
+                }
+            }
+        }
+        return stack.isEmpty() ? root : null;
+    }
+
+    private static void applyAttributesFast(Element element, Map<String, String> attributes) {
+        if (element == null || attributes == null || attributes.isEmpty()) return;
+        attributes.forEach((key, value) -> element.getAttributes().put(key, value == null ? "" : value));
+    }
+
+    private static void attachChildFast(Element parent, Element child) {
+        if (parent == null || child == null) return;
+        child.parentElement = parent;
+        parent.children.add(child);
     }
 }

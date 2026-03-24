@@ -10,10 +10,10 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ImageHandle {
+public final class ImageHandle {
     private final String path;
-    private volatile AbstractAsyncHandler.AsyncState state = AbstractAsyncHandler.AsyncState.NEW;
     private volatile long generation;
+    private volatile AbstractAsyncHandler.AsyncState state = AbstractAsyncHandler.AsyncState.NEW;
     private volatile Image.ITexture texture;
     private volatile Throwable error;
     private volatile long failedAtMs;
@@ -49,35 +49,39 @@ public class ImageHandle {
         return failedAtMs;
     }
 
-    public synchronized boolean transition(AbstractAsyncHandler.AsyncState expected, AbstractAsyncHandler.AsyncState next) {
-        if (state != expected) return false;
-        state = next;
+    public synchronized void reset(long newGeneration) {
+        generation = newGeneration;
+        state = AbstractAsyncHandler.AsyncState.NEW;
+        error = null;
+        failedAtMs = 0L;
+    }
+
+    public synchronized boolean tryEnterLoading() {
+        if (state != AbstractAsyncHandler.AsyncState.NEW) return false;
+        state = AbstractAsyncHandler.AsyncState.LOADING;
         return true;
     }
 
-    public synchronized void resetForRetry(long newGeneration) {
-        this.generation = newGeneration;
-        this.state = AbstractAsyncHandler.AsyncState.NEW;
-        this.error = null;
-        this.failedAtMs = 0L;
+    public synchronized boolean tryEnterApplying() {
+        if (state != AbstractAsyncHandler.AsyncState.LOADING) return false;
+        state = AbstractAsyncHandler.AsyncState.APPLYING;
+        return true;
     }
 
-    public synchronized boolean markReady(Image.ITexture loadedTexture) {
-        if (state != AbstractAsyncHandler.AsyncState.APPLYING) return false;
-        this.texture = loadedTexture;
-        this.error = null;
-        this.state = AbstractAsyncHandler.AsyncState.READY;
-        return true;
+    public synchronized void markReady(Image.ITexture readyTexture) {
+        texture = readyTexture;
+        error = null;
+        state = AbstractAsyncHandler.AsyncState.READY;
     }
 
     public synchronized void markFailed(Throwable throwable, long nowMs) {
-        this.error = throwable;
-        this.failedAtMs = nowMs;
-        this.state = AbstractAsyncHandler.AsyncState.FAILED;
+        error = throwable;
+        failedAtMs = nowMs;
+        state = AbstractAsyncHandler.AsyncState.FAILED;
     }
 
     public synchronized void markStale() {
-        this.state = AbstractAsyncHandler.AsyncState.STALE;
+        state = AbstractAsyncHandler.AsyncState.STALE;
     }
 
     public synchronized void destroyTextureIfPresent() {
@@ -92,18 +96,18 @@ public class ImageHandle {
             if (oldValue == null) {
                 return new RequesterRef(element, needRelayout);
             }
-            oldValue.upgradeRelayout(needRelayout);
+            oldValue.needRelayout = oldValue.needRelayout || needRelayout;
             return oldValue;
         });
     }
 
     public List<RequesterRef> drainRequesters() {
-        List<RequesterRef> refs = new ArrayList<>(requesters.values());
+        ArrayList<RequesterRef> values = new ArrayList<>(requesters.values());
         requesters.clear();
-        return refs;
+        return values;
     }
 
-    public static class RequesterRef {
+    public static final class RequesterRef {
         private final WeakReference<Element> elementRef;
         private volatile boolean needRelayout;
 
@@ -118,10 +122,6 @@ public class ImageHandle {
 
         public boolean needRelayout() {
             return needRelayout;
-        }
-
-        private void upgradeRelayout(boolean value) {
-            this.needRelayout = this.needRelayout || value;
         }
     }
 }

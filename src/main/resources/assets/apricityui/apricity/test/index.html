@@ -29,7 +29,7 @@
         <img id="selected" src="https://cdn.modrinth.com/data/cached_images/9513051c399c427a47a6a4fd3600f0e157ba8a42.png" />
         <div class="btn">CONFIRM</div>
     </div>
-    <div class="notice open">
+    <div class="notice close">
         <div>
             <span>SUCCESS</span>
         </div>
@@ -51,8 +51,7 @@
         border-radius: 4px;
         background-color: #e97171;
         box-shadow: 0 0 4px #44000000;
-        align-items: center;
-        justify-content: center;
+
         top: 80px;
         transition: opacity 0.15s, transform 0.15s;
         transform: scale(1);
@@ -63,8 +62,7 @@
         transform: scale(0.6);
     }
     .notice.open {
-        animation-name: notice-enter;
-        animation-duration: 0.3s;
+        animation: notice-enter 0.3s;
     }
     .notice>div {
         width: 80px;
@@ -119,12 +117,33 @@
         color: #ad4234;
         border: 1px solid #ad4234;
         box-shadow: 0 0 4px #44000000;
+        animation: hue 3s infinite;
+    }
+    @keyframes hue {
+        0% {
+            filter: hue-rotate(0deg);
+        }
+        100% {
+            filter: hue-rotate(360deg);
+        }
     }
     .area {
         width: 140px;
         align-items: center;
         height: 97px;
         overflow: hidden;
+        animation: blur 2s infinite;
+    }
+    @keyframes blur {
+        0% {
+            filter: blur(0px);
+        }
+        50% {
+            filter: blur(16px);
+        }
+        100% {
+            filter: blur(0px);
+        }
     }
     .head {
         width: 110px;
@@ -172,14 +191,14 @@
         color: #fff;
         background-color: #e97171;
         height: 15px;
+        padding: 2px;
         align-items: center;
         justify-content: center;
         margin: 8px;
         border-radius: 4px 0px 8px 2px;
         border: 1px solid #e97171;
-        transition: color 0.2s, background-color 0.2s, transform 0.1s;
+        transition: color 0.2s, background-color 0.2s, transform 0.1s, height 0.2s;
         transform: scale(1);
-        font-family: lxgw;
     }
     .btn:hover {
         color: #e97171;
@@ -196,8 +215,7 @@
         border: 1px solid #ad4234;
         box-shadow: 0 0 3px #22000000;
         transform: rotate(0);
-        transition: transform 0.2s;
-        animation: rotate 2s infinite alternate;
+        animation: rotate 4s infinite;
     }
     @keyframes rotate {
         0% {
@@ -209,15 +227,12 @@
     }
     @keyframes notice-enter {
         0% {
-            opacity: 0;
             transform: scale(0.5);
         }
         70% {
-            opacity: 1;
             transform: scale(1.2);
         }
         80% {
-            opacity: 1;
             transform: scale(1.2);
         }
         100% {
@@ -236,6 +251,9 @@
     document.querySelector(".btn").addEventListener("mousedown", e => {
         window.setTimeout(_ => {
             document.querySelector(".notice").setAttribute("class", "notice open");
-        }, 20);
+        }, 200);
+    });
+    document.body.addEventListener("mousedown", e => {
+        document.querySelector(".notice").setAttribute("class", "notice close");
     });
 </script>

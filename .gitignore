@@ -24,7 +24,10 @@ hs_err_pid*
 replay_pid*
 
 .gradle
+.gradle-user-home
 .idea
 build
 run
 !/gradle/wrapper/gradle-wrapper.jar
+
+.DS_Store

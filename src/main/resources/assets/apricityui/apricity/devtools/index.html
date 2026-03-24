@@ -1,103 +1,272 @@
 <body>
-<div class="main">
-    <div class="head">
+<div class="devtools">
+    <div class="header">
         <span class="title">DevTools</span>
-        <!--            <select></select>-->
+        <div class="doc-switch">
+            <div class="doc-arrow doc-prev"></div>
+            <div class="doc-name"></div>
+            <div class="doc-arrow doc-next"></div>
+        </div>
     </div>
-    <div class="tree"></div>
-    <div class="style"></div>
+
+    <div class="tree-panel">
+        <div class="tree"></div>
+    </div>
+
+    <div class="inspector-panel">
+        <div class="inspector"></div>
+    </div>
 </div>
 </body>
 
 <style>
+    body, div {
+        display: flex;
+        flex-direction: column;
+    }
+
     body {
-        align-items: flex-end;
-        font-family: lxgw;
-        font-size: 10px;
-        color: #773131;
-    }
-    .main {
-        width: 180px;
-        background-color: #e9e9e9;
+        width: 100%;
         height: 100%;
-        box-shadow: 0 0 4px #44000000;
-        position: relative;
+        align-items: flex-end;
+        pointer-events: auto;
+        font-family: default;
+        font-size: 12px;
+        transform: translateZ(100px);
     }
-    .head {
-        height: 12px;
+
+    .devtools {
+        width: 190px;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        background-color: #0f172a;
+        color: #cbd5e1;
+        border-left: 1px solid #1e3a8a;
+        box-shadow: 0 0 8px #00000088;
+    }
+
+    .header {
+        height: 10px;
         flex-direction: row;
         align-items: center;
-        font-size: 12px;
-        line-height: 12px;
-        background-color: #e97171;
-        color: #fff;
-        padding-left: 4px;
-        width: 100%;
-        box-shadow: 0 1px 1px #11000000;
+        justify-content: space-between;
+        padding-left: 3px;
+        padding-right: 2px;
+        background-color: #0b1220;
+        border-bottom: 1px solid #1e3a8a;
     }
-    .tree {
-        overflow: hidden;
-        background-color: rgb(226, 226, 226);
-        width: 100%;
+
+    .title {
+        color: #93c5fd;
+        font-size: 6px;
+        line-height: 6px;
+    }
+
+    .doc-switch {
+        width: 120px;
+        height: 8px;
+        flex-direction: row;
+        align-items: center;
+        background-color: #111827;
+        border: 1px solid #2563eb;
+        color: #e5e7eb;
+    }
+
+    .doc-arrow {
+        width: 8px;
         height: 100%;
+        align-items: center;
+        justify-content: center;
+        color: #93c5fd;
+        border-right: 1px solid #1d4ed8;
+    }
+
+    .doc-next {
+        border-right: none;
+        border-left: 1px solid #1d4ed8;
+    }
+
+    .doc-name {
+        width: 104px;
+        height: 100%;
+        padding-left: 1px;
+        padding-right: 1px;
+        line-height: 7px;
+        color: #e5e7eb;
+        overflow: hidden;
+    }
+
+    .tree-panel {
+        width: 100%;
+        height: 54%;
+        overflow: hidden;
+        background-color: #0b1324;
+        border-bottom: 1px solid #1e3a8a;
         padding: 2px;
     }
-    .tree>div {
-        flex-direction: row;
-        align-items: center;
-        height: 8px;
+
+    .inspector-panel {
         width: 100%;
-    }
-    .tree>div:hover {
-        /*background-color: rgb(220, 219, 237);*/
-    }
-    .selected {
-        background-color: rgb(220, 219, 237);
-    }
-    .tree>div>div {
-        flex-direction: row;
-        align-items: center;
-        color: #ad4234;
-        margin-left: 4px;
-    }
-    .style {
-        height: 110px;
+        height: 46%;
         overflow: hidden;
+        background-color: #0f172a;
+        padding: 2px;
+    }
+
+    .tree {
         width: 100%;
-        box-shadow: 0 -1px 1px #11000000;
-        background-color: #e9e9e9;
-        padding: 4px;
-        position: absolute;
-        bottom: 0;
+        height: 100%;
+        overflow: hidden;
     }
-    .style>div {
-        border-left: 2px solid #e97171;
-        padding-left: 4px;
-        padding-top: 1px;
-        margin-bottom: 5px;
-    }
-    .style>div>div {
-        color: #ad4234;
+
+    .tree-row {
+        width: 100%;
+        height: 7px;
         flex-direction: row;
         align-items: center;
+        line-height: 7px;
+        color: #cbd5e1;
+        overflow: hidden;
+    }
+
+    .tree-row.selected {
+        background-color: #1e3a8a66;
+    }
+
+    .toggle {
+        width: 6px;
+        color: #60a5fa;
+    }
+
+    .node-label {
+        color: #dbeafe;
+    }
+
+    .end-row .node-label {
+        color: #94a3b8;
+    }
+
+    .tree-edit-row {
+        width: 100%;
         height: 7px;
+        flex-direction: row;
+        align-items: center;
+        gap: 1px;
+        overflow: hidden;
+        line-height: 7px;
     }
-    .style>div>div:first-child {
-        color: #773131;
-        border-bottom: 1px solid #ddd;
-        height: 8px;
+
+    .tree-code {
+        color: #93c5fd;
+        line-height: 7px;
+    }
+
+    .tree-edit-input {
+        width: 58px;
+        height: 6px;
+        color: #e2e8f0;
+        background-color: #0b1220;
+        border: 1px solid #1d4ed8;
+        padding: 0 1px;
+        line-height: 6px;
+    }
+
+    .tree-edit-input:focus {
+        background-color: #111827;
+    }
+
+    .tree-text-input {
+        width: 98px;
+    }
+
+    .tree-attr-input {
+        width: 30px;
+    }
+
+    .tree-inline-text-input {
+        width: 46px;
+    }
+
+    .inspector {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+
+    .section {
+        width: 100%;
         margin-bottom: 2px;
-        width: 150px;
+        border-left: 2px solid #2563eb;
+        padding-left: 2px;
     }
-    input {
-        color: #666;
-        border-bottom: unset;
-        overflow: visible;
-        width: unset;
-        padding: 0;
-        line-height: 8px;
+
+    .section-title {
+        width: 100%;
+        height: 7px;
+        color: #93c5fd;
+        border-bottom: 1px solid #1d4ed8;
+        margin-bottom: 1px;
+        line-height: 7px;
     }
-    input:focus {
-        background-color: #fff;
+
+    .edit-row {
+        width: 100%;
+        height: 7px;
+        flex-direction: row;
+        align-items: center;
+        gap: 2px;
+        margin-bottom: 0px;
+    }
+
+    .k {
+        color: #60a5fa;
+        min-width: 22px;
+    }
+
+    .edit-input {
+        width: 46px;
+        height: 6px;
+        color: #e5e7eb;
+        background-color: #111827;
+        border: 1px solid #1d4ed8;
+        padding: 0 1px;
+        line-height: 6px;
+    }
+
+    .edit-input:focus {
+        background-color: #0b1220;
+    }
+
+    .action {
+        min-width: 10px;
+        height: 6px;
+        border: 1px solid #2563eb;
+        background-color: #0b1220;
+        color: #93c5fd;
+        line-height: 6px;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .style-block {
+        margin-top: 1px;
+        margin-bottom: 1px;
+        padding-left: 2px;
+        border-left: 1px solid #1d4ed8;
+    }
+
+    .selector {
+        color: #93c5fd;
+        line-height: 7px;
+    }
+
+    .prop {
+        color: #cbd5e1;
+        line-height: 7px;
+    }
+
+    .hint {
+        color: #64748b;
     }
 </style>

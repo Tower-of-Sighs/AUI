@@ -1,11 +1,8 @@
 package com.sighs.apricityui.style;
 
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -104,16 +101,6 @@ public interface Transform {
         return result;
     }
 
-    static String getMergedString(Element element) {
-        StringBuilder css = new StringBuilder();
-        ArrayList<Element> route = element.getRoute();
-        for (Element e : route) {
-            String value = e.getComputedStyle().transform;
-            if (!value.equals("none")) css.append(value).append(" ");
-        }
-        return css.toString();
-    }
-
     private static List<String> splitArgs(String argText) {
         List<String> out = new ArrayList<>();
         if (argText == null || argText.isBlank()) return out;
@@ -148,7 +135,8 @@ public interface Transform {
         token = token.trim().toLowerCase(Locale.ROOT);
         try {
             if (token.endsWith("deg")) return Double.parseDouble(token.substring(0, token.length() - 3));
-            if (token.endsWith("rad")) return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
+            if (token.endsWith("rad"))
+                return Math.toDegrees(Double.parseDouble(token.substring(0, token.length() - 3)));
             if (token.endsWith("grad")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 0.9;
             if (token.endsWith("turn")) return Double.parseDouble(token.substring(0, token.length() - 4)) * 360.0;
             return Double.parseDouble(token);
@@ -188,45 +176,81 @@ public interface Transform {
     }
 
     static void readTransition(List<Transition.Change> changeList, Style originStyle) {
-        List<Transform> transforms = parse(originStyle.transform);
-        List<String> functions = new ArrayList<>();
-
-        for (Transform transform : transforms) {
-            if (transform instanceof Translate) {
-                List<String> names = List.of("transform-translatex", "transform-translatey", "transform-translatez");
-                List<String> values = new ArrayList<>();
-                for (Transition.Change change : changeList) {
-                    if (names.contains(change.name()) && values.size() < names.size()) {
-                        values.add(String.valueOf(change.value()));
-//                        changeList.remove(change);
-                    }
-                }
-                functions.add("translate(" + String.join(",", values) + ") ");
-            }
-            if (transform instanceof Rotate) {
-                List<String> names = List.of("transform-rotatex", "transform-rotatey", "transform-rotatez");
-                List<String> values = new ArrayList<>();
-                for (Transition.Change change : changeList) {
-                    if (names.contains(change.name()) && values.size() < names.size()) {
-                        values.add(String.valueOf(change.value()));
-//                        changeList.remove(change);
-                    }
-                }
-                functions.add("rotatex(" + values.get(0) + ") rotatey(" + values.get(1) + ") rotatez(" + values.get(2) + ") ");
-            }
-            if (transform instanceof Scale) {
-                List<String> names = List.of("transform-scalex", "transform-scaley");
-                List<String> values = new ArrayList<>();
-                for (Transition.Change change : changeList) {
-                    if (names.contains(change.name()) && values.size() < names.size()) {
-                        values.add(String.valueOf(change.value()));
-                    }
-                }
-                if (!values.isEmpty()) functions.add("scale(" + String.join(",", values) + ") ");
+        // 提取所有 transform 相关的变化
+        Map<String, Double> vals = new HashMap<>();
+        Iterator<Transition.Change> it = changeList.iterator();
+        while (it.hasNext()) {
+            Transition.Change c = it.next();
+            if (c.name().startsWith("transform-")) {
+                vals.put(c.name(), c.value());
+                it.remove();
             }
         }
 
-        if (!functions.isEmpty()) originStyle.transform = String.join(" ", functions);
-        changeList.removeIf(change -> change.name().contains("transform"));
+        if (vals.isEmpty()) return;
+
+        StringBuilder sb = new StringBuilder();
+
+        if (vals.containsKey("transform-translatex") || vals.containsKey("transform-translatey") || vals.containsKey("transform-translatez")) {
+            sb.append(String.format("translate3d(%.2fpx, %.2fpx, %.2fpx) ",
+                    vals.getOrDefault("transform-translatex", 0d),
+                    vals.getOrDefault("transform-translatey", 0d),
+                    vals.getOrDefault("transform-translatez", 0d)));
+        }
+
+        if (vals.containsKey("transform-rotatex") || vals.containsKey("transform-rotatey") || vals.containsKey("transform-rotatez")) {
+            sb.append(String.format("rotateX(%.2fdeg) rotateY(%.2fdeg) rotateZ(%.2fdeg) ",
+                    vals.getOrDefault("transform-rotatex", 0d),
+                    vals.getOrDefault("transform-rotatey", 0d),
+                    vals.getOrDefault("transform-rotatez", 0d)));
+        }
+
+        if (vals.containsKey("transform-scalex") || vals.containsKey("transform-scaley")) {
+            sb.append(String.format("scale(%.2f, %.2f) ",
+                    vals.getOrDefault("transform-scalex", 1.0d),
+                    vals.getOrDefault("transform-scaley", 1.0d)));
+        }
+
+        String result = sb.toString().trim();
+        if (!result.isEmpty()) {
+            originStyle.transform = result;
+        }
+    }
+
+    static void interpolateTransform(List<Transition.Change> changes, String start, String end, double progress) {
+        List<Transform> sTs = Transform.parse(start);
+        List<Transform> eTs = Transform.parse(end);
+
+        if (sTs.isEmpty() && !eTs.isEmpty()) {
+            for (Transform e : eTs) sTs.add(getIdentity(e));
+        } else if (eTs.isEmpty() && !sTs.isEmpty()) {
+            for (Transform s : sTs) eTs.add(getIdentity(s));
+        }
+
+        int size = Math.max(sTs.size(), eTs.size());
+        for (int i = 0; i < size; i++) {
+            Transform s = (i < sTs.size()) ? sTs.get(i) : (i < eTs.size() ? getIdentity(eTs.get(i)) : null);
+            Transform e = (i < eTs.size()) ? eTs.get(i) : (i < sTs.size() ? getIdentity(sTs.get(i)) : null);
+
+            if (s instanceof Translate st && e instanceof Translate et) {
+                changes.add(new Transition.Change("transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress)));
+                changes.add(new Transition.Change("transform-translatey", Transition.getOffset("y", st.y(), et.y(), progress)));
+                changes.add(new Transition.Change("transform-translatez", Transition.getOffset("z", st.z(), et.z(), progress)));
+            } else if (s instanceof Rotate sr && e instanceof Rotate er) {
+                changes.add(new Transition.Change("transform-rotatex", Transition.getOffset("x", sr.x(), er.x(), progress)));
+                changes.add(new Transition.Change("transform-rotatey", Transition.getOffset("y", sr.y(), er.y(), progress)));
+                changes.add(new Transition.Change("transform-rotatez", Transition.getOffset("z", sr.z(), er.z(), progress)));
+            } else if (s instanceof Scale ss && e instanceof Scale es) {
+                changes.add(new Transition.Change("transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress)));
+                changes.add(new Transition.Change("transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress)));
+            }
+        }
+    }
+
+    private static Transform getIdentity(Transform t) {
+        if (t instanceof Translate) return Translate.DEFAULT;
+        if (t instanceof Rotate) return Rotate.DEFAULT;
+        if (t instanceof Scale) return Scale.DEFAULT;
+        return t;
     }
 }

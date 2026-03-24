@@ -1,10 +1,98 @@
 body {
     width: 100%;
     height: 100%;
+    --aui-slot-size: 18;
+    --aui-slot-render-bg: 1;
+    --aui-slot-render-item: 1;
+    --aui-slot-icon-scale: 1;
+    --aui-slot-padding: 0;
+    --aui-slot-z: 0;
+    --aui-slot-interactive: 1;
+    --aui-slot-cycle: 1;
+    --aui-slot-cycle-interval: 1000;
 }
 
 img {
     overflow: hidden;
+}
+
+a {
+    color: #0000EE;
+    cursor: pointer;
+}
+
+blockquote {
+    display: block;
+    margin: 8px 16px;
+    padding-left: 8px;
+    border-left: 2px solid #808080;
+}
+
+p {
+    display: block;
+    margin: 8px 0;
+    line-height: 1.4;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    display: block;
+    margin: 10px 0 6px;
+    font-weight: 700;
+    line-height: 1.2;
+}
+h1 { font-size: 22px; }
+h2 { font-size: 20px; }
+h3 { font-size: 18px; }
+h4 { font-size: 16px; }
+h5 { font-size: 14px; }
+h6 { font-size: 12px; }
+
+small {
+    font-size: 12px;
+}
+
+sub, sup {
+    font-size: 12px;
+    line-height: 1;
+}
+sub {
+    position: relative;
+    top: 3px;
+}
+sup {
+    position: relative;
+    top: -4px;
+}
+
+mark {
+    background-color: #ffe17a;
+    padding: 0 2px;
+}
+
+hr {
+    display: block;
+    height: 1px;
+    margin: 8px 0;
+    background-color: #808080;
+}
+
+code {
+    background-color: #f2f2f2;
+    padding: 1px 3px;
+}
+
+kbd {
+    background-color: #f2f2f2;
+    border: 1px solid #a0a0a0;
+    border-radius: 2px;
+    padding: 0 3px;
+}
+
+pre {
+    display: block;
+    background-color: #f2f2f2;
+    padding: 6px;
+    overflow: auto;
 }
 
 input {
@@ -14,6 +102,14 @@ input {
 }
 input:focus {
     background-color: #fff;
+}
+
+i, em {
+    font-style:oblique;
+}
+
+b, strong {
+    font-weight:bold;
 }
 
 select {
@@ -49,7 +145,6 @@ select>option:hover {
 
 container {
     display: grid;
-    grid-template-columns: 9;
     gap: 2px;
     justify-items: stretch;
     align-items: stretch;
@@ -57,11 +152,136 @@ container {
 
 slot {
     display: block;
-    width: 16px;
-    height: 16px;
+    width: 18px;
+    height: 18px;
     background-image: url("apricityui/img/gui/area.png");
     pointer-events: none;
 }
+
+/* 玩家背包预设：前三行为背包 9..35，第四行为快捷栏 0..8 */
+container[layout="preset:player"] {
+    --aui-player-gap: 1px;
+    --aui-player-columns: 9;
+    display: grid;
+    gap: var(--aui-player-gap);
+    grid-template-columns: var(--aui-player-columns);
+    justify-items: stretch;
+    align-items: stretch;
+}
+
+container[layout="preset:player"] > .title:first-child {
+    grid-column: 1 / span 9;
+}
+
+container[layout="preset:player"] > slot[slot-index="9"] { grid-column: 1; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="10"] { grid-column: 2; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="11"] { grid-column: 3; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="12"] { grid-column: 4; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="13"] { grid-column: 5; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="14"] { grid-column: 6; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="15"] { grid-column: 7; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="16"] { grid-column: 8; grid-row: 2; }
+container[layout="preset:player"] > slot[slot-index="17"] { grid-column: 9; grid-row: 2; }
+
+container[layout="preset:player"] > slot[slot-index="18"] { grid-column: 1; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="19"] { grid-column: 2; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="20"] { grid-column: 3; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="21"] { grid-column: 4; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="22"] { grid-column: 5; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="23"] { grid-column: 6; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="24"] { grid-column: 7; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="25"] { grid-column: 8; grid-row: 3; }
+container[layout="preset:player"] > slot[slot-index="26"] { grid-column: 9; grid-row: 3; }
+
+container[layout="preset:player"] > slot[slot-index="27"] { grid-column: 1; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="28"] { grid-column: 2; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="29"] { grid-column: 3; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="30"] { grid-column: 4; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="31"] { grid-column: 5; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="32"] { grid-column: 6; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="33"] { grid-column: 7; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="34"] { grid-column: 8; grid-row: 4; }
+container[layout="preset:player"] > slot[slot-index="35"] { grid-column: 9; grid-row: 4; }
+
+container[layout="preset:player"] > slot[slot-index="0"] { grid-column: 1; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="1"] { grid-column: 2; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="2"] { grid-column: 3; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="3"] { grid-column: 4; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="4"] { grid-column: 5; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="5"] { grid-column: 6; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="6"] { grid-column: 7; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="7"] { grid-column: 8; grid-row: 5; }
+container[layout="preset:player"] > slot[slot-index="8"] { grid-column: 9; grid-row: 5; }
+
+/* recipe 布局由 CSS 预设控制 */
+recipe {
+    --aui-recipe-gap: 2px;
+    --aui-recipe-slot-size: 18px;
+    --aui-recipe-columns: 5;
+    display: grid;
+    gap: var(--aui-recipe-gap);
+    grid-template-columns: var(--aui-recipe-columns);
+    justify-items: stretch;
+    align-items: stretch;
+}
+
+recipe > .aui-recipe-slot {
+    width: var(--aui-recipe-slot-size);
+    height: var(--aui-recipe-slot-size);
+    --aui-slot-interactive: 0;
+}
+
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-output,
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-output {
+    grid-column: 5;
+    grid-row: 2;
+}
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="0"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="0"] { grid-column: 1; grid-row: 1; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="1"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="1"] { grid-column: 2; grid-row: 1; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="2"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="2"] { grid-column: 3; grid-row: 1; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="3"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="3"] { grid-column: 1; grid-row: 2; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="4"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="4"] { grid-column: 2; grid-row: 2; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="5"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="5"] { grid-column: 3; grid-row: 2; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="6"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="6"] { grid-column: 1; grid-row: 3; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="7"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="7"] { grid-column: 2; grid-row: 3; }
+recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="8"],
+recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="8"] { grid-column: 3; grid-row: 3; }
+
+recipe[data-recipe-layout="smelting_family"] {
+    --aui-recipe-columns: 4;
+}
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-input[data-i="0"] { grid-column: 1; grid-row: 1; }
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-fuel[data-i="0"] { grid-column: 2; grid-row: 2; }
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-output[data-i="0"] { grid-column: 4; grid-row: 2; }
+
+recipe[data-recipe-layout="smithing"] {
+    --aui-recipe-columns: 5;
+}
+recipe[data-recipe-layout="smithing"] > .aui-recipe-template[data-i="0"] { grid-column: 1; grid-row: 2; }
+recipe[data-recipe-layout="smithing"] > .aui-recipe-input[data-role="input"][data-i="0"] { grid-column: 2; grid-row: 2; }
+recipe[data-recipe-layout="smithing"] > .aui-recipe-addition[data-i="0"] { grid-column: 3; grid-row: 2; }
+recipe[data-recipe-layout="smithing"] > .aui-recipe-output[data-i="0"] { grid-column: 5; grid-row: 2; }
+
+recipe[data-recipe-layout="stonecutting"] {
+    --aui-recipe-columns: 4;
+}
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-input[data-group="absolute"][data-i="0"] { grid-column: 1; grid-row: 2; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="0"] { grid-column: 4; grid-row: 1; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="1"] { grid-column: 4; grid-row: 2; }
+recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="2"] { grid-column: 4; grid-row: 3; }
+
+recipe[data-recipe-layout="fallback"] {
+    --aui-recipe-columns: 6;
+}
+recipe[data-recipe-layout="fallback"] > .aui-recipe-output[data-i="0"] { grid-column: 6; grid-row: 2; }
 
 @font-face {
     font-family: "lxgw";

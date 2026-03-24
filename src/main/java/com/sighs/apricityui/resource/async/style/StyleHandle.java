@@ -9,15 +9,15 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class StyleHandle {
+public final class StyleHandle {
     private final UUID documentId;
+    private final long generation;
     private final ConcurrentHashMap<Integer, CssEntry> cssEntries = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<String, Boolean> requestedFonts = new ConcurrentHashMap<>();
-    private final AtomicInteger pendingTasks = new AtomicInteger(0);
+    private final AtomicInteger pendingCount = new AtomicInteger(0);
 
-    private volatile long generation;
     private volatile AbstractAsyncHandler.AsyncState state = AbstractAsyncHandler.AsyncState.NEW;
-    private volatile long failedAtMs = 0L;
+    private volatile long failedAtMs;
 
     public StyleHandle(UUID documentId, long generation) {
         this.documentId = documentId;
@@ -40,8 +40,8 @@ public class StyleHandle {
         return failedAtMs;
     }
 
-    public int pendingTasks() {
-        return pendingTasks.get();
+    public int pendingCount() {
+        return pendingCount.get();
     }
 
     public void putCssEntry(int order, CssEntry entry) {
@@ -55,13 +55,14 @@ public class StyleHandle {
         return entries;
     }
 
-    public boolean tryRequestFont(String fontKey) {
+    public boolean tryReserveFont(String fontKey) {
         if (fontKey == null || fontKey.isBlank()) return false;
         return requestedFonts.putIfAbsent(fontKey, Boolean.TRUE) == null;
     }
 
-    public synchronized void markLoading() {
+    public synchronized void queueTask() {
         if (state == AbstractAsyncHandler.AsyncState.STALE) return;
+        pendingCount.incrementAndGet();
         state = AbstractAsyncHandler.AsyncState.LOADING;
     }
 
@@ -70,44 +71,38 @@ public class StyleHandle {
         state = AbstractAsyncHandler.AsyncState.APPLYING;
     }
 
-    public synchronized void markTaskQueued() {
-        if (state == AbstractAsyncHandler.AsyncState.STALE) return;
-        pendingTasks.incrementAndGet();
-        if (state == AbstractAsyncHandler.AsyncState.NEW || state == AbstractAsyncHandler.AsyncState.READY || state == AbstractAsyncHandler.AsyncState.FAILED) {
-            state = AbstractAsyncHandler.AsyncState.LOADING;
-        }
-    }
-
-    public synchronized void markTaskCompleted(boolean failed) {
+    public synchronized void completeTask(boolean failed) {
         if (state == AbstractAsyncHandler.AsyncState.STALE) return;
         if (failed) failedAtMs = System.currentTimeMillis();
 
-        int left = pendingTasks.decrementAndGet();
+        int left = pendingCount.decrementAndGet();
         if (left < 0) {
-            pendingTasks.set(0);
+            pendingCount.set(0);
             left = 0;
         }
         if (left > 0) {
             state = AbstractAsyncHandler.AsyncState.LOADING;
             return;
         }
-
         if (failed && cssEntries.isEmpty()) {
             state = AbstractAsyncHandler.AsyncState.FAILED;
-        } else {
+            return;
+        }
+        state = AbstractAsyncHandler.AsyncState.READY;
+    }
+
+    public synchronized void markReadyIfIdle() {
+        if (state == AbstractAsyncHandler.AsyncState.STALE) return;
+        if (pendingCount.get() == 0) {
             state = AbstractAsyncHandler.AsyncState.READY;
         }
     }
 
-    public synchronized void markReady() {
-        if (state == AbstractAsyncHandler.AsyncState.STALE) return;
-        state = AbstractAsyncHandler.AsyncState.READY;
-    }
-
     public synchronized void markStale() {
         state = AbstractAsyncHandler.AsyncState.STALE;
-        pendingTasks.set(0);
+        pendingCount.set(0);
     }
 
-    public record CssEntry(String contextPath, String cssText) {}
+    public record CssEntry(String contextPath, String cssText) {
+    }
 }

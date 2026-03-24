@@ -121,8 +121,8 @@ neoForge {
             }
             systemProperty 'forge.logging.markers', 'REGISTRIES'
 
-//            jvmArguments.add '-XX:+AllowEnhancedClassRedefinition'
-//            jvmArguments.add '-XX:HotswapAgent=fatjar'
+            jvmArguments.add '-XX:+AllowEnhancedClassRedefinition'
+            jvmArguments.add '-XX:HotswapAgent=fatjar'
 
             logLevel = org.slf4j.event.Level.DEBUG
         }

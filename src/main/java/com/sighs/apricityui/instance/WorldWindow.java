@@ -6,7 +6,6 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Position;
-import lombok.Setter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.phys.Vec3;
@@ -27,25 +26,27 @@ public class WorldWindow {
     static final List<WorldWindow> windows = new ArrayList<>();
 
     public Document document;
-    @Setter
     private Vec3 position;
     private float yRot;
     private float xRot;
-    @Setter
     private float scale; // 缩放比例: 1px 对应多少 Block
-    private int width;
-    private int height;
-    private int maxDistance;
+    private final float width;
+    private final float height;
+    private final int maxDistance;
 
     public WorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
         this.document = Document.createInWorld(documentPath);
         this.position = position;
-        this.width = (int) width;
-        this.height = (int) height;
+        this.width = width;
+        this.height = height;
         this.yRot = 0;
         this.xRot = 0;
         this.scale = 0.02f; // 默认缩放: 50px = 1 block
         this.maxDistance = maxDistance;
+    }
+
+    public void setPosition(Vec3 position) {
+        this.position = position;
     }
 
     public void setRotation(float yRot, float xRot) {
@@ -53,7 +54,19 @@ public class WorldWindow {
         this.xRot = xRot;
     }
 
-    public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
+    public void setScale(float scale) {
+        this.scale = scale;
+    }
+
+    public float getWidth() {
+        return width;
+    }
+
+    public float getHeight() {
+        return height;
+    }
+
+    public void render(PoseStack poseStack) {
         Minecraft mc = Minecraft.getInstance();
         Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
 
@@ -97,7 +110,9 @@ public class WorldWindow {
     }
 
     public static void clear() {
-        windows.forEach(WorldWindow::removeWindow);
+        for (WorldWindow window : List.copyOf(windows)) {
+            removeWindow(window);
+        }
     }
 
     @SubscribeEvent
@@ -106,21 +121,21 @@ public class WorldWindow {
             if (windows.isEmpty()) return;
 
             for (WorldWindow window : windows) {
-                window.render(event.getPoseStack(), event.getProjectionMatrix(), event.getPartialTick().getRealtimeDeltaTicks());
+                window.render(event.getPoseStack());
             }
         }
     }
 
     public Position getRealPos() {
         Minecraft mc = Minecraft.getInstance();
-        Position invalid = new Position(-1, -1);
         if (mc.player == null) return null;
 
-        Vec3 rayOrigin = mc.player.getEyePosition();
-        Vec3 rayDir = mc.player.getViewVector(1.0F);
+        float partialTick = mc.getTimer().getGameTimeDeltaPartialTick(false);
+        Vec3 rayOrigin = mc.player.getEyePosition(partialTick);
+        Vec3 rayDir = mc.player.getViewVector(partialTick);
 
         Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate((float)position.x, (float)position.y, (float)position.z);
+        modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
         modelMatrix.rotate((float) Math.toRadians(180.0F - this.yRot), 0, 1, 0);
         modelMatrix.rotate((float) Math.toRadians(this.xRot), 1, 0, 0);
         modelMatrix.scale(scale, -scale, scale);
@@ -142,7 +157,7 @@ public class WorldWindow {
 
         Vec3 intersection = rayOrigin.add(rayDir.scale(t));
         Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
-        Vector4f localHit = new Vector4f((float)intersection.x, (float)intersection.y, (float)intersection.z, 1.0f);
+        Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
         inverseMatrix.transform(localHit);
 
         double localX = localHit.x + width / 2.0;

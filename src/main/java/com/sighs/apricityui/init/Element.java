@@ -3,13 +3,9 @@ package com.sighs.apricityui.init;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.style.Transition;
-import lombok.Getter;
-import lombok.Setter;
+import com.sighs.apricityui.style.*;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -18,7 +14,6 @@ import java.util.function.Consumer;
 
 public class Element {
     public UUID uuid = UUID.randomUUID();
-    @Getter
     private HashMap<String, String> attributes = new HashMap<>();
     public Document document;
     public String tagName;
@@ -27,14 +22,12 @@ public class Element {
     public boolean isLoaded = false;
     public HashMap<String, String> cssCache = new HashMap<>();
     private int dirtyFlags = 0;
-    @Getter
     public int depth = 0;
     public Element parentElement = null;
     public CopyOnWriteArrayList<Element> children = new CopyOnWriteArrayList<>();
     public boolean isPointerEnabled = true;
     public boolean isVisible = true;
     public String id = null;
-    @Setter
     public String value = null;
     public boolean isHover = false;
     public boolean isActive = false;
@@ -43,9 +36,18 @@ public class Element {
     public double scrollHeight = 0;
     public double scrollLeft = 0;
     public double scrollTop = 0;
+    public double targetScrollLeft = 0;
     public double targetScrollTop = 0;
     public List<String> classNames = null;
     private RenderElement renderElement = new RenderElement(this);
+    private int textSelectionStart = 0;
+    private int textSelectionEnd = 0;
+    private int textSelectionAnchor = 0;
+    private boolean selectingText = false;
+    private static final double SCROLL_EASING_FACTOR = 0.2;
+    private static final double SCROLL_OVERSCROLL_DAMPING = 0.4;
+    private static final double SCROLL_INTERPOLATION_FRAME_MS = 50.0;
+    private static final double SCROLL_STOP_EPSILON = 0.01;
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
     private boolean domInitHookInvoked = false;
@@ -53,6 +55,48 @@ public class Element {
     public Element(Document document, String tagName) {
         this.document = document;
         this.tagName = tagName.toUpperCase();
+        addTextSelectionEventListeners();
+    }
+
+    private void addTextSelectionEventListeners() {
+        addEventListener("mousedown", event -> {
+            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
+            if (!canSelectInnerText()) return;
+            if (document != null) {
+                document.clearAllTextSelectionsExcept(this);
+            }
+
+            if (Style.isUserSelectAll(this)) {
+                selectAllInnerText();
+                selectingText = false;
+                setFocusedForTextSelection();
+                return;
+            }
+
+            locateTextCursor(mouseEvent.offsetX);
+            if (mouseEvent.shiftKey) {
+                textSelectionStart = textSelectionAnchor;
+                textSelectionEnd = getTextCursor();
+            } else {
+                textSelectionAnchor = getTextCursor();
+                clearTextSelection();
+            }
+            selectingText = true;
+            setFocusedForTextSelection();
+        });
+
+        addEventListener("mousemove", event -> {
+            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
+            if (!canSelectInnerText()) return;
+            if (!selectingText || document.getActiveElement() != this) return;
+
+            locateTextCursor(mouseEvent.offsetX);
+            textSelectionStart = textSelectionAnchor;
+            textSelectionEnd = getTextCursor();
+            addDirtyFlags(Drawer.REPAINT);
+        });
+
+        addEventListener("mouseup", event -> selectingText = false);
     }
 
     // 从自己开始，最后是body
@@ -67,9 +111,28 @@ public class Element {
     }
 
     public Style style = null;
+
     public Style getStyle() {
         if (style == null) updateInlineStyle();
         return style;
+    }
+
+    public String getCustomProperty(String name) {
+        return getRawComputedStyle().getCustomProperty(name);
+    }
+
+    public String getCustomPropertyInherit(String name) {
+        Element current = this;
+        while (current != null) {
+            String value = current.getCustomProperty(name);
+            if (value != null && !value.isBlank()) return value;
+            current = current.parentElement;
+        }
+        return null;
+    }
+
+    public HashMap<String, String> getAttributes() {
+        return attributes;
     }
 
     public String getAttribute(String name) {
@@ -104,6 +167,7 @@ public class Element {
 //        }
         return attributes.getOrDefault(name, "");
     }
+
     public void setAttribute(String name, String value) {
         attributes.put(name, value);
         if (name.equals("style")) {
@@ -144,6 +208,7 @@ public class Element {
     public boolean hasAttribute(String name) {
         return attributes.containsKey(name);
     }
+
     public Set<String> getClassNames() {
         String classes = getAttribute("class");
         if (classes == null || classes.isBlank()) return Collections.emptySet();
@@ -155,6 +220,7 @@ public class Element {
 
         cssCache = Selector.matchCSS(this);
         renderElement.computedStyle.clear();
+        StyleFrameCache.clear();
 
         Style currentStyle = getRawComputedStyle();
 
@@ -170,6 +236,9 @@ public class Element {
     }
 
     public Style getComputedStyle() {
+        Style cached = StyleFrameCache.get(this);
+        if (cached != null) return cached;
+
         Style computedStyle = getRawComputedStyle();
         Style originStyle = computedStyle.clone();
         Transition.updateStyle(this, originStyle);
@@ -177,6 +246,9 @@ public class Element {
         if (Transition.isActive(this) || Animation.isActive(this)) {
             RenderElement.observeStyle(this, computedStyle, originStyle);
             computedStyle = originStyle;
+        }
+        if (StyleFrameCache.isActive()) {
+            StyleFrameCache.put(this, computedStyle);
         }
         return computedStyle;
     }
@@ -196,6 +268,7 @@ public class Element {
         }
         return computedStyle;
     }
+
     public void updateInlineStyle() {
         Style newStyle = new Style();
         newStyle.merge(attributes.getOrDefault("style", ""));
@@ -208,47 +281,59 @@ public class Element {
         isHover = hover;
         updateCSS();
     }
+
     public void setActive(boolean active) {
         if (isActive == active) return;
         isActive = active;
         updateCSS();
     }
+
     public void setFocus(boolean value) {
         isFocus = value;
         updateCSS();
     }
+
     public boolean canFocus() {
-        return false;
+        return canSelectInnerText();
     }
+
     public static boolean isElementFocusing(Element element) {
         if (element == null || element.document == null) return false;
         Element currentFocus = element.document.getFocusedElement();
         return currentFocus != null && element.uuid.equals(currentFocus.uuid);
     }
+
     public void setScrollLeft(double value) {
-        value = Math.min(value, scrollWidth - Size.of(this).width());
-        value = Math.max(value, 0);
-        scrollLeft = Size.lerp(scrollLeft, value);
+        targetScrollLeft = applyOverscroll(value, getHorizontalScrollLimit());
     }
+
     public void setScrollTop(double value) {
-        double limitHeight = scrollHeight - Size.of(this).height();
-        if (value < 0) value *= 0.4;
-        else if (value > limitHeight) {
-            value = (value - limitHeight) * 0.4 + limitHeight;
-        }
-        targetScrollTop = value;
+        targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
     }
+
+    public double getScrollLeft() {
+        return interpolateScroll(scrollLeft, targetScrollLeft);
+    }
+
     public double getScrollTop() {
-        if (scrollTop != targetScrollTop) {
-            renderElement.position.clear();
-            double process = (System.currentTimeMillis() - lastTickTime) / 50d;
-            double nextScrollTop = (targetScrollTop - scrollTop) * 0.2 + scrollTop;
-            return  (nextScrollTop - scrollTop) * process + scrollTop;
-        } else return scrollTop;
+        return interpolateScroll(scrollTop, targetScrollTop);
     }
+
+    public double getTargetScrollLeft() {
+        return targetScrollLeft;
+    }
+
+    public double getTargetScrollTop() {
+        return targetScrollTop;
+    }
+
     public boolean canScroll() {
         if (getComputedStyle().overflow.equals("visible")) return false;
-        return scrollHeight != Size.of(this).height();
+        return scrollHeight > Box.of(this).innerSize().height();
+    }
+
+    public void setValue(String value) {
+        this.value = value;
     }
 
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
@@ -257,7 +342,8 @@ public class Element {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
-                FontDrawer.drawFont(poseStack, Text.of(this), rectRenderer.getContentPosition());
+                drawInnerTextSelection(poseStack, rectRenderer);
+                drawInnerText(poseStack, rectRenderer);
             }
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
@@ -273,7 +359,8 @@ public class Element {
      * 不会重新触发 {@link #setAttribute(String, String)} 的副作用。因此该钩子用于让子类在不强制触发
      * CSS/layout 的前提下，从 attributes 中同步一次内部状态。
      */
-    protected void onInitFromDom(Element origin) {}
+    protected void onInitFromDom(Element origin) {
+    }
 
     /**
      * 运行一次性的 DOM 初始化逻辑（含公共同步），避免重复执行。
@@ -323,7 +410,7 @@ public class Element {
             Element element = creator.apply(origin.document, origin.tagName);
             element.id = origin.id;
             element.uuid = origin.uuid;
-            element.innerText = origin.innerText.replaceAll("\n", "");
+            element.innerText = origin.innerText.replace("\n", "");
             element.attributes = origin.attributes;
             element.parentElement = origin.parentElement;
             element.value = origin.value;
@@ -351,6 +438,7 @@ public class Element {
     public List<Element> querySelectorAll(String selector) {
         return Selector.querySelectorAll(this, selector);
     }
+
     public Element querySelector(String selector) {
         return Selector.querySelector(this, selector);
     }
@@ -358,6 +446,7 @@ public class Element {
     public void prepend(Element element) {
         document.createRelation(init(element), this, true);
     }
+
     public void append(Element element) {
         document.createRelation(init(element), this, false);
     }
@@ -365,8 +454,18 @@ public class Element {
     public void addDirtyFlags(int mask) {
         this.dirtyFlags |= mask;
     }
-    public boolean hasDirtyFlag(int mask) { return (this.dirtyFlags & mask) != 0; }
-    public void clearDirtyFlags() { this.dirtyFlags = 0; }
+
+    public boolean hasDirtyFlag(int mask) {
+        return (this.dirtyFlags & mask) != 0;
+    }
+
+    public void clearDirtyFlags() {
+        this.dirtyFlags = 0;
+    }
+
+    public int getDepth() {
+        return this.depth;
+    }
 
     public Element getParentStackContext() {
         Element parent = parentElement;
@@ -376,25 +475,20 @@ public class Element {
         }
         return document.body;
     }
+
     public boolean isStackContext() {
         Style style = getComputedStyle();
         return !style.position.equals("static") || !style.zIndex.equals("auto");
     }
 
     private long lastTickTime;
+
     public void tick() {
         lastTickTime = System.currentTimeMillis();
-        if (scrollTop != targetScrollTop) {
-            double l = 0.2;
-//            if (scrollTop < 0 || scrollTop > scrollHeight - Size.of(this).height()) l = 0.3;
-            scrollTop = (targetScrollTop - scrollTop) * l + scrollTop;
-            if ((int) scrollTop == (int) targetScrollTop) targetScrollTop = scrollTop;
-        }
-        if ((int) scrollTop != (int) targetScrollTop) {
-            double limit = Math.min(targetScrollTop, scrollHeight - Size.of(this).height());
-            limit = Math.max(limit, 0);
-            if ((int) targetScrollTop != (int) limit) targetScrollTop = limit;
-            document.markDirty(this, Drawer.RELAYOUT);
+        boolean scrollingX = stepHorizontalScroll();
+        boolean scrollingY = stepVerticalScroll();
+        if (scrollingX || scrollingY) {
+            document.markDirty(this, Drawer.REORDER);
         }
         if (!innerText.equals(lastInnerText)) {
             getRenderer().text.clear();
@@ -402,30 +496,339 @@ public class Element {
         }
     }
 
+    private boolean stepHorizontalScroll() {
+        ScrollStep step = stepScrollAxis(scrollLeft, targetScrollLeft, getHorizontalScrollLimit());
+        scrollLeft = step.current();
+        targetScrollLeft = step.target();
+        return step.moving();
+    }
+
+    private boolean stepVerticalScroll() {
+        ScrollStep step = stepScrollAxis(scrollTop, targetScrollTop, getVerticalScrollLimit());
+        scrollTop = step.current();
+        targetScrollTop = step.target();
+        return step.moving();
+    }
+
+    private ScrollStep stepScrollAxis(double current, double target, double limit) {
+        if (!isScrollSettled(current, target)) {
+            current = current + (target - current) * SCROLL_EASING_FACTOR;
+        }
+        target = clampScrollTarget(target, limit);
+        if (isScrollSettled(current, target)) {
+            current = target;
+        }
+        return new ScrollStep(current, target, !isScrollSettled(current, target));
+    }
+
+    private double interpolateScroll(double current, double target) {
+        if (isScrollSettled(current, target)) return target;
+        double process = (System.currentTimeMillis() - lastTickTime) / SCROLL_INTERPOLATION_FRAME_MS;
+        process = Math.max(0, Math.min(1, process));
+        double next = current + (target - current) * SCROLL_EASING_FACTOR;
+        return current + (next - current) * process;
+    }
+
+    private double applyOverscroll(double value, double limit) {
+        if (value < 0) return value * SCROLL_OVERSCROLL_DAMPING;
+        if (value > limit) return (value - limit) * SCROLL_OVERSCROLL_DAMPING + limit;
+        return value;
+    }
+
+    private double clampScrollTarget(double value, double limit) {
+        if (value < 0) return 0;
+        if (value > limit) return limit;
+        return value;
+    }
+
+    private double getHorizontalScrollLimit() {
+        return Math.max(0, scrollWidth - Box.of(this).innerSize().width());
+    }
+
+    private double getVerticalScrollLimit() {
+        return Math.max(0, scrollHeight - Box.of(this).innerSize().height());
+    }
+
+    private boolean isScrollSettled(double current, double target) {
+        return Math.abs(current - target) <= SCROLL_STOP_EPSILON;
+    }
+
+    private record ScrollStep(double current, double target, boolean moving) {
+    }
+
     // 事件部分
     public ArrayList<Event> EventListener = new ArrayList<>();
+
     public void addEventListener(String type, Consumer<Event> listener) {
         addEventListener(type, listener, false);
     }
+
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         EventListener.add(new Event(this, type, listener, useCapture));
     }
+
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         EventListener.removeIf(event -> type.equals(event.type) && listener.equals(event.listener) && useCapture == event.useCapture);
     }
+
     public void triggerEvent(Consumer<Event> handler) {
-        EventListener.forEach(handler);
+        ArrayList<Event> snapshot = new ArrayList<>(EventListener);
+        snapshot.forEach(handler);
     }
 
     public RenderElement getRenderer() {
         return renderElement;
     }
+
     public void resetRenderer() {
         renderElement = new RenderElement(this);
     }
 
     public void remove() {
         document.removeElement(this);
+    }
+
+    public boolean hasInnerTextSelection() {
+        return textSelectionStart != textSelectionEnd;
+    }
+
+    public String getSelectedInnerText() {
+        if (!canSelectInnerText()) return "";
+        String content = getSelectableInnerText();
+        if (content.isEmpty()) return "";
+        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
+        int max = Math.min(content.length(), Math.max(textSelectionStart, textSelectionEnd));
+        if (min >= max) return "";
+        return content.substring(min, max);
+    }
+
+    public void selectAllInnerText() {
+        if (!canSelectInnerText()) return;
+        String content = getSelectableInnerText();
+        textSelectionAnchor = 0;
+        textSelectionStart = 0;
+        textSelectionEnd = content.length();
+        addDirtyFlags(Drawer.REPAINT);
+    }
+
+    public void clearTextSelection() {
+        int cursor = getTextCursor();
+        textSelectionStart = cursor;
+        textSelectionEnd = cursor;
+        addDirtyFlags(Drawer.REPAINT);
+    }
+
+    private void setFocusedForTextSelection() {
+        if (document == null) return;
+        document.setFocusedElement(this);
+    }
+
+    public boolean canSelectInnerText() {
+        if (this instanceof com.sighs.apricityui.element.AbstractText) return false;
+        if (innerText == null || innerText.isEmpty()) return false;
+        if (!children.isEmpty()) return false;
+        return Style.isUserSelectable(this);
+    }
+
+    private int getTextCursor() {
+        return Math.max(0, Math.min(textSelectionEnd, getSelectableInnerText().length()));
+    }
+
+    private void locateTextCursor(double mouseOffsetX) {
+        String content = getSelectableInnerText();
+        if (content.isEmpty()) {
+            textSelectionEnd = 0;
+            return;
+        }
+
+        if (Style.isUserSelectAll(this)) {
+            textSelectionEnd = content.length();
+            return;
+        }
+
+        Box box = Box.of(this);
+        double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
+        double relativeX = mouseOffsetX - contentStartX + scrollLeft;
+        double currentWidth = 0;
+        int cursor = 0;
+        for (int i = 0; i < content.length(); i++) {
+            double charWidth = measureTextSegmentWidth(content.substring(i, i + 1));
+            if (relativeX <= currentWidth + charWidth / 2.0) break;
+            currentWidth += charWidth;
+            cursor++;
+        }
+        textSelectionEnd = cursor;
+    }
+
+    private void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
+        if (!canSelectInnerText() || !hasInnerTextSelection()) return;
+        Text baseText = Text.of(this);
+        baseText.content = getSelectableInnerText();
+        if (baseText.content == null || baseText.content.isEmpty()) return;
+        List<String> lines = Text.splitLines(baseText.content);
+        int[] starts = buildLineStarts(lines);
+        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
+        int max = Math.min(baseText.content.length(), Math.max(textSelectionStart, textSelectionEnd));
+        if (min >= max) return;
+
+        Position contentPos = rectRenderer.getContentPosition();
+        double contentWidth = Box.of(this).innerSize().width();
+        double contentHeight = Box.of(this).innerSize().height();
+        double textHeight = baseText.lineHeight * Math.max(1, lines.size());
+        double baseY = contentPos.y + computeVerticalOffset(baseText, contentHeight, textHeight);
+
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            int lineStart = starts[i];
+            int lineEnd = lineStart + line.length();
+            int drawStart = Math.max(min, lineStart);
+            int drawEnd = Math.min(max, lineEnd);
+            if (drawStart >= drawEnd) continue;
+
+            double lineWidth = Text.measureLine(baseText, line);
+            double drawX = contentPos.x + computeAlignedX(baseText, contentWidth, lineWidth, i == 0);
+            double startX = measureTextSegmentWidth(line.substring(0, drawStart - lineStart)) - scrollLeft;
+            double endX = measureTextSegmentWidth(line.substring(0, drawEnd - lineStart)) - scrollLeft;
+            float x0 = (float) (drawX + startX);
+            float x1 = (float) (drawX + endX);
+            float y0 = (float) (baseY + i * baseText.lineHeight);
+            float y1 = y0 + (float) baseText.lineHeight;
+            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
+        }
+    }
+
+    private void drawInnerText(PoseStack poseStack, Rect rectRenderer) {
+        Text text = Text.of(this);
+        Position contentPos = rectRenderer.getContentPosition();
+        text.content = getSelectableInnerText();
+        text.color = new Color(Style.getFontColor(this));
+
+        if (text.content == null || text.content.isEmpty()) return;
+
+        double contentWidth = Box.of(this).innerSize().width();
+        double contentHeight = Box.of(this).innerSize().height();
+        List<String> lines = Text.splitLines(text.content);
+        int[] starts = buildLineStarts(lines);
+        double textHeight = text.lineHeight * Math.max(1, lines.size());
+        double drawY = contentPos.y + computeVerticalOffset(text, contentHeight, textHeight);
+        boolean drawSelectionText = canSelectInnerText() && hasInnerTextSelection();
+        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
+        int max = Math.min(text.content.length(), Math.max(textSelectionStart, textSelectionEnd));
+
+        for (int i = 0; i < lines.size(); i++) {
+            String line = lines.get(i);
+            double lineWidth = Text.measureLine(text, line);
+            double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, i == 0);
+            double lineY = drawY + i * text.lineHeight;
+            if (!drawSelectionText) {
+                Text lineText = cloneTextForSegment(text, line, Color.BLACK);
+                FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, lineY));
+                continue;
+            }
+
+            int lineStart = starts[i];
+            int lineEnd = lineStart + line.length();
+            int segStart = Math.max(min, lineStart);
+            int segEnd = Math.min(max, lineEnd);
+            if (segStart >= segEnd) {
+                Text lineText = cloneTextForSegment(text, line, Color.BLACK);
+                FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, lineY));
+                continue;
+            }
+
+            String before = line.substring(0, segStart - lineStart);
+            String selected = line.substring(segStart - lineStart, segEnd - lineStart);
+            String after = line.substring(segEnd - lineStart);
+            double segmentX = drawX - scrollLeft;
+            if (!before.isEmpty()) {
+                Text beforeText = cloneTextForSegment(text, before, Color.BLACK);
+                FontDrawer.drawFont(poseStack, beforeText, new Position(segmentX, lineY));
+                segmentX += measureTextSegmentWidth(before);
+            }
+            if (!selected.isEmpty()) {
+                Text selectedText = cloneTextForSegment(text, selected, Color.BLACK);
+                selectedText.color = new Color("#FFFFFF");
+                FontDrawer.drawFont(poseStack, selectedText, new Position(segmentX, lineY));
+                segmentX += measureTextSegmentWidth(selected);
+            }
+            if (!after.isEmpty()) {
+                Text afterText = cloneTextForSegment(text, after, Color.BLACK);
+                FontDrawer.drawFont(poseStack, afterText, new Position(segmentX, lineY));
+            }
+        }
+    }
+
+    private String getSelectableInnerText() {
+        Text text = Text.of(this);
+        String normalized = Text.normalizeWhiteSpaceContent(innerText, text.whiteSpace);
+        return normalized == null ? "" : normalized;
+    }
+
+    private int[] buildLineStarts(List<String> lines) {
+        int[] starts = new int[lines.size()];
+        int cursor = 0;
+        for (int i = 0; i < lines.size(); i++) {
+            starts[i] = cursor;
+            cursor += lines.get(i).length();
+            if (i < lines.size() - 1) cursor += 1;
+        }
+        return starts;
+    }
+
+    private double measureTextSegmentWidth(String segment) {
+        if (segment == null || segment.isEmpty()) return 0;
+        Text base = Text.of(this);
+        Text copy = cloneTextForSegment(base, segment, Color.BLACK);
+        return Text.measureLine(copy, segment);
+    }
+
+    private static Text cloneTextForSegment(Text base, String content, Color fallbackStrokeColor) {
+        Text copy = new Text();
+        copy.fontSize = base.fontSize;
+        copy.fontWeight = base.fontWeight;
+        copy.oblique = base.oblique;
+        copy.strokeWidth = base.strokeWidth;
+        copy.strokeColor = base.strokeColor == null ? fallbackStrokeColor : base.strokeColor;
+        copy.color = base.color == null ? Color.BLACK : base.color;
+        copy.fontFamily = base.fontFamily;
+        copy.lineHeight = base.lineHeight;
+        copy.direction = base.direction;
+        copy.textAlign = base.textAlign;
+        copy.verticalAlign = base.verticalAlign;
+        copy.whiteSpace = base.whiteSpace;
+        copy.textIndent = 0;
+        copy.letterSpacing = base.letterSpacing;
+        copy.content = content == null ? "" : content;
+        copy.size = new Size(Text.measureText(copy), copy.lineHeight);
+        return copy;
+    }
+
+    private static double computeAlignedX(Text text, double contentWidth, double lineWidth, boolean firstLine) {
+        double alignOffset = switch (resolveLogicalTextAlign(text)) {
+            case "center" -> (contentWidth - lineWidth) / 2.0;
+            case "right" -> contentWidth - lineWidth;
+            default -> 0;
+        };
+        double indent = firstLine ? text.textIndent : 0;
+        if (text.isRtl()) indent = -indent;
+        return alignOffset + indent;
+    }
+
+    private static String resolveLogicalTextAlign(Text text) {
+        String align = text.textAlign == null ? "start" : text.textAlign;
+        if (align.equals("start")) return text.isRtl() ? "right" : "left";
+        if (align.equals("end")) return text.isRtl() ? "left" : "right";
+        if (align.equals("justify")) return text.isRtl() ? "right" : "left";
+        return align;
+    }
+
+    private static double computeVerticalOffset(Text text, double contentHeight, double textHeight) {
+        String align = text.verticalAlign == null ? "top" : text.verticalAlign;
+        return switch (align) {
+            case "middle", "center" -> (contentHeight - textHeight) / 2.0;
+            case "bottom", "text-bottom" -> contentHeight - textHeight;
+            default -> 0;
+        };
     }
 
     @Override

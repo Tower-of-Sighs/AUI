@@ -25,12 +25,20 @@ public class Drawer {
         List<Element> sortedDirty = consolidateDirtyElements(dirtyElements);
 
         for (Element e : sortedDirty) {
-            if (e.hasDirtyFlag(REORDER) || e.hasDirtyFlag(RELAYOUT)) {
-                if (e.hasDirtyFlag(RELAYOUT)) {
-                    e.getRoute().forEach(element -> element.getRenderer().size.clear());
-                    e.getRoute().forEach(element -> element.getRenderer().position.clear());
-                }
-                invalidateElement(e, REORDER, document.getPaintList());
+            // 如果标记了 RELAYOUT，通常意味着尺寸变化，这往往也会影响绘制顺序或边界
+            if (e.hasDirtyFlag(RELAYOUT)) {
+                e.getRoute().forEach(element -> element.getRenderer().size.clear());
+                e.getRoute().forEach(element -> element.getRenderer().position.clear());
+                // 布局变化通常需要重绘，但不一定需要重排队列（除非影响了层叠上下文）
+                // 但为了安全起见，布局变动通常触发 REPAINT
+                e.addDirtyFlags(REPAINT);
+            }
+
+            if (e.hasDirtyFlag(REORDER)) {
+                // 重新寻找最近的层叠上下文并局部替换 RenderNode
+                Element contextRoot = findNearestStackingContext(e);
+                List<RenderNode> localSubtreeOrder = createPaintList(contextRoot);
+                updateGlobalPaintList(document.getPaintList(), contextRoot, localSubtreeOrder);
             }
             e.clearDirtyFlags();
         }
@@ -54,8 +62,12 @@ public class Drawer {
     }
 
     private static void processStackingContext(Element contextRoot, List<RenderNode> paintList, AABB currentClip) {
-        Rect rootRect = Rect.of(contextRoot);
         Style rootStyle = contextRoot.getComputedStyle();
+        if ("none".equals(rootStyle.display)) {
+            // CSS display:none should suppress the entire subtree, not just the node itself.
+            return;
+        }
+        Rect rootRect = Rect.of(contextRoot);
 
         boolean hasClipPath = !"none".equals(rootStyle.clipPath);
         if (hasClipPath) {
@@ -64,14 +76,22 @@ public class Drawer {
 
         String backdropFilterStr = rootStyle.backdropFilter;
         if (backdropFilterStr != null && !backdropFilterStr.equals("none")) {
-            Filter.FilterState bfState = Filter.parse(backdropFilterStr);
+            Filter.FilterState bfState = Filter.getBackdropFilterOf(contextRoot);
             if (!bfState.isEmpty()) {
-                paintList.add(new RenderNode.BackdropFilterNode(contextRoot, bfState));
+//                com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                        "[Drawer] Add BackdropFilterNode target={} style='{}' state={}",
+//                        contextRoot.uuid, backdropFilterStr, bfState
+//                );
+                paintList.add(new RenderNode.BackdropFilterNode(contextRoot));
+            } else {
+//                com.sighs.apricityui.ApricityUI.LOGGER.info(
+//                        "[Drawer] Skip BackdropFilterNode target={} style='{}' -> empty",
+//                        contextRoot.uuid, backdropFilterStr
+//                );
             }
         }
 
-        Filter.FilterState filterState = Filter.parse(rootStyle.filter);
-        boolean hasFilter = !filterState.isEmpty();
+        boolean hasFilter = !Filter.isDisabled(contextRoot);
         if (hasFilter) {
             paintList.add(new RenderNode.FilterPushNode(contextRoot));
         }
@@ -89,7 +109,7 @@ public class Drawer {
         List<Element> children = contextRoot.children;
         if (children.isEmpty()) {
             if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
-            if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot, filterState));
+            if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
             if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
             return;
         }
@@ -108,6 +128,9 @@ public class Drawer {
 
         for (int i = 0; i < children.size(); i++) {
             Element child = children.get(i);
+            if ("none".equals(child.getComputedStyle().display)) {
+                continue;
+            }
             Rect childRect = Rect.of(child);
             if (!childRect.getVisualBounds().intersects(childClip)) {
                 continue;
@@ -116,7 +139,12 @@ public class Drawer {
             Style style = child.getComputedStyle();
             String zIndexStr = style.zIndex;
 
-            if ("auto".equals(zIndexStr) || style.position.equals("static")) {
+            boolean childHasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
+            boolean childHasFilter = !Filter.isDisabled(child);
+            // 按照规范，filter, opacity, transform 等都会触发层叠上下文
+            boolean createsContext = !zIndexStr.equals("auto") || !style.position.equals("static") || childHasFilter || childHasBackdrop;
+
+            if (createsContext) {
                 normalFlow.add(child);
             } else {
                 int zValue = Size.parse(zIndexStr);
@@ -137,27 +165,17 @@ public class Drawer {
         for (Paintable p : positiveZ) processStackingContext(p.element, paintList, childClip);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
-        if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot, filterState));
+        if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
 
-    private record Paintable(Element element, int zValue, int domOrder) {}
-
-    public static void invalidateElement(Element target, int mask, List<RenderNode> documentPaintList) {
-        if ((mask & RELAYOUT) != 0) {
-            mask |= REORDER;
-        }
-
-        if ((mask & REORDER) != 0) {
-            Element contextRoot = findNearestStackingContext(target);
-            List<RenderNode> localSubtreeOrder = createPaintList(contextRoot);
-            updateGlobalPaintList(documentPaintList, contextRoot, localSubtreeOrder);
-        }
+    private record Paintable(Element element, int zValue, int domOrder) {
     }
 
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
+        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPushNode n) return n.target();

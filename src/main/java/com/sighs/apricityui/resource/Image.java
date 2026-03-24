@@ -3,13 +3,11 @@ package com.sighs.apricityui.resource;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
-import org.lwjgl.system.MemoryUtil;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -22,7 +20,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -81,24 +78,12 @@ public class Image {
         }
     }
 
-    // 替换 Image.java 中的 loadStaticTexture 方法
     private static DecodedImage loadStaticTexture(byte[] data) {
-        if (data == null || data.length == 0) return null;
-
-        // 尝试直接用 NativeImage 读取 (STB 原生解码)
-        try (InputStream is = new ByteArrayInputStream(data)) {
-            NativeImage image = NativeImage.read(is);
+        try (InputStream bis = new ByteArrayInputStream(data)) {
+            NativeImage image = NativeImage.read(bis);
             return DecodedImage.ofStatic(image);
         } catch (IOException e) {
-            // 如果 NativeImage 报错 (比如 Bad PNG Signature)，尝试用 ImageIO 回退
-            try (InputStream is = new ByteArrayInputStream(data)) {
-                BufferedImage bi = ImageIO.read(is);
-                if (bi != null) {
-                    return DecodedImage.ofStatic(convertToNative(bi));
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+            e.printStackTrace();
             return null;
         }
     }
@@ -182,7 +167,7 @@ public class Image {
 
         // 防止 ResourceLocation 报错
         String sanitizedPath = cacheKey.toLowerCase().replaceAll("[^a-z0-9/._-]", "_");
-        ResourceLocation location = ApricityUI.id("dynamic/" + sanitizedPath);
+        ResourceLocation location = ResourceLocation.fromNamespaceAndPath("apricityui", "dynamic/" + sanitizedPath);
 
         Minecraft.getInstance().getTextureManager().register(location, new SimpleTextureWrapper(textureId));
         return new TextureInfo(textureId, location, image.getWidth(), image.getHeight());

@@ -4,9 +4,10 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
-import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
@@ -20,35 +21,37 @@ public record Size(double width, double height) {
         return Client.getWindowSize();
     }
 
-    // 提取第一段数字，如提取100px中的100
+    private static final Pattern LEADING_NUMBER = Pattern.compile("^\\s*([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))");
+
     public static int parse(String str) {
-        if (str == null || str.isEmpty()) {
-            return -1;
+        if (str == null || str.isBlank()) return -1;
+        Double number = parseNumber(str);
+        if (number == null) return -1;
+        return (int) Math.round(number);
+    }
+
+    public static Double parseNumber(String str) {
+        if (str == null || str.isBlank()) return null;
+        Matcher matcher = LEADING_NUMBER.matcher(str);
+        if (!matcher.find()) return null;
+        try {
+            return Double.parseDouble(matcher.group(1));
+        } catch (NumberFormatException ignored) {
+            return null;
         }
+    }
 
-        StringBuilder numberBuilder = new StringBuilder();
-        boolean foundDigit = false;
+    public static boolean isPercent(String value) {
+        if (value == null) return false;
+        return value.trim().endsWith("%");
+    }
 
-        for (char c : str.toCharArray()) {
-            if (Character.isDigit(c)) {
-                numberBuilder.append(c);
-                foundDigit = true;
-            } else if (foundDigit) {
-                // 遇到非数字字符，且已经找到数字，结束提取
-                break;
-            }
-        }
-
-        if (!numberBuilder.isEmpty()) {
-            try {
-                return Integer.parseInt(numberBuilder.toString());
-            } catch (NumberFormatException e) {
-                // 如果数字太大超过int范围，返回-1
-                return -1;
-            }
-        }
-
-        return -1;
+    public static double resolveLength(String value, double percentBasis, double fallback) {
+        if (value == null || value.isBlank() || value.equals("unset")) return fallback;
+        Double number = parseNumber(value);
+        if (number == null) return fallback;
+        if (isPercent(value)) return percentBasis * (number / 100d);
+        return number;
     }
 
     public static Size of(Element element) {
@@ -61,26 +64,31 @@ public record Size(double width, double height) {
             return ZERO;
         }
 
-        int parsedWidth = parse(style.width);
-        int parsedHeight = parse(style.height);
-
-        boolean unsetWidth = parsedWidth == -1;
-        boolean unsetHeight = parsedHeight == -1;
+        boolean unsetWidth = parseNumber(style.width) == null;
+        boolean unsetHeight = parseNumber(style.height) == null;
 
         boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
-        Size bodySize = isText ? getTextSize(element) : getContentSize(element);
+        Size contentSize = isText ? getTextSize(element) : getContentSize(element);
+        Box box = Box.of(element);
+        double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
+        double verticalBox = box.getBorderVertical() + box.getPaddingVertical();
 
-        double totalWidth = bodySize.width, totalHeight = bodySize.height;
+        double contentWidth = contentSize.width;
+        double contentHeight = contentSize.height;
         double parentWidth = getScaleWidth(element), parentHeight = getScaleHeight(element);
+        boolean borderBox = box.isBorderBox();
 
         if (!unsetWidth) {
-            if (!style.width.contains("%")) totalWidth = parsedWidth;
-            else if (parentWidth != 0) totalWidth = parentWidth * parsedWidth / 100d;
+            double resolved = resolveLength(style.width, parentWidth, contentWidth);
+            contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
         }
         if (!unsetHeight) {
-            if (!style.height.contains("%")) totalHeight = parsedHeight;
-            else if (parentHeight != 0) totalHeight = parentHeight * parsedHeight / 100d;
+            double resolved = resolveLength(style.height, parentHeight, contentHeight);
+            contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
         }
+
+        double totalWidth = contentWidth + horizontalBox;
+        double totalHeight = contentHeight + verticalBox;
 
         Size resultSize = new Size(totalWidth, totalHeight);
 
@@ -89,37 +97,11 @@ public record Size(double width, double height) {
     }
 
     public static Size getTextSize(Element element) {
-        Box box = Box.of(element);
-        double fontWidth = box.getPaddingHorizontal();
-        double fontHeight = box.getPaddingVertical();
-        return Text.of(element).size.add(new Size(fontWidth, fontHeight));
+        return Text.of(element).size;
     }
 
     public static Size getContentSize(Element element) {
-        Style style = element.getComputedStyle();
-        if ("grid".equals(style.display)) {
-            return Grid.computeContentSize(element);
-        }
-        boolean flexColumn = Flex.of(element).flexDirection.isColumn();
-        double totalWidth = 0, totalHeight = 0;
-
-        for (Element child : element.children) {
-            Style childStyle = child.getComputedStyle();
-            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display)) continue;
-            Size size = Size.box(child);
-            if (flexColumn) {
-                totalWidth = Math.max(totalWidth, size.width);
-                totalHeight += size.height;
-            } else {
-                totalHeight = Math.max(totalHeight, size.height);
-                totalWidth += size.width;
-            }
-        }
-
-        Box box = Box.of(element);
-        totalWidth += box.getBorderHorizontal() + box.getPaddingHorizontal();
-        totalHeight += box.getBorderVertical() + box.getPaddingVertical();
-        return new Size(totalWidth, totalHeight);
+        return Layout.computeContentSize(element);
     }
 
     public static Size box(Element element) {
@@ -130,20 +112,41 @@ public record Size(double width, double height) {
         Element parent = element.parentElement;
         if (parent != null) {
             Style parentStyle = parent.getComputedStyle();
-            if (parse(parentStyle.width) != -1) {
-                if (parentStyle.width.contains("%")) return getScaleWidth(parent);
-                else return parse(parentStyle.width);
-            } else return 0;
+            if (parseNumber(parentStyle.width) != null) {
+                double resolvedWidth;
+                if (isPercent(parentStyle.width)) {
+                    resolvedWidth = getScaleWidth(parent) * parseNumber(parentStyle.width) / 100d;
+                } else {
+                    resolvedWidth = parseNumber(parentStyle.width);
+                }
+                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
+                    Box parentBox = Box.of(parent);
+                    resolvedWidth -= parentBox.getBorderHorizontal() + parentBox.getPaddingHorizontal();
+                }
+                return Math.max(0, resolvedWidth);
+            }
+            return getScaleWidth(parent);
         } else return getWindowSize().width;
     }
+
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
             Style parentStyle = parent.getComputedStyle();
-            if (parse(parentStyle.height) != -1) {
-                if (parentStyle.height.contains("%")) return getScaleHeight(parent);
-                else return parse(parentStyle.height);
-            } else return 0;
+            if (parseNumber(parentStyle.height) != null) {
+                double resolvedHeight;
+                if (isPercent(parentStyle.height)) {
+                    resolvedHeight = getScaleHeight(parent) * parseNumber(parentStyle.height) / 100d;
+                } else {
+                    resolvedHeight = parseNumber(parentStyle.height);
+                }
+                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
+                    Box parentBox = Box.of(parent);
+                    resolvedHeight -= parentBox.getBorderVertical() + parentBox.getPaddingVertical();
+                }
+                return Math.max(0, resolvedHeight);
+            }
+            return getScaleHeight(parent);
         } else return getWindowSize().height;
     }
 
@@ -152,24 +155,29 @@ public record Size(double width, double height) {
     }
 
     private static final Canvas METRICS_CANVAS = new Canvas();
+
     public static double measureText(Element element, String text) {
         if (text == null || text.isEmpty()) return 0;
-
-        String fontFamily = Style.getFontFamily(element);
-
-        if (fontFamily.equals("unset")) return Client.getDefaultFontWidth(text);
-
-        java.awt.Font baseFont = Font.getBaseFont(fontFamily);
-        if (baseFont == null) return 0;
-
-        // 获取基础宽度 (基于 BASE_FONT_SIZE = 48.0f)
-        FontMetrics fm = METRICS_CANVAS.getFontMetrics(baseFont);
-        int baseWidth = fm.stringWidth(text);
-
-        // 计算缩放比例
-        float currentSize = (float) Style.getFontSize(element);
-        float scale = currentSize / Font.getBaseFontSize();
-
-        return baseWidth * scale;
+        Text base = Text.of(element);
+        Text measuring = new Text();
+        measuring.fontSize = base.fontSize;
+        measuring.fontWeight = base.fontWeight;
+        measuring.oblique = base.oblique;
+        measuring.strokeWidth = base.strokeWidth;
+        measuring.strokeColor = base.strokeColor;
+        measuring.color = base.color;
+        measuring.fontFamily = base.fontFamily;
+        measuring.lineHeight = base.lineHeight;
+        measuring.direction = base.direction;
+        measuring.textAlign = base.textAlign;
+        measuring.verticalAlign = base.verticalAlign;
+        measuring.whiteSpace = base.whiteSpace;
+        measuring.textIndent = 0;
+        measuring.letterSpacing = base.letterSpacing;
+        measuring.content = text;
+        return Text.measureText(measuring);
     }
 }
+
+
+

@@ -1,7 +1,8 @@
 package com.sighs.apricityui.instance;
 
-import com.sighs.apricityui.instance.container.bind.ApricityMenuSlotSource;
-import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.instance.container.bind.ContainerBindType;
+import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
+import com.sighs.apricityui.instance.container.layout.MenuLayoutSpec;
 import com.sighs.apricityui.registry.ApricityMenus;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,11 +17,11 @@ import net.minecraft.world.item.ItemStack;
 import java.util.*;
 
 public class ApricityContainerMenu extends AbstractContainerMenu {
-    private final ContainerSchema.Descriptor descriptor;
+    private final MenuLayoutSpec layoutSpec;
     private final Inventory playerInventory;
     private final LinkedHashMap<String, LinkedHashMap<Integer, Integer>> containerLocalToGlobal = new LinkedHashMap<>();
     private final LinkedHashMap<String, List<ContainerSlotRef>> containerSlotRefs = new LinkedHashMap<>();
-    private final ArrayList<ApricityMenuSlotSource> activeSources = new ArrayList<>();
+    private final ArrayList<ContainerDataSource> activeSources = new ArrayList<>();
     private final ServerPlayer owner;
 
     private int customSlotCount = 0;
@@ -28,37 +29,37 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     private int playerSlotEnd = -1;
 
     public ApricityContainerMenu(int containerId, Inventory playerInventory, FriendlyByteBuf extraData) {
-        this(containerId, playerInventory, readDescriptor(extraData), Map.of(), null);
+        this(containerId, playerInventory, readLayoutSpec(extraData), Map.of(), null);
     }
 
-    public ApricityContainerMenu(int containerId, Inventory playerInventory, ContainerSchema.Descriptor descriptor) {
-        this(containerId, playerInventory, descriptor, Map.of(), null);
+    public ApricityContainerMenu(int containerId, Inventory playerInventory, MenuLayoutSpec layoutSpec) {
+        this(containerId, playerInventory, layoutSpec, Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId,
                                  Inventory playerInventory,
-                                 ContainerSchema.Descriptor descriptor,
-                                 Map<String, ApricityMenuSlotSource> containerSources,
+                                 MenuLayoutSpec layoutSpec,
+                                 Map<String, ContainerDataSource> containerSources,
                                  ServerPlayer owner) {
         super(ApricityMenus.APRICITY_CONTAINER.get(), containerId);
         this.playerInventory = playerInventory;
-        this.descriptor = Objects.requireNonNull(descriptor, "Container descriptor 不能为空");
+        this.layoutSpec = Objects.requireNonNull(layoutSpec, "Menu layout spec cannot be null");
         this.owner = owner;
         initializeSlots(containerSources == null ? Map.of() : containerSources);
     }
 
-    private static ContainerSchema.Descriptor readDescriptor(FriendlyByteBuf extraData) {
+    private static MenuLayoutSpec readLayoutSpec(FriendlyByteBuf extraData) {
         if (extraData == null) {
-            throw new IllegalStateException("容器打开失败：服务端未提供 descriptor（extraData 为空）");
+            throw new IllegalStateException("Container open failed: missing layoutSpec in menu extra data");
         }
-        return ContainerSchema.Descriptor.read(extraData);
+        return MenuLayoutSpec.read(extraData);
     }
 
     public static ApricityContainerMenu createClientOnly(Inventory playerInventory, String templatePath) {
-        return new ApricityContainerMenu(-1, playerInventory, ContainerSchema.Descriptor.createUiOnly(templatePath));
+        return new ApricityContainerMenu(-1, playerInventory, MenuLayoutSpec.createUiOnly(templatePath));
     }
 
-    private void initializeSlots(Map<String, ApricityMenuSlotSource> containerSources) {
+    private void initializeSlots(Map<String, ContainerDataSource> containerSources) {
         containerLocalToGlobal.clear();
         containerSlotRefs.clear();
         activeSources.clear();
@@ -66,18 +67,15 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         playerSlotStart = -1;
         playerSlotEnd = -1;
 
-        if (descriptor.isUiOnly()) return;
+        if (layoutSpec.isUiOnly()) return;
 
-        LinkedHashMap<String, List<Integer>> sourcePoolByContainer = new LinkedHashMap<>();
+        for (MenuLayoutSpec.ContainerLayout containerLayout : layoutSpec.containers()) {
+            if (containerLayout == null) continue;
+            if (ContainerBindType.isPlayer(containerLayout.bindType())) continue;
+            if (ContainerBindType.isVirtualUi(containerLayout.bindType())) continue;
 
-        for (String containerId : descriptor.getContainerIds()) {
-            ContainerSchema.Descriptor.BindType bindType = descriptor.getContainerBindType(containerId);
-            if (ContainerSchema.Descriptor.isPlayerBind(bindType)) continue;
-            if (ContainerSchema.Descriptor.isVirtualUiBind(bindType)) continue;
-
-            int requiredPoolSize = ContainerSchema.Descriptor.requiredPoolSize(descriptor.getContainerSlots(containerId));
-            ArrayList<Integer> pool = new ArrayList<>(requiredPoolSize);
-            ApricityMenuSlotSource source = containerSources.get(containerId);
+            int requiredPoolSize = Math.max(0, containerLayout.capacity());
+            ContainerDataSource source = containerSources.get(containerLayout.id());
             SimpleContainer fallback = source == null ? new SimpleContainer(Math.max(1, requiredPoolSize)) : null;
 
             for (int localIndex = 0; localIndex < requiredPoolSize; localIndex++) {
@@ -85,109 +83,77 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
                         ? new UiSlot(fallback, localIndex, 0, 0)
                         : source.createSlot(localIndex, 0, 0);
                 addSlot(slot);
-                pool.add(slots.size() - 1);
             }
 
             if (source != null && !activeSources.contains(source)) {
                 activeSources.add(source);
             }
-            sourcePoolByContainer.put(containerId, pool);
         }
 
         customSlotCount = slots.size();
 
-        boolean hasPlayerBinding = false;
-        for (String containerId : descriptor.getContainerIds()) {
-            if (ContainerSchema.Descriptor.isPlayerBind(descriptor.getContainerBindType(containerId))) {
-                hasPlayerBinding = true;
-                break;
-            }
-        }
-
-        List<Integer> playerPool = List.of();
-        if (hasPlayerBinding) {
+        int playerPoolCapacity = resolvePlayerPoolCapacity();
+        if (playerPoolCapacity > 0) {
             playerSlotStart = slots.size();
-            addPlayerInventorySlots(playerInventory);
+            addPlayerInventorySlots(playerInventory, playerPoolCapacity);
             playerSlotEnd = slots.size();
-            ArrayList<Integer> generatedPlayerPool = new ArrayList<>(playerSlotEnd - playerSlotStart);
-            for (int i = playerSlotStart; i < playerSlotEnd; i++) {
-                generatedPlayerPool.add(i);
-            }
-            playerPool = List.copyOf(generatedPlayerPool);
         }
 
-        for (String containerId : descriptor.getContainerIds()) {
-            ContainerSchema.Descriptor.BindType bindType = descriptor.getContainerBindType(containerId);
-            if (ContainerSchema.Descriptor.isPlayerBind(bindType)) {
-                sourcePoolByContainer.put(containerId, playerPool);
-            }
-        }
-
-        buildContainerMappings(sourcePoolByContainer);
-        applySlotVisualProfiles();
+        buildContainerMappings();
     }
 
-    private void buildContainerMappings(Map<String, List<Integer>> sourcePoolByContainer) {
-        LinkedHashSet<Integer> globallyUsedSlots = new LinkedHashSet<>();
+    private int resolvePlayerPoolCapacity() {
+        int capacity = 0;
+        for (MenuLayoutSpec.ContainerLayout containerLayout : layoutSpec.containers()) {
+            if (containerLayout == null) continue;
+            if (!ContainerBindType.isPlayer(containerLayout.bindType())) continue;
+            capacity = Math.max(capacity, Math.max(0, containerLayout.capacity()));
+        }
+        return Math.min(ContainerBindType.PLAYER_SLOT_COUNT, capacity);
+    }
 
-        for (String containerId : descriptor.getContainerIds()) {
-            List<Integer> localSlots = descriptor.getContainerSlots(containerId);
-            List<Integer> sourcePool = sourcePoolByContainer.getOrDefault(containerId, List.of());
+    private void buildContainerMappings() {
+        for (MenuLayoutSpec.ContainerLayout containerLayout : layoutSpec.containers()) {
+            if (containerLayout == null) continue;
 
+            int capacity = Math.max(0, containerLayout.capacity());
             LinkedHashMap<Integer, Integer> containerMapping = new LinkedHashMap<>();
-            ArrayList<ContainerSlotRef> refs = new ArrayList<>();
-            for (Integer localSlotIndex : localSlots) {
-                if (localSlotIndex == null || localSlotIndex < 0 || localSlotIndex >= sourcePool.size()) continue;
-
-                int globalSlotIndex = sourcePool.get(localSlotIndex);
-                if (!globallyUsedSlots.add(globalSlotIndex)) continue;
-
+            ArrayList<ContainerSlotRef> refs = new ArrayList<>(capacity);
+            for (int localSlotIndex = 0; localSlotIndex < capacity; localSlotIndex++) {
+                int globalSlotIndex = containerLayout.baseIndex() + localSlotIndex;
+                if (globalSlotIndex < 0 || globalSlotIndex >= slots.size()) continue;
                 containerMapping.put(localSlotIndex, globalSlotIndex);
                 refs.add(new ContainerSlotRef(localSlotIndex, globalSlotIndex));
             }
 
-            containerLocalToGlobal.put(containerId, containerMapping);
-            containerSlotRefs.put(containerId, List.copyOf(refs));
+            containerLocalToGlobal.put(containerLayout.id(), containerMapping);
+            containerSlotRefs.put(containerLayout.id(), List.copyOf(refs));
         }
     }
 
-    private void applySlotVisualProfiles() {
-        for (String containerId : descriptor.getContainerIds()) {
-            Map<Integer, ContainerSchema.Descriptor.SlotVisualProfile> visuals = descriptor.getContainerSlotVisuals(containerId);
-            if (visuals.isEmpty()) continue;
+    private void addPlayerInventorySlots(Inventory playerInventory, int slotCount) {
+        int remaining = Math.max(0, slotCount);
+        if (remaining <= 0) return;
 
-            List<ContainerSlotRef> refs = getContainerSlotRefs(containerId);
-            for (ContainerSlotRef ref : refs) {
-                if (ref == null) continue;
-                if (ref.globalSlotIndex < 0 || ref.globalSlotIndex >= slots.size()) continue;
-                Slot rawSlot = slots.get(ref.globalSlotIndex);
-                if (!(rawSlot instanceof UiSlot uiSlot)) continue;
-
-                ContainerSchema.Descriptor.SlotVisualProfile profile = visuals.get(ref.localSlotIndex);
-                if (profile == null) continue;
-                uiSlot.applyProfile(profile);
-            }
-        }
-    }
-
-    private void addPlayerInventorySlots(Inventory playerInventory) {
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 9; col++) {
+        for (int row = 0; row < 3 && remaining > 0; row++) {
+            for (int col = 0; col < 9 && remaining > 0; col++) {
                 int index = col + row * 9 + 9;
                 addSlot(new UiSlot(playerInventory, index, 0, 0));
+                remaining--;
             }
         }
-        for (int hotbar = 0; hotbar < 9; hotbar++) {
+        for (int hotbar = 0; hotbar < 9 && remaining > 0; hotbar++) {
             addSlot(new UiSlot(playerInventory, hotbar, 0, 0));
+            remaining--;
         }
     }
 
-    public ContainerSchema.Descriptor getDescriptor() {
-        return descriptor;
+    public MenuLayoutSpec getLayoutSpec() {
+        return layoutSpec;
     }
 
     public String getTemplatePath() {
-        return descriptor.getTemplatePath();
+        return layoutSpec.templatePath();
     }
 
     public Inventory getPlayerInventory() {
@@ -218,13 +184,37 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         ItemStack sourceStack = sourceSlot.getItem();
         ItemStack copied = sourceStack.copy();
 
-        if (slotIndex < customSlotCount) {
-            if (playerSlotStart < 0 || playerSlotEnd <= playerSlotStart) return ItemStack.EMPTY;
-            if (!moveItemStackTo(sourceStack, playerSlotStart, playerSlotEnd, true)) return ItemStack.EMPTY;
-        } else {
-            if (customSlotCount <= 0) return ItemStack.EMPTY;
-            if (!moveItemStackTo(sourceStack, 0, customSlotCount, false)) return ItemStack.EMPTY;
+        String primaryContainerId = layoutSpec.primaryContainerId();
+        Integer primaryStart = null;
+        Integer primaryEnd = null;
+
+        if (primaryContainerId != null && !primaryContainerId.isEmpty()) {
+            MenuLayoutSpec.ContainerLayout primaryLayout = layoutSpec.findContainer(primaryContainerId);
+            if (primaryLayout != null
+                    && !ContainerBindType.isPlayer(primaryLayout.bindType())
+                    && primaryLayout.capacity() > 0) {
+                primaryStart = primaryLayout.baseIndex();
+                primaryEnd = primaryLayout.baseIndex() + primaryLayout.capacity();
+            }
         }
+
+        boolean moved;
+        if (isPlayerSlot(slotIndex)) {
+            // Shift-click from player inventory
+            if (primaryStart != null && primaryEnd != null && primaryEnd > primaryStart) {
+                moved = moveItemStackTo(sourceStack, primaryStart, primaryEnd, false);
+            } else {
+                moved = customSlotCount > 0 && moveItemStackTo(sourceStack, 0, customSlotCount, false);
+            }
+        } else if (primaryStart != null && slotIndex >= primaryStart && slotIndex < primaryEnd) {
+            // Shift-click from primary container
+            moved = hasPlayerPool() && moveItemStackTo(sourceStack, playerSlotStart, playerSlotEnd, true);
+        } else {
+            // Shift-click from other containers
+            moved = hasPlayerPool() && moveItemStackTo(sourceStack, playerSlotStart, playerSlotEnd, true);
+        }
+
+        if (!moved) return ItemStack.EMPTY;
 
         if (sourceStack.isEmpty()) {
             sourceSlot.set(ItemStack.EMPTY);
@@ -240,11 +230,19 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         return copied;
     }
 
+    private boolean isPlayerSlot(int slotIndex) {
+        return hasPlayerPool() && slotIndex >= playerSlotStart && slotIndex < playerSlotEnd;
+    }
+
+    private boolean hasPlayerPool() {
+        return playerSlotStart >= 0 && playerSlotEnd > playerSlotStart;
+    }
+
     @Override
     public boolean stillValid(Player player) {
         if (!(player instanceof ServerPlayer serverPlayer)) return true;
         if (owner != null && owner != serverPlayer) return false;
-        for (ApricityMenuSlotSource source : activeSources) {
+        for (ContainerDataSource source : activeSources) {
             if (!source.stillValid(serverPlayer)) return false;
         }
         return true;
@@ -254,7 +252,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     public void removed(Player player) {
         super.removed(player);
         if (player instanceof ServerPlayer serverPlayer) {
-            for (ApricityMenuSlotSource source : activeSources) {
+            for (ContainerDataSource source : activeSources) {
                 source.onClose(serverPlayer);
             }
         }
@@ -276,18 +274,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
         public UiSlot(Container container, int slot, int x, int y) {
             super(container, slot, x, y);
-        }
-
-        public void applyProfile(ContainerSchema.Descriptor.SlotVisualProfile profile) {
-            if (profile == null) return;
-            uiSlotSize = Math.max(1, profile.resolveSlotSize(uiSlotSize));
-            uiDisabled = profile.resolveDisabled(uiDisabled);
-            uiAcceptPointer = profile.resolveAcceptPointer(uiAcceptPointer);
-            uiRenderBackground = profile.resolveRenderBackground(uiRenderBackground);
-            uiRenderItem = profile.resolveRenderItem(uiRenderItem);
-            uiIconScale = Math.max(0.01F, profile.resolveIconScale(uiIconScale));
-            uiPadding = Math.max(0, profile.resolvePadding(uiPadding));
-            uiZIndex = profile.resolveZIndex(uiZIndex);
         }
 
         @Override

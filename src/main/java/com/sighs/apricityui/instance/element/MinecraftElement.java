@@ -49,18 +49,6 @@ public abstract class MinecraftElement extends Element {
         GLOBAL_RUNTIME_CACHES.clear();
     }
 
-    public MinecraftBindingMode getBindingMode() {
-        return MinecraftBindingMode.NONE;
-    }
-
-    public final boolean isBoundMode() {
-        return getBindingMode() == MinecraftBindingMode.BOUND;
-    }
-
-    public final boolean isVirtualMode() {
-        return getBindingMode() == MinecraftBindingMode.VIRTUAL;
-    }
-
     public final <T extends Element> T findAncestor(Class<T> type) {
         if (type == null) return null;
 
@@ -150,8 +138,7 @@ public abstract class MinecraftElement extends Element {
             if (document != null) document.recordID(this);
         }
         if ("class".equals(name)) {
-            this.classNames = new ArrayList<>();
-            this.classNames.addAll(List.of(safeValue.split(" ")));
+            this.classNames = parseClassTokens(safeValue);
         }
 
         if (attributeBatchDepth == 0) {
@@ -188,11 +175,5 @@ public abstract class MinecraftElement extends Element {
             case BODY -> rectRenderer.drawBody(poseStack);
             case BORDER -> rectRenderer.drawBorder(poseStack);
         }
-    }
-
-    public enum MinecraftBindingMode {
-        NONE,
-        BOUND,
-        VIRTUAL
     }
 }

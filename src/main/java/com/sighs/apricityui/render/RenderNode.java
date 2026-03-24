@@ -3,92 +3,67 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
 import org.lwjgl.opengl.GL11;
+
+import java.util.function.Consumer;
 
 public interface RenderNode {
     void render(PoseStack poseStack);
 
+    static void applyWithTransform(PoseStack poseStack, Element target, Consumer<Rect> action) {
+        poseStack.pushPose();
+        Base.applyTransform(poseStack, target);
+        action.accept(Rect.of(target));
+        poseStack.popPose();
+    }
+
+    static boolean shouldSkip(Element target) {
+        return target.getRawComputedStyle().display.equals("none");
+    }
+
     record MaskPushNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            poseStack.pushPose();
-
-            Base.applyTransform(poseStack, target);
-
-            Rect rect = Rect.of(target);
-            Position p = rect.getBodyRectPosition();
-            Size s = rect.getBodyRectSize();
-
-            Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
-
-            poseStack.popPose();
+            applyWithTransform(poseStack, target, rect -> {
+                Position p = rect.getBodyRectPosition();
+                Size s = rect.getBodyRectSize();
+                Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
+            });
         }
     }
 
     record MaskPopNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            poseStack.pushPose();
-
-            Base.applyTransform(poseStack, target);
-
-            Rect rect = Rect.of(target);
-            Position p = rect.getBodyRectPosition();
-            Size s = rect.getBodyRectSize();
-
-            Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
-
-            poseStack.popPose();
+            applyWithTransform(poseStack, target, rect -> {
+                Position p = rect.getBodyRectPosition();
+                Size s = rect.getBodyRectSize();
+                Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
+            });
         }
     }
 
     record ElementPhaseNode(Element target, Base.RenderPhase phase) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-//            if (Transition.isActive(target) || Animation.isActive(target)) {
-//                target.getComputedStyle();
-//            }
+            if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
-            if (!currentClip.isValid()) return;
-            if (target.getComputedStyle().display.equals("none")) return;
-
-            Rect rect = Rect.of(target);
-            AABB elementBounds = rect.getVisualBounds();
-
-            if (!elementBounds.intersects(currentClip)) {
-                return;
-            }
+            if (!currentClip.isValid() || !Rect.of(target).getVisualBounds().intersects(currentClip)) return;
 
             poseStack.pushPose();
-
             Base.applyTransform(poseStack, target);
 
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
-            float opacity = 1;
-            Float cache = target.getRenderer().opacity.get();
-            if (cache != null) opacity = cache;
-            else {
-                for (Element e : target.getRoute()) {
-                    opacity *= Float.parseFloat(e.getComputedStyle().opacity);
-                }
-                target.getRenderer().opacity.set(opacity);
-            }
-
-            if (opacity <= 0.001f) {
-                poseStack.popPose();
-                return;
-            }
-
-//            RenderSystem.setShaderColor(1F, 1F, 1F, opacity);
             if (!target.isLoaded) {
                 target.resetRenderer();
                 target.isLoaded = true;
             }
             target.drawPhase(poseStack, phase);
-//            RenderSystem.setShaderColor(1F, 1F, 1F, 1F);
             poseStack.popPose();
         }
     }
@@ -96,76 +71,61 @@ public interface RenderNode {
     record ClipPathPushNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            String clipPath = target.getComputedStyle().clipPath;
-            if (clipPath == null || clipPath.equals("none")) return;
+            String clip = target.getComputedStyle().clipPath;
+            if (clip == null || clip.equals("none")) return;
 
-            poseStack.pushPose();
-
-            Base.applyTransform(poseStack, target);
-
-            Rect rect = Rect.of(target);
-            // ClipPath 通常参考的是 Border Box (含边框)
-            Position p = rect.getBodyRectPosition().add(new Position(-rect.box.getBorderLeft(), -rect.box.getBorderTop()));
-            Size s = rect.getBodyRectSize().add(new Size(rect.box.getBorderHorizontal(), rect.box.getBorderVertical()));
-
-            Mask.pushClipPath(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), clipPath);
-
-            poseStack.popPose();
+            applyWithTransform(poseStack, target, rect -> {
+                Position p = rect.getBodyRectPosition();
+                Size s = rect.getBodyRectSize();
+                float x = (float) (p.x - rect.box.getBorderLeft());
+                float y = (float) (p.y - rect.box.getBorderTop());
+                float w = (float) (s.width() + rect.box.getBorderHorizontal());
+                float h = (float) (s.height() + rect.box.getBorderVertical());
+                Mask.pushClipPath(poseStack, x, y, w, h, clip);
+            });
         }
     }
 
     record ClipPathPopNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            String clipPath = target.getComputedStyle().clipPath;
-            if (clipPath == null || clipPath.equals("none")) return;
+            String clip = target.getComputedStyle().clipPath;
+            if (clip == null || clip.equals("none")) return;
 
-            poseStack.pushPose();
-
-            Base.applyTransform(poseStack, target);
-
-            Rect rect = Rect.of(target);
-            Position p = rect.getBodyRectPosition().add(new Position(-rect.box.getBorderLeft(), -rect.box.getBorderTop()));
-            Size s = rect.getBodyRectSize().add(new Size(rect.box.getBorderHorizontal(), rect.box.getBorderVertical()));
-
-            Mask.popClipPath(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), clipPath);
-
-            poseStack.popPose();
+            applyWithTransform(poseStack, target, rect -> {
+                Position p = rect.getBodyRectPosition();
+                Size s = rect.getBodyRectSize();
+                float x = (float) (p.x - rect.box.getBorderLeft());
+                float y = (float) (p.y - rect.box.getBorderTop());
+                float w = (float) (s.width() + rect.box.getBorderHorizontal());
+                float h = (float) (s.height() + rect.box.getBorderVertical());
+                Mask.popClipPath(poseStack, x, y, w, h, clip);
+            });
         }
     }
 
     record FilterPushNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            String filterStr = target.getComputedStyle().filter;
-            if (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) return;
-
-            FilterRenderer.pushFilter();
+            if (!Filter.isDisabled(target)) FilterRenderer.pushFilter();
         }
     }
 
-    record FilterPopNode(Element target, Filter.FilterState state) implements RenderNode {
+    record FilterPopNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            String filterStr = target.getComputedStyle().filter;
-            if (filterStr == null || filterStr.equals("none") || filterStr.isEmpty()) return;
-
-            FilterRenderer.popFilter(state);
+            if (!Filter.isDisabled(target)) FilterRenderer.popFilter(Filter.getFilterOf(target));
         }
     }
 
-    record BackdropFilterNode(Element target, Filter.FilterState state) implements RenderNode {
+    record BackdropFilterNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
-            if (target.getComputedStyle().display.equals("none")) return;
-
-            AABB currentClip = Mask.getCurrentClip();
-            Rect rect = Rect.of(target);
-            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) {
-                return;
+            if (shouldSkip(target)) return;
+            AABB clip = Mask.getCurrentClip();
+            if (clip.isValid() && Rect.of(target).getVisualBounds().intersects(clip)) {
+                FilterRenderer.renderBackdrop(target, poseStack);
             }
-
-            FilterRenderer.renderBackdrop(target, state);
         }
     }
 }

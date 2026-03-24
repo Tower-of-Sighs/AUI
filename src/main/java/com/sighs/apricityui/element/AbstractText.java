@@ -12,9 +12,7 @@ import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Objects;
+import java.util.*;
 
 public abstract class AbstractText extends Element {
     protected int maxLength = 256;
@@ -27,6 +25,9 @@ public abstract class AbstractText extends Element {
     protected int selectionEnd = 0;
     protected boolean selecting = false;
     protected int selectionAnchor = 0;
+    protected final Deque<TextState> undoStack = new ArrayDeque<>();
+    protected boolean restoringUndo = false;
+    protected static final int MAX_UNDO_STACK = 128;
 
     protected AbstractText(Document document, String tagName) {
         super(document, tagName);
@@ -37,23 +38,34 @@ public abstract class AbstractText extends Element {
 
     private void addSelectionEventListeners() {
         addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || !canEditText()) return;
+            if (!(event instanceof MouseEvent mouseEvent)) return;
+            if (!canEditText() && !canSelectText()) return;
+            if (document != null) {
+                document.clearAllTextSelectionsExcept(this);
+            }
+
+            if (canSelectText() && Style.isUserSelectAll(this)) {
+                selectAll();
+                selecting = false;
+                clampScroll();
+                return;
+            }
 
             locateCursor(mouseEvent.offsetX, mouseEvent.offsetY);
-            if (mouseEvent.shiftKey) {
+            if (canSelectText() && mouseEvent.shiftKey) {
                 if (!hasSelection()) selectionAnchor = selectionStart;
                 selectionStart = selectionAnchor;
                 selectionEnd = cursor;
             } else {
                 selectionAnchor = cursor;
-                clearSelection();
+                if (canSelectText()) clearSelection();
             }
-            selecting = true;
+            selecting = canSelectText();
             clampScroll();
         });
 
         addEventListener("mousemove", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || !canEditText()) return;
+            if (!(event instanceof MouseEvent mouseEvent) || !canSelectText()) return;
             if (!selecting || document.getActiveElement() != this) return;
 
             locateCursor(mouseEvent.offsetX, mouseEvent.offsetY);
@@ -107,6 +119,7 @@ public abstract class AbstractText extends Element {
             cursor = Math.min(cursor, value.length());
             selectionAnchor = cursor;
             clearSelection();
+            undoStack.clear();
             getRenderer().text.clear();
         }
     }
@@ -117,6 +130,10 @@ public abstract class AbstractText extends Element {
 
     public boolean canEditText() {
         return true;
+    }
+
+    public boolean canSelectText() {
+        return Style.isUserSelectable(this);
     }
 
     public boolean isMultiline() {
@@ -171,6 +188,7 @@ public abstract class AbstractText extends Element {
     public void insertText(String str) {
         if (!canEditText()) return;
         if (str == null || str.isEmpty()) return;
+        pushUndoState();
 
         ensureValue();
         str = normalizeInsertedText(str);
@@ -237,10 +255,12 @@ public abstract class AbstractText extends Element {
     public boolean deleteBackward() {
         ensureValue();
         if (hasSelection()) {
+            pushUndoState();
             sliceText(selMin(), selMax());
             return true;
         }
         if (cursor <= 0) return false;
+        pushUndoState();
         sliceText(cursor - 1, cursor);
         return true;
     }
@@ -248,10 +268,12 @@ public abstract class AbstractText extends Element {
     public boolean deleteForward() {
         ensureValue();
         if (hasSelection()) {
+            pushUndoState();
             sliceText(selMin(), selMax());
             return true;
         }
         if (cursor >= value.length()) return false;
+        pushUndoState();
         sliceText(cursor, cursor + 1);
         return true;
     }
@@ -270,6 +292,37 @@ public abstract class AbstractText extends Element {
         clearSelection();
         clampScroll();
         getRenderer().text.clear();
+    }
+
+    public boolean undo() {
+        if (!canEditText()) return false;
+        if (undoStack.isEmpty()) return false;
+        TextState state = undoStack.pop();
+        restoringUndo = true;
+        try {
+            value = state.value;
+            cursor = clamp(state.cursor, 0, value.length());
+            selectionStart = clamp(state.selectionStart, 0, value.length());
+            selectionEnd = clamp(state.selectionEnd, 0, value.length());
+            selectionAnchor = clamp(state.selectionAnchor, 0, value.length());
+            clampScroll();
+            getRenderer().text.clear();
+        } finally {
+            restoringUndo = false;
+        }
+        return true;
+    }
+
+    protected void pushUndoState() {
+        if (restoringUndo) return;
+        ensureValue();
+        TextState current = new TextState(value, cursor, selectionStart, selectionEnd, selectionAnchor);
+        TextState top = undoStack.peek();
+        if (top != null && top.equals(current)) return;
+        undoStack.push(current);
+        while (undoStack.size() > MAX_UNDO_STACK) {
+            undoStack.removeLast();
+        }
     }
 
     protected void locateCursor(double mouseOffsetX, double mouseOffsetY) {
@@ -327,6 +380,7 @@ public abstract class AbstractText extends Element {
     }
 
     protected void drawSingleLineSelection(PoseStack poseStack, Rect rectRenderer, String renderText, double lineHeight) {
+        if (!canSelectText()) return;
         if (!hasSelection()) return;
         int min = clamp(selMin(), 0, renderText.length());
         int max = clamp(selMax(), 0, renderText.length());
@@ -382,5 +436,8 @@ public abstract class AbstractText extends Element {
     @Override
     public boolean canFocus() {
         return true;
+    }
+
+    protected record TextState(String value, int cursor, int selectionStart, int selectionEnd, int selectionAnchor) {
     }
 }

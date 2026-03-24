@@ -10,10 +10,9 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -34,11 +33,13 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     private final Document linkedDocument;
     private final ArrayList<Slot> boundSlots = new ArrayList<>();
-    private final ArrayList<Slot> virtualSlots = new ArrayList<>();
+    private final ArrayList<Slot> unboundSlots = new ArrayList<>();
     private final HashMap<Slot, Integer> boundGlobalIndexByElement = new HashMap<>();
     private final HashMap<Slot, Container> boundContainerByElement = new HashMap<>();
+    private final IdentityHashMap<net.minecraft.world.inventory.Slot, Slot> boundElementByMenuSlot = new IdentityHashMap<>();
     private boolean slotsBound = false;
     private boolean slotSyncDirty = true;
+    private int lastKnownDomSlotCount = -1;
 
     public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -77,10 +78,13 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     public boolean isSlotPointerInteractable(net.minecraft.world.inventory.Slot slot) {
         if (slot == null || !slot.isActive()) return false;
-        if (!(slot instanceof ApricityContainerMenu.UiSlot uiSlot)) return true;
+        if (!(slot instanceof ApricityContainerMenu.UiSlot uiSlot)) {
+            return isBoundSlotPointerEnabledByCss(slot);
+        }
         return !uiSlot.isUiHidden()
                 && !uiSlot.isUiDisabled()
-                && uiSlot.isUiAcceptPointer();
+                && uiSlot.isUiAcceptPointer()
+                && isBoundSlotPointerEnabledByCss(slot);
     }
 
     @Override
@@ -90,7 +94,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         super.init();
         if (linkedDocument == null) return;
 
-        ensureRecipePreviewSlots();
         bindSlotsFromDocument();
         syncAllSlotPositions(true);
     }
@@ -101,7 +104,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         Base.drawDocument(guiGraphics.pose(), linkedDocument);
         drawBoundSlotItems(guiGraphics);
-        drawVirtualSlotItems(guiGraphics);
+        drawUnboundSlotItems(guiGraphics);
     }
 
     @Override
@@ -112,13 +115,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     @Override
     public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (linkedDocument != null) {
-            boolean previewChanged = ensureRecipePreviewSlots();
-            boolean bindingsChanged = false;
-            if (!slotsBound || previewChanged) {
+            if (shouldRebindSlotsFromDom()) {
                 bindSlotsFromDocument();
-                bindingsChanged = true;
+                syncAllSlotPositions(true);
+            } else {
+                syncAllSlotPositions(false);
             }
-            syncAllSlotPositions(bindingsChanged);
         }
 
         super.render(guiGraphics, mouseX, mouseY, partialTick);
@@ -130,16 +132,13 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private void bindSlotsFromDocument() {
         if (linkedDocument == null) return;
 
-        Slot.cleanupRuntimeGeneratedSlots(linkedDocument);
         boundSlots.clear();
-        virtualSlots.clear();
+        unboundSlots.clear();
         boundGlobalIndexByElement.clear();
         boundContainerByElement.clear();
+        boundElementByMenuSlot.clear();
 
         LinkedHashMap<String, Container> containerById = resolveTopLevelContainerMapping();
-        injectImplicitPlayerSlots(containerById);
-        expandBoundRepeatSlots();
-
         IdentityHashMap<Container, String> containerIdByElement = new IdentityHashMap<>();
         for (Map.Entry<String, Container> entry : containerById.entrySet()) {
             containerIdByElement.put(entry.getValue(), entry.getKey());
@@ -151,17 +150,24 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         List<Element> snapshot = new ArrayList<>(linkedDocument.getElements());
         for (Element element : snapshot) {
             if (!(element instanceof Slot slot)) continue;
-
-            if (slot.isVirtualMode()) {
+            if (slot.findAncestor(Recipe.class) != null) {
                 slot.bindMcSlot(null);
-                virtualSlots.add(slot);
+                unboundSlots.add(slot);
                 continue;
             }
 
             Container ownerContainer = slot.findAncestor(Container.class);
-            if (ownerContainer == null) continue;
+            if (ownerContainer == null) {
+                slot.bindMcSlot(null);
+                unboundSlots.add(slot);
+                continue;
+            }
             String containerId = containerIdByElement.get(ownerContainer);
-            if (containerId == null || containerId.isBlank()) continue;
+            if (containerId == null || containerId.isBlank()) {
+                slot.bindMcSlot(null);
+                unboundSlots.add(slot);
+                continue;
+            }
 
             int localSlotIndex = slot.getSlotIndex();
             if (localSlotIndex < 0) {
@@ -172,97 +178,72 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             nextImplicitLocalIndex.put(containerId, nextLocalSlotIndex);
 
             Integer globalSlotIndex = menu.resolveGlobalSlotIndex(containerId, localSlotIndex);
-            if (globalSlotIndex == null) continue;
-            if (globalSlotIndex < 0 || globalSlotIndex >= menu.slots.size()) continue;
-            if (!usedGlobalSlots.add(globalSlotIndex)) continue;
+            if (globalSlotIndex == null
+                    || globalSlotIndex < 0
+                    || globalSlotIndex >= menu.slots.size()
+                    || !usedGlobalSlots.add(globalSlotIndex)) {
+                slot.bindMcSlot(null);
+                unboundSlots.add(slot);
+                continue;
+            }
 
             net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(globalSlotIndex);
             slot.bindMcSlot(menuSlot);
             boundSlots.add(slot);
             boundGlobalIndexByElement.put(slot, globalSlotIndex);
             boundContainerByElement.put(slot, ownerContainer);
+            boundElementByMenuSlot.put(menuSlot, slot);
         }
         slotsBound = true;
         slotSyncDirty = true;
+        lastKnownDomSlotCount = countDomSlotElements();
     }
 
-    private void expandBoundRepeatSlots() {
-        if (linkedDocument == null) return;
+    private boolean shouldRebindSlotsFromDom() {
+        if (!slotsBound) return true;
+        if (linkedDocument == null) return false;
+        int currentSlotCount = countDomSlotElements();
+        if (currentSlotCount < 0) return false;
+        if (currentSlotCount != lastKnownDomSlotCount) return true;
+        return currentSlotCount != (boundSlots.size() + unboundSlots.size());
+    }
 
-        List<Element> snapshot = new ArrayList<>(linkedDocument.getElements());
-        for (Element element : snapshot) {
-            if (!(element instanceof Slot slot)) continue;
-            if (!slot.isBoundMode()) continue;
-            if (slot.isRuntimeGeneratedRepeatCopy()) continue;
-            if (slot.isPlayerAutoGenerated()) continue;
-
-            int repeatCount = Math.max(1, slot.getRepeatCount());
-            if (repeatCount <= 1) continue;
-
-            int baseLocalSlotIndex = slot.getSlotIndex();
-            for (int repeatIndex = 1; repeatIndex < repeatCount; repeatIndex++) {
-                int localSlotIndex = baseLocalSlotIndex < 0 ? -1 : baseLocalSlotIndex + repeatIndex;
-                slot.createRuntimeRepeatSlotNode(localSlotIndex, repeatIndex);
-            }
+    private int countDomSlotElements() {
+        if (linkedDocument == null) return -1;
+        int count = 0;
+        for (Element element : linkedDocument.getElements()) {
+            if (element instanceof Slot) count++;
         }
+        return count;
     }
 
     private LinkedHashMap<String, Container> resolveTopLevelContainerMapping() {
         LinkedHashMap<String, Container> result = new LinkedHashMap<>();
         if (linkedDocument == null) return result;
 
-        ArrayList<Container> topLevelContainers = new ArrayList<>();
+        LinkedHashMap<String, Container> domContainerById = new LinkedHashMap<>();
         for (Element element : linkedDocument.getElements()) {
             if (!(element instanceof Container container)) continue;
-            if (container.hasAncestor(Container.class)) continue;
-            topLevelContainers.add(container);
+            String normalizedId = NormalizeUtil.normalizeContainerId(container.getAttribute("id"));
+            if (normalizedId == null) continue;
+            domContainerById.putIfAbsent(normalizedId, container);
         }
 
-        List<String> containerIds = menu.getDescriptor().getContainerIds();
-        int count = Math.min(containerIds.size(), topLevelContainers.size());
-        for (int index = 0; index < count; index++) {
-            result.put(containerIds.get(index), topLevelContainers.get(index));
+        List<String> containerIds = menu.getLayoutSpec().containerIds();
+        for (String containerId : containerIds) {
+            String normalizedId = NormalizeUtil.normalizeContainerId(containerId);
+            if (normalizedId == null) continue;
+            Container matched = domContainerById.get(normalizedId);
+            if (matched == null) continue;
+            result.put(normalizedId, matched);
         }
         return result;
     }
 
-    private void injectImplicitPlayerSlots(Map<String, Container> containerById) {
-        if (linkedDocument == null || containerById == null || containerById.isEmpty()) return;
-
-        for (Map.Entry<String, Container> entry : containerById.entrySet()) {
-            String containerId = entry.getKey();
-            Container container = entry.getValue();
-            if (container == null) continue;
-            if (!com.sighs.apricityui.instance.container.schema.ContainerSchema.Descriptor.isPlayerBind(
-                    menu.getDescriptor().getContainerBindType(containerId))) {
-                continue;
-            }
-            if (hasExplicitBoundSlotUnderContainer(container)) continue;
-
-            List<Integer> localSlots = menu.getDescriptor().getContainerSlots(containerId);
-            if (localSlots.isEmpty()) continue;
-            for (Integer localSlotIndex : localSlots) {
-                if (localSlotIndex == null || localSlotIndex < 0) continue;
-                Slot autoSlot = new Slot(linkedDocument);
-                autoSlot.applyImplicitPlayerMeta(localSlotIndex, localSlotIndex < 27 ? "inv" : "hotbar");
-                container.append(autoSlot);
-            }
-        }
-    }
-
-    private boolean hasExplicitBoundSlotUnderContainer(Container container) {
-        if (linkedDocument == null || container == null) return false;
-        for (Element element : linkedDocument.getElements()) {
-            if (!(element instanceof Slot slot)) continue;
-            if (!slot.isBoundMode()) continue;
-            if (slot.isPlayerAutoGenerated()) continue;
-            if (slot.findAncestor(Container.class) == container) {
-                return true;
-            }
-        }
-        return false;
-    }
-
+    /**
+     * 玩家容器头部（第一个 slot 之前的非 slot 直接子节点）强制跨满 9 列，
+     * 避免标题占用首格导致首行槽位只剩 8 列。
+     */
     private boolean shouldSyncSlotPositions(boolean force) {
         if (force || slotSyncDirty) return true;
         return linkedDocument != null && !linkedDocument.getDirtyElements().isEmpty();
@@ -304,25 +285,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 if (globalSlotIndex < 0 || globalSlotIndex >= menu.slots.size()) continue;
 
                 net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(globalSlotIndex);
-                SlotVisual visual = resolveSlotVisual(menuSlot);
-                boolean hiddenByMode = visual.disabled;
-                boolean hidden = hiddenByMode;
-
-                boolean runtimeStyleChanged = applyBoundSlotRuntimeStyle(boundElement, hiddenByMode);
-                if (runtimeStyleChanged) {
-                    Drawer.flushUpdates(linkedDocument);
-                }
-
-                if (!hidden) {
-                    boolean hiddenByStyle = !boundElement.isVisible || "none".equals(boundElement.getComputedStyle().display);
-                    if (hiddenByStyle) {
-                        hidden = true;
-                        runtimeStyleChanged = applyBoundSlotRuntimeStyle(boundElement, true);
-                        if (runtimeStyleChanged) {
-                            Drawer.flushUpdates(linkedDocument);
-                        }
-                    }
-                }
+                boolean hidden = !boundElement.isVisible || "none".equals(boundElement.getComputedStyle().display);
 
                 int slotSize = resolveBoundSlotPixelSize(boundElement, menuSlot);
                 if (hidden) {
@@ -345,17 +308,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     private int resolveBoundSlotPixelSize(Slot boundElement, net.minecraft.world.inventory.Slot menuSlot) {
-        if (boundElement == null) return 16;
-
-        int fromStyle = Math.max(
-                Size.parse(boundElement.getComputedStyle().width),
-                Size.parse(boundElement.getComputedStyle().height)
-        );
-        if (fromStyle > 0) return fromStyle;
-
-        Size box = Size.box(boundElement);
-        int fromBox = (int) Math.round(Math.max(box.width(), box.height()));
-        if (fromBox > 0) return fromBox;
+        if (boundElement != null) {
+            int fromElement = boundElement.resolveSlotSizeHint(16);
+            if (fromElement > 0) return fromElement;
+        }
 
         if (menuSlot instanceof ApricityContainerMenu.UiSlot uiSlot) {
             return Math.max(1, uiSlot.getUiSlotSize());
@@ -363,7 +319,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         Container ownerContainer = boundContainerByElement.get(boundElement);
         if (ownerContainer == null) {
-            ownerContainer = boundElement.findAncestor(Container.class);
+            if (boundElement != null) {
+                ownerContainer = boundElement.findAncestor(Container.class);
+            }
             if (ownerContainer != null) {
                 boundContainerByElement.put(boundElement, ownerContainer);
             }
@@ -374,16 +332,13 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return 16;
     }
 
-    private boolean ensureRecipePreviewSlots() {
-        if (linkedDocument == null) return false;
-
-        boolean changed = false;
-        List<Element> snapshot = new ArrayList<>(linkedDocument.getElements());
-        for (Element element : snapshot) {
-            if (!(element instanceof Recipe recipe)) continue;
-            changed |= recipe.ensurePreviewSlots();
-        }
-        return changed;
+    private boolean isBoundSlotPointerEnabledByCss(net.minecraft.world.inventory.Slot menuSlot) {
+        Slot boundElement = boundElementByMenuSlot.get(menuSlot);
+        if (boundElement == null) return true;
+        if (boundElement.findAncestor(Recipe.class) != null) return false;
+        if (!boundElement.isVisible) return false;
+        if ("none".equals(boundElement.getComputedStyle().display)) return false;
+        return boundElement.shouldAcceptPointer();
     }
 
     private void drawBoundSlotItems(GuiGraphics guiGraphics) {
@@ -403,6 +358,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         for (net.minecraft.world.inventory.Slot slot : menu.slots) {
             SlotVisual visual = resolveSlotVisual(slot);
+            int globalSlotIndex = menu.slots.indexOf(slot);
             if (visual.hidden || visual.disabled || !visual.renderItem) continue;
             if (slot == null || !slot.isActive()) continue;
 
@@ -449,36 +405,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
     }
 
-    private void drawVirtualSlotItems(GuiGraphics guiGraphics) {
-        if (linkedDocument == null) return;
-
-        for (Slot slot : virtualSlots) {
-            if (slot == null) continue;
-            if (!slot.isVisible) continue;
-            if ("none".equals(slot.getComputedStyle().display)) continue;
-            if (!slot.shouldRenderItem()) continue;
-
-            Rect rect = Rect.of(slot);
-            Position body = rect.getBodyRectPosition();
-            Size bodySize = rect.getBodyRectSize();
-            int slotWidth = Math.max(1, (int) Math.round(bodySize.width()));
-            int slotHeight = Math.max(1, (int) Math.round(bodySize.height()));
-            int padding = clampPadding(Math.min(slotWidth, slotHeight), slot.resolveItemPadding(0));
-            int renderWidth = Math.max(1, slotWidth - padding * 2);
-            int renderHeight = Math.max(1, slotHeight - padding * 2);
-            int drawX = (int) Math.round(body.x + padding + (renderWidth - 16) / 2.0);
-            int drawY = (int) Math.round(body.y + padding + (renderHeight - 16) / 2.0);
-            ItemStack stack = slot.getMcSlot().getItem();
-            if (stack.isEmpty()) continue;
-
-            float iconScale = Math.max(0.01F, slot.resolveIconScale(1.0F));
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + slot.resolveZIndex(0));
-            applyItemScaleTransform(guiGraphics, drawX, drawY, iconScale);
-            guiGraphics.renderItem(stack, drawX, drawY);
-            guiGraphics.renderItemDecorations(font, stack, drawX, drawY);
-            guiGraphics.pose().popPose();
-        }
+    private void drawUnboundSlotItems(GuiGraphics guiGraphics) {
+        // Keep bound-slot rendering specialized for container screens.
+        // Unbound (virtual) slot items are rendered via the shared pass.
+        ItemRender.renderUnboundSlotItems(guiGraphics, new ArrayList<>(unboundSlots));
     }
 
     private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -544,19 +474,24 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
 
         linkedDocument.remove();
-        // Ensure the native cursor is restored when the Apricity screen closes.
         Cursor.resetToDefault();
         super.onClose();
     }
 
     @Override
     public void removed() {
+        // 兜底清理：某些关闭路径可能不经过 onClose，确保绑定文档不会残留。
+        if (linkedDocument != null) {
+            linkedDocument.remove();
+        }
         slotsBound = false;
         slotSyncDirty = true;
+        lastKnownDomSlotCount = -1;
         boundSlots.clear();
-        virtualSlots.clear();
+        unboundSlots.clear();
         boundGlobalIndexByElement.clear();
         boundContainerByElement.clear();
+        boundElementByMenuSlot.clear();
         super.removed();
     }
 

@@ -3,12 +3,10 @@ package com.sighs.apricityui.resource.async.image;
 import com.mojang.blaze3d.platform.NativeImage;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-/**
- * 图片解码后的纯 CPU 数据，不能包含任何 GL/TextureManager 行为。
- */
-public class DecodedImage implements AutoCloseable {
+public final class DecodedImage implements AutoCloseable {
     private final NativeImage staticImage;
     private final List<NativeImage> frames;
     private final int[] frameDelaysMs;
@@ -30,14 +28,24 @@ public class DecodedImage implements AutoCloseable {
 
     public static DecodedImage ofAnimated(List<NativeImage> images, List<Integer> delaysMs) {
         if (images == null || images.isEmpty()) return null;
-        List<NativeImage> frames = new ArrayList<>(images);
-        int[] delays = new int[frames.size()];
-        for (int i = 0; i < frames.size(); i++) {
-            int delay = (delaysMs != null && i < delaysMs.size()) ? delaysMs.get(i) : 100;
-            delays[i] = Math.max(delay, 20);
+        ArrayList<NativeImage> copied = new ArrayList<>(images.size());
+        for (NativeImage frame : images) {
+            if (frame == null) continue;
+            copied.add(frame);
         }
-        NativeImage first = frames.get(0);
-        return new DecodedImage(null, frames, delays, first.getWidth(), first.getHeight());
+        if (copied.isEmpty()) return null;
+
+        int[] delays = new int[copied.size()];
+        for (int i = 0; i < copied.size(); i++) {
+            int delay = 100;
+            if (delaysMs != null && i < delaysMs.size() && delaysMs.get(i) != null) {
+                delay = delaysMs.get(i);
+            }
+            delays[i] = Math.max(20, delay);
+        }
+
+        NativeImage first = copied.get(0);
+        return new DecodedImage(null, Collections.unmodifiableList(copied), delays, first.getWidth(), first.getHeight());
     }
 
     public boolean isAnimated() {

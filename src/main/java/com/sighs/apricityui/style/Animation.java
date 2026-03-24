@@ -8,280 +8,213 @@ import java.util.regex.Pattern;
 
 public class Animation {
     private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
+    private static final Map<String, Set<String>> KEYFRAME_PROPS = new HashMap<>();
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
-
-    private static final Set<String> DIRECTIONS = new HashSet<>(List.of(
-            "normal", "reverse", "alternate", "alternate-reverse"
-    ));
-    private static final Set<String> FILL_MODES = new HashSet<>(List.of(
-            "none", "forwards", "backwards", "both"
-    ));
-    private static final Set<String> TIMING_FUNCTIONS = new HashSet<>(List.of(
-            "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
-    ));
-
-    private static final Pattern TIME_PATTERN = Pattern.compile("^\\+?([0-9]*\\.?[0-9]+)(s|ms)$");
+    private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(\\s*([0-9]+)\\s*(?:,\\s*(start|end)\\s*)?\\)\\s*$");
+    private static final Set<String> DIRECTION_SET = Set.of("normal", "reverse", "alternate", "alternate-reverse");
+    private static final Set<String> FILL_SET = Set.of("none", "forwards", "backwards", "both");
 
     private static class AnimationConfig {
-        String name = "none";
-        String duration = "0s";
-        String delay = "0s";
-        String iterationCount = "1";
-        String direction = "normal";
-        String fillMode = "none";
+        String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "linear";
     }
 
     private static class AnimationState {
-        long startTime;
-        String currentName;
+        final Map<String, Long> starts = new HashMap<>();
+        String lastSpec = null;
+        List<AnimationConfig> cachedConfigs = List.of();
+        final Set<String> live = new HashSet<>();
 
-        public AnimationState(String name) {
-            this.startTime = System.currentTimeMillis();
-            this.currentName = name;
+        void forgetExcept(Set<String> names) {
+            starts.keySet().retainAll(names);
         }
     }
 
-    public static boolean isActive(Element element) {
-        return ACTIVE_ANIMATIONS.containsKey(element.uuid);
+    public static void registerKeyframe(String name, double percent, Map<String, String> props) {
+        KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>()).put(percent, props);
+        KEYFRAME_PROPS.computeIfAbsent(name, k -> new HashSet<>()).addAll(props.keySet());
     }
 
-    public static void stop(Element element) {
-        ACTIVE_ANIMATIONS.remove(element.uuid);
+    public static boolean isActive(Element e) {
+        return ACTIVE_ANIMATIONS.containsKey(e.uuid);
     }
 
-    public static void registerKeyframe(String name, double percent, Map<String, String> properties) {
-        KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>())
-                .put(percent, properties);
-    }
-
-    private static AnimationConfig resolveAnimation(Style style) {
-        AnimationConfig config = new AnimationConfig();
-        String shorthand = style.animation;
-        if (valid(shorthand)) {
-            applyShorthandLogic(config, shorthand);
-        }
-
-        if (valid(style.animationName)) config.name = style.animationName;
-        if (valid(style.animationDuration)) config.duration = style.animationDuration;
-        if (valid(style.animationDelay)) config.delay = style.animationDelay;
-        if (valid(style.animationIterationCount)) config.iterationCount = style.animationIterationCount;
-        if (valid(style.animationDirection)) config.direction = style.animationDirection;
-        if (valid(style.animationFillMode)) config.fillMode = style.animationFillMode;
-
-        return config;
-    }
-
-
-    private static void applyShorthandLogic(AnimationConfig config, String shorthand) {
-        String[] tokens = shorthand.trim().split("\\s+");
-        boolean durationSet = false;
-        for (String token : tokens) {
-            if (TIME_PATTERN.matcher(token).matches()) {
-                if (!durationSet) {
-                    config.duration = token;
-                    durationSet = true;
-                } else {
-                    config.delay = token;
-                }
-                continue;
-            }
-            if (token.equals("infinite") || isNumeric(token)) {
-                config.iterationCount = token;
-                continue;
-            }
-            if (DIRECTIONS.contains(token)) {
-                config.direction = token;
-                continue;
-            }
-            if (FILL_MODES.contains(token)) {
-                config.fillMode = token;
-                continue;
-            }
-            if (TIMING_FUNCTIONS.contains(token) || token.startsWith("cubic-bezier") || token.startsWith("steps")) {
-                continue;
-            }
-            if (token.equals("running") || token.equals("paused")) {
-                continue;
-            }
-            config.name = token;
-        }
-    }
-
-    private static boolean valid(String s) {
-        return s != null && !s.isEmpty() && !s.equals("unset");
-    }
-
-    private static boolean isNumeric(String s) {
-        if (s == null || s.isEmpty()) return false;
-        int len = s.length();
-        boolean hasDot = false;
-        for (int i = 0; i < len; i++) {
-            char c = s.charAt(i);
-            if (c == '.') {
-                if (hasDot) return false;
-                hasDot = true;
-                continue;
-            }
-            if (c < '0' || c > '9') return false;
-        }
-        return true;
-    }
-
-
-    public static void updateStyle(Element element, Style computedStyle) {
-        AnimationConfig config = resolveAnimation(computedStyle);
-        String animName = config.name;
-        if (animName == null || animName.equals("none") || !KEYFRAMES.containsKey(animName)) {
+    public static void updateStyle(Element element, Style style) {
+        String spec = style.animation;
+        if (spec == null || spec.equals("none")) {
             ACTIVE_ANIMATIONS.remove(element.uuid);
             return;
         }
 
-        AnimationState state = ACTIVE_ANIMATIONS.get(element.uuid);
-        if (state == null || !state.currentName.equals(animName)) {
-            state = new AnimationState(animName);
-            ACTIVE_ANIMATIONS.put(element.uuid, state);
-        }
-
-        double duration = parseTime(config.duration);
-        if (duration <= 0) return;
-
-        long elapsed = System.currentTimeMillis() - state.startTime;
-        double delay = parseTime(config.delay);
-        if (elapsed < delay) {
-            applyKeyframes(computedStyle, animName, 0.0);
+        AnimationState state = ACTIVE_ANIMATIONS.computeIfAbsent(element.uuid, k -> new AnimationState());
+        List<AnimationConfig> configs = resolve(spec, state);
+        if (configs.isEmpty()) {
+            ACTIVE_ANIMATIONS.remove(element.uuid);
             return;
         }
 
-        long activeTime = elapsed - (long) delay;
-        String countStr = config.iterationCount;
-        double count = "infinite".equals(countStr) ? Double.MAX_VALUE : Double.parseDouble(countStr);
+        long now = System.currentTimeMillis();
+        Set<String> live = state.live;
+        live.clear();
 
-        if (activeTime > duration * count) {
-            String fillMode = config.fillMode;
-            if ("forwards".equals(fillMode) || "both".equals(fillMode)) {
-                applyKeyframes(computedStyle, animName, 100.0);
-            }
+        for (AnimationConfig config : configs) {
+            apply(state, element, style, config, now, live);
+        }
+
+        if (live.isEmpty()) ACTIVE_ANIMATIONS.remove(element.uuid);
+        else state.forgetExcept(live);
+    }
+
+    private static void apply(AnimationState state, Element element, Style style, AnimationConfig config, long now, Set<String> live) {
+        if ("none".equals(config.name) || !KEYFRAMES.containsKey(config.name)) return;
+        live.add(config.name);
+
+        long start = state.starts.computeIfAbsent(config.name, k -> now);
+        double dur = Transition.parseTime(config.duration), delay = Transition.parseTime(config.delay);
+        if (dur <= 0) return;
+
+        long elapsed = now - start;
+        double activeTime = elapsed - delay;
+        if (activeTime < 0) {
+            if (config.fill.equals("backwards") || config.fill.equals("both"))
+                renderFrame(element, style, config.name, 0.0);
             return;
         }
 
-        double currentCycleTime = activeTime % (long) duration;
-        double progress = currentCycleTime / duration;
-        String direction = config.direction;
-        long currentIteration = (long) (activeTime / duration);
-        boolean isEvenIteration = (currentIteration % 2) == 0;
-
-        if ("reverse".equals(direction) ||
-                ("alternate".equals(direction) && !isEvenIteration) ||
-                ("alternate-reverse".equals(direction) && isEvenIteration)) {
-            progress = 1.0 - progress;
-        }
-
-        applyKeyframes(computedStyle, animName, progress * 100.0);
-    }
-
-    private static void applyKeyframes(Style style, String animName, double currentPercent) {
-        TreeMap<Double, Map<String, String>> timeline = KEYFRAMES.get(animName);
-        if (timeline == null || timeline.isEmpty()) return;
-
-        Map.Entry<Double, Map<String, String>> startEntry = timeline.floorEntry(currentPercent);
-        Map.Entry<Double, Map<String, String>> endEntry = timeline.ceilingEntry(currentPercent);
-
-        if (startEntry == null) startEntry = timeline.firstEntry();
-        if (endEntry == null) endEntry = timeline.lastEntry();
-
-        if (startEntry.getKey().equals(endEntry.getKey())) {
-            startEntry.getValue().forEach(style::update);
+        double count = "infinite".equals(config.count) ? Double.MAX_VALUE : Double.parseDouble(config.count);
+        if (activeTime >= dur * count) {
+            if (config.fill.equals("forwards") || config.fill.equals("both"))
+                renderFrame(element, style, config.name, 100.0);
             return;
         }
 
-        double startP = startEntry.getKey();
-        double endP = endEntry.getKey();
-        double fraction = (currentPercent - startP) / (endP - startP);
+        double progress = (activeTime % dur) / dur;
+        long iter = (long) (activeTime / dur);
+        if (config.direction.startsWith("alternate") && iter % 2 != 0) progress = 1.0 - progress;
+        else if (config.direction.equals("reverse")) progress = 1.0 - progress;
 
-        Map<String, String> startProps = startEntry.getValue();
-        Map<String, String> endProps = endEntry.getValue();
-
-        Set<String> allProperties = new HashSet<>(startProps.keySet());
-        allProperties.addAll(endProps.keySet());
-
-        List<Transition.Change> changes = new ArrayList<>();
-
-        for (String prop : allProperties) {
-            String startValStr = startProps.getOrDefault(prop, style.get(prop));
-            String endValStr = endProps.getOrDefault(prop, startValStr);
-
-            if (startValStr == null || endValStr == null) continue;
-
-            if (prop.equals("transform")) {
-                interpolateTransform(changes, startValStr, endValStr, fraction);
-                continue;
-            }
-
-            try {
-                if (startValStr.equals(endValStr)) {
-                    style.update(prop, startValStr);
-                    continue;
-                }
-
-                double startVal = Transition.parseStyle(prop, startValStr);
-                double endVal = Transition.parseStyle(prop, endValStr);
-                double currentVal = Transition.getOffset(prop, startVal, endVal, fraction);
-
-                if (prop.equals("opacity")) {
-                    style.opacity = String.valueOf(currentVal);
-                } else {
-                    Transition.merge(style, prop, currentVal);
-                }
-            } catch (Exception e) {
-                style.update(prop, fraction < 0.5 ? startValStr : endValStr);
-            }
-        }
-
-        if (!changes.isEmpty()) {
-            Transform.readTransition(changes, style);
-        }
+        renderFrame(element, style, config.name, applyTiming(progress, config.timing) * 100.0);
     }
 
-    private static void interpolateTransform(List<Transition.Change> changes, String startStr, String endStr, double fraction) {
-        List<Transform> startTransforms = Transform.parse(startStr);
-        List<Transform> endTransforms = Transform.parse(endStr);
+    private static void renderFrame(Element element, Style style, String name, double percent) {
+        TreeMap<Double, Map<String, String>> timeline = KEYFRAMES.get(name);
+        if (timeline == null) return;
 
-        int size = Math.min(startTransforms.size(), endTransforms.size());
+        // 找到当前百分比的前后关键帧
+        Map.Entry<Double, Map<String, String>> lowEntry = timeline.floorEntry(percent);
+        Map.Entry<Double, Map<String, String>> highEntry = timeline.ceilingEntry(percent);
 
-        for (int i = 0; i < size; i++) {
-            Transform s = startTransforms.get(i);
-            Transform e = endTransforms.get(i);
+        if (lowEntry == null) lowEntry = timeline.firstEntry();
+        if (highEntry == null) highEntry = timeline.lastEntry();
 
-            if (s instanceof Transform.Translate ts && e instanceof Transform.Translate te) {
-                double x = Transition.getOffset("transform-x", ts.x(), te.x(), fraction);
-                double y = Transition.getOffset("transform-y", ts.y(), te.y(), fraction);
-                double z = Transition.getOffset("transform-z", ts.z(), te.z(), fraction);
-                changes.add(new Transition.Change("transform-translatex", x));
-                changes.add(new Transition.Change("transform-translatey", y));
-                changes.add(new Transition.Change("transform-translatez", z));
-            } else if (s instanceof Transform.Rotate rs && e instanceof Transform.Rotate re) {
-                double x = Transition.getOffset("transform-rx", rs.x(), re.x(), fraction);
-                double y = Transition.getOffset("transform-ry", rs.y(), re.y(), fraction);
-                double z = Transition.getOffset("transform-rz", rs.z(), re.z(), fraction);
-                changes.add(new Transition.Change("transform-rotatex", x));
-                changes.add(new Transition.Change("transform-rotatey", y));
-                changes.add(new Transition.Change("transform-rotatez", z));
-            } else if (s instanceof Transform.Scale ss && e instanceof Transform.Scale es) {
-                double x = Transition.getOffset("transform-sx", ss.x(), es.x(), fraction);
-                double y = Transition.getOffset("transform-sy", ss.y(), es.y(), fraction);
-                changes.add(new Transition.Change("transform-scalex", x));
-                changes.add(new Transition.Change("transform-scaley", y));
+        double lowP = lowEntry.getKey();
+        double highP = highEntry.getKey();
+        double fraction = (lowP == highP) ? 0 : (percent - lowP) / (highP - lowP);
+
+        Set<String> allProps = KEYFRAME_PROPS.get(name);
+        if (allProps == null || allProps.isEmpty()) return;
+
+        List<Transition.Change> changes = new ArrayList<>(allProps.size());
+        for (String p : allProps) {
+            String vS = findProperty(timeline, percent, p, true, style.get(p));
+            String vE = findProperty(timeline, percent, p, false, vS);
+
+            if (p.equals("transform")) Transform.interpolateTransform(changes, vS, vE, fraction);
+            else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
+            else {
+                double val = Transition.getOffset(p, Transition.parseStyle(p, vS), Transition.parseStyle(p, vE), fraction);
+                changes.add(new Transition.Change(p, val));
             }
         }
+        Transition.applyChanges(style, changes);
     }
 
-    private static double parseTime(String time) {
-        if (time == null || time.equals("unset") || time.equals("0s")) return 0;
-        try {
-            if (time.endsWith("ms")) return Double.parseDouble(time.substring(0, time.length() - 2));
-            if (time.endsWith("s")) return Double.parseDouble(time.substring(0, time.length() - 1)) * 1000;
-            return Double.parseDouble(time) * 1000;
-        } catch (NumberFormatException ignored) {}
-        return 0;
+    private static String findProperty(TreeMap<Double, Map<String, String>> timeline, double percent, String prop, boolean backward, String fallback) {
+        NavigableMap<Double, Map<String, String>> subMap = backward ? timeline.headMap(percent, true).descendingMap() : timeline.tailMap(percent, true);
+        for (Map<String, String> step : subMap.values()) {
+            if (step.containsKey(prop)) return step.get(prop);
+        }
+        return fallback;
+    }
+
+    private static double applyTiming(double p, String tf) {
+        if (tf.startsWith("steps")) {
+            var m = STEPS_PATTERN.matcher(tf);
+            if (m.matches()) {
+                int steps = Integer.parseInt(m.group(1));
+                String mode = m.group(2);
+                return (mode != null && mode.equals("start")) ? Math.ceil(p * steps) / steps : Math.floor(p * steps) / steps;
+            }
+        }
+        return p;
+    }
+
+    private static List<AnimationConfig> resolve(String spec, AnimationState state) {
+        if (spec.equals(state.lastSpec)) {
+            return state.cachedConfigs;
+        }
+        List<AnimationConfig> configs = new ArrayList<>();
+        int depth = 0;
+        int partStart = 0;
+        int len = spec.length();
+        for (int i = 0; i < len; i++) {
+            char ch = spec.charAt(i);
+            if (ch == '(') depth++;
+            else if (ch == ')' && depth > 0) depth--;
+            else if (ch == ',' && depth == 0) {
+                parsePart(spec, partStart, i, configs);
+                partStart = i + 1;
+            }
+        }
+        parsePart(spec, partStart, len, configs);
+        state.lastSpec = spec;
+        state.cachedConfigs = configs.isEmpty() ? List.of() : configs;
+        return configs;
+    }
+
+    private static void parsePart(String spec, int start, int end, List<AnimationConfig> configs) {
+        while (start < end && Character.isWhitespace(spec.charAt(start))) start++;
+        while (end > start && Character.isWhitespace(spec.charAt(end - 1))) end--;
+        if (start >= end) return;
+
+        AnimationConfig c = new AnimationConfig();
+        int i = start;
+        while (i < end) {
+            while (i < end && Character.isWhitespace(spec.charAt(i))) i++;
+            if (i >= end) break;
+            int tokStart = i;
+            while (i < end && !Character.isWhitespace(spec.charAt(i))) i++;
+            String t = spec.substring(tokStart, i);
+
+            if (isTimeToken(t)) {
+                if (c.duration.equals("0s")) c.duration = t;
+                else c.delay = t;
+            } else if (t.equals("infinite") || isNumberToken(t)) c.count = t;
+            else if (DIRECTION_SET.contains(t)) c.direction = t;
+            else if (FILL_SET.contains(t)) c.fill = t;
+            else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
+            else c.name = t;
+        }
+        configs.add(c);
+    }
+
+    private static boolean isTimeToken(String t) {
+        int len = t.length();
+        if (len < 2) return false;
+        if (t.endsWith("ms")) {
+            return isNumberToken(t.substring(0, len - 2));
+        }
+        if (t.charAt(len - 1) == 's') {
+            return isNumberToken(t.substring(0, len - 1));
+        }
+        return false;
+    }
+
+    private static boolean isNumberToken(String t) {
+        if (t.isEmpty()) return false;
+        for (int i = 0; i < t.length(); i++) {
+            char ch = t.charAt(i);
+            if ((ch < '0' || ch > '9') && ch != '.') return false;
+        }
+        return true;
     }
 }

@@ -1,55 +1,32 @@
 package com.sighs.apricityui.instance.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.brigadier.exceptions.CommandSyntaxException;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
-import com.sighs.apricityui.instance.container.schema.ContainerSchema;
+import com.sighs.apricityui.instance.slot.SlotDisplaySpec;
+import com.sighs.apricityui.instance.slot.SlotExpressionCompiler;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
-import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.core.registries.Registries;
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.tags.TagKey;
-import net.minecraft.world.SimpleContainer;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.crafting.RecipeType;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.Locale;
+import java.util.Map;
 
 /**
- * 统一槽位元素：bound 与 virtual 都通过 mcSlot 单通路读取/写入展示物品。
+ * 绑定态展示真实菜单槽位，未绑定态展示表达式候选。
  */
 @ElementRegister(Slot.TAG_NAME)
 public class Slot extends MinecraftElement {
     public static final String TAG_NAME = "SLOT";
-    public static final String MODE_BOUND = "bound";
-    public static final String MODE_VIRTUAL = "virtual";
-    public static final ResourceLocation FURNACE_FUEL_VIRTUAL_TAG = ApricityUI.id("furnace_fuels");
-    private static final String GENERATED_REPEAT = "slot-repeat";
-    private static final String GENERATED_REPEAT_RUNTIME_LEGACY = "slot-repeat-runtime";
-    private static final String GENERATED_PLAYER_AUTO = "player-auto";
-    private static final long DEFAULT_ROTATE_INTERVAL_MS = 1000L;
-    private static final String TAG_CANDIDATE_CACHE_KEY = "minecraft-element:slot-tag-candidates";
 
-    static {
-        Element.register(TAG_NAME, (document, string) -> new Slot(document));
-    }
+    private net.minecraft.world.inventory.Slot mcSlot = null;
+    private ItemStack virtualStack = ItemStack.EMPTY;
 
-    private final SimpleContainer virtualContainer = new SimpleContainer(1);
-    private final net.minecraft.world.inventory.Slot virtualMcSlot = new net.minecraft.world.inventory.Slot(virtualContainer, 0, 0, 0);
-    private net.minecraft.world.inventory.Slot mcSlot = virtualMcSlot;
-
-    private String resolvedItemToken = "";
-    private ResourceLocation resolvedTagId = null;
-    private List<ItemStack> candidates = List.of();
+    private SlotDisplaySpec displaySpec = SlotDisplaySpec.EMPTY;
+    private String compiledSignature = "";
     private int candidateIndex = 0;
     private long nextRotateAtMillis = 0L;
 
@@ -57,94 +34,31 @@ public class Slot extends MinecraftElement {
         super(document, TAG_NAME);
     }
 
-    /**
-     * 清理运行时自动生成的槽位（repeat/player-auto）。
-     */
-    public static void cleanupRuntimeGeneratedSlots(Document document) {
-        if (document == null) return;
-        List<Element> snapshot = new ArrayList<>(document.getElements());
-        for (Element element : snapshot) {
-            if (!(element instanceof Slot slot)) continue;
-            if (!slot.isRuntimeGeneratedSlot()) continue;
-            slot.remove();
-        }
-    }
-
     public static String furnaceFuelVirtualTagLiteral() {
-        return "#" + FURNACE_FUEL_VIRTUAL_TAG;
+        return SlotExpressionCompiler.furnaceFuelTagLiteral();
     }
 
     public static void clearCandidateCache() {
-        clearGlobalCache(TAG_CANDIDATE_CACHE_KEY);
+        SlotExpressionCompiler.clearTagCache();
     }
 
-    @SuppressWarnings("unchecked")
-    private static Map<ResourceLocation, List<ItemStack>> tagCandidateCache() {
-        return (Map<ResourceLocation, List<ItemStack>>) computeGlobalCacheIfAbsent(
-                TAG_CANDIDATE_CACHE_KEY,
-                ConcurrentHashMap::new
-        );
-    }
-
-    private static List<ItemStack> buildCandidatesByTag(ResourceLocation tagId) {
-        ArrayList<ItemStack> result = new ArrayList<>();
-        if (FURNACE_FUEL_VIRTUAL_TAG.equals(tagId)) {
-            for (Item item : BuiltInRegistries.ITEM) {
-                ItemStack stack = new ItemStack(item);
-                if (stack.getBurnTime(RecipeType.SMELTING) <= 0) continue;
-                result.add(stack);
-            }
-        } else {
-            TagKey<Item> tagKey = TagKey.create(Registries.ITEM, tagId);
-            for (Item item : BuiltInRegistries.ITEM) {
-                ItemStack stack = new ItemStack(item);
-                if (stack.is(tagKey)) result.add(stack);
-            }
-        }
-        result.sort(Comparator.comparing(stack -> {
-            ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            return id == null ? "" : id.toString();
-        }));
-        return List.copyOf(result);
-    }
-
-    private static int parsePositiveInt(String raw, int fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
-        try {
-            int parsed = Integer.parseInt(raw.trim());
-            return parsed > 0 ? parsed : fallback;
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private static long parsePositiveLong(String raw, long fallback) {
-        if (raw == null || raw.isBlank()) return fallback;
-        try {
-            long parsed = Long.parseLong(raw.trim());
-            return parsed > 0 ? parsed : fallback;
-        } catch (NumberFormatException ignored) {
-            return fallback;
-        }
-    }
-
-    private String getFirstNonBlankAttribute(String... keys) {
-        if (keys == null) return null;
-        for (String key : keys) {
-            if (key == null || key.isBlank()) continue;
-            String value = getAttribute(key);
-            if (value == null || value.isBlank()) continue;
-            return value;
-        }
-        return null;
+    public static String buildLiteralWithCount(String rawLiteral, int requestedCount) {
+        return SlotExpressionCompiler.buildLiteralWithCount(rawLiteral, requestedCount);
     }
 
     public void bindMcSlot(net.minecraft.world.inventory.Slot slot) {
-        mcSlot = slot == null ? virtualMcSlot : slot;
+        mcSlot = slot;
+        if (slot != null) {
+            virtualStack = ItemStack.EMPTY;
+        }
     }
 
     public net.minecraft.world.inventory.Slot getMcSlot() {
-        return mcSlot == null ? virtualMcSlot : mcSlot;
+        return mcSlot;
+    }
+
+    private boolean isBoundToMenuSlot() {
+        return mcSlot != null;
     }
 
     private ApricityContainerMenu.UiSlot resolveUiSlot() {
@@ -152,172 +66,124 @@ public class Slot extends MinecraftElement {
         return uiSlot;
     }
 
-    public String getMode() {
-        String rawMode = getAttribute("mode");
-        if (rawMode != null && !rawMode.isBlank()) {
-            String normalized = rawMode.trim().toLowerCase(Locale.ROOT);
-            if (MODE_BOUND.equals(normalized)) return MODE_BOUND;
-            if (MODE_VIRTUAL.equals(normalized)) return MODE_VIRTUAL;
-        }
-        return hasAncestor(Container.class) ? MODE_BOUND : MODE_VIRTUAL;
-    }
-
-    @Override
-    public MinecraftBindingMode getBindingMode() {
-        return MODE_BOUND.equals(getMode()) ? MinecraftBindingMode.BOUND : MinecraftBindingMode.VIRTUAL;
-    }
-
     public int getRepeatCount() {
-        return parsePositiveInt(getAttribute("repeat"), 1);
-    }
-
-    public boolean isGeneratedSlot() {
-        String source = getGeneratedSourceTag();
-        return GENERATED_REPEAT.equals(source)
-                || GENERATED_REPEAT_RUNTIME_LEGACY.equals(source)
-                || GENERATED_PLAYER_AUTO.equals(source);
-    }
-
-    public boolean isRuntimeGeneratedRepeatCopy() {
-        return GENERATED_REPEAT.equals(getGeneratedSourceTag());
-    }
-
-    public boolean isPlayerAutoGenerated() {
-        return GENERATED_PLAYER_AUTO.equals(getGeneratedSourceTag());
+        Integer parsed = parsePositiveInt(getAttribute("repeat"));
+        return parsed == null ? 1 : parsed;
     }
 
     private String getGeneratedSourceTag() {
         return getAttribute("data-generated");
     }
 
-    private boolean isRuntimeGeneratedSlot() {
-        String source = getGeneratedSourceTag();
-        return GENERATED_REPEAT.equals(source)
-                || GENERATED_REPEAT_RUNTIME_LEGACY.equals(source)
-                || GENERATED_PLAYER_AUTO.equals(source);
+    private boolean isRecipeSlot() {
+        String generatedTag = getGeneratedSourceTag();
+        if (generatedTag != null && generatedTag.startsWith("recipe")) return true;
+        return hasAncestor(Recipe.class);
     }
 
     public int getSlotIndex() {
-        String raw = getAttribute("slot-index");
-        try {
-            return Integer.parseInt(raw);
-        } catch (NumberFormatException ignored) {
-            return -1;
-        }
+        Integer parsed = parseInt(getFirstNonBlankAttribute("slot-index", "index"));
+        return parsed == null ? -1 : parsed;
     }
 
     public boolean isDisabled() {
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return uiSlot.isUiDisabled();
-        }
-        return Boolean.parseBoolean(getAttribute("disabled"));
+        if (isBoundToMenuSlot() && uiSlot != null && uiSlot.isUiDisabled()) return true;
+        Boolean disabledAttr = parseBooleanLike(getAttribute("disabled"));
+        if (disabledAttr != null && disabledAttr) return true;
+        return !resolveInteractive();
     }
 
     public boolean shouldAcceptPointer() {
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return uiSlot.isUiAcceptPointer();
-        }
-        String pointerRaw = getFirstNonBlankAttribute("pointer");
-        Boolean parsed = ContainerSchema.Descriptor.SlotVisualProfile.parsePointerFlag(pointerRaw);
-        return parsed == null || parsed;
+        if (isBoundToMenuSlot() && uiSlot != null && !uiSlot.isUiAcceptPointer()) return false;
+        return !isDisabled() && resolveInteractive();
     }
 
     public int resolveSlotSizeHint(int fallback) {
+        Integer cssSize = parsePositiveInt(getCustomPropertyInherit("--aui-slot-size"));
+        if (cssSize != null) return cssSize;
+
+        int width = Size.parse(getComputedStyle().width);
+        int height = Size.parse(getComputedStyle().height);
+        int styleSize = Math.max(width, height);
+        if (styleSize > 0) return styleSize;
+
+        Integer attrSize = parsePositiveInt(getFirstNonBlankAttribute("size", "slot-size"));
+        if (attrSize != null) return attrSize;
+
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return Math.max(1, uiSlot.getUiSlotSize());
-        }
-        Integer parsed = ContainerSchema.Descriptor.SlotVisualProfile.parsePositiveInt(getFirstNonBlankAttribute("size", "slot-size"));
-        if (parsed == null) return Math.max(1, fallback);
-        return parsed;
+        if (isBoundToMenuSlot() && uiSlot != null) return Math.max(1, uiSlot.getUiSlotSize());
+        return Math.max(1, fallback);
     }
 
     public boolean shouldRenderBackground() {
+        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-render-bg"));
+        if (cssFlag != null) return cssFlag;
+        Boolean attrFlag = parseBooleanLike(getAttribute("render-bg"));
+        if (attrFlag != null) return attrFlag;
+
+        String render = normalizeToken(getAttribute("render"));
+        if ("item".equals(render) || "none".equals(render)) return false;
+        if ("bg".equals(render) || "all".equals(render)) return true;
+
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return uiSlot.isUiRenderBackground();
-        }
-        ContainerSchema.Descriptor.SlotVisualProfile.RenderRule parsed =
-                ContainerSchema.Descriptor.SlotVisualProfile.parseRenderRule(getAttribute("render"));
-        return parsed == null || parsed.renderBackground();
+        if (isBoundToMenuSlot() && uiSlot != null) return uiSlot.isUiRenderBackground();
+        return true;
     }
 
     public boolean shouldRenderItem() {
+        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-render-item"));
+        if (cssFlag != null) return cssFlag;
+        Boolean attrFlag = parseBooleanLike(getAttribute("render-item"));
+        if (attrFlag != null) return attrFlag;
+
+        String render = normalizeToken(getAttribute("render"));
+        if ("bg".equals(render) || "none".equals(render)) return false;
+        if ("item".equals(render) || "all".equals(render)) return true;
+
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return uiSlot.isUiRenderItem();
-        }
-        ContainerSchema.Descriptor.SlotVisualProfile.RenderRule parsed =
-                ContainerSchema.Descriptor.SlotVisualProfile.parseRenderRule(getAttribute("render"));
-        return parsed == null || parsed.renderItem();
+        if (isBoundToMenuSlot() && uiSlot != null) return uiSlot.isUiRenderItem();
+        return true;
     }
 
     public float resolveIconScale(float fallback) {
+        Float cssScale = parsePositiveFloat(getCustomPropertyInherit("--aui-slot-icon-scale"));
+        if (cssScale != null) return cssScale;
+        Float attrScale = parsePositiveFloat(getAttribute("iconScale"));
+        if (attrScale != null) return attrScale;
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return Math.max(0.01F, uiSlot.getUiIconScale());
-        }
-        Float parsed = ContainerSchema.Descriptor.SlotVisualProfile.parsePositiveFloat(getFirstNonBlankAttribute("iconScale"));
-        if (parsed == null) return Math.max(0.01F, fallback);
-        return parsed;
+        if (isBoundToMenuSlot() && uiSlot != null) return Math.max(0.01F, uiSlot.getUiIconScale());
+        return Math.max(0.01F, fallback);
     }
 
     public int resolveItemPadding(int fallback) {
+        Integer cssPadding = parseNonNegativeInt(getCustomPropertyInherit("--aui-slot-padding"));
+        if (cssPadding != null) return cssPadding;
+        Integer attrPadding = parseNonNegativeInt(getAttribute("padding"));
+        if (attrPadding != null) return attrPadding;
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return Math.max(0, uiSlot.getUiPadding());
-        }
-        Integer parsed = ContainerSchema.Descriptor.SlotVisualProfile.parseNonNegativeInt(getFirstNonBlankAttribute("padding"));
-        if (parsed == null) return Math.max(0, fallback);
-        return parsed;
+        if (isBoundToMenuSlot() && uiSlot != null) return Math.max(0, uiSlot.getUiPadding());
+        return Math.max(0, fallback);
     }
 
     public int resolveZIndex(int fallback) {
+        Integer cssZ = parseInt(getCustomPropertyInherit("--aui-slot-z"));
+        if (cssZ != null) return cssZ;
+        Integer attrZ = parseInt(getFirstNonBlankAttribute("zIndex", "z"));
+        if (attrZ != null) return attrZ;
         ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundMode() && uiSlot != null) {
-            return uiSlot.getUiZIndex();
-        }
-        Integer parsed = ContainerSchema.Descriptor.SlotVisualProfile.parseSignedInt(getFirstNonBlankAttribute("zIndex", "z"));
-        if (parsed == null) return fallback;
-        return parsed;
+        if (isBoundToMenuSlot() && uiSlot != null) return uiSlot.getUiZIndex();
+        return fallback;
     }
 
     @Override
     public boolean canFocus() {
-        return isBoundMode();
-    }
-
-    /**
-     * 生成 repeat 展开的真实 slot 子节点，并挂载到文档树。
-     */
-    public Slot createRuntimeRepeatSlotNode(int localSlotIndex, int repeatIndex) {
-        if (document == null || parentElement == null) return null;
-        if (repeatIndex <= 0) return null;
-
-        Slot clone = new Slot(document);
-        LinkedHashMap<String, String> updates = new LinkedHashMap<>(getAttributes());
-        updates.remove("id");
-        updates.put("repeat", "1");
-        updates.put("data-generated", GENERATED_REPEAT);
-        updates.put("data-repeat-index", String.valueOf(repeatIndex));
-        if (localSlotIndex >= 0) {
-            updates.put("slot-index", String.valueOf(localSlotIndex));
-        } else {
-            updates.remove("slot-index");
-        }
-        clone.setAttributesBatch(updates, true);
-        clone.innerText = innerText;
-
-        parentElement.append(clone);
-        clone.cssCache = new HashMap<>(cssCache);
-        clone.getRenderer().computedStyle.clear();
-        return clone;
+        return shouldAcceptPointer();
     }
 
     public String getBackgroundImageCandidate() {
-        com.sighs.apricityui.style.Background background = com.sighs.apricityui.style.Background.of(this);
+        Background background = Background.of(this);
         String rawPath = background == null ? null : background.imagePath;
         if (rawPath == null || rawPath.isBlank() || "unset".equals(rawPath)) return null;
         return rawPath;
@@ -337,48 +203,48 @@ public class Slot extends MinecraftElement {
     @Override
     public void tick() {
         super.tick();
-        if (!isVirtualMode()) return;
+        if (isBoundToMenuSlot()) return;
 
-        refreshCandidatesIfNeeded();
-        if (candidates.isEmpty()) {
-            getMcSlot().set(ItemStack.EMPTY);
+        refreshDisplaySpecIfNeeded();
+        if (!displaySpec.hasCandidates()) {
+            virtualStack = ItemStack.EMPTY;
+            return;
+        }
+        if (!shouldRenderItem()) {
+            virtualStack = ItemStack.EMPTY;
             return;
         }
 
-        if (candidateIndex < 0 || candidateIndex >= candidates.size()) {
-            candidateIndex = 0;
-        }
+        int size = displaySpec.candidates().size();
+        if (candidateIndex < 0 || candidateIndex >= size) candidateIndex = 0;
 
         long now = System.currentTimeMillis();
-        long interval = Math.max(200L, parsePositiveLong(getAttribute("rotate-interval"), DEFAULT_ROTATE_INTERVAL_MS));
-        if (candidates.size() > 1 && !isHover) {
+        if (displaySpec.cycleEnabled() && size > 1 && !isHover) {
             if (nextRotateAtMillis <= 0L) {
-                nextRotateAtMillis = now + interval;
+                nextRotateAtMillis = now + displaySpec.cycleIntervalMs();
             } else if (now >= nextRotateAtMillis) {
-                candidateIndex = (candidateIndex + 1) % candidates.size();
-                nextRotateAtMillis = now + interval;
+                candidateIndex = (candidateIndex + 1) % size;
+                nextRotateAtMillis = now + displaySpec.cycleIntervalMs();
             }
         }
 
-        ItemStack stack = candidates.get(candidateIndex).copy();
-        if (stack.getCount() <= 0) {
-            stack.setCount(1);
-        }
-        getMcSlot().set(stack);
+        ItemStack stack = displaySpec.candidates().get(candidateIndex).copy();
+        if (stack.getCount() <= 0) stack.setCount(1);
+        virtualStack = stack;
     }
 
     public ItemStack resolveDisplayStack() {
-        ItemStack stack = getMcSlot().getItem();
+        ItemStack stack = isBoundToMenuSlot() ? mcSlot.getItem() : virtualStack;
         if (stack.isEmpty()) return ItemStack.EMPTY;
         return stack.copy();
     }
 
     @Override
     public ItemStack getTooltipStack() {
-        if (!isVirtualMode()) return ItemStack.EMPTY;
-        ItemStack stack = getMcSlot().getItem();
+        if (isBoundToMenuSlot()) return ItemStack.EMPTY;
+        ItemStack stack = virtualStack;
         if (stack.isEmpty()) return ItemStack.EMPTY;
-        return stack;
+        return stack.copy();
     }
 
     @Override
@@ -398,104 +264,108 @@ public class Slot extends MinecraftElement {
         ), true);
     }
 
-    /**
-     * 批量设置 player 自动注入槽位的公共属性。
-     */
-    public void applyImplicitPlayerMeta(int localSlotIndex, String part) {
-        setAttributesBatch(Map.of(
-                "mode", MODE_BOUND,
-                "slot-index", String.valueOf(Math.max(0, localSlotIndex)),
-                "data-generated", GENERATED_PLAYER_AUTO,
-                "part", part == null ? "inv" : part
-        ), true);
-    }
+    private void refreshDisplaySpecIfNeeded() {
+        boolean cycleEnabled = resolveCycleEnabled();
+        long cycleInterval = resolveCycleIntervalMs();
+        String signature = (innerText == null ? "" : innerText) + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
+        if (signature.equals(compiledSignature)) return;
 
-    private void refreshCandidatesIfNeeded() {
-        String normalized = resolveItemLiteral();
-        if (normalized.equals(resolvedItemToken)) return;
-
-        resolvedItemToken = normalized;
-        resolvedTagId = null;
-        candidates = List.of();
+        compiledSignature = signature;
+        displaySpec = SlotExpressionCompiler.compile(innerText, cycleEnabled, cycleInterval);
         candidateIndex = 0;
         nextRotateAtMillis = 0L;
-
-        if (normalized.isBlank()) return;
-        if (normalized.startsWith("#")) {
-            ResourceLocation tagId = ResourceLocation.tryParse(normalized.substring(1));
-            if (tagId == null) return;
-            resolvedTagId = tagId;
-            candidates = tagCandidateCache().computeIfAbsent(tagId, Slot::buildCandidatesByTag);
-            return;
-        }
-
-        ItemStack parsed = parseItemLiteral(normalized);
-        if (!parsed.isEmpty()) {
-            candidates = List.of(parsed);
-        }
     }
 
-    private String resolveItemLiteral() {
-        return normalizeItemLiteral(innerText);
+    private boolean resolveInteractive() {
+        if (isRecipeSlot()) return false;
+        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-interactive"));
+        if (cssFlag != null) return cssFlag;
+        Boolean attrFlag = parseBooleanLike(getAttribute("interactive"));
+        if (attrFlag != null) return attrFlag;
+        Boolean pointerFlag = parseBooleanLike(getAttribute("pointer"));
+        if (pointerFlag != null) return pointerFlag;
+        return isBoundToMenuSlot();
     }
 
-    private static String normalizeItemLiteral(String raw) {
+    private boolean resolveCycleEnabled() {
+        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-cycle"));
+        if (cssFlag != null) return cssFlag;
+        Boolean attrFlag = parseBooleanLike(getAttribute("cycle"));
+        if (attrFlag != null) return attrFlag;
+        return true;
+    }
+
+    private long resolveCycleIntervalMs() {
+        Long cssInterval = parsePositiveLong(getCustomPropertyInherit("--aui-slot-cycle-interval"));
+        if (cssInterval != null) return Math.max(200L, cssInterval);
+        Long attrInterval = parsePositiveLong(getFirstNonBlankAttribute("cycle-interval", "rotate-interval"));
+        if (attrInterval != null) return Math.max(200L, attrInterval);
+        return SlotDisplaySpec.DEFAULT_CYCLE_INTERVAL_MS;
+    }
+
+    private String getFirstNonBlankAttribute(String... keys) {
+        if (keys == null) return null;
+        for (String key : keys) {
+            if (key == null || key.isBlank()) continue;
+            String value = getAttribute(key);
+            if (value == null || value.isBlank()) continue;
+            return value;
+        }
+        return null;
+    }
+
+    private static String normalizeToken(String raw) {
         if (raw == null) return "";
-        String normalized = raw.trim();
-        if (normalized.isBlank()) return "";
-        if (normalized.length() >= 2) {
-            char first = normalized.charAt(0);
-            char last = normalized.charAt(normalized.length() - 1);
-            boolean quoted = (first == '"' && last == '"') || (first == '\'' && last == '\'');
-            if (quoted) {
-                normalized = normalized.substring(1, normalized.length() - 1).trim();
-            }
-        }
-        return normalized;
+        return raw.trim().toLowerCase(Locale.ROOT);
     }
 
-    public static String buildLiteralWithCount(String rawLiteral, int requestedCount) {
-        String normalized = normalizeItemLiteral(rawLiteral);
-        if (normalized.isBlank()) return "";
-
-        ItemStack parsed = parseItemLiteral(normalized);
-        if (parsed.isEmpty()) return normalized;
-
-        int safeCount = Math.max(1, Math.min(parsed.getMaxStackSize(), requestedCount));
-        ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(parsed.getItem());
-        if (itemId == null) return normalized;
-        return "{id:\"%s\",Count:%db}".formatted(itemId, safeCount);
+    private static Integer parseInt(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return Integer.parseInt(raw.trim());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
-    private static ItemStack parseItemLiteral(String literal) {
-        if (literal == null || literal.isBlank()) return ItemStack.EMPTY;
+    private static Integer parsePositiveInt(String raw) {
+        Integer parsed = parseInt(raw);
+        return parsed != null && parsed > 0 ? parsed : null;
+    }
 
-        // 支持 ItemStack NBT 全格式：{id:"minecraft:diamond",Count:1b,tag:{...}}
-        if (literal.startsWith("{") && literal.endsWith("}")) {
-            try {
-                CompoundTag stackTag = TagParser.parseTag(literal);
-                String idRaw = stackTag.getString("id");
-                ResourceLocation itemId = ResourceLocation.tryParse(idRaw);
-                if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) return ItemStack.EMPTY;
-                ItemStack parsed = new ItemStack(BuiltInRegistries.ITEM.get(itemId));
-                int count = stackTag.contains("Count") ? stackTag.getInt("Count") : 1;
-                parsed.setCount(Math.max(1, Math.min(parsed.getMaxStackSize(), count)));
-                return parsed;
-            } catch (CommandSyntaxException ignored) {
-                return ItemStack.EMPTY;
-            }
+    private static Integer parseNonNegativeInt(String raw) {
+        Integer parsed = parseInt(raw);
+        return parsed != null && parsed >= 0 ? parsed : null;
+    }
+
+    private static Long parsePositiveLong(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            long parsed = Long.parseLong(raw.trim());
+            return parsed > 0L ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
         }
+    }
 
-        int nbtStart = literal.indexOf('{');
-        String itemLiteral = nbtStart >= 0 ? literal.substring(0, nbtStart).trim() : literal;
-        if (itemLiteral.isBlank()) return ItemStack.EMPTY;
+    private static Float parsePositiveFloat(String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            float parsed = Float.parseFloat(raw.trim());
+            return parsed > 0.0F ? parsed : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
 
-        ResourceLocation itemId = ResourceLocation.tryParse(itemLiteral);
-        if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) return ItemStack.EMPTY;
-        Item item = BuiltInRegistries.ITEM.get(itemId);
-        ItemStack stack = new ItemStack(item);
-
-        // 支持 minecraft:diamond{display:{Name:'{"text":"A"}'}}
-        return stack;
+    private static Boolean parseBooleanLike(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
+        return switch (normalized) {
+            case "1", "true", "yes", "on", "enabled" -> true;
+            case "0", "false", "no", "off", "disabled", "none" -> false;
+            default -> null;
+        };
     }
 }

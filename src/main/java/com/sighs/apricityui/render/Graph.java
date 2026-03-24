@@ -1,7 +1,11 @@
 package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.style.Gradient;
 import org.joml.Matrix4f;
 
@@ -10,6 +14,10 @@ public class Graph {
     private static final int TOTAL_STEPS = SEGMENTS * 4;
     private static final float[] COS_TABLE = new float[TOTAL_STEPS + 1];
     private static final float[] SIN_TABLE = new float[TOTAL_STEPS + 1];
+    private static boolean batchActive = false;
+    private static boolean batchHasVertices = false;
+    private static boolean batchStarted = false;
+    private static BufferBuilder batchBuffer = null;
 
     static {
         double stepAngle = 360.0 / TOTAL_STEPS;
@@ -21,12 +29,17 @@ public class Graph {
     }
 
     public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color, float alphaMultiplier) {
+        if (buf == null) {
+            ensureBatchStarted();
+            buf = batchBuffer;
+        }
         int a = (int) (((color >> 24) & 0xFF) * alphaMultiplier);
         int r = (color >> 16) & 0xFF;
         int g = (color >> 8) & 0xFF;
         int b = color & 0xFF;
 
         buf.addVertex(mat, x, y, 0f).setColor(r, g, b, a);
+        if (batchActive) batchHasVertices = true;
     }
 
     public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color) {
@@ -63,7 +76,7 @@ public class Graph {
         vtx(buf, mat, x1, y0, cTR);
     }
 
-    private static void prepare(BufferBuilder buf) {
+    private static void prepare() {
         GlStateManager._enableBlend();
         GlStateManager._blendFuncSeparate(
                 GlStateManager.SourceFactor.SRC_ALPHA.value,
@@ -74,21 +87,45 @@ public class Graph {
         Base.setPositionColorShader();
     }
 
-    public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tesselator.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+    public static void beginBatch() {
+        if (batchActive) return;
+        batchActive = true;
+        batchHasVertices = false;
+        batchStarted = false;
+        batchBuffer = null;
+    }
 
-        float a = (float) (color >> 24 & 255) / 255.0F;
-        float r = (float) (color >> 16 & 255) / 255.0F;
-        float g = (float) (color >> 8 & 255) / 255.0F;
-        float b = (float) (color & 255) / 255.0F;
+    public static void endBatch() {
+        if (!batchActive) return;
+        if (batchStarted && batchBuffer != null) {
+            BufferUploader.drawWithShader(batchBuffer.buildOrThrow());
+            Base.finishRendering();
+        }
+        batchActive = false;
+        batchHasVertices = false;
+        batchStarted = false;
+        batchBuffer = null;
+    }
 
-        bufferbuilder.addVertex(matrix, x0, y1, 0.0F).setColor(r, g, b, a);
-        bufferbuilder.addVertex(matrix, x1, y1, 0.0F).setColor(r, g, b, a);
-        bufferbuilder.addVertex(matrix, x1, y0, 0.0F).setColor(r, g, b, a);
-        bufferbuilder.addVertex(matrix, x0, y0, 0.0F).setColor(r, g, b, a);
-
+    private static void ensureBatchStarted() {
+        if (!batchActive || batchStarted) return;
         Base.beginRendering();
+        prepare();
+        Tesselator tesselator = Base.getBuffer();
+        batchBuffer = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        batchStarted = true;
+    }
+
+    public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
+        if (batchActive) {
+            addRect(batchBuffer, matrix, x0, y0, x1, y1, color);
+            return;
+        }
+        Base.beginRendering();
+        prepare();
+        Tesselator tesselator = Base.getBuffer();
+        BufferBuilder bufferbuilder = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        addRect(bufferbuilder, matrix, x0, y0, x1, y1, color);
         BufferUploader.drawWithShader(bufferbuilder.buildOrThrow());
         Base.finishRendering();
     }
@@ -102,12 +139,15 @@ public class Graph {
     }
 
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-
-        addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
-
+        if (batchActive) {
+            addUnifiedRoundedRectVertices(batchBuffer, mat, x, y, w, h, radii, colorRes);
+            return;
+        }
         Base.beginRendering();
+        prepare();
+        Tesselator tesselator = Base.getBuffer();
+        BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+        addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
         BufferUploader.drawWithShader(buf.buildOrThrow());
         Base.finishRendering();
     }
@@ -179,14 +219,17 @@ public class Graph {
     }
 
     public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
+        if (batchActive) {
+            addUnifiedRoundedRectVertices(batchBuffer, mat, x, y, w, h, radii, innerColor);
+            addUnifiedShadowRingVertices(batchBuffer, mat, x, y, w, h, radii, blur, innerColor, outerColor);
+            return;
+        }
+        Base.beginRendering();
+        prepare();
         Tesselator tesselator = Base.getBuffer();
         BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-        prepare(buf);
-
         addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, innerColor);
         addUnifiedShadowRingVertices(buf, mat, x, y, w, h, radii, blur, innerColor, outerColor);
-
-        Base.beginRendering();
         BufferUploader.drawWithShader(buf.buildOrThrow());
         Base.finishRendering();
     }
@@ -230,14 +273,31 @@ public class Graph {
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
-        Tesselator tesselator = Tesselator.getInstance();
-        // 修正点 1: 将 QUADS 改为 TRIANGLES，适配内部 addRect/addComplexCorner 的 6 顶点逻辑
-        BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-        prepare(buf);
-
         float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
         int tC = colors[0], rC = colors[1], bC = colors[2], lC = colors[3];
         float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
+
+        if (batchActive) {
+            if (tW > 0) addRect(batchBuffer, mat, x + tl, y, x + w - tr, y + tW, tC);
+            if (bW > 0) addRect(batchBuffer, mat, x + bl, y + h - bW, x + w - br, y + h, bC);
+            if (lW > 0) addRect(batchBuffer, mat, x, y + tl, x + lW, y + h - bl, lC);
+            if (rW > 0) addRect(batchBuffer, mat, x + w - rW, y + tr, x + w, y + h - br, rC);
+
+            if (tl > 0 || tW > 0 || lW > 0)
+                addComplexCorner(batchBuffer, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+            if (tr > 0 || tW > 0 || rW > 0)
+                addComplexCorner(batchBuffer, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+            if (br > 0 || rW > 0 || bW > 0)
+                addComplexCorner(batchBuffer, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+            if (bl > 0 || bW > 0 || lW > 0)
+                addComplexCorner(batchBuffer, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+            return;
+        }
+
+        Base.beginRendering();
+        prepare();
+        Tesselator tesselator = Base.getBuffer();
+        BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
 
         if (tW > 0) addRect(buf, mat, x + tl, y, x + w - tr, y + tW, tC);
         if (bW > 0) addRect(buf, mat, x + bl, y + h - bW, x + w - br, y + h, bC);
@@ -253,8 +313,6 @@ public class Graph {
         if (bl > 0 || bW > 0 || lW > 0)
             addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
 
-        Base.beginRendering();
-        // 修正点 2: 1.21.1 必须使用 BufferUploader 和 buildOrThrow
         BufferUploader.drawWithShader(buf.buildOrThrow());
         Base.finishRendering();
     }
@@ -262,13 +320,15 @@ public class Graph {
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {
         boolean blink = (System.currentTimeMillis() - lastBlinkTime) % 1000 < 500;
         if (blink) {
-            Tesselator tesselator = Tesselator.getInstance();
-            BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
-            prepare(buf);
-
-            addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
-
+            if (batchActive) {
+                addRect(batchBuffer, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
+                return;
+            }
             Base.beginRendering();
+            prepare();
+            Tesselator tesselator = Base.getBuffer();
+            BufferBuilder buf = tesselator.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
+            addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
             BufferUploader.drawWithShader(buf.buildOrThrow());
             Base.finishRendering();
         }

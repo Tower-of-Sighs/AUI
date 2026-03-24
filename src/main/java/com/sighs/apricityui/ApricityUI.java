@@ -1,6 +1,8 @@
 package com.sighs.apricityui;
 
 import com.mojang.logging.LogUtils;
+import com.sighs.apricityui.instance.ApricityUIConfig;
+import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import net.minecraft.client.Minecraft;
@@ -13,9 +15,12 @@ import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.fml.loading.FMLLoader;
+import net.neoforged.neoforge.client.event.RegisterShadersEvent;
 import net.neoforged.neoforge.client.gui.ConfigurationScreen;
 import net.neoforged.neoforge.client.gui.IConfigScreenFactory;
 import org.slf4j.Logger;
+
+import java.io.IOException;
 
 @Mod(ApricityUI.MOD_ID)
 public class ApricityUI {
@@ -26,8 +31,16 @@ public class ApricityUI {
         ApricityMenus.register(modEventBus);
         if (dist == Dist.CLIENT) {
             ApricityUIRegistry.register();
-            modContainer.registerConfig(ModConfig.Type.COMMON, Config.CONFIG_SPEC, "%s_config.toml".formatted(MOD_ID));
+            modContainer.registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC, "%s_config.toml".formatted(MOD_ID));
             modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
+            modEventBus.addListener(this::onRegisterShaders);
+        }
+    }
+
+    private void onRegisterShaders(RegisterShadersEvent event) {
+        try {
+            ShaderRegistry.register(event);
+        } catch (IOException ignored) {
         }
     }
 

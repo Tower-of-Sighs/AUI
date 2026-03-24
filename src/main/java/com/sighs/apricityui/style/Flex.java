@@ -25,7 +25,6 @@ public class Flex {
     }
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
-        Position parentPosition = Position.of(parent);
         Box parentBox = Box.of(parent);
         Size parentContentSize = parentBox.innerSize();
         Flex flex = Flex.of(parent);
@@ -91,7 +90,27 @@ public class Flex {
             }
         }
 
-        return new Position(parentPosition.x + offsetX, parentPosition.y + offsetY);
+        return new Position(offsetX, offsetY);
+    }
+
+    public static Size computeContentSize(Element element) {
+        boolean flexColumn = Flex.of(element).flexDirection.isColumn();
+        double totalWidth = 0;
+        double totalHeight = 0;
+
+        for (Element child : element.children) {
+            Style childStyle = child.getComputedStyle();
+            if (!Layout.isInFlow(childStyle)) continue;
+            Size size = Size.box(child);
+            if (flexColumn) {
+                totalWidth = Math.max(totalWidth, size.width());
+                totalHeight += size.height();
+            } else {
+                totalHeight = Math.max(totalHeight, size.height());
+                totalWidth += size.width();
+            }
+        }
+        return new Size(totalWidth, totalHeight);
     }
 
     private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,
@@ -116,15 +135,18 @@ public class Flex {
         return new FlexLayoutOffset(offsetStart, offsetInterval);
     }
 
-    private record FlexLayoutOffset(double offsetStart, double offsetInterval) {}
+    private record FlexLayoutOffset(double offsetStart, double offsetInterval) {
+    }
 
     public record FlexDirection(String value) {
         public boolean isColumn() {
             return value.contains("column");
         }
+
         public boolean isRow() {
             return value.contains("row");
         }
+
         public boolean isReverse() {
             return value.contains("reverse");
         }
@@ -140,18 +162,23 @@ public class Flex {
         public boolean isCenter() {
             return canWrap && value.equals("center");
         }
+
         public boolean isFlexStart() {
             return canWrap && value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return canWrap && value.equals("flex-end");
         }
+
         public boolean isSpaceAround() {
             return canWrap && value.equals("space-around");
         }
+
         public boolean isSpaceBetween() {
             return canWrap && value.equals("space-between");
         }
+
         public boolean isStretch() {
             return canWrap && value.equals("stretch");
         }
@@ -161,18 +188,23 @@ public class Flex {
         public boolean isCenter() {
             return value.equals("center");
         }
+
         public boolean isFlexStart() {
             return value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return value.equals("flex-end");
         }
+
         public boolean isSpaceBetween() {
             return value.equals("space-between");
         }
+
         public boolean isSpaceAround() {
             return value.equals("space-around");
         }
+
         public boolean isSpaceEvenly() {
             return value.equals("space-evenly");
         }
@@ -182,15 +214,19 @@ public class Flex {
         public boolean isCenter() {
             return value.equals("center");
         }
+
         public boolean isFlexStart() {
             return value.equals("flex-start");
         }
+
         public boolean isFlexEnd() {
             return value.equals("flex-end");
         }
+
         public boolean isStretch() {
             return value.equals("stretch");
         }
+
         public boolean isBaseline() {
             return value.equals("baseline");
         }

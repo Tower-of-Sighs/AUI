@@ -1,8 +1,5 @@
 package com.sighs.apricityui.util.common;
 
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -12,8 +9,6 @@ import java.util.Locale;
  * 命名规范转换器
  * 目前支持小驼峰命名法、大驼峰命名法和蛇形命名法这些命名规范之间的相互转换
  */
-@Getter
-@AllArgsConstructor
 public enum NameConverter {
     /**
      * 小驼峰命名法 - 首字母小写，后续单词首字母大写
@@ -25,7 +20,7 @@ public enum NameConverter {
                 return "";
             }
 
-            StringBuilder result = new StringBuilder(words.getFirst().toLowerCase(Locale.ROOT));
+            StringBuilder result = new StringBuilder(words.get(0).toLowerCase(Locale.ROOT));
             for (int i = 1; i < words.size(); i++) {
                 String word = words.get(i);
                 if (!word.isEmpty()) {
@@ -74,6 +69,7 @@ public enum NameConverter {
 
     /**
      * 将名称拆分为单词列表
+     *
      * @param name 输入名称
      * @return 单词列表
      */
@@ -118,4 +114,3 @@ public enum NameConverter {
         return words;
     }
 }
-

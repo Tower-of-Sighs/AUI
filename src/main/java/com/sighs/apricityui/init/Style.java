@@ -6,6 +6,7 @@ import com.sighs.apricityui.style.Size;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -14,11 +15,12 @@ public class Style implements Cloneable {
 
     public String width = "unset";
     public String height = "unset";
+    public String boxSizing = "content-box";
     public String overflow = "visible";
     public String opacity = "1.0";
     public String boxShadow = "unset";
     public String zIndex = "auto";
-    public String display = "flex";
+    public String display = "block";
 
     public String gridTemplateColumns = "unset";
     public String gridTemplateRows = "unset";
@@ -71,7 +73,16 @@ public class Style implements Cloneable {
     public String selectionColor = "unset";
     public String fontSize = "unset";
     public String fontFamily = "unset";
+    public String fontWeight = "unset";
+    public String fontStyle = "unset";
+    public String textStroke = "unset";
     public String lineHeight = "unset";
+    public String direction = "unset";
+    public String letterSpacing = "unset";
+    public String textAlign = "unset";
+    public String verticalAlign = "unset";
+    public String textIndent = "unset";
+    public String whiteSpace = "unset";
 
     public String flexDirection = "column";
     public String flexWrap = "nowrap";
@@ -92,6 +103,7 @@ public class Style implements Cloneable {
      * Custom cursor resources (png/mcmeta/gif) are intentionally not handled here.</p>
      */
     public String cursor = "auto";
+    public String userSelect = "unset";
 
     public String pointerEvents = "auto";
     public String visibility = "visible";
@@ -110,6 +122,7 @@ public class Style implements Cloneable {
     public String animationFillMode = "unset";
     public String animationTimingFunction = "unset";
     public String animationPlayState = "unset";
+    private Map<String, String> customProperties = new HashMap<>();
 
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
@@ -143,6 +156,7 @@ public class Style implements Cloneable {
         }
         return (int) (fontSize / 16d * 9);
     }
+
     public static String getFontFamily(Element element) {
         String fontFamily = "unset";
         for (Element e : element.getRoute()) {
@@ -154,6 +168,142 @@ public class Style implements Cloneable {
         }
         return fontFamily;
     }
+
+    public static int getFontWeight(Element element) {
+        int fontWeight = 400;
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontWeight;
+            if (!f.equals("unset")) {
+                fontWeight = parseFontWeight(f);
+                break;
+            }
+        }
+        return fontWeight;
+    }
+
+    public static boolean isOblique(Element element) {
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontStyle;
+            if (!f.equals("unset")) {
+                return isObliqueValue(f);
+            }
+        }
+        return false;
+    }
+
+    public static int parseFontWeight(String raw) {
+        if (raw == null || raw.isBlank()) return 400;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if (value.equals("unset") || value.equals("normal")) return 400;
+        if (value.equals("bold") || value.equals("bolder")) return 700;
+        if (value.equals("lighter")) return 300;
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed < 1) return 1;
+            return Math.min(parsed, 1000);
+        } catch (NumberFormatException ignored) {
+        }
+        return 400;
+    }
+
+    public static boolean isObliqueValue(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return value.equals("oblique");
+    }
+
+    public static TextStroke parseTextStroke(String raw) {
+        if (raw == null || raw.isBlank()) return TextStroke.NONE;
+        String value = raw.trim();
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.equals("unset") || lower.equals("none")) return TextStroke.NONE;
+
+        int width = 0;
+        String colorPart = value;
+
+        int pxIndex = lower.indexOf("px");
+        if (pxIndex > 0) {
+            int start = pxIndex - 1;
+            while (start >= 0 && Character.isDigit(lower.charAt(start))) start--;
+            String number = lower.substring(start + 1, pxIndex).trim();
+            try {
+                width = Math.max(0, Integer.parseInt(number));
+            } catch (NumberFormatException ignored) {
+            }
+            colorPart = (value.substring(0, Math.max(0, start + 1)) + " " + value.substring(pxIndex + 2)).trim();
+        }
+
+        int color = Color.parse(colorPart.isBlank() ? "#000" : colorPart);
+        if (width <= 0) return TextStroke.NONE;
+        return new TextStroke(width, color);
+    }
+
+    public static TextStroke getTextStroke(Element element) {
+        for (Element e : element.getRoute()) {
+            String s = e.getComputedStyle().textStroke;
+            if (!s.equals("unset")) {
+                return parseTextStroke(s);
+            }
+        }
+        return TextStroke.NONE;
+    }
+
+    public static String getTextDirection(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().direction;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "ltr";
+    }
+
+    public static String getTextAlign(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().textAlign;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "start";
+    }
+
+    public static String getVerticalAlign(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().verticalAlign;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "top";
+    }
+
+    public static String getWhiteSpace(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().whiteSpace;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "normal";
+    }
+
+    public static double getTextIndent(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().textIndent;
+            if (!value.equals("unset")) {
+                Double indent = Size.parseNumber(value);
+                return indent == null ? 0 : indent;
+            }
+        }
+        return 0;
+    }
+
+    public static double getLetterSpacing(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().letterSpacing;
+            if (!value.equals("unset")) {
+                String normalized = value.trim().toLowerCase(Locale.ROOT);
+                if (normalized.equals("normal")) return 0;
+                Double spacing = Size.parseNumber(value);
+                return spacing == null ? 0 : spacing;
+            }
+        }
+        return 0;
+    }
+
     public static int getFontColor(Element element) {
         String styleColor = element.getComputedStyle().color;
         if (styleColor.equals("unset")) {
@@ -187,17 +337,52 @@ public class Style implements Cloneable {
             }
         }
         if (selection.equals("unset")) {
-            selection = "#3399FF80";
+            selection = "#0078D7";
         }
         return Color.parse(selection);
+    }
+
+    public static String getUserSelect(Element element) {
+        String resolved = "unset";
+        Element current = element;
+        while (current != null) {
+            String candidate = current.getComputedStyle().userSelect;
+            if (candidate != null && !candidate.isBlank() && !candidate.equals("unset")) {
+                resolved = candidate.trim().toLowerCase(Locale.ROOT);
+                break;
+            }
+            current = current.parentElement;
+        }
+        if (resolved.equals("unset")) return "auto";
+        return normalizeUserSelect(resolved);
+    }
+
+    public static String normalizeUserSelect(String raw) {
+        if (raw == null || raw.isBlank()) return "auto";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "none", "text", "all", "auto" -> value;
+            default -> "auto";
+        };
+    }
+
+    public static boolean isUserSelectAll(Element element) {
+        return getUserSelect(element).equals("all");
+    }
+
+    public static boolean isUserSelectable(Element element) {
+        return !getUserSelect(element).equals("none");
     }
 
     public void merge(String styleString) {
         if (styleString.length() < 3) return;
         if (!styleString.contains(";")) styleString += ";";
-        String[] entries = styleString.replaceAll("\n", "").split(";");
+        if (styleString.indexOf('\n') >= 0) {
+            styleString = styleString.replace("\n", "");
+        }
+        String[] entries = styleString.split(";");
         for (String entry : entries) {
-            String[] content = entry.split(":");
+            String[] content = entry.split(":", 2);
             if (content.length == 2) {
                 update(content[0].trim(), content[1]);
             }
@@ -205,8 +390,18 @@ public class Style implements Cloneable {
     }
 
     public void update(String name, String value) {
-        String styleName = transformStyleName(name);
+        if (name == null || name.isBlank()) return;
+        if (value == null) value = "";
         if (value.startsWith(" ")) value = value.replaceFirst(" ", "");
+        if (name.startsWith("--")) {
+            customProperties.put(normalizeCustomPropertyName(name), value);
+            return;
+        }
+        String styleName = transformStyleName(name);
+        if ("background".equals(styleName)) {
+            applyBackgroundShorthand(value);
+            return;
+        }
         try {
             Field field = FIELD_CACHE.get(styleName);
             if (field == null) {
@@ -214,20 +409,78 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             field.set(this, value);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
     }
+
+    private void applyBackgroundShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+
+        backgroundColor = "unset";
+        backgroundImage = "unset";
+        backgroundRepeat = "unset";
+        backgroundSize = "unset";
+        backgroundPosition = "unset";
+
+        if (value.isEmpty() || "unset".equalsIgnoreCase(value)) return;
+        if ("none".equalsIgnoreCase(value)) {
+            backgroundImage = "none";
+            return;
+        }
+
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.contains("url(") || lower.contains("gradient(")) {
+            backgroundImage = value;
+        }
+
+        if (isColorToken(value)) {
+            backgroundColor = value;
+            return;
+        }
+
+        String[] tokens = value.split("\\s+");
+        for (String token : tokens) {
+            if (isColorToken(token)) {
+                backgroundColor = token;
+                break;
+            }
+        }
+    }
+
+    private static boolean isColorToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        String value = token.trim().toLowerCase(Locale.ROOT);
+        if ("transparent".equals(value)) return true;
+        if (value.startsWith("#")) return true;
+        return value.startsWith("rgb(") || value.startsWith("rgba(") || value.startsWith("hsl(") || value.startsWith("hsla(");
+    }
+
     public String get(String name) {
+        if (name == null || name.isBlank()) return null;
+        if (name.startsWith("--")) {
+            return customProperties.get(normalizeCustomPropertyName(name));
+        }
         String styleName = transformStyleName(name);
         try {
             Field field = FIELD_CACHE.get(styleName);
             if (field == null) {
-                System.out.println(styleName);
                 field = this.getClass().getDeclaredField(styleName);
                 FIELD_CACHE.put(styleName, field);
             }
             return (String) field.get(this);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {}
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        }
         return null;
+    }
+
+    public String getCustomProperty(String name) {
+        if (name == null || name.isBlank()) return null;
+        return customProperties.get(normalizeCustomPropertyName(name));
+    }
+
+    private static String normalizeCustomPropertyName(String name) {
+        if (name.startsWith("--")) return name;
+        return "--" + name;
     }
 
     // font-size转为fontSize这样的
@@ -260,6 +513,7 @@ public class Style implements Cloneable {
         STYLE_NAME.put(input, result.toString());
         return result.toString();
     }
+
     // fontSize -> font-size
     private static String camelToKebab(String input) {
         StringBuilder result = new StringBuilder();
@@ -277,6 +531,8 @@ public class Style implements Cloneable {
         StringBuilder css = new StringBuilder();
 
         for (Field field : Style.class.getDeclaredFields()) {
+            if (Modifier.isStatic(field.getModifiers())) continue;
+            if ("customProperties".equals(field.getName())) continue;
             try {
                 field.setAccessible(true);
 
@@ -289,20 +545,31 @@ public class Style implements Cloneable {
                             .append(value)
                             .append(";");
                 }
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
+        customProperties.forEach((name, value) -> css.append(name).append(": ").append(value).append(";"));
         return css.toString();
     }
 
     static Set<String> getTextProp() {
-        return Set.of("color", "font-size", "font-family");
+        return Set.of(
+                "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "line-height",
+                "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space"
+        );
+    }
+
+    public record TextStroke(int width, int color) {
+        public static final TextStroke NONE = new TextStroke(0, 0);
     }
 
 
     @Override
     public Style clone() {
         try {
-            return (Style) super.clone();
+            Style style = (Style) super.clone();
+            style.customProperties = new HashMap<>(this.customProperties);
+            return style;
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
@@ -316,6 +583,9 @@ public class Style implements Cloneable {
         for (Field field : fields) {
             // 跳过静态字段
             if (Modifier.isStatic(field.getModifiers())) {
+                continue;
+            }
+            if ("customProperties".equals(field.getName())) {
                 continue;
             }
 
@@ -336,8 +606,10 @@ public class Style implements Cloneable {
                         .append(":")
                         .append(value)
                         .append(";");
-            } catch (IllegalAccessException ignored) {}
+            } catch (IllegalAccessException ignored) {
+            }
         }
+        customProperties.forEach((name, value) -> sb.append(name).append(":").append(value).append(";"));
 
         return sb.toString();
     }

@@ -43,6 +43,8 @@ public class RenderElement {
             element.children.forEach(e -> e.getRenderer().cursor.clear());
         }
     };
+    public Cache<Filter.FilterState> filter = new Cache<>();
+    public Cache<Filter.FilterState> backdropFilter = new Cache<>();
 
     public RenderElement(Element element) {
         this.element = element;
@@ -50,21 +52,26 @@ public class RenderElement {
 
     public static class Cache<T> {
         T value = null;
+
         public T get() {
             return value;
         }
+
         public void set(T value) {
             this.value = value;
         }
+
         public void clear() {
             value = null;
             expandClear();
         }
-        void expandClear() {}
+
+        void expandClear() {
+        }
     }
 
     private static final Set<String> LAYOUT_PROPS = Set.of(
-            "width", "height",
+            "width", "height", "boxSizing",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems",
             "gridTemplateColumns", "gridTemplateRows",
@@ -93,7 +100,12 @@ public class RenderElement {
     private static final Set<String> CURSOR_PROPS = Set.of("cursor");
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
-            "fontSize", "lineHeight", "fontFamily"
+            "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke",
+            "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace"
+    );
+
+    private static final Set<String> STRUCTURAL_PROPS = Set.of(
+            "clipPath", "filter", "backdropFilter", "overflow"
     );
 
     public static void observeStyle(Element element, Style origin, Style current) {
@@ -104,7 +116,7 @@ public class RenderElement {
                 String oVal = origin.get(s);
                 String cVal = current.get(s);
                 if (oVal == null && cVal == null) continue;
-                if (oVal == null || cVal == null || !oVal.equals(cVal)) {
+                if (oVal == null || !oVal.equals(cVal)) {
                     return true;
                 }
             }
@@ -113,12 +125,49 @@ public class RenderElement {
 
         RenderElement renderer = element.getRenderer();
 
+        for (String prop : STRUCTURAL_PROPS) {
+            String oVal = origin.get(prop);
+            String cVal = current.get(prop);
+            boolean had = oVal != null && !oVal.equals("none") && !oVal.isEmpty();
+            boolean has = cVal != null && !cVal.equals("none") && !cVal.isEmpty();
+
+            // 特殊处理 overflow，只有 hidden 会触发 MaskNode
+            if (prop.equals("overflow")) {
+                had = "hidden".equals(oVal);
+                has = "hidden".equals(cVal);
+            }
+
+            if (had != has) {
+                dirtyMask |= Drawer.REORDER; // 结构改变，需要重建绘制队列
+                break;
+            }
+        }
+
+        boolean originFilterEnabled = !Filter.isDisabled(origin.filter, origin.opacity);
+        boolean currentFilterEnabled = !Filter.isDisabled(current.filter, current.opacity);
+        if (originFilterEnabled != currentFilterEnabled) {
+            // filter/opacity 离屏合成开关变化时，必须重建 Push/Pop 节点
+            dirtyMask |= Drawer.REORDER;
+        }
+
         if (!current.transform.equals(origin.transform)) {
             renderer.transform.clear();
             dirtyMask |= Drawer.REPAINT;
         }
-        if (!current.opacity.equals(origin.opacity)) {
+
+        if (!origin.opacity.equals(current.opacity)) {
             renderer.opacity.clear();
+            renderer.filter.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
+
+        if (!origin.filter.equals(current.filter)) {
+            renderer.filter.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
+
+        if (!origin.backdropFilter.equals(current.backdropFilter)) {
+            renderer.backdropFilter.clear();
             dirtyMask |= Drawer.REPAINT;
         }
 
@@ -177,8 +226,12 @@ public class RenderElement {
             renderer.cursor.clear();
         }
 
-        if (!origin.animation.equals(current.animation)) {
-            Animation.stop(element);
+//        if (!origin.animation.equals(current.animation)) {
+//            Animation.stop(element);
+//        }
+
+        if (!origin.zIndex.equals(current.zIndex)) {
+            dirtyMask |= Drawer.REORDER;
         }
 
         if (dirtyMask != 0 && element.document != null) {

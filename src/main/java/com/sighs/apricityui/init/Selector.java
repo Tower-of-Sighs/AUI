@@ -17,7 +17,7 @@ public class Selector {
         }
     }
 
-    private enum Combinator { DESCENDANT, CHILD }
+    private enum Combinator {DESCENDANT, CHILD}
 
     private record Pseudo(String name, String expression) {
         boolean matches(Element e) {
@@ -68,11 +68,16 @@ public class Selector {
             int pos = e.parentElement.children.indexOf(e) + 1;
             if ("odd".equals(expr)) return pos % 2 != 0;
             if ("even".equals(expr)) return pos % 2 == 0;
-            try { return Integer.parseInt(expr) == pos; } catch (Exception ex) { return false; }
+            try {
+                return Integer.parseInt(expr) == pos;
+            } catch (Exception ex) {
+                return false;
+            }
         }
     }
 
-    private record Component(String tag, String id, Set<String> classes, Map<String, String> attrs, List<Pseudo> pseudos) {
+    private record Component(String tag, String id, Set<String> classes, Map<String, String> attrs,
+                             List<Pseudo> pseudos) {
         boolean matches(Element e) {
             if (e == null) return false;
             if (tag != null && !tag.equals("*") && !tag.equalsIgnoreCase(e.tagName)) return false;
@@ -105,7 +110,8 @@ public class Selector {
         }
     }
 
-    private record CompiledSelector(List<Component> components, List<Combinator> combinators, Specificity specificity) {}
+    private record CompiledSelector(List<Component> components, List<Combinator> combinators, Specificity specificity) {
+    }
 
 
     public static HashMap<String, String> matchCSS(Element element) {
@@ -319,7 +325,8 @@ public class Selector {
 
     public static Map<String, Map<String, String>> getDebugStyles(Element element) {
         Map<String, Map<String, String>> result = new LinkedHashMap<>();
-        record DebugMatch(String selector, Specificity specificity, Map<String, String> styles) {}
+        record DebugMatch(String selector, Specificity specificity, Map<String, String> styles) {
+        }
         List<DebugMatch> matches = new ArrayList<>();
         int order = 0;
 
@@ -343,5 +350,6 @@ public class Selector {
         return result;
     }
 
-    private record MatchedRule(Specificity specificity, Map<String, String> styles) {}
+    private record MatchedRule(Specificity specificity, Map<String, String> styles) {
+    }
 }

@@ -1,9 +1,11 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.TextArea;
+import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.Loader;
@@ -14,19 +16,29 @@ import org.lwjgl.glfw.GLFW;
 
 public class Operation {
     public static Position cachedMousePosition = null;
+    private static final long KEY_DEDUP_WINDOW_NS = 5_000_000L; // 5ms
+    private static long lastKeyEventTimeNs = 0L;
+    private static int lastKeyCode = -1;
+    private static int lastScanCode = -1;
+    private static int lastAction = -1;
+    private static int lastModifiers = -1;
 
-    public static void onMouseDown() {
-        onMouseDown(-1);
+    public static boolean onMouseDown() {
+        return onMouseDown(-1);
     }
-    public static void onMouseDown(int button) {
-        MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition()));
+
+    public static boolean onMouseDown(int button) {
+        return MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition(), button));
     }
-    public static void onMouseUp() {
-        onMouseUp(-1);
+
+    public static boolean onMouseUp() {
+        return onMouseUp(-1);
     }
-    public static void onMouseUp(int button) {
-        MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition()));
+
+    public static boolean onMouseUp(int button) {
+        return MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition(), button));
     }
+
     public static void onMouseMove(Position currentMousePosition) {
         if (cachedMousePosition != null) {
             MouseEvent mouseEvent = new MouseEvent("mousemove", getMousePosition());
@@ -37,10 +49,10 @@ public class Operation {
         cachedMousePosition = currentMousePosition;
     }
 
-    public static void scroll(double delta) {
+    public static boolean scroll(double delta) {
         MouseEvent mouseEvent = new MouseEvent("scroll", getMousePosition());
         mouseEvent.scrollDelta = -delta * 50;
-        MouseEvent.tiggerEvent(mouseEvent);
+        return MouseEvent.tiggerEvent(mouseEvent);
     }
 
     public static boolean onCharTyped(char code) {
@@ -55,34 +67,56 @@ public class Operation {
     }
 
     public static boolean onKeyPressed(int key) {
+        return onKeyPressed(key, false);
+    }
+
+    public static boolean onKeyPressed(int key, boolean repeat) {
+        return onKeyPressed(key, 0, 0, repeat, KeyEvent.Source.INPUT_EVENT);
+    }
+
+    public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, KeyEvent.Source source) {
         boolean cancel = false;
         for (Document document : Document.getAll()) {
+            KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
             Element focusedElement = document.getFocusedElement();
+            String selectedText = resolveSelectedText(document, focusedElement);
 
             if (focusedElement instanceof AbstractText textElement) {
-                if (isCtrlDown() && textElement.canEditText()) {
+                if (isCtrlDown()) {
                     if (key == GLFW.GLFW_KEY_A) {
-                        textElement.selectAll();
-                        cancel = true;
-                        continue;
+                        if (textElement.canSelectText()) {
+                            textElement.selectAll();
+                            cancel = true;
+                            continue;
+                        }
                     }
                     if (key == GLFW.GLFW_KEY_C) {
-                        setClipboardText(textElement.getSelectedText());
-                        cancel = true;
-                        continue;
+                        if (textElement.canSelectText() && !selectedText.isEmpty()) {
+                            setClipboardText(selectedText);
+                            cancel = true;
+                            continue;
+                        }
                     }
                     if (key == GLFW.GLFW_KEY_X) {
-                        setClipboardText(textElement.getSelectedText());
-                        if (textElement.hasSelection()) {
+                        if (textElement.canEditText() && textElement.hasSelection()) {
+                            if (!selectedText.isEmpty()) setClipboardText(selectedText);
                             textElement.replaceSelection("");
+                            cancel = true;
+                            continue;
                         }
-                        cancel = true;
-                        continue;
                     }
                     if (key == GLFW.GLFW_KEY_V) {
-                        textElement.insertText(getClipboardText());
-                        cancel = true;
-                        continue;
+                        if (textElement.canEditText()) {
+                            textElement.insertText(getClipboardText());
+                            cancel = true;
+                            continue;
+                        }
+                    }
+                    if (key == GLFW.GLFW_KEY_Z) {
+                        if (textElement.canEditText() && textElement.undo()) {
+                            cancel = true;
+                            continue;
+                        }
                     }
                 }
 
@@ -100,10 +134,10 @@ public class Operation {
                     textElement.deleteForward();
                     cancel = true;
                 } else if (key == GLFW.GLFW_KEY_LEFT) {
-                    textElement.moveCursor(-1, isShiftDown());
+                    textElement.moveCursor(-1, isShiftDown() && textElement.canSelectText());
                     cancel = true;
                 } else if (key == GLFW.GLFW_KEY_RIGHT) {
-                    textElement.moveCursor(1, isShiftDown());
+                    textElement.moveCursor(1, isShiftDown() && textElement.canSelectText());
                     cancel = true;
                 } else if (key == GLFW.GLFW_KEY_ENTER) {
                     if (focusedElement instanceof TextArea) {
@@ -116,18 +150,97 @@ public class Operation {
                     document.clearFocus();
                     cancel = true;
                 }
+            } else if (focusedElement != null) {
+                if (isCtrlDown()) {
+                    if (key == GLFW.GLFW_KEY_A && focusedElement.canSelectInnerText()) {
+                        focusedElement.selectAllInnerText();
+                        cancel = true;
+                        continue;
+                    }
+                    if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText() && !selectedText.isEmpty()) {
+                        setClipboardText(selectedText);
+                        cancel = true;
+                        continue;
+                    }
+                }
+                if (key == GLFW.GLFW_KEY_ESCAPE && focusedElement.canSelectInnerText()) {
+                    focusedElement.clearTextSelection();
+                    document.clearFocus();
+                    cancel = true;
+                }
             }
         }
-        if (key == GLFW.GLFW_KEY_LEFT_ALT) {
+        if (!repeat && key == GLFW.GLFW_KEY_F12) {
             DevTools.toggle();
         }
-        if (key == Keybindings.RELOAD.getKey().getValue()) {
+        if (!repeat && key == GLFW.GLFW_KEY_F10) {
+            ResourceManager.toggle();
+        }
+        if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
             Loader.reload();
         }
         return cancel;
     }
 
+    public static void onKeyReleased(int key) {
+        onKeyReleased(key, 0, 0, KeyEvent.Source.INPUT_EVENT);
+    }
+
+    public static void onKeyReleased(int key, int scanCode, int modifiers, KeyEvent.Source source) {
+        for (Document document : Document.getAll()) {
+            KeyEvent.triggerEvent(document, "keyup", key, scanCode, modifiers, false, source);
+        }
+    }
+
+    private static String getSelectedTextFromElement(Element element) {
+        if (element == null) return "";
+        if (element instanceof AbstractText textElement) {
+            String selected = textElement.getSelectedText();
+            return selected == null ? "" : selected;
+        }
+        if (element.canSelectInnerText()) {
+            String selected = element.getSelectedInnerText();
+            return selected == null ? "" : selected;
+        }
+        return "";
+    }
+
+    private static String resolveSelectedText(Document document, Element focusedElement) {
+        String selected = getSelectedTextFromElement(focusedElement);
+        if (!selected.isEmpty()) return selected;
+
+        Element active = document.getActiveElement();
+        if (active != focusedElement) {
+            selected = getSelectedTextFromElement(active);
+            if (!selected.isEmpty()) return selected;
+        }
+
+        for (Element element : document.getElements()) {
+            selected = getSelectedTextFromElement(element);
+            if (!selected.isEmpty()) return selected;
+        }
+        return "";
+    }
+
+    /**
+     * FIXME:
+     * 如果在某些情况（如窗口拖动等）鼠标位置缓存为空或者是读到旧的缓存值时请参考{@link #getMousePositionDirectly()}
+     * 未来建议重构，统一输入源，或在输入更新链中保证鼠标坐标始终同步。
+     *
+     * @see Client#getMousePosition()
+     */
     public static Position getMousePosition() {
+        return cachedMousePosition;
+    }
+
+    public static Position getMousePositionDirectly() {
+        Position live = Client.getMousePositionDirectly();
+        if (live != null) {
+            if (cachedMousePosition == null) {
+                cachedMousePosition = live;
+            }
+            return live;
+        }
         return cachedMousePosition;
     }
 
@@ -154,5 +267,33 @@ public class Operation {
 
     public static boolean isKeyPressed(String key) {
         return Client.isKeyPressed(key);
+    }
+
+    public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers, boolean repeat, KeyEvent.Source source) {
+        if (isDuplicateKeyEvent(key, scanCode, action, modifiers)) {
+            return false;
+        }
+        if (action == GLFW.GLFW_RELEASE) {
+            onKeyReleased(key, scanCode, modifiers, source);
+            return false;
+        }
+        return onKeyPressed(key, scanCode, modifiers, repeat, source);
+    }
+
+    private static boolean isDuplicateKeyEvent(int key, int scanCode, int action, int modifiers) {
+        long now = System.nanoTime();
+        if (key == lastKeyCode
+                && scanCode == lastScanCode
+                && action == lastAction
+                && modifiers == lastModifiers
+                && (now - lastKeyEventTimeNs) <= KEY_DEDUP_WINDOW_NS) {
+            return true;
+        }
+        lastKeyEventTimeNs = now;
+        lastKeyCode = key;
+        lastScanCode = scanCode;
+        lastAction = action;
+        lastModifiers = modifiers;
+        return false;
     }
 }

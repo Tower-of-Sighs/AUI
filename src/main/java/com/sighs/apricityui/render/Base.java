@@ -4,7 +4,6 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.math.Axis;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -12,10 +11,12 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 
 import java.util.List;
 
@@ -34,20 +35,37 @@ public class Base {
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        RectFrameCache.begin();
+        StyleFrameCache.begin();
         Drawer.flushUpdates(document);
-        for (RenderNode node : document.getPaintList()) {
-            Base.resolveOffset(poseStack);
-            node.render(poseStack);
+        FilterRenderer.beginFrame();
+        try {
+            for (RenderNode node : document.getPaintList()) {
+                poseStack.pushPose();
+                Base.resolveOffset(poseStack);
+                node.render(poseStack);
+                poseStack.popPose();
+            }
+        } finally {
+            StyleFrameCache.end();
+            RectFrameCache.end();
+            ImageDrawer.flushBatch();
+            FilterRenderer.endFrame();
         }
         AbstractAsyncHandler.tickAll();
     }
 
     public static void beginRendering() {
-        RenderSystem.enableDepthTest(); // 1.21 建议使用 RenderSystem 包装类
-        RenderSystem.depthMask(true);
-        RenderSystem.disableCull();
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
+        GlStateManager._enableDepthTest();
+        GlStateManager._depthMask(true);
+        GlStateManager._disableCull();
+        GlStateManager._enableBlend();
+        GlStateManager._blendFuncSeparate(
+                GlStateManager.SourceFactor.SRC_ALPHA.value,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
+                GlStateManager.SourceFactor.ONE.value,
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
+        );
         setPositionColorShader();
     }
 
@@ -61,32 +79,74 @@ public class Base {
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {
-        List<Transform> functions = element.getRenderer().transform.get();
-        if (functions == null) {
-            functions = Transform.parse(Transform.getMergedString(element));
-            element.getRenderer().transform.set(functions);
+        List<Element> route = element.getRoute();
+        double lastAbsX = 0;
+        double lastAbsY = 0;
+
+        int routeSize = route.size();
+        double[] absX = new double[routeSize];
+        double[] absY = new double[routeSize];
+
+        for (int i = routeSize - 1; i >= 0; i--) {
+            Element e = route.get(i);
+            Position offset = Position.getOffset(e);
+            if ("fixed".equals(e.getComputedStyle().position)) {
+                absX[i] = offset.x;
+                absY[i] = offset.y;
+            } else if (i == routeSize - 1) {
+                absX[i] = offset.x;
+                absY[i] = offset.y;
+            } else {
+                Element parent = route.get(i + 1);
+                absX[i] = offset.x + absX[i + 1] - parent.getScrollLeft();
+                absY[i] = offset.y + absY[i + 1] - parent.getScrollTop();
+            }
         }
 
-        Position pos = Position.of(element);
-        Size size = Size.of(element);
-        Box box = Box.of(element);
-        double x = pos.x + box.getMarginLeft(), y = pos.y + box.getMarginTop();
-        double w = size.width(), h = size.height();
+        for (int i = 0; i < routeSize; i++) {
+            Element e = route.get(i);
+            double posX = absX[i];
+            double posY = absY[i];
+            Box box = Box.of(e);
+            Size size = Size.of(e);
 
-        for (Transform transform : functions) {
-            if (transform instanceof Transform.Translate t) {
-                poseStack.translate(t.x(), t.y(), t.z());
-            } else if (transform instanceof Transform.Rotate r) {
-                poseStack.translate(x + w / 2, y + h / 2, 0);
-                if (r.x() != 0) poseStack.mulPose(Axis.XP.rotationDegrees((float) r.x()));
-                if (r.y() != 0) poseStack.mulPose(Axis.YP.rotationDegrees((float) r.y()));
-                if (r.z() != 0) poseStack.mulPose(Axis.ZP.rotationDegrees((float) r.z()));
-                poseStack.translate(-x - w / 2, -y - h / 2, 0);
-            } else if (transform instanceof Transform.Scale s) {
-                poseStack.translate(x + w / 2, y + h / 2, 0);
-                poseStack.scale((float) s.x(), (float) s.y(), 1);
-                poseStack.translate(-x - w / 2, -y - h / 2, 0);
+            double currentAbsX = posX + box.getMarginLeft();
+            double currentAbsY = posY + box.getMarginTop();
+            poseStack.translate(currentAbsX - lastAbsX, currentAbsY - lastAbsY, 0);
+
+            List<Transform> functions = e.getRenderer().transform.get();
+            if (functions == null) {
+                String cssTransform = e.getComputedStyle().transform;
+                functions = Transform.parse(cssTransform);
+                e.getRenderer().transform.set(functions);
             }
+
+            if (!functions.isEmpty()) {
+                double w = size.width();
+                double h = size.height();
+                // transform-origin 默认为中心 (50% 50%)
+                float originX = (float) (w / 2.0);
+                float originY = (float) (h / 2.0);
+
+                for (Transform transform : functions) {
+                    if (transform instanceof Transform.Translate t) {
+                        poseStack.translate(t.x(), t.y(), t.z());
+                    } else if (transform instanceof Transform.Rotate r) {
+                        poseStack.translate(originX, originY, 0);
+                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
+                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
+                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
+                        poseStack.translate(-originX, -originY, 0);
+                    } else if (transform instanceof Transform.Scale s) {
+                        poseStack.translate(originX, originY, 0);
+                        poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
+                        poseStack.translate(-originX, -originY, 0);
+                    }
+                }
+            }
+
+            lastAbsX = currentAbsX;
+            lastAbsY = currentAbsY;
         }
     }
 
