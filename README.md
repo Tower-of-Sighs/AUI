@@ -16,7 +16,7 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 - svg？
 - markdown会用到的标签，如ul、ol、a
 - 完整弹性布局
-- 换行
+- 资源管理器预览
 
 ### 优化：
 - 精灵图字体，但老实说不太可能

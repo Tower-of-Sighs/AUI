@@ -131,10 +131,10 @@ public class RenderElement {
             boolean had = oVal != null && !oVal.equals("none") && !oVal.isEmpty();
             boolean has = cVal != null && !cVal.equals("none") && !cVal.isEmpty();
 
-            // 特殊处理 overflow，只有 hidden 会触发 MaskNode
+            // overflow 只有从可见变为裁剪，或从裁剪变回可见时，才需要重建 MaskNode。
             if (prop.equals("overflow")) {
-                had = "hidden".equals(oVal);
-                has = "hidden".equals(cVal);
+                had = Style.clipsOverflow(oVal);
+                has = Style.clipsOverflow(cVal);
             }
 
             if (had != has) {

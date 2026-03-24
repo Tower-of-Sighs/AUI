@@ -328,7 +328,7 @@ public class Element {
     }
 
     public boolean canScroll() {
-        if (getComputedStyle().overflow.equals("visible")) return false;
+        if (!Style.allowsUserScroll(getComputedStyle().overflow)) return false;
         return scrollHeight > Box.of(this).innerSize().height();
     }
 
@@ -492,7 +492,15 @@ public class Element {
         }
         if (!innerText.equals(lastInnerText)) {
             getRenderer().text.clear();
+            getRenderer().size.clear();
             lastInnerText = innerText;
+            if (document != null) {
+                document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
+                if (parentElement != null) {
+                    parentElement.getRenderer().size.clear();
+                    document.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REPAINT);
+                }
+            }
         }
     }
 
@@ -665,8 +673,9 @@ public class Element {
         Text baseText = Text.of(this);
         baseText.content = getSelectableInnerText();
         if (baseText.content == null || baseText.content.isEmpty()) return;
-        List<String> lines = Text.splitLines(baseText.content);
-        int[] starts = buildLineStarts(lines);
+        Text.WrappedText wrapped = Text.wrap(this, baseText);
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
         int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
         int max = Math.min(baseText.content.length(), Math.max(textSelectionStart, textSelectionEnd));
         if (min >= max) return;
@@ -674,7 +683,7 @@ public class Element {
         Position contentPos = rectRenderer.getContentPosition();
         double contentWidth = Box.of(this).innerSize().width();
         double contentHeight = Box.of(this).innerSize().height();
-        double textHeight = baseText.lineHeight * Math.max(1, lines.size());
+        double textHeight = wrapped.height(baseText.lineHeight);
         double baseY = contentPos.y + computeVerticalOffset(baseText, contentHeight, textHeight);
 
         for (int i = 0; i < lines.size(); i++) {
@@ -707,9 +716,10 @@ public class Element {
 
         double contentWidth = Box.of(this).innerSize().width();
         double contentHeight = Box.of(this).innerSize().height();
-        List<String> lines = Text.splitLines(text.content);
-        int[] starts = buildLineStarts(lines);
-        double textHeight = text.lineHeight * Math.max(1, lines.size());
+        Text.WrappedText wrapped = Text.wrap(this, text);
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
+        double textHeight = wrapped.height(text.lineHeight);
         double drawY = contentPos.y + computeVerticalOffset(text, contentHeight, textHeight);
         boolean drawSelectionText = canSelectInnerText() && hasInnerTextSelection();
         int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
@@ -762,17 +772,6 @@ public class Element {
         Text text = Text.of(this);
         String normalized = Text.normalizeWhiteSpaceContent(innerText, text.whiteSpace);
         return normalized == null ? "" : normalized;
-    }
-
-    private int[] buildLineStarts(List<String> lines) {
-        int[] starts = new int[lines.size()];
-        int cursor = 0;
-        for (int i = 0; i < lines.size(); i++) {
-            starts[i] = cursor;
-            cursor += lines.get(i).length();
-            if (i < lines.size() - 1) cursor += 1;
-        }
-        return starts;
     }
 
     private double measureTextSegmentWidth(String segment) {
