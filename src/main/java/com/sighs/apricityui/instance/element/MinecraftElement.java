@@ -138,7 +138,8 @@ public abstract class MinecraftElement extends Element {
             if (document != null) document.recordID(this);
         }
         if ("class".equals(name)) {
-            this.classNames = parseClassTokens(safeValue);
+            this.classNames = new ArrayList<>();
+            this.classNames.addAll(List.of(safeValue.split(" ")));
         }
 
         if (attributeBatchDepth == 0) {
