@@ -1,0 +1,305 @@
+﻿<body>
+<div class="title">Layout Regression Test</div>
+<div class="desc">用途: 回归 normal flow / flex / grid 的核心布局属性。</div>
+
+<div class="layout">
+    <div class="panel left">
+        <div class="group">
+            <div class="group-title">A. Normal Flow 属性清单</div>
+            <div class="line">1) display:block</div>
+            <div class="line">2) display:inline（同一行连续排布）</div>
+            <div class="line">3) display:inline-block（可设宽高）</div>
+            <div class="line">4) width/height 对 block 与 inline-block 的影响</div>
+            <div class="line">5) margin/padding 在文档流中的占位</div>
+            <div class="line">6) position:absolute 脱离普通流</div>
+        </div>
+
+        <div class="group">
+            <div class="group-title">B. Flex 属性清单</div>
+            <div class="line">1) display:flex</div>
+            <div class="line">2) flex-direction: row / column</div>
+            <div class="line">3) justify-content: flex-start / center / space-between</div>
+            <div class="line">4) align-items: flex-start / center / flex-end</div>
+            <div class="line">5) gap 对子项间距影响</div>
+        </div>
+
+        <div class="group">
+            <div class="group-title">C. Grid 属性清单</div>
+            <div class="line">1) display:grid</div>
+            <div class="line">2) grid-template-columns</div>
+            <div class="line">3) gap / row-gap / column-gap</div>
+            <div class="line">4) justify-items / align-items</div>
+            <div class="line">5) grid-column / grid-row / span</div>
+        </div>
+    </div>
+
+    <div class="panel right">
+        <div class="case">
+            <div class="case-title">Case 1: Normal Flow（块、行内、行内块）</div>
+            <div class="hint">预期: block 独占一行；inline 连续排布并可自动换行；inline-block 连续排布且宽高生效；ABS 不占流内空间。</div>
+
+            <div class="box nf-host">
+                <div class="sub-title">1) block（默认纵向堆叠）</div>
+                <div class="nf-block nf-a">block A width:90</div>
+                <div class="nf-block nf-b">block B width:140</div>
+
+                <div class="sub-title">2) inline（同一行，内容过长会换行）</div>
+                <span class="nf-inline">inline-1</span>
+                <span class="nf-inline">inline-2</span>
+                <span class="nf-inline">inline-3-long-text</span>
+
+                <div class="sub-title">3) inline-block（可设 width/height）</div>
+                <span class="nf-ib">ib-1</span>
+                <span class="nf-ib">ib-2</span>
+
+                <div class="nf-abs">ABS</div>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">Case 2: Flex 属性对照</div>
+            <div class="hint">预期: 子样例按纵向堆叠。上: row+space-between；下: column+align-end；观察 gap 间距。</div>
+
+            <div class="box flex-host-row">
+                <div class="chip">R1</div>
+                <div class="chip">R2</div>
+                <div class="chip">R3</div>
+            </div>
+
+            <div class="box flex-host-col">
+                <div class="chip">C1</div>
+                <div class="chip">C2</div>
+                <div class="chip">C3</div>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">Case 3: Grid 属性对照</div>
+            <div class="hint">预期: 3列网格自动放置；G2 跨2列；G4 固定到第1列第2行；观察 gap 与 item 对齐。</div>
+
+            <div class="box grid-host">
+                <div class="cell g1">G1</div>
+                <div class="cell g2">G2 span2</div>
+                <div class="cell g3">G3</div>
+                <div class="cell g4">G4 fixed</div>
+                <div class="cell g5">G5</div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 2px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background-image: linear-gradient(165deg, #10202d 0%, #173246 56%, #2a4c63 100%);
+        color: #eaf6ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.3;
+        transform: translateZ(2px);
+    }
+
+    .title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #f2fbff;
+    }
+
+    .desc {
+        color: #b8d9ea;
+        font-size: 10px;
+        margin-top: 4px;
+    }
+
+    .layout {
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .panel {
+        border: 1px solid #5b88a3;
+        border-radius: 8px;
+        background: rgba(8, 19, 27, 0.58);
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: hidden;
+        align-items: center;
+    }
+
+    .left {
+        width: 160px;
+        margin-right: 5px;
+    }
+
+    .right {
+        width: 270px;
+        height: 210px;
+        overflow: hidden;
+        align-items: stretch;
+    }
+
+    .group {
+        border: 1px dashed #7daac2;
+        border-radius: 6px;
+        padding: 5px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        width: 150px;
+    }
+
+    .group-title {
+        color: #ffe4a0;
+        font-size: 10px;
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+
+    .line {
+        color: #d2ecf7;
+        font-size: 9px;
+    }
+
+    .case {
+        border: 1px solid #4c718a;
+        border-radius: 6px;
+        padding: 5px;
+        background: rgba(18, 39, 52, 0.45);
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        width: 258px;
+    }
+
+    .case-title {
+        color: #ffd18d;
+        font-size: 10px;
+    }
+
+    .hint {
+        color: #a4d0e0;
+        font-size: 9px;
+    }
+
+    .box {
+        width: 100%;
+        border: 1px solid #84b3ca;
+        background: rgba(9, 18, 26, 0.78);
+        padding: 3px;
+        box-sizing: border-box;
+        color: #ffffff;
+    }
+
+    .sub-title {
+        color: #a9d8ff;
+        font-size: 9px;
+        margin: 1px 0;
+    }
+
+    .nf-host {
+        position: relative;
+        min-height: 86px;
+    }
+
+    .nf-block {
+        display: block;
+        border: 1px solid #86d2ff;
+        background: rgba(25, 71, 96, 0.72);
+        padding: 1px 3px;
+        margin-bottom: 2px;
+    }
+
+    .nf-a { width: 90px; }
+    .nf-b { width: 140px; }
+
+    .nf-inline {
+        display: inline;
+        color: #ffe9b8;
+        margin-right: 2px;
+    }
+
+    .nf-ib {
+        display: inline-block;
+        width: 34px;
+        height: 14px;
+        line-height: 14px;
+        text-align: center;
+        margin-right: 2px;
+        border: 1px solid #f7c46f;
+        background: rgba(108, 70, 21, 0.72);
+    }
+
+    .nf-abs {
+        position: absolute;
+        top: 4px;
+        right: 4px;
+        width: 28px;
+        text-align: center;
+        border: 1px solid #ffdc9a;
+        background: rgba(130, 83, 19, 0.8);
+    }
+
+    .flex-host-row {
+        min-height: 24px;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+        gap: 3px;
+    }
+
+    .flex-host-col {
+        min-height: 46px;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: flex-end;
+        gap: 2px;
+    }
+
+    .chip {
+        border: 1px solid #9cc6ff;
+        background: rgba(42, 70, 118, 0.75);
+        min-width: 22px;
+        text-align: center;
+        padding: 0 3px;
+    }
+
+    .grid-host {
+        min-height: 52px;
+        display: grid;
+        grid-template-columns: 3;
+        gap: 2px;
+        justify-items: stretch;
+        align-items: center;
+    }
+
+    .cell {
+        border: 1px solid #90d6b9;
+        background: rgba(28, 78, 66, 0.7);
+        min-height: 12px;
+        text-align: center;
+        padding: 1px 2px;
+    }
+
+    .g2 { grid-column: 2 / span 2; }
+    .g4 {
+        grid-column: 1;
+        grid-row: 2;
+        border-color: #ffd08a;
+        background: rgba(104, 71, 18, 0.75);
+    }
+</style>

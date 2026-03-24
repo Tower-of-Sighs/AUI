@@ -1,0 +1,111 @@
+## 晴雪UI
+
+可以使用HTML+CSS+JS构建UI，语法尽可能遵循Web标准。
+
+跨版本支持进行中，计划从1.16支持到26.1。
+
+相关链接：
+- CurseForge: https://curseforge.com/minecraft/mc-mods/apricityui
+- Modrinth: https://modrinth.com/mod/apricityui
+- Github: https://github.com/Tower-of-Sighs/AUI
+
+![icon](https://cdn.modrinth.com/data/cached_images/9513051c399c427a47a6a4fd3600f0e157ba8a42.png)
+
+### 基本内容
+
+晴雪UI开发的初心是低门槛且便捷全能的UI框架，因此选择了经典的HTML+CSS+JS三剑客作为内核。
+
+其中JS的部分暂时依赖于KubeJS(非必须)，这意味着整合包作者也可以使用本模组尽情绘制UI，并且上手难度极低。  
+有多低呢？你完全可以让AI为你生成所有关于晴雪UI的内容，Web框架非常流行，因此AI也非常熟悉，甚至画出来比你画的要好看，而且你还能看得懂！
+
+有自定义UI需求的模组，也可以将晴雪UI作为依赖来绘制可拓展性超强的UI，JS与Java的写法大体上是等效的。  
+拓展性表现在哪呢？遮罩嵌套、平滑滚动、圆角边框、毛玻璃背景、自定义动画、自定义字体、GIF动图，这些需要几百上千行才能实现的功能，对于晴雪UI，都只要几行就能搞定！
+
+此外，晴雪UI的语法标准基本上是固定的，会尽可能遵循Web标准，因此你可以放心地更新、放心地跨版本使用，而不用担心新版本的兼容性问题。
+
+如果你不知道Web框架是什么东西，至少知道其广为人知的三大优势：
+- 功能丰富，从简单的图形绘制到各种渲染效果嵌套，对于晴雪UI，甚至能渲染在世界里的某个方块上！
+- 用法简单，我在b站上看到的速成课大部分都在三小时以内，最短的十分钟，别忘了AI对它也是如数家珍。
+- 调试方便，Web框架中的一切几乎都支持瞬间热重载，并且还有便捷的开发者工具提供可视化调试，晴雪UI也都有。
+
+注：晴雪UI不批发Chrome内核，完全由Java从头开始构建，大小不到1MB，请放心食用。
+
+### 简单案例
+
+- 盒子模型，盒子阴影，颜色尺寸可调的边框，角度可调的圆角。
+- 还算标准的Flex布局，详见：https://bing.com/search?q=css%20flex
+- 四种不同的自定义字体(包含原版字体)并存。
+- 自带溢出遮罩的容器。
+
+![img_1.png](https://resource-api.xyeidc.com//client/members/pics/4ca88cb2)
+
+- 世界内渲染，以某个角度渲染在某个坐标，支持遮挡。
+- border-image属性，高拓展性的九宫格图片。
+- 可嵌套的裁剪遮罩，这里剪成了三角形。
+
+![img_2.png](https://resource-api.xyeidc.com//client/members/pics/35cb1bb9)
+
+- GIF图片支持。
+- 自定义动画和过渡效果。
+- 自带的自定义输入框。
+
+（这个是动图，如果没在动请原地刷新）
+
+![test1.gif](https://resource-api.xyeidc.com//client/members/pics/0cca76ee)
+
+- MC原生元素支持，此处演示自定义容器。
+
+![img_3.png](https://resource-api.xyeidc.com//client/members/pics/3e2c842f)
+
+- 自定义主题，此处演示晴雪UI自带主题之一的AE主题。
+
+![img4.png](https://resource-api.xyeidc.com//client/members/pics/8b59a171)
+
+详情请看官方文档中的[简单例子](https://doc.sighs.cc/ApricityUI/guide/example)。
+
+如果懒得自己写样式可以让AI写或者去[Codepen](https://codepen.io/)抄现成的。
+
+如果遇上了需要但没有的CSS属性，可以到Github上提issue。
+
+### 资源分发
+
+晴雪UI支持的静态资源有HTML、CSS、Javascript、TTF/OTF字体以及包括GIF在内的大部分图片格式，未来还会支持音频和视频。  
+存放资源的地方有版本实例下的apricity文件夹和资源包，资源包的优先级较低，但默认全局样式和内置字体都存放在模组本体的资源包中。  
+对于整合包开发者，推荐使用apricity文件夹作为静态资源存放位置，默认按END键热重载，一般重载时间一秒以内。
+
+详情请查询官方文档。
+
+如果需要打包分享，资源包或普通压缩包都可以，考虑到资源包还得重载游戏，还是推荐简单压缩。  
+不过，对于使用晴雪UI作为前置的模组来说，资源包形式比较好。默认加载路径有包含开发环境下的资源包路径，并且优先级最高，肥肠方便。  
+还有一种方式是使用网络资源，比如图床或开源静态资源托管网站，晴雪UI是支持异步加载网络资源的，但不要做坏事哦。
+
+此外，晴雪UI还提供了复古感十足的“服务端发送HTML给客户端渲染”方案，但这个功能不算很必要，所以会在稍后的版本正式实装。
+
+### 还想了解更多？
+
+- 其实晴雪UI还有与浏览器类似的调试台，如果你不知道那是什么，按一下F12就知道了，不过目前还是丐版，支持attribute、innerText、style的可视化编辑，也支持在控制台输入JavaScript语句进行调试。
+- 其实KJS是可选的前置，不装的话没法解析HTML里写的JavaScript，也没法使用调试台，但对于模组开发者来说，影响不大。
+- 其实晴雪UI的热重载非常快，二十张不同QQ头像+三个自定义字体，包含内嵌JS在内，重载整个document只需要一秒。如果你在写KJS的客户端脚本，没准可以用来偷懒，不过晴雪UI的资源路径内没有PJS的补全。注：此处说的重载不会重载资源包。
+- 其实晴雪UI的性能还算可以，在原版用一个全样式复杂案例测试的时候，FPS从400掉到了300，但我看了一眼创造模式物品栏怎么才只能240。
+- 其实Vue、Svelte等现代前端框架的丐版移植正在绝赞进行中，但进度不算快，有兴趣的话欢迎加群共同探讨！
+- 其实AI非常熟悉HTML三件套，可以轻而易举地搓一个小游戏，但可想而知晴雪UI并未完全支持所有浏览器特性，因此需要先喂给AI我们的特性支持列表。
+- 其实晴雪UI的非常欢迎社区开发者共同建设，毕竟CSS的样式那么多，HTML的标签那么多，热烈欢迎哟！如果你只是希望我们能尽快实现某个特性，也欢迎留言！
+
+### 跃跃欲试？
+
+- 晴雪UI相关魔改交流群：211573328
+- 开发者与建设者交流群：895176696
+- Discord：https://discord.gg/C8epbbwjrS
+
+### AI自动化
+
+遵从doc/agent.md的引导。
+run/screenshots/aui文件夹中每一秒都会输出游戏截图，最多保存20张截图。
+调试模式下，静态资源会自动监听变更，并触发重载。
+测试流程：修改html/css/js文件 -> 监听日志中的重载消息“[DebugReload] change detected:”和“[DebugReload] reload completed” -> 等待三秒后检查截图文件夹中的游戏截图 -> 判断截图是否满足需求效果，若不满足就继续修改html/css/js文件，若满足，结束流程。
+
+在本次对话中：
+仅修改html和css。
+需要修改的html文件是：src/main/resources/assets/apricityui/apricity/devtools/index.html
+需要满足的效果是：简洁的调试工具，大小适中，样式美观，参考图：......。
+我已启动游戏，请你开始测试流程，先迭代5次。

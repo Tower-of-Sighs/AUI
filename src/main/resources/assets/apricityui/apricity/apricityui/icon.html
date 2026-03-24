@@ -1,0 +1,58 @@
+<body>
+    <div></div>
+    <img src="icon.png" />
+</body>
+
+<style>
+    body {
+        display: flex;
+        flex-direction: column;
+        align-items:flex-end;
+        pointer-events: none;
+    }
+    div {
+        margin: 10px;
+        border-radius: 16px;
+        width: 32px;
+        height: 32px;
+        background-color: #fff;
+        background-image: linear-gradient(45deg, #f69797, #8484c1);
+        animation: hue 3s infinite;
+        box-shadow: 0 0 3px #22000000;
+        pointer-events: none;
+    }
+    img {
+        width: 28px;
+        height: 28px;
+        border-radius: 14px;
+        margin: 12px;
+        position:relative;
+        bottom:52px;
+        transition:transform 0.1s, filter 0.2s;
+        cursor: pointer;
+        transform: scale(1);
+        pointer-events: auto;
+    }
+    img:hover {
+        filter:brightness(1.2);
+    }
+    img:active {
+        transform:scale(0.92);
+    }
+    @keyframes hue {
+        0% {
+            filter: hue-rotate(0deg);
+        }
+        100% {
+            filter: hue-rotate(360deg);
+        }
+    }
+    @keyframes rotate {
+        0% {
+            transform: rotate(0);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+</style>
