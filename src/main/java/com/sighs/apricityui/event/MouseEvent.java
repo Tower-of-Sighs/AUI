@@ -27,37 +27,44 @@ public class MouseEvent extends Event implements Cloneable {
     public boolean shiftKey;
     public boolean controlKey;
     public double scrollDelta = 0;
+    public int button = -1;
 
     public MouseEvent(String type, Position mousePosition) {
+        this(type, mousePosition, -1);
+    }
+
+    public MouseEvent(String type, Position mousePosition, int button) {
         super(null, type, null, true);
         clientX = mousePosition.x;
         clientY = mousePosition.y;
         altKey = Operation.isKeyPressed("key.keyboard.left.alt") || Operation.isKeyPressed("key.keyboard.right.alt");
         shiftKey = Operation.isKeyPressed("key.keyboard.left.shift") || Operation.isKeyPressed("key.keyboard.right.shift");
         controlKey = Operation.isKeyPressed("key.keyboard.left.control") || Operation.isKeyPressed("key.keyboard.right.control");
+        this.button = button;
     }
 
-    public static void tiggerEvent(MouseEvent event) {
+    public static boolean tiggerEvent(MouseEvent event) {
         StyleFrameCache.begin();
         try {
+            boolean consumed = false;
             applyCursorForTopMostDocument(event);
             List<Document> docs = Document.getAll();
-            if (docs == null || docs.isEmpty()) return;
+            if (docs == null || docs.isEmpty()) return false;
 
             for (int i = docs.size() - 1; i >= 0; i--) {
                 Document document = docs.get(i);
                 if (document == null || document.inWorld) continue;
                 Element target = hitTest(document.getPaintList(), new Position(event.clientX, event.clientY));
                 if (target != null) {
-                    tiggerEvent(event, document);
+                    consumed |= tiggerEvent(event, document);
                     if (target != document.body) {
-                        return; // non-body element intercepts
+                        return consumed;
                     }
-                    continue; // body does not intercept; continue to next document
+                    continue;
                 }
-                // No hit target on this document; still send event to clear hover/focus, then continue.
-                tiggerEvent(event, document);
+                consumed |= tiggerEvent(event, document);
             }
+            return consumed;
         } finally {
             StyleFrameCache.end();
         }
@@ -110,9 +117,10 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     // 触发鼠标事件的主体
-    public static void tiggerEvent(MouseEvent event, Document document) {
+    public static boolean tiggerEvent(MouseEvent event, Document document) {
         StyleFrameCache.begin();
         try {
+            boolean consumed = false;
             List<RenderNode> paintList = document.getPaintList();
             Element activeElement = document.getActiveElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
@@ -128,21 +136,22 @@ public class MouseEvent extends Event implements Cloneable {
 
             if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
             if (event.type.equals("mousedown")) {
+                clearGlobalSelectionsOnMouseDown(document, target);
                 if (target != null) {
                     document.setActiveElement(target);
                     if (target.canFocus()) {
-                        // ??????????????????????????????????ocus??????????????document??????????????nput?????????
                         clearGlobalFocusExcept(document);
                         document.setFocusedElement(target);
                     } else {
-                        // ????????Focus ??????????????????????????Document ?????
                         document.setFocusedElement(null);
                     }
                 }
             }
 
             if (target != null && event.type.equals("scroll")) scroll(event);
-            if (target != null) Event.tiggerEvent(event);
+            if (target != null) {
+                consumed |= Event.tiggerEvent(event);
+            }
 
             if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
                 MouseEvent activeEvent = event.clone();
@@ -150,12 +159,14 @@ public class MouseEvent extends Event implements Cloneable {
                 Position activePosition = Position.of(activeElement);
                 activeEvent.offsetX = activeEvent.clientX - activePosition.x;
                 activeEvent.offsetY = activeEvent.clientY - activePosition.y;
-                Event.triggerSingle(activeEvent);
+                consumed |= Event.triggerSingle(activeEvent);
             }
 
             if (event.type.equals("mouseup")) {
                 document.setActiveElement(null);
             }
+
+            return consumed;
         } finally {
             StyleFrameCache.end();
         }
@@ -170,6 +181,17 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     // 其实是专门为hover写了这个部分，所以函数名就叫hover，实际上是处理各类鼠标事件的，这边是根据路径去做处理，不知道性能上能不能优化。
+    private static void clearGlobalSelectionsOnMouseDown(Document activeDoc, Element clickedTarget) {
+        Document.getAll().forEach(doc -> {
+            if (doc == null) return;
+            if (doc == activeDoc) {
+                doc.clearAllTextSelectionsExcept(clickedTarget);
+                return;
+            }
+            doc.clearAllTextSelections();
+        });
+    }
+
     private static void handleHoverChange(MouseEvent originalEvent, Element newTarget, Document document) {
         Element previousCursorElement = document.getPreviousCursorElement();
         if (previousCursorElement == newTarget) return;
@@ -307,4 +329,3 @@ public class MouseEvent extends Event implements Cloneable {
         }
     }
 }
-

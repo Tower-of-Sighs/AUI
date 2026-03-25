@@ -93,6 +93,26 @@ public class Flex {
         return new Position(offsetX, offsetY);
     }
 
+    public static Size computeContentSize(Element element) {
+        boolean flexColumn = Flex.of(element).flexDirection.isColumn();
+        double totalWidth = 0;
+        double totalHeight = 0;
+
+        for (Element child : element.children) {
+            Style childStyle = child.getComputedStyle();
+            if (!Layout.isInFlow(childStyle)) continue;
+            Size size = Size.box(child);
+            if (flexColumn) {
+                totalWidth = Math.max(totalWidth, size.width());
+                totalHeight += size.height();
+            } else {
+                totalHeight = Math.max(totalHeight, size.height());
+                totalWidth += size.width();
+            }
+        }
+        return new Size(totalWidth, totalHeight);
+    }
+
     private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,
                                                                 double offsetTotal, int siblingsCount, int index) {
         double offsetStart = 0, offsetInterval = 0;

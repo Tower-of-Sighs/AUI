@@ -203,22 +203,6 @@ public class Client {
         }
     }
 
-    public static void handleMouseScroll(double scrollDelta) {
-        Operation.scroll(scrollDelta);
-        for (WorldWindow window : WorldWindow.windows) {
-            Position realPos = window.getRealPos();
-            if (realPos != null) {
-                MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
-                mouseEvent.scrollDelta = -scrollDelta * 50;
-                MouseEvent.tiggerEvent(mouseEvent, window.document);
-            }
-        }
-    }
-
-    public static void handleScreenScroll(double scrollDelta) {
-        Operation.scroll(scrollDelta);
-    }
-
     public static void mouseMove() {
         Operation.onMouseMove(getMousePosition());
         for (WorldWindow window : WorldWindow.windows) {
@@ -322,12 +306,12 @@ public class Client {
         return Minecraft.getInstance().font.width(renderText) + stroke;
     }
 
-    public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
+    public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
         poseStack.pushPose();
         poseStack.translate(position.x, position.y, 0);
         poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 0f);
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-        MutableComponent renderText = Component.literal(text.content);
+        MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
         int stroke = Math.max(0, text.strokeWidth);
@@ -345,7 +329,8 @@ public class Client {
         bufferSource.endBatch();
         poseStack.popPose();
     }
+
+    public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
+        drawDefaultFont(poseStack, text, text.content, position);
+    }
 }
-
-
-

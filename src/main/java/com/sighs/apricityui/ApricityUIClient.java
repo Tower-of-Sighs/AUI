@@ -67,15 +67,6 @@ public class ApricityUIClient implements ClientModInitializer {
         });
 
         ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
-            ScreenMouseEvents.afterMouseScroll(screen).register((Screen target, double mouseX, double mouseY, double horizontal, double vertical) -> {
-                if (vertical != 0.0) {
-                    if (screen instanceof TitleScreen) {
-                        Client.handleScreenScroll(vertical);
-                    } else {
-                        Client.handleMouseScroll(vertical);
-                    }
-                }
-            });
             ScreenEvents.afterRender(screen).register((Screen target, GuiGraphics guiGraphics, int mouseX, int mouseY, float tickDelta) -> {
                 Client.drawScreenLike(guiGraphics);
             });

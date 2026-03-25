@@ -102,27 +102,7 @@ public record Size(double width, double height) {
     }
 
     public static Size getContentSize(Element element) {
-        Style style = element.getComputedStyle();
-        if ("grid".equals(style.display)) {
-            return Grid.computeContentSize(element);
-        }
-        boolean flexColumn = Flex.of(element).flexDirection.isColumn();
-        double totalWidth = 0, totalHeight = 0;
-
-        for (Element child : element.children) {
-            Style childStyle = child.getComputedStyle();
-            if (childStyle.position.equals("absolute") || childStyle.position.equals("fixed") || "none".equals(childStyle.display))
-                continue;
-            Size size = Size.box(child);
-            if (flexColumn) {
-                totalWidth = Math.max(totalWidth, size.width);
-                totalHeight += size.height;
-            } else {
-                totalHeight = Math.max(totalHeight, size.height);
-                totalWidth += size.width;
-            }
-        }
-        return new Size(totalWidth, totalHeight);
+        return Layout.computeContentSize(element);
     }
 
     public static Size box(Element element) {
@@ -179,29 +159,24 @@ public record Size(double width, double height) {
 
     public static double measureText(Element element, String text) {
         if (text == null || text.isEmpty()) return 0;
-
-        String fontFamily = Style.getFontFamily(element);
-        int fontWeight = Style.getFontWeight(element);
-        boolean oblique = Style.isOblique(element);
-        Style.TextStroke stroke = Style.getTextStroke(element);
-
-        if (fontFamily.equals("unset"))
-            return Client.getDefaultFontWidth(text, fontWeight >= 600, oblique, stroke.width());
-
-        java.awt.Font baseFont = Font.getBaseFont(fontFamily);
-        if (baseFont == null) return 0;
-        int fontStyle = java.awt.Font.PLAIN;
-        if (fontWeight >= 600) fontStyle |= java.awt.Font.BOLD;
-        if (oblique) fontStyle |= java.awt.Font.ITALIC;
-        java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
-
-        FontMetrics fm = METRICS_CANVAS.getFontMetrics(resolvedFont);
-        int baseWidth = fm.stringWidth(text);
-
-        float currentSize = (float) Style.getFontSize(element);
-        float scale = currentSize / Font.getBaseFontSize();
-
-        return baseWidth * scale + stroke.width() * 2.0;
+        Text base = Text.of(element);
+        Text measuring = new Text();
+        measuring.fontSize = base.fontSize;
+        measuring.fontWeight = base.fontWeight;
+        measuring.oblique = base.oblique;
+        measuring.strokeWidth = base.strokeWidth;
+        measuring.strokeColor = base.strokeColor;
+        measuring.color = base.color;
+        measuring.fontFamily = base.fontFamily;
+        measuring.lineHeight = base.lineHeight;
+        measuring.direction = base.direction;
+        measuring.textAlign = base.textAlign;
+        measuring.verticalAlign = base.verticalAlign;
+        measuring.whiteSpace = base.whiteSpace;
+        measuring.textIndent = 0;
+        measuring.letterSpacing = base.letterSpacing;
+        measuring.content = text;
+        return Text.measureText(measuring);
     }
 }
 
