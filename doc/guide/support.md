@@ -16,31 +16,31 @@ Minecraft专属标签之后单开一页介绍，主要有container、slot、reci
 
 ```html
 <body>
-    <div class="Web">
-        <span>text</span>
-        <img src="path_to_image" />
-        <input type="text" />
-        <input type="checkbox" />
-        <input type="radio" />
-        <textarea placeholder="iii"></textarea>
-        <select id="selection">
-            <option value="opt1"></option>
-            <option value="opt2"></option>
-            <option value="opt3"></option>
-        </select>
-    </div>
-  <div class="mc">
+<div class="Web">
+    <span>text</span>
+    <img src="path_to_image" />
+    <input type="text" />
+    <input type="checkbox" />
+    <input type="radio" />
+    <textarea placeholder="iii"></textarea>
+    <select id="selection">
+        <option value="opt1"></option>
+        <option value="opt2"></option>
+        <option value="opt3"></option>
+    </select>
+</div>
+<div class="mc">
     <translation>item.minecraft.tropical_fish</translation>
     <container>
-      <slot mode="virtual">minecraft:apple</slot>
-      <slot mode="virtual">{id:'minecraft:diamond',Count:12b,tag:[display:{Name:'{"text":"example"}'}}}</slot>
-      <slot mode="virtual" rotate-interval="500" iconScale="1.2">#minecraft:wool</slot>
+        <slot mode="virtual">minecraft:apple</slot>
+        <slot mode="virtual">{id:'minecraft:diamond',Count:12b,tag:[display:{Name:'{"text":"example"}'}}}</slot>
+        <slot mode="virtual" rotate-interval="500" iconScale="1.2">#minecraft:wool</slot>
     </container>
     <container primary="true" bind="player" layout="preset:player" title="Inventory">
-      <slot mode="bound" slot-index="0" repeat="36"></slot>
+        <slot mode="bound" slot-index="0" repeat="36"></slot>
     </container>
     <recipe recipe-id="minecraft:crafting_table"></recipe>
-  </div>
+</div>
 </body>
 
 <style src="path_to_css"></style>
@@ -103,7 +103,7 @@ div {
   box-shadow: 0 2px 4px rgba(0,0,0,0.2); /* 阴影：x-offset y-offset size color */
   pointer-events: auto;  /* 指针事件：auto, none */
   visibility: visible;   /* 可见性：visible, hidden */
-  overflow: hidden;      /* 溢出处理：visible, hidden, scroll, auto */
+  overflow: visible;     /* 溢出处理，默认值：visible；支持 visible, hidden, scroll, auto, clip */
   transition: all 0.3s;  /* 过渡效果：属性 时长 时延 缓动函数 */
   transform: translateX(10px); /* 变换：translate, rotate, scale */
   clip-path: polygon(50% 0%, 0% 100%, 100% 100%); /* 裁剪路径：polygon, circle, ellipse, inset */
