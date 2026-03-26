@@ -1,5 +1,6 @@
 package com.sighs.apricityui.resource.async.image;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
@@ -7,8 +8,10 @@ import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.style.Background;
 
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -111,13 +114,21 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         DecodedImage decodedImage = null;
         try {
             byte[] bytes = readResourceBytes(handle.path());
+            ApricityUI.LOGGER.info(
+                    "[Image] Decode start, path={}, sniffedFormat={}, header={}",
+                    handle.path(),
+                    sniffFormat(bytes),
+                    previewHeader(bytes)
+            );
             decodedImage = Image.decode(handle.path(), bytes);
             if (decodedImage == null) {
+                ApricityUI.LOGGER.warn("[Image] Decode returned null, path={}", handle.path());
                 handle.markFailed(new IllegalStateException("图片解码失败: " + handle.path()), System.currentTimeMillis());
                 return;
             }
         } catch (Exception exception) {
             if (decodedImage != null) decodedImage.close();
+            ApricityUI.LOGGER.warn("[Image] Async decode failed, path={}", handle.path(), exception);
             handle.markFailed(exception, System.currentTimeMillis());
             return;
         }
@@ -144,6 +155,75 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
             }
             return stream.readAllBytes();
         }
+    }
+
+    private static String sniffFormat(byte[] data) {
+        if (startsWith(data, (byte) 0x89, (byte) 'P', (byte) 'N', (byte) 'G', (byte) 0x0D, (byte) 0x0A, (byte) 0x1A, (byte) 0x0A)) {
+            return "png";
+        }
+        if (startsWithAscii(data, "GIF87a") || startsWithAscii(data, "GIF89a")) {
+            return "gif";
+        }
+        if (startsWith(data, (byte) 0xFF, (byte) 0xD8, (byte) 0xFF)) {
+            return "jpeg";
+        }
+        if (startsWithAscii(data, "BM")) {
+            return "bmp";
+        }
+        if (data.length >= 12
+                && startsWithAscii(data, "RIFF")
+                && data[8] == 'W'
+                && data[9] == 'E'
+                && data[10] == 'B'
+                && data[11] == 'P') {
+            return "webp";
+        }
+        String ascii = previewAscii(data).toLowerCase(Locale.ROOT);
+        if (ascii.startsWith("<!doctype") || ascii.startsWith("<html") || ascii.startsWith("<?xml")) {
+            return "html";
+        }
+        if (ascii.startsWith("{") || ascii.startsWith("[")) {
+            return "json";
+        }
+        return "unknown";
+    }
+
+    private static boolean startsWith(byte[] data, byte... prefix) {
+        if (data == null || data.length < prefix.length) return false;
+        for (int i = 0; i < prefix.length; i++) {
+            if (data[i] != prefix[i]) return false;
+        }
+        return true;
+    }
+
+    private static boolean startsWithAscii(byte[] data, String prefix) {
+        return startsWith(data, prefix.getBytes(StandardCharsets.US_ASCII));
+    }
+
+    private static String previewHeader(byte[] data) {
+        return "hex=" + previewHex(data, 12) + ", ascii=" + previewAscii(data);
+    }
+
+    private static String previewHex(byte[] data, int limit) {
+        if (data == null || data.length == 0) return "";
+        StringBuilder builder = new StringBuilder();
+        int actualLimit = Math.min(limit, data.length);
+        for (int i = 0; i < actualLimit; i++) {
+            if (i > 0) builder.append(' ');
+            builder.append(String.format("%02x", data[i] & 0xFF));
+        }
+        return builder.toString();
+    }
+
+    private static String previewAscii(byte[] data) {
+        if (data == null || data.length == 0) return "";
+        StringBuilder builder = new StringBuilder();
+        int actualLimit = Math.min(16, data.length);
+        for (int i = 0; i < actualLimit; i++) {
+            int b = data[i] & 0xFF;
+            builder.append(b >= 32 && b <= 126 ? (char) b : '.');
+        }
+        return builder.toString();
     }
 
     @Override

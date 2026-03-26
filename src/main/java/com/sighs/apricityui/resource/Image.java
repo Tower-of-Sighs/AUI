@@ -3,6 +3,7 @@ package com.sighs.apricityui.resource;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public class Image {
     public static ITexture loadTexture(String cacheKey, InputStream is) {
@@ -31,18 +33,31 @@ public class Image {
             DecodedImage decodedImage = decode(cacheKey, bytes);
             return uploadDecoded(cacheKey, decodedImage);
         } catch (IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.warn("[Image] Failed to read texture stream, path={}", cacheKey, e);
             return null;
         }
     }
 
     public static DecodedImage decode(String cacheKey, byte[] data) {
         if (data == null || data.length == 0) return null;
-        String fileName = cacheKey == null ? "" : cacheKey.toLowerCase();
-        if (fileName.endsWith(".gif")) {
+        String detectedFormat = detectFormat(data);
+        if ("gif".equals(detectedFormat)) {
             return loadGifTexture(data);
         }
-        return loadStaticTexture(data);
+        if ("png".equals(detectedFormat)) {
+            return loadStaticTexturePng(cacheKey, data);
+        }
+
+        DecodedImage decodedImage = loadStaticTextureWithImageIo(cacheKey, data, detectedFormat);
+        if (decodedImage != null) return decodedImage;
+
+        ApricityUI.LOGGER.warn(
+                "[Image] Failed to decode image, path={}, detectedFormat={}, header={}",
+                cacheKey,
+                detectedFormat,
+                previewHeader(data)
+        );
+        return null;
     }
 
     public static ITexture uploadDecoded(String cacheKey, DecodedImage decodedImage) {
@@ -71,19 +86,48 @@ public class Image {
             TextureInfo info = uploadImage(cacheKey, imageData);
             return new StaticTexture(info.textureId, info.location, info.width, info.height);
         } catch (Exception e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.warn("[Image] Failed to upload decoded texture, path={}", cacheKey, e);
             return null;
         } finally {
             decodedImage.close();
         }
     }
 
-    private static DecodedImage loadStaticTexture(byte[] data) {
+    private static DecodedImage loadStaticTexturePng(String cacheKey, byte[] data) {
         try (InputStream bis = new ByteArrayInputStream(data)) {
             NativeImage image = NativeImage.read(bis);
             return DecodedImage.ofStatic(image);
         } catch (IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.warn(
+                    "[Image] PNG decode failed, path={}, header={}",
+                    cacheKey,
+                    previewHeader(data),
+                    e
+            );
+            return null;
+        }
+    }
+
+    private static DecodedImage loadStaticTextureWithImageIo(String cacheKey, byte[] data, String detectedFormat) {
+        try (InputStream bis = new ByteArrayInputStream(data)) {
+            BufferedImage bufferedImage = ImageIO.read(bis);
+            if (bufferedImage == null) {
+                return null;
+            }
+            ApricityUI.LOGGER.info(
+                    "[Image] Decoded non-PNG static image via ImageIO fallback, path={}, detectedFormat={}",
+                    cacheKey,
+                    detectedFormat
+            );
+            return DecodedImage.ofStatic(convertToNative(bufferedImage));
+        } catch (IOException e) {
+            ApricityUI.LOGGER.warn(
+                    "[Image] Non-PNG static decode failed, path={}, detectedFormat={}, header={}",
+                    cacheKey,
+                    detectedFormat,
+                    previewHeader(data),
+                    e
+            );
             return null;
         }
     }
@@ -117,9 +161,77 @@ public class Image {
             return decodedImage;
         } catch (Exception e) {
             frames.forEach(NativeImage::close);
-            e.printStackTrace();
+            ApricityUI.LOGGER.warn("[Image] GIF decode failed", e);
             return null;
         }
+    }
+
+    private static String detectFormat(byte[] data) {
+        if (startsWith(data, (byte) 0x89, (byte) 'P', (byte) 'N', (byte) 'G', (byte) 0x0D, (byte) 0x0A, (byte) 0x1A, (byte) 0x0A)) {
+            return "png";
+        }
+        if (startsWithAscii(data, "GIF87a") || startsWithAscii(data, "GIF89a")) {
+            return "gif";
+        }
+        if (startsWith(data, (byte) 0xFF, (byte) 0xD8, (byte) 0xFF)) {
+            return "jpeg";
+        }
+        if (startsWithAscii(data, "BM")) {
+            return "bmp";
+        }
+        if (data.length >= 12
+                && startsWithAscii(data, "RIFF")
+                && data[8] == 'W'
+                && data[9] == 'E'
+                && data[10] == 'B'
+                && data[11] == 'P') {
+            return "webp";
+        }
+        String ascii = previewAscii(data).toLowerCase(Locale.ROOT);
+        if (ascii.startsWith("<!doctype") || ascii.startsWith("<html") || ascii.startsWith("<?xml")) {
+            return "html";
+        }
+        if (ascii.startsWith("{") || ascii.startsWith("[")) {
+            return "json";
+        }
+        return "unknown";
+    }
+
+    private static boolean startsWith(byte[] data, byte... prefix) {
+        if (data.length < prefix.length) return false;
+        for (int i = 0; i < prefix.length; i++) {
+            if (data[i] != prefix[i]) return false;
+        }
+        return true;
+    }
+
+    private static boolean startsWithAscii(byte[] data, String prefix) {
+        byte[] bytes = prefix.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+        return startsWith(data, bytes);
+    }
+
+    private static String previewHeader(byte[] data) {
+        return "hex=" + previewHex(data, 12) + ", ascii=" + previewAscii(data);
+    }
+
+    private static String previewHex(byte[] data, int limit) {
+        StringBuilder builder = new StringBuilder();
+        int actualLimit = Math.min(limit, data.length);
+        for (int i = 0; i < actualLimit; i++) {
+            if (i > 0) builder.append(' ');
+            builder.append(String.format("%02x", data[i] & 0xFF));
+        }
+        return builder.toString();
+    }
+
+    private static String previewAscii(byte[] data) {
+        StringBuilder builder = new StringBuilder();
+        int actualLimit = Math.min(16, data.length);
+        for (int i = 0; i < actualLimit; i++) {
+            int b = data[i] & 0xFF;
+            builder.append(b >= 32 && b <= 126 ? (char) b : '.');
+        }
+        return builder.toString();
     }
 
     private static NativeImage convertToNative(BufferedImage bi) {

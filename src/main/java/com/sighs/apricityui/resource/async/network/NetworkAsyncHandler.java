@@ -1,5 +1,6 @@
 package com.sighs.apricityui.resource.async.network;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.Loader;
 
@@ -133,6 +134,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         if (normalized.startsWith("text/css")) return;
         if (normalized.startsWith("font/")) return;
         if (normalized.startsWith("application/font")) return;
+        ApricityUI.LOGGER.warn("[Network] Unsupported remote content type, url={}, contentType={}", url, contentType);
         throw new IOException("远程资源类型不支持: " + url + " (Content-Type: " + contentType + ")");
     }
 
@@ -209,6 +211,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             handle.markReady();
             return bytes;
         } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[Network] Remote fetch failed, url={}, reason={}", url, exception.getMessage());
             own.complete(null, exception);
             handle.markFailed(exception, System.currentTimeMillis());
             throw exception;
