@@ -8,8 +8,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
 import net.minecraftforge.items.ItemStackHandler;
-import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -133,7 +133,7 @@ public class ApricitySavedData extends SavedData {
     }
 
     @Override
-    public @NotNull CompoundTag save(@NotNull CompoundTag tag) {
+    public @Nonnull CompoundTag save(@Nonnull CompoundTag tag) {
         CompoundTag allInventories = new CompoundTag();
         for (Map.Entry<String, ItemStackHandler> entry : inventories.entrySet()) {
             allInventories.put(entry.getKey(), entry.getValue().serializeNBT());

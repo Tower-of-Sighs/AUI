@@ -22,8 +22,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
-import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.Nonnull;
 import java.util.*;
 
 public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> {
@@ -100,7 +100,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     @Override
-    protected void renderBg(@NotNull GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
+    protected void renderBg(@Nonnull GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         if (linkedDocument == null) return;
 
         Base.drawDocument(guiGraphics.pose(), linkedDocument);
@@ -109,12 +109,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     @Override
-    protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    protected void renderLabels(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY) {
         // 标题改为容器内节点渲染，不再固定绘制到屏幕左上角。
     }
 
     @Override
-    public void render(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (linkedDocument != null) {
             if (shouldRebindSlotsFromDom()) {
                 bindSlotsFromDocument();

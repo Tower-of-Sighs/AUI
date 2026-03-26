@@ -1,21 +1,10 @@
-buildscript {
-    repositories {
-        maven { url = 'https://repo.spongepowered.org/repository/maven-public/' }
-        mavenCentral()
-    }
-    dependencies {
-        classpath 'org.spongepowered:mixingradle:0.7-SNAPSHOT'
-    }
-}
-
 plugins {
     id 'eclipse'
     id 'idea'
-    id 'net.minecraftforge.gradle' version '[6.0.16,6.2)'
+    id 'java-library'
+    id 'maven-publish'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.91'
 }
-
-apply plugin: 'org.spongepowered.mixin'
-apply plugin: 'maven-publish'
 
 group = mod_group_id
 version = mod_version
@@ -26,52 +15,63 @@ base {
 
 java {
     toolchain.languageVersion = JavaLanguageVersion.of(17)
+    withSourcesJar()
 }
 
-minecraft {
-    mappings channel: mapping_channel, version: mapping_version
-    copyIdeResources = true
+legacyForge {
+    version = project.minecraft_version + '-' + project.forge_version
+//
+//    parchment {
+//        mappingsVersion = project.parchment_mappings_version
+//        minecraftVersion = project.parchment_minecraft_version
+//    }
 
     runs {
-        configureEach {
-            workingDirectory project.file('run')
-            property 'forge.logging.markers', 'REGISTRIES'
-
-            property 'forge.logging.console.level', 'debug'
-
-            mods {
-                "${mod_id}" {
-                    source sourceSets.main
-                }
-            }
-        }
-
         client {
-            workingDirectory project.file('run')
-            property 'forge.enabledGameTestNamespaces', mod_id
+            client()
+
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
         }
 
         server {
-            workingDirectory project.file('run/server')
-            property 'forge.enabledGameTestNamespaces', mod_id
+            server()
+            programArgument '--nogui'
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
         }
 
         gameTestServer {
-            property 'forge.enabledGameTestNamespaces', mod_id
+            type = "gameTestServer"
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
         }
 
         data {
-            workingDirectory project.file('run-data')
+            data()
 
-            args '--mod', mod_id, '--all', '--output', file('src/generated/resources/'), '--existing', file('src/main/resources/')
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+        }
+
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
         }
     }
 }
 
 mixin {
     add sourceSets.main, "${mod_id}.refmap.json"
-
     config "${mod_id}.mixins.json"
+}
+
+jar {
+    manifest.attributes([
+            "MixinConfigs": "${mod_id}.mixins.json"
+    ])
 }
 
 sourceSets.main.resources { srcDir 'src/generated/resources' }
@@ -87,22 +87,20 @@ repositories {
 }
 
 dependencies {
-    minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
-    compileOnly fg.deobf("curse.maven:kubejs-238086:5853326")
-    compileOnly fg.deobf("curse.maven:rhino-416294:6186971")
-    compileOnly fg.deobf("curse.maven:architectury-api-419699:5137938")
+    modCompileOnly ("curse.maven:kubejs-238086:5853326")
+    modCompileOnly ("curse.maven:rhino-416294:6186971")
+    modCompileOnly ("curse.maven:architectury-api-419699:5137938")
 
-    runtimeOnly fg.deobf("curse.maven:kubejs-238086:5853326")
-    runtimeOnly fg.deobf("curse.maven:rhino-416294:6186971")
-    runtimeOnly fg.deobf("curse.maven:architectury-api-419699:5137938")
+    modRuntimeOnly ("curse.maven:kubejs-238086:5853326")
+    modRuntimeOnly ("curse.maven:rhino-416294:6186971")
+    modRuntimeOnly ("curse.maven:architectury-api-419699:5137938")
 
-    runtimeOnly fg.deobf("curse.maven:embeddium-908741:5681725")
-    runtimeOnly fg.deobf("curse.maven:rubidium-extra-654373:6101745")
+    modRuntimeOnly ("curse.maven:embeddium-908741:5681725")
+    modRuntimeOnly ("curse.maven:rubidium-extra-654373:6101745")
 
-    // implementation fg.deobf("curse.maven:accelerated-rendering-1314021:7342975")
+    // modImplementation ("curse.maven:accelerated-rendering-1314021:7342975")
 
 }
 
