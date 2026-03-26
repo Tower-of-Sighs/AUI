@@ -51,7 +51,8 @@ dependencies {
     modImplementation "curse.maven:kubejs-238086:5853321"
     modImplementation "curse.maven:rhino-416294:6186969"
     modImplementation "dev.architectury:architectury-fabric:$rootProject.architectury_api_version"
-    modImplementation 'cc.sighs.oelib:OELib-fabric-1.20.1:0.2.1'
+    modImplementation 'cc.sighs.oelib:OELib-fabric-1.20.1:0.2.3'
+//    modImplementation files("libs/OELib-fabric-1.20.1-0.2.3-dev1.jar")
     implementation "com.electronwill.night-config:toml:3.8.3"
     implementation "cn.6tail:lunar:1.7.3"
     implementation "de.marhali:json5-java:3.0.0"

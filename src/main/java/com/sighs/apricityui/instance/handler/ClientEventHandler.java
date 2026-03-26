@@ -16,6 +16,7 @@ import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
 public class ClientEventHandler {
+    public ClientEventHandler() {}
 
     @Subscribe(side = EventSide.CLIENT, receiveCanceled = true)
     public static void scroll(InputEvent.MouseScrollingEvent event) {

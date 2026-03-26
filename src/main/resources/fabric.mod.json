@@ -24,6 +24,7 @@
   "depends": {
     "fabricloader": "*",
     "fabric": "*",
+    "oelib": ">=0.2.2",
     "minecraft": "${minecraft_version}"
   }
 }
