@@ -346,10 +346,14 @@ public class Client {
      * @see Operation#getMousePosition()
      */
     public static Position getMousePosition() {
-        MouseHandler mouseHandler = Minecraft.getInstance().mouseHandler;
-        Window window = Minecraft.getInstance().getWindow();
-        double scale = window.getGuiScale();
-        return new Position(mouseHandler.xpos() / scale, mouseHandler.ypos() / scale);
+        Minecraft mc = Minecraft.getInstance();
+        MouseHandler mouseHandler = mc.mouseHandler;
+        Window window = mc.getWindow();
+
+        double mouseX = mouseHandler.xpos() * (double) window.getGuiScaledWidth() / (double) window.getScreenWidth();
+        double mouseY = mouseHandler.ypos() * (double) window.getGuiScaledHeight() / (double) window.getScreenHeight();
+
+        return new Position(mouseX, mouseY);
     }
 
     /** 通过 GLFW 直接从窗口句柄获取实时坐标 */
