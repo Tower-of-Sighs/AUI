@@ -24,8 +24,8 @@
             <div class="case-title">A. normal 自动换行</div>
             <div class="hint">预期: 多个空格折叠成一个；源文本中的 \n 也折叠成空格；盒子宽度不足时自动换行。</div>
             <div class="sample ws-normal" id="normal-basic">AA   BB    CC
-DDDDDDDDDDDD EEEEEE
-FFFF</div>
+                DDDDDDDDDDDD EEEEEE
+                FFFF</div>
         </div>
 
         <div class="case">
@@ -39,32 +39,32 @@ FFFF</div>
             <div class="case-title">C. nowrap</div>
             <div class="hint">预期: 空格和 \n 仍会先按 normal 折叠，但整段只保持单行，不自动换行。</div>
             <div class="sample ws-nowrap" id="nowrap-basic">AA   BB    CC
-DDDDDDDDDDDD EEEEEE
-FFFF</div>
+                DDDDDDDDDDDD EEEEEE
+                FFFF</div>
         </div>
 
         <div class="case">
             <div class="case-title">D. pre</div>
             <div class="hint">预期: 保留连续空格和 \n；长行不软换行。</div>
             <div class="sample ws-pre" id="pre-basic">AA   BB    CC
-DDDDDDDDDDDD EEEEEE
-FFFF</div>
+                DDDDDDDDDDDD EEEEEE
+                FFFF</div>
         </div>
 
         <div class="case">
             <div class="case-title">E. pre-line</div>
             <div class="hint">预期: 连续空格折叠，但源文本中的 \n 必须保留；每个硬换行后的长行还能继续软换行。</div>
             <div class="sample ws-pre-line" id="pre-line-basic">AA   BB    CC
-DDDDDDDDDDDD EEEEEE
-FFFF</div>
+                DDDDDDDDDDDD EEEEEE
+                FFFF</div>
         </div>
 
         <div class="case">
             <div class="case-title">F. pre-wrap</div>
             <div class="hint">预期: 连续空格保留，\n 保留，长行继续软换行。</div>
             <div class="sample ws-pre-wrap" id="pre-wrap-basic">AA   BB    CC
-DDDDDDDDDDDD EEEEEE
-FFFF</div>
+                DDDDDDDDDDDD EEEEEE
+                FFFF</div>
         </div>
 
         <div class="case">
