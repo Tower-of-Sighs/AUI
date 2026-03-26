@@ -1,0 +1,227 @@
+<body>
+<div class="title">Text Wrap Regression Test</div>
+<div class="desc">用途: 覆盖普通文本、white-space、pre、textarea 的所有换行场景。每个盒子宽度固定，方便直接看是否换行正确。</div>
+
+<div class="layout">
+    <div class="panel legend">
+        <div class="group">
+            <div class="group-title">覆盖点</div>
+            <div class="line">1. 普通文本自动换行</div>
+            <div class="line">2. 长单词/连续 CJK 的强制断行</div>
+            <div class="line">3. normal: 折叠空格与 \n</div>
+            <div class="line">4. nowrap: 不自动换行</div>
+            <div class="line">5. pre: 保留空格和 \n，不软换行</div>
+            <div class="line">6. pre-line: 折叠空格，保留 \n，并软换行</div>
+            <div class="line">7. pre-wrap: 保留空格和 \n，并软换行</div>
+            <div class="line">8. break-spaces: 保留空格，并允许在空格处断行</div>
+            <div class="line">9. pre 标签默认行为</div>
+            <div class="line">10. textarea 多行 value / innerText</div>
+        </div>
+    </div>
+
+    <div class="panel cases">
+        <div class="case">
+            <div class="case-title">A. normal 自动换行</div>
+            <div class="hint">预期: 多个空格折叠成一个；源文本中的 \n 也折叠成空格；盒子宽度不足时自动换行。</div>
+            <div class="sample ws-normal" id="normal-basic">AA   BB    CC
+DDDDDDDDDDDD EEEEEE
+FFFF</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">B. normal 长单词 / CJK 连续文本</div>
+            <div class="hint">预期: 没有空格可断时也要继续断行，不能整行溢出。</div>
+            <div class="sample ws-normal" id="normal-long-word">SuperLongTokenWithoutBreakPoints1234567890ABCDEFGHIJKLMN</div>
+            <div class="sample ws-normal" id="normal-cjk">这是连续中文文本没有空格也需要在宽度不足时继续断行否则会直接溢出</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">C. nowrap</div>
+            <div class="hint">预期: 空格和 \n 仍会先按 normal 折叠，但整段只保持单行，不自动换行。</div>
+            <div class="sample ws-nowrap" id="nowrap-basic">AA   BB    CC
+DDDDDDDDDDDD EEEEEE
+FFFF</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">D. pre</div>
+            <div class="hint">预期: 保留连续空格和 \n；长行不软换行。</div>
+            <div class="sample ws-pre" id="pre-basic">AA   BB    CC
+DDDDDDDDDDDD EEEEEE
+FFFF</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">E. pre-line</div>
+            <div class="hint">预期: 连续空格折叠，但源文本中的 \n 必须保留；每个硬换行后的长行还能继续软换行。</div>
+            <div class="sample ws-pre-line" id="pre-line-basic">AA   BB    CC
+DDDDDDDDDDDD EEEEEE
+FFFF</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">F. pre-wrap</div>
+            <div class="hint">预期: 连续空格保留，\n 保留，长行继续软换行。</div>
+            <div class="sample ws-pre-wrap" id="pre-wrap-basic">AA   BB    CC
+DDDDDDDDDDDD EEEEEE
+FFFF</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">G. break-spaces</div>
+            <div class="hint">预期: 连续空格保留，且窄盒子里能在空格序列中断行；结尾分隔符位置应能看出空格没有被吃掉。</div>
+            <div class="sample ws-break-spaces" id="break-spaces-basic">AA     BB     CC     |</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">H. pre 标签默认行为</div>
+            <div class="hint">预期: 不写 white-space 也应当按 pre 处理，保留空格和 \n。</div>
+            <pre class="sample" id="pre-tag-basic">PRE-1   A   B
+PRE-2   C   D
+PRE-3 long long long line</pre>
+        </div>
+
+        <div class="case">
+            <div class="case-title">I. textarea 内联多行文本</div>
+            <div class="hint">预期: 直接写在 textarea 标签里的多行文本应保留 \n，并在盒子内继续软换行。</div>
+            <textarea class="sample ta" id="textarea-inline">INLINE-1
+INLINE-2 with more words to wrap.
+INLINE-3  A   B   C</textarea>
+        </div>
+
+        <div class="case">
+            <div class="case-title">J. textarea.value 多行文本</div>
+            <div class="hint">预期: JS 写入 value 的多行文本与内联 textarea 行为一致。</div>
+            <textarea class="sample ta" id="textarea-value" value="VALUE-1
+VALUE-2 with more words to wrap.
+VALUE-3   A   B   C"></textarea>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 3px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background-image: linear-gradient(160deg, #111820 0%, #162231 52%, #23384f 100%);
+        color: #eaf2ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        transform: translateZ(2px);
+    }
+
+    .title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #f9fcff;
+    }
+
+    .desc {
+        color: #bed0e8;
+        font-size: 10px;
+    }
+
+    .layout {
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .panel {
+        border: 1px solid #5e81a5;
+        border-radius: 8px;
+        background: rgba(10, 16, 24, 0.58);
+        padding: 6px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    .legend {
+        width: 150px;
+    }
+
+    .cases {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: auto;
+    }
+
+    .group {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .group-title {
+        color: #ffe29b;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .line {
+        color: #d7e5f6;
+        font-size: 9px;
+    }
+
+    .case {
+        width: 100%;
+        border: 1px solid #4c6785;
+        border-radius: 6px;
+        background: rgba(20, 31, 44, 0.55);
+        padding: 5px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .case-title {
+        color: #ffd28a;
+        font-size: 10px;
+    }
+
+    .hint {
+        color: #9fb9da;
+        font-size: 9px;
+    }
+
+    .sample {
+        width: 168px;
+        min-height: 34px;
+        max-height: 56px;
+        border: 1px solid #89a8cb;
+        background: rgba(9, 14, 20, 0.82);
+        padding: 4px;
+        box-sizing: border-box;
+        color: #ffffff;
+        line-height: 1.35;
+        overflow: hidden;
+    }
+
+    .ws-normal { white-space: normal; }
+    .ws-nowrap { white-space: nowrap; }
+    .ws-pre { white-space: pre; }
+    .ws-pre-line { white-space: pre-line; }
+    .ws-pre-wrap { white-space: pre-wrap; }
+    .ws-break-spaces { white-space: break-spaces; }
+
+    .ta {
+        height: 42px;
+        background: rgba(13, 19, 27, 0.92);
+        color: #eaf2ff;
+        selection-color: #2e79d7;
+    }
+</style>
+
+</body>
