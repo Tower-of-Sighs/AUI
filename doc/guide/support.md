@@ -103,7 +103,7 @@ div {
   box-shadow: 0 2px 4px rgba(0,0,0,0.2); /* 阴影：x-offset y-offset size color */
   pointer-events: auto;  /* 指针事件：auto, none */
   visibility: visible;   /* 可见性：visible, hidden */
-  overflow: hidden;      /* 溢出处理：visible, hidden, scroll, auto */
+  overflow: visible;     /* 溢出处理，默认值：visible；支持 visible, hidden, scroll, auto, clip */
   transition: all 0.3s;  /* 过渡效果：属性 时长 时延 缓动函数 */
   transform: translateX(10px); /* 变换：translate, rotate, scale */
   clip-path: polygon(50% 0%, 0% 100%, 100% 100%); /* 裁剪路径：polygon, circle, ellipse, inset */

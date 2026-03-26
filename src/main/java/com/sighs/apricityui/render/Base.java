@@ -29,6 +29,7 @@ public class Base {
 
     public static void drawAllDocument(PoseStack poseStack) {
         Mask.resetDepth();
+        poseStack.translate(0, 0, 1);
         for (Document document : Document.getAll()) {
             if (!document.inWorld) drawDocument(poseStack, document);
         }

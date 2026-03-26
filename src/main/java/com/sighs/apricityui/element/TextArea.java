@@ -47,14 +47,15 @@ public class TextArea extends AbstractText {
     @Override
     protected void locateCursor(double mouseOffsetX, double mouseOffsetY) {
         String renderText = getRenderText();
-        WrapResult wrapped = wrapLines(renderText);
-        List<String> lines = wrapped.lines;
-        int[] starts = wrapped.starts;
+        Text text = Text.of(this);
+        text.content = renderText;
+        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
 
         Box box = Box.of(this);
         double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
         double contentStartY = box.getBorderTop() + box.getPaddingTop();
-        Text text = Text.of(this);
         double lineHeight = text.lineHeight;
         if (lineHeight <= 0) lineHeight = Size.DEFAULT_LINE_HEIGHT;
 
@@ -79,15 +80,15 @@ public class TextArea extends AbstractText {
     @Override
     protected void clampScroll() {
         String renderText = getRenderText();
-        WrapResult wrapped = wrapLines(renderText);
-        List<String> lines = wrapped.lines;
-        int[] starts = wrapped.starts;
+        Text text = Text.of(this);
+        text.content = renderText;
+        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
 
         cursor = clamp(cursor, 0, renderText.length());
 
-        Text text = Text.of(this);
         double lineHeight = text.lineHeight;
-
         int cursorLine = resolveCursorLine(lines, starts, cursor);
         int lineStart = starts[cursorLine];
         int column = clamp(cursor - lineStart, 0, lines.get(cursorLine).length());
@@ -106,12 +107,8 @@ public class TextArea extends AbstractText {
             setScrollTop(cursorY + lineHeight - visibleHeight + 2);
         }
 
-        double maxLineWidth = 0;
-        for (String lineText : lines) {
-            maxLineWidth = Math.max(maxLineWidth, Size.measureText(this, lineText));
-        }
-        scrollWidth = maxLineWidth;
-        scrollHeight = Math.max(lineHeight, lines.size() * lineHeight);
+        scrollWidth = wrapped.width();
+        scrollHeight = wrapped.height(lineHeight);
         addDirtyFlags(Drawer.REPAINT);
     }
 
@@ -145,9 +142,10 @@ public class TextArea extends AbstractText {
             return;
         }
 
-        WrapResult wrapped = wrapLines(renderText);
-        List<String> lines = wrapped.lines;
-        int[] starts = wrapped.starts;
+        text.content = renderText;
+        Text.WrappedText wrapped = Text.wrap(text, Box.of(this).innerSize().width());
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
 
         drawSelection(poseStack, lines, starts, baseX, baseY, lineHeight);
 
@@ -239,61 +237,5 @@ public class TextArea extends AbstractText {
             line++;
         }
         return line;
-    }
-
-    private WrapResult wrapLines(String renderText) {
-        double wrapWidth = Box.of(this).innerSize().width();
-
-        if (wrapWidth <= 2) {
-            List<String> hard = splitLines(renderText);
-            return new WrapResult(hard, buildLineStarts(hard));
-        }
-
-        List<String> lines = new ArrayList<>();
-        List<Integer> starts = new ArrayList<>();
-
-        int globalIndex = 0;
-        StringBuilder current = new StringBuilder();
-        double currentWidth = 0;
-
-        starts.add(0);
-
-        for (int i = 0; i < renderText.length(); i++) {
-            char c = renderText.charAt(i);
-
-            // 硬换行
-            if (c == '\n') {
-                lines.add(current.toString());
-                current.setLength(0);
-                currentWidth = 0;
-                globalIndex++;
-                starts.add(globalIndex);
-                continue;
-            }
-
-            String charStr = String.valueOf(c);
-            double charWidth = Size.measureText(this, charStr);
-
-            // 软换行
-            if (!current.isEmpty() && currentWidth + charWidth > wrapWidth) {
-                lines.add(current.toString());
-                current.setLength(0);
-                currentWidth = 0;
-                starts.add(globalIndex);
-            }
-
-            current.append(c);
-            currentWidth += charWidth;
-            globalIndex++;
-        }
-
-        lines.add(current.toString());
-
-        int[] startArr = new int[starts.size()];
-        for (int i = 0; i < starts.size(); i++) startArr[i] = starts.get(i);
-        return new WrapResult(lines, startArr);
-    }
-
-    private record WrapResult(List<String> lines, int[] starts) {
     }
 }

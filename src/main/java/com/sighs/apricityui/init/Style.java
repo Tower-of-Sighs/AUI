@@ -374,6 +374,24 @@ public class Style implements Cloneable {
         return !getUserSelect(element).equals("none");
     }
 
+    public static String normalizeOverflow(String raw) {
+        if (raw == null || raw.isBlank()) return "visible";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "visible", "hidden", "scroll", "auto", "clip" -> value;
+            default -> "visible";
+        };
+    }
+
+    public static boolean clipsOverflow(String raw) {
+        return !normalizeOverflow(raw).equals("visible");
+    }
+
+    public static boolean allowsUserScroll(String raw) {
+        String value = normalizeOverflow(raw);
+        return value.equals("auto") || value.equals("scroll");
+    }
+
     public void merge(String styleString) {
         if (styleString.length() < 3) return;
         if (!styleString.contains(";")) styleString += ";";
@@ -401,6 +419,9 @@ public class Style implements Cloneable {
         if ("background".equals(styleName)) {
             applyBackgroundShorthand(value);
             return;
+        }
+        if ("overflow".equals(styleName)) {
+            value = normalizeOverflow(value);
         }
         try {
             Field field = FIELD_CACHE.get(styleName);
@@ -454,6 +475,7 @@ public class Style implements Cloneable {
         if (value.startsWith("#")) return true;
         return value.startsWith("rgb(") || value.startsWith("rgba(") || value.startsWith("hsl(") || value.startsWith("hsla(");
     }
+
 
     public String get(String name) {
         if (name == null || name.isBlank()) return null;

@@ -121,6 +121,14 @@ public abstract class AbstractText extends Element {
             clearSelection();
             undoStack.clear();
             getRenderer().text.clear();
+            getRenderer().size.clear();
+            if (document != null) {
+                document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
+                if (parentElement != null) {
+                    parentElement.getRenderer().size.clear();
+                    document.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REPAINT);
+                }
+            }
         }
     }
 
