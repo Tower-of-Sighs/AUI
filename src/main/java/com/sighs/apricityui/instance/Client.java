@@ -231,20 +231,14 @@ public class Client {
     }
 
     public static Position getMousePosition() {
-        MouseHandler mouseHandler = Minecraft.getInstance().mouseHandler;
-        Window window = Minecraft.getInstance().getWindow();
-        long windowHandle = window.getWindow();
-        double rawX = mouseHandler.xpos();
-        double rawY = mouseHandler.ypos();
-        if (windowHandle != 0L) {
-            double[] xBuf = new double[1];
-            double[] yBuf = new double[1];
-            GLFW.glfwGetCursorPos(windowHandle, xBuf, yBuf);
-            rawX = xBuf[0];
-            rawY = yBuf[0];
-        }
-        double scale = window.getGuiScale();
-        return new Position(rawX / scale, rawY / scale);
+        Minecraft mc = Minecraft.getInstance();
+        MouseHandler mouseHandler = mc.mouseHandler;
+        Window window = mc.getWindow();
+
+        double mouseX = mouseHandler.xpos() * (double) window.getGuiScaledWidth() / (double) window.getScreenWidth();
+        double mouseY = mouseHandler.ypos() * (double) window.getGuiScaledHeight() / (double) window.getScreenHeight();
+
+        return new Position(mouseX, mouseY);
     }
 
     public static boolean isKeyPressed(String keyName) {
