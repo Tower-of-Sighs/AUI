@@ -33,6 +33,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
@@ -221,7 +222,7 @@ public class Client {
     public static void scroll(InputEvent.MouseScrollEvent event) {
         if (Minecraft.getInstance().screen != null) return;
         boolean consumed = Operation.scroll(event.getScrollDelta());
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
@@ -255,7 +256,7 @@ public class Client {
             if (consumed) event.setCanceled(true);
             return;
         }
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 if (event.getAction() == InputConstants.PRESS) {
@@ -272,7 +273,7 @@ public class Client {
     public static void mouseMove(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.END) {
             Operation.onMouseMove(getMousePosition());
-            for (WorldWindow window : WorldWindow.windows) {
+            for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
                 Position realPos = window.getRealPos();
                 if (realPos != null) {
                     MouseEvent moveEvent = new MouseEvent("mousemove", realPos);

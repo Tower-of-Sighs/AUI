@@ -106,7 +106,9 @@ public class WorldWindow {
     }
 
     public static void clear() {
-        windows.forEach(WorldWindow::removeWindow);
+        for (WorldWindow window : new ArrayList<>(windows)) {
+            removeWindow(window);
+        }
     }
 
     @SubscribeEvent
