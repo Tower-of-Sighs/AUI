@@ -58,7 +58,6 @@ public class ResourceManager {
         filterText = "";
         collapsedFolderPaths.clear();
         clearContextMenuState();
-        clearPreviewState();
         Document.remove(PATH);
     }
 
