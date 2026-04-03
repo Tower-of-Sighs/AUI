@@ -77,8 +77,8 @@ public class WorldWindow {
                 position.z - cameraPos.z
         );
 
-        poseStack.mulPose(new Quaternionf().rotationY(180.0F - this.yRot));
-        poseStack.mulPose(new Quaternionf().rotationX(this.xRot));
+        poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(180.0F - this.yRot)));
+        poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(this.xRot)));
 
         poseStack.scale(scale, -scale, scale);
         poseStack.translate(-width / 2.0f, -height / 2.0f, 0);

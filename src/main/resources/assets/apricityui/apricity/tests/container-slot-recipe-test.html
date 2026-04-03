@@ -1,0 +1,363 @@
+<body>
+<div class="title">Container / Slot / Recipe Regression Test</div>
+<div class="desc">用途: 回归 container 自动补槽、slot 虚拟展示与样式分支，以及 recipe 预览布局生成。</div>
+
+<div class="layout">
+    <div class="panel left">
+        <div class="group">
+            <div class="group-title">覆盖点</div>
+            <div class="line">1. container bind="player" 自动生成 36 个 slot。</div>
+            <div class="line">2. layout="preset:player" 的背包 / 快捷栏排布。</div>
+            <div class="line">3. slot 的固定字面量、候选轮播、JSON ingredient、尺寸与 render=item。</div>
+            <div class="line">4. recipe 的 crafting_shaped / crafting_shapeless / smelting 预览生成。</div>
+            <div class="line">5. recipe 生成槽位应保持不可交互。</div>
+        </div>
+
+        <div class="group">
+            <div class="group-title">预期观察</div>
+            <div class="line">1. Case A 应看到 4 行背包 + 1 行快捷栏，共 36 个槽位。</div>
+            <div class="line">2. Case B 第二、三格应自动轮播候选物品。</div>
+            <div class="line">3. Case B 第四格尺寸更大，第五格无底板只显示物品。</div>
+            <div class="line">4. Case C 的 shaped / shapeless 应为 3x3 输入区 + 右侧输出。</div>
+            <div class="line">5. Case C 的 smelting 应显示输入、燃料、输出三处槽位。</div>
+        </div>
+
+        <div class="group">
+            <div class="group-title">脚本说明</div>
+            <div class="line">1. 自动为 player container 填充若干演示物品。</div>
+            <div class="line">2. 统计 recipe 生成出的 slot 数量，便于核对 expander 是否生效。</div>
+            <div class="line">3. 所有演示文案与样式均为中文，便于直接人工回归。</div>
+        </div>
+    </div>
+
+    <div class="panel right">
+        <div class="case">
+            <div class="case-title">Case A: container 自动补槽 + player 预设布局</div>
+            <div class="hint">预期: 自动生成 36 个 slot，并按背包三行 +
+                快捷栏一行排布。脚本只给部分槽位填充演示物品，其余保持空底板。
+            </div>
+            <div class="meta" id="playerContainerCount">自动槽位数量: 等待脚本</div>
+            <container bind="player" class="player-container" id="playerContainer" layout="preset:player"></container>
+        </div>
+
+        <div class="case">
+            <div class="case-title">Case B: slot 虚拟候选 / JSON ingredient / 尺寸 / 渲染分支</div>
+            <div class="hint">预期: 第 1 格固定钻石；第 2 格在三种金属锭间轮播；第 3 格在三种原木间轮播；第 4 格尺寸更大；第
+                5 格仅渲染物品。
+            </div>
+            <div class="slot-stage">
+                <div class="slot-card">
+                    <div class="slot-label">固定字面量</div>
+                    <slot class="slot-demo" cycle="0">minecraft:diamond</slot>
+                </div>
+                <div class="slot-card">
+                    <div class="slot-label">候选轮播</div>
+                    <slot class="slot-demo" cycle-interval="500">
+                        minecraft:iron_ingot|minecraft:gold_ingot|minecraft:copper_ingot
+                    </slot>
+                </div>
+                <div class="slot-card">
+                    <div class="slot-label">JSON ingredient</div>
+                    <slot class="slot-demo" cycle-interval="650">
+                        [{"item":"minecraft:oak_log"},{"item":"minecraft:birch_log"},{"item":"minecraft:spruce_log"}]
+                    </slot>
+                </div>
+                <div class="slot-card">
+                    <div class="slot-label">大尺寸</div>
+                    <slot class="slot-demo slot-large" cycle="0" size="24">minecraft:apple</slot>
+                </div>
+                <div class="slot-card">
+                    <div class="slot-label">仅物品</div>
+                    <slot class="slot-demo slot-item-only" cycle="0" render="item">minecraft:emerald</slot>
+                </div>
+            </div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">Case C: recipe 预览布局</div>
+            <div class="hint">预期: shaped / shapeless 为 10 个生成槽位；smelting 为 3
+                个生成槽位；下方统计值应与可见布局一致。
+            </div>
+            <div class="recipe-stage">
+                <div class="recipe-card">
+                    <div class="recipe-label">crafting_shaped / minecraft:crafting_table</div>
+                    <div class="meta" id="recipeShapedCount">生成槽位: 等待脚本</div>
+                    <recipe class="recipe-demo" id="recipeShaped" type="crafting_shaped">minecraft:crafting_table
+                    </recipe>
+                </div>
+
+                <div class="recipe-card">
+                    <div class="recipe-label">crafting_shapeless / minecraft:oak_planks</div>
+                    <div class="meta" id="recipeShapelessCount">生成槽位: 等待脚本</div>
+                    <recipe class="recipe-demo" id="recipeShapeless" type="crafting_shapeless">minecraft:oak_planks
+                    </recipe>
+                </div>
+
+                <div class="recipe-card">
+                    <div class="recipe-label">smelting / minecraft:glass</div>
+                    <div class="meta" id="recipeSmeltingCount">生成槽位: 等待脚本</div>
+                    <recipe class="recipe-demo" id="recipeSmelting" type="smelting">minecraft:glass</recipe>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 3px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background-image: linear-gradient(160deg, #111923 0%, #152838 52%, #27425a 100%);
+        color: #eef7ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        transform: translateZ(2px);
+    }
+
+    .title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #f8fcff;
+    }
+
+    .desc {
+        color: #bdd7e8;
+        font-size: 10px;
+    }
+
+    .layout {
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .panel {
+        border: 1px solid #5d86a0;
+        border-radius: 8px;
+        background: rgba(8, 17, 26, 0.58);
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: hidden;
+        align-items: center;
+        box-sizing: border-box;
+    }
+
+    .left {
+        width: 162px;
+        margin-right: 4px;
+    }
+
+    .right {
+        width: 270px;
+        height: 210px;
+        overflow: auto;
+        align-items: stretch;
+    }
+
+    .group {
+        width: 150px;
+        border: 1px dashed #7ca8bf;
+        border-radius: 6px;
+        padding: 5px;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        box-sizing: border-box;
+    }
+
+    .group-title {
+        color: #ffe4a0;
+        font-size: 10px;
+        font-weight: 700;
+        margin-bottom: 2px;
+    }
+
+    .line {
+        color: #d8edf8;
+        font-size: 9px;
+    }
+
+    .case {
+        width: 258px;
+        border: 1px solid #4f738c;
+        border-radius: 6px;
+        padding: 5px;
+        background: rgba(18, 37, 49, 0.48);
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        box-sizing: border-box;
+    }
+
+    .case-title {
+        color: #ffd291;
+        font-size: 10px;
+    }
+
+    .hint {
+        color: #a7cfdf;
+        font-size: 9px;
+    }
+
+    .meta {
+        color: #8fd0bf;
+        font-size: 9px;
+    }
+
+    .player-container {
+        width: 178px;
+        padding: 6px;
+        border: 1px solid #7aa3b9;
+        border-radius: 6px;
+        background: rgba(11, 19, 28, 0.82);
+        align-self: flex-start;
+        --aui-player-gap: 2px;
+    }
+
+    .slot-stage {
+        display: grid;
+        grid-template-columns: 2;
+        gap: 6px;
+    }
+
+    .slot-card {
+        min-height: 34px;
+        border: 1px solid #66869f;
+        border-radius: 5px;
+        padding: 4px;
+        background: rgba(10, 17, 24, 0.72);
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+        box-sizing: border-box;
+    }
+
+    .slot-label {
+        color: #d7ecf7;
+        font-size: 9px;
+        line-height: 1.25;
+        flex: 1;
+    }
+
+    .slot-demo {
+        flex-shrink: 0;
+    }
+
+    .slot-large {
+        width: 24px;
+        height: 24px;
+    }
+
+    .slot-item-only {
+        width: 18px;
+        height: 18px;
+        background-image: none;
+        background-color: transparent;
+    }
+
+    .recipe-stage {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .recipe-card {
+        border: 1px solid #63839b;
+        border-radius: 5px;
+        padding: 4px;
+        background: rgba(9, 16, 24, 0.72);
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        box-sizing: border-box;
+    }
+
+    .recipe-label {
+        color: #d9ecf8;
+        font-size: 9px;
+    }
+
+    .recipe-demo {
+        padding: 2px;
+        border: 1px solid #7aa3b9;
+        border-radius: 4px;
+        background: rgba(14, 23, 31, 0.9);
+        align-self: flex-start;
+    }
+</style>
+
+<script>
+    function fillPlayerContainer() {
+        var playerContainer = document.querySelector("#playerContainer");
+        var counter = document.querySelector("#playerContainerCount");
+        if (!playerContainer) return;
+
+        var slots = playerContainer.querySelectorAll("slot");
+        var expressions = {
+            "0": "minecraft:wooden_pickaxe",
+            "1": "minecraft:torch",
+            "2": "minecraft:bread",
+            "9": "minecraft:cobblestone",
+            "10": "minecraft:oak_log",
+            "11": "minecraft:stick",
+            "18": "minecraft:bucket",
+            "27": "minecraft:iron_ingot",
+            "35": "minecraft:diamond"
+        };
+
+        for (var index = 0; index < slots.length; index++) {
+            var slot = slots[index];
+            if (!slot) continue;
+            slot.setAttribute("cycle", "0");
+            var slotIndex = slot.getAttribute("slot-index");
+            var expression = expressions[slotIndex];
+            if (expression) {
+                slot.innerText = expression;
+            }
+        }
+
+        if (counter) {
+            counter.innerText = "自动槽位数量: " + slots.length;
+        }
+    }
+
+    function updateRecipeCount(recipeSelector, labelSelector) {
+        var recipe = document.querySelector(recipeSelector);
+        var label = document.querySelector(labelSelector);
+        if (!recipe || !label) return;
+        var slots = recipe.querySelectorAll("slot");
+        label.innerText = "生成槽位: " + slots.length;
+    }
+
+    function initOnce() {
+        if (!document.body) return;
+        if (document.body.getAttribute("data-container-slot-recipe-init") === "1") return;
+        document.body.setAttribute("data-container-slot-recipe-init", "1");
+
+        fillPlayerContainer();
+        updateRecipeCount("#recipeShaped", "#recipeShapedCount");
+        updateRecipeCount("#recipeShapeless", "#recipeShapelessCount");
+        updateRecipeCount("#recipeSmelting", "#recipeSmeltingCount");
+    }
+
+    if (document.body) {
+        document.body.addEventListener("load", function () {
+            initOnce();
+        });
+    }
+    initOnce();
+</script>
+</body>

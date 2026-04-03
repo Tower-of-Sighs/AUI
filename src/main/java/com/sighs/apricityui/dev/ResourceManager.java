@@ -26,6 +26,8 @@ public class ResourceManager {
     private static final Map<String, Element> fileRowByKey = new HashMap<>();
     private static String selectedRowKey = "";
     private static Loader.StaticResourceEntry previewEntry = null;
+    private static Document previewDocument = null;
+    private static String previewDocumentPath = "";
 
     private enum ViewMode {
         ALL,
@@ -49,7 +51,6 @@ public class ResourceManager {
         filterText = "";
         collapsedFolderPaths.clear();
         clearContextMenuState();
-        clearPreviewState();
         Document.remove(PATH);
     }
 
@@ -263,9 +264,9 @@ public class ResourceManager {
         Element menu = createToolElement("DIV");
         menu.setAttribute("class", "context-menu");
         menu.setAttribute("style", "left:" + contextMenuX + "px;top:" + contextMenuY + "px;");
-        boolean previewable = isImagePreviewable(selectedEntry);
+        boolean previewable = isPreviewable(selectedEntry);
         menu.append(menuItem("Preview", !previewable, ignored -> {
-            previewEntry = selectedEntry;
+            openPreview(selectedEntry);
             clearContextMenuState();
             refresh();
         }));
@@ -572,7 +573,7 @@ public class ResourceManager {
 
     private static void updatePreviewStatus(Element previewStatus, Element previewStatusPath) {
         Loader.StaticResourceEntry current = previewEntry;
-        if (current == null || !isImagePreviewable(current)) {
+        if (current == null || !isPreviewStatusVisible(current)) {
             previewStatus.setAttribute("class", "preview-status hidden");
             previewStatusPath.innerText = "";
             return;
@@ -600,6 +601,22 @@ public class ResourceManager {
                 || ext.equals("webp");
     }
 
+    private static boolean isHtmlPreviewable(Loader.StaticResourceEntry entry) {
+        if (entry == null) return false;
+        String ext = safe(entry.extension()).toLowerCase(Locale.ROOT);
+        return ext.equals("html") || ext.equals("htm");
+    }
+
+    private static boolean isPreviewable(Loader.StaticResourceEntry entry) {
+        return isImagePreviewable(entry) || isHtmlPreviewable(entry);
+    }
+
+    private static boolean isPreviewStatusVisible(Loader.StaticResourceEntry entry) {
+        if (isImagePreviewable(entry)) return true;
+        if (!isHtmlPreviewable(entry)) return false;
+        return previewDocument != null && safe(entry.path()).equals(previewDocumentPath);
+    }
+
     private static String layerLabel(Loader.ResourceLayer layer) {
         if (layer == null) return "-";
         return switch (layer) {
@@ -611,6 +628,47 @@ public class ResourceManager {
 
     private static void clearPreviewState() {
         previewEntry = null;
+        closePreviewDocument();
+    }
+
+    private static void openPreview(Loader.StaticResourceEntry entry) {
+        if (entry == null) return;
+        if (isHtmlPreviewable(entry)) {
+            openHtmlPreview(entry);
+            return;
+        }
+        if (isImagePreviewable(entry)) {
+            closePreviewDocument();
+            previewEntry = entry;
+        }
+    }
+
+    private static void openHtmlPreview(Loader.StaticResourceEntry entry) {
+        String path = safe(entry.path());
+        if (path.isBlank()) return;
+        if (previewDocument != null && path.equals(previewDocumentPath)) {
+            previewEntry = entry;
+            return;
+        }
+        closePreviewDocument();
+        Document created = Document.create(path);
+        if (created == null) {
+            ToastManager.show("HTML preview unavailable");
+            return;
+        }
+        previewDocument = created;
+        previewDocumentPath = path;
+        previewEntry = entry;
+    }
+
+    private static void closePreviewDocument() {
+        if (previewDocument == null) {
+            previewDocumentPath = "";
+            return;
+        }
+        previewDocument.remove();
+        previewDocument = null;
+        previewDocumentPath = "";
     }
 
     private static class FolderNode {

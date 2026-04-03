@@ -32,6 +32,7 @@ import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 @EventBusSubscriber(modid = ApricityUI.MOD_ID, value = Dist.CLIENT)
@@ -215,7 +216,7 @@ public class Client {
     public static void scroll(InputEvent.MouseScrollingEvent event) {
         if (Minecraft.getInstance().screen != null) return;
         boolean consumed = Operation.scroll(event.getScrollDeltaY());
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
@@ -249,7 +250,7 @@ public class Client {
             if (consumed) event.setCanceled(true);
             return;
         }
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 if (event.getAction() == InputConstants.PRESS) {
@@ -265,7 +266,7 @@ public class Client {
     @SubscribeEvent
     public static void mouseMove(ClientTickEvent.Post event) {
         Operation.onMouseMove(getMousePosition());
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
