@@ -60,7 +60,7 @@ repositories {
 }
 
 base {
-    archivesName = mod_id
+    archivesName = "${mod_name}-neoforge-${minecraft_version}"
 }
 
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
@@ -157,6 +157,63 @@ dependencies {
     // additionalRuntimeClasspath("dev.vfyjxf:mixin-hotswap-agent:1.1")
 }
 
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            groupId = project.group
+            artifactId = base.archivesName.get()
+            version = project.version
+
+            pom.withXml {
+                def dependenciesNode = asNode().getAt("dependencies")[0]
+                if (dependenciesNode != null) {
+                    // 这里添加你希望保留在 POM 中的 groupId 或 artifactId，也就是从 Maven 拉依赖时会附带的库、模组啥的
+                    def whiteList = [
+                    ]
+
+                    def dependencies = dependenciesNode.children()
+                    def toRemove = []
+
+                    dependencies.each { dep ->
+                        def artifactId = dep.artifactId.text()
+                        def groupId = dep.groupId.text()
+
+                        if (!whiteList.contains(artifactId) && !whiteList.contains(groupId)) {
+                            toRemove.add(dep)
+                        }
+                    }
+
+                    toRemove.each { dependenciesNode.remove(it) }
+                }
+            }
+        }
+    }
+
+    repositories {
+        def modVersion = project.findProperty('mod_version') ?: 'unknown'
+
+        boolean isSnapshot = modVersion.toLowerCase().contains('snapshot')
+
+        def publishUrl = isSnapshot ?
+                "https://maven.sighs.cc/repository/maven-snapshots/" :
+                "https://maven.sighs.cc/repository/maven-releases/"
+
+        def publishUser = System.getenv("SIGHS_PUBLISH_USER")
+        def publishPassword = System.getenv("SIGHS_PUBLISH_PASSWORD")
+
+        maven {
+            name = "remoteRepo"
+            url = uri(publishUrl)
+            credentials {
+                username = publishUser
+                password = publishPassword
+            }
+        }
+    }
+}
+
 tasks.withType(ProcessResources).configureEach {
     var replaceProperties = [minecraft_version      : minecraft_version,
                              minecraft_version_range: minecraft_version_range,
@@ -173,19 +230,6 @@ tasks.withType(ProcessResources).configureEach {
 
     filesMatching(['META-INF/neoforge.mods.toml']) {
         expand replaceProperties
-    }
-}
-
-publishing {
-    publications {
-        register('mavenJava', MavenPublication) {
-            from components.java
-        }
-    }
-    repositories {
-        maven {
-            url "file://${project.projectDir}/repo"
-        }
     }
 }
 
