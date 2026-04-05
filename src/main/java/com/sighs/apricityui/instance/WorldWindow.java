@@ -48,6 +48,10 @@ public class WorldWindow {
         this.position = position;
     }
 
+    protected Vec3 getPosition() {
+        return position;
+    }
+
     public void setRotation(float yRot, float xRot) {
         this.yRot = yRot;
         this.xRot = xRot;
@@ -88,10 +92,26 @@ public class WorldWindow {
         RenderSystem.depthFunc(GL11.GL_LEQUAL);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
+        // Depth bias to avoid z-fighting with world geometry.
+        RenderSystem.enablePolygonOffset();
+        RenderSystem.polygonOffset(-1.0f, -1.0f);
 
-        Base.drawDocument(poseStack, document);
+        float desiredWorldStep = 0.0020f;
+        float safeScale = Math.max(1.0e-4f, scale);
+        float localStep = desiredWorldStep / safeScale;
+        if (localStep > 0.2f) localStep = 0.2f;
+        Base.pushDepthStep(localStep);
+        Base.pushDepthMode(true);
+        try {
+            Base.drawDocument(poseStack, document);
+        } finally {
+            Base.popDepthMode();
+            Base.popDepthStep();
+        }
 
         bufferSource.endBatch();
+        RenderSystem.polygonOffset(0.0f, 0.0f);
+        RenderSystem.disablePolygonOffset();
 
         poseStack.popPose();
     }
