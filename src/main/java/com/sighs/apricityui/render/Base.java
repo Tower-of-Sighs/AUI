@@ -27,6 +27,14 @@ public class Base {
         BORDER
     }
 
+    private static final float DEFAULT_DEPTH_STEP = 0.005f;
+    private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
+    private static float depthStep = DEFAULT_DEPTH_STEP;
+    private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<Float> DEPTH_CURSOR_STACK = new java.util.ArrayDeque<>();
+    private static boolean accumulateDepth = false;
+    private static float depthCursor = 0.0f;
+
     public static void drawAllDocument(PoseStack poseStack) {
         Mask.resetDepth();
         poseStack.translate(0, 0, 1);
@@ -152,7 +160,45 @@ public class Base {
     }
 
     public static void resolveOffset(PoseStack poseStack) {
-        poseStack.translate(0, 0, 0.005);
+        if (accumulateDepth) {
+            depthCursor += depthStep;
+            poseStack.translate(0, 0, depthCursor);
+        } else {
+            poseStack.translate(0, 0, depthStep);
+        }
+    }
+
+    public static void pushDepthStep(float step) {
+        DEPTH_STEP_STACK.push(depthStep);
+        depthStep = step;
+    }
+
+    public static void popDepthStep() {
+        if (!DEPTH_STEP_STACK.isEmpty()) {
+            depthStep = DEPTH_STEP_STACK.pop();
+        } else {
+            depthStep = DEFAULT_DEPTH_STEP;
+        }
+    }
+
+    public static void pushDepthMode(boolean accumulate) {
+        DEPTH_MODE_STACK.push(accumulateDepth);
+        DEPTH_CURSOR_STACK.push(depthCursor);
+        accumulateDepth = accumulate;
+        depthCursor = 0.0f;
+    }
+
+    public static void popDepthMode() {
+        if (!DEPTH_MODE_STACK.isEmpty()) {
+            accumulateDepth = DEPTH_MODE_STACK.pop();
+        } else {
+            accumulateDepth = false;
+        }
+        if (!DEPTH_CURSOR_STACK.isEmpty()) {
+            depthCursor = DEPTH_CURSOR_STACK.pop();
+        } else {
+            depthCursor = 0.0f;
+        }
     }
 
     public static void setProjectionMatrix(Matrix4f matrix) {
