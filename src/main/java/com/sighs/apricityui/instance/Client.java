@@ -28,6 +28,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Client {
@@ -205,7 +206,7 @@ public class Client {
 
     public static void mouseMove() {
         Operation.onMouseMove(getMousePosition());
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent moveEvent = new MouseEvent("mousemove", realPos);

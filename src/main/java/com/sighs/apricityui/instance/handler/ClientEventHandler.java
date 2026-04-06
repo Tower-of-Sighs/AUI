@@ -15,6 +15,8 @@ import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
+import java.util.ArrayList;
+
 public class ClientEventHandler {
     public ClientEventHandler() {}
 
@@ -22,7 +24,7 @@ public class ClientEventHandler {
     public static void scroll(InputEvent.MouseScrollingEvent event) {
         if (Minecraft.getInstance().screen != null) return;
         boolean consumed = Operation.scroll(event.getScrollDelta());
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
@@ -56,7 +58,7 @@ public class ClientEventHandler {
             if (consumed) event.setCanceled(true);
             return;
         }
-        for (WorldWindow window : WorldWindow.windows) {
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 if (event.getAction() == InputConstants.PRESS) {
