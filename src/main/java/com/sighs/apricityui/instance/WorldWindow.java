@@ -44,6 +44,10 @@ public class WorldWindow {
         this.position = position;
     }
 
+    protected Vec3 getPosition() {
+        return position;
+    }
+
     public void setRotation(float yRot, float xRot) {
         this.yRot = yRot;
         this.xRot = xRot;
