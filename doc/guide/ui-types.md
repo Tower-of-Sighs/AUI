@@ -66,4 +66,8 @@ OpenBindPlan entityPlan = ApricityUI.bind()
 - `--aui-slot-cycle` / `--aui-slot-cycle-interval`：virtual 槽位轮播开关与间隔；
 - `--aui-container-columns`：可选，显式指定容器列数；未设置时由运行时按 `min(9, slotCount)` 注入默认列数。
 
+补充说明：
+
+- 已配置背景图的 `slot` 默认会按当前槽位盒子尺寸拉伸背景，放大槽位时无需再额外补 `background-size`。
+
 ### 影像

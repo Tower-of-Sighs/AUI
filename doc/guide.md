@@ -61,6 +61,7 @@ OpenBindPlan entityPlan = ApricityUI.bind()
 - 使用统一标签 `<slot>`；
 - 容器内无 `bound` 槽位时，会隐式注入玩家 36 格（27 背包 + 9 快捷栏）；
 - 槽位背景由 `slot` 的 CSS `background-image` 决定，未配置时保持透明。
+- 已配置背景图的 `slot` 默认会按当前槽位盒子尺寸拉伸背景，放大槽位时无需再额外补 `background-size`。
 
 `container` 的标题策略为：
 
