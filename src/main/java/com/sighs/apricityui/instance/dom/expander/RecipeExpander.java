@@ -120,13 +120,7 @@ public final class RecipeExpander {
         if (entry == null) return;
         Slot slot = new Slot(document);
         String roleName = entry.role().name().toLowerCase(Locale.ROOT);
-        slot.applyRecipeSlotMeta(
-                "recipe-slot recipe-slot-" + roleName
-                        + " aui-recipe-slot "
-                        + toRoleClass(entry.role())
-                        + " aui-recipe-" + roleName,
-                "recipe-slot"
-        );
+        slot.applyRecipeSlotMeta(buildPreviewSlotClassName(entry.role(), roleName), "recipe-slot");
         slot.setAttributesBatch(Map.of(
                 "data-role", roleName,
                 "data-i", String.valueOf(Math.max(0, roleIndex)),
@@ -137,6 +131,16 @@ public final class RecipeExpander {
         ), true);
         slot.innerText = entry.slotExpression();
         recipe.append(slot);
+    }
+
+    private static String buildPreviewSlotClassName(RecipeResolver.PreviewRole role, String roleName) {
+        LinkedHashSet<String> classNames = new LinkedHashSet<>();
+        classNames.add("recipe-slot");
+        classNames.add("recipe-slot-" + roleName);
+        classNames.add("aui-recipe-slot");
+        classNames.add(toRoleClass(role));
+        classNames.add("aui-recipe-" + roleName);
+        return String.join(" ", classNames);
     }
 
     private static boolean setAttributeIfChanged(Recipe recipe, String key, String value) {

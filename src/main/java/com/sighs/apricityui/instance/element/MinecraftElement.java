@@ -10,9 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
@@ -138,8 +136,7 @@ public abstract class MinecraftElement extends Element {
             if (document != null) document.recordID(this);
         }
         if ("class".equals(name)) {
-            this.classNames = new ArrayList<>();
-            this.classNames.addAll(List.of(safeValue.split(" ")));
+            this.classNames = Element.parseClassNameList(safeValue);
         }
 
         if (attributeBatchDepth == 0) {

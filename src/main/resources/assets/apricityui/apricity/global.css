@@ -222,15 +222,15 @@ recipe {
     --aui-recipe-slot-size: 18px;
     --aui-recipe-columns: 5;
     display: grid;
-    gap: var(--aui-recipe-gap);
-    grid-template-columns: var(--aui-recipe-columns);
+    gap: 2px;
+    grid-template-columns: 5;
     justify-items: stretch;
     align-items: stretch;
 }
 
 recipe > .aui-recipe-slot {
-    width: var(--aui-recipe-slot-size);
-    height: var(--aui-recipe-slot-size);
+    width: 18px;
+    height: 18px;
     --aui-slot-interactive: 0;
 }
 
@@ -259,14 +259,24 @@ recipe[data-recipe-layout="crafting_shaped"] > .aui-recipe-input[data-i="8"],
 recipe[data-recipe-layout="crafting_shapeless"] > .aui-recipe-input[data-i="8"] { grid-column: 3; grid-row: 3; }
 
 recipe[data-recipe-layout="smelting_family"] {
-    --aui-recipe-columns: 4;
+    --aui-recipe-columns: 3;
+    grid-template-columns: 3;
 }
 recipe[data-recipe-layout="smelting_family"] > .aui-recipe-input[data-i="0"] { grid-column: 1; grid-row: 1; }
-recipe[data-recipe-layout="smelting_family"] > .aui-recipe-fuel[data-i="0"] { grid-column: 2; grid-row: 2; }
-recipe[data-recipe-layout="smelting_family"] > .aui-recipe-output[data-i="0"] { grid-column: 4; grid-row: 2; }
+
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-fuel[data-i="0"] {
+    grid-column: 1;
+    grid-row: 2;
+}
+
+recipe[data-recipe-layout="smelting_family"] > .aui-recipe-output[data-i="0"] {
+    grid-column: 3;
+    grid-row: 2;
+}
 
 recipe[data-recipe-layout="smithing"] {
     --aui-recipe-columns: 5;
+    grid-template-columns: 5;
 }
 recipe[data-recipe-layout="smithing"] > .aui-recipe-template[data-i="0"] { grid-column: 1; grid-row: 2; }
 recipe[data-recipe-layout="smithing"] > .aui-recipe-input[data-role="input"][data-i="0"] { grid-column: 2; grid-row: 2; }
@@ -275,6 +285,7 @@ recipe[data-recipe-layout="smithing"] > .aui-recipe-output[data-i="0"] { grid-co
 
 recipe[data-recipe-layout="stonecutting"] {
     --aui-recipe-columns: 4;
+    grid-template-columns: 4;
 }
 recipe[data-recipe-layout="stonecutting"] > .aui-recipe-input[data-group="absolute"][data-i="0"] { grid-column: 1; grid-row: 2; }
 recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"][data-i="0"] { grid-column: 4; grid-row: 1; }
@@ -283,6 +294,7 @@ recipe[data-recipe-layout="stonecutting"] > .aui-recipe-output[data-group="list"
 
 recipe[data-recipe-layout="fallback"] {
     --aui-recipe-columns: 6;
+    grid-template-columns: 6;
 }
 recipe[data-recipe-layout="fallback"] > .aui-recipe-output[data-i="0"] { grid-column: 6; grid-row: 2; }
 

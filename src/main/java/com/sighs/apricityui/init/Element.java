@@ -168,24 +168,20 @@ public class Element {
         return attributes.getOrDefault(name, "");
     }
 
-    public void setAttribute(String name, String value) {
-        attributes.put(name, value);
-        if (name.equals("style")) {
-            // 保持 style 缓存与 attributes 同步，避免后续读取出现旧值。
-            updateInlineStyle();
+    /**
+     * class 属性允许出现重复 token；这里统一做去空与去重，避免 CSS 匹配阶段因重复 class 抛异常。
+     */
+    public static ArrayList<String> parseClassNameList(String rawClasses) {
+        ArrayList<String> result = new ArrayList<>();
+        if (rawClasses == null || rawClasses.isBlank()) return result;
+
+        LinkedHashSet<String> deduplicated = new LinkedHashSet<>();
+        for (String className : rawClasses.trim().split("\\s+")) {
+            if (className == null || className.isBlank()) continue;
+            deduplicated.add(className);
         }
-        if (name.equals("value")) this.value = value;
-        if (name.equals("id")) {
-            id = value;
-            document.recordID(this);
-        }
-        if (name.equals("class")) {
-            classNames = new ArrayList<>();
-            if (value != null && !value.isBlank()) {
-                classNames.addAll(List.of(value.trim().split("\\s+")));
-            }
-        }
-        updateCSS();
+        result.addAll(deduplicated);
+        return result;
     }
 
     public void removeAttribute(String name) {
@@ -209,10 +205,35 @@ public class Element {
         return attributes.containsKey(name);
     }
 
+    public void setAttribute(String name, String value) {
+        attributes.put(name, value);
+        if (name.equals("style")) {
+            // 保持 style 缓存与 attributes 同步，避免后续读取出现旧值。
+            updateInlineStyle();
+        }
+        if (name.equals("value")) this.value = value;
+        if (name.equals("id")) {
+            id = value;
+            document.recordID(this);
+        }
+        if (name.equals("class")) {
+            classNames = parseClassNameList(value);
+        }
+        updateCSS();
+    }
+
     public Set<String> getClassNames() {
-        String classes = getAttribute("class");
+        if (classNames != null) {
+            if (classNames.isEmpty()) return Collections.emptySet();
+            return new LinkedHashSet<>(classNames);
+        }
+
+        String classes = attributes.get("class");
         if (classes == null || classes.isBlank()) return Collections.emptySet();
-        return Set.of(classes.trim().split("\\s+"));
+
+        classNames = parseClassNameList(classes);
+        if (classNames.isEmpty()) return Collections.emptySet();
+        return new LinkedHashSet<>(classNames);
     }
 
     protected void updateCSS() {
@@ -387,8 +408,7 @@ public class Element {
 
         String attrClass = attributes.getOrDefault("class", null);
         if (classNames == null && attrClass != null && !attrClass.isEmpty()) {
-            classNames = new ArrayList<>();
-            classNames.addAll(List.of(attrClass.split(" ")));
+            classNames = parseClassNameList(attrClass);
         }
 
         onInitFromDom(origin);
