@@ -1,6 +1,5 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.Std140Builder;
 import com.mojang.blaze3d.buffers.Std140SizeCalculator;
@@ -21,7 +20,6 @@ import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MappableRingBuffer;
 import net.minecraft.client.renderer.RenderPipelines;
-import org.joml.Matrix4f;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -39,7 +37,7 @@ public final class FilterRenderer {
     private static final List<TextureTarget> BACKDROP_POOL = new ArrayList<>();
     private static int backdropPointer = 0;
 
-    private static final int FILTER_UBO_SIZE = new Std140SizeCalculator()
+    private static final int FILTER_UBO_SIZE_RAW = new Std140SizeCalculator()
             .putVec2() // InSize
             .putVec2() // GuiSize
             .putFloat() // BlurRadius
@@ -57,9 +55,19 @@ public final class FilterRenderer {
             .putFloat() // ClipEnabled
             .get();
 
+    /**
+     * Uniform buffers follow std140 rules; the total block size is effectively aligned to 16 bytes.
+     * Some backends require the provided slice length to be at least that aligned size.
+     */
+    private static final int FILTER_UBO_SIZE = alignStd140BlockSize(FILTER_UBO_SIZE_RAW);
+
     private static MappableRingBuffer filterUbo;
 
     private FilterRenderer() {
+    }
+
+    private static int alignStd140BlockSize(int size) {
+        return (size + 15) & ~15;
     }
 
     public static void beginFrame() {
@@ -137,7 +145,7 @@ public final class FilterRenderer {
 
     private static void applyFilter(TextureTarget input, Filter.FilterState state, boolean forceAlpha, Rect clipRect) {
         if (input == null || input.getColorTextureView() == null) return;
-        if (state == null) state = Filter.FilterState.EMPTY;
+        Filter.FilterState effectiveState = state == null ? Filter.FilterState.EMPTY : state;
 
         int outW = currentColorView().getWidth(0);
         int outH = currentColorView().getHeight(0);
@@ -146,13 +154,15 @@ public final class FilterRenderer {
         float guiW = (float) (outW / guiScale);
         float guiH = (float) (outH / guiScale);
 
-        writeFilterUbo(state, input.width, input.height, guiW, guiH, forceAlpha, clipRect);
-
+        // Keep the UBO update and the render pass in the same command encoder, matching vanilla patterns.
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        writeFilterUbo(encoder, effectiveState, input.width, input.height, guiW, guiH, forceAlpha, clipRect);
         GpuTextureView outColor = currentColorView();
         GpuTextureView outDepth = currentDepthViewOrNull();
 
         int stencilMask = Mask.getActiveStencilMask();
+        var pipeline = ShaderRegistry.filterPipeline(stencilMask);
+        if (pipeline == null) return;
 
         try (RenderPass pass = encoder.createRenderPass(
                 () -> "AUI Filter Pass",
@@ -163,9 +173,10 @@ public final class FilterRenderer {
         )) {
             pass.setViewport(0, 0, outW, outH);
             Mask.applyScissorToRenderPass(pass, outH, guiScale);
-            pass.setPipeline(ShaderRegistry.filterPipeline(stencilMask));
+            pass.setPipeline(pipeline);
             RenderSystem.bindDefaultUniforms(pass);
-            pass.setUniform("ApricityFilter", new GpuBufferSlice(filterUbo.currentBuffer(), 0, FILTER_UBO_SIZE));
+            // Match vanilla usage (e.g., Lightmap): bind the whole uniform buffer.
+            pass.setUniform("ApricityFilter", filterUbo.currentBuffer());
             pass.bindTexture("InSampler", input.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
             pass.draw(0, 3);
         }
@@ -237,8 +248,7 @@ public final class FilterRenderer {
         filterUbo = new MappableRingBuffer(() -> "AUI Filter UBO", GpuBuffer.USAGE_MAP_WRITE | GpuBuffer.USAGE_UNIFORM, FILTER_UBO_SIZE);
     }
 
-    private static void writeFilterUbo(Filter.FilterState state, int inW, int inH, float guiW, float guiH, boolean forceAlpha, Rect clipRect) {
-        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+    private static void writeFilterUbo(CommandEncoder encoder, Filter.FilterState state, int inW, int inH, float guiW, float guiH, boolean forceAlpha, Rect clipRect) {
         try (GpuBuffer.MappedView view = encoder.mapBuffer(filterUbo.currentBuffer(), false, true)) {
             Std140Builder b = Std140Builder.intoBuffer(view.data());
 

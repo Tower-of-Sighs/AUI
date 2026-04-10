@@ -80,6 +80,7 @@ public final class ShaderRegistry {
                 .withLocation(Identifier.fromNamespaceAndPath("apricityui", "pipeline/gui_triangles"))
                 .withVertexShader(Identifier.withDefaultNamespace("core/gui"))
                 .withFragmentShader(Identifier.withDefaultNamespace("core/gui"))
+                .withCull(false)
                 .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
                 .withVertexFormat(DefaultVertexFormat.POSITION_COLOR, VertexFormat.Mode.TRIANGLES)
                 .build();
@@ -96,6 +97,7 @@ public final class ShaderRegistry {
                 .withFragmentShader(Identifier.fromNamespaceAndPath("apricityui", "core/filter"))
                 .withSampler("InSampler")
                 .withUniform("ApricityFilter", UniformType.UNIFORM_BUFFER)
+                .withCull(false)
                 .withColorTargetState(new ColorTargetState(BlendFunction.TRANSLUCENT))
                 .build();
         event.registerPipeline(filterPipeline);

@@ -66,6 +66,18 @@ void main() {
     }
 
     vec4 rawColor = texture(InSampler, texCoord);
+
+    // Defensive: some render targets / pipelines may end up with an unwritten or cleared alpha channel
+    // even though RGB was written. In that case, treating non-zero RGB as opaque avoids filters
+    // discarding everything (e.g. icon hue-rotate / hover brightness).
+    //
+    // This is intentionally conservative: it only triggers when alpha is ~0 but RGB isn't.
+    if (rawColor.a <= 0.001) {
+        float maxRgb = max(max(rawColor.r, rawColor.g), rawColor.b);
+        if (maxRgb > 0.001) {
+            rawColor.a = 1.0;
+        }
+    }
     if (ForceAlpha > 0.5) {
         rawColor.a = 1.0;
     }

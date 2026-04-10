@@ -23,6 +23,7 @@ import net.minecraft.client.renderer.RenderPipelines;
 import net.minecraft.client.renderer.rendertype.RenderSetup;
 import net.minecraft.client.renderer.rendertype.RenderType;
 import net.minecraft.resources.Identifier;
+import net.minecraft.util.Mth;
 import net.neoforged.neoforge.client.stencil.StencilOperation;
 import net.neoforged.neoforge.client.stencil.StencilPerFaceTest;
 import net.neoforged.neoforge.client.stencil.StencilTest;
@@ -36,7 +37,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public final class ImageDrawer {
     private static final Map<RenderKey, RenderType> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<RenderKey, RenderType> TRIANGLE_RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
     private static final Map<Integer, RenderPipeline> TEXTURED_STENCIL_PIPELINES = new ConcurrentHashMap<>();
+    private static final Map<Integer, RenderPipeline> TEXTURED_TRIANGLE_STENCIL_PIPELINES = new ConcurrentHashMap<>();
     private static final int PLACEHOLDER_COLOR = 0x33404040;
     private static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
 
@@ -44,6 +47,9 @@ public final class ImageDrawer {
 
     private static RenderType batchRenderType;
     private static BufferBuilder batchBuilder;
+
+    private static RenderPipeline texturedTrianglePipeline;
+    private static final int ROUNDED_SEGMENTS = 12;
 
     private ImageDrawer() {
     }
@@ -76,6 +82,50 @@ public final class ImageDrawer {
         });
     }
 
+    private static RenderPipeline getTexturedTrianglePipeline(int stencilMask) {
+        RenderPipeline base = texturedTrianglePipeline;
+        if (base == null) {
+            base = RenderPipelines.GUI_TEXTURED.toBuilder()
+                    .withLocation(Identifier.fromNamespaceAndPath("apricityui", "pipeline/gui_textured_triangles"))
+                    .withCull(false)
+                    .withVertexFormat(DefaultVertexFormat.POSITION_TEX_COLOR, VertexFormat.Mode.TRIANGLES)
+                    .build();
+            texturedTrianglePipeline = base;
+        }
+
+        if (stencilMask == 0) return base;
+
+        RenderPipeline baseFinal = base;
+        return TEXTURED_TRIANGLE_STENCIL_PIPELINES.computeIfAbsent(stencilMask, mask -> {
+            StencilPerFaceTest face = new StencilPerFaceTest(StencilOperation.KEEP, StencilOperation.KEEP, StencilOperation.KEEP, CompareOp.EQUAL);
+            StencilTest stencil = new StencilTest(face, mask, 0, mask);
+            return baseFinal.toBuilder()
+                    .withLocation(Identifier.fromNamespaceAndPath("apricityui", "pipeline/gui_textured_triangles/stencil/" + mask))
+                    .withStencilTest(stencil)
+                    .build();
+        });
+    }
+
+    private static RenderType getTriangleRenderType(Identifier texture, boolean blur, boolean repeatX, boolean repeatY, int stencilMask) {
+        return TRIANGLE_RENDER_TYPE_CACHE.computeIfAbsent(new RenderKey(texture, blur, repeatX, repeatY, stencilMask), key -> {
+            FilterMode filter = key.blur ? FilterMode.LINEAR : FilterMode.NEAREST;
+            var sampler = RenderSystem.getSamplerCache().getSampler(
+                    key.repeatX ? AddressMode.REPEAT : AddressMode.CLAMP_TO_EDGE,
+                    key.repeatY ? AddressMode.REPEAT : AddressMode.CLAMP_TO_EDGE,
+                    filter,
+                    filter,
+                    false
+            );
+
+            RenderPipeline pipeline = getTexturedTrianglePipeline(key.stencilMask);
+            RenderSetup setup = RenderSetup.builder(pipeline)
+                    .withTexture("Sampler0", key.location, () -> sampler)
+                    .bufferSize(8192)
+                    .createRenderSetup();
+            return RenderType.create("apricityui_image_tri_" + key.stencilMask, setup);
+        });
+    }
+
     private static BufferBuilder beginQuadBuilder() {
         return new BufferBuilder(BYTE_BUFFER, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
     }
@@ -93,6 +143,10 @@ public final class ImageDrawer {
 
     public static void clearRenderTypeCache() {
         RENDER_TYPE_CACHE.clear();
+        TRIANGLE_RENDER_TYPE_CACHE.clear();
+        TEXTURED_STENCIL_PIPELINES.clear();
+        TEXTURED_TRIANGLE_STENCIL_PIPELINES.clear();
+        texturedTrianglePipeline = null;
     }
 
     public static void flushBatch() {
@@ -125,6 +179,24 @@ public final class ImageDrawer {
         draw(poseStack, resolvedPath, x, y, width, height, element.getAttribute("blur").equals("true"), element, needRelayout);
     }
 
+    public static void drawRounded(PoseStack poseStack, Element element, Rect rect, float[] radii) {
+        String src = element.getAttribute("src");
+        if (src == null || src.isEmpty()) return;
+
+        Position position = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+
+        String contextPath = element.document.getPath();
+        String resolvedPath = Loader.resolve(contextPath, src);
+
+        float x = (float) position.x;
+        float y = (float) position.y;
+        float width = (float) size.width();
+        float height = (float) size.height();
+        boolean needRelayout = width == 0 || height == 0;
+        drawRounded(poseStack, resolvedPath, x, y, width, height, element.getAttribute("blur").equals("true"), element, needRelayout, radii);
+    }
+
     public static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur) {
         draw(poseStack, path, (float) x, (float) y, (float) width, (float) height, blur, null, false);
     }
@@ -150,6 +222,29 @@ public final class ImageDrawer {
         }
 
         innerBlit(poseStack, location, x, y, width, height, 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur);
+    }
+
+    private static void drawRounded(PoseStack poseStack, String path, float x, float y, float width, float height, boolean blur, Element requester, boolean needRelayout, float[] radii) {
+        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, needRelayout);
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
+            drawPlaceholder(poseStack, x, y, width, height);
+            return;
+        }
+
+        Image.ITexture texture = handle.texture();
+        Identifier location = texture.identifier();
+        if (location == null) return;
+        int textureWidth = texture.width();
+        int textureHeight = texture.height();
+
+        if (width == 0 && textureHeight > 0) {
+            width = (float) (1d * height / textureHeight * textureWidth);
+        }
+        if (height == 0 && textureWidth > 0) {
+            height = (float) (1d * width / textureWidth * textureHeight);
+        }
+
+        innerBlitRounded(poseStack, location, x, y, width, height, 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur, radii);
     }
 
     public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background bg) {
@@ -421,6 +516,125 @@ public final class ImageDrawer {
         }
 
         emitQuad(batchBuilder, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
+    }
+
+    private static void innerBlitRounded(PoseStack poseStack, Identifier texture, float x, float y, float width, float height,
+                                         float uTexture, float vTexture, int widthTexture, int heightTexture,
+                                         int textureWidth, int textureHeight, boolean blur, float[] radii) {
+        if (texture == null || width <= 0 || height <= 0) return;
+
+        float tl = radii != null && radii.length >= 1 ? radii[0] : 0f;
+        float tr = radii != null && radii.length >= 2 ? radii[1] : tl;
+        float br = radii != null && radii.length >= 3 ? radii[2] : tl;
+        float bl = radii != null && radii.length >= 4 ? radii[3] : tl;
+
+        float maxRadius = Math.min(width, height) * 0.5f;
+        tl = Math.min(Math.max(0f, tl), maxRadius);
+        tr = Math.min(Math.max(0f, tr), maxRadius);
+        br = Math.min(Math.max(0f, br), maxRadius);
+        bl = Math.min(Math.max(0f, bl), maxRadius);
+
+        if (tl < 0.001f && tr < 0.001f && br < 0.001f && bl < 0.001f) {
+            innerBlit(poseStack, texture, x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight, blur);
+            return;
+        }
+
+        float minU = uTexture / (float) textureWidth;
+        float maxU = (uTexture + widthTexture) / (float) textureWidth;
+        float minV = vTexture / (float) textureHeight;
+        float maxV = (vTexture + heightTexture) / (float) textureHeight;
+
+        int stencilMask = Mask.getActiveStencilMask();
+        RenderType renderType = getTriangleRenderType(texture, blur, false, false, stencilMask);
+
+        flushBatch();
+
+        BufferBuilder buf = new BufferBuilder(BYTE_BUFFER, VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_TEX_COLOR);
+        Matrix4f matrix = poseStack.last().pose();
+
+        float leftInset = Math.max(tl, bl);
+        float rightInset = Math.max(tr, br);
+        float topInset = Math.max(tl, tr);
+        float bottomInset = Math.max(bl, br);
+
+        emitTexturedRect(buf, matrix, x + leftInset, y + topInset, x + width - rightInset, y + height - bottomInset, x, y, width, height, minU, maxU, minV, maxV);
+        emitTexturedRect(buf, matrix, x + tl, y, x + width - tr, y + topInset, x, y, width, height, minU, maxU, minV, maxV);
+        emitTexturedRect(buf, matrix, x + bl, y + height - bottomInset, x + width - br, y + height, x, y, width, height, minU, maxU, minV, maxV);
+        emitTexturedRect(buf, matrix, x, y + tl, x + leftInset, y + height - bl, x, y, width, height, minU, maxU, minV, maxV);
+        emitTexturedRect(buf, matrix, x + width - rightInset, y + tr, x + width, y + height - br, x, y, width, height, minU, maxU, minV, maxV);
+
+        if (tl > 0.001f) emitCornerFan(buf, matrix, x + tl, y + tl, tl, 180f, 90f, x, y, width, height, minU, maxU, minV, maxV);
+        if (tr > 0.001f) emitCornerFan(buf, matrix, x + width - tr, y + tr, tr, 90f, 0f, x, y, width, height, minU, maxU, minV, maxV);
+        if (br > 0.001f) emitCornerFan(buf, matrix, x + width - br, y + height - br, br, 0f, -90f, x, y, width, height, minU, maxU, minV, maxV);
+        if (bl > 0.001f) emitCornerFan(buf, matrix, x + bl, y + height - bl, bl, -90f, -180f, x, y, width, height, minU, maxU, minV, maxV);
+
+        MeshData mesh = buf.build();
+        if (mesh == null) return;
+        renderType.draw(mesh);
+    }
+
+    private static void emitTexturedRect(BufferBuilder buf, Matrix4f matrix, float x0, float y0, float x1, float y1,
+                                         float fullX, float fullY, float fullW, float fullH,
+                                         float minU, float maxU, float minV, float maxV) {
+        if (x1 - x0 <= 0.001f || y1 - y0 <= 0.001f) return;
+
+        float u0 = minU + (x0 - fullX) / fullW * (maxU - minU);
+        float u1 = minU + (x1 - fullX) / fullW * (maxU - minU);
+        float v0 = minV + (y0 - fullY) / fullH * (maxV - minV);
+        float v1 = minV + (y1 - fullY) / fullH * (maxV - minV);
+
+        int white = 0xFFFFFFFF;
+
+        buf.addVertex(matrix, x0, y1, 0.0F).setColor(white).setUv(u0, v1);
+        buf.addVertex(matrix, x1, y1, 0.0F).setColor(white).setUv(u1, v1);
+        buf.addVertex(matrix, x1, y0, 0.0F).setColor(white).setUv(u1, v0);
+
+        buf.addVertex(matrix, x1, y0, 0.0F).setColor(white).setUv(u1, v0);
+        buf.addVertex(matrix, x0, y0, 0.0F).setColor(white).setUv(u0, v0);
+        buf.addVertex(matrix, x0, y1, 0.0F).setColor(white).setUv(u0, v1);
+    }
+
+    private static void emitCornerFan(BufferBuilder buf, Matrix4f matrix, float cx, float cy, float r, float startDeg, float endDeg,
+                                      float fullX, float fullY, float fullW, float fullH,
+                                      float minU, float maxU, float minV, float maxV) {
+        int steps = ROUNDED_SEGMENTS;
+        if (steps <= 0) return;
+
+        float minX = fullX;
+        float maxX = fullX + fullW;
+        float minY = fullY;
+        float maxY = fullY + fullH;
+
+        float uc = minU + (cx - fullX) / fullW * (maxU - minU);
+        float vc = minV + (cy - fullY) / fullH * (maxV - minV);
+        int white = 0xFFFFFFFF;
+
+        float step = (endDeg - startDeg) / steps;
+        float prevX = cx + (float) Math.cos(Math.toRadians(startDeg)) * r;
+        float prevY = cy - (float) Math.sin(Math.toRadians(startDeg)) * r;
+        prevX = Mth.clamp(prevX, minX, maxX);
+        prevY = Mth.clamp(prevY, minY, maxY);
+        float prevU = minU + (prevX - fullX) / fullW * (maxU - minU);
+        float prevV = minV + (prevY - fullY) / fullH * (maxV - minV);
+
+        for (int i = 1; i <= steps; i++) {
+            float deg = startDeg + step * i;
+            float x = cx + (float) Math.cos(Math.toRadians(deg)) * r;
+            float y = cy - (float) Math.sin(Math.toRadians(deg)) * r;
+            x = Mth.clamp(x, minX, maxX);
+            y = Mth.clamp(y, minY, maxY);
+            float u = minU + (x - fullX) / fullW * (maxU - minU);
+            float v = minV + (y - fullY) / fullH * (maxV - minV);
+
+            buf.addVertex(matrix, cx, cy, 0.0F).setColor(white).setUv(uc, vc);
+            buf.addVertex(matrix, prevX, prevY, 0.0F).setColor(white).setUv(prevU, prevV);
+            buf.addVertex(matrix, x, y, 0.0F).setColor(white).setUv(u, v);
+
+            prevX = x;
+            prevY = y;
+            prevU = u;
+            prevV = v;
+        }
     }
 
     private static void emitQuad(BufferBuilder buf, Matrix4f matrix,

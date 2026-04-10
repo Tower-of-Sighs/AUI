@@ -6,10 +6,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
-import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
 
 @ElementRegister(Img.TAG_NAME)
 public class Img extends Element {
@@ -42,18 +39,7 @@ public class Img extends Element {
                 }
 
                 if (needsClip) {
-                    Position p = rectRenderer.getBodyRectPosition();
-                    Size s = rectRenderer.getBodyRectSize();
-                    float x = (float) p.x;
-                    float y = (float) p.y;
-                    float w = (float) s.width();
-                    float h = (float) s.height();
-                    Mask.pushMask(poseStack, x, y, w, h, radii);
-                    try {
-                        ImageDrawer.draw(poseStack, this, rectRenderer);
-                    } finally {
-                        Mask.popMask(poseStack, x, y, w, h, radii);
-                    }
+                    ImageDrawer.drawRounded(poseStack, this, rectRenderer, radii);
                 } else {
                     ImageDrawer.draw(poseStack, this, rectRenderer);
                 }

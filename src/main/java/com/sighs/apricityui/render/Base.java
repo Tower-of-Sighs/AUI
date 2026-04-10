@@ -36,6 +36,8 @@ public class Base {
         for (Document document : Document.getAll()) {
             if (!document.inWorld) drawDocument(poseStack, document);
         }
+        // Ensure scissor/mask state never leaks into later GUI rendering (e.g. item overlays).
+        Mask.resetDepth();
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {

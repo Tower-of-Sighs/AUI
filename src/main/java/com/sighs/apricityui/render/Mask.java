@@ -257,7 +257,7 @@ public final class Mask {
         int bitIndex = StencilManager.reserveBit();
         if (bitIndex < 0) {
             maskScissorStack.push(true);
-            scissorStack.push(currentScissor);
+            scissorStack.push(encodeNullableScissor(currentScissor));
             currentScissor = currentScissor == null ? newMask : currentScissor.intersection(newMask);
             applyScissor(currentScissor);
             clipDepth++;
@@ -364,6 +364,7 @@ public final class Mask {
                             "pipeline/stencil/" + compare.name().toLowerCase(Locale.ROOT) + "/" + readMask + "/" + writeMask + "/" + referenceValue + "/" + writeValue))
                     .withVertexShader(Identifier.withDefaultNamespace("core/gui"))
                     .withFragmentShader(Identifier.withDefaultNamespace("core/gui"))
+                    .withCull(false)
                     .withColorTargetState(colorTargetState)
                     .withDepthStencilState(new DepthStencilState(CompareOp.ALWAYS_PASS, false))
                     .withStencilTest(stencil)
@@ -397,7 +398,14 @@ public final class Mask {
     public static void enableScissor(double x, double y, double width, double height) {
         Window window = Minecraft.getInstance().getWindow();
         double scale = window.getGuiScale();
-        int windowHeight = window.getHeight();
+
+        // When rendering into an offscreen target (e.g. Picture-in-Picture), the current render target height may be
+        // smaller than Window#getHeight() because it's derived from guiScaledHeight * guiScale and guiScaledHeight is
+        // floored. Using the window height here can shift the scissor by 1px on odd resolutions.
+        int targetPixelHeight = window.getHeight();
+        if (RenderSystem.outputColorTextureOverride != null) {
+            targetPixelHeight = RenderSystem.outputColorTextureOverride.getHeight(0);
+        }
 
         double left = x * scale;
         double top = y * scale;
@@ -405,9 +413,9 @@ public final class Mask {
         double bottom = (y + height) * scale;
 
         int scissorX = (int) Math.floor(left);
-        int scissorY = (int) Math.floor(windowHeight - bottom);
+        int scissorY = (int) Math.floor(targetPixelHeight - bottom);
         int scissorRight = (int) Math.ceil(right);
-        int scissorTop = (int) Math.ceil(windowHeight - top);
+        int scissorTop = (int) Math.ceil(targetPixelHeight - top);
         int scissorW = Math.max(0, scissorRight - scissorX);
         int scissorH = Math.max(0, scissorTop - scissorY);
 
