@@ -1,6 +1,7 @@
 package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class DevTools {
     private static final String PATH = "devtools/index.html";
@@ -169,7 +171,7 @@ public class DevTools {
         }
 
         Document selectedDocument = resolveSelectedDocument(docs);
-        if (selectedDocument == null || selectedDocument.body == null) return;
+        if (selectedDocument.body == null) return;
         ensureDefaultCollapsedState(selectedDocument);
         title.innerText = "DevTools - " + selectedDocument.getPath();
 
@@ -209,7 +211,7 @@ public class DevTools {
                 }
             }
         }
-        Document fallback = candidates.get(candidates.size() - 1);
+        Document fallback = candidates.getLast();
         selectedDocumentUuid = fallback.getUuid().toString();
         selectedElementUuid = fallback.body.uuid.toString();
         return fallback;
@@ -229,7 +231,7 @@ public class DevTools {
         Element prev = createToolElement("DIV");
         prev.setAttribute("class", "doc-arrow doc-prev");
         prev.innerText = "<";
-        prev.addEventListener("mousedown", event -> switchDocumentByOffset(docs, selectedDocument, -1));
+        prev.addEventListener("mousedown", _ -> switchDocumentByOffset(docs, selectedDocument, -1));
 
         Element name = createToolElement("DIV");
         name.setAttribute("class", "doc-name");
@@ -238,7 +240,7 @@ public class DevTools {
         Element next = createToolElement("DIV");
         next.setAttribute("class", "doc-arrow doc-next");
         next.innerText = ">";
-        next.addEventListener("mousedown", event -> switchDocumentByOffset(docs, selectedDocument, 1));
+        next.addEventListener("mousedown", _ -> switchDocumentByOffset(docs, selectedDocument, 1));
 
         switcher.append(prev);
         switcher.append(name);
@@ -274,7 +276,7 @@ public class DevTools {
         toggle.setAttribute("class", "toggle");
         toggle.innerText = hasChildren ? (collapsed ? ">" : "v") : ".";
         if (hasChildren) {
-            toggle.addEventListener("mousedown", event -> {
+            toggle.addEventListener("mousedown", _ -> {
                 if (collapsedNodeUuids.contains(uuid)) collapsedNodeUuids.remove(uuid);
                 else collapsedNodeUuids.add(uuid);
                 refresh();
@@ -303,7 +305,7 @@ public class DevTools {
             }
         }
 
-        openRow.addEventListener("mouseup", event -> {
+        openRow.addEventListener("mouseup", _ -> {
             if (uuid.equals(selectedElementUuid)) return;
             selectedElementUuid = uuid;
             refresh();
@@ -328,7 +330,7 @@ public class DevTools {
         closeLabel.setAttribute("class", "node-label");
         closeLabel.innerText = "</" + tag + ">";
         closeRow.append(closeLabel);
-        closeRow.addEventListener("mouseup", event -> {
+        closeRow.addEventListener("mouseup", _ -> {
             if (uuid.equals(selectedElementUuid)) return;
             selectedElementUuid = uuid;
             refresh();
@@ -365,8 +367,8 @@ public class DevTools {
             if (!isCommitKey(event)) return;
             commitAttributeEdit(targetDoc, nodeUuid, node, key, readEditorValue(input), true);
         });
-        input.addEventListener("blur", event -> commitAttributeEdit(targetDoc, nodeUuid, node, key, readEditorValue(input), true));
-        input.addEventListener("mousedown", event -> selectedElementUuid = nodeUuid);
+        input.addEventListener("blur", _ -> commitAttributeEdit(targetDoc, nodeUuid, node, key, readEditorValue(input), true));
+        input.addEventListener("mousedown", _ -> selectedElementUuid = nodeUuid);
         return input;
     }
 
@@ -376,7 +378,7 @@ public class DevTools {
         Element row = createToolElement("DIV");
         row.setAttribute("class", "tree-edit-row");
         row.setAttribute("style", "padding-left:" + (depth * 10) + "px;");
-        row.addEventListener("mousedown", event -> selectedElementUuid = nodeUuid);
+        row.addEventListener("mousedown", _ -> selectedElementUuid = nodeUuid);
 
         Element input = createToolElement("INPUT");
         input.setAttribute("class", "tree-edit-input tree-text-input");
@@ -388,7 +390,7 @@ public class DevTools {
             if (!isCommitKey(event)) return;
             commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true);
         });
-        input.addEventListener("blur", event -> commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true));
+        input.addEventListener("blur", _ -> commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true));
         row.append(input);
         return row;
     }
@@ -414,8 +416,8 @@ public class DevTools {
             if (!isCommitKey(event)) return;
             commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true);
         });
-        input.addEventListener("blur", event -> commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true));
-        input.addEventListener("mousedown", event -> selectedElementUuid = nodeUuid);
+        input.addEventListener("blur", _ -> commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true));
+        input.addEventListener("mousedown", _ -> selectedElementUuid = nodeUuid);
         return input;
     }
 
@@ -437,7 +439,7 @@ public class DevTools {
         Element keyInput = textInput("prop");
         Element valueInput = textInput("value");
         Element btn = action("Add");
-        java.util.function.Consumer<Event> commit = event -> commitInlineStyleAdd(targetDoc, nodeUuid, target, keyInput, valueInput);
+        Consumer<Event> commit = _ -> commitInlineStyleAdd(targetDoc, nodeUuid, target, keyInput, valueInput);
         btn.addEventListener("mousedown", commit);
         btn.addEventListener("mouseup", commit);
         keyInput.addEventListener("keydown", event -> {
@@ -475,10 +477,10 @@ public class DevTools {
             if (!isCommitKey(event)) return;
             commitInlineStyleUpdate(targetDoc, nodeUuid, target, key, readEditorValue(valInput), true);
         });
-        valInput.addEventListener("blur", event -> commitInlineStyleUpdate(targetDoc, nodeUuid, target, key, readEditorValue(valInput), true));
+        valInput.addEventListener("blur", _ -> commitInlineStyleUpdate(targetDoc, nodeUuid, target, key, readEditorValue(valInput), true));
 
         Element remove = action("x");
-        remove.addEventListener("mousedown", event -> commitInlineStyleRemove(targetDoc, nodeUuid, target, key, true));
+        remove.addEventListener("mousedown", _ -> commitInlineStyleRemove(targetDoc, nodeUuid, target, key, true));
 
         row.append(keyText);
         row.append(valInput);
@@ -613,12 +615,12 @@ public class DevTools {
     }
 
     private static boolean isCommitKey(Event event) {
-        if (!(event instanceof com.sighs.apricityui.event.KeyEvent keyEvent)) return false;
+        if (!(event instanceof KeyEvent keyEvent)) return false;
         return "Escape".equals(keyEvent.key) || "Enter".equals(keyEvent.key);
     }
 
     private static boolean isEnterKey(Event event) {
-        if (!(event instanceof com.sighs.apricityui.event.KeyEvent keyEvent)) return false;
+        if (!(event instanceof KeyEvent keyEvent)) return false;
         return "Enter".equals(keyEvent.key);
     }
 

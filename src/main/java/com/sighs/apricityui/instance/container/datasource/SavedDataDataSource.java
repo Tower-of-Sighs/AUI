@@ -5,8 +5,8 @@ import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
-import net.minecraftforge.items.ItemStackHandler;
-import net.minecraftforge.items.SlotItemHandler;
+import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
+import net.neoforged.neoforge.transfer.item.ResourceHandlerSlot;
 
 /**
  * SavedData 物品槽数据源，支持扩缩容。
@@ -15,12 +15,12 @@ public final class SavedDataDataSource implements ContainerDataSource {
     private final ContainerBindType bindType;
     private final ApricitySavedData savedData;
     private final String inventoryKey;
-    private ItemStackHandler handler;
+    private ItemStacksResourceHandler handler;
 
     public SavedDataDataSource(ContainerBindType bindType,
                                ApricitySavedData savedData,
                                String inventoryKey,
-                               ItemStackHandler handler) {
+                               ItemStacksResourceHandler handler) {
         this.bindType = bindType;
         this.savedData = savedData;
         this.inventoryKey = inventoryKey;
@@ -34,12 +34,12 @@ public final class SavedDataDataSource implements ContainerDataSource {
 
     @Override
     public int capacity() {
-        return handler.getSlots();
+        return handler.size();
     }
 
     @Override
     public Slot createSlot(int slotIndex, int x, int y) {
-        return new SlotItemHandler(handler, slotIndex, x, y);
+        return new ResourceHandlerSlot(handler, handler::set, slotIndex, x, y);
     }
 
     @Override
@@ -54,7 +54,7 @@ public final class SavedDataDataSource implements ContainerDataSource {
                 ? OpenBindPlan.ResizePolicy.KEEP_OVERFLOW
                 : policy;
         handler = savedData.getOrCreate(inventoryKey, normalized, effectivePolicy);
-        return handler.getSlots();
+        return handler.size();
     }
 
     @Override

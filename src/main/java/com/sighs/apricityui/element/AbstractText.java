@@ -74,7 +74,7 @@ public abstract class AbstractText extends Element {
             clampScroll();
         });
 
-        addEventListener("mouseup", event -> selecting = false);
+        addEventListener("mouseup", _ -> selecting = false);
     }
 
     @Override
@@ -103,25 +103,22 @@ public abstract class AbstractText extends Element {
     }
 
     private void syncTextAttribute(String name, String attrValue) {
-        if (name.equals("placeholder")) {
-            placeholder = attrValue == null ? "" : attrValue;
-            return;
+        switch (name) {
+            case "placeholder" -> placeholder = attrValue == null ? "" : attrValue;
+            case "maxlength" -> {
+                int parsed = Size.parse(attrValue == null ? "" : attrValue);
+                maxLength = parsed > 0 ? parsed : 256;
+            }
+            case "value" -> {
+                ensureValue();
+                cursor = Math.min(cursor, value.length());
+                selectionAnchor = cursor;
+                clearSelection();
+                undoStack.clear();
+                getRenderer().text.clear();
+            }
         }
 
-        if (name.equals("maxlength")) {
-            int parsed = Size.parse(attrValue == null ? "" : attrValue);
-            maxLength = parsed > 0 ? parsed : 256;
-            return;
-        }
-
-        if (name.equals("value")) {
-            ensureValue();
-            cursor = Math.min(cursor, value.length());
-            selectionAnchor = cursor;
-            clearSelection();
-            undoStack.clear();
-            getRenderer().text.clear();
-        }
     }
 
     protected void ensureValue() {

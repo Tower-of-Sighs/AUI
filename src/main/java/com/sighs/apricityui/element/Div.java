@@ -20,12 +20,8 @@ public class Div extends Element {
         Rect rectRenderer = Rect.of(this);
         switch (phase) {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY -> {
-                rectRenderer.drawBody(poseStack);
-            }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
-            }
+            case BODY -> rectRenderer.drawBody(poseStack);
+            case BORDER -> rectRenderer.drawBorder(poseStack);
         }
     }
 

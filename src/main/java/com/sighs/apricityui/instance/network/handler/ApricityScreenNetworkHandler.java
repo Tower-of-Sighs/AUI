@@ -16,13 +16,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.NetworkHooks;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 
 public final class ApricityScreenNetworkHandler {
     public static void requestOpenScreen(String path) {
@@ -54,11 +52,9 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
     }
 
-    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
-            if (player == null) return;
+            if (!(context.player() instanceof ServerPlayer player)) return;
 
             TemplateSpec compiled = resolveTemplateSpec(packet.templatePath(), null);
             if (compiled == null) return;
@@ -73,20 +69,16 @@ public final class ApricityScreenNetworkHandler {
             String titleLiteral = resolvePrimaryContainerTitleLiteral(boundTemplateSpec, layoutSpec.primaryContainerId());
             openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
         });
-        context.setPacketHandled(true);
     }
 
-    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
-            if (player == null) return;
+            if (!(context.player() instanceof ServerPlayer player)) return;
 
             if (player.containerMenu instanceof ApricityContainerMenu) {
                 player.closeContainer();
             }
         });
-        context.setPacketHandled(true);
     }
 
     private static TemplateSpec resolveTemplateSpec(String rawTemplatePath, OpenBindPlan plan) {
@@ -207,7 +199,7 @@ public final class ApricityScreenNetworkHandler {
                 required = Math.max(required, capacityOverride.minCapacity());
             }
         }
-        return Math.max(0, required);
+        return required;
     }
 
     private static OpenBindPlan.ResizePolicy resolveResizePolicy(OpenBindPlan plan, String containerId) {
@@ -236,7 +228,7 @@ public final class ApricityScreenNetworkHandler {
         }
 
         if (!templateSpec.containers().isEmpty()) {
-            return templateSpec.containers().get(0).id();
+            return templateSpec.containers().getFirst().id();
         }
         return "";
     }
@@ -317,7 +309,7 @@ public final class ApricityScreenNetworkHandler {
                 ? Component.empty()
                 : Component.literal(titleLiteral);
 
-        NetworkHooks.openScreen(player, new SimpleMenuProvider(
+        player.openMenu(new SimpleMenuProvider(
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,
                         playerInventory,

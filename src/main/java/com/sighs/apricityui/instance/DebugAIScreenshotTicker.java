@@ -37,9 +37,7 @@ public final class DebugAIScreenshotTicker {
         }
 
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft == null) return;
         RenderTarget target = minecraft.getMainRenderTarget();
-        if (target == null) return;
 
         lastCaptureMs = now;
         File baseDir = new File(minecraft.gameDirectory, "screenshots");
@@ -52,7 +50,7 @@ public final class DebugAIScreenshotTicker {
         Screenshot.grab(
                 minecraft.gameDirectory,
                 target,
-                (Component message) -> {
+                (Component _) -> {
                     moveLatestScreenshot(baseDir, screenshotDir);
 //                    ApricityUI.LOGGER.info("[AIDebug] Screenshot saved: {}", message.getString());
                     cleanupOldScreenshots(screenshotDir);

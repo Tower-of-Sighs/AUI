@@ -10,6 +10,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Locale;
@@ -184,7 +185,7 @@ public class Slot extends MinecraftElement {
 
     public String getBackgroundImageCandidate() {
         Background background = Background.of(this);
-        String rawPath = background == null ? null : background.imagePath;
+        String rawPath = background.imagePath;
         if (rawPath == null || rawPath.isBlank() || "unset".equals(rawPath)) return null;
         return rawPath;
     }
@@ -248,10 +249,10 @@ public class Slot extends MinecraftElement {
     }
 
     @Override
-    public void renderTooltip(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    public void renderTooltip(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         ItemStack stack = getTooltipStack();
         if (stack.isEmpty()) return;
-        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+        guiGraphics.setTooltipForNextFrame(Minecraft.getInstance().font, stack, mouseX, mouseY);
     }
 
     /**
@@ -270,8 +271,14 @@ public class Slot extends MinecraftElement {
         String signature = (innerText == null ? "" : innerText) + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
         if (signature.equals(compiledSignature)) return;
 
+        SlotDisplaySpec compiled = SlotExpressionCompiler.compile(innerText, cycleEnabled, cycleInterval);
+        if (compiled == null) {
+            // Defer compilation until registries/components are ready (avoid caching an empty/invalid result).
+            return;
+        }
+
         compiledSignature = signature;
-        displaySpec = SlotExpressionCompiler.compile(innerText, cycleEnabled, cycleInterval);
+        displaySpec = compiled;
         candidateIndex = 0;
         nextRotateAtMillis = 0L;
     }

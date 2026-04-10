@@ -1,12 +1,10 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
-import org.lwjgl.opengl.GL11;
 
 import java.util.function.Consumer;
 
@@ -55,9 +53,6 @@ public interface RenderNode {
 
             poseStack.pushPose();
             Base.applyTransform(poseStack, target);
-
-            RenderSystem.enableBlend();
-            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
             if (!target.isLoaded) {
                 target.resetRenderer();

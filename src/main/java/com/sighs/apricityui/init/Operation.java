@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.ExamplePage;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
@@ -176,7 +177,10 @@ public class Operation {
         if (!repeat && key == GLFW.GLFW_KEY_F10) {
             ResourceManager.toggle();
         }
-        if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
+        if (!repeat && key == GLFW.GLFW_KEY_K) {
+            ExamplePage.toggle();
+        }
+        if (!repeat && key == Keybindings.RELOAD.get().getKey().getValue()) {
             Loader.reload();
         }
         return cancel;

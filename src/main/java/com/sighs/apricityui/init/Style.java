@@ -194,9 +194,17 @@ public class Style implements Cloneable {
     public static int parseFontWeight(String raw) {
         if (raw == null || raw.isBlank()) return 400;
         String value = raw.trim().toLowerCase(Locale.ROOT);
-        if (value.equals("unset") || value.equals("normal")) return 400;
-        if (value.equals("bold") || value.equals("bolder")) return 700;
-        if (value.equals("lighter")) return 300;
+        switch (value) {
+            case "unset", "normal" -> {
+                return 400;
+            }
+            case "bold", "bolder" -> {
+                return 700;
+            }
+            case "lighter" -> {
+                return 300;
+            }
+        }
         try {
             int parsed = Integer.parseInt(value);
             if (parsed < 1) return 1;
@@ -234,7 +242,7 @@ public class Style implements Cloneable {
         }
 
         int color = Color.parse(colorPart.isBlank() ? "#000" : colorPart);
-        if (width <= 0) return TextStroke.NONE;
+        if (width == 0) return TextStroke.NONE;
         return new TextStroke(width, color);
     }
 

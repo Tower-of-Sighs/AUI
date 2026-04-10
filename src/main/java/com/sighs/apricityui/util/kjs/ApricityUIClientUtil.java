@@ -7,12 +7,12 @@ import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
-import com.sighs.apricityui.registry.annotation.KJSBindings;
+import com.sighs.apricityui.registry.annotation.NJSBindings;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@KJSBindings(value = "ApricityUI", isClient = true)
+@NJSBindings(value = "ApricityUI", isClient = true)
 public class ApricityUIClientUtil {
     public static Window getWindow() {
         return Window.window;

@@ -8,18 +8,18 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.world.item.ItemStack;
 
 public final class ItemRender {
     private static final float ICON_SCALE_EPSILON = 0.0001F;
 
-    public static void renderDocumentUnboundSlotItems(GuiGraphics guiGraphics, Document document) {
+    public static void renderDocumentUnboundSlotItems(GuiGraphicsExtractor guiGraphics, Document document) {
         if (guiGraphics == null || document == null) return;
         renderUnboundSlotItems(guiGraphics, document.getElements());
     }
 
-    public static void renderUnboundSlotItems(GuiGraphics guiGraphics, Iterable<? extends Element> elements) {
+    public static void renderUnboundSlotItems(GuiGraphicsExtractor guiGraphics, Iterable<? extends Element> elements) {
         if (guiGraphics == null || elements == null) return;
 
         Font font = Minecraft.getInstance().font;
@@ -49,12 +49,12 @@ public final class ItemRender {
             if (stack.isEmpty()) continue;
 
             float iconScale = Math.max(0.01F, slot.resolveIconScale(1.0F));
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + slot.resolveZIndex(0));
+            guiGraphics.nextStratum();
+            guiGraphics.pose().pushMatrix();
             applyItemScaleTransform(guiGraphics, drawX, drawY, iconScale);
-            guiGraphics.renderItem(stack, drawX, drawY);
-            guiGraphics.renderItemDecorations(font, stack, drawX, drawY);
-            guiGraphics.pose().popPose();
+            guiGraphics.item(stack, drawX, drawY);
+            guiGraphics.itemDecorations(font, stack, drawX, drawY);
+            guiGraphics.pose().popMatrix();
         }
     }
 
@@ -64,12 +64,12 @@ public final class ItemRender {
         return Math.min(normalized, maxPadding);
     }
 
-    private static void applyItemScaleTransform(GuiGraphics guiGraphics, int drawX, int drawY, float iconScale) {
+    private static void applyItemScaleTransform(GuiGraphicsExtractor guiGraphics, int drawX, int drawY, float iconScale) {
         if (Math.abs(iconScale - 1.0F) <= ICON_SCALE_EPSILON) return;
         float centerX = drawX + 8.0F;
         float centerY = drawY + 8.0F;
-        guiGraphics.pose().translate(centerX, centerY, 0.0D);
-        guiGraphics.pose().scale(iconScale, iconScale, 1.0F);
-        guiGraphics.pose().translate(-centerX, -centerY, 0.0D);
+        guiGraphics.pose().translate(centerX, centerY);
+        guiGraphics.pose().scale(iconScale, iconScale);
+        guiGraphics.pose().translate(-centerX, -centerY);
     }
 }

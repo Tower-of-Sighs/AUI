@@ -23,12 +23,12 @@ public class FollowFacingWorldWindow extends WorldWindow {
     }
 
     @Override
-    public void render(com.mojang.blaze3d.vertex.PoseStack poseStack, org.joml.Matrix4f projectionMatrix, float partialTick) {
+    public void render(com.mojang.blaze3d.vertex.PoseStack poseStack) {
         Minecraft mc = Minecraft.getInstance();
-        Vector3f lookVec = mc.getEntityRenderDispatcher().camera.getLookVector();
+        Vector3f lookVec = new Vector3f(mc.getEntityRenderDispatcher().camera.forwardVector());
         Vec3 look = new Vec3(lookVec.x, lookVec.y, lookVec.z);
         if (basePosition == null) basePosition = getPosition();
-        Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
+        Vec3 cameraPos = mc.gameRenderer.getMainCamera().position();
         Vec3 toBase = basePosition.subtract(cameraPos);
         double depth = toBase.dot(look);
 
@@ -42,7 +42,7 @@ public class FollowFacingWorldWindow extends WorldWindow {
             faceCamera(cameraPos, basePosition);
         }
 
-        super.render(poseStack, projectionMatrix, partialTick);
+        super.render(poseStack);
     }
 
     private void faceCamera(Vec3 cameraPos, Vec3 windowPos) {

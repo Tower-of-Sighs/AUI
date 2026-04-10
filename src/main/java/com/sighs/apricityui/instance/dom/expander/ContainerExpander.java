@@ -117,7 +117,7 @@ public final class ContainerExpander {
         boolean hasContainerColumns = hasCustomValue(container.getCustomProperty("--aui-container-columns"));
         if (hasGridTemplateColumns || hasContainerColumns) return;
 
-        int effectiveColumns = Math.max(1, Math.min(9, slotCount));
+        int effectiveColumns = Math.min(9, slotCount);
         String mergedStyle = appendStyle(
                 container.getAttribute("style"),
                 "--aui-container-columns-effective:%d;grid-template-columns:%d;".formatted(effectiveColumns, effectiveColumns)

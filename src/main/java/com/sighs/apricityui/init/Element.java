@@ -1,6 +1,8 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
@@ -60,7 +62,7 @@ public class Element {
 
     private void addTextSelectionEventListeners() {
         addEventListener("mousedown", event -> {
-            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
+            if (!(event instanceof MouseEvent mouseEvent)) return;
             if (!canSelectInnerText()) return;
             if (document != null) {
                 document.clearAllTextSelectionsExcept(this);
@@ -86,7 +88,7 @@ public class Element {
         });
 
         addEventListener("mousemove", event -> {
-            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
+            if (!(event instanceof MouseEvent mouseEvent)) return;
             if (!canSelectInnerText()) return;
             if (!selectingText || document.getActiveElement() != this) return;
 
@@ -96,7 +98,7 @@ public class Element {
             addDirtyFlags(Drawer.REPAINT);
         });
 
-        addEventListener("mouseup", event -> selectingText = false);
+        addEventListener("mouseup", _ -> selectingText = false);
     }
 
     // 从自己开始，最后是body
@@ -345,9 +347,7 @@ public class Element {
                 drawInnerTextSelection(poseStack, rectRenderer);
                 drawInnerText(poseStack, rectRenderer);
             }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
-            }
+            case BORDER -> rectRenderer.drawBorder(poseStack);
         }
     }
 
@@ -545,8 +545,7 @@ public class Element {
 
     private double clampScrollTarget(double value, double limit) {
         if (value < 0) return 0;
-        if (value > limit) return limit;
-        return value;
+        return Math.min(value, limit);
     }
 
     private double getHorizontalScrollLimit() {
@@ -632,7 +631,7 @@ public class Element {
     }
 
     public boolean canSelectInnerText() {
-        if (this instanceof com.sighs.apricityui.element.AbstractText) return false;
+        if (this instanceof AbstractText) return false;
         if (innerText == null || innerText.isEmpty()) return false;
         if (!children.isEmpty()) return false;
         return Style.isUserSelectable(this);
@@ -672,7 +671,7 @@ public class Element {
         if (!canSelectInnerText() || !hasInnerTextSelection()) return;
         Text baseText = Text.of(this);
         baseText.content = getSelectableInnerText();
-        if (baseText.content == null || baseText.content.isEmpty()) return;
+        if (baseText.content.isEmpty()) return;
         Text.WrappedText wrapped = Text.wrap(this, baseText);
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
@@ -815,10 +814,11 @@ public class Element {
 
     private static String resolveLogicalTextAlign(Text text) {
         String align = text.textAlign == null ? "start" : text.textAlign;
-        if (align.equals("start")) return text.isRtl() ? "right" : "left";
-        if (align.equals("end")) return text.isRtl() ? "left" : "right";
-        if (align.equals("justify")) return text.isRtl() ? "right" : "left";
-        return align;
+        return switch (align) {
+            case "start", "justify" -> text.isRtl() ? "right" : "left";
+            case "end" -> text.isRtl() ? "left" : "right";
+            default -> align;
+        };
     }
 
     private static double computeVerticalOffset(Text text, double contentHeight, double textHeight) {

@@ -1,9 +1,14 @@
 package com.sighs.apricityui.render;
 
+import com.mojang.blaze3d.textures.AddressMode;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
@@ -14,29 +19,90 @@ import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.client.renderer.RenderPipelines;
+import net.minecraft.client.renderer.rendertype.RenderSetup;
+import net.minecraft.client.renderer.rendertype.RenderType;
+import net.minecraft.resources.Identifier;
+import net.neoforged.neoforge.client.stencil.StencilOperation;
+import net.neoforged.neoforge.client.stencil.StencilPerFaceTest;
+import net.neoforged.neoforge.client.stencil.StencilTest;
+import com.mojang.blaze3d.platform.CompareOp;
+import com.mojang.blaze3d.pipeline.RenderPipeline;
 import org.joml.Matrix4f;
 
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public class ImageDrawer {
+public final class ImageDrawer {
     private static final Map<RenderKey, RenderType> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<Integer, RenderPipeline> TEXTURED_STENCIL_PIPELINES = new ConcurrentHashMap<>();
     private static final int PLACEHOLDER_COLOR = 0x33404040;
-    // Empty radii array for rectangular mask clipping.
     private static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
-    private static RenderType batchRenderType = null;
-    private static MultiBufferSource.BufferSource batchBufferSource = null;
 
-    private static RenderType getRenderType(ResourceLocation texture, boolean blur) {
-        return RENDER_TYPE_CACHE.computeIfAbsent(new RenderKey(texture, blur), key -> CustomRenderType.createSmooth(key.location(), key.blur()));
+    private static final ByteBufferBuilder BYTE_BUFFER = new ByteBufferBuilder(786432);
+
+    private static RenderType batchRenderType;
+    private static BufferBuilder batchBuilder;
+
+    private ImageDrawer() {
     }
 
-    public static void draw(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, boolean blur) {
+    private static RenderType getRenderType(Identifier texture, boolean blur, boolean repeatX, boolean repeatY, int stencilMask) {
+        return RENDER_TYPE_CACHE.computeIfAbsent(new RenderKey(texture, blur, repeatX, repeatY, stencilMask), key -> {
+            FilterMode filter = key.blur ? FilterMode.LINEAR : FilterMode.NEAREST;
+            var sampler = RenderSystem.getSamplerCache().getSampler(
+                    key.repeatX ? AddressMode.REPEAT : AddressMode.CLAMP_TO_EDGE,
+                    key.repeatY ? AddressMode.REPEAT : AddressMode.CLAMP_TO_EDGE,
+                    filter,
+                    filter,
+                    false
+            );
+
+            RenderPipeline pipeline = key.stencilMask == 0 ? RenderPipelines.GUI_TEXTURED : TEXTURED_STENCIL_PIPELINES.computeIfAbsent(key.stencilMask, mask -> {
+                StencilPerFaceTest face = new StencilPerFaceTest(StencilOperation.KEEP, StencilOperation.KEEP, StencilOperation.KEEP, CompareOp.EQUAL);
+                StencilTest stencil = new StencilTest(face, mask, 0, mask);
+                return RenderPipelines.GUI_TEXTURED.toBuilder()
+                        .withLocation(Identifier.fromNamespaceAndPath("apricityui", "pipeline/gui_textured/stencil/" + mask))
+                        .withStencilTest(stencil)
+                        .build();
+            });
+
+            RenderSetup setup = RenderSetup.builder(pipeline)
+                    .withTexture("Sampler0", key.location, () -> sampler)
+                    .bufferSize(2048)
+                    .createRenderSetup();
+            return RenderType.create("apricityui_image_" + key.stencilMask, setup);
+        });
+    }
+
+    private static BufferBuilder beginQuadBuilder() {
+        return new BufferBuilder(BYTE_BUFFER, VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX_COLOR);
+    }
+
+    private static void drawQuads(RenderType renderType, BufferBuilder buf) {
+        MeshData mesh = buf.build();
+        if (mesh == null) return;
+        renderType.draw(mesh);
+    }
+
+    public static void clearCache() {
+        ImageAsyncHandler.INSTANCE.clearAndBumpGeneration();
+        clearRenderTypeCache();
+    }
+
+    public static void clearRenderTypeCache() {
+        RENDER_TYPE_CACHE.clear();
+    }
+
+    public static void flushBatch() {
+        if (batchRenderType == null || batchBuilder == null) return;
+        drawQuads(batchRenderType, batchBuilder);
+        batchRenderType = null;
+        batchBuilder = null;
+    }
+
+    public static void draw(PoseStack poseStack, Identifier texture, float x, float y, float width, float height, boolean blur) {
         if (texture == null) return;
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur);
     }
@@ -60,11 +126,7 @@ public class ImageDrawer {
     }
 
     public static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur) {
-        draw(poseStack, path, x, y, width, height, blur, null, false);
-    }
-
-    private static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur, Element requester, boolean needRelayout) {
-        draw(poseStack, path, (float) x, (float) y, (float) width, (float) height, blur, requester, needRelayout);
+        draw(poseStack, path, (float) x, (float) y, (float) width, (float) height, blur, null, false);
     }
 
     private static void draw(PoseStack poseStack, String path, float x, float y, float width, float height, boolean blur, Element requester, boolean needRelayout) {
@@ -75,10 +137,10 @@ public class ImageDrawer {
         }
 
         Image.ITexture texture = handle.texture();
-        ResourceLocation currentLocation = texture.getLocation();
-        if (currentLocation == null) return;
-        int textureWidth = texture.getWidth();
-        int textureHeight = texture.getHeight();
+        Identifier location = texture.identifier();
+        if (location == null) return;
+        int textureWidth = texture.width();
+        int textureHeight = texture.height();
 
         if (width == 0 && textureHeight > 0) {
             width = (float) (1d * height / textureHeight * textureWidth);
@@ -87,23 +149,7 @@ public class ImageDrawer {
             height = (float) (1d * width / textureWidth * textureHeight);
         }
 
-        innerBlit(poseStack, currentLocation, x, y, width, height, 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur);
-    }
-
-    public static void clearCache() {
-        ImageAsyncHandler.INSTANCE.clearAndBumpGeneration();
-        clearRenderTypeCache();
-    }
-
-    public static void clearRenderTypeCache() {
-        RENDER_TYPE_CACHE.clear();
-    }
-
-    public static void flushBatch() {
-        if (batchRenderType == null || batchBufferSource == null) return;
-        batchBufferSource.endBatch(batchRenderType);
-        batchRenderType = null;
-        batchBufferSource = null;
+        innerBlit(poseStack, location, x, y, width, height, 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur);
     }
 
     public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background bg) {
@@ -123,7 +169,7 @@ public class ImageDrawer {
         if (readyTexture == null) return;
         int tw = readyTexture.width();
         int th = readyTexture.height();
-        ResourceLocation loc = readyTexture.location();
+        Identifier loc = readyTexture.location();
 
         float[] renderSize = resolveRenderSize(layer.size, width, height, tw, th);
         float renderW = renderSize[0];
@@ -260,7 +306,7 @@ public class ImageDrawer {
         if (readyTexture == null) return;
         int texW = readyTexture.width();
         int texH = readyTexture.height();
-        ResourceLocation loc = readyTexture.location();
+        Identifier loc = readyTexture.location();
 
         int sT = bi.slice[0], sR = bi.slice[1], sB = bi.slice[2], sL = bi.slice[3];
         int bT = bi.width[0], bR = bi.width[1], bB = bi.width[2], bL = bi.width[3];
@@ -277,7 +323,6 @@ public class ImageDrawer {
         String repeatH = bi.repeat;
         String repeatV = bi.repeat;
 
-        // 4 corners
         if (bL > 0 && bT > 0) innerBlit(poseStack, loc, finalX, finalY, bL, bT, 0, 0, sL, sT, texW, texH, false);
         if (bR > 0 && bT > 0)
             innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, false);
@@ -286,34 +331,32 @@ public class ImageDrawer {
         if (bR > 0 && bB > 0)
             innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, false);
 
-        // 4 edges
         drawTiledPart(poseStack, loc, finalX + bL, finalY, destCW, bT, sL, 0, srcCW, sT, texW, texH, repeatH, "stretch");
         drawTiledPart(poseStack, loc, finalX + bL, finalY + finalH - bB, destCW, bB, sL, texH - sB, srcCW, sB, texW, texH, repeatH, "stretch");
         drawTiledPart(poseStack, loc, finalX, finalY + bT, bL, destCH, 0, sT, sL, srcCH, texW, texH, "stretch", repeatV);
         drawTiledPart(poseStack, loc, finalX + finalW - bR, finalY + bT, bR, destCH, texW - sR, sT, sR, srcCH, texW, texH, "stretch", repeatV);
 
-        // center
         if (bi.fill && destCW > 0 && destCH > 0) {
             drawTiledPart(poseStack, loc, finalX + bL, finalY + bT, destCW, destCH, sL, sT, srcCW, srcCH, texW, texH, repeatH, repeatV);
         }
     }
 
-    private static void drawTiledPart(PoseStack poseStack, ResourceLocation loc,
+    private static void drawTiledPart(PoseStack poseStack, Identifier loc,
                                       int dx, int dy, int dw, int dh,
                                       float sx, float sy, int sw, int sh,
                                       int texW, int texH, String repeatX, String repeatY) {
         if (dw <= 0 || dh <= 0 || sw <= 0 || sh <= 0) return;
 
-        float tileW = dw, tileV = dh;
+        float tileW = dw, tileH = dh;
 
         if (repeatX.equals("repeat") || repeatX.equals("round")) {
             tileW = (repeatX.equals("round")) ? (float) dw / Math.max(1, Math.round((float) dw / sw)) : sw;
         }
         if (repeatY.equals("repeat") || repeatY.equals("round")) {
-            tileV = (repeatY.equals("round")) ? (float) dh / Math.max(1, Math.round((float) dh / sh)) : sh;
+            tileH = (repeatY.equals("round")) ? (float) dh / Math.max(1, Math.round((float) dh / sh)) : sh;
         }
 
-        if (tileW == dw && tileV == dh) {
+        if (tileW == dw && tileH == dh) {
             innerBlit(poseStack, loc, dx, dy, dw, dh, sx, sy, sw, sh, texW, texH, false);
             return;
         }
@@ -322,9 +365,9 @@ public class ImageDrawer {
         Mask.pushMask(poseStack, dx, dy, dw, dh, NO_RADIUS);
 
         for (float curX = 0; curX < dw; curX += tileW) {
-            for (float curY = 0; curY < dh; curY += tileV) {
+            for (float curY = 0; curY < dh; curY += tileH) {
                 int drawW = (int) Math.min(tileW, dw - curX + 1);
-                int drawH = (int) Math.min(tileV, dh - curY + 1);
+                int drawH = (int) Math.min(tileH, dh - curY + 1);
                 innerBlit(poseStack, loc, (int) (dx + curX), (int) (dy + curY), drawW, drawH, sx, sy, sw, sh, texW, texH, false);
             }
         }
@@ -347,35 +390,40 @@ public class ImageDrawer {
             return null;
         }
         Image.ITexture texture = handle.texture();
-        int textureWidth = texture.getWidth();
-        int textureHeight = texture.getHeight();
-        ResourceLocation location = texture.getLocation();
+        int textureWidth = texture.width();
+        int textureHeight = texture.height();
+        Identifier location = texture.identifier();
         if (textureWidth <= 0 || textureHeight <= 0 || location == null) return null;
         Base.resolveOffset(poseStack);
         return new ReadyTexture(location, textureWidth, textureHeight);
     }
 
-    private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur) {
-        RenderType renderType = getRenderType(texture, blur);
+    private static void innerBlit(PoseStack poseStack, Identifier texture, float x, float y, float width, float height,
+                                  float uTexture, float vTexture, int widthTexture, int heightTexture,
+                                  int textureWidth, int textureHeight, boolean blur) {
+        if (texture == null || width <= 0 || height <= 0) return;
+
+        int stencilMask = Mask.getActiveStencilMask();
+        RenderType renderType = getRenderType(texture, blur, false, false, stencilMask);
+
         if (Mask.isActive()) {
             flushBatch();
-            MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-            VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
-            emitQuad(vertexConsumer, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
-            bufferSource.endBatch(renderType);
+            BufferBuilder buf = beginQuadBuilder();
+            emitQuad(buf, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
+            drawQuads(renderType, buf);
             return;
         }
 
         if (batchRenderType == null || batchRenderType != renderType) {
             flushBatch();
             batchRenderType = renderType;
-            batchBufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+            batchBuilder = beginQuadBuilder();
         }
-        VertexConsumer vertexConsumer = batchBufferSource.getBuffer(renderType);
-        emitQuad(vertexConsumer, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
+
+        emitQuad(batchBuilder, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
     }
 
-    private static void emitQuad(VertexConsumer vertexConsumer, Matrix4f matrix,
+    private static void emitQuad(BufferBuilder buf, Matrix4f matrix,
                                  float x, float y, float width, float height,
                                  float uTexture, float vTexture, int widthTexture, int heightTexture,
                                  int textureWidth, int textureHeight) {
@@ -384,39 +432,18 @@ public class ImageDrawer {
         float minV = vTexture / (float) textureHeight;
         float maxV = (vTexture + heightTexture) / (float) textureHeight;
 
-        vertexConsumer.vertex(matrix, x, y + height, 0.0F).color(255, 255, 255, 255).uv(minU, maxV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x + width, y + height, 0.0F).color(255, 255, 255, 255).uv(maxU, maxV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x + width, y, 0.0F).color(255, 255, 255, 255).uv(maxU, minV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x, y, 0.0F).color(255, 255, 255, 255).uv(minU, minV).uv2(0xF000F0).endVertex();
+        int white = 0xFFFFFFFF;
+
+        buf.addVertex(matrix, x, y + height, 0.0F).setColor(white).setUv(minU, maxV);
+        buf.addVertex(matrix, x + width, y + height, 0.0F).setColor(white).setUv(maxU, maxV);
+        buf.addVertex(matrix, x + width, y, 0.0F).setColor(white).setUv(maxU, minV);
+        buf.addVertex(matrix, x, y, 0.0F).setColor(white).setUv(minU, minV);
     }
 
-    static class CustomRenderType extends RenderType {
-        public CustomRenderType(String name, VertexFormat format, VertexFormat.Mode mode, int bufferSize, boolean affectsCrumbling, boolean sortOnUpload, Runnable setupState, Runnable clearState) {
-            super(name, format, mode, bufferSize, affectsCrumbling, sortOnUpload, setupState, clearState);
-        }
-
-        public static RenderType createSmooth(ResourceLocation location, boolean blur) {
-            return create("apricity_image",
-                    DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP,
-                    VertexFormat.Mode.QUADS,
-                    256,
-                    true,
-                    true,
-                    RenderType.CompositeState.builder()
-                            .setTextureState(new TextureStateShard(location, blur, false))
-                            .setShaderState(POSITION_COLOR_TEX_LIGHTMAP_SHADER)
-                            .setDepthTestState(LEQUAL_DEPTH_TEST)
-                            .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
-                            .setWriteMaskState(COLOR_WRITE)
-                            .createCompositeState(false)
-            );
-        }
+    private record ReadyTexture(Identifier location, int width, int height) {
     }
 
-    private record ReadyTexture(ResourceLocation location, int width, int height) {
-    }
-
-    private record RenderKey(ResourceLocation location, boolean blur) {
+    private record RenderKey(Identifier location, boolean blur, boolean repeatX, boolean repeatY, int stencilMask) {
     }
 
     private record RepeatMode(boolean repeatX, boolean repeatY) {

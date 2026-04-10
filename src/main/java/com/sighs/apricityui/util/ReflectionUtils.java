@@ -1,8 +1,7 @@
 package com.sighs.apricityui.util;
 
 import com.sighs.apricityui.ApricityUI;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.forgespi.language.ModFileScanData;
+import net.neoforged.fml.ModList;
 
 import javax.annotation.Nullable;
 import java.lang.annotation.Annotation;
@@ -52,15 +51,12 @@ public final class ReflectionUtils {
     }
 
     public static Class<?> getRawType(Type type) {
-        if (type instanceof Class<?> aClass) {
-            return aClass;
-        } else if (type instanceof GenericArrayType genericArrayType) {
-            return getRawType(genericArrayType.getGenericComponentType());
-        } else if (type instanceof ParameterizedType parameterizedType) {
-            return getRawType(parameterizedType.getRawType());
-        } else {
-            return null;
-        }
+        return switch (type) {
+            case Class<?> aClass -> aClass;
+            case GenericArrayType genericArrayType -> getRawType(genericArrayType.getGenericComponentType());
+            case ParameterizedType parameterizedType -> getRawType(parameterizedType.getRawType());
+            case null, default -> null;
+        };
     }
 
     public static <A extends Annotation> void findAnnotationClasses(Class<A> annotationClass,
@@ -68,18 +64,20 @@ public final class ReflectionUtils {
                                                                     Consumer<Class<?>> consumer,
                                                                     Runnable onFinished) {
         org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
-        for (ModFileScanData data : ModList.get().getAllScanData()) {
-            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
-                if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.TYPE) {
-                    if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
+        for (Object data : ModList.get().getAllScanData()) {
+            for (Object annotation : getAnnotations(data)) {
+                if (annotationType.equals(invoke(annotation, "annotationType")) && invoke(annotation, "targetType") == ElementType.TYPE) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> annotationData = (Map<String, Object>) invoke(annotation, "annotationData");
+                    if (annotationPredicate == null || annotationPredicate.test(annotationData)) {
+                        String className = String.valueOf(invoke(annotation, "memberName"));
+                        if (!isPackageAllowed(className)) {
+                            continue;
+                        }
                         try {
-                            String className = annotation.memberName();
-                            if (!isPackageAllowed(className)) {
-                                continue;
-                            }
                             consumer.accept(Class.forName(className, false, ReflectionUtils.class.getClassLoader()));
                         } catch (Throwable throwable) {
-                            ApricityUI.LOGGER.error("Failed to load class for notation: {}", annotation.memberName(), throwable);
+                            ApricityUI.LOGGER.error("Failed to load class for notation: {}", className, throwable);
                         }
                     }
                 }
@@ -93,14 +91,16 @@ public final class ReflectionUtils {
                                                                         BiConsumer<Field, Object> consumer,
                                                                         Runnable onFinished) {
         org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
-        for (ModFileScanData data : ModList.get().getAllScanData()) {
-            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
-                if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.FIELD) {
-                    if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
-                        var clazz = annotation.clazz();
-                        var fieldName = annotation.memberName();
+        for (Object data : ModList.get().getAllScanData()) {
+            for (Object annotation : getAnnotations(data)) {
+                if (annotationType.equals(invoke(annotation, "annotationType")) && invoke(annotation, "targetType") == ElementType.FIELD) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> annotationData = (Map<String, Object>) invoke(annotation, "annotationData");
+                    if (annotationPredicate == null || annotationPredicate.test(annotationData)) {
+                        Object clazz = invoke(annotation, "clazz");
+                        String fieldName = String.valueOf(invoke(annotation, "memberName"));
                         try {
-                            String className = annotation.clazz().getClassName();
+                            String className = getAsmTypeClassName(clazz);
                             if (!isPackageAllowed(className)) {
                                 continue;
                             }
@@ -125,22 +125,24 @@ public final class ReflectionUtils {
                                                                          Consumer<Method> consumer,
                                                                          Runnable onFinished) {
         org.objectweb.asm.Type annotationType = org.objectweb.asm.Type.getType(annotationClass);
-        for (ModFileScanData data : ModList.get().getAllScanData()) {
-            for (ModFileScanData.AnnotationData annotation : data.getAnnotations()) {
-                if (annotationType.equals(annotation.annotationType()) && annotation.targetType() == ElementType.METHOD) {
-                    if (annotationPredicate == null || annotationPredicate.test(annotation.annotationData())) {
-                        var clazz = annotation.clazz();
-                        var methodFullDesc = annotation.memberName();
-                        var methodName = methodFullDesc.substring(0, methodFullDesc.indexOf('('));
-                        var methodDesc = methodFullDesc.substring(methodFullDesc.indexOf('('));
+        for (Object data : ModList.get().getAllScanData()) {
+            for (Object annotation : getAnnotations(data)) {
+                if (annotationType.equals(invoke(annotation, "annotationType")) && invoke(annotation, "targetType") == ElementType.METHOD) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> annotationData = (Map<String, Object>) invoke(annotation, "annotationData");
+                    if (annotationPredicate == null || annotationPredicate.test(annotationData)) {
+                        Object clazz = invoke(annotation, "clazz");
+                        String methodFullDesc = String.valueOf(invoke(annotation, "memberName"));
+                        String methodName = methodFullDesc.substring(0, methodFullDesc.indexOf('('));
+                        String methodDesc = methodFullDesc.substring(methodFullDesc.indexOf('('));
                         try {
-                            String className = annotation.clazz().getClassName();
+                            String className = getAsmTypeClassName(clazz);
                             if (!isPackageAllowed(className)) {
                                 continue;
                             }
                             for (var method : Class.forName(className).getDeclaredMethods()) {
-                                if (method.getName().equals(methodName) &&
-                                        methodDesc.equals(org.objectweb.asm.Type.getMethodDescriptor(method))) {
+                                if (method.getName().equals(methodName)
+                                        && methodDesc.equals(org.objectweb.asm.Type.getMethodDescriptor(method))) {
                                     if (Modifier.isStatic(method.getModifiers())) {
                                         consumer.accept(method);
                                     } else {
@@ -156,5 +158,34 @@ public final class ReflectionUtils {
             }
         }
         onFinished.run();
+    }
+
+    private static Iterable<?> getAnnotations(Object scanData) {
+        Object annotations = invoke(scanData, "getAnnotations");
+        if (annotations instanceof Iterable<?> iterable) {
+            return iterable;
+        }
+        return java.util.List.of();
+    }
+
+    private static Object invoke(Object target, String method) {
+        try {
+            Method m = target.getClass().getMethod(method);
+            return m.invoke(target);
+        } catch (Throwable t) {
+            throw new IllegalStateException("Failed to invoke " + method + " on " + target, t);
+        }
+    }
+
+    private static String getAsmTypeClassName(Object asmType) {
+        if (asmType instanceof org.objectweb.asm.Type t) {
+            return t.getClassName();
+        }
+        try {
+            Method m = asmType.getClass().getMethod("getClassName");
+            return String.valueOf(m.invoke(asmType));
+        } catch (Throwable t) {
+            return String.valueOf(asmType);
+        }
     }
 }

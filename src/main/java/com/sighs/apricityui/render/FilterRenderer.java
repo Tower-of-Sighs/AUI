@@ -1,393 +1,309 @@
 package com.sighs.apricityui.render;
 
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.Std140Builder;
+import com.mojang.blaze3d.buffers.Std140SizeCalculator;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
-import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.RenderPass;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.renderer.MappableRingBuffer;
+import net.minecraft.client.renderer.RenderPipelines;
 import org.joml.Matrix4f;
-import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Deque;
 import java.util.List;
-import java.util.Map;
-import java.util.Stack;
+import java.util.OptionalDouble;
+import java.util.OptionalInt;
 
-public class FilterRenderer {
-    private static final Stack<RenderTarget> fboStack = new Stack<>();
-    private static RenderTarget mainRenderTarget;
-    private static final List<RenderTarget> fboPool = new ArrayList<>();
+@SuppressWarnings("resource")
+public final class FilterRenderer {
+    private static final Deque<FilterLayer> FILTER_STACK = new ArrayDeque<>();
+    private static final List<TextureTarget> FILTER_POOL = new ArrayList<>();
     private static int poolPointer = 0;
-    private static final List<RenderTarget> backdropPool = new ArrayList<>();
-    private static int backdropPoolPointer = 0;
-    private static final Map<String, Long> LOG_TIMES = new HashMap<>();
-    private static final long LOG_INTERVAL_MS = 2000L;
 
-    private static boolean shouldLog(String key, long intervalMs) {
-        long now = System.currentTimeMillis();
-        Long last = LOG_TIMES.get(key);
-        if (last == null || now - last >= intervalMs) {
-            LOG_TIMES.put(key, now);
-            return true;
-        }
-        return false;
+    private static final List<TextureTarget> BACKDROP_POOL = new ArrayList<>();
+    private static int backdropPointer = 0;
+
+    private static final int FILTER_UBO_SIZE = new Std140SizeCalculator()
+            .putVec2() // InSize
+            .putVec2() // GuiSize
+            .putFloat() // BlurRadius
+            .putFloat() // Brightness
+            .putFloat() // Grayscale
+            .putFloat() // Invert
+            .putFloat() // HueRotate
+            .putFloat() // Opacity
+            .putVec2() // ShadowOffset
+            .putFloat() // ShadowBlur
+            .putVec4() // ShadowColor
+            .putFloat() // ForceAlpha
+            .putVec4() // ClipRect
+            .putVec4() // ClipRadii
+            .putFloat() // ClipEnabled
+            .get();
+
+    private static MappableRingBuffer filterUbo;
+
+    private FilterRenderer() {
     }
 
     public static void beginFrame() {
-        // 防御式清理：若上帧因异常或节点错配残留栈，避免 poolPointer 无界增长
-        if (!fboStack.isEmpty()) {
-            fboStack.clear();
-        }
-        mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
-        if (mainRenderTarget != null) {
-            mainRenderTarget.enableStencil();
+        if (!FILTER_STACK.isEmpty()) {
+            FILTER_STACK.clear();
         }
         poolPointer = 0;
-        backdropPoolPointer = 0;
-//        if (shouldLog("beginFrame", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] beginFrame mainTarget={} size={}x{} pool={} backdropPool={}",
-//                    mainRenderTarget, mainRenderTarget.width, mainRenderTarget.height, fboPool.size(), backdropPool.size()
-//            );
-//        }
+        backdropPointer = 0;
+        ensureUbo();
     }
 
     public static void endFrame() {
-        if (!fboStack.isEmpty()) {
-            fboStack.clear();
-            if (mainRenderTarget != null) {
-                mainRenderTarget.bindWrite(false);
-            }
+        if (!FILTER_STACK.isEmpty()) {
+            FILTER_STACK.clear();
         }
-//        if (shouldLog("endFrame", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] endFrame stackCleared={} poolPointer={} backdropPointer={}",
-//                    fboStack.isEmpty(), poolPointer, backdropPoolPointer
-//            );
-//        }
     }
 
     public static void pushFilter() {
-        boolean ON_OSX = Minecraft.ON_OSX;
+        ImageDrawer.flushBatch();
+        Graph.endBatch();
 
-        if (fboStack.isEmpty()) {
-            mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
-            poolPointer = 0;
-        }
+        int width = currentColorView().getWidth(0);
+        int height = currentColorView().getHeight(0);
 
-        RenderTarget temp;
-        double width = Client.getWindow().getWidth();
-        double height = Client.getWindow().getHeight();
+        TextureTarget temp = acquireFilterTarget(width, height);
+        clearTarget(temp);
 
-        if (poolPointer < fboPool.size()) {
-            temp = fboPool.get(poolPointer);
-            if (temp.width != (int) width || temp.height != (int) height) {
-                temp.destroyBuffers();
-                temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-                temp.enableStencil();
-                fboPool.set(poolPointer, temp);
-//                com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                        "[FilterRenderer] pushFilter resized temp target index={} size={}x{}",
-//                        poolPointer, temp.width, temp.height
-//                );
-            }
-        } else {
-            temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-            temp.enableStencil();
-            fboPool.add(temp);
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] pushFilter created temp target index={} size={}x{}",
-//                    poolPointer, temp.width, temp.height
-//            );
-        }
-        poolPointer++;
+        FilterLayer layer = new FilterLayer(
+                temp,
+                RenderSystem.outputColorTextureOverride,
+                RenderSystem.outputDepthTextureOverride,
+                Mask.suspendForOffscreen()
+        );
 
-        temp.setClearColor(0f, 0f, 0f, 0f);
-        // 注意：这里的 clear 会清除当前绑定的 FBO 的缓冲区
-        temp.clear(ON_OSX);
-        fboStack.push(temp);
-        temp.bindWrite(false);
-//        if (shouldLog("pushFilter.bind", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] pushFilter bind target size={}x{} stackDepth={}",
-//                    temp.width, temp.height, fboStack.size()
-//            );
-//        }
-    }
+        FILTER_STACK.push(layer);
 
-    public static RenderTarget getCurrentTarget() {
-        return fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
+        RenderSystem.outputColorTextureOverride = temp.getColorTextureView();
+        RenderSystem.outputDepthTextureOverride = temp.getDepthTextureView();
     }
 
     public static void popFilter(Filter.FilterState state) {
-        if (fboStack.isEmpty()) return;
+        if (FILTER_STACK.isEmpty()) return;
 
-        RenderTarget currentFbo = fboStack.pop();
-        RenderTarget parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
-        parentFbo.bindWrite(false);
+        ImageDrawer.flushBatch();
+        Graph.endBatch();
 
-//        if (shouldLog("popFilter", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] popFilter state={} current={}x{} parent={}x{} stackDepth={}",
-//                    state, currentFbo.width, currentFbo.height, parentFbo.width, parentFbo.height, fboStack.size()
-//            );
-//        }
-        drawWithShader(currentFbo, state);
-    }
+        FilterLayer layer = FILTER_STACK.pop();
 
-    private static void drawWithShader(RenderTarget fbo, Filter.FilterState state) {
-        ShaderInstance shader = ShaderRegistry.getFilterShader();
+        // 首先恢复之前的渲染目标和遮罩状态；滤镜输出应当遵循父级的裁剪
+        RenderSystem.outputColorTextureOverride = layer.prevColorOverride;
+        RenderSystem.outputDepthTextureOverride = layer.prevDepthOverride;
+        Mask.restore(layer.savedMaskState);
 
-        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
-
-        GlStateManager._enableBlend();
-        GlStateManager._blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
-        );
-        GlStateManager._disableDepthTest();
-        GlStateManager._depthMask(false);
-        GlStateManager._disableCull();
-
-        if (shader == null) {
-            Base.setPositionColorShader();
-        } else {
-            Base.setShader(shader);
-            setupUniforms(shader, state, fbo, false);
-        }
-
-        Base.setShaderTexture(0, fbo.getColorTextureId());
-        Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-
-        float guiW = (float) Client.getWindow().getGuiScaledWidth();
-        float guiH = (float) Client.getWindow().getGuiScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
-        Base.setProjectionMatrix(matrix);
-
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tesselator.getBuilder();
-
-        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferbuilder.vertex(0, guiH, 0).uv(0, 0).endVertex();
-        bufferbuilder.vertex(guiW, guiH, 0).uv(1, 0).endVertex();
-        bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
-        bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
-
-        BufferUploader.drawWithShader(bufferbuilder.end());
-
-        GlStateManager._depthMask(true);
-        GlStateManager._enableDepthTest();
-        Base.setProjectionMatrix(oldProjection);
+        applyFilter(layer.target, state, false, null);
     }
 
     public static void renderBackdrop(Element target, PoseStack poseStack) {
-        RenderTarget currentBound = fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
-        RenderTarget sourceTarget = mainRenderTarget != null ? mainRenderTarget : currentBound;
-        RenderTarget sourceCopy = copyToBackdropSource(sourceTarget);
-//        if (sourceCopy == null) {
-//            if (shouldLog("renderBackdrop.null", LOG_INTERVAL_MS)) {
-//                com.sighs.apricityui.ApricityUI.LOGGER.warn(
-//                        "[FilterRenderer] renderBackdrop skipped: sourceCopy null target={} currentBound={} sourceTarget={}",
-//                        target.uuid, currentBound, sourceTarget
-//                );
-//            }
-//            return;
-//        }
-        currentBound.bindWrite(false);
-//        if (shouldLog("renderBackdrop", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] renderBackdrop target={} currentBound={}x{} sourceTarget={}x{} sourceCopy={}x{}",
-//                    target.uuid, currentBound.width, currentBound.height,
-//                    sourceTarget.width, sourceTarget.height,
-//                    sourceCopy.width, sourceCopy.height
-//            );
-//        }
-        drawBackdropWithShader(sourceCopy, target, poseStack);
-    }
-
-    private static void drawBackdropWithShader(RenderTarget sourceFbo, Element target, PoseStack poseStack) {
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
-        ShaderInstance shader = ShaderRegistry.getFilterShader();
+        if (target == null) return;
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
-//        if (shader == null || state == null) {
-//            if (shouldLog("drawBackdrop.skip", LOG_INTERVAL_MS)) {
-//                com.sighs.apricityui.ApricityUI.LOGGER.warn(
-//                        "[FilterRenderer] drawBackdropWithShader skipped shader={} state={} target={}",
-//                        shader, state, target.uuid
-//                );
-//            }
-//            return;
-//        }
-//        if (shouldLog("drawBackdrop.state", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] drawBackdropWithShader state blur={} brightness={} grayscale={} invert={} hueRotate={} opacity={}",
-//                    state.blurRadius(), state.brightness(), state.grayscale(), state.invert(), state.hueRotate(), state.opacity()
-//            );
-//        }
+        if (state == null || state.isEmpty()) return;
 
-        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
+        ImageDrawer.flushBatch();
+        Graph.endBatch();
 
-        GlStateManager._enableBlend();
-        GlStateManager._blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
-        );
-        GlStateManager._disableDepthTest();
-        GlStateManager._depthMask(false);
-        GlStateManager._disableCull();
+        int width = currentColorView().getWidth(0);
+        int height = currentColorView().getHeight(0);
+
+        TextureTarget sourceCopy = acquireBackdropTarget(width, height);
+        clearTarget(sourceCopy);
+        blitToTarget(currentColorView(), sourceCopy);
 
         Rect rect = Rect.of(target);
-        Position p = rect.getBodyRectPosition();
-        Size s = rect.getBodyRectSize();
-//        if (shouldLog("drawBackdrop.details", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] drawBackdropWithShader target={} state={} rect=({}, {}) size=({}, {}) radius={}",
-//                    target.uuid, state, p.x, p.y, s.width(), s.height(), rect.getBodyRadius()
-//            );
-//        }
-
-        float guiW = (float) Client.getWindow().getGuiScaledWidth();
-        float guiH = (float) Client.getWindow().getGuiScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
-        Base.setProjectionMatrix(matrix);
-
-        Base.setShader(shader);
-        setupUniforms(shader, state, sourceFbo, true);
-        setupBackdropClipUniforms(shader, rect, guiW, guiH);
-        Base.setShaderTexture(0, sourceFbo.getColorTextureId());
-        Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        Base.setProjectionMatrix(matrix);
-
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tesselator.getBuilder();
-
-        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferbuilder.vertex(0, guiH, 0).uv(0, 0).endVertex();
-        bufferbuilder.vertex(guiW, guiH, 0).uv(1, 0).endVertex();
-        bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
-        bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
-
-        BufferUploader.drawWithShader(bufferbuilder.end());
-
-        GlStateManager._depthMask(true);
-        GlStateManager._enableDepthTest();
-        Base.setProjectionMatrix(oldProjection);
+        applyFilter(sourceCopy, state, true, rect);
     }
 
-    private static RenderTarget copyToBackdropSource(RenderTarget source) {
-        if (source == null) return null;
-        boolean ON_OSX = Minecraft.ON_OSX;
-        int width = source.width;
-        int height = source.height;
+    private static void applyFilter(TextureTarget input, Filter.FilterState state, boolean forceAlpha, Rect clipRect) {
+        if (input == null || input.getColorTextureView() == null) return;
+        if (state == null) state = Filter.FilterState.EMPTY;
 
-        RenderTarget temp;
-        if (backdropPoolPointer < backdropPool.size()) {
-            temp = backdropPool.get(backdropPoolPointer);
-            if (temp.width != width || temp.height != height) {
-                temp.destroyBuffers();
-                temp = new TextureTarget(width, height, true, ON_OSX);
-                backdropPool.set(backdropPoolPointer, temp);
-//                com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                        "[FilterRenderer] backdrop resize index={} size={}x{}",
-//                        backdropPoolPointer, width, height
-//                );
+        int outW = currentColorView().getWidth(0);
+        int outH = currentColorView().getHeight(0);
+
+        double guiScale = Minecraft.getInstance().getWindow().getGuiScale();
+        float guiW = (float) (outW / guiScale);
+        float guiH = (float) (outH / guiScale);
+
+        writeFilterUbo(state, input.width, input.height, guiW, guiH, forceAlpha, clipRect);
+
+        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        GpuTextureView outColor = currentColorView();
+        GpuTextureView outDepth = currentDepthViewOrNull();
+
+        int stencilMask = Mask.getActiveStencilMask();
+
+        try (RenderPass pass = encoder.createRenderPass(
+                () -> "AUI Filter Pass",
+                outColor,
+                OptionalInt.empty(),
+                outDepth,
+                OptionalDouble.empty()
+        )) {
+            pass.setViewport(0, 0, outW, outH);
+            Mask.applyScissorToRenderPass(pass, outH, guiScale);
+            pass.setPipeline(ShaderRegistry.filterPipeline(stencilMask));
+            RenderSystem.bindDefaultUniforms(pass);
+            pass.setUniform("ApricityFilter", new GpuBufferSlice(filterUbo.currentBuffer(), 0, FILTER_UBO_SIZE));
+            pass.bindTexture("InSampler", input.getColorTextureView(), RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
+            pass.draw(0, 3);
+        }
+
+        filterUbo.rotate();
+    }
+
+    private static void blitToTarget(GpuTextureView source, TextureTarget dest) {
+        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        try (RenderPass pass = encoder.createRenderPass(() -> "AUI Backdrop Copy", dest.getColorTextureView(), OptionalInt.empty())) {
+            pass.setPipeline(RenderPipelines.TRACY_BLIT);
+            RenderSystem.bindDefaultUniforms(pass);
+            pass.bindTexture("InSampler", source, RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST));
+            pass.draw(0, 3);
+        }
+    }
+
+    private static TextureTarget acquireFilterTarget(int width, int height) {
+        TextureTarget target;
+        if (poolPointer < FILTER_POOL.size()) {
+            target = FILTER_POOL.get(poolPointer);
+            if (target.width != width || target.height != height) {
+                target.resize(width, height);
             }
         } else {
-            temp = new TextureTarget(width, height, true, ON_OSX);
-            backdropPool.add(temp);
-            com.sighs.apricityui.ApricityUI.LOGGER.info(
-                    "[FilterRenderer] backdrop create index={} size={}x{}",
-                    backdropPoolPointer, width, height
-            );
+            target = new TextureTarget("AUI FilterTarget", width, height, true, true);
+            FILTER_POOL.add(target);
         }
-        backdropPoolPointer++;
-
-//        if (shouldLog("backdrop.copy", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] backdrop copy source={}x{} target={}x{} index={} srcTex={} dstTex={}",
-//                    width, height, temp.width, temp.height, backdropPoolPointer - 1,
-//                    source.getColorTextureId(), temp.getColorTextureId()
-//            );
-//        }
-
-        temp.setClearColor(0f, 0f, 0f, 0f);
-        temp.clear(ON_OSX);
-
-        int prevFbo = GlStateManager.getBoundFramebuffer();
-        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, source.frameBufferId);
-        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, temp.frameBufferId);
-        GlStateManager._glBlitFrameBuffer(
-                0, 0, width, height,
-                0, 0, temp.width, temp.height,
-                GL11.GL_COLOR_BUFFER_BIT,
-                GL11.GL_NEAREST
-        );
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, prevFbo);
-
-        return temp;
+        poolPointer++;
+        return target;
     }
 
-    private static void setupUniforms(ShaderInstance shader, Filter.FilterState state, RenderTarget fbo, boolean forceAlpha) {
-        if (shader.getUniform("BlurRadius") != null) shader.getUniform("BlurRadius").set(state.blurRadius());
-        if (shader.getUniform("Brightness") != null) shader.getUniform("Brightness").set(state.brightness());
-        if (shader.getUniform("Grayscale") != null) shader.getUniform("Grayscale").set(state.grayscale());
-        if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
-        if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
-        if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
-        if (shader.getUniform("ShadowOffset") != null) shader.getUniform("ShadowOffset").set(state.dropShadowX(), state.dropShadowY());
-        if (shader.getUniform("ShadowBlur") != null) shader.getUniform("ShadowBlur").set(state.dropShadowBlur());
-        if (shader.getUniform("ShadowColor") != null) {
+    private static TextureTarget acquireBackdropTarget(int width, int height) {
+        TextureTarget target;
+        if (backdropPointer < BACKDROP_POOL.size()) {
+            target = BACKDROP_POOL.get(backdropPointer);
+            if (target.width != width || target.height != height) {
+                target.resize(width, height);
+            }
+        } else {
+            target = new TextureTarget("AUI BackdropTarget", width, height, true, true);
+            BACKDROP_POOL.add(target);
+        }
+        backdropPointer++;
+        return target;
+    }
+
+    private static void clearTarget(RenderTarget target) {
+        if (target == null) return;
+        GpuTexture color = target.getColorTexture();
+        GpuTexture depth = target.getDepthTexture();
+        if (color == null) return;
+
+        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        if (depth != null) {
+            encoder.clearColorAndDepthTextures(color, 0, depth, 1.0);
+            try {
+                encoder.clearStencilTexture(depth, 0);
+            } catch (Throwable ignored) {
+                // 某些深度格式可能不支持 stencil ，忽略掉
+            }
+        } else {
+            encoder.clearColorTexture(color, 0);
+        }
+    }
+
+    private static void ensureUbo() {
+        if (filterUbo != null) return;
+        filterUbo = new MappableRingBuffer(() -> "AUI Filter UBO", GpuBuffer.USAGE_MAP_WRITE | GpuBuffer.USAGE_UNIFORM, FILTER_UBO_SIZE);
+    }
+
+    private static void writeFilterUbo(Filter.FilterState state, int inW, int inH, float guiW, float guiH, boolean forceAlpha, Rect clipRect) {
+        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        try (GpuBuffer.MappedView view = encoder.mapBuffer(filterUbo.currentBuffer(), false, true)) {
+            Std140Builder b = Std140Builder.intoBuffer(view.data());
+
+            b.putVec2(inW, inH);
+            b.putVec2(guiW, guiH);
+
+            b.putFloat(state.blurRadius());
+            b.putFloat(state.brightness());
+            b.putFloat(state.grayscale());
+            b.putFloat(state.invert());
+            b.putFloat(state.hueRotate());
+            b.putFloat(state.opacity());
+
+            b.putVec2(state.dropShadowX(), state.dropShadowY());
+            b.putFloat(state.dropShadowBlur());
+
             int c = state.dropShadowColor();
             float a = ((c >>> 24) & 0xFF) / 255f;
             float r = ((c >>> 16) & 0xFF) / 255f;
             float g = ((c >>> 8) & 0xFF) / 255f;
-            float b = (c & 0xFF) / 255f;
-            shader.getUniform("ShadowColor").set(r, g, b, a);
-        }
-        if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float) fbo.width, (float) fbo.height);
-        if (shader.getUniform("ForceAlpha") != null) shader.getUniform("ForceAlpha").set(forceAlpha ? 1.0f : 0.0f);
-        if (shader.getUniform("ClipEnabled") != null) shader.getUniform("ClipEnabled").set(0.0f);
-        if (shader.getUniform("GuiSize") != null) {
-            shader.getUniform("GuiSize").set((float) Client.getWindow().getGuiScaledWidth(), (float) Client.getWindow().getGuiScaledHeight());
+            float bb = (c & 0xFF) / 255f;
+            b.putVec4(r, g, bb, a);
+
+            b.putFloat(forceAlpha ? 1.0f : 0.0f);
+
+            if (clipRect != null) {
+                Position p = clipRect.getBodyRectPosition();
+                Size s = clipRect.getBodyRectSize();
+                float[] radii = clipRect.getBodyRadius();
+
+                b.putVec4((float) p.x, (float) p.y, (float) s.width(), (float) s.height());
+                if (radii != null && radii.length >= 4) {
+                    b.putVec4(radii[0], radii[1], radii[2], radii[3]);
+                } else {
+                    b.putVec4(0, 0, 0, 0);
+                }
+                b.putFloat(1.0f);
+            } else {
+                b.putVec4(0, 0, 0, 0);
+                b.putVec4(0, 0, 0, 0);
+                b.putFloat(0.0f);
+            }
         }
     }
 
-    private static void setupBackdropClipUniforms(ShaderInstance shader, Rect rect, float guiW, float guiH) {
-        if (shader.getUniform("ClipEnabled") == null) return;
-        Position p = rect.getBodyRectPosition();
-        Size s = rect.getBodyRectSize();
-        float[] radii = rect.getBodyRadius();
-        shader.getUniform("ClipEnabled").set(1.0f);
-        if (shader.getUniform("ClipRect") != null) {
-            shader.getUniform("ClipRect").set((float) p.x, (float) p.y, (float) s.width(), (float) s.height());
+    private static GpuTextureView currentColorView() {
+        if (RenderSystem.outputColorTextureOverride != null) {
+            return RenderSystem.outputColorTextureOverride;
         }
-        if (shader.getUniform("ClipRadii") != null && radii != null && radii.length >= 4) {
-            shader.getUniform("ClipRadii").set(radii[0], radii[1], radii[2], radii[3]);
+        return Minecraft.getInstance().getMainRenderTarget().getColorTextureView();
+    }
+
+    private static GpuTextureView currentDepthViewOrNull() {
+        if (RenderSystem.outputDepthTextureOverride != null) {
+            return RenderSystem.outputDepthTextureOverride;
         }
-        if (shader.getUniform("GuiSize") != null) {
-            shader.getUniform("GuiSize").set(guiW, guiH);
-        }
-//        if (shouldLog("drawBackdrop.clip", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] drawBackdropWithShader clip rect=({}, {}) size=({}, {}) radii=({}, {}, {}, {}) gui=({}, {})",
-//                    p.x, p.y, s.width(), s.height(),
-//                    radii[0], radii[1], radii[2], radii[3],
-//                    guiW, guiH
-//            );
-//        }
+        var main = Minecraft.getInstance().getMainRenderTarget();
+        return main.useDepth ? main.getDepthTextureView() : null;
+    }
+
+    private record FilterLayer(
+            TextureTarget target,
+            GpuTextureView prevColorOverride,
+            GpuTextureView prevDepthOverride,
+            Mask.MaskState savedMaskState
+    ) {
     }
 }

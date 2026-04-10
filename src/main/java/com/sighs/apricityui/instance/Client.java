@@ -4,37 +4,35 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.ChatFormatting;
-import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.RenderGuiEvent;
-import net.minecraftforge.client.event.ScreenEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.util.StringUtil;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.ScreenEvent;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class Client {
     public static final HashMap<String, Integer> KEY_MAP = new HashMap<>();
     private static int lastWindowWidth = -1;
@@ -173,7 +171,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void icon(TickEvent.ClientTickEvent event) {
+    public static void icon(ClientTickEvent.Pre event) {
         if (Minecraft.getInstance().screen instanceof TitleScreen) {
             if (Document.get("apricityui/icon.html").isEmpty()) Document.create("apricityui/icon.html");
         } else Document.remove("apricityui/icon.html");
@@ -184,42 +182,21 @@ public class Client {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
+        // 由于不可抗拒原因？，这里需以 pip 形式渲染
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
-            for (Document document : Document.getAll()) {
-                if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
-                }
-            }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
-//            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
-        }
-    }
-
-    @SubscribeEvent
-    public static void drawOverlay(RenderGuiEvent.Post event) {
-        if (Minecraft.getInstance().screen == null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
-            // Shared item render pass for DOM <slot> (createDocument path).
-            for (Document document : Document.getAll()) {
-                if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
-                }
-            }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
-//            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
+            ApricityGuiLayers.submitOverlay(event.getGuiGraphics());
         }
     }
 
     @SubscribeEvent
     public static void scroll(InputEvent.MouseScrollingEvent event) {
         if (Minecraft.getInstance().screen != null) return;
-        boolean consumed = Operation.scroll(event.getScrollDelta());
+        boolean consumed = Operation.scroll(event.getScrollDeltaY());
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
                 MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
-                mouseEvent.scrollDelta = -event.getScrollDelta() * 50;
+                mouseEvent.scrollDelta = -event.getScrollDeltaY() * 50;
                 consumed |= MouseEvent.tiggerEvent(mouseEvent, window.document);
             }
         }
@@ -228,15 +205,16 @@ public class Client {
 
     @SubscribeEvent
     public static void scroll(ScreenEvent.MouseScrolled.Pre event) {
-        if (Operation.scroll(event.getScrollDelta())) {
+        if (Operation.scroll(event.getScrollDeltaY())) {
             event.setCanceled(true);
         }
     }
 
     @SubscribeEvent
     public static void onCharTyped(ScreenEvent.CharacterTyped.Pre event) {
-        if (SharedConstants.isAllowedChatCharacter(event.getCodePoint())) {
-            if (Operation.onCharTyped(event.getCodePoint())) event.setCanceled(true);
+        int codePoint = event.getCodePoint();
+        if (StringUtil.isAllowedChatCharacter(codePoint)) {
+            if (Operation.onCharTyped((char) codePoint)) event.setCanceled(true);
         }
     }
 
@@ -263,8 +241,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void mouseMove(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
+    public static void mouseMove(ClientTickEvent.Post event) {
             Operation.onMouseMove(getMousePosition());
             for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
                 Position realPos = window.getRealPos();
@@ -274,7 +251,6 @@ public class Client {
                 }
             }
         }
-    }
 
     @SubscribeEvent
     public static void onKeyPressed(InputEvent.Key event) {
@@ -322,8 +298,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void tick(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.START) {
+    public static void tick(ClientTickEvent.Pre event) {
             Runtime.tick();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
@@ -337,7 +312,6 @@ public class Client {
                 Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
             }
         }
-    }
 
     /**
      * FIXME:
@@ -360,7 +334,7 @@ public class Client {
     /** 通过 GLFW 直接从窗口句柄获取实时坐标 */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
-        long handle = window.getWindow();
+        long handle = window.handle();
         if (handle != 0L) {
             double[] xBuf = new double[1];
             double[] yBuf = new double[1];
@@ -376,7 +350,7 @@ public class Client {
         }
 
         Minecraft minecraft = Minecraft.getInstance();
-        long windowHandle = minecraft.getWindow().getWindow();
+        long windowHandle = minecraft.getWindow().handle();
         if (windowHandle == 0L) return false;
 
         try {

@@ -5,12 +5,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.decoration.ArmorStand;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class WorldWindowTestSpawner {
     private static final String TEST_DOC_PATH = "tests/world-window-acceptance.html";
     private static final float TEST_WIDTH = 150.0f;
@@ -20,8 +20,7 @@ public class WorldWindowTestSpawner {
     private static WorldWindow lastWindow;
 
     @SubscribeEvent
-    public static void onClientTick(TickEvent.ClientTickEvent event) {
-        if (event.phase != TickEvent.Phase.END) return;
+    public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft mc = Minecraft.getInstance();
         if (mc.level == null || mc.player == null) return;
 

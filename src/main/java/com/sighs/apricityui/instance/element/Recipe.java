@@ -3,7 +3,7 @@ package com.sighs.apricityui.instance.element;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -16,10 +16,10 @@ public class Recipe extends MinecraftElement {
         super(document, TAG_NAME);
     }
 
-    public ResourceLocation parseRecipeIdFromInnerText() {
+    public Identifier parseRecipeIdFromInnerText() {
         String normalized = normalizeRecipeIdLiteral(innerText);
         if (normalized.isBlank()) return null;
-        return ResourceLocation.tryParse(normalized);
+        return Identifier.tryParse(normalized);
     }
 
     public boolean clearGeneratedRecipeSlots() {

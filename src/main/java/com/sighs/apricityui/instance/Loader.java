@@ -14,13 +14,13 @@ import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
-import net.minecraftforge.fml.loading.FMLPaths;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
+import net.neoforged.fml.loading.FMLPaths;
 import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
-@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID)
+@EventBusSubscriber(modid = ApricityUI.MODID)
 public class Loader {
     private static final String DEV_ASSET_ROOT = "src/main/resources/assets/apricityui/apricity";
     public enum ResourceLayer {
@@ -102,7 +102,7 @@ public class Loader {
             if (Files.exists(local)) return Files.newInputStream(local);
 
             // 资源包
-            ResourceLocation rl = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
+            Identifier rl = Identifier.fromNamespaceAndPath(ApricityUI.MODID, "apricity/" + path);
             Optional<Resource> res = Minecraft.getInstance().getResourceManager().getResource(rl);
             if (res.isPresent()) return res.get().open();
         } catch (IOException ignored) {
@@ -150,7 +150,7 @@ public class Loader {
     }
 
     private final String extension;
-    private BiConsumer<String, String> handler = (k, c) -> {
+    private BiConsumer<String, String> handler = (_, _) -> {
     };
 
     public Loader(String extension) {
@@ -166,10 +166,10 @@ public class Loader {
 
     private void loadFromResourcePack() {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity",
+        Map<Identifier, Resource> resources = manager.listResources("apricity",
                 loc -> loc.getPath().endsWith("." + extension));
 
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
+        for (Map.Entry<Identifier, Resource> entry : resources.entrySet()) {
             try (InputStream stream = entry.getValue().open()) {
                 String path = entry.getKey().getPath(); // "apricity/modid/index.html"
                 if (path.startsWith("apricity/")) path = path.substring(9);
@@ -253,9 +253,9 @@ public class Loader {
 
     private static void loadResourcePackEntries(Map<String, StaticResourceEntry> merged) {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity", loc -> true);
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
-            ResourceLocation location = entry.getKey();
+        Map<Identifier, Resource> resources = manager.listResources("apricity", _ -> true);
+        for (Map.Entry<Identifier, Resource> entry : resources.entrySet()) {
+            Identifier location = entry.getKey();
             String path = location.getPath();
             if (path.startsWith("apricity/")) path = path.substring(9);
             if (path.isBlank()) continue;

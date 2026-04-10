@@ -5,23 +5,23 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.WorldWindowPipelines;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector4f;
-import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class WorldWindow {
     static final List<WorldWindow> windows = new ArrayList<>();
 
@@ -70,9 +70,9 @@ public class WorldWindow {
         return height;
     }
 
-    public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
+    public void render(PoseStack poseStack) {
         Minecraft mc = Minecraft.getInstance();
-        Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
+        Vec3 cameraPos = mc.gameRenderer.getMainCamera().position();
 
         poseStack.pushPose();
         poseStack.translate(
@@ -92,30 +92,23 @@ public class WorldWindow {
         poseStack.last().pose().set(poseStack.last().pose());
         poseStack.last().normal().set(poseStack.last().normal());
 
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthFunc(GL11.GL_LEQUAL);
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        // Depth bias to avoid z-fighting with world geometry.
-        RenderSystem.enablePolygonOffset();
-        RenderSystem.polygonOffset(-1.0f, -1.0f);
-
         float desiredWorldStep = 0.0020f;
         float safeScale = Math.max(1.0e-4f, scale);
         float localStep = desiredWorldStep / safeScale;
         if (localStep > 0.2f) localStep = 0.2f;
-        Base.pushDepthStep(localStep);
-        Base.pushDepthMode(true);
-        try {
-            Base.drawDocument(poseStack, document);
-        } finally {
-            Base.popDepthMode();
-            Base.popDepthStep();
-        }
+        final float depthStep = localStep;
+        RenderSystem.renderWithPipelineModifier(WorldWindowPipelines.WORLD_WINDOW_UI, () -> {
+            Base.pushDepthStep(depthStep);
+            Base.pushDepthMode(true);
+            try {
+                Base.drawDocument(poseStack, document);
+            } finally {
+                Base.popDepthMode();
+                Base.popDepthStep();
+            }
 
-        bufferSource.endBatch();
-        RenderSystem.polygonOffset(0.0f, 0.0f);
-        RenderSystem.disablePolygonOffset();
+            bufferSource.endBatch();
+        });
 
         poseStack.popPose();
     }
@@ -136,13 +129,11 @@ public class WorldWindow {
     }
 
     @SubscribeEvent
-    public static void onRenderWorld(RenderLevelStageEvent event) {
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-            if (windows.isEmpty()) return;
+    public static void onRenderWorld(RenderLevelStageEvent.AfterTranslucentBlocks event) {
+        if (windows.isEmpty()) return;
 
-            for (WorldWindow window : windows) {
-                window.render(event.getPoseStack(), event.getProjectionMatrix(), event.getPartialTick());
-            }
+        for (WorldWindow window : windows) {
+            window.render(event.getPoseStack());
         }
     }
 
@@ -151,8 +142,9 @@ public class WorldWindow {
         Position invalid = new Position(-1, -1);
         if (mc.player == null) return null;
 
-        Vec3 rayOrigin = mc.player.getEyePosition(mc.getPartialTick());
-        Vec3 rayDir = mc.player.getViewVector(mc.getPartialTick());
+        float partialTick = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        Vec3 rayOrigin = mc.player.getEyePosition(partialTick);
+        Vec3 rayDir = mc.player.getViewVector(partialTick);
 
         Matrix4f modelMatrix = new Matrix4f();
         modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);

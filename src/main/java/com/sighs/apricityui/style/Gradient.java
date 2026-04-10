@@ -29,7 +29,7 @@ public class Gradient {
 
     public int getColorAt(float x, float y, float bx, float by, float bw, float bh) {
         if (stops.isEmpty()) return 0xFFFFFFFF;
-        if (stops.size() == 1) return stops.get(0).color;
+        if (stops.size() == 1) return stops.getFirst().color;
 
         double angleRad = Math.toRadians(90 - angle);
         float cx = bx + bw / 2.0f;
@@ -61,7 +61,7 @@ public class Gradient {
                 return lerpColor(s1.color, s2.color, localT);
             }
         }
-        return stops.get(0).color;
+        return stops.getFirst().color;
     }
 
     private static int lerpColor(int c1, int c2, float t) {
@@ -118,8 +118,8 @@ public class Gradient {
 
     private void fixStops() {
         if (stops.isEmpty()) return;
-        if (stops.get(0).position < 0) stops.get(0).position = 0f;
-        if (stops.get(stops.size() - 1).position < 0) stops.get(stops.size() - 1).position = 1f;
+        if (stops.getFirst().position < 0) stops.getFirst().position = 0f;
+        if (stops.getLast().position < 0) stops.getLast().position = 1f;
 
         for (int i = 0; i < stops.size(); i++) {
             if (stops.get(i).position < 0) {

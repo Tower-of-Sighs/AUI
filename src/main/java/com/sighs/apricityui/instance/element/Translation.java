@@ -29,9 +29,7 @@ public class Translation extends Span {
                 text.content = Component.translatable(text.content).getString();
                 FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
             }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
-            }
+            case BORDER -> rectRenderer.drawBorder(poseStack);
         }
     }
 }

@@ -7,22 +7,25 @@ import com.sighs.apricityui.instance.ApricitySavedData;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
-import com.sighs.apricityui.instance.container.datasource.ForgeItemHandlerDataSource;
+import com.sighs.apricityui.instance.container.datasource.NeoForgeItemHandlerDataSource;
 import com.sighs.apricityui.instance.container.datasource.PlayerInventoryDataSource;
 import com.sighs.apricityui.instance.container.datasource.SavedDataDataSource;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.ItemStackHandler;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.item.ItemResource;
+import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 import java.util.*;
 
@@ -37,7 +40,7 @@ public class Container extends MinecraftElement {
     public int resolveSlotSizePx(int fallback) {
         int safeFallback = Math.max(1, fallback);
         String rawSlotSize = getAttribute("slot-size");
-        int parsedSize = com.sighs.apricityui.style.Size.parse(rawSlotSize);
+        int parsedSize = Size.parse(rawSlotSize);
         return parsedSize > 0 ? parsedSize : safeFallback;
     }
 
@@ -195,8 +198,8 @@ public class Container extends MinecraftElement {
         int declaredSlotCount = parsePositiveInt(args.get("slotCount"), Math.max(1, requiredCapacity));
         int initialCapacity = Math.max(1, Math.max(declaredSlotCount, requiredCapacity));
 
-        ApricitySavedData savedData = ApricitySavedData.get(player.server, dataName);
-        ItemStackHandler handler = savedData.getOrCreate(inventoryKey, initialCapacity, resizePolicy);
+        ApricitySavedData savedData = ApricitySavedData.get(player.level().getServer(), dataName);
+        ItemStacksResourceHandler handler = savedData.getOrCreate(inventoryKey, initialCapacity, resizePolicy);
         return new SavedDataDataSource(bindType, savedData, inventoryKey, handler);
     }
 
@@ -214,7 +217,7 @@ public class Container extends MinecraftElement {
 
         Direction side = parseDirection(args.get("side"));
         BlockPos pos = new BlockPos(x, y, z);
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = player.level();
         if (!level.hasChunkAt(pos)) {
             return null;
         }
@@ -223,19 +226,19 @@ public class Container extends MinecraftElement {
             return null;
         }
 
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, side).orElse(null);
-        if (handler == null || handler.getSlots() <= 0) {
+        ResourceHandler<ItemResource> handler = level.getCapability(Capabilities.Item.BLOCK, pos, side);
+        if (handler == null || handler.size() <= 0) {
             return null;
         }
 
         Class<?> expectedType = blockEntity.getClass();
         BlockPos immutablePos = pos.immutable();
-        return new ForgeItemHandlerDataSource(
+        return new NeoForgeItemHandlerDataSource(
                 bindType,
                 handler,
                 currentPlayer -> {
                     if (currentPlayer == null) return false;
-                    ServerLevel currentLevel = currentPlayer.serverLevel();
+                    ServerLevel currentLevel = currentPlayer.level();
                     if (!currentLevel.hasChunkAt(immutablePos)) return false;
                     BlockEntity current = currentLevel.getBlockEntity(immutablePos);
                     return expectedType.isInstance(current);
@@ -255,13 +258,13 @@ public class Container extends MinecraftElement {
         if (!(target instanceof LivingEntity livingEntity)) {
             return null;
         }
-        IItemHandler handler = livingEntity.getCapability(ForgeCapabilities.ITEM_HANDLER).orElse(null);
-        if (handler == null || handler.getSlots() <= 0) {
+        ResourceHandler<ItemResource> handler = livingEntity.getCapability(Capabilities.Item.ENTITY);
+        if (handler == null || handler.size() <= 0) {
             return null;
         }
 
         Class<?> expectedType = livingEntity.getClass();
-        return new ForgeItemHandlerDataSource(
+        return new NeoForgeItemHandlerDataSource(
                 bindType,
                 handler,
                 currentPlayer -> {
@@ -272,8 +275,9 @@ public class Container extends MinecraftElement {
     }
 
     private static Entity findEntityByUuid(ServerPlayer player, UUID uuid) {
-        if (player == null || player.server == null || uuid == null) return null;
-        for (ServerLevel level : player.server.getAllLevels()) {
+        if (player == null || uuid == null) return null;
+        MinecraftServer server = player.level().getServer();
+        for (ServerLevel level : server.getAllLevels()) {
             Entity entity = level.getEntity(uuid);
             if (entity != null) return entity;
         }
@@ -339,7 +343,7 @@ public class Container extends MinecraftElement {
         for (ContainerDraft draft : drafts) {
             if (draft.primary()) return draft.id();
         }
-        return drafts.isEmpty() ? "" : drafts.get(0).id();
+        return drafts.isEmpty() ? "" : drafts.getFirst().id();
     }
 
     private static String resolveTemplateContainerId(String rawId, int index) {

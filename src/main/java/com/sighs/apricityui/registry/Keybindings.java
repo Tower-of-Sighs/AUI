@@ -3,26 +3,30 @@ package com.sighs.apricityui.registry;
 import com.mojang.blaze3d.platform.InputConstants;
 import com.sighs.apricityui.ApricityUI;
 import net.minecraft.client.KeyMapping;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
-import net.minecraftforge.client.settings.KeyConflictContext;
-import net.minecraftforge.client.settings.KeyModifier;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.resources.Identifier;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RegisterKeyMappingsEvent;
+import net.neoforged.neoforge.client.settings.KeyConflictContext;
+import net.neoforged.neoforge.client.settings.KeyModifier;
+import net.neoforged.neoforge.common.util.Lazy;
 import org.lwjgl.glfw.GLFW;
 
-@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT, modid = ApricityUI.MODID)
+@EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class Keybindings {
-    public static final KeyMapping RELOAD = new KeyMapping("key.apricityui.reload",
+    public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath(ApricityUI.MODID, "categories.apricityui"));
+    public static final Lazy<KeyMapping> RELOAD = Lazy.of(() -> new KeyMapping("key.apricityui.reload",
             KeyConflictContext.GUI,
             KeyModifier.NONE,
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_END,
-            "key.categories.apricityui"
-    );
+            CATEGORY
+    ));
 
     @SubscribeEvent
     public static void registerKeyMapping(RegisterKeyMappingsEvent event) {
-        event.register(RELOAD);
+        event.registerCategory(CATEGORY);
+        event.register(RELOAD.get());
     }
 }

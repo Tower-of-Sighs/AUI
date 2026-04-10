@@ -44,9 +44,9 @@ public final class OpenBindPlan {
         if (override == null) return this;
 
         LinkedHashMap<String, ContainerOverride> mergedContainers = new LinkedHashMap<>(containersById);
-        override.containersById.forEach((containerId, overrideValue) -> {
-            mergedContainers.compute(containerId, (k, current) -> current == null ? overrideValue : current.merge(overrideValue));
-        });
+        override.containersById.forEach((containerId, overrideValue) ->
+                mergedContainers.compute(containerId, (_, current) ->
+                        current == null ? overrideValue : current.merge(overrideValue)));
 
         String mergedTemplatePath = override.templatePath.isBlank() ? templatePath : override.templatePath;
         String mergedPrimaryContainerId = override.primaryContainerIdOverride.isBlank()

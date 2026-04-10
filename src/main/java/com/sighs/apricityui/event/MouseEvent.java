@@ -49,7 +49,7 @@ public class MouseEvent extends Event implements Cloneable {
             boolean consumed = false;
             applyCursorForTopMostDocument(event);
             List<Document> docs = Document.getAll();
-            if (docs == null || docs.isEmpty()) return false;
+            if (docs.isEmpty()) return false;
 
             for (int i = docs.size() - 1; i >= 0; i--) {
                 Document document = docs.get(i);
@@ -72,7 +72,7 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static void applyCursorForTopMostDocument(MouseEvent event) {
         List<Document> docs = Document.getAll();
-        if (docs == null || docs.isEmpty()) {
+        if (docs.isEmpty()) {
             Cursor.resetToDefault();
             return;
         }
@@ -292,10 +292,10 @@ public class MouseEvent extends Event implements Cloneable {
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
 
-            if (node instanceof RenderNode.MaskPopNode popNode) {
-                clipStack.push(popNode.target());
-            } else if (node instanceof RenderNode.MaskPushNode pushNode) {
-                if (!clipStack.isEmpty() && clipStack.peek() == pushNode.target()) {
+            if (node instanceof RenderNode.MaskPopNode(Element target1)) {
+                clipStack.push(target1);
+            } else if (node instanceof RenderNode.MaskPushNode(Element target1)) {
+                if (!clipStack.isEmpty() && clipStack.peek() == target1) {
                     clipStack.pop();
                 }
             } else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {

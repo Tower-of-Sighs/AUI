@@ -1,18 +1,48 @@
 package com.sighs.apricityui.script;
 
-import dev.latvian.mods.kubejs.KubeJS;
-import net.minecraftforge.fml.ModList;
+import com.sighs.apricityui.script.bridge.ApricityScriptBridge;
+import net.neoforged.fml.ModList;
 
-public class ApricityJS {
-    public static void eval(String code) {
-        if (!ModList.get().isLoaded("kubejs")) return;
-        var manager = KubeJS.getClientScriptManager();
-        var context = manager.context;
-        var top = manager.topLevelScope;
-        context.evaluateString(top, code, "eval", 1, null);
+/**
+ * Facade for optional JS execution.
+ *
+ * <p>Implementation is loaded reflectively to avoid hard-linking against optional mods.</p>
+ */
+public final class ApricityJS {
+    private static final String NEKOJS_BRIDGE_CLASS = "com.sighs.apricityui.script.nekojs.NekoJsBridge";
+
+    private static volatile ApricityScriptBridge bridge;
+
+    private ApricityJS() {
     }
+
+    private static ApricityScriptBridge getBridge() {
+        ApricityScriptBridge cached = bridge;
+        if (cached != null) return cached;
+
+        if (!ModList.get().isLoaded("nekojs")) return null;
+
+        synchronized (ApricityJS.class) {
+            if (bridge != null) return bridge;
+            try {
+                Class<?> clazz = Class.forName(NEKOJS_BRIDGE_CLASS, true, ApricityJS.class.getClassLoader());
+                bridge = (ApricityScriptBridge) clazz.getDeclaredConstructor().newInstance();
+                return bridge;
+            } catch (Throwable ignored) {
+                return null;
+            }
+        }
+    }
+
+    public static void eval(String code) {
+        ApricityScriptBridge impl = getBridge();
+        if (impl == null) return;
+        impl.eval(code);
+    }
+
     public static void reload() {
-        if (!ModList.get().isLoaded("kubejs")) return;
-        KubeJS.PROXY.reloadClientInternal();
+        ApricityScriptBridge impl = getBridge();
+        if (impl == null) return;
+        impl.reload();
     }
 }

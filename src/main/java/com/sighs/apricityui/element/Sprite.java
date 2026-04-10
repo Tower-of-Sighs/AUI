@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
+import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.style.Animation;
 
 import java.util.*;
@@ -32,7 +33,7 @@ public class Sprite extends Div {
     private String managedInlineStyle = "";
 
     static {
-        Element.register(TAG_NAME, (document, string) -> new Sprite(document));
+        Element.register(TAG_NAME, (document, _) -> new Sprite(document));
     }
 
     // true 表示等待异步图片尺寸就绪后再重建 sprite 动画。
@@ -101,8 +102,8 @@ public class Sprite extends Div {
         super.tick();
         if (!frameMetricsPending || pendingFrameMetricsSrc.isBlank()) return;
 
-        com.sighs.apricityui.resource.async.image.ImageHandle handle =
-                com.sighs.apricityui.resource.async.image.ImageAsyncHandler.INSTANCE
+        var handle =
+                ImageAsyncHandler.INSTANCE
                         .request(pendingFrameMetricsSrc, this, false);
         if (!isHandleReady(handle)) return;
 
@@ -221,8 +222,8 @@ public class Sprite extends Div {
 
     // 通过异步图片句柄推导帧尺寸；纹理未就绪时返回 null 并等待后续 tick 重建。
     private FrameMetrics resolveFrameMetrics(String resolvedSrc, int steps, SpriteSpec.Direction direction) {
-        com.sighs.apricityui.resource.async.image.ImageHandle handle =
-                com.sighs.apricityui.resource.async.image.ImageAsyncHandler.INSTANCE
+        var handle =
+                ImageAsyncHandler.INSTANCE
                         .request(resolvedSrc, this, false);
         if (!isHandleReady(handle)) {
             markPendingFrameMetrics(resolvedSrc);
@@ -230,8 +231,8 @@ public class Sprite extends Div {
         }
 
         clearPendingFrameMetrics();
-        int textureW = handle.texture().getWidth();
-        int textureH = handle.texture().getHeight();
+        int textureW = handle.texture().width();
+        int textureH = handle.texture().height();
         if (textureW <= 0 || textureH <= 0) {
             warnInvalidFrameMetrics("图片尺寸非法", resolvedSrc, steps, direction, textureW, textureH);
             return null;

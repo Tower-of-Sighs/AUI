@@ -4,7 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 
 import java.net.URI;
 

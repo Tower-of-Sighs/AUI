@@ -50,13 +50,13 @@ public final class ToastManager {
         item.innerText = content;
         item.setAttribute("style", buildItemStyle(safe));
         if (safe.dismissOnClick()) {
-            item.addEventListener("click", event -> dismiss(id));
+            item.addEventListener("click", _ -> dismiss(id));
         }
         overlay.list().prepend(item);
         ACTIVE.put(id, new ToastRef(overlay.document().getUuid(), id));
 
         if (safe.durationMs() > 0) {
-            Window.window.setTimeout(c -> dismiss(id), safe.durationMs());
+            Window.window.setTimeout(_ -> dismiss(id), safe.durationMs());
         }
         return id;
     }
@@ -79,10 +79,10 @@ public final class ToastManager {
     }
 
     private static Overlay ensureOverlay() {
-        Document document = null;
+        Document document;
         var docs = Document.get(DOC_PATH);
         if (!docs.isEmpty()) {
-            document = docs.get(0);
+            document = docs.getFirst();
         } else {
             HTML.putTemple(DOC_PATH, DOC_TEMPLATE);
             document = Document.create(DOC_PATH);

@@ -1,5 +1,7 @@
 package com.sighs.apricityui.instance.dom.expander;
 
+import com.google.gson.JsonElement;
+import com.mojang.serialization.JsonOps;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -8,14 +10,21 @@ import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
+import net.minecraft.core.Registry;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.RegistryOps;
+import net.minecraft.util.context.ContextMap;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RecipesUpdatedEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
+import net.minecraft.world.item.crafting.display.RecipeDisplay;
+import net.minecraft.world.item.crafting.display.SlotDisplayContext;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.event.RecipesReceivedEvent;
 
 import java.util.*;
 
@@ -48,7 +57,7 @@ public final class RecipeExpander {
 
         changed |= setAttributeIfChanged(recipe, "data-recipe-type", declaredType.id());
 
-        ResourceLocation recipeId = recipe.parseRecipeIdFromInnerText();
+        Identifier recipeId = recipe.parseRecipeIdFromInnerText();
         if (recipeId == null) {
             String message = "Recipe preview skipped: invalid recipe id in innerText";
             ApricityUI.LOGGER.warn("{}, innerText={}", message, recipe.innerText);
@@ -155,7 +164,7 @@ public final class RecipeExpander {
         private static final String AIR_ITEM_LITERAL = "minecraft:air";
         private static final int MAX_CACHE_SIZE = 256;
         private static final LinkedHashMap<RecipeCacheKey, ResolveResult> CACHE =
-                new LinkedHashMap<RecipeCacheKey, ResolveResult>(64, 0.75f, true) {
+                new LinkedHashMap<>(64, 0.75f, true) {
                     @Override
                     protected boolean removeEldestEntry(Map.Entry<RecipeCacheKey, ResolveResult> eldest) {
                         return size() > MAX_CACHE_SIZE;
@@ -165,7 +174,7 @@ public final class RecipeExpander {
         private RecipeResolver() {
         }
 
-        public static synchronized ResolveResult resolve(ResourceLocation recipeId, DeclaredType declaredType) {
+        public static synchronized ResolveResult resolve(Identifier recipeId, DeclaredType declaredType) {
             if (recipeId == null || declaredType == null) {
                 return ResolveResult.empty("Recipe cache key is invalid");
             }
@@ -181,29 +190,25 @@ public final class RecipeExpander {
             CACHE.clear();
         }
 
-        private static ResolveResult buildPreview(ResourceLocation recipeId, DeclaredType declaredType) {
+        private static ResolveResult buildPreview(Identifier recipeId, DeclaredType declaredType) {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft.level == null) {
                 return ResolveResult.empty("Client level is not available");
             }
 
-            RecipeManager recipeManager = minecraft.level.getRecipeManager();
-            if (recipeManager == null) {
-                return ResolveResult.empty("Recipe manager is not available");
-            }
-
-            Optional<? extends net.minecraft.world.item.crafting.Recipe<?>> recipeOptional = recipeManager.byKey(recipeId);
-            if (recipeOptional.isEmpty()) {
+            RegistryAccess registryAccess = minecraft.level.registryAccess();
+            Registry<net.minecraft.world.item.crafting.Recipe<?>> recipeRegistry = registryAccess.lookupOrThrow(Registries.RECIPE);
+            ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> recipeKey = ResourceKey.create(Registries.RECIPE, recipeId);
+            net.minecraft.world.item.crafting.Recipe<?> recipe = recipeRegistry.getValue(recipeKey);
+            if (recipe == null) {
                 return ResolveResult.empty("Recipe not found");
             }
 
-            net.minecraft.world.item.crafting.Recipe<?> recipe = recipeOptional.get();
             if (!declaredType.matches(recipe)) {
                 return ResolveResult.empty("Recipe type mismatch: declared=%s, actual=%s"
                         .formatted(declaredType.id(), recipe.getClass().getSimpleName()));
             }
 
-            RegistryAccess registryAccess = minecraft.level.registryAccess();
             ArrayList<PreviewEntry> absoluteEntries = new ArrayList<>();
             ArrayList<PreviewEntry> listEntries = new ArrayList<>();
             LayoutKind layoutKind = declaredType.layoutKind();
@@ -231,7 +236,7 @@ public final class RecipeExpander {
                     if (!(recipe instanceof StonecutterRecipe stonecutterRecipe)) {
                         return ResolveResult.empty("Declared stonecutting but recipe is not StonecutterRecipe");
                     }
-                    buildStonecuttingEntries(stonecutterRecipe, recipeManager, absoluteEntries, listEntries, registryAccess);
+                    buildStonecuttingEntries(stonecutterRecipe, absoluteEntries, listEntries, registryAccess);
                 }
                 case SMITHING -> {
                     if (!(recipe instanceof SmithingRecipe smithingRecipe)) {
@@ -252,20 +257,20 @@ public final class RecipeExpander {
         ) {
             int width = Math.max(1, recipe.getWidth());
             int height = Math.max(1, recipe.getHeight());
-            List<Ingredient> ingredients = recipe.getIngredients();
+            List<Optional<Ingredient>> ingredients = recipe.getIngredients();
 
             for (int row = 0; row < 3; row++) {
                 for (int col = 0; col < 3; col++) {
-                    Ingredient ingredient = Ingredient.EMPTY;
+                    Ingredient ingredient = null;
                     int shapedIndex = row * width + col;
                     if (row < height && col < width && shapedIndex >= 0 && shapedIndex < ingredients.size()) {
-                        ingredient = ingredients.get(shapedIndex);
+                        ingredient = ingredients.get(shapedIndex).orElse(null);
                     }
-                    output.add(toIngredientEntryOrAir(ingredient, PreviewRole.INPUT));
+                    output.add(toIngredientEntryOrAir(ingredient, PreviewRole.INPUT, registryAccess));
                 }
             }
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = resolveRecipeResult(recipe, registryAccess);
             output.add(toEntryOrAir(result, PreviewRole.OUTPUT));
         }
 
@@ -274,13 +279,13 @@ public final class RecipeExpander {
                 List<PreviewEntry> output,
                 RegistryAccess registryAccess
         ) {
-            List<Ingredient> ingredients = recipe.getIngredients();
+            List<Ingredient> ingredients = recipe.placementInfo().ingredients();
             for (int slot = 0; slot < 9; slot++) {
-                Ingredient ingredient = slot < ingredients.size() ? ingredients.get(slot) : Ingredient.EMPTY;
-                output.add(toIngredientEntryOrAir(ingredient, PreviewRole.INPUT));
+                Ingredient ingredient = slot < ingredients.size() ? ingredients.get(slot) : null;
+                output.add(toIngredientEntryOrAir(ingredient, PreviewRole.INPUT, registryAccess));
             }
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = resolveRecipeResult(recipe, registryAccess);
             output.add(toEntryOrAir(result, PreviewRole.OUTPUT));
         }
 
@@ -289,11 +294,8 @@ public final class RecipeExpander {
                 List<PreviewEntry> output,
                 RegistryAccess registryAccess
         ) {
-            List<Ingredient> ingredients = recipe.getIngredients();
-            if (!ingredients.isEmpty()) {
-                PreviewEntry inputEntry = toIngredientEntry(ingredients.get(0), PreviewRole.INPUT);
-                if (inputEntry != null) output.add(inputEntry);
-            }
+            PreviewEntry inputEntry = toIngredientEntry(recipe.input(), PreviewRole.INPUT, registryAccess);
+            if (inputEntry != null) output.add(inputEntry);
 
             PreviewEntry fuelEntry = toLiteralEntry(
                     Slot.furnaceFuelVirtualTagLiteral(),
@@ -301,27 +303,23 @@ public final class RecipeExpander {
             );
             output.add(fuelEntry);
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = resolveRecipeResult(recipe, registryAccess);
             PreviewEntry resultEntry = toEntry(result, PreviewRole.OUTPUT);
             if (resultEntry != null) output.add(resultEntry);
         }
 
         private static void buildStonecuttingEntries(
                 StonecutterRecipe recipe,
-                RecipeManager recipeManager,
                 List<PreviewEntry> absoluteOutput,
                 List<PreviewEntry> listOutput,
                 RegistryAccess registryAccess
         ) {
-            List<Ingredient> ingredients = recipe.getIngredients();
-            if (!ingredients.isEmpty()) {
-                PreviewEntry inputEntry = toIngredientEntry(ingredients.get(0), PreviewRole.INPUT);
-                if (inputEntry != null) absoluteOutput.add(inputEntry);
-            }
+            PreviewEntry inputEntry = toIngredientEntry(recipe.input(), PreviewRole.INPUT, registryAccess);
+            if (inputEntry != null) absoluteOutput.add(inputEntry);
 
-            ArrayList<ItemStack> outputs = collectStonecuttingOutputs(recipe, recipeManager, registryAccess);
+            ArrayList<ItemStack> outputs = collectStonecuttingOutputs(recipe, registryAccess);
             if (outputs.isEmpty()) {
-                ItemStack result = recipe.getResultItem(registryAccess);
+                ItemStack result = resolveRecipeResult(recipe, registryAccess);
                 if (!result.isEmpty()) outputs.add(result.copy());
             }
 
@@ -333,39 +331,35 @@ public final class RecipeExpander {
 
         private static ArrayList<ItemStack> collectStonecuttingOutputs(
                 StonecutterRecipe recipe,
-                RecipeManager recipeManager,
                 RegistryAccess registryAccess
         ) {
             ArrayList<ItemStack> result = new ArrayList<>();
-            List<Ingredient> ingredients = recipe.getIngredients();
-            if (ingredients.isEmpty()) return result;
-
-            Ingredient selectedIngredient = ingredients.get(0);
+            Ingredient selectedIngredient = recipe.input();
             ItemStack selectedInput = pickDisplayStack(selectedIngredient);
             if (selectedInput.isEmpty()) return result;
 
-            HashSet<ResourceLocation> dedup = new HashSet<>();
-            List<StonecutterRecipe> candidates = recipeManager.getAllRecipesFor(RecipeType.STONECUTTING);
-            for (StonecutterRecipe candidateRecipe : candidates) {
-                List<Ingredient> candidateIngredients = candidateRecipe.getIngredients();
-                if (candidateIngredients.isEmpty()) continue;
-                Ingredient candidateIngredient = candidateIngredients.get(0);
-                if (!(candidateIngredient.test(selectedInput) || selectedIngredient.test(pickDisplayStack(candidateIngredient)))) {
-                    continue;
-                }
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft.level == null) return result;
 
-                ItemStack candidateResult = candidateRecipe.getResultItem(registryAccess);
+            ContextMap context = slotDisplayContext(registryAccess);
+            SelectableRecipe.SingleInputSet<StonecutterRecipe> candidates = minecraft.level.recipeAccess()
+                    .stonecutterRecipes()
+                    .selectByInput(selectedInput);
+
+            HashSet<Identifier> dedup = new HashSet<>();
+            for (SelectableRecipe.SingleInputEntry<StonecutterRecipe> entry : candidates.entries()) {
+                ItemStack candidateResult = entry.recipe().optionDisplay().resolveForFirstStack(context);
                 if (candidateResult.isEmpty()) continue;
-                ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(candidateResult.getItem());
-                if (itemId == null || !dedup.add(itemId)) continue;
+                Identifier itemId = BuiltInRegistries.ITEM.getKey(candidateResult.getItem());
+                if (!dedup.add(itemId)) continue;
                 result.add(candidateResult.copy());
             }
 
             result.sort((a, b) -> {
-                ResourceLocation ida = BuiltInRegistries.ITEM.getKey(a.getItem());
-                ResourceLocation idb = BuiltInRegistries.ITEM.getKey(b.getItem());
-                String sa = ida == null ? "" : ida.toString();
-                String sb = idb == null ? "" : idb.toString();
+                Identifier ida = BuiltInRegistries.ITEM.getKey(a.getItem());
+                Identifier idb = BuiltInRegistries.ITEM.getKey(b.getItem());
+                String sa = ida.toString();
+                String sb = idb.toString();
                 return sa.compareTo(sb);
             });
             return result;
@@ -376,21 +370,20 @@ public final class RecipeExpander {
                 List<PreviewEntry> output,
                 RegistryAccess registryAccess
         ) {
-            List<Ingredient> ingredients = recipe.getIngredients();
-            int limit = Math.min(3, ingredients.size());
-            for (int index = 0; index < limit; index++) {
-                Ingredient ingredient = ingredients.get(index);
-                PreviewRole role = switch (index) {
-                    case 0 -> PreviewRole.TEMPLATE;
-                    case 1 -> PreviewRole.INPUT;
-                    case 2 -> PreviewRole.ADDITION;
-                    default -> PreviewRole.INPUT;
-                };
-                PreviewEntry entry = toIngredientEntry(ingredient, role);
-                if (entry != null) output.add(entry);
-            }
+            recipe.templateIngredient().ifPresent(template -> {
+                PreviewEntry templateEntry = toIngredientEntry(template, PreviewRole.TEMPLATE, registryAccess);
+                if (templateEntry != null) output.add(templateEntry);
+            });
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            PreviewEntry baseEntry = toIngredientEntry(recipe.baseIngredient(), PreviewRole.INPUT, registryAccess);
+            if (baseEntry != null) output.add(baseEntry);
+
+            recipe.additionIngredient().ifPresent(addition -> {
+                PreviewEntry additionEntry = toIngredientEntry(addition, PreviewRole.ADDITION, registryAccess);
+                if (additionEntry != null) output.add(additionEntry);
+            });
+
+            ItemStack result = resolveRecipeResult(recipe, registryAccess);
             PreviewEntry resultEntry = toEntry(result, PreviewRole.OUTPUT);
             if (resultEntry != null) output.add(resultEntry);
         }
@@ -400,36 +393,34 @@ public final class RecipeExpander {
                 List<PreviewEntry> output,
                 RegistryAccess registryAccess
         ) {
-            List<Ingredient> ingredients = recipe.getIngredients();
+            List<Ingredient> ingredients = recipe.placementInfo().ingredients();
             int visualIndex = 0;
             for (Ingredient ingredient : ingredients) {
-                PreviewEntry inputEntry = toIngredientEntry(ingredient, PreviewRole.INPUT);
+                PreviewEntry inputEntry = toIngredientEntry(ingredient, PreviewRole.INPUT, registryAccess);
                 if (inputEntry == null) continue;
                 output.add(inputEntry);
                 visualIndex++;
                 if (visualIndex >= 8) break;
             }
 
-            ItemStack result = recipe.getResultItem(registryAccess);
+            ItemStack result = resolveRecipeResult(recipe, registryAccess);
             PreviewEntry outputEntry = toEntry(result, PreviewRole.OUTPUT);
             if (outputEntry != null) output.add(outputEntry);
         }
 
         private static ItemStack pickDisplayStack(Ingredient ingredient) {
             if (ingredient == null) return ItemStack.EMPTY;
-            ItemStack[] options = ingredient.getItems();
-            if (options == null) return ItemStack.EMPTY;
-            for (ItemStack candidate : options) {
-                if (candidate == null || candidate.isEmpty()) continue;
-                return candidate.copy();
-            }
-            return ItemStack.EMPTY;
+            return ingredient.items()
+                    .map(holder -> new ItemStack(holder.value()))
+                    .filter(stack -> !stack.isEmpty())
+                    .findFirst()
+                    .map(ItemStack::copy)
+                    .orElse(ItemStack.EMPTY);
         }
 
         private static PreviewEntry toEntry(ItemStack stack, PreviewRole role) {
             if (stack == null || stack.isEmpty()) return null;
-            ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            if (itemId == null) return null;
+            Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
             int count = Math.max(1, stack.getCount());
             String expression = Slot.buildLiteralWithCount(itemId.toString(), count);
             return new PreviewEntry(role, expression);
@@ -450,7 +441,7 @@ public final class RecipeExpander {
         }
 
         private static PreviewEntry toIngredientEntry(Ingredient ingredient, PreviewRole role) {
-            String expression = toIngredientExpression(ingredient);
+            String expression = toIngredientExpression(ingredient, null);
             if (expression.isBlank()) return null;
             return new PreviewEntry(role, expression);
         }
@@ -461,13 +452,59 @@ public final class RecipeExpander {
             return toLiteralEntry(AIR_ITEM_LITERAL, role);
         }
 
-        private static String toIngredientExpression(Ingredient ingredient) {
+        private static PreviewEntry toIngredientEntry(Ingredient ingredient, PreviewRole role, RegistryAccess registryAccess) {
+            String expression = toIngredientExpression(ingredient, registryAccess);
+            if (expression.isBlank()) return null;
+            return new PreviewEntry(role, expression);
+        }
+
+        private static PreviewEntry toIngredientEntryOrAir(Ingredient ingredient, PreviewRole role, RegistryAccess registryAccess) {
+            PreviewEntry direct = toIngredientEntry(ingredient, role, registryAccess);
+            if (direct != null) return direct;
+            return toLiteralEntry(AIR_ITEM_LITERAL, role);
+        }
+
+        private static String toIngredientExpression(Ingredient ingredient, RegistryAccess registryAccess) {
             if (ingredient == null || ingredient.isEmpty()) return "";
             try {
-                return ingredient.toJson().toString();
+                RegistryAccess access = registryAccess;
+                if (access == null) {
+                    Minecraft mc = Minecraft.getInstance();
+                    if (mc.level == null) return "";
+                    access = mc.level.registryAccess();
+                }
+                RegistryOps<JsonElement> ops = access.createSerializationContext(JsonOps.INSTANCE);
+                return Ingredient.CODEC.encodeStart(ops, ingredient).result().map(JsonElement::toString).orElse("");
             } catch (Exception ignored) {
                 return "";
             }
+        }
+
+        private static ContextMap slotDisplayContext(RegistryAccess registryAccess) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level != null) {
+                return SlotDisplayContext.fromLevel(mc.level);
+            }
+            if (registryAccess == null) {
+                return new ContextMap.Builder().create(SlotDisplayContext.CONTEXT);
+            }
+            return new ContextMap.Builder()
+                    .withParameter(SlotDisplayContext.REGISTRIES, registryAccess)
+                    .create(SlotDisplayContext.CONTEXT);
+        }
+
+        private static ItemStack resolveRecipeResult(net.minecraft.world.item.crafting.Recipe<?> recipe, RegistryAccess registryAccess) {
+            if (recipe == null) return ItemStack.EMPTY;
+            ContextMap context = slotDisplayContext(registryAccess);
+            List<RecipeDisplay> displays = recipe.display();
+            if (displays.isEmpty()) return ItemStack.EMPTY;
+
+            for (RecipeDisplay display : displays) {
+                if (display == null) continue;
+                ItemStack result = display.result().resolveForFirstStack(context);
+                if (!result.isEmpty()) return result;
+            }
+            return ItemStack.EMPTY;
         }
 
         public enum PreviewRole {
@@ -588,13 +625,13 @@ public final class RecipeExpander {
             }
         }
 
-        private record RecipeCacheKey(ResourceLocation recipeId, DeclaredType declaredType) {
+        private record RecipeCacheKey(Identifier recipeId, DeclaredType declaredType) {
         }
 
-        @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
+        @EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
         public static class ForgeEvents {
             @SubscribeEvent
-            public static void onRecipesUpdated(RecipesUpdatedEvent event) {
+            public static void onRecipesReceived(RecipesReceivedEvent event) {
                 clearCache();
                 Slot.clearCandidateCache();
             }

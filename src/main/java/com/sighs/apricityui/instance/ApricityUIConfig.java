@@ -1,22 +1,23 @@
 package com.sighs.apricityui.instance;
 
-import net.minecraftforge.common.ForgeConfigSpec;
+
+import net.neoforged.neoforge.common.ModConfigSpec;
 
 public final class ApricityUIConfig {
-    public static final ForgeConfigSpec CLIENT_SPEC;
+    public static final ModConfigSpec CLIENT_SPEC;
     public static final Client CLIENT;
 
     static {
-        ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
+        ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
         CLIENT = new Client(builder);
         CLIENT_SPEC = builder.build();
     }
 
     public static final class Client {
-        public final ForgeConfigSpec.BooleanValue debugAutoReload;
-        public final ForgeConfigSpec.BooleanValue aiAutoScreenshot;
+        public final ModConfigSpec.BooleanValue debugAutoReload;
+        public final ModConfigSpec.BooleanValue aiAutoScreenshot;
 
-        private Client(ForgeConfigSpec.Builder builder) {
+        private Client(ModConfigSpec.Builder builder) {
             builder.push("debug");
             debugAutoReload = builder
                     .comment("Enable dev auto-reload when local files change.")

@@ -25,7 +25,7 @@ public class Select extends Element {
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
                 Text text = Text.of(this);
-                if (!children.isEmpty()) text.content = children.get(0).innerText;
+                if (!children.isEmpty()) text.content = children.getFirst().innerText;
                 for (Element child : children) {
                     if (getAttribute("value").equals(child.getAttribute("value"))) {
                         text.content = child.innerText;

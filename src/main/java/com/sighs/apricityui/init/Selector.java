@@ -214,7 +214,7 @@ public class Selector {
     }
 
     private static Component parseAtom(String atom) {
-        String tag = null;
+        String tag;
         String id = null;
         Set<String> classes = new HashSet<>();
         Map<String, String> attrs = new HashMap<>();

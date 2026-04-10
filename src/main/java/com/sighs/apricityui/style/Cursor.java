@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.Base;
@@ -90,13 +91,13 @@ public class Cursor {
         if (poseStack == null || pseudoCursorSpec == null) return;
 
         ImageHandle handle = ImageAsyncHandler.INSTANCE.request(pseudoCursorSpec.path());
-        if (handle == null || handle.state() != com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY) return;
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY) return;
 
         Image.ITexture texture = handle.texture();
-        if (texture == null || texture.getLocation() == null) return;
+        if (texture == null || texture.identifier() == null) return;
 
-        int width = texture.getWidth();
-        int height = texture.getHeight();
+        int width = texture.width();
+        int height = texture.height();
         if (width <= 0 || height <= 0) return;
 
         Position mouse = Client.getMousePosition();
@@ -104,7 +105,7 @@ public class Cursor {
         float drawY = (float) mouse.y - pseudoCursorSpec.hotspotY();
 
         Base.resolveOffset(poseStack);
-        ImageDrawer.draw(poseStack, texture.getLocation(), drawX, drawY, width, height, false);
+        ImageDrawer.draw(poseStack, texture.identifier(), drawX, drawY, width, height, false);
     }
 
     private static void enablePseudoCursor(CursorUrlSpec spec) {
@@ -122,7 +123,7 @@ public class Cursor {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return;
 
-        long window = mc.getWindow().getWindow();
+        long window = mc.getWindow().handle();
         if (window == 0L) return;
 
         GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, hidden ? GLFW.GLFW_CURSOR_HIDDEN : GLFW.GLFW_CURSOR_NORMAL);
@@ -136,7 +137,7 @@ public class Cursor {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return;
 
-        long window = mc.getWindow().getWindow();
+        long window = mc.getWindow().handle();
         if (window == 0L) return;
 
         GLFW.glfwSetCursor(window, handle);

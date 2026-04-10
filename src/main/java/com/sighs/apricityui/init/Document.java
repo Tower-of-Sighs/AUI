@@ -186,7 +186,7 @@ public class Document {
                     break;
                 }
             }
-            parent.children.add(0, child);
+            parent.children.addFirst(child);
         }
         child.depth = parent.getDepth() + 1;
         child.updateCSS();

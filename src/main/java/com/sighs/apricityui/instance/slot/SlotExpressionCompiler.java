@@ -5,17 +5,22 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.instance.element.Recipe;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
+import net.minecraft.nbt.Tag;
 import net.minecraft.nbt.TagParser;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
+import net.minecraft.resources.RegistryOps;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraftforge.common.ForgeHooks;
+import net.minecraft.client.Minecraft;
+import com.mojang.serialization.JsonOps;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,15 +30,32 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class SlotExpressionCompiler {
     public static final int MAX_CANDIDATES = 128;
-    public static final ResourceLocation FURNACE_FUEL_TAG = new ResourceLocation(ApricityUI.MODID, "furnace_fuels");
+    public static final Identifier FURNACE_FUEL_TAG = Identifier.fromNamespaceAndPath(ApricityUI.MODID, "furnace_fuels");
 
-    private static final Map<ResourceLocation, List<ItemStack>> TAG_CACHE = new ConcurrentHashMap<>();
+    private static final Map<Identifier, List<ItemStack>> TAG_CACHE = new ConcurrentHashMap<>();
+    private static final ThreadLocal<Boolean> DEFERRED = ThreadLocal.withInitial(() -> false);
+
+    private static void markDeferred() {
+        DEFERRED.set(true);
+    }
+
+    private static boolean consumeDeferredFlag() {
+        boolean deferred = Boolean.TRUE.equals(DEFERRED.get());
+        DEFERRED.set(false);
+        return deferred;
+    }
 
     public static SlotDisplaySpec compile(String rawExpression, boolean cycleEnabled, long cycleIntervalMs) {
+        DEFERRED.set(false);
         String normalized = normalize(rawExpression);
         if (normalized.isBlank()) return SlotDisplaySpec.EMPTY;
 
         List<ItemStack> candidates = compileCandidates(normalized, MAX_CANDIDATES);
+        if (consumeDeferredFlag()) {
+            // Some items/tags cannot be resolved yet (e.g. ItemStack components not bound during early ticks).
+            // Signal caller to retry later without caching an empty/partial result.
+            return null;
+        }
         boolean shouldCycle = cycleEnabled && candidates.size() > 1;
         return new SlotDisplaySpec(candidates, shouldCycle, cycleIntervalMs);
     }
@@ -54,9 +76,15 @@ public final class SlotExpressionCompiler {
 
         int safeCount = Math.max(1, Math.min(parsed.getMaxStackSize(), requestedCount));
         parsed.setCount(safeCount);
-        CompoundTag stackTag = new CompoundTag();
-        parsed.save(stackTag);
-        return stackTag.toString();
+        RegistryOps<net.minecraft.nbt.Tag> ops = currentNbtOps();
+        if (ops == null) {
+            Identifier id = BuiltInRegistries.ITEM.getKey(parsed.getItem());
+            return id.toString();
+        }
+        return ItemStack.CODEC.encodeStart(ops, parsed)
+                .result()
+                .map(Object::toString)
+                .orElse(normalized);
     }
 
     private static List<ItemStack> compileCandidates(String normalized, int maxCandidates) {
@@ -68,7 +96,7 @@ public final class SlotExpressionCompiler {
             if (!fromIngredient.isEmpty()) return fromIngredient;
         }
         if (normalized.startsWith("#")) {
-            ResourceLocation tagId = parseTagId(normalized);
+            Identifier tagId = parseTagId(normalized);
             if (tagId == null) return List.of();
             return getTagCandidates(tagId, maxCandidates);
         }
@@ -86,7 +114,7 @@ public final class SlotExpressionCompiler {
             String part = normalize(token);
             if (part.isBlank()) continue;
             if (part.startsWith("#")) {
-                ResourceLocation tagId = parseTagId(part);
+                Identifier tagId = parseTagId(part);
                 if (tagId == null) continue;
                 List<ItemStack> tagCandidates = getTagCandidates(tagId, maxCandidates - dedup.size());
                 appendDeduplicated(dedup, tagCandidates, maxCandidates);
@@ -103,19 +131,18 @@ public final class SlotExpressionCompiler {
     private static List<ItemStack> compileJsonIngredient(String normalized, int maxCandidates) {
         try {
             JsonElement jsonElement = JsonParser.parseString(normalized);
-            Ingredient ingredient = Ingredient.fromJson(jsonElement);
-            ItemStack[] items = ingredient.getItems();
-            if (items == null || items.length == 0) return List.of();
+            RegistryOps<JsonElement> ops = currentJsonOps();
+            if (ops == null) return List.of();
+
+            Ingredient ingredient = Ingredient.CODEC.parse(ops, jsonElement).result().orElse(null);
+            if (ingredient == null || ingredient.isEmpty()) return List.of();
 
             LinkedHashMap<String, ItemStack> dedup = new LinkedHashMap<>();
-            for (ItemStack stack : items) {
-                if (dedup.size() >= maxCandidates) break;
-                if (stack == null || stack.isEmpty()) continue;
-                appendDeduplicated(dedup, List.of(stack), maxCandidates);
-            }
+            ingredient.items()
+                    .map(holder -> new ItemStack(holder.value()))
+                    .limit(Math.max(0, maxCandidates))
+                    .forEach(stack -> appendDeduplicated(dedup, List.of(stack), maxCandidates));
             return List.copyOf(dedup.values());
-        } catch (JsonSyntaxException ignored) {
-            return List.of();
         } catch (Exception ignored) {
             return List.of();
         }
@@ -133,58 +160,81 @@ public final class SlotExpressionCompiler {
     }
 
     private static String stackIdentity(ItemStack stack) {
-        CompoundTag tag = new CompoundTag();
-        stack.save(tag);
-        return tag.toString();
+        Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+        String itemId = id == null ? "" : id.toString();
+        return itemId + "#" + stack.getCount() + "#" + stack.getComponentsPatch();
     }
 
-    private static List<ItemStack> getTagCandidates(ResourceLocation tagId, int maxCandidates) {
-        List<ItemStack> cached = TAG_CACHE.computeIfAbsent(tagId, SlotExpressionCompiler::buildTagCandidates);
+    private static List<ItemStack> getTagCandidates(Identifier tagId, int maxCandidates) {
+        List<ItemStack> cached = TAG_CACHE.get(tagId);
+        if (cached == null) {
+            List<ItemStack> built = buildTagCandidates(tagId);
+            if (built == null) {
+                // Deferred (e.g. level/components not ready) - do not cache.
+                return List.of();
+            }
+            TAG_CACHE.put(tagId, built);
+            cached = built;
+        }
         if (cached.size() <= maxCandidates) return cached;
         return cached.subList(0, Math.max(0, maxCandidates));
     }
 
-    private static List<ItemStack> buildTagCandidates(ResourceLocation tagId) {
+    /**
+     * Builds candidates for a tag. Returns {@code null} when resolution should be retried later.
+     */
+    private static List<ItemStack> buildTagCandidates(Identifier tagId) {
         ArrayList<ItemStack> result = new ArrayList<>();
         if (FURNACE_FUEL_TAG.equals(tagId)) {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.level == null) return null;
             for (Item item : BuiltInRegistries.ITEM) {
-                ItemStack stack = new ItemStack(item);
-                if (ForgeHooks.getBurnTime(stack, RecipeType.SMELTING) <= 0) continue;
+                ItemStack stack;
+                try {
+                    stack = new ItemStack(item);
+                } catch (RuntimeException e) {
+                    if (isComponentsNotBoundYet(e)) {
+                        markDeferred();
+                        return null;
+                    }
+                    continue;
+                }
+                if (stack.getBurnTime(RecipeType.SMELTING, mc.level.fuelValues()) <= 0) continue;
                 result.add(stack);
                 if (result.size() >= MAX_CANDIDATES) break;
             }
         } else {
             TagKey<Item> tagKey = TagKey.create(Registries.ITEM, tagId);
             for (Item item : BuiltInRegistries.ITEM) {
-                ItemStack stack = new ItemStack(item);
+                ItemStack stack;
+                try {
+                    stack = new ItemStack(item);
+                } catch (RuntimeException e) {
+                    if (isComponentsNotBoundYet(e)) {
+                        markDeferred();
+                        return null;
+                    }
+                    continue;
+                }
                 if (!stack.is(tagKey)) continue;
                 result.add(stack);
                 if (result.size() >= MAX_CANDIDATES) break;
             }
         }
         result.sort(Comparator.comparing(stack -> {
-            ResourceLocation id = BuiltInRegistries.ITEM.getKey(stack.getItem());
-            return id == null ? "" : id.toString();
+            Identifier id = BuiltInRegistries.ITEM.getKey(stack.getItem());
+            return id.toString();
         }));
         return List.copyOf(result);
     }
 
-    private static ResourceLocation parseTagId(String normalized) {
+    private static Identifier parseTagId(String normalized) {
         if (normalized == null || normalized.length() < 2) return null;
-        return ResourceLocation.tryParse(normalized.substring(1));
+        return Identifier.tryParse(normalized.substring(1));
     }
 
     private static String normalize(String raw) {
-        if (raw == null) return "";
-        String normalized = raw.trim();
-        if (normalized.isBlank()) return "";
-        if (normalized.length() >= 2) {
-            char first = normalized.charAt(0);
-            char last = normalized.charAt(normalized.length() - 1);
-            boolean quoted = (first == '"' && last == '"') || (first == '\'' && last == '\'');
-            if (quoted) normalized = normalized.substring(1, normalized.length() - 1).trim();
-        }
-        return normalized;
+        return Recipe.normalizeRecipeIdLiteral(raw);
     }
 
     private static ItemStack parseItemStackLiteral(String literal) {
@@ -192,8 +242,8 @@ public final class SlotExpressionCompiler {
 
         if (literal.startsWith("{") && literal.endsWith("}")) {
             try {
-                CompoundTag stackTag = TagParser.parseTag(literal);
-                ItemStack parsed = ItemStack.of(stackTag);
+                CompoundTag stackTag = TagParser.parseCompoundFully(literal);
+                ItemStack parsed = decodeStackFromTag(stackTag);
                 return parsed == null ? ItemStack.EMPTY : parsed;
             } catch (CommandSyntaxException ignored) {
                 return ItemStack.EMPTY;
@@ -204,19 +254,74 @@ public final class SlotExpressionCompiler {
         String itemLiteral = nbtStart >= 0 ? literal.substring(0, nbtStart).trim() : literal.trim();
         if (itemLiteral.isBlank()) return ItemStack.EMPTY;
 
-        ResourceLocation itemId = ResourceLocation.tryParse(itemLiteral.toLowerCase(Locale.ROOT));
+        Identifier itemId = Identifier.tryParse(itemLiteral.toLowerCase(Locale.ROOT));
         if (itemId == null || !BuiltInRegistries.ITEM.containsKey(itemId)) return ItemStack.EMPTY;
-        Item item = BuiltInRegistries.ITEM.get(itemId);
-        ItemStack stack = new ItemStack(item);
-        if (nbtStart < 0) return stack;
-
-        String nbtLiteral = literal.substring(nbtStart).trim();
+        Item item = BuiltInRegistries.ITEM.getValue(itemId);
+        ItemStack stack;
         try {
-            CompoundTag nbtTag = TagParser.parseTag(nbtLiteral);
-            stack.setTag(nbtTag);
-            return stack;
-        } catch (CommandSyntaxException ignored) {
+            stack = new ItemStack(item);
+        } catch (RuntimeException ignored) {
+            // certain registry-backed items may not have their DataComponents bound yet
+            // (e.g. during very early client ticks / title screen). Avoid crashing; render empty until ready.
+            if (isComponentsNotBoundYet(ignored)) {
+                markDeferred();
+            }
             return ItemStack.EMPTY;
         }
+
+        // Legacy "item{...}" stack NBT is no longer directly supported by ItemStack.
+        // We keep the item portion to ensure existing templates continue to render something sensible.
+        return stack;
+    }
+
+    private static RegistryOps<Tag> currentNbtOps() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return null;
+        return mc.level.registryAccess().createSerializationContext(NbtOps.INSTANCE);
+    }
+
+    private static RegistryOps<JsonElement> currentJsonOps() {
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return null;
+        return mc.level.registryAccess().createSerializationContext(JsonOps.INSTANCE);
+    }
+
+    private static ItemStack decodeStackFromTag(CompoundTag tag) {
+        RegistryOps<Tag> ops = currentNbtOps();
+        if (ops != null) {
+            ItemStack decoded = ItemStack.CODEC.parse(ops, tag).result().orElse(ItemStack.EMPTY);
+            if (!decoded.isEmpty()) return decoded;
+        }
+
+        // Compatibility fallback: legacy ItemStack NBT
+        String idString = tag.getStringOr("id", "");
+        if (idString.isBlank()) return ItemStack.EMPTY;
+        Identifier id = Identifier.tryParse(idString);
+        if (id == null) return ItemStack.EMPTY;
+
+        Item item = BuiltInRegistries.ITEM.getValue(id);
+
+        int count = tag.getIntOr("count", -1);
+        if (count <= 0) {
+            count = Byte.toUnsignedInt(tag.getByteOr("Count", (byte) 1));
+        }
+        try {
+            return new ItemStack(item, Math.max(1, count));
+        } catch (RuntimeException ignored) {
+            if (isComponentsNotBoundYet(ignored)) {
+                markDeferred();
+            }
+            return ItemStack.EMPTY;
+        }
+    }
+
+    private static boolean isComponentsNotBoundYet(RuntimeException exception) {
+        if (exception == null) return false;
+        // Vanilla throws NPE via Objects.requireNonNull(components, "Components not bound yet")
+        if (exception instanceof NullPointerException) {
+            String message = exception.getMessage();
+            return message != null && message.contains("Components not bound yet");
+        }
+        return false;
     }
 }

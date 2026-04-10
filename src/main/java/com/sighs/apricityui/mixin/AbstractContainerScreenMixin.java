@@ -3,6 +3,7 @@ package com.sighs.apricityui.mixin;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import org.spongepowered.asm.mixin.Mixin;
@@ -19,16 +20,23 @@ public abstract class AbstractContainerScreenMixin {
     @Shadow
     protected int topPos;
 
-    @Inject(method = "renderSlot", at = @At("HEAD"), cancellable = true)
-    private void apricityui$cancelVanillaRenderSlot(CallbackInfo ci) {
+    @Inject(method = "extractSlot", at = @At("HEAD"), cancellable = true)
+    private void apricityui$cancelVanillaExtractSlot(GuiGraphicsExtractor graphics, Slot slot, int mouseX, int mouseY, CallbackInfo ci) {
         if ((Object) this instanceof ApricityContainerScreen) {
             ci.cancel();
         }
     }
 
-    @Inject(method = "renderSlotHighlight(Lnet/minecraft/client/gui/GuiGraphics;IIII)V", at = @At("HEAD"), cancellable = true, remap = false)
-    private static void apricityui$cancelVanillaSlotHighlightLegacy(CallbackInfo ci) {
-        if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
+    @Inject(method = "extractSlotHighlightBack", at = @At("HEAD"), cancellable = true)
+    private void apricityui$cancelVanillaSlotHighlightBack(GuiGraphicsExtractor graphics, CallbackInfo ci) {
+        if ((Object) this instanceof ApricityContainerScreen) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "extractSlotHighlightFront", at = @At("HEAD"), cancellable = true)
+    private void apricityui$cancelVanillaSlotHighlightFront(GuiGraphicsExtractor graphics, CallbackInfo ci) {
+        if ((Object) this instanceof ApricityContainerScreen) {
             ci.cancel();
         }
     }

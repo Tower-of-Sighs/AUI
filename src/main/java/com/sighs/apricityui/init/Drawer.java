@@ -175,13 +175,13 @@ public class Drawer {
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
-        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
-        if (node instanceof RenderNode.MaskPushNode n) return n.target();
-        if (node instanceof RenderNode.MaskPopNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
-        if (node instanceof RenderNode.FilterPushNode n) return n.target();
-        if (node instanceof RenderNode.FilterPopNode n) return n.target();
+        if (node instanceof RenderNode.BackdropFilterNode(Element target)) return target;
+        if (node instanceof RenderNode.MaskPushNode(Element target)) return target;
+        if (node instanceof RenderNode.MaskPopNode(Element target)) return target;
+        if (node instanceof RenderNode.ClipPathPushNode(Element target)) return target;
+        if (node instanceof RenderNode.ClipPathPopNode(Element target)) return target;
+        if (node instanceof RenderNode.FilterPushNode(Element target)) return target;
+        if (node instanceof RenderNode.FilterPopNode(Element target)) return target;
         return null;
     }
 

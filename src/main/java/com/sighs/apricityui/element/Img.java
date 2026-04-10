@@ -6,7 +6,10 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
+import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
 
 @ElementRegister(Img.TAG_NAME)
 public class Img extends Element {
@@ -23,7 +26,37 @@ public class Img extends Element {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
-                ImageDrawer.draw(poseStack, this, rectRenderer);
+                // CSS 的 border-radius 应当裁剪图像内容本身
+                // 我们的 mask 插入是基于 overflow 逻辑的
+                // 但对于 Img 标签，当圆角存在时，我们需要应用一个显式的遮罩
+                float[] radii = rectRenderer.getBodyRadius();
+                boolean needsClip = radii != null;
+                if (needsClip) {
+                    needsClip = false;
+                    for (float r : radii) {
+                        if (r > 0.001f) {
+                            needsClip = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (needsClip) {
+                    Position p = rectRenderer.getBodyRectPosition();
+                    Size s = rectRenderer.getBodyRectSize();
+                    float x = (float) p.x;
+                    float y = (float) p.y;
+                    float w = (float) s.width();
+                    float h = (float) s.height();
+                    Mask.pushMask(poseStack, x, y, w, h, radii);
+                    try {
+                        ImageDrawer.draw(poseStack, this, rectRenderer);
+                    } finally {
+                        Mask.popMask(poseStack, x, y, w, h, radii);
+                    }
+                } else {
+                    ImageDrawer.draw(poseStack, this, rectRenderer);
+                }
             }
             case BORDER -> rectRenderer.drawBorder(poseStack);
         }

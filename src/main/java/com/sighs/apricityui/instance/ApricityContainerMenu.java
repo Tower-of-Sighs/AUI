@@ -79,7 +79,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
             ContainerDataSource source = containerSources.get(layout.id());
             int resolvedCapacity = layout.capacity();
-            SimpleContainer fallback = source == null ? new SimpleContainer(Math.max(1, resolvedCapacity)) : null;
+            SimpleContainer fallback = source == null ? new SimpleContainer(resolvedCapacity) : null;
 
             for (int localIndex = 0; localIndex < resolvedCapacity; localIndex++) {
                 Slot slot = source == null
@@ -109,7 +109,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             if (!ContainerBindType.isPlayer(layout.bindType())) continue;
             max = Math.max(max, layout.capacity());
         }
-        return Math.min(ContainerBindType.PLAYER_SLOT_COUNT, Math.max(0, max));
+        return Math.min(ContainerBindType.PLAYER_SLOT_COUNT, max);
     }
 
     private void addPlayerInventorySlots(Inventory playerInventory, int capacity) {
@@ -162,7 +162,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         if (slotIndex < 0 || slotIndex >= slots.size()) return ItemStack.EMPTY;
 
         Slot sourceSlot = slots.get(slotIndex);
-        if (sourceSlot == null || !sourceSlot.hasItem()) return ItemStack.EMPTY;
+        if (!sourceSlot.hasItem()) return ItemStack.EMPTY;
 
         ItemStack sourceStack = sourceSlot.getItem();
         ItemStack copied = sourceStack.copy();

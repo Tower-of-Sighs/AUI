@@ -4,45 +4,34 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraftforge.network.NetworkRegistry;
-import net.minecraftforge.network.simple.SimpleChannel;
+import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.neoforge.client.network.ClientPacketDistributor;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
 
-import java.util.Set;
-
+@EventBusSubscriber(modid = ApricityUI.MODID)
 public final class ApricityNetwork {
-    private static final String CURRENT_PROTOCOL_VERSION = "1";
-    private static final Set<String> COMPATIBLE_PROTOCOL_VERSIONS = Set.of(CURRENT_PROTOCOL_VERSION);
-    public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
-            new ResourceLocation(ApricityUI.MODID, "main"),
-            () -> CURRENT_PROTOCOL_VERSION,
-            s -> true,
-            ApricityNetwork::isCompatibleProtocol
-    );
+    private static final String PROTOCOL_VERSION = "1";
 
-    private static int packetId = 0;
-    private static boolean registered = false;
+    @SubscribeEvent
+    public static void register(final RegisterPayloadHandlersEvent event) {
+        final var registrar = event.registrar(ApricityUI.MODID).versioned(PROTOCOL_VERSION);
 
-    public static void register() {
-        if (registered) return;
-        CHANNEL.registerMessage(packetId++,
-                OpenScreenRequestPacket.class,
-                OpenScreenRequestPacket::encode,
-                OpenScreenRequestPacket::decode,
-                ApricityScreenNetworkHandler::handleOpenScreenRequest);
-        CHANNEL.registerMessage(packetId++,
-                CloseContainerRequestPacket.class,
-                CloseContainerRequestPacket::encode,
-                CloseContainerRequestPacket::decode,
-                ApricityScreenNetworkHandler::handleCloseContainerRequest);
-        registered = true;
+        registrar.playToServer(
+                OpenScreenRequestPacket.TYPE,
+                OpenScreenRequestPacket.STREAM_CODEC,
+                ApricityScreenNetworkHandler::handleOpenScreenRequest
+        );
+
+        registrar.playToServer(
+                CloseContainerRequestPacket.TYPE,
+                CloseContainerRequestPacket.STREAM_CODEC,
+                ApricityScreenNetworkHandler::handleCloseContainerRequest
+        );
     }
 
-    public static void sendToServer(Object message) {
-        CHANNEL.sendToServer(message);
-    }
-
-    private static boolean isCompatibleProtocol(String remoteVersion) {
-        return remoteVersion != null && COMPATIBLE_PROTOCOL_VERSIONS.contains(remoteVersion);
+    public static void sendToServer(CustomPacketPayload payload) {
+        ClientPacketDistributor.sendToServer(payload);
     }
 }

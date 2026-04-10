@@ -1,13 +1,11 @@
 package com.sighs.apricityui.dev;
 
+import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.style.Position;
-import net.minecraft.Util;
+import net.minecraft.util.Util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -19,6 +17,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 public class ResourceManager {
     private static final String PATH = "devtools/resource-manager.html";
@@ -132,7 +131,7 @@ public class ResourceManager {
         if (displayEntries.isEmpty()) return false;
         viewMode = ViewMode.ALL;
         contextMenuVisible = true;
-        contextMenuEntry = displayEntries.get(0);
+        contextMenuEntry = displayEntries.getFirst();
         contextMenuX = 8;
         contextMenuY = 40;
         refresh();
@@ -257,7 +256,7 @@ public class ResourceManager {
             clearContextMenuState();
             refreshContextMenuOnly();
         });
-        root.addEventListener("scroll", event -> {
+        root.addEventListener("scroll", _ -> {
             if (!contextMenuVisible) return;
             clearContextMenuState();
             refreshContextMenuOnly();
@@ -294,11 +293,11 @@ public class ResourceManager {
             clearContextMenuState();
             refreshContextMenuOnly();
         }));
-        menu.addEventListener("mousedown", event -> event.stopPropagation());
+        menu.addEventListener("mousedown", Event::stopPropagation);
         manager.append(menu);
     }
 
-    private static Element menuItem(String label, boolean disabled, java.util.function.Consumer<com.sighs.apricityui.init.Event> action) {
+    private static Element menuItem(String label, boolean disabled, Consumer<Event> action) {
         Element item = createToolElement("DIV");
         item.setAttribute("class", disabled ? "context-item disabled" : "context-item");
         Element text = createToolElement("SPAN");
@@ -394,7 +393,7 @@ public class ResourceManager {
         String relative = safe(entry.path());
         Path resolved = root;
         for (String part : relative.split("/")) {
-            if (part == null || part.isBlank()) continue;
+            if (part.isBlank()) continue;
             resolved = resolved.resolve(part);
         }
         resolved = resolved.normalize();
@@ -445,12 +444,12 @@ public class ResourceManager {
         if ("1".equals(filterInput.getAttribute("data-bound"))) return;
         filterInput.setAttribute("data-bound", "1");
         filterInput.addEventListener("keydown", event -> {
-            if (!(event instanceof com.sighs.apricityui.event.KeyEvent keyEvent)) return;
+            if (!(event instanceof KeyEvent keyEvent)) return;
             if (!"Enter".equals(keyEvent.key)) return;
             filterText = normalizeFilter(filterInput.value);
             refresh();
         });
-        filterInput.addEventListener("blur", event -> {
+        filterInput.addEventListener("blur", _ -> {
             filterText = normalizeFilter(filterInput.value);
             refresh();
         });
@@ -459,7 +458,7 @@ public class ResourceManager {
     private static void bindRefreshButton(Element refreshBtn) {
         if ("1".equals(refreshBtn.getAttribute("data-bound"))) return;
         refreshBtn.setAttribute("data-bound", "1");
-        refreshBtn.addEventListener("mousedown", event -> refresh());
+        refreshBtn.addEventListener("mousedown", _ -> refresh());
     }
 
     private static void bindClosePreviewButton(Element closePreviewBtn) {
@@ -476,7 +475,7 @@ public class ResourceManager {
     private static void bindModeButtons(Element modeAllBtn, Element modeFolderBtn) {
         if (!"1".equals(modeAllBtn.getAttribute("data-bound"))) {
             modeAllBtn.setAttribute("data-bound", "1");
-            modeAllBtn.addEventListener("mousedown", event -> {
+            modeAllBtn.addEventListener("mousedown", _ -> {
                 if (viewMode == ViewMode.ALL) return;
                 viewMode = ViewMode.ALL;
                 refresh();
@@ -484,7 +483,7 @@ public class ResourceManager {
         }
         if (!"1".equals(modeFolderBtn.getAttribute("data-bound"))) {
             modeFolderBtn.setAttribute("data-bound", "1");
-            modeFolderBtn.addEventListener("mousedown", event -> {
+            modeFolderBtn.addEventListener("mousedown", _ -> {
                 if (viewMode == ViewMode.FOLDER) return;
                 viewMode = ViewMode.FOLDER;
                 refresh();
@@ -553,7 +552,7 @@ public class ResourceManager {
             Element previewSource
     ) {
         Loader.StaticResourceEntry current = previewEntry;
-        if (current == null || !isImagePreviewable(current)) {
+        if (!isImagePreviewable(current)) {
             previewPanel.setAttribute("class", "preview-panel hidden");
             previewPanel.setAttribute("style", "display:none;");
             previewName.innerText = "";

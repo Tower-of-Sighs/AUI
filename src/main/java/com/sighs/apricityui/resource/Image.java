@@ -1,13 +1,14 @@
 package com.sighs.apricityui.resource;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.FilterMode;
+import com.mojang.blaze3d.textures.TextureFormat;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.ResourceManager;
+import net.minecraft.resources.Identifier;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -23,7 +24,10 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Image {
+public final class Image {
+    private Image() {
+    }
+
     public static ITexture loadTexture(String cacheKey, InputStream is) {
         if (is == null) return null;
         try {
@@ -47,7 +51,7 @@ public class Image {
 
     public static ITexture uploadDecoded(String cacheKey, DecodedImage decodedImage) {
         if (decodedImage == null) return null;
-        try {
+        try (decodedImage) {
             if (decodedImage.isAnimated()) {
                 List<AnimatedTexture.Frame> frames = new ArrayList<>();
                 int[] delays = decodedImage.getFrameDelaysMs();
@@ -56,7 +60,7 @@ public class Image {
                     for (NativeImage frameImage : decodedImage.getFrames()) {
                         TextureInfo info = uploadImage(cacheKey + "_frame_" + index, frameImage);
                         int delay = index < delays.length ? delays[index] : 100;
-                        frames.add(new AnimatedTexture.Frame(info.location, info.textureId, Math.max(delay, 20)));
+                        frames.add(new AnimatedTexture.Frame(info.identifier, Math.max(delay, 20)));
                         index++;
                     }
                 } catch (Exception e) {
@@ -69,12 +73,10 @@ public class Image {
             NativeImage imageData = decodedImage.getStaticImage();
             if (imageData == null) return null;
             TextureInfo info = uploadImage(cacheKey, imageData);
-            return new StaticTexture(info.textureId, info.location, info.width, info.height);
+            return new StaticTexture(info.identifier, info.width, info.height);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
-        } finally {
-            decodedImage.close();
         }
     }
 
@@ -134,13 +136,12 @@ public class Image {
                 int g = (argb >> 8) & 0xFF;
                 int b = (argb) & 0xFF;
                 int abgr = (a << 24) | (b << 16) | (g << 8) | r;
-                nativeImage.setPixelRGBA(x, y, abgr);
+                nativeImage.setPixelABGR(x, y, abgr);
             }
         }
         return nativeImage;
     }
 
-    // 获取GIF延迟
     private static int getFrameDelay(ImageReader reader, int imageIndex) throws IOException {
         int delayTime = 100;
         IIOMetadata metadata = reader.getImageMetadata(imageIndex);
@@ -161,67 +162,42 @@ public class Image {
     }
 
     private static TextureInfo uploadImage(String cacheKey, NativeImage image) {
-        int textureId = TextureUtil.generateTextureId();
-        TextureUtil.prepareImage(textureId, image.getWidth(), image.getHeight());
-        image.upload(0, 0, 0, false);
+        // Sanitize to avoid Identifier errors.
+        String sanitizedPath = (cacheKey == null ? "" : cacheKey)
+                .toLowerCase()
+                .replaceAll("[^a-z0-9/._-]", "_");
+        Identifier identifier = Identifier.fromNamespaceAndPath(ApricityUI.MODID, "dynamic/" + sanitizedPath);
 
-        // 防止 ResourceLocation 报错
-        String sanitizedPath = cacheKey.toLowerCase().replaceAll("[^a-z0-9/._-]", "_");
-        ResourceLocation location = new ResourceLocation("apricityui", "dynamic/" + sanitizedPath);
-
-        Minecraft.getInstance().getTextureManager().register(location, new SimpleTextureWrapper(textureId));
-        return new TextureInfo(textureId, location, image.getWidth(), image.getHeight());
+        // Allocate GPU texture and upload pixels. We intentionally do not keep the NativeImage alive after upload,
+        // because DecodedImage will dispose of it after this call.
+        UploadedTexture texture = new UploadedTexture(() -> "AUI " + identifier, image);
+        Minecraft.getInstance().getTextureManager().register(identifier, texture);
+        return new TextureInfo(identifier, image.getWidth(), image.getHeight());
     }
 
-    private record TextureInfo(int textureId, ResourceLocation location, int width, int height) {
+    private record TextureInfo(Identifier identifier, int width, int height) {
     }
 
     public interface ITexture {
-        ResourceLocation getLocation();
+        Identifier identifier();
 
-        int getWidth();
+        int width();
 
-        int getHeight();
+        int height();
 
         void destroy();
     }
 
-    public static class StaticTexture implements ITexture {
-        private final int textureId;
-        private final ResourceLocation location;
-        private final int width;
-        private final int height;
-
-        public StaticTexture(int textureId, ResourceLocation location, int width, int height) {
-            this.textureId = textureId;
-            this.location = location;
-            this.width = width;
-            this.height = height;
-        }
+    public record StaticTexture(Identifier identifier, int width, int height) implements ITexture {
 
         @Override
-        public ResourceLocation getLocation() {
-            return location;
+            public void destroy() {
+                Minecraft.getInstance().getTextureManager().release(identifier);
+            }
         }
 
-        @Override
-        public int getWidth() {
-            return width;
-        }
-
-        @Override
-        public int getHeight() {
-            return height;
-        }
-
-        @Override
-        public void destroy() {
-            RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(textureId));
-        }
-    }
-
-    public static class AnimatedTexture implements ITexture {
-        public record Frame(ResourceLocation location, int textureId, int durationMs) {
+    public static final class AnimatedTexture implements ITexture {
+        public record Frame(Identifier identifier, int durationMs) {
         }
 
         private final List<Frame> frames;
@@ -237,51 +213,46 @@ public class Image {
         }
 
         @Override
-        public ResourceLocation getLocation() {
+        public Identifier identifier() {
             if (frames.isEmpty()) return null;
-            if (totalDuration == 0) return frames.get(0).location;
+            if (totalDuration == 0) return frames.get(0).identifier;
             long now = System.currentTimeMillis();
             long cycleTime = now % totalDuration;
             int currentTimer = 0;
             for (Frame frame : frames) {
                 currentTimer += frame.durationMs;
-                if (cycleTime < currentTimer) return frame.location;
+                if (cycleTime < currentTimer) return frame.identifier;
             }
-            return frames.get(0).location;
+            return frames.get(0).identifier;
         }
 
         @Override
-        public int getWidth() {
+        public int width() {
             return width;
         }
 
         @Override
-        public int getHeight() {
+        public int height() {
             return height;
         }
 
         @Override
         public void destroy() {
             for (Frame frame : frames) {
-                RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(frame.textureId));
+                Minecraft.getInstance().getTextureManager().release(frame.identifier);
             }
         }
     }
 
-    public static class SimpleTextureWrapper extends AbstractTexture {
-        private final int textureId;
-
-        public SimpleTextureWrapper(int textureId) {
-            this.textureId = textureId;
-        }
-
-        @Override
-        public int getId() {
-            return textureId;
-        }
-
-        @Override
-        public void load(ResourceManager manager) {
+    private static final class UploadedTexture extends AbstractTexture {
+        private UploadedTexture(java.util.function.Supplier<String> label, NativeImage image) {
+            var device = RenderSystem.getDevice();
+            this.texture = device.createTexture(label, 5, TextureFormat.RGBA8, image.getWidth(), image.getHeight(), 1, 1);
+            this.textureView = device.createTextureView(this.texture);
+            this.sampler = RenderSystem.getSamplerCache().getRepeat(FilterMode.NEAREST);
+            device.createCommandEncoder().writeToTexture(this.texture, image);
+            image.close();
         }
     }
 }
+

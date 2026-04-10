@@ -10,7 +10,7 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.awt.*;
 import java.awt.image.BufferedImage;
@@ -162,14 +162,13 @@ public class FontDrawer {
             for (int y = 0; y < imgH; y++) {
                 for (int x = 0; x < imgW; x++) {
                     int argb = img.getRGB(x, y);
-                    nativeImg.setPixelRGBA(x, y, argbToAbgr(argb));
+                    nativeImg.setPixelABGR(x, y, argbToAbgr(argb));
                 }
             }
 
-            DynamicTexture texture = new DynamicTexture(nativeImg);
-            texture.setFilter(true, false); // linear filter
+            DynamicTexture texture = new DynamicTexture(() -> "AUI font " + cacheKey, nativeImg);
 
-            ResourceLocation location = new ResourceLocation(
+            Identifier location = Identifier.fromNamespaceAndPath(
                     MODID,
                     "font/" + UUID.nameUUIDFromBytes(cacheKey.getBytes(StandardCharsets.UTF_8))
             );
@@ -230,7 +229,7 @@ public class FontDrawer {
         }
     }
 
-    public record FontEntry(ResourceLocation location, NativeImage nativeImage, DynamicTexture dynamicTexture,
+    public record FontEntry(Identifier location, NativeImage nativeImage, DynamicTexture dynamicTexture,
                             int width, int height) {
     }
 }

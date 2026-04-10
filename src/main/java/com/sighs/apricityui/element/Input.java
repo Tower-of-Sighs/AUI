@@ -12,6 +12,7 @@ import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
 
 import java.util.Locale;
@@ -157,13 +158,13 @@ public class Input extends AbstractText {
                 text.content = before;
                 text.color = new Color(Style.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
-                segmentX += (float) com.sighs.apricityui.style.Size.measureText(this, before);
+                segmentX += (float) Size.measureText(this, before);
             }
             if (!selected.isEmpty()) {
                 text.content = selected;
                 text.color = new Color("#FFFFFF");
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
-                segmentX += (float) com.sighs.apricityui.style.Size.measureText(this, selected);
+                segmentX += (float) Size.measureText(this, selected);
             }
             if (!after.isEmpty()) {
                 text.content = after;
