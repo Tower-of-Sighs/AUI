@@ -1,7 +1,7 @@
 package com.sighs.apricityui.util.kjs;
 
-import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.dev.ToastManager;
+import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;

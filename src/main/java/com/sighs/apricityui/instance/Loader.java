@@ -2,9 +2,9 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.ToastManager;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.dev.ToastManager;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
@@ -35,6 +35,7 @@ import java.util.stream.Stream;
 @EventBusSubscriber(modid = ApricityUI.MODID)
 public class Loader {
     private static final String DEV_ASSET_ROOT = "src/main/resources/assets/apricityui/apricity";
+
     public enum ResourceLayer {
         RESOURCE_PACK,
         LOCAL_FOLDER,

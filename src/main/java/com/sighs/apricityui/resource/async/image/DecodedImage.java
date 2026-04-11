@@ -44,7 +44,7 @@ public final class DecodedImage implements AutoCloseable {
             delays[i] = Math.max(20, delay);
         }
 
-        NativeImage first = copied.get(0);
+        NativeImage first = copied.getFirst();
         return new DecodedImage(null, Collections.unmodifiableList(copied), delays, first.getWidth(), first.getHeight());
     }
 

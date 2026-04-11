@@ -23,7 +23,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     private static final int MAX_IMPORT_DEPTH = 3;
 
     private static final Pattern COMMENT_PATTERN = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
-    private static final Pattern IMPORT_PATTERN = Pattern.compile("(?i)@import\\s+(?:url\\s*\\(\\s*)?['\"]?([^'\"\\)\\s;]+)['\"]?\\s*\\)?\\s*;");
+    private static final Pattern IMPORT_PATTERN = Pattern.compile("(?i)@import\\s+(?:url\\s*\\(\\s*)?['\"]?([^'\")\\s;]+)['\"]?\\s*\\)?\\s*;");
     private static final Pattern FONT_FACE_PATTERN = Pattern.compile("(?is)@font-face\\s*\\{(.*?)}");
     private static final Pattern URL_PATTERN = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
 
@@ -74,7 +74,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                     } catch (Exception exception) {
                         enqueueApplyTask(new FailedTask(handle));
                     }
-                }, rejected -> enqueueApplyTask(new FailedTask(handle)));
+                }, _ -> enqueueApplyTask(new FailedTask(handle)));
             }
         }
 
@@ -95,28 +95,27 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         }
 
         task.handle().markApplying();
-        if (task instanceof CssTask cssTask) {
-            task.handle().putCssEntry(cssTask.order, new StyleHandle.CssEntry(cssTask.contextPath, cssTask.cssText));
-            enqueueFontLoads(task.handle(), cssTask.fontTasks);
-            rebuildCssCache(document, task.handle());
-            document.reapplyStylesFromCache();
-            task.handle().completeTask(false);
-            return;
-        }
-
-        if (task instanceof FontTask fontTask) {
-            boolean loaded = registerFont(fontTask);
-            if (loaded) {
-                FontDrawer.clearCache();
+        switch (task) {
+            case CssTask cssTask -> {
+                task.handle().putCssEntry(cssTask.order, new StyleHandle.CssEntry(cssTask.contextPath, cssTask.cssText));
+                enqueueFontLoads(task.handle(), cssTask.fontTasks);
+                rebuildCssCache(document, task.handle());
                 document.reapplyStylesFromCache();
+                task.handle().completeTask(false);
             }
-            task.handle().completeTask(!loaded);
-            return;
+            case FontTask fontTask -> {
+                boolean loaded = registerFont(fontTask);
+                if (loaded) {
+                    FontDrawer.clearCache();
+                    document.reapplyStylesFromCache();
+                }
+                task.handle().completeTask(!loaded);
+            }
+            case FailedTask _ -> task.handle().completeTask(true);
+            default -> {
+            }
         }
 
-        if (task instanceof FailedTask) {
-            task.handle().completeTask(true);
-        }
     }
 
     @Override
@@ -204,7 +203,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         String clean = COMMENT_PATTERN.matcher(css).replaceAll("");
 
         Matcher matcher = FONT_FACE_PATTERN.matcher(clean);
-        StringBuffer bodyCss = new StringBuffer();
+        StringBuilder bodyCss = new StringBuilder();
         ArrayList<FontSource> fontSources = new ArrayList<>();
         while (matcher.find()) {
             FontSource source = parseFontFace(matcher.group(1), contextPath);

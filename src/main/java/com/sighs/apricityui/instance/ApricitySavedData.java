@@ -24,12 +24,9 @@ import net.minecraft.world.level.storage.ValueOutput;
 import net.neoforged.neoforge.transfer.item.ItemResource;
 import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 import net.neoforged.neoforge.transfer.item.ItemUtil;
+import org.jspecify.annotations.NonNull;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -325,12 +322,12 @@ public class ApricitySavedData extends SavedData {
             }
 
             @Override
-            public void serialize(ValueOutput output) {
+            public void serialize(@NonNull ValueOutput output) {
                 super.serialize(output);
             }
 
             @Override
-            public void deserialize(ValueInput input) {
+            public void deserialize(@NonNull ValueInput input) {
                 super.deserialize(input);
             }
         };

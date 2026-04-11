@@ -191,10 +191,10 @@ public final class Image {
     public record StaticTexture(Identifier identifier, int width, int height) implements ITexture {
 
         @Override
-            public void destroy() {
-                Minecraft.getInstance().getTextureManager().release(identifier);
-            }
+        public void destroy() {
+            Minecraft.getInstance().getTextureManager().release(identifier);
         }
+    }
 
     public static final class AnimatedTexture implements ITexture {
         public record Frame(Identifier identifier, int durationMs) {
@@ -215,7 +215,7 @@ public final class Image {
         @Override
         public Identifier identifier() {
             if (frames.isEmpty()) return null;
-            if (totalDuration == 0) return frames.get(0).identifier;
+            if (totalDuration == 0) return frames.getFirst().identifier;
             long now = System.currentTimeMillis();
             long cycleTime = now % totalDuration;
             int currentTimer = 0;
@@ -223,7 +223,7 @@ public final class Image {
                 currentTimer += frame.durationMs;
                 if (cycleTime < currentTimer) return frame.identifier;
             }
-            return frames.get(0).identifier;
+            return frames.getFirst().identifier;
         }
 
         @Override

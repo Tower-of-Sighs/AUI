@@ -50,8 +50,8 @@ public class Gradient {
 
     private int getInterpolatedColor(float t) {
         // 找到 t 落在哪个区间
-        if (t <= stops.get(0).position) return stops.get(0).color;
-        if (t >= stops.get(stops.size() - 1).position) return stops.get(stops.size() - 1).color;
+        if (t <= stops.getFirst().position) return stops.getFirst().color;
+        if (t >= stops.getLast().position) return stops.getLast().color;
 
         for (int i = 0; i < stops.size() - 1; i++) {
             Stop s1 = stops.get(i);
@@ -143,7 +143,6 @@ public class Gradient {
         return switch (dir) {
             case "to top" -> 0f;
             case "to right" -> 90f;
-            case "to bottom" -> 180f;
             case "to left" -> 270f;
             case "to top right" -> 45f;
             case "to bottom right" -> 135f;

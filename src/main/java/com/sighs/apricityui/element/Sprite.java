@@ -1,12 +1,14 @@
 package com.sighs.apricityui.element;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Animation;
 
 import java.util.*;
@@ -258,9 +260,9 @@ public class Sprite extends Div {
         return new FrameMetrics(frameW, frameH);
     }
 
-    private static boolean isHandleReady(com.sighs.apricityui.resource.async.image.ImageHandle handle) {
+    private static boolean isHandleReady(ImageHandle handle) {
         return handle != null
-                && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY
+                && handle.state() == AbstractAsyncHandler.AsyncState.READY
                 && handle.texture() != null;
     }
 

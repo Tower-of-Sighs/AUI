@@ -2,8 +2,8 @@ package com.sighs.apricityui;
 
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.instance.ShaderRegistry;
-import com.sighs.apricityui.render.WorldWindowPipelines;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
+import com.sighs.apricityui.render.WorldWindowPipelines;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;

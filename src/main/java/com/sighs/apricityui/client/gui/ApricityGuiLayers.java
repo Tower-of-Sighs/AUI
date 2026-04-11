@@ -18,7 +18,7 @@ public final class ApricityGuiLayers {
     }
 
     public static void register(RegisterGuiLayersEvent event) {
-        event.registerAboveAll(HUD_LAYER_ID, (guiGraphics, deltaTracker) -> {
+        event.registerAboveAll(HUD_LAYER_ID, (guiGraphics, _) -> {
             if (Minecraft.getInstance().screen != null) return;
             submitOverlay(guiGraphics);
         });

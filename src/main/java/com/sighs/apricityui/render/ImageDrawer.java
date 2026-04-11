@@ -1,14 +1,11 @@
 package com.sighs.apricityui.render;
 
+import com.mojang.blaze3d.pipeline.RenderPipeline;
+import com.mojang.blaze3d.platform.CompareOp;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.AddressMode;
 import com.mojang.blaze3d.textures.FilterMode;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.ByteBufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexFormat;
-import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
@@ -27,8 +24,6 @@ import net.minecraft.util.Mth;
 import net.neoforged.neoforge.client.stencil.StencilOperation;
 import net.neoforged.neoforge.client.stencil.StencilPerFaceTest;
 import net.neoforged.neoforge.client.stencil.StencilTest;
-import com.mojang.blaze3d.platform.CompareOp;
-import com.mojang.blaze3d.pipeline.RenderPipeline;
 import org.joml.Matrix4f;
 
 import java.util.Locale;
@@ -563,10 +558,14 @@ public final class ImageDrawer {
         emitTexturedRect(buf, matrix, x, y + tl, x + leftInset, y + height - bl, x, y, width, height, minU, maxU, minV, maxV);
         emitTexturedRect(buf, matrix, x + width - rightInset, y + tr, x + width, y + height - br, x, y, width, height, minU, maxU, minV, maxV);
 
-        if (tl > 0.001f) emitCornerFan(buf, matrix, x + tl, y + tl, tl, 180f, 90f, x, y, width, height, minU, maxU, minV, maxV);
-        if (tr > 0.001f) emitCornerFan(buf, matrix, x + width - tr, y + tr, tr, 90f, 0f, x, y, width, height, minU, maxU, minV, maxV);
-        if (br > 0.001f) emitCornerFan(buf, matrix, x + width - br, y + height - br, br, 0f, -90f, x, y, width, height, minU, maxU, minV, maxV);
-        if (bl > 0.001f) emitCornerFan(buf, matrix, x + bl, y + height - bl, bl, -90f, -180f, x, y, width, height, minU, maxU, minV, maxV);
+        if (tl > 0.001f)
+            emitCornerFan(buf, matrix, x + tl, y + tl, tl, 180f, 90f, x, y, width, height, minU, maxU, minV, maxV);
+        if (tr > 0.001f)
+            emitCornerFan(buf, matrix, x + width - tr, y + tr, tr, 90f, 0f, x, y, width, height, minU, maxU, minV, maxV);
+        if (br > 0.001f)
+            emitCornerFan(buf, matrix, x + width - br, y + height - br, br, 0f, -90f, x, y, width, height, minU, maxU, minV, maxV);
+        if (bl > 0.001f)
+            emitCornerFan(buf, matrix, x + bl, y + height - bl, bl, -90f, -180f, x, y, width, height, minU, maxU, minV, maxV);
 
         MeshData mesh = buf.build();
         if (mesh == null) return;

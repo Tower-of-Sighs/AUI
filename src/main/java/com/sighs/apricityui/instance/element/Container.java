@@ -312,7 +312,7 @@ public class Container extends MinecraftElement {
                                               List<ContainerDraft> drafts,
                                               int[] topLevelIndex) {
         if (element == null) return;
-        if (element instanceof Recipe) return;
+        if (element instanceof ApricityRecipe) return;
 
         ContainerDraft currentTopLevel = activeTopLevel;
         if (element instanceof Container container && activeTopLevel == null) {
@@ -321,7 +321,7 @@ public class Container extends MinecraftElement {
             topLevelIndex[0]++;
         }
 
-        if (element instanceof Slot slot && currentTopLevel != null) {
+        if (element instanceof ApricitySlot slot && currentTopLevel != null) {
             currentTopLevel.consumeSlot(slot);
         }
 
@@ -570,7 +570,7 @@ public class Container extends MinecraftElement {
             return Math.max(-1, maxSlotIndex);
         }
 
-        private void consumeSlot(Slot slot) {
+        private void consumeSlot(ApricitySlot slot) {
             if (slot == null || bindType == ContainerBindType.VIRTUAL_UI) return;
 
             int repeat = Math.max(1, slot.getRepeatCount());

@@ -35,7 +35,7 @@ public class CSS {
             if (html == null || html.isEmpty()) return html;
 
             Matcher matcher = STYLE_TAG_PATTERN.matcher(html);
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
 
             while (matcher.find()) {
                 String attrText = matcher.group(1);
@@ -189,7 +189,7 @@ public class CSS {
 
         private static String normalizeUrlValue(String value, String contextPath) {
             Matcher matcher = URL_EXTRACTOR.matcher(value);
-            StringBuffer buffer = new StringBuffer();
+            StringBuilder buffer = new StringBuilder();
             while (matcher.find()) {
                 String rawPath = matcher.group(1).trim();
                 if (rawPath.isEmpty()) continue;

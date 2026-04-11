@@ -11,6 +11,7 @@ import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
+import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Locale;
@@ -19,11 +20,11 @@ import java.util.Map;
 /**
  * 绑定态展示真实菜单槽位，未绑定态展示表达式候选。
  */
-@ElementRegister(Slot.TAG_NAME)
-public class Slot extends MinecraftElement {
+@ElementRegister(ApricitySlot.TAG_NAME)
+public class ApricitySlot extends MinecraftElement {
     public static final String TAG_NAME = "SLOT";
 
-    private net.minecraft.world.inventory.Slot mcSlot = null;
+    private Slot mcSlot = null;
     private ItemStack virtualStack = ItemStack.EMPTY;
 
     private SlotDisplaySpec displaySpec = SlotDisplaySpec.EMPTY;
@@ -31,7 +32,7 @@ public class Slot extends MinecraftElement {
     private int candidateIndex = 0;
     private long nextRotateAtMillis = 0L;
 
-    public Slot(Document document) {
+    public ApricitySlot(Document document) {
         super(document, TAG_NAME);
     }
 
@@ -47,14 +48,14 @@ public class Slot extends MinecraftElement {
         return SlotExpressionCompiler.buildLiteralWithCount(rawLiteral, requestedCount);
     }
 
-    public void bindMcSlot(net.minecraft.world.inventory.Slot slot) {
+    public void bindMcSlot(Slot slot) {
         mcSlot = slot;
         if (slot != null) {
             virtualStack = ItemStack.EMPTY;
         }
     }
 
-    public net.minecraft.world.inventory.Slot getMcSlot() {
+    public Slot getMcSlot() {
         return mcSlot;
     }
 
@@ -79,7 +80,7 @@ public class Slot extends MinecraftElement {
     private boolean isRecipeSlot() {
         String generatedTag = getGeneratedSourceTag();
         if (generatedTag != null && generatedTag.startsWith("recipe")) return true;
-        return hasAncestor(Recipe.class);
+        return hasAncestor(ApricityRecipe.class);
     }
 
     public int getSlotIndex() {

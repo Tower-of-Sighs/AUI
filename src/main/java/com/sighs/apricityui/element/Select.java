@@ -34,9 +34,7 @@ public class Select extends Element {
                 }
                 FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
             }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
-            }
+            case BORDER -> rectRenderer.drawBorder(poseStack);
         }
     }
 

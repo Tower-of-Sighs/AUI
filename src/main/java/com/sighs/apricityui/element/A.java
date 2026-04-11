@@ -14,7 +14,7 @@ public class A extends Element {
 
     public A(Document document) {
         super(document, TAG_NAME);
-        addEventListener("mouseup", event -> {
+        addEventListener("mouseup", _ -> {
             String href = getAttribute("href");
             if (href == null || href.isBlank()) return;
             try {

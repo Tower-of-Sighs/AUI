@@ -9,10 +9,10 @@ import com.sighs.apricityui.util.ReflectionUtils;
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class ApricityUIRegistry {
     public static List<Element> ELEMENTS = new ArrayList<>();
+
     public static void scanPackage(String basePackage) {
         ReflectionUtils.addScanPackage(basePackage);
     }

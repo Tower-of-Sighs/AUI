@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class ImageHandle {
     private final String path;
@@ -50,10 +51,10 @@ public final class ImageHandle {
     }
 
     public synchronized void reset(long newGeneration) {
-        generation = newGeneration;
-        state = AbstractAsyncHandler.AsyncState.NEW;
-        error = null;
-        failedAtMs = 0L;
+        this.generation = newGeneration;
+        this.state = AbstractAsyncHandler.AsyncState.NEW;
+        this.error = null;
+        this.failedAtMs = 0L;
     }
 
     public synchronized boolean tryEnterLoading() {
@@ -69,19 +70,19 @@ public final class ImageHandle {
     }
 
     public synchronized void markReady(Image.ITexture readyTexture) {
-        texture = readyTexture;
-        error = null;
-        state = AbstractAsyncHandler.AsyncState.READY;
+        this.texture = readyTexture;
+        this.error = null;
+        this.state = AbstractAsyncHandler.AsyncState.READY;
     }
 
     public synchronized void markFailed(Throwable throwable, long nowMs) {
-        error = throwable;
-        failedAtMs = nowMs;
-        state = AbstractAsyncHandler.AsyncState.FAILED;
+        this.error = throwable;
+        this.failedAtMs = nowMs;
+        this.state = AbstractAsyncHandler.AsyncState.FAILED;
     }
 
     public synchronized void markStale() {
-        state = AbstractAsyncHandler.AsyncState.STALE;
+        this.state = AbstractAsyncHandler.AsyncState.STALE;
     }
 
     public synchronized void destroyTextureIfPresent() {
@@ -92,11 +93,14 @@ public final class ImageHandle {
 
     public void addRequester(Element element, boolean needRelayout) {
         if (element == null) return;
-        requesters.compute(element.uuid, (uuid, oldValue) -> {
+
+        requesters.compute(element.uuid, (_, oldValue) -> {
             if (oldValue == null) {
                 return new RequesterRef(element, needRelayout);
             }
-            oldValue.needRelayout = oldValue.needRelayout || needRelayout;
+            if (needRelayout) {
+                oldValue.needRelayout.set(true);
+            }
             return oldValue;
         });
     }
@@ -109,11 +113,11 @@ public final class ImageHandle {
 
     public static final class RequesterRef {
         private final WeakReference<Element> elementRef;
-        private volatile boolean needRelayout;
+        private final AtomicBoolean needRelayout;
 
         private RequesterRef(Element element, boolean needRelayout) {
             this.elementRef = new WeakReference<>(element);
-            this.needRelayout = needRelayout;
+            this.needRelayout = new AtomicBoolean(needRelayout);
         }
 
         public Element getElement() {
@@ -121,7 +125,11 @@ public final class ImageHandle {
         }
 
         public boolean needRelayout() {
-            return needRelayout;
+            return needRelayout.get();
+        }
+
+        public void setNeedRelayout(boolean value) {
+            this.needRelayout.set(value);
         }
     }
 }

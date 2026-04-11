@@ -2,11 +2,7 @@ package com.sighs.apricityui.event;
 
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.*;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -15,8 +11,8 @@ import java.util.Stack;
 
 // 鼠标事件，现在还没有做得很完善
 public class MouseEvent extends Event implements Cloneable {
-    public double clientX = 0;
-    public double clientY = 0;
+    public double clientX;
+    public double clientY;
     public double pageX = 0;
     public double pageY = 0;
     public double offsetX = 0;
@@ -27,7 +23,7 @@ public class MouseEvent extends Event implements Cloneable {
     public boolean shiftKey;
     public boolean controlKey;
     public double scrollDelta = 0;
-    public int button = -1;
+    public int button;
 
     public MouseEvent(String type, Position mousePosition) {
         this(type, mousePosition, -1);

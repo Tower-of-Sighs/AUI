@@ -3,11 +3,7 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
+import java.util.*;
 
 public class Box {
     public static final List<String> SIDE = List.of("top", "bottom", "left", "right");
@@ -99,7 +95,7 @@ public class Box {
             // 3值: [TL, TR, BR] -> [TL, TR, BR, TR]
             // 4值: [TL, TR, BR, BL]
             if (parsed.size() == 1) {
-                int r = parsed.get(0);
+                int r = parsed.getFirst();
                 resultBox.borderRadius.addAll(List.of(r, r, r, r));
             } else if (parsed.size() == 2) {
                 resultBox.borderRadius.addAll(List.of(parsed.get(0), parsed.get(1), parsed.get(0), parsed.get(1)));
@@ -114,7 +110,7 @@ public class Box {
 
         resultBox.shadows.clear();
         resultBox.shadows.addAll(parseShadowList(style.boxShadow));
-        resultBox.shadow = resultBox.shadows.isEmpty() ? Shadow.getDefault() : resultBox.shadows.get(0);
+        resultBox.shadow = resultBox.shadows.isEmpty() ? Shadow.getDefault() : resultBox.shadows.getFirst();
         resultBox.borderImage = parseBorderImage(style);
         if (resultBox.borderImage != null && isZero(resultBox.borderImage.width)) {
             resultBox.borderImage.width = new int[]{
@@ -260,7 +256,7 @@ public class Box {
 
     public static Shadow parseShadow(String string) {
         List<Shadow> parsed = parseShadowList(string);
-        return parsed.isEmpty() ? Shadow.getDefault() : parsed.get(0);
+        return parsed.isEmpty() ? Shadow.getDefault() : parsed.getFirst();
     }
 
     public static List<Shadow> parseShadowList(String string) {
@@ -369,7 +365,7 @@ public class Box {
             }
 
             if (vals.size() == 1) { // all
-                int v = vals.get(0);
+                int v = vals.getFirst();
                 return new int[]{v, v, v, v};
             } else if (vals.size() == 2) { // top-bottom, left-right
                 int tb = vals.get(0), lr = vals.get(1);

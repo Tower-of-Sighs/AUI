@@ -2,20 +2,10 @@ package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.event.KeyEvent;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.Selector;
+import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class DevTools {
@@ -27,7 +17,8 @@ public class DevTools {
     private static final Set<String> collapsedNodeUuids = new LinkedHashSet<>();
     private static final Set<String> collapseInitializedDocUuids = new LinkedHashSet<>();
 
-    private DevTools() {}
+    private DevTools() {
+    }
 
     public static boolean isOpen() {
         return toolDocument != null && !Document.get(PATH).isEmpty();
@@ -364,7 +355,7 @@ public class DevTools {
         input.value = value == null ? "" : value;
         input.setAttribute("value", input.value);
         input.addEventListener("keydown", event -> {
-            if (!isCommitKey(event)) return;
+            if (isNotCommitKey(event)) return;
             commitAttributeEdit(targetDoc, nodeUuid, node, key, readEditorValue(input), true);
         });
         input.addEventListener("blur", _ -> commitAttributeEdit(targetDoc, nodeUuid, node, key, readEditorValue(input), true));
@@ -387,7 +378,7 @@ public class DevTools {
         input.value = node.innerText == null ? "" : node.innerText;
         input.setAttribute("value", input.value);
         input.addEventListener("keydown", event -> {
-            if (!isCommitKey(event)) return;
+            if (isNotCommitKey(event)) return;
             commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true);
         });
         input.addEventListener("blur", _ -> commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true));
@@ -413,7 +404,7 @@ public class DevTools {
         input.value = node.innerText == null ? "" : node.innerText;
         input.setAttribute("value", input.value);
         input.addEventListener("keydown", event -> {
-            if (!isCommitKey(event)) return;
+            if (isNotCommitKey(event)) return;
             commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true);
         });
         input.addEventListener("blur", _ -> commitInnerTextEdit(targetDoc, nodeUuid, node, readEditorValue(input), true));
@@ -443,11 +434,11 @@ public class DevTools {
         btn.addEventListener("mousedown", commit);
         btn.addEventListener("mouseup", commit);
         keyInput.addEventListener("keydown", event -> {
-            if (!isEnterKey(event)) return;
+            if (isNotEnterKey(event)) return;
             commitInlineStyleAdd(targetDoc, nodeUuid, target, keyInput, valueInput);
         });
         valueInput.addEventListener("keydown", event -> {
-            if (!isEnterKey(event)) return;
+            if (isNotEnterKey(event)) return;
             commitInlineStyleAdd(targetDoc, nodeUuid, target, keyInput, valueInput);
         });
         add.append(keyInput);
@@ -474,7 +465,7 @@ public class DevTools {
         valInput.setAttribute("value", value);
         valInput.value = value;
         valInput.addEventListener("keydown", event -> {
-            if (!isCommitKey(event)) return;
+            if (isNotCommitKey(event)) return;
             commitInlineStyleUpdate(targetDoc, nodeUuid, target, key, readEditorValue(valInput), true);
         });
         valInput.addEventListener("blur", _ -> commitInlineStyleUpdate(targetDoc, nodeUuid, target, key, readEditorValue(valInput), true));
@@ -614,14 +605,13 @@ public class DevTools {
         return safe(editor.getAttribute("value"));
     }
 
-    private static boolean isCommitKey(Event event) {
-        if (!(event instanceof KeyEvent keyEvent)) return false;
-        return "Escape".equals(keyEvent.key) || "Enter".equals(keyEvent.key);
+    private static boolean isNotCommitKey(Event event) {
+        return !(event instanceof KeyEvent keyEvent
+                && ("Escape".equals(keyEvent.key) || "Enter".equals(keyEvent.key)));
     }
 
-    private static boolean isEnterKey(Event event) {
-        if (!(event instanceof KeyEvent keyEvent)) return false;
-        return "Enter".equals(keyEvent.key);
+    private static boolean isNotEnterKey(Event event) {
+        return !(event instanceof KeyEvent keyEvent && "Enter".equals(keyEvent.key));
     }
 
     private static boolean isSelfClosingTag(Element element) {
@@ -766,7 +756,9 @@ public class DevTools {
     }
 
     private static Element createToolElement(String tagName) {
-        if (toolDocument == null) return null;
+        if (toolDocument == null) {
+            throw new IllegalStateException("[DevTools] Not initialized, failed to create element: " + tagName);
+        }
         Element element = toolDocument.createElement(tagName);
         return Element.init(element);
     }
