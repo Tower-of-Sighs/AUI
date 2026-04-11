@@ -3,9 +3,9 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.element.ApricityRecipe;
+import com.sighs.apricityui.instance.element.ApricitySlot;
 import com.sighs.apricityui.instance.element.Container;
-import com.sighs.apricityui.instance.element.Recipe;
-import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
@@ -15,6 +15,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import net.minecraft.world.inventory.Slot;
 
 import java.util.*;
 
@@ -25,11 +26,11 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private static final int OFFSCREEN_SLOT_POS = -10000;
 
     private final Document linkedDocument;
-    private final ArrayList<Slot> boundSlots = new ArrayList<>();
-    private final ArrayList<Slot> unboundSlots = new ArrayList<>();
-    private final HashMap<Slot, Integer> boundGlobalIndexByElement = new HashMap<>();
-    private final HashMap<Slot, Container> boundContainerByElement = new HashMap<>();
-    private final IdentityHashMap<net.minecraft.world.inventory.Slot, Slot> boundElementByMenuSlot = new IdentityHashMap<>();
+    private final ArrayList<ApricitySlot> boundSlots = new ArrayList<>();
+    private final ArrayList<ApricitySlot> unboundSlots = new ArrayList<>();
+    private final HashMap<ApricitySlot, Integer> boundGlobalIndexByElement = new HashMap<>();
+    private final HashMap<ApricitySlot, Container> boundContainerByElement = new HashMap<>();
+    private final IdentityHashMap<Slot, ApricitySlot> boundElementByMenuSlot = new IdentityHashMap<>();
     private boolean slotsBound = false;
     private boolean slotSyncDirty = true;
     private int lastKnownDomSlotCount = -1;
@@ -59,7 +60,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     public int findSlotIndexAt(double mouseX, double mouseY) {
         for (int index = 0; index < menu.slots.size(); index++) {
-            net.minecraft.world.inventory.Slot slot = menu.slots.get(index);
+            Slot slot = menu.slots.get(index);
             if (!isSlotPointerInteractable(slot)) continue;
             int slotSize = resolveSlotSize(slot);
             if (isHovering(slot.x, slot.y, slotSize, slotSize, mouseX, mouseY)) {
@@ -69,7 +70,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return -1;
     }
 
-    public boolean isSlotPointerInteractable(net.minecraft.world.inventory.Slot slot) {
+    public boolean isSlotPointerInteractable(Slot slot) {
         if (slot == null || !slot.isActive()) return false;
         if (!(slot instanceof ApricityContainerMenu.UiSlot uiSlot)) {
             return isBoundSlotPointerEnabledByCss(slot);
@@ -130,8 +131,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         List<Element> snapshot = new ArrayList<>(linkedDocument.getElements());
         for (Element element : snapshot) {
-            if (!(element instanceof Slot slot)) continue;
-            if (slot.findAncestor(Recipe.class) != null) {
+            if (!(element instanceof ApricitySlot slot)) continue;
+            if (slot.findAncestor(ApricityRecipe.class) != null) {
                 slot.bindMcSlot(null);
                 unboundSlots.add(slot);
                 continue;
@@ -168,7 +169,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 continue;
             }
 
-            net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(globalSlotIndex);
+            Slot menuSlot = menu.slots.get(globalSlotIndex);
             slot.bindMcSlot(menuSlot);
             boundSlots.add(slot);
             boundGlobalIndexByElement.put(slot, globalSlotIndex);
@@ -193,7 +194,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (linkedDocument == null) return -1;
         int count = 0;
         for (Element element : linkedDocument.getElements()) {
-            if (element instanceof Slot) count++;
+            if (element instanceof ApricitySlot) count++;
         }
         return count;
     }
@@ -236,16 +237,16 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         Drawer.flushUpdates(linkedDocument);
 
-        for (net.minecraft.world.inventory.Slot slot : menu.slots) {
+        for (Slot slot : menu.slots) {
             setMenuSlotPosition(slot, OFFSCREEN_SLOT_POS, OFFSCREEN_SLOT_POS);
             if (slot instanceof ApricityContainerMenu.UiSlot uiSlot) {
                 uiSlot.setUiHidden(true);
             }
         }
 
-        LinkedHashMap<Container, ArrayList<Map.Entry<Slot, Integer>>> groupedEntries = new LinkedHashMap<>();
-        for (Map.Entry<Slot, Integer> entry : boundGlobalIndexByElement.entrySet()) {
-            Slot boundElement = entry.getKey();
+        LinkedHashMap<Container, ArrayList<Map.Entry<ApricitySlot, Integer>>> groupedEntries = new LinkedHashMap<>();
+        for (Map.Entry<ApricitySlot, Integer> entry : boundGlobalIndexByElement.entrySet()) {
+            ApricitySlot boundElement = entry.getKey();
             if (boundElement == null) continue;
             Container ownerContainer = boundContainerByElement.get(boundElement);
             if (ownerContainer == null) {
@@ -258,14 +259,14 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             groupedEntries.computeIfAbsent(ownerContainer, ignored -> new ArrayList<>()).add(entry);
         }
 
-        for (ArrayList<Map.Entry<Slot, Integer>> entries : groupedEntries.values()) {
-            for (Map.Entry<Slot, Integer> entry : entries) {
-                Slot boundElement = entry.getKey();
+        for (ArrayList<Map.Entry<ApricitySlot, Integer>> entries : groupedEntries.values()) {
+            for (Map.Entry<ApricitySlot, Integer> entry : entries) {
+                ApricitySlot boundElement = entry.getKey();
                 int globalSlotIndex = entry.getValue();
                 if (boundElement == null) continue;
                 if (globalSlotIndex < 0 || globalSlotIndex >= menu.slots.size()) continue;
 
-                net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(globalSlotIndex);
+                Slot menuSlot = menu.slots.get(globalSlotIndex);
                 boolean hidden = !boundElement.isVisible || "none".equals(boundElement.getComputedStyle().display);
 
                 int slotSize = resolveBoundSlotPixelSize(boundElement, menuSlot);
@@ -288,7 +289,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         slotSyncDirty = false;
     }
 
-    private int resolveBoundSlotPixelSize(Slot boundElement, net.minecraft.world.inventory.Slot menuSlot) {
+    private int resolveBoundSlotPixelSize(ApricitySlot boundElement, Slot menuSlot) {
         if (boundElement != null) {
             int fromElement = boundElement.resolveSlotSizeHint(16);
             if (fromElement > 0) return fromElement;
@@ -313,10 +314,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return 16;
     }
 
-    private boolean isBoundSlotPointerEnabledByCss(net.minecraft.world.inventory.Slot menuSlot) {
-        Slot boundElement = boundElementByMenuSlot.get(menuSlot);
+    private boolean isBoundSlotPointerEnabledByCss(Slot menuSlot) {
+        ApricitySlot boundElement = boundElementByMenuSlot.get(menuSlot);
         if (boundElement == null) return true;
-        if (boundElement.findAncestor(Recipe.class) != null) return false;
+        if (boundElement.findAncestor(ApricityRecipe.class) != null) return false;
         if (!boundElement.isVisible) return false;
         if ("none".equals(boundElement.getComputedStyle().display)) return false;
         return boundElement.shouldAcceptPointer();
@@ -362,7 +363,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         super.removed();
     }
 
-    private SlotVisual resolveSlotVisual(net.minecraft.world.inventory.Slot slot) {
+    private SlotVisual resolveSlotVisual(Slot slot) {
         if (!(slot instanceof ApricityContainerMenu.UiSlot uiSlot)) {
             return new SlotVisual(16, false, true, true, 1.0F, 0, 0, false);
         }
@@ -378,7 +379,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         );
     }
 
-    private int resolveSlotSize(net.minecraft.world.inventory.Slot slot) {
+    private int resolveSlotSize(Slot slot) {
         if (slot instanceof ApricityContainerMenu.UiSlot uiSlot) {
             return Math.max(1, uiSlot.getUiSlotSize());
         }
@@ -386,7 +387,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     private boolean applyBoundSlotRuntimeStyle(
-            Slot slotElement,
+            ApricitySlot slotElement,
             boolean hidden
     ) {
         if (slotElement == null) return false;
@@ -417,7 +418,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return base + ";" + runtime;
     }
 
-    private void setMenuSlotPosition(net.minecraft.world.inventory.Slot slot, int x, int y) {
+    private void setMenuSlotPosition(Slot slot, int x, int y) {
         if (slot == null) return;
         SlotAccessor accessor = (SlotAccessor) slot;
         accessor.setX(x);

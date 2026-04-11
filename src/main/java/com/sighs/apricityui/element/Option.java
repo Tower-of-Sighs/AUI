@@ -35,9 +35,7 @@ public class Option extends Element {
                 rectRenderer.drawBody(poseStack);
                 FontDrawer.drawFont(poseStack, Text.of(this), rectRenderer.getContentPosition());
             }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
-            }
+            case BORDER -> rectRenderer.drawBorder(poseStack);
         }
     }
 }

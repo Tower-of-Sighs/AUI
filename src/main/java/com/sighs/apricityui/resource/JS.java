@@ -32,7 +32,7 @@ public class JS {
             if (html == null || html.isEmpty()) return html;
 
             Matcher matcher = SCRIPT_TAG_PATTERN.matcher(html);
-            StringBuffer sb = new StringBuffer();
+            StringBuilder sb = new StringBuilder();
 
             while (matcher.find()) {
                 String attrText = matcher.group(1); // 标签属性部分

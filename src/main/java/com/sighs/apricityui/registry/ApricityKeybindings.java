@@ -14,7 +14,7 @@ import net.neoforged.neoforge.common.util.Lazy;
 import org.lwjgl.glfw.GLFW;
 
 @EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
-public class Keybindings {
+public class ApricityKeybindings {
     public static final KeyMapping.Category CATEGORY = new KeyMapping.Category(Identifier.fromNamespaceAndPath(ApricityUI.MODID, "categories.apricityui"));
     public static final Lazy<KeyMapping> RELOAD = Lazy.of(() -> new KeyMapping("key.apricityui.reload",
             KeyConflictContext.GUI,

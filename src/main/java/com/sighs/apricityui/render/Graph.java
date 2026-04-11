@@ -1,10 +1,6 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.style.Gradient;
 import org.joml.Matrix4f;
@@ -276,10 +272,14 @@ public final class Graph {
         if (lW > 0) addRect(buf, mat, x, y + tl, x + lW, y + h - bl, lC);
         if (rW > 0) addRect(buf, mat, x + w - rW, y + tr, x + w, y + h - br, rC);
 
-        if (tl > 0 || tW > 0 || lW > 0) addComplexCorner(buf, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
-        if (tr > 0 || tW > 0 || rW > 0) addComplexCorner(buf, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
-        if (br > 0 || rW > 0 || bW > 0) addComplexCorner(buf, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
-        if (bl > 0 || bW > 0 || lW > 0) addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+        if (tl > 0 || tW > 0 || lW > 0)
+            addComplexCorner(buf, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+        if (tr > 0 || tW > 0 || rW > 0)
+            addComplexCorner(buf, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+        if (br > 0 || rW > 0 || bW > 0)
+            addComplexCorner(buf, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+        if (bl > 0 || bW > 0 || lW > 0)
+            addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
     }
 
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {

@@ -362,6 +362,7 @@ public class Document {
             if (element.hasInnerTextSelection()) element.clearTextSelection();
         }
     }
+
     // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
     public void clearFocus() {
         setFocusedElement(null);

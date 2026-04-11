@@ -123,7 +123,7 @@ public class Background {
     private static String pickLayerToken(List<String> values, int index, String fallback) {
         if (values == null || values.isEmpty()) return fallback;
         if (index < values.size()) return values.get(index);
-        return values.get(values.size() - 1);
+        return values.getLast();
     }
 
     private static String normalizeLayerValue(String raw, String fallback) {

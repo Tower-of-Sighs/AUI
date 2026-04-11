@@ -47,21 +47,21 @@ public final class DebugReloadWatcher {
             stream.filter(Files::isRegularFile)
                     .filter(DebugReloadWatcher::isWatchedExtension)
                     .forEach(path -> {
-                try {
-                    FileTime time = Files.getLastModifiedTime(path);
-                    long lastModified = time.toMillis();
-                    Long cached = LAST_MODIFIED.get(path);
-                    if (cached == null) {
-                        LAST_MODIFIED.put(path, lastModified);
-                        return;
-                    }
-                    if (lastModified != cached) {
-                        LAST_MODIFIED.put(path, lastModified);
-                        triggerReload(path, now);
-                    }
-                } catch (IOException ignored) {
-                }
-            });
+                        try {
+                            FileTime time = Files.getLastModifiedTime(path);
+                            long lastModified = time.toMillis();
+                            Long cached = LAST_MODIFIED.get(path);
+                            if (cached == null) {
+                                LAST_MODIFIED.put(path, lastModified);
+                                return;
+                            }
+                            if (lastModified != cached) {
+                                LAST_MODIFIED.put(path, lastModified);
+                                triggerReload(path, now);
+                            }
+                        } catch (IOException ignored) {
+                        }
+                    });
         } catch (IOException ignored) {
         }
     }

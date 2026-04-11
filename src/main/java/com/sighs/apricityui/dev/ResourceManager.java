@@ -9,14 +9,7 @@ import net.minecraft.util.Util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Consumer;
 
 public class ResourceManager {
@@ -237,9 +230,9 @@ public class ResourceManager {
         }
 
         for (FolderNode child : node.children.values()) {
-            appendFolderRows(rows, child, node.path.isBlank() ? depth : depth + 1, manager);
+            appendFolderRows(rows, child, depth + 1, manager);
         }
-        int fileDepth = node.path.isBlank() ? depth : depth + 1;
+        int fileDepth = depth + 1;
         for (Loader.StaticResourceEntry file : node.files) {
             rows.append(buildFileRow(0, fileDepth, file, true, manager));
         }
@@ -528,7 +521,9 @@ public class ResourceManager {
     }
 
     private static Element createToolElement(String tagName) {
-        if (toolDocument == null) return null;
+        if (toolDocument == null) {
+            throw new IllegalStateException("[ResourceManager] Not initialized, failed to create element: " + tagName);
+        }
         return Element.init(toolDocument.createElement(tagName));
     }
 

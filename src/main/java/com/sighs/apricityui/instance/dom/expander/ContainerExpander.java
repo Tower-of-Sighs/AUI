@@ -3,9 +3,9 @@ package com.sighs.apricityui.instance.dom.expander;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.element.ApricityRecipe;
+import com.sighs.apricityui.instance.element.ApricitySlot;
 import com.sighs.apricityui.instance.element.Container;
-import com.sighs.apricityui.instance.element.Recipe;
-import com.sighs.apricityui.instance.element.Slot;
 
 import java.util.*;
 
@@ -27,7 +27,7 @@ public final class ContainerExpander {
     }
 
     private static void expandSingleContainer(Document document, Container container) {
-        List<Slot> ownedSlots = collectOwnedSlots(document, container);
+        List<ApricitySlot> ownedSlots = collectOwnedSlots(document, container);
         if (ownedSlots.isEmpty()) {
             Integer declaredSize = parsePositiveInt(container.getAttribute("size"));
             String bindType = normalize(container.getAttribute("bind"));
@@ -46,7 +46,7 @@ public final class ContainerExpander {
     private static void appendAutoSlots(Document document, Container container, int count, boolean playerAuto) {
         int safeCount = Math.max(0, count);
         for (int index = 0; index < safeCount; index++) {
-            Slot slot = new Slot(document);
+            ApricitySlot slot = new ApricitySlot(document);
             LinkedHashMap<String, String> attrs = new LinkedHashMap<>();
             attrs.put("index", String.valueOf(index));
             attrs.put("slot-index", String.valueOf(index));
@@ -59,12 +59,12 @@ public final class ContainerExpander {
         }
     }
 
-    private static List<Slot> collectOwnedSlots(Document document, Container container) {
-        ArrayList<Slot> result = new ArrayList<>();
+    private static List<ApricitySlot> collectOwnedSlots(Document document, Container container) {
+        ArrayList<ApricitySlot> result = new ArrayList<>();
         if (document == null || container == null) return result;
         for (Element element : document.getElements()) {
-            if (!(element instanceof Slot slot)) continue;
-            if (slot.findAncestor(Recipe.class) != null) continue;
+            if (!(element instanceof ApricitySlot slot)) continue;
+            if (slot.findAncestor(ApricityRecipe.class) != null) continue;
             Container owner = slot.findAncestor(Container.class);
             if (owner != container) continue;
             result.add(slot);
@@ -72,11 +72,11 @@ public final class ContainerExpander {
         return result;
     }
 
-    private static void normalizeSlotIndices(List<Slot> slots, Document document, Container container) {
+    private static void normalizeSlotIndices(List<ApricitySlot> slots, Document document, Container container) {
         if (slots == null || slots.isEmpty()) return;
         Set<Integer> usedIndices = new HashSet<>();
-        ArrayList<Slot> missing = new ArrayList<>();
-        for (Slot slot : slots) {
+        ArrayList<ApricitySlot> missing = new ArrayList<>();
+        for (ApricitySlot slot : slots) {
             int slotIndex = slot.getSlotIndex();
             if (slotIndex >= 0) {
                 usedIndices.add(slotIndex);
@@ -86,7 +86,7 @@ public final class ContainerExpander {
             }
         }
         int nextIndex = 0;
-        for (Slot slot : missing) {
+        for (ApricitySlot slot : missing) {
             while (usedIndices.contains(nextIndex)) nextIndex++;
             int assigned = nextIndex;
             usedIndices.add(assigned);
@@ -100,7 +100,7 @@ public final class ContainerExpander {
         }
     }
 
-    private static void ensureIndexAttributes(Slot slot, int index) {
+    private static void ensureIndexAttributes(ApricitySlot slot, int index) {
         if (slot == null || index < 0) return;
         String target = String.valueOf(index);
         if (!target.equals(slot.getAttribute("index"))) {

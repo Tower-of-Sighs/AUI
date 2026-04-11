@@ -8,11 +8,11 @@ import net.minecraft.resources.Identifier;
 import java.util.ArrayList;
 import java.util.List;
 
-@ElementRegister(Recipe.TAG_NAME)
-public class Recipe extends MinecraftElement {
+@ElementRegister(ApricityRecipe.TAG_NAME)
+public class ApricityRecipe extends MinecraftElement {
     public static final String TAG_NAME = "RECIPE";
 
-    public Recipe(Document document) {
+    public ApricityRecipe(Document document) {
         super(document, TAG_NAME);
     }
 

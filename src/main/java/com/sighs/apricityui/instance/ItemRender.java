@@ -2,7 +2,7 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.instance.element.ApricitySlot;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -24,7 +24,7 @@ public final class ItemRender {
 
         Font font = Minecraft.getInstance().font;
         for (Element element : elements) {
-            if (!(element instanceof Slot slot)) continue;
+            if (!(element instanceof ApricitySlot slot)) continue;
 
             if (slot.getMcSlot() != null) continue;
 

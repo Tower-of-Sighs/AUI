@@ -234,22 +234,21 @@ public class Text {
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
         if (cachedKey != null && cachedKeyHash == h) return cachedKey;
 
-        StringBuilder sb = new StringBuilder(64);
-        sb.append(fontSize).append('/')
-                .append(fontWeight).append('/')
-                .append(oblique).append('/')
-                .append(strokeWidth).append('/')
-                .append(strokeColor == null ? 0 : strokeColor.getValue()).append('/')
-                .append(color == null ? 0 : color.getValue()).append('/')
-                .append(fontFamily == null ? "" : fontFamily).append('/')
-                .append(content == null ? "" : content).append('/')
-                .append(direction == null ? "" : direction).append('/')
-                .append(textAlign == null ? "" : textAlign).append('/')
-                .append(verticalAlign == null ? "" : verticalAlign).append('/')
-                .append(whiteSpace == null ? "" : whiteSpace).append('/')
-                .append(textIndent).append('/')
-                .append(letterSpacing);
-        cachedKey = sb.toString();
+        String sb = String.valueOf(fontSize) + '/' +
+                fontWeight + '/' +
+                oblique + '/' +
+                strokeWidth + '/' +
+                (strokeColor == null ? 0 : strokeColor.getValue()) + '/' +
+                (color == null ? 0 : color.getValue()) + '/' +
+                (fontFamily == null ? "" : fontFamily) + '/' +
+                (content == null ? "" : content) + '/' +
+                (direction == null ? "" : direction) + '/' +
+                (textAlign == null ? "" : textAlign) + '/' +
+                (verticalAlign == null ? "" : verticalAlign) + '/' +
+                (whiteSpace == null ? "" : whiteSpace) + '/' +
+                textIndent + '/' +
+                letterSpacing;
+        cachedKey = sb;
         cachedKeyHash = h;
         return cachedKey;
     }
@@ -306,8 +305,8 @@ public class Text {
             lines.add("");
             starts.add(0);
         }
-        for (int i = 0; i < lines.size(); i++) {
-            maxWidth = Math.max(maxWidth, measureLine(text, lines.get(i)));
+        for (String line : lines) {
+            maxWidth = Math.max(maxWidth, measureLine(text, line));
         }
         if (wrapWidth > 0 && allowsSoftWrap(text == null ? null : text.whiteSpace)) {
             maxWidth = Math.min(maxWidth, wrapWidth);
@@ -452,7 +451,6 @@ public class Text {
         return switch (value) {
             case "pre", "pre-wrap", "break-spaces" -> content.replace("\r\n", "\n").replace('\r', '\n');
             case "pre-line" -> collapseSpacesPreserveNewlines(content);
-            case "nowrap", "normal" -> collapseToSingleLine(content);
             default -> collapseToSingleLine(content);
         };
     }

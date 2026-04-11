@@ -148,7 +148,6 @@ public class Cursor {
         v = v.trim().toLowerCase(Locale.ROOT);
 
         return switch (v) {
-            case "auto", "default" -> GLFW.GLFW_ARROW_CURSOR;
             case "pointer" -> GLFW.GLFW_HAND_CURSOR;
             case "text" -> GLFW.GLFW_IBEAM_CURSOR;
             case "crosshair" -> GLFW.GLFW_CROSSHAIR_CURSOR;

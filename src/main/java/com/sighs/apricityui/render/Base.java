@@ -5,12 +5,7 @@ import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.StyleFrameCache;
-import com.sighs.apricityui.style.Transform;
-import org.joml.Matrix4f;
+import com.sighs.apricityui.style.*;
 import org.joml.Quaternionf;
 
 import java.util.List;

@@ -2,12 +2,12 @@ package com.sighs.apricityui.client.gui.pip;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
+import org.jspecify.annotations.NonNull;
 
 public final class ApricityUiPipRenderer extends PictureInPictureRenderer<ApricityUiPipRenderState> {
     public ApricityUiPipRenderer(MultiBufferSource.BufferSource bufferSource) {
@@ -15,12 +15,12 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
     }
 
     @Override
-    public Class<ApricityUiPipRenderState> getRenderStateClass() {
+    public @NonNull Class<ApricityUiPipRenderState> getRenderStateClass() {
         return ApricityUiPipRenderState.class;
     }
 
     @Override
-    protected void renderToTexture(ApricityUiPipRenderState renderState, PoseStack ignored) {
+    protected void renderToTexture(ApricityUiPipRenderState renderState, @NonNull PoseStack ignored) {
         double guiScale = Minecraft.getInstance().getWindow().getGuiScale();
         // PictureInPictureRenderer 已经把投影矩阵配置好了，能和输出纹理尺寸匹配，还用了-1000 到 1000 的近/远平面（near/far）
         // 不能在这里覆盖，否则 GUI 中 z = 0 的几何体可能？会被裁剪
@@ -43,7 +43,7 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
     }
 
     @Override
-    protected String getTextureLabel() {
+    protected @NonNull String getTextureLabel() {
         return "apricityui";
     }
 

@@ -242,15 +242,15 @@ public class Client {
 
     @SubscribeEvent
     public static void mouseMove(ClientTickEvent.Post event) {
-            Operation.onMouseMove(getMousePosition());
-            for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
-                Position realPos = window.getRealPos();
-                if (realPos != null) {
-                    MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
-                    MouseEvent.tiggerEvent(moveEvent, window.document);
-                }
+        Operation.onMouseMove(getMousePosition());
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
+            Position realPos = window.getRealPos();
+            if (realPos != null) {
+                MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
+                MouseEvent.tiggerEvent(moveEvent, window.document);
             }
         }
+    }
 
     @SubscribeEvent
     public static void onKeyPressed(InputEvent.Key event) {
@@ -258,7 +258,8 @@ public class Client {
             return;
         }
         int action = event.getAction();
-        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE)
+            return;
         boolean canceled = Operation.handleKeyInput(
                 event.getKey(),
                 event.getScanCode(),
@@ -299,19 +300,19 @@ public class Client {
 
     @SubscribeEvent
     public static void tick(ClientTickEvent.Pre event) {
-            Runtime.tick();
+        Runtime.tick();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
-            DebugReloadWatcher.tick();
-            DebugAIScreenshotTicker.tick();
-            Size current = getWindowSize();
-            int w = (int) current.width();
-            int h = (int) current.height();
-            if (lastWindowWidth != w || lastWindowHeight != h) {
-                lastWindowWidth = w;
-                lastWindowHeight = h;
-                Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
-            }
+        DebugReloadWatcher.tick();
+        DebugAIScreenshotTicker.tick();
+        Size current = getWindowSize();
+        int w = (int) current.width();
+        int h = (int) current.height();
+        if (lastWindowWidth != w || lastWindowHeight != h) {
+            lastWindowWidth = w;
+            lastWindowHeight = h;
+            Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
         }
+    }
 
     /**
      * FIXME:
@@ -331,7 +332,9 @@ public class Client {
         return new Position(mouseX, mouseY);
     }
 
-    /** 通过 GLFW 直接从窗口句柄获取实时坐标 */
+    /**
+     * 通过 GLFW 直接从窗口句柄获取实时坐标
+     */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
         long handle = window.handle();

@@ -4,7 +4,6 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
-import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
 import java.util.regex.Matcher;

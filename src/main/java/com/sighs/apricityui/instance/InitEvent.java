@@ -29,10 +29,10 @@ public class InitEvent {
 
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
-            tickCounter++;
-            if (tickCounter >= 5000) {
-                tickCounter = 0;
-                Window.window.localStorage.save();
-            }
+        tickCounter++;
+        if (tickCounter >= 5000) {
+            tickCounter = 0;
+            Window.window.localStorage.save();
         }
+    }
 }

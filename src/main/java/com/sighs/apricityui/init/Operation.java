@@ -10,7 +10,7 @@ import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.registry.Keybindings;
+import com.sighs.apricityui.registry.ApricityKeybindings;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -180,7 +180,7 @@ public class Operation {
         if (!repeat && key == GLFW.GLFW_KEY_K) {
             ExamplePage.toggle();
         }
-        if (!repeat && key == Keybindings.RELOAD.get().getKey().getValue()) {
+        if (!repeat && key == ApricityKeybindings.RELOAD.get().getKey().getValue()) {
             Loader.reload();
         }
         return cancel;

@@ -34,9 +34,9 @@ public class Input extends AbstractText {
             if (!(event instanceof MouseEvent)) return;
             Mode mode = getMode();
             if (mode == Mode.CHECKBOX) {
-                setChecked(!isChecked());
+                setChecked(isUnchecked());
                 triggerChangeEvent();
-            } else if (mode == Mode.RADIO && !isChecked()) {
+            } else if (mode == Mode.RADIO && isUnchecked()) {
                 clearRadioGroupChecked();
                 setChecked(true);
                 triggerChangeEvent();
@@ -59,11 +59,11 @@ public class Input extends AbstractText {
         return getMode() == Mode.TEXT;
     }
 
-    private boolean isChecked() {
-        if (!hasAttribute("checked")) return false;
+    private boolean isUnchecked() {
+        if (!hasAttribute("checked")) return true;
         String value = getAttribute("checked");
-        if (value == null || value.isBlank()) return true;
-        return !("false".equalsIgnoreCase(value) || "0".equals(value));
+        if (value == null || value.isBlank()) return false;
+        return "false".equalsIgnoreCase(value) || "0".equals(value);
     }
 
     private void setChecked(boolean checked) {
@@ -89,12 +89,12 @@ public class Input extends AbstractText {
     public boolean handleSpaceKey() {
         Mode mode = getMode();
         if (mode == Mode.CHECKBOX) {
-            setChecked(!isChecked());
+            setChecked(isUnchecked());
             triggerChangeEvent();
             return true;
         }
         if (mode == Mode.RADIO) {
-            if (!isChecked()) {
+            if (isUnchecked()) {
                 clearRadioGroupChecked();
                 setChecked(true);
                 triggerChangeEvent();
@@ -121,7 +121,7 @@ public class Input extends AbstractText {
     }
 
     private void drawCheckableInput(PoseStack poseStack, Rect rectRenderer, Mode mode) {
-        if (!isChecked()) return;
+        if (isUnchecked()) return;
         Text text = Text.of(this);
         text.content = mode == Mode.RADIO ? "●" : "✓";
         text.color = new Color(Style.getFontColor(this));

@@ -2,10 +2,11 @@ package com.sighs.apricityui.instance.slot;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
-import com.google.gson.JsonSyntaxException;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.serialization.JsonOps;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.element.Recipe;
+import com.sighs.apricityui.instance.element.ApricityRecipe;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.nbt.CompoundTag;
@@ -19,8 +20,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.Ingredient;
 import net.minecraft.world.item.crafting.RecipeType;
-import net.minecraft.client.Minecraft;
-import com.mojang.serialization.JsonOps;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -234,7 +233,7 @@ public final class SlotExpressionCompiler {
     }
 
     private static String normalize(String raw) {
-        return Recipe.normalizeRecipeIdLiteral(raw);
+        return ApricityRecipe.normalizeRecipeIdLiteral(raw);
     }
 
     private static ItemStack parseItemStackLiteral(String literal) {
@@ -260,10 +259,10 @@ public final class SlotExpressionCompiler {
         ItemStack stack;
         try {
             stack = new ItemStack(item);
-        } catch (RuntimeException ignored) {
+        } catch (RuntimeException exception) {
             // certain registry-backed items may not have their DataComponents bound yet
             // (e.g. during very early client ticks / title screen). Avoid crashing; render empty until ready.
-            if (isComponentsNotBoundYet(ignored)) {
+            if (isComponentsNotBoundYet(exception)) {
                 markDeferred();
             }
             return ItemStack.EMPTY;
@@ -307,8 +306,8 @@ public final class SlotExpressionCompiler {
         }
         try {
             return new ItemStack(item, Math.max(1, count));
-        } catch (RuntimeException ignored) {
-            if (isComponentsNotBoundYet(ignored)) {
+        } catch (RuntimeException exception) {
+            if (isComponentsNotBoundYet(exception)) {
                 markDeferred();
             }
             return ItemStack.EMPTY;
