@@ -84,7 +84,7 @@ public class Style implements Cloneable {
     public String textIndent = "unset";
     public String whiteSpace = "unset";
 
-    public String flexDirection = "column";
+    public String flexDirection = "row";
     public String flexWrap = "nowrap";
     public String alignContent = "stretch";
     public String justifyContent = "flex-start";
