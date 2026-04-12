@@ -164,7 +164,7 @@ public class DevTools {
         Document selectedDocument = resolveSelectedDocument(docs);
         if (selectedDocument.body == null) return;
         ensureDefaultCollapsedState(selectedDocument);
-        title.innerText = "DevTools - " + selectedDocument.getPath();
+        title.innerText = "DevTools";
 
         buildDocumentSwitcher(docSwitch, docs, selectedDocument);
 
@@ -226,7 +226,7 @@ public class DevTools {
 
         Element name = createToolElement("DIV");
         name.setAttribute("class", "doc-name");
-        name.innerText = selectedDocument.getPath();
+        name.innerText = formatDocumentLabel(selectedDocument.getPath());
 
         Element next = createToolElement("DIV");
         next.setAttribute("class", "doc-arrow doc-next");
@@ -248,6 +248,17 @@ public class DevTools {
         selectedDocumentUuid = nextDoc.getUuid().toString();
         selectedElementUuid = nextDoc.body == null ? null : nextDoc.body.uuid.toString();
         refresh();
+    }
+
+    private static String formatDocumentLabel(String path) {
+        String safePath = safe(path);
+        if (safePath.isBlank()) return "active document";
+        int lastSlash = Math.max(safePath.lastIndexOf('/'), safePath.lastIndexOf('\\'));
+        String fileName = lastSlash >= 0 && lastSlash < safePath.length() - 1
+                ? safePath.substring(lastSlash + 1)
+                : safePath;
+        if (fileName.length() <= 26) return fileName;
+        return fileName.substring(0, 23) + "...";
     }
 
     private static void buildTree(Element container, Element node, int depth) {
