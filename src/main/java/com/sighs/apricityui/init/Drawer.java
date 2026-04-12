@@ -22,8 +22,8 @@ public class Drawer {
         for (Element e : sortedDirty) {
             // 如果标记了 RELAYOUT，通常意味着尺寸变化，这往往也会影响绘制顺序或边界
             if (e.hasDirtyFlag(RELAYOUT)) {
-                e.getRoute().forEach(element -> element.getRenderer().size.clear());
-                e.getRoute().forEach(element -> element.getRenderer().position.clear());
+                e.forEachRoute(element -> element.getRenderer().size.clear());
+                e.forEachRoute(element -> element.getRenderer().position.clear());
                 // 布局变化通常需要重绘，但不一定需要重排队列（除非影响了层叠上下文）
                 // 但为了安全起见，布局变动通常触发 REPAINT
                 e.addDirtyFlags(REPAINT);

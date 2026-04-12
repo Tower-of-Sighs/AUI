@@ -9,6 +9,12 @@ import java.util.function.Predicate;
 
 public class RenderElement {
     private final Element element;
+    public Cache<Element[]> route = new Cache<>() {
+        @Override
+        void expandClear() {
+            element.children.forEach(e -> e.getRenderer().route.clear());
+        }
+    };
     public Cache<List<Transform>> transform = new Cache<>() {
         @Override
         void expandClear() {
@@ -184,7 +190,7 @@ public class RenderElement {
 
             if (check.test(TEXT_LAYOUT_PROPS)) {
                 // 字体大小行高变化触发重排
-                element.getRoute().forEach(e -> e.getRenderer().size.clear());
+                element.forEachRoute(e -> e.getRenderer().size.clear());
                 renderer.box.clear();
                 if (element.parentElement != null) {
                     element.parentElement.getRenderer().size.clear();
@@ -196,8 +202,8 @@ public class RenderElement {
         }
 
         if (check.test(PADDING_AND_BORDER_PROPS)) {
-            element.getRoute().forEach(e -> e.getRenderer().size.clear());
-            element.getRoute().forEach(e -> e.getRenderer().box.clear());
+            element.forEachRoute(e -> e.getRenderer().size.clear());
+            element.forEachRoute(e -> e.getRenderer().box.clear());
             if (element.parentElement != null) {
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
@@ -206,7 +212,7 @@ public class RenderElement {
         }
 
         if (check.test(LAYOUT_PROPS)) {
-            element.getRoute().forEach(e -> e.getRenderer().size.clear());
+            element.forEachRoute(e -> e.getRenderer().size.clear());
             renderer.box.clear();
             if (element.parentElement != null) {
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
