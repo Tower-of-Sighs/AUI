@@ -728,7 +728,7 @@ public class Style implements Cloneable {
 
         for (Field field : fields) {
             // 跳过静态字段
-            if (java.lang.reflect.Modifier.isStatic(field.getModifiers())) {
+            if (Modifier.isStatic(field.getModifiers())) {
                 continue;
             }
             if ("customProperties".equals(field.getName())) {

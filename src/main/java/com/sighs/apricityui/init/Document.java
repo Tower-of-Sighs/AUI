@@ -33,13 +33,15 @@ public class Document {
     private Element focusedElement = null;
 
     private final String path;
-    public final Map<String, Map<String, String>> CSSCache = new HashMap<>();
+    public final Map<String, Map<String, String>> CSSCache = new LinkedHashMap<>();
     public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
     public final List<String> JSCache = new ArrayList<>();
     public Body body;
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
+
+    private volatile Selector.Index selectorIndex = null;
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -57,6 +59,7 @@ public class Document {
         IDMap.clear();
         elements.clear();
         motionFlags.clear();
+        invalidateSelectorIndex();
         Element bodyElement = HTML.create(this, path);
         try {
             if (bodyElement == null) return;
@@ -334,6 +337,22 @@ public class Document {
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
+    public void invalidateSelectorIndex() {
+        selectorIndex = null;
+    }
+
+    public void rebuildSelectorIndex() {
+        selectorIndex = Selector.Index.build(CSSCache);
+    }
+
+    Selector.Index getSelectorIndex() {
+        Selector.Index index = selectorIndex;
+        if (index != null) return index;
+        index = Selector.Index.build(CSSCache);
+        selectorIndex = index;
+        return index;
+    }
+
     public boolean is(String path) {
         return this.path.equals(path);
     }
@@ -365,6 +384,7 @@ public class Document {
     public void createRelation(Element child, Element parent, boolean head) {
         if (child.parentElement != null) child.parentElement.children.remove(child);
         child.parentElement = parent;
+        child.getRenderer().route.clear();
         if (parent.children.isEmpty() || !head) {
             elements.add(child);
             parent.children.add(child);
@@ -467,6 +487,7 @@ public class Document {
         element.document.markDirty(element.parentElement, Drawer.REORDER);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
         motionFlags.keySet().removeIf(e -> element.uuid.equals(e.uuid));
+        element.getRenderer().route.clear();
     }
 
     public void setTransitionActive(Element element, boolean active) {

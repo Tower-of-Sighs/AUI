@@ -90,16 +90,21 @@ public class Base {
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {
-        List<Element> route = element.getRoute();
+        Element[] route = element.getRouteArray();
         double lastAbsX = 0;
         double lastAbsY = 0;
 
-        int routeSize = route.size();
-        double[] absX = new double[routeSize];
-        double[] absY = new double[routeSize];
+        int routeSize = route.length;
+        Scratch scratch = SCRATCH.get();
+        if (scratch.absX.length < routeSize) {
+            scratch = new Scratch(new double[Math.max(routeSize, scratch.absX.length * 2)], new double[Math.max(routeSize, scratch.absY.length * 2)]);
+            SCRATCH.set(scratch);
+        }
+        double[] absX = scratch.absX;
+        double[] absY = scratch.absY;
 
         for (int i = routeSize - 1; i >= 0; i--) {
-            Element e = route.get(i);
+            Element e = route[i];
             Position offset = Position.getOffset(e);
             if ("fixed".equals(e.getComputedStyle().position)) {
                 absX[i] = offset.x;
@@ -108,14 +113,14 @@ public class Base {
                 absX[i] = offset.x;
                 absY[i] = offset.y;
             } else {
-                Element parent = route.get(i + 1);
+                Element parent = route[i + 1];
                 absX[i] = offset.x + absX[i + 1] - parent.getScrollLeft();
                 absY[i] = offset.y + absY[i + 1] - parent.getScrollTop();
             }
         }
 
         for (int i = 0; i < routeSize; i++) {
-            Element e = route.get(i);
+            Element e = route[i];
             double posX = absX[i];
             double posY = absY[i];
             Box box = Box.of(e);
@@ -160,6 +165,11 @@ public class Base {
             lastAbsY = currentAbsY;
         }
     }
+
+    private record Scratch(double[] absX, double[] absY) {
+    }
+
+    private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(() -> new Scratch(new double[64], new double[64]));
 
     public static void resolveOffset(PoseStack poseStack) {
         if (accumulateDepth) {
