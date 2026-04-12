@@ -89,6 +89,7 @@ dependencies {
     compileOnly files("libs/nekojs-26.1.1-1.0.7.jar")
     runtimeOnly files("libs/nekojs-26.1.1-1.0.7.jar")
     implementation("curse.maven:graal-1504336:7884547")
+    runtimeOnly "curse.maven:immediatelyfast-686911:7901122"
 }
 
 tasks.withType(Jar).configureEach {

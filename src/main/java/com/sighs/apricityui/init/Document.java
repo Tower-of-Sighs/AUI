@@ -16,10 +16,14 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Document {
+    private static final int MOTION_FLAG_TRANSITION = 1;
+    private static final int MOTION_FLAG_ANIMATION_SPEC = 1 << 1;
+
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
     private final ArrayList<Element> elements = new ArrayList<>();
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
     private final Set<Element> pendingStyleRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final ConcurrentHashMap<Element, Integer> motionFlags = new ConcurrentHashMap<>();
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private final HashMap<String, Element> IDMap = new HashMap<>();
 
@@ -49,6 +53,7 @@ public class Document {
         JSCache.clear();
         IDMap.clear();
         elements.clear();
+        motionFlags.clear();
         Element bodyElement = HTML.create(this, path);
         try {
             if (bodyElement == null) return;
@@ -57,11 +62,11 @@ public class Document {
             rebuildElementIndexFromBody();
 
             // First pass: ensure computed styles exist for DOM expanders.
-            body.updateCSS();
+            recomputeStyleSubtree(body);
             DocumentExpander.apply(this);
 
             // Final pass: apply styles once after expansion.
-            body.updateCSS();
+            recomputeStyleSubtree(body);
             elements.forEach(Element::clearDirtyFlags);
             dirtyElements.clear();
             paintList = Drawer.createPaintList(body);
@@ -159,7 +164,33 @@ public class Document {
         }
 
         for (Element root : roots) {
-            root.updateCSS();
+            recomputeStyleSubtree(root);
+        }
+    }
+
+    /**
+     * 在 Document 层统一调度“样式重算的子树递归”。
+     * <p>
+     * Element 只负责 recompute 自己（无递归），避免任何零散路径随手 children.forEach(...) 扩散计算量。
+     */
+    private void recomputeStyleSubtree(Element root) {
+        if (root == null || root.document != this) return;
+
+        Deque<Element> stack = new ArrayDeque<>();
+        stack.push(root);
+
+        while (!stack.isEmpty()) {
+            Element current = stack.pop();
+            if (current == null || current.document != this) continue;
+
+            current.recomputeStyleSelf();
+
+            List<Element> children = current.children;
+            for (int i = children.size() - 1; i >= 0; i--) {
+                Element child = children.get(i);
+                if (child == null) continue;
+                stack.push(child);
+            }
         }
     }
 
@@ -204,23 +235,41 @@ public class Document {
      */
     public void stepMotionRender() {
         if (!StyleFrameCache.isActive()) return;
+        if (motionFlags.isEmpty()) return;
 
-        for (Element element : getElements()) {
-            if (element == null) continue;
+        for (Map.Entry<Element, Integer> entry : motionFlags.entrySet()) {
+            Element element = entry.getKey();
+            if (element == null || element.document != this) {
+                motionFlags.remove(element);
+                continue;
+            }
+
+            int flags = entry.getValue() == null ? 0 : entry.getValue();
+            boolean hasTransition = (flags & MOTION_FLAG_TRANSITION) != 0;
+            boolean hasAnimationSpec = (flags & MOTION_FLAG_ANIMATION_SPEC) != 0;
+            if (!hasTransition && !hasAnimationSpec) {
+                motionFlags.remove(element);
+                continue;
+            }
+
             Style base = element.getRawComputedStyle();
-            boolean hasTransition = Transition.isActive(element);
-            boolean hasAnimationSpec = base.animation != null
-                    && !base.animation.isBlank()
-                    && !"none".equals(base.animation)
-                    && !"unset".equals(base.animation);
-            boolean hasAnimation = hasAnimationSpec || Animation.isActive(element);
-            if (!hasTransition && !hasAnimation) continue;
+
+            // 避免 tick 还没来得及同步 animation spec 时，render 侧重复做无意义工作。
+            if (hasAnimationSpec && !Animation.hasAnimationSpec(base)) {
+                setHasAnimationSpec(element, false);
+                hasAnimationSpec = false;
+            }
+
+            if (!hasTransition && !hasAnimationSpec) continue;
 
             Style animated = base.clone();
             if (hasTransition) {
-                Transition.updateStyle(element, animated);
+                boolean stillActive = Transition.updateStyle(element, animated);
+                if (!stillActive) {
+                    setTransitionActive(element, false);
+                }
             }
-            if (hasAnimation) {
+            if (hasAnimationSpec) {
                 Animation.updateStyle(element, animated);
             }
 
@@ -414,6 +463,25 @@ public class Document {
         element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
         element.document.markDirty(element.parentElement, Drawer.REORDER);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
+        motionFlags.keySet().removeIf(e -> element.uuid.equals(e.uuid));
+    }
+
+    public void setTransitionActive(Element element, boolean active) {
+        setMotionFlag(element, MOTION_FLAG_TRANSITION, active);
+    }
+
+    public void setHasAnimationSpec(Element element, boolean hasSpec) {
+        setMotionFlag(element, MOTION_FLAG_ANIMATION_SPEC, hasSpec);
+    }
+
+    private void setMotionFlag(Element element, int flag, boolean enabled) {
+        if (element == null || element.document != this) return;
+        motionFlags.compute(element, (e, old) -> {
+            int v = old == null ? 0 : old;
+            if (enabled) v |= flag;
+            else v &= ~flag;
+            return v == 0 ? null : v;
+        });
     }
 
     public Element getPreviousCursorElement() {
