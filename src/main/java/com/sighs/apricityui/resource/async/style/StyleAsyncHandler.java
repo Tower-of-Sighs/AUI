@@ -132,6 +132,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             StyleHandle.CssEntry cssEntry = entry.getValue();
             CSS.readCSS(cssEntry.cssText(), document.CSSCache, cssEntry.contextPath());
         }
+        document.rebuildSelectorIndex();
     }
 
     private boolean registerFont(FontTask fontTask) {

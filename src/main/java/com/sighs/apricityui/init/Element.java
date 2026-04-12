@@ -143,6 +143,40 @@ public class Element {
         return result;
     }
 
+    /**
+     * 无分配的 route 访问：从自己开始，最后是 body。
+     * <p>
+     * 该结果会缓存到 {@link RenderElement} 中，并在结构变化时清空。
+     */
+    public Element[] getRouteArray() {
+        Element[] cache = getRenderer().route.get();
+        if (cache != null) return cache;
+
+        int count = 0;
+        Element cur = this;
+        while (cur != null) {
+            count++;
+            cur = cur.parentElement;
+        }
+        Element[] route = new Element[count];
+        cur = this;
+        for (int i = 0; i < count; i++) {
+            route[i] = cur;
+            cur = cur.parentElement;
+        }
+        getRenderer().route.set(route);
+        return route;
+    }
+
+    public void forEachRoute(Consumer<Element> consumer) {
+        if (consumer == null) return;
+        Element cur = this;
+        while (cur != null) {
+            consumer.accept(cur);
+            cur = cur.parentElement;
+        }
+    }
+
     public Style style = null;
 
     public Style getStyle() {
