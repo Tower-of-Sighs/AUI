@@ -1,272 +1,507 @@
 <body>
-<div class="devtools">
-    <div class="header">
-        <span class="title">DevTools</span>
-        <div class="doc-switch">
-            <div class="doc-arrow doc-prev"></div>
-            <div class="doc-name"></div>
-            <div class="doc-arrow doc-next"></div>
+<div class="devtools-root">
+    <div class="devtools">
+        <div class="chrome">
+            <div class="chrome-row">
+                <div class="brand-block">
+                    <span class="eyebrow">APRACITY DEBUG CONSOLE</span>
+                    <span class="title">DevTools</span>
+                </div>
+                <div class="signal-stack">
+                    <div class="signal-pill signal-live">
+                        <span class="signal-dot"></span>
+                        <span>LIVE</span>
+                    </div>
+                    <div class="signal-pill signal-mode">DOM</div>
+                </div>
+            </div>
+            <div class="toolbar">
+                <div class="toolbar-label">Document</div>
+                <div class="doc-switch"></div>
+            </div>
+            <div class="rail"></div>
         </div>
-    </div>
 
-    <div class="tree-panel">
-        <div class="tree"></div>
-    </div>
+        <div class="workspace">
+            <div class="panel panel-tree">
+                <div class="panel-head">
+                    <span class="panel-kicker">Structure</span>
+                    <span class="panel-title">Tree Navigator</span>
+                </div>
+                <div class="panel-frame">
+                    <div class="tree"></div>
+                </div>
+            </div>
 
-    <div class="inspector-panel">
-        <div class="inspector"></div>
+            <div class="panel panel-inspector">
+                <div class="panel-head">
+                    <span class="panel-kicker">Styles</span>
+                    <span class="panel-title">Inspector</span>
+                </div>
+                <div class="panel-frame">
+                    <div class="inspector"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 </body>
 
 <style>
-    body, div {
+    body, div, span, input {
         display: flex;
         flex-direction: column;
+        box-sizing: border-box;
     }
 
     body {
-        width: 100%;
-        height: 100%;
+        width: 427px;
+        height: 240px;
+        margin: 0;
+        padding-top: 6px;
+        padding-right: 6px;
         align-items: flex-end;
         pointer-events: auto;
         font-family: default;
         font-size: 12px;
+        color: #e8eefc;
         transform: translateZ(100px);
     }
 
-    .devtools {
-        width: 190px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        background-color: #0f172a;
-        color: #cbd5e1;
-        border-left: 1px solid #1e3a8a;
-        box-shadow: 0 0 8px #00000088;
+    .devtools-root {
+        width: 248px;
+        height: 228px;
+        align-items: stretch;
+        justify-content: flex-start;
     }
 
-    .header {
+    .devtools {
+        width: 248px;
+        height: 228px;
+        padding: 6px;
+        background-color: #050d18;
+        border: 1px solid #295683;
+        box-shadow: 0 0 0 1px #02060d, 0 12px 22px #00000096;
+    }
+
+    .chrome {
+        width: 234px;
+        height: 34px;
+        padding: 6px 8px 0 8px;
+        background-color: #0b182a;
+        border: 1px solid #1d4267;
+        box-shadow: inset 0 0 0 1px #112741;
+    }
+
+    .chrome-row {
+        width: 216px;
         height: 10px;
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
-        padding-left: 3px;
-        padding-right: 2px;
-        background-color: #0b1220;
-        border-bottom: 1px solid #1e3a8a;
+    }
+
+    .brand-block {
+        width: 104px;
+        height: 10px;
+    }
+
+    .eyebrow {
+        height: 0px;
+        color: #7393b5;
+        font-size: 4px;
+        line-height: 0px;
+        letter-spacing: 1px;
+        visibility: hidden;
     }
 
     .title {
-        color: #93c5fd;
+        height: 7px;
+        width: 104px;
+        color: #f1f5ff;
         font-size: 6px;
         line-height: 6px;
+        text-stroke: 0.4px #f1f5ff;
+        overflow: hidden;
+    }
+
+    .signal-stack {
+        width: 56px;
+        height: 10px;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .signal-pill {
+        height: 12px;
+        padding-left: 3px;
+        padding-right: 3px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #41688d;
+        background-color: #13273d;
+        color: #cad8f3;
+        font-size: 5px;
+        line-height: 5px;
+        box-shadow: inset 0 0 0 1px #1a3551;
+    }
+
+    .signal-live {
+        width: 22px;
+        margin-right: 3px;
+        border-color: #3b7568;
+        background-color: #10322d;
+        justify-content: space-around;
+    }
+
+    .signal-mode {
+        width: 14px;
+    }
+
+    .signal-dot {
+        width: 4px;
+        height: 4px;
+        margin-right: 0;
+        background-color: #7af6cb;
+        border: 1px solid #b4ffe5;
+    }
+
+    .toolbar {
+        width: 216px;
+        height: 14px;
+        margin-top: 4px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+    }
+
+    .toolbar-label {
+        width: 0px;
+        height: 0px;
+        color: #6c88a8;
+        font-size: 4px;
+        line-height: 4px;
+        visibility: hidden;
     }
 
     .doc-switch {
-        width: 120px;
-        height: 8px;
+        width: 216px;
+        height: 14px;
         flex-direction: row;
         align-items: center;
-        background-color: #111827;
-        border: 1px solid #2563eb;
-        color: #e5e7eb;
+        border: 1px solid #35689d;
+        background-color: #0c1c2f;
+        box-shadow: inset 0 0 0 1px #17324f;
+        padding-left: 1px;
+        padding-right: 1px;
     }
 
     .doc-arrow {
-        width: 8px;
-        height: 100%;
+        width: 12px;
+        height: 12px;
         align-items: center;
         justify-content: center;
-        color: #93c5fd;
-        border-right: 1px solid #1d4ed8;
+        color: #b8dbff;
+        border-right: 1px solid #234e7d;
+        background-color: #173552;
+        line-height: 8px;
     }
 
     .doc-next {
         border-right: none;
-        border-left: 1px solid #1d4ed8;
+        border-left: 1px solid #234e7d;
     }
 
     .doc-name {
-        width: 104px;
-        height: 100%;
-        padding-left: 1px;
-        padding-right: 1px;
+        width: 188px;
+        height: 12px;
+        padding-left: 4px;
+        padding-right: 3px;
+        padding-top: 1px;
+        align-items: flex-start;
+        justify-content: flex-start;
+        color: #f4f8ff;
         line-height: 7px;
-        color: #e5e7eb;
-        overflow: auto;
+        font-size: 6px;
+        text-stroke: 0.2px #f4f8ff;
+        background-color: #10233a;
+        border-left: 1px solid #1a3551;
+        border-right: 1px solid #1a3551;
+        overflow: hidden;
     }
 
-    .tree-panel {
-        width: 100%;
-        height: 54%;
-        overflow: auto;
-        background-color: #0b1324;
-        border-bottom: 1px solid #1e3a8a;
-        padding: 2px;
+    .rail {
+        width: 216px;
+        height: 2px;
+        margin-top: 4px;
+        background-color: #16304d;
+        box-shadow: 0 0 6px #2b74d055;
+        visibility: hidden;
     }
 
-    .inspector-panel {
-        width: 100%;
-        height: 46%;
-        overflow: auto;
-        background-color: #0f172a;
-        padding: 2px;
+    .workspace {
+        width: 234px;
+        height: 181px;
+        margin-top: 4px;
+        flex-direction: column;
     }
 
-    .tree {
-        width: 100%;
-        height: 100%;
+    .panel {
+        width: 234px;
+        border: 1px solid #1c3c60;
+        background-color: #0a1524;
+        box-shadow: inset 0 0 0 1px #11263d, 0 0 0 1px #06111d;
+    }
+
+    .panel-tree {
+        height: 96px;
+        margin-bottom: 4px;
+    }
+
+    .panel-inspector {
+        height: 81px;
+    }
+
+    .panel-head {
+        width: 232px;
+        height: 19px;
+        padding-left: 7px;
+        padding-top: 3px;
+        background-color: #0e2238;
+        border-bottom: 1px solid #1e446c;
+        box-shadow: inset 0 -1px 0 #11263f;
+    }
+
+    .panel-kicker {
+        height: 5px;
+        color: #6887a8;
+        font-size: 4px;
+        line-height: 4px;
+        letter-spacing: 1px;
+    }
+
+    .panel-title {
+        height: 8px;
+        color: #eef4ff;
+        font-size: 7px;
+        line-height: 7px;
+    }
+
+    .panel-frame {
+        width: 232px;
+        height: 75px;
+        padding: 4px;
+        background-color: #07101d;
+    }
+
+    .panel-inspector .panel-frame {
+        height: 58px;
+    }
+
+    .tree, .inspector {
+        width: 224px;
+        height: 67px;
         overflow: auto;
+        background-color: #06101c;
+        padding-right: 2px;
+    }
+
+    .panel-inspector .inspector {
+        height: 50px;
     }
 
     .tree-row {
-        width: 100%;
-        height: 7px;
+        width: 224px;
+        min-height: 10px;
         flex-direction: row;
         align-items: center;
-        line-height: 7px;
-        color: #cbd5e1;
-        overflow: auto;
+        line-height: 8px;
+        color: #dae6fb;
+        border-bottom: 1px solid #0d1d31;
+        padding-right: 2px;
     }
 
     .tree-row.selected {
-        background-color: #1e3a8a66;
+        background-color: #173556;
+        box-shadow: inset 2px 0 0 #79b7ff, inset 0 1px 0 #274a73;
     }
 
     .toggle {
-        width: 6px;
-        color: #60a5fa;
-    }
-
-    .node-label {
-        color: #dbeafe;
-    }
-
-    .end-row .node-label {
-        color: #94a3b8;
-    }
-
-    .tree-edit-row {
-        width: 100%;
-        height: 7px;
-        flex-direction: row;
-        align-items: center;
-        gap: 1px;
-        overflow: auto;
-        line-height: 7px;
-    }
-
-    .tree-code {
-        color: #93c5fd;
-        line-height: 7px;
-    }
-
-    .tree-edit-input {
-        width: 58px;
-        height: 6px;
-        color: #e2e8f0;
-        background-color: #0b1220;
-        border: 1px solid #1d4ed8;
-        padding: 0 1px;
-        line-height: 6px;
-    }
-
-    .tree-edit-input:focus {
-        background-color: #111827;
-    }
-
-    .tree-text-input {
-        width: 98px;
-    }
-
-    .tree-attr-input {
-        width: 30px;
-    }
-
-    .tree-inline-text-input {
-        width: 46px;
-    }
-
-    .inspector {
-        width: 100%;
-        height: 100%;
-        overflow: auto;
-    }
-
-    .section {
-        width: 100%;
-        margin-bottom: 2px;
-        border-left: 2px solid #2563eb;
-        padding-left: 2px;
-    }
-
-    .section-title {
-        width: 100%;
-        height: 7px;
-        color: #93c5fd;
-        border-bottom: 1px solid #1d4ed8;
-        margin-bottom: 1px;
-        line-height: 7px;
-    }
-
-    .edit-row {
-        width: 100%;
-        height: 7px;
-        flex-direction: row;
-        align-items: center;
-        gap: 2px;
-        margin-bottom: 0px;
-    }
-
-    .k {
-        color: #60a5fa;
-        min-width: 22px;
-    }
-
-    .edit-input {
-        width: 46px;
-        height: 6px;
-        color: #e5e7eb;
-        background-color: #111827;
-        border: 1px solid #1d4ed8;
-        padding: 0 1px;
-        line-height: 6px;
-    }
-
-    .edit-input:focus {
-        background-color: #0b1220;
-    }
-
-    .action {
-        min-width: 10px;
-        height: 6px;
-        border: 1px solid #2563eb;
-        background-color: #0b1220;
-        color: #93c5fd;
-        line-height: 6px;
+        width: 7px;
+        color: #79b7ff;
         align-items: center;
         justify-content: center;
     }
 
-    .style-block {
-        margin-top: 1px;
-        margin-bottom: 1px;
+    .node-label {
+        color: #eaf1fe;
+        text-stroke: 0.2px #eaf1fe;
+    }
+
+    .end-row .node-label {
+        color: #7b97b5;
+    }
+
+    .tree-edit-row {
+        width: 224px;
+        min-height: 10px;
+        flex-direction: row;
+        align-items: center;
+        line-height: 8px;
+        border-bottom: 1px solid #0d1d31;
+        padding-right: 2px;
+    }
+
+    .tree-code {
+        color: #8dbfff;
+        line-height: 8px;
+        text-stroke: 0.2px #8dbfff;
+    }
+
+    .tree-edit-input {
+        height: 9px;
         padding-left: 2px;
-        border-left: 1px solid #1d4ed8;
+        padding-right: 2px;
+        color: #edf4ff;
+        background-color: #0c1b2d;
+        border: 1px solid #28517d;
+        line-height: 7px;
+        box-shadow: inset 0 0 0 1px #10233a;
+    }
+
+    .tree-edit-input:focus {
+        background-color: #112742;
+        border-color: #68a7ff;
+    }
+
+    .tree-text-input {
+        width: 116px;
+    }
+
+    .tree-attr-input {
+        width: 34px;
+    }
+
+    .tree-inline-text-input {
+        width: 48px;
+    }
+
+    .section {
+        width: 224px;
+        margin-bottom: 4px;
+        padding-left: 5px;
+        padding-right: 4px;
+        border-left: 2px solid #3d7ec2;
+        background-color: #091321;
+        box-shadow: inset 0 0 0 1px #0e1e31;
+    }
+
+    .section-title {
+        width: 211px;
+        height: 10px;
+        margin-bottom: 2px;
+        color: #9cc6ff;
+        border-bottom: 1px solid #173657;
+        line-height: 8px;
+    }
+
+    .edit-row {
+        width: 211px;
+        min-height: 11px;
+        flex-direction: row;
+        align-items: center;
+        margin-bottom: 1px;
+    }
+
+    .k {
+        width: 34px;
+        color: #74b1ff;
+    }
+
+    .edit-input {
+        width: 122px;
+        height: 9px;
+        padding-left: 2px;
+        padding-right: 2px;
+        color: #edf4ff;
+        background-color: #0d1b2d;
+        border: 1px solid #28517d;
+        line-height: 7px;
+        box-shadow: inset 0 0 0 1px #10233a;
+    }
+
+    .edit-input:focus {
+        background-color: #112742;
+        border-color: #68a7ff;
+    }
+
+    .action {
+        width: 18px;
+        height: 9px;
+        margin-left: 3px;
+        border: 1px solid #336596;
+        background-color: #10253c;
+        color: #9cc6ff;
+        line-height: 7px;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 0 0 1px #17314d;
+    }
+
+    .style-block {
+        margin-top: 2px;
+        margin-bottom: 2px;
+        padding-left: 4px;
+        border-left: 1px solid #22466d;
+        background-color: #081220;
     }
 
     .selector {
-        color: #93c5fd;
+        color: #9bc8ff;
         line-height: 7px;
     }
 
     .prop {
-        color: #cbd5e1;
+        color: #d6e4f8;
         line-height: 7px;
     }
 
     .hint {
-        color: #64748b;
+        color: #6d88a6;
     }
 </style>
+
+<script>
+    function pickDocLabel(raw) {
+        if (!raw) return "active document";
+        var text = raw;
+        var dashIndex = text.indexOf(" - ");
+        if (dashIndex >= 0) {
+            text = text.substring(dashIndex + 3);
+        }
+        var lastSlash = text.lastIndexOf("/");
+        if (lastSlash >= 0 && lastSlash < text.length - 1) {
+            text = text.substring(lastSlash + 1);
+        }
+        if (text.length > 26) {
+            text = text.substring(text.length - 26);
+        }
+        return text || "active document";
+    }
+
+    function syncHeader() {
+        var title = document.querySelector(".title");
+        var docName = document.querySelector(".doc-name");
+        if (!title) return;
+        var rawTitle = title.innerText || "";
+        if (docName) {
+            docName.innerText = pickDocLabel(rawTitle);
+        }
+        title.innerText = "DevTools";
+    }
+
+    syncHeader();
+    window.setInterval(syncHeader, 300);
+</script>
