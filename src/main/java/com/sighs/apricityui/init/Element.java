@@ -254,13 +254,16 @@ public class Element {
         }
     }
 
-    protected void updateCSS() {
+    void recomputeStyleSelf() {
         Style originStyle = getComputedStyle();
 
         cssCache = Selector.matchCSS(this);
         invalidateStyleCaches();
 
         Style currentStyle = getRawComputedStyle();
+        if (document != null) {
+            document.setHasAnimationSpec(this, Animation.hasAnimationSpec(currentStyle));
+        }
 
         RenderElement.observeStyle(this, originStyle, currentStyle);
         if (parentElement != null) {
@@ -270,7 +273,6 @@ public class Element {
         }
 
         Transition.create(this, originStyle, currentStyle);
-        children.forEach(Element::updateCSS);
     }
 
     public Style getComputedStyle() {

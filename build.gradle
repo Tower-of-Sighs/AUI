@@ -96,6 +96,7 @@ dependencies {
     modRuntimeOnly ("curse.maven:kubejs-238086:5853326")
     modRuntimeOnly ("curse.maven:rhino-416294:6186971")
     modRuntimeOnly ("curse.maven:architectury-api-419699:5137938")
+    modRuntimeOnly ("curse.maven:immediatelyfast-686911:7901122")
 
     modRuntimeOnly ("curse.maven:embeddium-908741:5681725")
     modRuntimeOnly ("curse.maven:rubidium-extra-654373:6101745")

@@ -38,6 +38,15 @@ public class Animation {
         return ACTIVE_ANIMATIONS.containsKey(e.uuid);
     }
 
+    public static boolean hasAnimationSpec(Style style) {
+        if (style == null) return false;
+        String spec = style.animation;
+        if (spec == null) return false;
+        if (spec.isBlank()) return false;
+        String s = spec.trim();
+        return !"none".equals(s) && !"unset".equals(s);
+    }
+
     public static void updateStyle(Element element, Style style) {
         String spec = style.animation;
         if (spec == null || spec.equals("none")) {

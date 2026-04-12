@@ -6,7 +6,8 @@ import com.sighs.apricityui.init.Style;
 import java.util.*;
 
 public record Transition(String name, double start, double end, double duration, double delay, long startTime) {
-    private static final HashMap<UUID, List<Transition>> workList = new HashMap<>();
+    private static final Object LOCK = new Object();
+    private static final Map<UUID, List<Transition>> workList = new HashMap<>();
 
     public record Change(String name, double value) {
     }
@@ -18,39 +19,59 @@ public record Transition(String name, double start, double end, double duration,
         List<Transition> parsed = parseTransitions(startStyle, endStyle, transitionSpec);
         // 避免同一轮中后续“无变化 updateCSS”覆盖掉刚创建的 transition
         if (parsed.isEmpty()) return;
-        workList.put(element.uuid, parsed);
+        synchronized (LOCK) {
+            workList.put(element.uuid, parsed);
+        }
+        if (element.document != null) {
+            element.document.setTransitionActive(element, true);
+        }
     }
 
     public static boolean isActive(Element element) {
-        return workList.containsKey(element.uuid);
+        synchronized (LOCK) {
+            return workList.containsKey(element.uuid);
+        }
     }
 
-    public static void updateStyle(Element element, Style originStyle) {
-        List<Transition> transitions = workList.get(element.uuid);
-        if (transitions == null) return;
+    public static boolean updateStyle(Element element, Style originStyle) {
+        List<Transition> transitions;
+        synchronized (LOCK) {
+            transitions = workList.get(element.uuid);
+            if (transitions == null || transitions.isEmpty()) return false;
+        }
 
         long now = System.currentTimeMillis();
         List<Change> changes = null;
 
-        for (Iterator<Transition> it = transitions.iterator(); it.hasNext(); ) {
-            Transition t = it.next();
-            double progress = (now - t.startTime - t.delay) / t.duration;
-            if (progress < 0) continue;
-            if (progress > 1) progress = 1;
+        boolean stillActive;
+        synchronized (LOCK) {
+            transitions = workList.get(element.uuid);
+            if (transitions == null || transitions.isEmpty()) return false;
 
-            if (changes == null) changes = new ArrayList<>();
-            changes.add(new Change(t.name, getOffset(t.name, t.start, t.end, progress)));
-            if (progress >= 1) it.remove();
+            for (Iterator<Transition> it = transitions.iterator(); it.hasNext(); ) {
+                Transition t = it.next();
+                double progress = (now - t.startTime - t.delay) / t.duration;
+                if (progress < 0) continue;
+                if (progress > 1) progress = 1;
+
+                if (changes == null) changes = new ArrayList<>();
+                changes.add(new Change(t.name, getOffset(t.name, t.start, t.end, progress)));
+                if (progress >= 1) it.remove();
+            }
+
+            if (transitions.isEmpty()) {
+                workList.remove(element.uuid);
+                stillActive = false;
+            } else {
+                stillActive = true;
+            }
         }
 
         if (changes != null && !changes.isEmpty()) {
             applyChanges(originStyle, changes);
-            return;
         }
 
-        if (transitions.isEmpty()) {
-            workList.remove(element.uuid);
-        }
+        return stillActive;
     }
 
     public static void applyChanges(Style style, List<Change> changes) {
