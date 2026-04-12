@@ -19,6 +19,13 @@ public class Element {
     public String tagName;
     public String innerText = "";
     private String lastInnerText = "";
+
+    // drawInnerText 每帧都会走这里；normalizeWhiteSpaceContent 里包含 replaceAll/regex，分配与 CPU 都很重。
+    // 同时，如果每帧都创建新字符串，会让 wrapCached 的 hash 计算成本上升。
+    // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
+    private String normalizedInnerTextCache = null;
+    private String normalizedInnerTextSource = null;
+    private String normalizedInnerTextWhiteSpace = null;
     public boolean isLoaded = false;
     public HashMap<String, String> cssCache = new HashMap<>();
     private int dirtyFlags = 0;
@@ -38,7 +45,7 @@ public class Element {
     public double scrollTop = 0;
     public double targetScrollLeft = 0;
     public double targetScrollTop = 0;
-    public List<String> classNames = null;
+    public Set<String> classNames = Collections.emptySet();
     private RenderElement renderElement = new RenderElement(this);
     private int textSelectionStart = 0;
     private int textSelectionEnd = 0;
@@ -56,6 +63,30 @@ public class Element {
         this.document = document;
         this.tagName = tagName.toUpperCase();
         addTextSelectionEventListeners();
+    }
+
+    protected static Set<String> parseClassNames(String value) {
+        if (value == null) return Collections.emptySet();
+        String trimmed = value.trim();
+        if (trimmed.isEmpty()) return Collections.emptySet();
+        // 只在 class 属性变化时解析；selector match 路径只读缓存，避免 split/Set.of 的高频分配。
+        return Set.of(trimmed.split("\\s+"));
+    }
+
+    protected final void invalidateStyleCaches() {
+        renderElement.computedStyle.clear();
+        // 避免清空整帧缓存导致更多重复计算；只对当前元素失效即可。
+        StyleFrameCache.invalidate(this);
+    }
+
+    /**
+     * 样式失效入口
+     * <p>
+     * 只负责清缓存 + 入队；真正的 CSS 计算在 tick 的 flushPendingStyleUpdates 中统一执行。
+     */
+    public final void invalidateStyle() {
+        invalidateStyleCaches();
+        requestStyleRecalc();
     }
 
     private void addTextSelectionEventListeners() {
@@ -141,7 +172,7 @@ public class Element {
             if (value == null) value = _value;
             else if (!_value.equals(value)) {
                 attributes.put(name, value);
-                updateCSS();
+                requestStyleRecalc();
             }
         }
         // style 属性以 attributes 中的原始值为准，避免读取时覆盖掉运行时写入的 inline style。
@@ -150,7 +181,7 @@ public class Element {
             if (id == null) id = _id;
             else if (!_id.equals(id)) {
                 attributes.put(name, id);
-                updateCSS();
+                requestStyleRecalc();
             }
         }
 //        if (name.equals("class")) {
@@ -174,18 +205,20 @@ public class Element {
             // 保持 style 缓存与 attributes 同步，避免后续读取出现旧值。
             updateInlineStyle();
         }
-        if (name.equals("value")) this.value = value;
+        if (name.equals("value")) {
+            this.value = value;
+            getRenderer().text.clear();
+            getRenderer().wrappedText.clear();
+        }
         if (name.equals("id")) {
             id = value;
             document.recordID(this);
         }
         if (name.equals("class")) {
-            classNames = new ArrayList<>();
-            if (value != null && !value.isBlank()) {
-                classNames.addAll(List.of(value.trim().split("\\s+")));
-            }
+            classNames = parseClassNames(value);
         }
-        updateCSS();
+        // 统一在 tick 阶段刷新样式；此处只做失效与入队，避免事件回调里同步重算 CSS/布局。
+        invalidateStyle();
     }
 
     public void removeAttribute(String name) {
@@ -195,14 +228,16 @@ public class Element {
         }
         if (name.equals("value")) {
             this.value = null;
+            getRenderer().text.clear();
+            getRenderer().wrappedText.clear();
         }
         if (name.equals("id")) {
             id = null;
         }
         if (name.equals("class")) {
-            classNames = null;
+            classNames = Collections.emptySet();
         }
-        updateCSS();
+        invalidateStyle();
     }
 
     public boolean hasAttribute(String name) {
@@ -210,17 +245,20 @@ public class Element {
     }
 
     public Set<String> getClassNames() {
-        String classes = getAttribute("class");
-        if (classes == null || classes.isBlank()) return Collections.emptySet();
-        return Set.of(classes.trim().split("\\s+"));
+        return classNames == null ? Collections.emptySet() : classNames;
+    }
+
+    protected final void requestStyleRecalc() {
+        if (document != null) {
+            document.requestStyleRecalc(this);
+        }
     }
 
     protected void updateCSS() {
         Style originStyle = getComputedStyle();
 
         cssCache = Selector.matchCSS(this);
-        renderElement.computedStyle.clear();
-        StyleFrameCache.clear();
+        invalidateStyleCaches();
 
         Style currentStyle = getRawComputedStyle();
 
@@ -239,14 +277,10 @@ public class Element {
         Style cached = StyleFrameCache.get(this);
         if (cached != null) return cached;
 
+        // 约定：getComputedStyle 不再推进动画/过渡，不再产生副作用。
+        // 动画/过渡推进由渲染阶段的 FrameScheduler/renderBegin 或 Document.stepMotionRender 统一驱动，
+        // 并通过 StyleFrameCache 为当帧提供“带 motion 的 computed style”。
         Style computedStyle = getRawComputedStyle();
-        Style originStyle = computedStyle.clone();
-        Transition.updateStyle(this, originStyle);
-        Animation.updateStyle(this, originStyle);
-        if (Transition.isActive(this) || Animation.isActive(this)) {
-            RenderElement.observeStyle(this, computedStyle, originStyle);
-            computedStyle = originStyle;
-        }
         if (StyleFrameCache.isActive()) {
             StyleFrameCache.put(this, computedStyle);
         }
@@ -279,18 +313,19 @@ public class Element {
     public void setHover(boolean hover) {
         if (isHover == hover) return;
         isHover = hover;
-        updateCSS();
+        requestStyleRecalc();
     }
 
     public void setActive(boolean active) {
         if (isActive == active) return;
         isActive = active;
-        updateCSS();
+        requestStyleRecalc();
     }
 
     public void setFocus(boolean value) {
+        if (isFocus == value) return;
         isFocus = value;
-        updateCSS();
+        requestStyleRecalc();
     }
 
     public boolean canFocus() {
@@ -394,9 +429,8 @@ public class Element {
         }
 
         String attrClass = attributes.getOrDefault("class", null);
-        if (classNames == null && attrClass != null && !attrClass.isEmpty()) {
-            classNames = new ArrayList<>();
-            classNames.addAll(List.of(attrClass.split(" ")));
+        if ((classNames == null || classNames.isEmpty()) && attrClass != null && !attrClass.isEmpty()) {
+            classNames = parseClassNames(attrClass);
         }
 
         onInitFromDom(origin);
@@ -496,10 +530,13 @@ public class Element {
         boolean scrollingX = stepHorizontalScroll();
         boolean scrollingY = stepVerticalScroll();
         if (scrollingX || scrollingY) {
-            document.markDirty(this, Drawer.REORDER);
+            // 滚动只影响视觉偏移与命中测试，不应触发绘制队列重建。
+            // TODO：这里保留 REPAINT 作为语义标记，便于未来在 flushUpdates 中做更细粒度处理。
+            document.markDirty(this, Drawer.REPAINT);
         }
         if (!innerText.equals(lastInnerText)) {
             getRenderer().text.clear();
+            getRenderer().wrappedText.clear();
             getRenderer().size.clear();
             lastInnerText = innerText;
             if (document != null) {
@@ -580,7 +617,7 @@ public class Element {
     }
 
     // 事件部分
-    public ArrayList<Event> EventListener = new ArrayList<>();
+    public CopyOnWriteArrayList<Event> EventListener = new CopyOnWriteArrayList<>();
 
     public void addEventListener(String type, Consumer<Event> listener) {
         addEventListener(type, listener, false, false);
@@ -607,8 +644,10 @@ public class Element {
     }
 
     public void triggerEvent(Consumer<Event> handler) {
-        ArrayList<Event> snapshot = new ArrayList<>(EventListener);
-        snapshot.forEach(handler);
+        if (handler == null) return;
+        for (Event event : EventListener) {
+            handler.accept(event);
+        }
     }
 
     public RenderElement getRenderer() {
@@ -699,8 +738,8 @@ public class Element {
         if (!canSelectInnerText() || !hasInnerTextSelection()) return;
         Text baseText = Text.of(this);
         baseText.content = getSelectableInnerText();
-        if (baseText.content == null || baseText.content.isEmpty()) return;
-        Text.WrappedText wrapped = Text.wrap(this, baseText);
+        if (baseText.content.isEmpty()) return;
+        Text.WrappedText wrapped = Text.wrapCached(this, baseText);
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
         int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
@@ -743,7 +782,7 @@ public class Element {
 
         double contentWidth = Box.of(this).innerSize().width();
         double contentHeight = Box.of(this).innerSize().height();
-        Text.WrappedText wrapped = Text.wrap(this, text);
+        Text.WrappedText wrapped = Text.wrapCached(this, text);
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
         double textHeight = wrapped.height(text.lineHeight);
@@ -751,6 +790,8 @@ public class Element {
         boolean drawSelectionText = canSelectInnerText() && hasInnerTextSelection();
         int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
         int max = Math.min(text.content.length(), Math.max(textSelectionStart, textSelectionEnd));
+        Position linePos = new Position(0, 0);
+        Text runText = null;
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
@@ -758,8 +799,10 @@ public class Element {
             double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, i == 0);
             double lineY = drawY + i * text.lineHeight;
             if (!drawSelectionText) {
-                Text lineText = cloneTextForSegment(text, line, Color.BLACK);
-                FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, lineY));
+                text.content = line;
+                linePos.x = drawX - scrollLeft;
+                linePos.y = lineY;
+                FontDrawer.drawFont(poseStack, text, linePos);
                 continue;
             }
 
@@ -768,9 +811,16 @@ public class Element {
             int segStart = Math.max(min, lineStart);
             int segEnd = Math.min(max, lineEnd);
             if (segStart >= segEnd) {
-                Text lineText = cloneTextForSegment(text, line, Color.BLACK);
-                FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, lineY));
+                text.content = line;
+                linePos.x = drawX - scrollLeft;
+                linePos.y = lineY;
+                FontDrawer.drawFont(poseStack, text, linePos);
                 continue;
+            }
+
+            if (runText == null) {
+                runText = new Text();
+                copyTextForRun(text, runText);
             }
 
             String before = line.substring(0, segStart - lineStart);
@@ -778,19 +828,27 @@ public class Element {
             String after = line.substring(segEnd - lineStart);
             double segmentX = drawX - scrollLeft;
             if (!before.isEmpty()) {
-                Text beforeText = cloneTextForSegment(text, before, Color.BLACK);
-                FontDrawer.drawFont(poseStack, beforeText, new Position(segmentX, lineY));
+                runText.content = before;
+                runText.color = text.color;
+                linePos.x = segmentX;
+                linePos.y = lineY;
+                FontDrawer.drawFont(poseStack, runText, linePos);
                 segmentX += measureTextSegmentWidth(before);
             }
             if (!selected.isEmpty()) {
-                Text selectedText = cloneTextForSegment(text, selected, Color.BLACK);
-                selectedText.color = new Color("#FFFFFF");
-                FontDrawer.drawFont(poseStack, selectedText, new Position(segmentX, lineY));
+                runText.content = selected;
+                runText.color = new Color("#FFFFFF");
+                linePos.x = segmentX;
+                linePos.y = lineY;
+                FontDrawer.drawFont(poseStack, runText, linePos);
                 segmentX += measureTextSegmentWidth(selected);
             }
             if (!after.isEmpty()) {
-                Text afterText = cloneTextForSegment(text, after, Color.BLACK);
-                FontDrawer.drawFont(poseStack, afterText, new Position(segmentX, lineY));
+                runText.content = after;
+                runText.color = text.color;
+                linePos.x = segmentX;
+                linePos.y = lineY;
+                FontDrawer.drawFont(poseStack, runText, linePos);
             }
         }
     }
@@ -895,8 +953,21 @@ public class Element {
 
     private String getSelectableInnerText() {
         Text text = Text.of(this);
-        String normalized = Text.normalizeWhiteSpaceContent(innerText, text.whiteSpace);
-        return normalized == null ? "" : normalized;
+        String raw = innerText == null ? "" : innerText;
+        String whiteSpace = text.whiteSpace;
+
+        boolean sameSource = normalizedInnerTextSource == raw;
+        boolean sameWhiteSpace = (normalizedInnerTextWhiteSpace == whiteSpace)
+                || (normalizedInnerTextWhiteSpace != null && normalizedInnerTextWhiteSpace.equals(whiteSpace));
+        if (normalizedInnerTextCache != null && sameSource && sameWhiteSpace) {
+            return normalizedInnerTextCache;
+        }
+
+        String normalized = Text.normalizeWhiteSpaceContent(raw, whiteSpace);
+        normalizedInnerTextCache = normalized == null ? "" : normalized;
+        normalizedInnerTextSource = raw;
+        normalizedInnerTextWhiteSpace = whiteSpace;
+        return normalizedInnerTextCache;
     }
 
     private double measureTextSegmentWidth(String segment) {
@@ -923,8 +994,25 @@ public class Element {
         copy.textIndent = 0;
         copy.letterSpacing = base.letterSpacing;
         copy.content = content == null ? "" : content;
-        copy.size = new Size(Text.measureText(copy), copy.lineHeight);
         return copy;
+    }
+
+    private static void copyTextForRun(Text base, Text out) {
+        out.fontSize = base.fontSize;
+        out.fontWeight = base.fontWeight;
+        out.oblique = base.oblique;
+        out.strokeWidth = base.strokeWidth;
+        out.strokeColor = base.strokeColor;
+        out.color = base.color;
+        out.fontFamily = base.fontFamily;
+        out.lineHeight = base.lineHeight;
+        out.direction = base.direction;
+        out.textAlign = base.textAlign;
+        out.verticalAlign = base.verticalAlign;
+        out.whiteSpace = base.whiteSpace;
+        out.textIndent = 0;
+        out.letterSpacing = base.letterSpacing;
+        out.size = null;
     }
 
     protected static double computeAlignedX(Text text, double contentWidth, double lineWidth, boolean firstLine) {

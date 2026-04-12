@@ -8,6 +8,9 @@ import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -17,6 +20,7 @@ public class Document {
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
     private final ArrayList<Element> elements = new ArrayList<>();
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
+    private final Set<Element> pendingStyleRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private final HashMap<String, Element> IDMap = new HashMap<>();
 
@@ -129,6 +133,141 @@ public class Document {
         return dirtyElements;
     }
 
+    public void requestStyleRecalc(Element element) {
+        if (element == null) return;
+        if (element.document != this) return;
+        pendingStyleRoots.add(element);
+    }
+
+    /**
+     * 统一在 tick 阶段刷新样式，避免输入事件/渲染路径反复重算 CSS。
+     * <p>
+     * 当前策略较保守：当某个元素的交互态（hover/active/focus）变化时，刷新该元素及其子树。
+     */
+    public void flushPendingStyleUpdates() {
+        if (pendingStyleRoots.isEmpty()) return;
+
+        ArrayList<Element> candidates = new ArrayList<>(pendingStyleRoots);
+        pendingStyleRoots.clear();
+        candidates.sort(Comparator.comparingInt(Element::getDepth));
+
+        Set<Element> selected = Collections.newSetFromMap(new IdentityHashMap<>());
+        ArrayList<Element> roots = new ArrayList<>();
+
+        for (Element candidate : candidates) {
+            if (candidate == null || candidate.document != this) continue;
+            if (isCoveredByAncestor(candidate, selected)) continue;
+            selected.add(candidate);
+            roots.add(candidate);
+        }
+
+        for (Element root : roots) {
+            root.updateCSS();
+        }
+    }
+
+    /**
+     * 单 Document 的 tick 生命周期入口。
+     * <p>
+     * 关键原则：tick 做“提交与构建”，render 做“纯绘制”。
+     * 因此这里负责统一执行样式刷新、元素 tick、以及 dirty flags 的 flushUpdates。
+     */
+    public void tickFrame() {
+        commitStyleRecalc();
+        stepMotion();
+        tickElements();
+        // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
+        commitStyleRecalc();
+        stepMotion();
+        commitRenderState();
+    }
+
+    /**
+     * Style Recalc 阶段：统一在 tick 中重算样式。
+     */
+    public void commitStyleRecalc() {
+        flushPendingStyleUpdates();
+    }
+
+    /**
+     * Transition/Animation 阶段（占位）。
+     * <p>
+     * tick 阶段目前不搞 motion；推进逻辑在 render 阶段执行以保持稳定 60 帧。
+     * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
+     */
+    public void stepMotion() {
+        // Intentionally no-op for now.
+    }
+
+    /**
+     * Render 阶段的 motion 推进：在渲染线程、每帧执行一次，确保动画/过渡丝滑。
+     * <p>
+     * 该阶段只写 {@link StyleFrameCache}（当帧缓存）与少量渲染相关缓存失效（transform/filter），
+     * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
+     */
+    public void stepMotionRender() {
+        if (!StyleFrameCache.isActive()) return;
+
+        for (Element element : getElements()) {
+            if (element == null) continue;
+            Style base = element.getRawComputedStyle();
+            boolean hasTransition = Transition.isActive(element);
+            boolean hasAnimationSpec = base.animation != null
+                    && !base.animation.isBlank()
+                    && !"none".equals(base.animation)
+                    && !"unset".equals(base.animation);
+            boolean hasAnimation = hasAnimationSpec || Animation.isActive(element);
+            if (!hasTransition && !hasAnimation) continue;
+
+            Style animated = base.clone();
+            if (hasTransition) {
+                Transition.updateStyle(element, animated);
+            }
+            if (hasAnimation) {
+                Animation.updateStyle(element, animated);
+            }
+
+            // 为当帧提供“带 motion 的 computed style”
+            StyleFrameCache.put(element, animated);
+
+            // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
+            if (!Objects.equals(animated.transform, base.transform)) {
+                element.getRenderer().transform.clear();
+            }
+            if (!Objects.equals(animated.filter, base.filter) || !Objects.equals(animated.opacity, base.opacity)) {
+                element.getRenderer().filter.clear();
+            }
+            if (!Objects.equals(animated.backdropFilter, base.backdropFilter)) {
+                element.getRenderer().backdropFilter.clear();
+            }
+        }
+    }
+
+    /**
+     * Element Tick 阶段：滚动、输入态、逐帧逻辑。
+     */
+    public void tickElements() {
+        for (Element element : getElements()) {
+            element.tick();
+        }
+    }
+
+    /**
+     * Commit RenderState：将 dirty flags 提交为 layout/paintList 的更新。
+     */
+    public void commitRenderState() {
+        Drawer.flushUpdates(this);
+    }
+
+    private static boolean isCoveredByAncestor(Element element, Set<Element> selected) {
+        Element current = element.parentElement;
+        while (current != null) {
+            if (selected.contains(current)) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
     public void markDirty(int mask) {
         elements.forEach(element -> element.addDirtyFlags(mask));
         dirtyElements.addAll(elements);
@@ -142,7 +281,7 @@ public class Document {
 
     public void reapplyStylesFromCache() {
         if (body == null) return;
-        elements.forEach(Element::updateCSS);
+        body.invalidateStyle();
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
@@ -192,7 +331,7 @@ public class Document {
             parent.children.add(0, child);
         }
         child.depth = parent.getDepth() + 1;
-        child.updateCSS();
+        child.invalidateStyle();
         child.getRenderer().size.clear();
 
         // 需要判断一下是否为影响布局的属性，待补充
@@ -293,16 +432,29 @@ public class Document {
     }
 
     public void setActiveElement(Element element) {
+        if (activeElement == element) return;
+
         List<Element> oldChain = activeElement != null ? activeElement.getRoute() : Collections.emptyList();
         List<Element> newChain = element != null ? element.getRoute() : Collections.emptyList();
 
+        Set<Element> oldSet = Collections.newSetFromMap(new IdentityHashMap<>());
+        oldSet.addAll(oldChain);
+
+        Set<Element> newSet = Collections.newSetFromMap(new IdentityHashMap<>());
+        newSet.addAll(newChain);
+
+        // 退出 active 链
         for (Element e : oldChain) {
-            if (!newChain.contains(e)) {
+            if (!newSet.contains(e)) {
                 e.setActive(false);
             }
         }
+
+        // 进入 active 链
         for (Element e : newChain) {
-            e.setActive(true);
+            if (!oldSet.contains(e)) {
+                e.setActive(true);
+            }
         }
 
         this.activeElement = element;
@@ -320,8 +472,7 @@ public class Document {
                 focusedElement.clearTextSelection();
             }
             focusedElement.setFocus(false);
-            ArrayList<Event> blurSnapshot = new ArrayList<>(focusedElement.EventListener);
-            for (Event event : blurSnapshot) {
+            for (Event event : focusedElement.EventListener) {
                 if (!"blur".equals(event.type) || event.listener == null) continue;
                 event.listener.accept(event);
             }
@@ -331,8 +482,7 @@ public class Document {
 
         if (element != null) {
             element.setFocus(true);
-            ArrayList<Event> focusSnapshot = new ArrayList<>(element.EventListener);
-            for (Event event : focusSnapshot) {
+            for (Event event : element.EventListener) {
                 if (!"focus".equals(event.type) || event.listener == null) continue;
                 event.listener.accept(event);
             }

@@ -28,6 +28,12 @@ public class RenderElement {
             element.children.forEach(e -> e.getRenderer().text.clear());
         }
     };
+    public Cache<Text.WrappedTextCache> wrappedText = new Cache<>() {
+        @Override
+        void expandClear() {
+            element.children.forEach(e -> e.getRenderer().wrappedText.clear());
+        }
+    };
     public Cache<Size> size = new Cache<>();
     public Cache<Box> box = new Cache<>();
     public Cache<Position> position = new Cache<>() {
@@ -173,6 +179,7 @@ public class RenderElement {
 
         if (check.test(Style.getTextProp())) {
             renderer.text.clear();
+            renderer.wrappedText.clear();
             dirtyMask |= Drawer.REPAINT;
 
             if (check.test(TEXT_LAYOUT_PROPS)) {
@@ -248,6 +255,6 @@ public class RenderElement {
             element.id = current.get("id");
             element.document.recordID(element);
         }
-        element.updateCSS();
+        element.invalidateStyle();
     }
 }

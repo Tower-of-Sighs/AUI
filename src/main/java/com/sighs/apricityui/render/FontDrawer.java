@@ -16,6 +16,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -28,13 +29,33 @@ public class FontDrawer {
     }
 
     public static void drawFont(PoseStack poseStack, Text text, Position position) {
-        if (text.content == null || text.content.isEmpty()) return;
-        position = position.add(new Position(0, (text.lineHeight - text.fontSize) / 2));
-        float y = (float) position.y;
+        String content = text.content;
+        if (content == null || content.isEmpty()) return;
 
-        for (String line : Text.splitLines(text.content)) {
-            drawLine(poseStack, text, line, new Position(position.x, y));
-            y += (float) text.lineHeight;
+        // 避免每次都走 split("\n") 的 regex 路径（会产生大量分配）。
+        double baseX = position.x;
+        double baseY = position.y + (text.lineHeight - text.fontSize) / 2.0;
+        Position linePos = new Position(baseX, baseY);
+
+        int firstNl = content.indexOf('\n');
+        if (firstNl < 0) {
+            drawLine(poseStack, text, content, linePos);
+            return;
+        }
+
+        int len = content.length();
+        int start = 0;
+        while (start <= len) {
+            int nl = content.indexOf('\n', start);
+            if (nl < 0) {
+                // last line (including empty tail)
+                drawLine(poseStack, text, start < len ? content.substring(start) : "", linePos);
+                break;
+            }
+
+            drawLine(poseStack, text, content.substring(start, nl), linePos);
+            linePos.y += text.lineHeight;
+            start = nl + 1;
         }
     }
 
@@ -94,6 +115,12 @@ public class FontDrawer {
     }
 
     private static String toCacheKey(Text text, String content) {
+        // 常见路径：调用方已将 text.content 设置为本次绘制的内容（比如 Element.drawInnerText 一行一画）。
+        // 这种情况下 text.toKey() 已包含 content，无需再拼接一次，避免额外 String 分配。
+        String raw = text.content;
+        if (Objects.equals(raw, content)) {
+            return text.toKey();
+        }
         return text.toKey() + "|" + (content == null ? "" : content);
     }
 
