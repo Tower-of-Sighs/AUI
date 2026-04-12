@@ -177,8 +177,8 @@ public class Operation {
         if (!repeat && key == GLFW.GLFW_KEY_F10) {
             ResourceManager.toggle();
         }
-        if (!repeat && key == GLFW.GLFW_KEY_K) {
-            ExamplePage.toggle();
+        if (!repeat) {
+            ExamplePage.toggle(key);
         }
         if (!repeat && key == ApricityKeybindings.RELOAD.get().getKey().getValue()) {
             Loader.reload();

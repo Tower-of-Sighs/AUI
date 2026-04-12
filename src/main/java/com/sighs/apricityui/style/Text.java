@@ -281,6 +281,58 @@ public class Text {
         return wrap(text, resolveWrapWidth(element, text));
     }
 
+    public record WrappedTextCache(int metricsHash, int contentHash, int contentLen, long wrapWidthBits, WrappedText wrapped) {
+    }
+
+    /**
+     * 带 Element 级缓存的换行结果。
+     * <p>
+     * wrap 属于 CPU 重活（尤其是大段文本），且通常在多帧内稳定不变；因此缓存到 RenderElement 中，
+     * 仅在文本内容/字体相关样式/可用宽度变化时失效。
+     */
+    public static WrappedText wrapCached(Element element, Text text) {
+        if (element == null || text == null) return wrap(text, 0);
+        double wrapWidth = resolveWrapWidth(element, text);
+        return wrapCachedInternal(element, text, wrapWidth);
+    }
+
+    private static WrappedText wrapCachedInternal(Element element, Text text, double wrapWidth) {
+        long wrapWidthBits = Double.doubleToLongBits(wrapWidth);
+        int metricsHash = wrapMetricsHash(text);
+        String content = text.content == null ? "" : text.content;
+        int contentHash = content.hashCode();
+        int contentLen = content.length();
+
+        WrappedTextCache cache = element.getRenderer().wrappedText.get();
+        if (cache != null
+                && cache.wrapWidthBits == wrapWidthBits
+                && cache.metricsHash == metricsHash
+                && cache.contentHash == contentHash
+                && cache.contentLen == contentLen) {
+            return cache.wrapped;
+        }
+
+        WrappedText wrapped = wrap(text, wrapWidth);
+        element.getRenderer().wrappedText.set(new WrappedTextCache(metricsHash, contentHash, contentLen, wrapWidthBits, wrapped));
+        return wrapped;
+    }
+
+    private static int wrapMetricsHash(Text text) {
+        if (text == null) return 0;
+        int h = 1;
+        h = 31 * h + text.fontSize;
+        h = 31 * h + text.fontWeight;
+        h = 31 * h + (text.oblique ? 1 : 0);
+        h = 31 * h + text.strokeWidth;
+        h = 31 * h + (text.fontFamily == null ? 0 : text.fontFamily.hashCode());
+        h = 31 * h + (text.whiteSpace == null ? 0 : text.whiteSpace.hashCode());
+        h = 31 * h + (text.direction == null ? 0 : text.direction.hashCode());
+        h = 31 * h + (int) Math.round(text.textIndent * 1000);
+        h = 31 * h + (int) Math.round(text.letterSpacing * 1000);
+        h = 31 * h + (int) Math.round(text.lineHeight * 1000);
+        return h;
+    }
+
     public static WrappedText wrap(Text text, double wrapWidth) {
         String content = text == null || text.content == null ? "" : text.content;
         List<String> hardLines = splitLines(content);
@@ -388,7 +440,7 @@ public class Text {
 
     private static double resolveWrapWidth(Element element, Text text) {
         if (element == null || text == null || !allowsSoftWrap(text.whiteSpace)) return 0;
-        Style style = element.getComputedStyle();
+        Style style = element.getRawComputedStyle();
         Double explicitWidth = Size.parseNumber(style.width);
         Box box = Box.of(element);
         double resolved;

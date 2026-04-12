@@ -1,10 +1,12 @@
 package com.sighs.apricityui.resource.async.image;
 
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.style.Background;
+import net.minecraft.client.Minecraft;
 
 import java.io.InputStream;
 import java.util.Collection;
@@ -148,7 +150,17 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
 
     @Override
     protected void applyOnMainThread(ApplyTask task, long currentGeneration) {
-        if (task.generation != currentGeneration || task.handle.generation() != task.generation) {
+        // 纹理上传必须在渲染线程执行，但 applyQueue 的 tick 发生在 ClientTick
+        if (!RenderSystem.isOnRenderThread()) {
+            RenderSystem.queueFencedTask(() -> applyOnRenderThread(task));
+            return;
+        }
+        applyOnRenderThread(task);
+    }
+
+    private void applyOnRenderThread(ApplyTask task) {
+        long generationNow = currentGeneration();
+        if (task.generation != generationNow || task.handle.generation() != task.generation) {
             task.decodedImage.close();
             task.handle.markStale();
             return;
@@ -172,11 +184,17 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         }
         task.handle.markReady(texture);
 
-        for (ImageHandle.RequesterRef requesterRef : task.handle.drainRequesters()) {
-            Element element = requesterRef.getElement();
-            if (element == null || element.document == null) continue;
-            int dirtyMask = requesterRef.needRelayout() ? Drawer.RELAYOUT : Drawer.REPAINT;
-            element.document.markDirty(element, dirtyMask);
+        // 触发布局/重绘标记回到游戏线程，避免渲染线程并发修改 DOM/Document 状态。
+        var requesters = task.handle.drainRequesters();
+        if (!requesters.isEmpty()) {
+            Minecraft.getInstance().execute(() -> {
+                for (ImageHandle.RequesterRef requesterRef : requesters) {
+                    Element element = requesterRef.getElement();
+                    if (element == null || element.document == null) continue;
+                    int dirtyMask = requesterRef.needRelayout() ? Drawer.RELAYOUT : Drawer.REPAINT;
+                    element.document.markDirty(element, dirtyMask);
+                }
+            });
         }
     }
 

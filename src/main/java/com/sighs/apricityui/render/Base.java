@@ -1,10 +1,9 @@
 package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.FrameScheduler;
 import com.sighs.apricityui.style.*;
 import org.joml.Quaternionf;
 
@@ -36,11 +35,14 @@ public class Base {
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
+        // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
+        FrameScheduler.renderBegin();
         RectFrameCache.begin();
         StyleFrameCache.begin();
-        Drawer.flushUpdates(document);
         FilterRenderer.beginFrame();
         try {
+            document.stepMotionRender();
             for (RenderNode node : document.getPaintList()) {
                 poseStack.pushPose();
                 Base.resolveOffset(poseStack);
@@ -53,7 +55,6 @@ public class Base {
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
-        AbstractAsyncHandler.tickAll();
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {

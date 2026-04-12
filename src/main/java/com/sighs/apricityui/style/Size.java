@@ -6,8 +6,6 @@ import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
 
 import java.awt.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
@@ -21,8 +19,6 @@ public record Size(double width, double height) {
         return Client.getWindowSize();
     }
 
-    private static final Pattern LEADING_NUMBER = Pattern.compile("^\\s*([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))");
-
     public static int parse(String str) {
         if (str == null || str.isBlank()) return -1;
         Double number = parseNumber(str);
@@ -31,11 +27,36 @@ public record Size(double width, double height) {
     }
 
     public static Double parseNumber(String str) {
-        if (str == null || str.isBlank()) return null;
-        Matcher matcher = LEADING_NUMBER.matcher(str);
-        if (!matcher.find()) return null;
+        if (str == null) return null;
+        int len = str.length();
+        int i = 0;
+        while (i < len && Character.isWhitespace(str.charAt(i))) i++;
+        if (i >= len) return null;
+
+        int start = i;
+        char first = str.charAt(i);
+        if (first == '+' || first == '-') i++;
+
+        boolean hasDigit = false;
+        boolean hasDot = false;
+        while (i < len) {
+            char c = str.charAt(i);
+            if (c >= '0' && c <= '9') {
+                hasDigit = true;
+                i++;
+                continue;
+            }
+            if (c == '.' && !hasDot) {
+                hasDot = true;
+                i++;
+                continue;
+            }
+            break;
+        }
+        if (!hasDigit) return null;
+
         try {
-            return Double.parseDouble(matcher.group(1));
+            return Double.parseDouble(str.substring(start, i));
         } catch (NumberFormatException ignored) {
             return null;
         }
@@ -111,7 +132,7 @@ public record Size(double width, double height) {
     public static double getScaleWidth(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
-            Style parentStyle = parent.getComputedStyle();
+            Style parentStyle = parent.getRawComputedStyle();
             if (parseNumber(parentStyle.width) != null) {
                 double resolvedWidth;
                 if (isPercent(parentStyle.width)) {
@@ -132,7 +153,7 @@ public record Size(double width, double height) {
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
-            Style parentStyle = parent.getComputedStyle();
+            Style parentStyle = parent.getRawComputedStyle();
             if (parseNumber(parentStyle.height) != null) {
                 double resolvedHeight;
                 if (isPercent(parentStyle.height)) {
