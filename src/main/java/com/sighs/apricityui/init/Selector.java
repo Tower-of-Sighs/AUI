@@ -1,5 +1,7 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.resource.CSS;
+
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -15,6 +17,9 @@ public class Selector {
             if (this.tags != o.tags) return Integer.compare(this.tags, o.tags);
             return Integer.compare(this.order, o.order);
         }
+    }
+
+    public record DebugStyleBlock(String sourcePath, String selector, Map<String, String> styles) {
     }
 
     private enum Combinator {DESCENDANT, CHILD}
@@ -323,30 +328,28 @@ public class Selector {
         return null;
     }
 
-    public static Map<String, Map<String, String>> getDebugStyles(Element element) {
-        Map<String, Map<String, String>> result = new LinkedHashMap<>();
-        record DebugMatch(String selector, Specificity specificity, Map<String, String> styles) {
+    public static List<DebugStyleBlock> getDebugStyles(Element element) {
+        record DebugMatch(String sourcePath, String selector, Specificity specificity, Map<String, String> styles) {
         }
         List<DebugMatch> matches = new ArrayList<>();
-        int order = 0;
 
-        for (var entry : element.document.CSSCache.entrySet()) {
-            String selectorStr = entry.getKey();
-            int finalOrder = order++;
+        for (CSS.DebugRule rule : element.document.CSSDebugRules) {
+            String selectorStr = rule.selector();
+            int finalOrder = rule.order();
             List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, s -> parseGroup(s, finalOrder));
             for (CompiledSelector sel : groups) {
                 if (isMatch(element, sel)) {
-                    matches.add(new DebugMatch(selectorStr, sel.specificity, entry.getValue()));
+                    matches.add(new DebugMatch(rule.sourcePath(), selectorStr, sel.specificity, rule.properties()));
                     break;
                 }
             }
         }
 
         matches.sort((a, b) -> b.specificity.compareTo(a.specificity));
-        for (DebugMatch m : matches) {
-            result.put(m.selector, m.styles);
+        List<DebugStyleBlock> result = new ArrayList<>();
+        for (DebugMatch match : matches) {
+            result.add(new DebugStyleBlock(match.sourcePath, match.selector, match.styles));
         }
-
         return result;
     }
 

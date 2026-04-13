@@ -2,23 +2,36 @@ package com.sighs.apricityui.registry;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
-import com.sighs.apricityui.instance.ApricityContainerScreen;
 import net.minecraft.client.gui.screens.MenuScreens;
+import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.player.Inventory;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
+import java.lang.reflect.Constructor;
+
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ClientMenuScreens {
+    private static final String CONTAINER_SCREEN_CLASS = "com.sighs.apricityui.instance.ApricityContainerScreen";
+
     @SubscribeEvent
-    @SuppressWarnings("RedundantTypeArguments")
     public static void onClientSetup(FMLClientSetupEvent event) {
         event.enqueueWork(
-                () -> MenuScreens.<ApricityContainerMenu, ApricityContainerScreen>register( // 如果 IDE 这里让你移除类型实参，不必理会，移了会炸
-                        ApricityMenus.APRICITY_CONTAINER.get(),
-                        (menu, inventory, title) -> new ApricityContainerScreen(menu, inventory, title)
-                )
+                () -> MenuScreens.register(ApricityMenus.APRICITY_CONTAINER.get(), ClientMenuScreens::createScreen)
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static AbstractContainerScreen<ApricityContainerMenu> createScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
+        try {
+            Class<?> screenClass = Class.forName(CONTAINER_SCREEN_CLASS);
+            Constructor<?> constructor = screenClass.getConstructor(ApricityContainerMenu.class, Inventory.class, Component.class);
+            return (AbstractContainerScreen<ApricityContainerMenu>) constructor.newInstance(menu, inventory, title);
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to create Apricity container screen", exception);
+        }
     }
 }

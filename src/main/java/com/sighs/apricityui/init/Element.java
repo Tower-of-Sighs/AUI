@@ -59,7 +59,7 @@ public class Element {
     }
 
     private void addTextSelectionEventListeners() {
-        addEventListener("mousedown", event -> {
+        addInternalEventListener("mousedown", event -> {
             if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
             if (!canSelectInnerText()) return;
             if (document != null) {
@@ -85,7 +85,7 @@ public class Element {
             setFocusedForTextSelection();
         });
 
-        addEventListener("mousemove", event -> {
+        addInternalEventListener("mousemove", event -> {
             if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
             if (!canSelectInnerText()) return;
             if (!selectingText || document.getActiveElement() != this) return;
@@ -96,7 +96,7 @@ public class Element {
             addDirtyFlags(Drawer.REPAINT);
         });
 
-        addEventListener("mouseup", event -> selectingText = false);
+        addInternalEventListener("mouseup", event -> selectingText = false);
     }
 
     // 从自己开始，最后是body
@@ -583,11 +583,23 @@ public class Element {
     public ArrayList<Event> EventListener = new ArrayList<>();
 
     public void addEventListener(String type, Consumer<Event> listener) {
-        addEventListener(type, listener, false);
+        addEventListener(type, listener, false, false);
     }
 
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        EventListener.add(new Event(this, type, listener, useCapture));
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addInternalEventListener(String type, Consumer<Event> listener) {
+        addEventListener(type, listener, false, true);
+    }
+
+    public void addInternalEventListener(String type, Consumer<Event> listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, true);
+    }
+
+    private void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean internal) {
+        EventListener.add(new Event(this, type, listener, useCapture, internal));
     }
 
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {

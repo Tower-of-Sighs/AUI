@@ -13,6 +13,8 @@
                         <span>LIVE</span>
                     </div>
                     <div class="signal-pill signal-mode">DOM</div>
+                    <div class="signal-pill signal-tool resource-btn">RES</div>
+                    <div class="signal-pill signal-tool close-btn">X</div>
                 </div>
             </div>
             <div class="toolbar">
@@ -86,7 +88,7 @@
 
     .chrome {
         width: 234px;
-        height: 34px;
+        height: 36px;
         padding: 6px 8px 0 8px;
         background-color: #0b182a;
         border: 1px solid #1d4267;
@@ -95,15 +97,15 @@
 
     .chrome-row {
         width: 216px;
-        height: 10px;
+        height: 11px;
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
     }
 
     .brand-block {
-        width: 104px;
-        height: 10px;
+        width: 88px;
+        height: 11px;
     }
 
     .eyebrow {
@@ -117,40 +119,40 @@
 
     .title {
         height: 7px;
-        width: 104px;
+        width: 88px;
         color: #f1f5ff;
-        font-size: 6px;
-        line-height: 6px;
+        font-size: 5px;
+        line-height: 5px;
         text-stroke: 0.4px #f1f5ff;
         overflow: hidden;
     }
 
     .signal-stack {
-        width: 56px;
-        height: 10px;
+        width: 100px;
+        height: 11px;
         flex-direction: row;
         justify-content: flex-end;
         align-items: center;
     }
 
     .signal-pill {
-        height: 12px;
-        padding-left: 3px;
-        padding-right: 3px;
+        height: 11px;
+        padding-left: 2px;
+        padding-right: 2px;
         flex-direction: row;
         align-items: center;
         justify-content: center;
         border: 1px solid #41688d;
         background-color: #13273d;
         color: #cad8f3;
-        font-size: 5px;
-        line-height: 5px;
+        font-size: 4px;
+        line-height: 4px;
         box-shadow: inset 0 0 0 1px #1a3551;
     }
 
     .signal-live {
-        width: 22px;
-        margin-right: 3px;
+        width: 24px;
+        margin-right: 2px;
         border-color: #3b7568;
         background-color: #10322d;
         justify-content: space-around;
@@ -158,11 +160,29 @@
 
     .signal-mode {
         width: 14px;
+        margin-right: 2px;
+    }
+
+    .signal-tool {
+        width: 16px;
+        color: #9fd0ff;
+    }
+
+    .resource-btn {
+        background-color: #10263b;
+        border-color: #315a82;
+    }
+
+    .close-btn {
+        width: 12px;
+        color: #ffd2d2;
+        background-color: #351820;
+        border-color: #7d3b4a;
     }
 
     .signal-dot {
-        width: 4px;
-        height: 4px;
+        width: 3px;
+        height: 3px;
         margin-right: 0;
         background-color: #7af6cb;
         border: 1px solid #b4ffe5;
@@ -171,23 +191,23 @@
     .toolbar {
         width: 216px;
         height: 14px;
-        margin-top: 4px;
+        margin-top: 3px;
         flex-direction: row;
         align-items: center;
-        justify-content: flex-end;
+        justify-content: flex-start;
     }
 
     .toolbar-label {
-        width: 0px;
-        height: 0px;
+        width: 24px;
+        height: 5px;
+        margin-right: 3px;
         color: #6c88a8;
         font-size: 4px;
         line-height: 4px;
-        visibility: hidden;
     }
 
     .doc-switch {
-        width: 216px;
+        width: 189px;
         height: 14px;
         flex-direction: row;
         align-items: center;
@@ -199,13 +219,15 @@
     }
 
     .doc-arrow {
-        width: 12px;
+        width: 13px;
         height: 12px;
+        flex-direction: row;
         align-items: center;
         justify-content: center;
         color: #b8dbff;
         border-right: 1px solid #234e7d;
         background-color: #173552;
+        font-size: 5px;
         line-height: 8px;
     }
 
@@ -215,16 +237,17 @@
     }
 
     .doc-name {
-        width: 188px;
+        width: 159px;
         height: 12px;
-        padding-left: 4px;
-        padding-right: 3px;
+        flex-direction: row;
+        padding-left: 3px;
+        padding-right: 2px;
         padding-top: 1px;
         align-items: flex-start;
         justify-content: flex-start;
         color: #f4f8ff;
-        line-height: 7px;
-        font-size: 6px;
+        line-height: 6px;
+        font-size: 5px;
         text-stroke: 0.2px #f4f8ff;
         background-color: #10233a;
         border-left: 1px solid #1a3551;
@@ -235,7 +258,7 @@
     .rail {
         width: 216px;
         height: 2px;
-        margin-top: 4px;
+        margin-top: 3px;
         background-color: #16304d;
         box-shadow: 0 0 6px #2b74d055;
         visibility: hidden;
@@ -243,7 +266,7 @@
 
     .workspace {
         width: 234px;
-        height: 181px;
+        height: 179px;
         margin-top: 4px;
         flex-direction: column;
     }
@@ -256,71 +279,72 @@
     }
 
     .panel-tree {
-        height: 96px;
+        height: 99px;
         margin-bottom: 4px;
     }
 
     .panel-inspector {
-        height: 81px;
+        height: 76px;
     }
 
     .panel-head {
         width: 232px;
-        height: 19px;
-        padding-left: 7px;
-        padding-top: 3px;
+        height: 16px;
+        padding-left: 6px;
+        padding-top: 2px;
         background-color: #0e2238;
         border-bottom: 1px solid #1e446c;
         box-shadow: inset 0 -1px 0 #11263f;
     }
 
     .panel-kicker {
-        height: 5px;
+        height: 4px;
         color: #6887a8;
-        font-size: 4px;
-        line-height: 4px;
+        font-size: 3px;
+        line-height: 3px;
         letter-spacing: 1px;
     }
 
     .panel-title {
-        height: 8px;
+        height: 6px;
         color: #eef4ff;
-        font-size: 7px;
-        line-height: 7px;
+        font-size: 5px;
+        line-height: 5px;
     }
 
     .panel-frame {
         width: 232px;
-        height: 75px;
-        padding: 4px;
+        height: 82px;
+        padding: 3px;
         background-color: #07101d;
     }
 
     .panel-inspector .panel-frame {
-        height: 58px;
+        height: 57px;
     }
 
     .tree, .inspector {
-        width: 224px;
-        height: 67px;
+        width: 226px;
+        height: 76px;
         overflow: auto;
         background-color: #06101c;
-        padding-right: 2px;
+        padding-right: 1px;
     }
 
     .panel-inspector .inspector {
-        height: 50px;
+        height: 51px;
     }
 
     .tree-row {
-        width: 224px;
-        min-height: 10px;
+        width: 226px;
+        min-height: 8px;
         flex-direction: row;
         align-items: center;
-        line-height: 8px;
+        line-height: 6px;
+        font-size: 5px;
         color: #dae6fb;
         border-bottom: 1px solid #0d1d31;
-        padding-right: 2px;
+        padding-right: 1px;
     }
 
     .tree-row.selected {
@@ -329,7 +353,7 @@
     }
 
     .toggle {
-        width: 7px;
+        width: 6px;
         color: #79b7ff;
         align-items: center;
         justify-content: center;
@@ -345,29 +369,31 @@
     }
 
     .tree-edit-row {
-        width: 224px;
-        min-height: 10px;
+        width: 226px;
+        min-height: 8px;
         flex-direction: row;
         align-items: center;
-        line-height: 8px;
+        line-height: 6px;
+        font-size: 5px;
         border-bottom: 1px solid #0d1d31;
-        padding-right: 2px;
+        padding-right: 1px;
     }
 
     .tree-code {
         color: #8dbfff;
-        line-height: 8px;
+        line-height: 6px;
         text-stroke: 0.2px #8dbfff;
     }
 
     .tree-edit-input {
-        height: 9px;
+        height: 8px;
         padding-left: 2px;
         padding-right: 2px;
         color: #edf4ff;
         background-color: #0c1b2d;
         border: 1px solid #28517d;
-        line-height: 7px;
+        line-height: 6px;
+        font-size: 5px;
         box-shadow: inset 0 0 0 1px #10233a;
     }
 
@@ -377,58 +403,64 @@
     }
 
     .tree-text-input {
-        width: 116px;
+        width: 96px;
     }
 
     .tree-attr-input {
-        width: 34px;
+        width: 28px;
     }
 
     .tree-inline-text-input {
-        width: 48px;
+        width: 38px;
     }
 
     .section {
-        width: 224px;
-        margin-bottom: 4px;
-        padding-left: 5px;
-        padding-right: 4px;
+        width: 226px;
+        margin-bottom: 2px;
+        padding-left: 4px;
+        padding-right: 3px;
         border-left: 2px solid #3d7ec2;
         background-color: #091321;
         box-shadow: inset 0 0 0 1px #0e1e31;
     }
 
     .section-title {
-        width: 211px;
-        height: 10px;
-        margin-bottom: 2px;
+        width: 214px;
+        height: 7px;
+        flex-direction: row;
+        align-items: center;
+        margin-bottom: 1px;
         color: #9cc6ff;
         border-bottom: 1px solid #173657;
-        line-height: 8px;
+        line-height: 5px;
+        font-size: 5px;
     }
 
     .edit-row {
-        width: 211px;
-        min-height: 11px;
+        width: 214px;
+        min-height: 8px;
         flex-direction: row;
         align-items: center;
         margin-bottom: 1px;
     }
 
     .k {
-        width: 34px;
+        width: 28px;
         color: #74b1ff;
+        line-height: 6px;
+        font-size: 5px;
     }
 
     .edit-input {
-        width: 122px;
-        height: 9px;
+        width: 128px;
+        height: 8px;
         padding-left: 2px;
         padding-right: 2px;
         color: #edf4ff;
         background-color: #0d1b2d;
         border: 1px solid #28517d;
-        line-height: 7px;
+        line-height: 6px;
+        font-size: 5px;
         box-shadow: inset 0 0 0 1px #10233a;
     }
 
@@ -438,70 +470,58 @@
     }
 
     .action {
-        width: 18px;
-        height: 9px;
-        margin-left: 3px;
+        width: 16px;
+        height: 8px;
+        margin-left: 2px;
         border: 1px solid #336596;
         background-color: #10253c;
         color: #9cc6ff;
-        line-height: 7px;
+        line-height: 5px;
+        font-size: 5px;
         align-items: center;
         justify-content: center;
         box-shadow: inset 0 0 0 1px #17314d;
     }
 
     .style-block {
-        margin-top: 2px;
-        margin-bottom: 2px;
-        padding-left: 4px;
+        margin-top: 1px;
+        margin-bottom: 1px;
+        padding-left: 3px;
         border-left: 1px solid #22466d;
         background-color: #081220;
     }
 
+    .source {
+        color: #6f89a8;
+        line-height: 5px;
+        font-size: 5px;
+    }
+
     .selector {
         color: #9bc8ff;
-        line-height: 7px;
+        line-height: 5px;
+        font-size: 5px;
     }
 
     .prop {
         color: #d6e4f8;
-        line-height: 7px;
+        line-height: 5px;
+        font-size: 5px;
     }
 
     .hint {
         color: #6d88a6;
+        line-height: 5px;
+        font-size: 5px;
     }
 </style>
 
 <script>
-    function pickDocLabel(raw) {
-        if (!raw) return "active document";
-        var text = raw;
-        var dashIndex = text.indexOf(" - ");
-        if (dashIndex >= 0) {
-            text = text.substring(dashIndex + 3);
-        }
-        var lastSlash = text.lastIndexOf("/");
-        if (lastSlash >= 0 && lastSlash < text.length - 1) {
-            text = text.substring(lastSlash + 1);
-        }
-        if (text.length > 26) {
-            text = text.substring(text.length - 26);
-        }
-        return text || "active document";
-    }
-
     function syncHeader() {
         var title = document.querySelector(".title");
-        var docName = document.querySelector(".doc-name");
         if (!title) return;
-        var rawTitle = title.innerText || "";
-        if (docName) {
-            docName.innerText = pickDocLabel(rawTitle);
-        }
         title.innerText = "DevTools";
     }
 
     syncHeader();
-    window.setInterval(syncHeader, 300);
 </script>

@@ -13,8 +13,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CSS {
+    public record DebugRule(String selector, Map<String, String> properties, String sourcePath, int order) {
+    }
+
     public static void readCSS(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-        Parser.parse(css, targetCache, contextPath);
+        Parser.parse(css, targetCache, null, contextPath, 0);
+    }
+
+    public static int readCSS(String css, Map<String, Map<String, String>> targetCache,
+                              List<DebugRule> debugRules, String contextPath, int orderStart) {
+        return Parser.parse(css, targetCache, debugRules, contextPath, orderStart);
     }
 
     public static class Extractor {
@@ -155,11 +163,13 @@ public class CSS {
             return cleanCss.toString();
         }
 
-        public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-            if (css == null || css.isBlank()) return;
+        public static int parse(String css, Map<String, Map<String, String>> targetCache,
+                                List<DebugRule> debugRules, String contextPath, int orderStart) {
+            if (css == null || css.isBlank()) return orderStart;
             String normalizedCss = parseAndRegisterAnimations(css, contextPath);
 
             Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
+            int order = orderStart;
 
             while (matcher.find()) {
                 String selector = matcher.group(1).trim();
@@ -171,12 +181,22 @@ public class CSS {
                 HashMap<String, String> properties = parseProperties(rules, contextPath);
 
                 for (String sel : selectors) {
-                    targetCache.merge(sel.trim(), properties, (oldMap, newMap) -> {
+                    String normalizedSelector = sel.trim();
+                    targetCache.merge(normalizedSelector, properties, (oldMap, newMap) -> {
                         oldMap.putAll(newMap);
                         return oldMap;
                     });
+                    if (debugRules != null) {
+                        debugRules.add(new DebugRule(
+                                normalizedSelector,
+                                new HashMap<>(properties),
+                                contextPath,
+                                order++
+                        ));
+                    }
                 }
             }
+            return order;
         }
 
         private static String normalizeKeyframeName(String keyframeName) {
