@@ -4,6 +4,7 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
@@ -25,6 +26,7 @@ public class Document {
 
     private final String path;
     public final Map<String, Map<String, String>> CSSCache = new HashMap<>();
+    public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
     public final List<String> JSCache = new ArrayList<>();
     public Body body;
     private final UUID uuid = UUID.randomUUID();
@@ -42,6 +44,7 @@ public class Document {
 
     public void refresh() {
         CSSCache.clear();
+        CSSDebugRules.clear();
         JSCache.clear();
         IDMap.clear();
         elements.clear();

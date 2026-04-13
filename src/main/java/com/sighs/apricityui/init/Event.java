@@ -11,14 +11,20 @@ public class Event {
     public String type;
     public Consumer<Event> listener;
     public boolean useCapture;
+    public boolean internal;
     public boolean stoppedPropagation = false;
 
     public Event(Element currentTarget, String type, Consumer<Event> listener, boolean useCapture) {
+        this(currentTarget, type, listener, useCapture, false);
+    }
+
+    public Event(Element currentTarget, String type, Consumer<Event> listener, boolean useCapture, boolean internal) {
         this.target = currentTarget;
         this.currentTarget = currentTarget;
         this.type = type;
         this.listener = listener;
         this.useCapture = useCapture;
+        this.internal = internal;
     }
 
     public void stopPropagation() {
@@ -42,7 +48,7 @@ public class Event {
         String type = targetEvent.type;
         ArrayList<Element> route = target.getRoute();
         route.remove(target);
-        AtomicBoolean listenerTriggered = new AtomicBoolean(false);
+        AtomicBoolean consumed = new AtomicBoolean(false);
 
         // 捕获阶段，从body一直传递到目标元素的父元素。
         Collections.reverse(route);
@@ -51,23 +57,23 @@ public class Event {
                 if (event.type.equals(type) && event.useCapture) {
                     targetEvent.currentTarget = element;
                     targetEvent.listener = event.listener;
-                    listenerTriggered.set(true);
+                    if (!event.internal) consumed.set(true);
                     event.listener.accept(targetEvent);
                 }
             });
         }
-        if (targetEvent.stoppedPropagation) return listenerTriggered.get();
+        if (targetEvent.stoppedPropagation) return consumed.get();
 
         target.triggerEvent(event -> {
             if (event.type.equals(type)) {
                 targetEvent.currentTarget = target;
                 targetEvent.listener = event.listener;
-                listenerTriggered.set(true);
+                if (!event.internal) consumed.set(true);
                 event.listener.accept(targetEvent);
             }
         });
         // 冒泡阶段，事件从目标元素的父元素开始向上冒泡回body。
-        if (targetEvent.stoppedPropagation) return listenerTriggered.get();
+        if (targetEvent.stoppedPropagation) return consumed.get();
 
         Collections.reverse(route);
         for (Element element : route) {
@@ -76,7 +82,7 @@ public class Event {
                 if (event.type.equals(type) && !event.useCapture) {
                     targetEvent.currentTarget = element;
                     targetEvent.listener = event.listener;
-                    listenerTriggered.set(true);
+                    if (!event.internal) consumed.set(true);
                     event.listener.accept(targetEvent);
                     stoppedPropagation.set(targetEvent.stoppedPropagation);
                 }
@@ -84,7 +90,7 @@ public class Event {
             if (stoppedPropagation.get()) break;
         }
 
-        return listenerTriggered.get();
+        return consumed.get();
     }
 
     public static boolean triggerSingle(Event targetEvent) {
@@ -92,15 +98,15 @@ public class Event {
         if (target == null) return false;
 
         String type = targetEvent.type;
-        AtomicBoolean listenerTriggered = new AtomicBoolean(false);
+        AtomicBoolean consumed = new AtomicBoolean(false);
         target.triggerEvent(event -> {
             if (event.type.equals(type)) {
                 targetEvent.currentTarget = target;
                 targetEvent.listener = event.listener;
-                listenerTriggered.set(true);
+                if (!event.internal) consumed.set(true);
                 event.listener.accept(targetEvent);
             }
         });
-        return listenerTriggered.get();
+        return consumed.get();
     }
 }
