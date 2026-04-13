@@ -36,6 +36,6 @@ public final class FrameScheduler {
      * 未来可在此处接入更多“渲染帧级别”的 begin/end 管理。
      */
     public static void renderBegin() {
-        RenderSystem.executePendingTasks();
+        // 1.20.1 上没有 executePendingTasks；渲染线程任务通过 recordRenderCall 直接入队即可。
     }
 }
