@@ -107,7 +107,7 @@ public class Drawer {
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
 
-        boolean needsMask = Style.clipsOverflow(rootStyle.overflow);
+        boolean needsMask = Style.clipsOverflow(rootStyle);
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }

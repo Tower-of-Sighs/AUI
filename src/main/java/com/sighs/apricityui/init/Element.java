@@ -401,8 +401,15 @@ public class Element {
     }
 
     public boolean canScroll() {
-        if (!Style.allowsUserScroll(getComputedStyle().overflow)) return false;
-        return scrollHeight > Box.of(this).innerSize().height();
+        return canScrollVertically();
+    }
+
+    public boolean canScrollVertically() {
+        return Style.allowsUserScrollY(getComputedStyle());
+    }
+
+    public boolean canScrollHorizontally() {
+        return Style.allowsUserScrollX(getComputedStyle());
     }
 
     public void setValue(String value) {
@@ -417,6 +424,7 @@ public class Element {
                 rectRenderer.drawBody(poseStack);
                 drawInnerTextSelection(poseStack, rectRenderer);
                 drawInnerText(poseStack, rectRenderer);
+                drawScrollbar(poseStack, rectRenderer);
             }
             case BORDER -> rectRenderer.drawBorder(poseStack);
         }
@@ -592,12 +600,19 @@ public class Element {
     }
 
     private ScrollStep stepScrollAxis(double current, double target, double limit) {
+        double clampedTarget = clampScrollTarget(target, limit);
+        if (target < 0 || target > limit) {
+            target = target + (clampedTarget - target) * 0.28;
+        }
         if (!isScrollSettled(current, target)) {
             current = current + (target - current) * SCROLL_EASING_FACTOR;
         }
-        target = clampScrollTarget(target, limit);
-        if (isScrollSettled(current, target)) {
-            current = target;
+        if (Math.abs(target - clampedTarget) <= SCROLL_STOP_EPSILON) {
+            target = clampedTarget;
+        }
+        if (isScrollSettled(current, target) && isScrollSettled(target, clampedTarget)) {
+            current = clampedTarget;
+            target = clampedTarget;
         }
         return new ScrollStep(current, target, !isScrollSettled(current, target));
     }
@@ -861,6 +876,104 @@ public class Element {
         }
     }
 
+    protected void drawStaticText(PoseStack poseStack, Rect rectRenderer, Text text) {
+        if (text == null || text.content == null || text.content.isEmpty()) return;
+
+        Position contentPos = rectRenderer.getContentPosition();
+        double contentWidth = Box.of(this).innerSize().width();
+        double contentHeight = Box.of(this).innerSize().height();
+        List<String> renderLines = resolveRenderedLines(text, contentWidth, contentHeight);
+        if (renderLines.isEmpty()) return;
+
+        double textHeight = Math.max(text.lineHeight, renderLines.size() * text.lineHeight);
+        double drawY = contentPos.y + computeVerticalOffset(text, contentHeight, textHeight);
+
+        for (int i = 0; i < renderLines.size(); i++) {
+            String line = renderLines.get(i);
+            double lineTop = i * text.lineHeight;
+            if (lineTop >= contentHeight) break;
+            double lineWidth = Text.measureLine(text, line);
+            double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, i == 0);
+            Text lineText = cloneTextForSegment(text, line, Color.BLACK);
+            FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, drawY + lineTop));
+        }
+    }
+
+    private List<String> resolveRenderedLines(Text text, double contentWidth, double contentHeight) {
+        Text.WrappedText wrapped = Text.wrap(this, text);
+        List<String> lines = new ArrayList<>(wrapped.lines());
+        if (lines.isEmpty()) return lines;
+
+        int visibleLineCount = Math.max(1, (int) Math.floor(contentHeight / Math.max(1.0, text.lineHeight)));
+        if (visibleLineCount < lines.size()) {
+            lines = new ArrayList<>(lines.subList(0, visibleLineCount));
+        }
+
+        if (shouldApplyEllipsis(text, contentWidth)) {
+            String line = lines.get(0);
+            lines.set(0, ellipsize(text, line, Math.max(0, contentWidth - Math.abs(text.textIndent))));
+            if (lines.size() > 1) {
+                lines = new ArrayList<>(lines.subList(0, 1));
+            }
+        }
+        return lines;
+    }
+
+    private boolean shouldApplyEllipsis(Text text, double contentWidth) {
+        if (contentWidth <= 0) return false;
+        String overflow = getComputedStyle().overflow;
+        String textOverflow = getComputedStyle().textOverflow;
+        if (!Style.clipsOverflow(overflow)) return false;
+        if (!"ellipsis".equalsIgnoreCase(textOverflow)) return false;
+        if (Text.allowsSoftWrap(text.whiteSpace)) return false;
+        return true;
+    }
+
+    private static String ellipsize(Text text, String content, double maxWidth) {
+        if (content == null || content.isEmpty()) return "";
+        if (maxWidth <= 0) return "";
+        if (Text.measureLine(text, content) <= maxWidth) return content;
+
+        String ellipsis = "...";
+        double ellipsisWidth = Text.measureLine(text, ellipsis);
+        if (ellipsisWidth >= maxWidth) return "";
+
+        int end = content.length();
+        while (end > 0) {
+            String candidate = content.substring(0, end) + ellipsis;
+            if (Text.measureLine(text, candidate) <= maxWidth) {
+                return candidate;
+            }
+            end--;
+        }
+        return ellipsis;
+    }
+
+    private void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
+        if (!canScrollVertically()) return;
+        double innerHeight = Box.of(this).innerSize().height();
+        double innerWidth = Box.of(this).innerSize().width();
+        if (scrollHeight <= innerHeight + 0.5 || innerHeight <= 0 || innerWidth <= 0) return;
+
+        Position bodyPos = rectRenderer.getBodyRectPosition();
+        Size bodySize = rectRenderer.getBodyRectSize();
+        float trackWidth = 4f;
+        float trackPadding = 1f;
+        float trackX = (float) (bodyPos.x + bodySize.width() - trackWidth - trackPadding);
+        float trackY = (float) (bodyPos.y + trackPadding);
+        float trackH = (float) Math.max(8, bodySize.height() - trackPadding * 2);
+        float thumbH = (float) Math.max(10, trackH * (innerHeight / Math.max(innerHeight, scrollHeight)));
+        float maxThumbTravel = Math.max(0, trackH - thumbH);
+        double scrollLimit = Math.max(1, scrollHeight - innerHeight);
+        float thumbY = trackY + (float) (Math.max(0, Math.min(scrollTop, scrollLimit)) / scrollLimit) * maxThumbTravel;
+
+        float radius = trackWidth / 2f;
+        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, trackY, trackWidth, trackH,
+                new float[]{radius, radius, radius, radius}, 0x18B96A91);
+        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, thumbY, trackWidth, thumbH,
+                new float[]{radius, radius, radius, radius}, 0xB39F9F9F);
+    }
+
     private String getSelectableInnerText() {
         Text text = Text.of(this);
         String raw = innerText == null ? "" : innerText;
@@ -925,7 +1038,7 @@ public class Element {
         out.size = null;
     }
 
-    private static double computeAlignedX(Text text, double contentWidth, double lineWidth, boolean firstLine) {
+    protected static double computeAlignedX(Text text, double contentWidth, double lineWidth, boolean firstLine) {
         double alignOffset = switch (resolveLogicalTextAlign(text)) {
             case "center" -> (contentWidth - lineWidth) / 2.0;
             case "right" -> contentWidth - lineWidth;
@@ -936,7 +1049,7 @@ public class Element {
         return alignOffset + indent;
     }
 
-    private static String resolveLogicalTextAlign(Text text) {
+    protected static String resolveLogicalTextAlign(Text text) {
         String align = text.textAlign == null ? "start" : text.textAlign;
         return switch (align) {
             case "start", "justify" -> text.isRtl() ? "right" : "left";
@@ -945,7 +1058,7 @@ public class Element {
         };
     }
 
-    private static double computeVerticalOffset(Text text, double contentHeight, double textHeight) {
+    protected static double computeVerticalOffset(Text text, double contentHeight, double textHeight) {
         String align = text.verticalAlign == null ? "top" : text.verticalAlign;
         return switch (align) {
             case "middle", "center" -> (contentHeight - textHeight) / 2.0;

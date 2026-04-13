@@ -27,7 +27,7 @@ public class Translation extends Span {
                 rectRenderer.drawBody(poseStack);
                 Text text = Text.of(this);
                 text.content = Component.translatable(text.content).getString();
-                FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
+                drawStaticText(poseStack, rectRenderer, text);
             }
             case BORDER -> rectRenderer.drawBorder(poseStack);
         }
