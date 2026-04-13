@@ -245,8 +245,11 @@ public class MouseEvent extends Event implements Cloneable {
             }
         }
         if (target != null) {
-            if (event.shiftKey) target.setScrollLeft(target.getTargetScrollLeft() + event.scrollDelta);
-            else target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
+            if (event.shiftKey && target.canScrollHorizontally()) {
+                target.setScrollLeft(target.getTargetScrollLeft() + event.scrollDelta);
+            } else {
+                target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
+            }
             if (target.document != null) {
                 // 滚动不改变层叠/节点关系，仅触发重绘。
                 target.document.markDirty(target, Drawer.REPAINT);
