@@ -163,35 +163,36 @@ public class Selector {
         }
 
         private void addRule(IndexedRule rule) {
-            Component last = rule.selector.components.getLast();
+            List<Component> components = rule.selector.components;
+            Component last = components.get(components.size() - 1);
 
             // 优先用最后一个 component 的 id/class/tag 作为候选索引键。
             if (last.id != null) {
-                byId.computeIfAbsent(last.id, _ -> new ArrayList<>()).add(rule);
+                byId.computeIfAbsent(last.id, ignored -> new ArrayList<>()).add(rule);
                 return;
             }
             if (last.classes != null && !last.classes.isEmpty()) {
                 for (String cls : last.classes) {
                     if (cls == null || cls.isBlank()) continue;
-                    byClass.computeIfAbsent(cls, _ -> new ArrayList<>()).add(rule);
+                    byClass.computeIfAbsent(cls, ignored -> new ArrayList<>()).add(rule);
                 }
                 return;
             }
             if (last.tag != null && !last.tag.isBlank() && !last.tag.equals("*")) {
-                byTag.computeIfAbsent(last.tag.toLowerCase(Locale.ROOT), _ -> new ArrayList<>()).add(rule);
+                byTag.computeIfAbsent(last.tag.toLowerCase(Locale.ROOT), ignored -> new ArrayList<>()).add(rule);
                 return;
             }
             if (last.pseudos != null && !last.pseudos.isEmpty()) {
                 for (Pseudo p : last.pseudos) {
                     if (p == null || p.name == null || p.name.isBlank()) continue;
-                    byPseudo.computeIfAbsent(p.name, _ -> new ArrayList<>()).add(rule);
+                    byPseudo.computeIfAbsent(p.name, ignored -> new ArrayList<>()).add(rule);
                 }
                 return;
             }
             if (last.attrs != null && !last.attrs.isEmpty()) {
                 for (String name : last.attrs.keySet()) {
                     if (name == null || name.isBlank()) continue;
-                    byAttr.computeIfAbsent(name, _ -> new ArrayList<>()).add(rule);
+                    byAttr.computeIfAbsent(name, ignored -> new ArrayList<>()).add(rule);
                 }
                 return;
             }

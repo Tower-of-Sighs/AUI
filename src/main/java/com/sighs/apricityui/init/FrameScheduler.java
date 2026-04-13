@@ -32,8 +32,8 @@ public final class FrameScheduler {
     /**
      * render 入口（渲染线程）。
      * <p>
-     * 当前主要用于 drain RenderSystem 的渲染线程任务（例如图片纹理上传）。
-     * 未来可在此处接入更多“渲染帧级别”的 begin/end 管理。
+     * 1.18.2 仍需在这里回放通过 recordRenderCall 入队的渲染线程任务
+     * （例如图片纹理上传）。未来可在此处接入更多“渲染帧级别”的 begin/end 管理。
      */
     public static void renderBegin() {
         RenderSystem.replayQueue();
