@@ -33,6 +33,21 @@ public record Transition(String name, double start, double end, double duration,
         }
     }
 
+    public static boolean affectsFilter(Element element) {
+        synchronized (LOCK) {
+            List<Transition> transitions = workList.get(element.uuid);
+            if (transitions == null || transitions.isEmpty()) return false;
+            for (Transition transition : transitions) {
+                String n = transition.name;
+                if (n == null) continue;
+                if (n.startsWith("filter-") || n.equals("opacity")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
     public static boolean updateStyle(Element element, Style originStyle) {
         List<Transition> transitions;
         synchronized (LOCK) {

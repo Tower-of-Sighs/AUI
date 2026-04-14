@@ -191,6 +191,7 @@ public class Flex {
         double availableMain = flex.flexDirection.isColumn() ? parentContentSize.height() : parentContentSize.width();
         double gap = resolveMainAxisGap(parent);
         double[] assigned = new double[items.size()];
+        double[] minMainSizes = new double[items.size()];
         double totalBase = items.size() > 1 ? gap * (items.size() - 1) : 0;
         double totalGrow = 0;
         double totalShrinkWeight = 0;
@@ -203,6 +204,7 @@ public class Flex {
                 base = currentNaturalOuterMainSize;
             }
             assigned[i] = base;
+            minMainSizes[i] = resolveMinMainSize(item, flex.flexDirection.isColumn(), base);
             totalBase += base;
             double grow = resolveFlexGrow(item);
             double shrink = resolveFlexShrink(item);
@@ -224,11 +226,37 @@ public class Flex {
                 if (shrink <= 0) continue;
                 double weight = shrink * Math.max(0, assigned[i]);
                 double cut = deficit * (weight / totalShrinkWeight);
-                assigned[i] = Math.max(0, assigned[i] - cut);
+                assigned[i] = Math.max(minMainSizes[i], assigned[i] - cut);
             }
         }
 
         return assigned;
+    }
+
+    private static double resolveMinMainSize(Element item, boolean columnMainAxis, double naturalOuterMainSize) {
+        if (item == null) return Math.max(0, naturalOuterMainSize);
+
+        Style style = item.getComputedStyle();
+        String rawMin = columnMainAxis ? style.minHeight : style.minWidth;
+        Double parsedMin = Size.parseNumber(rawMin);
+        if (parsedMin == null) {
+            // CSS flex items default to an automatic minimum main size. Until full min-content
+            // sizing exists, keeping the natural outer size avoids overlap from layout-only shrink.
+            return Math.max(0, naturalOuterMainSize);
+        }
+
+        double basis = columnMainAxis ? Size.getScaleHeight(item) : Size.getScaleWidth(item);
+        double resolved = Size.resolveLength(rawMin, basis, parsedMin);
+        Box box = Box.of(item);
+        boolean borderBox = box.isBorderBox();
+
+        double total = borderBox
+                ? resolved
+                : resolved + (columnMainAxis ? box.getBorderVertical() + box.getPaddingVertical()
+                : box.getBorderHorizontal() + box.getPaddingHorizontal());
+
+        total += columnMainAxis ? box.getMarginVertical() : box.getMarginHorizontal();
+        return Math.max(0, total);
     }
 
     private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,

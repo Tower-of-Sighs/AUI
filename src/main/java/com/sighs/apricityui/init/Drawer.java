@@ -2,8 +2,10 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
 
@@ -99,7 +101,7 @@ public class Drawer {
             }
         }
 
-        boolean hasFilter = !Filter.isDisabled(rootStyle.filter, rootStyle.opacity);
+        boolean hasFilter = hasCompositedFilter(contextRoot, rootStyle);
         if (hasFilter) {
             paintList.add(new RenderNode.FilterPushNode(contextRoot));
         }
@@ -136,7 +138,7 @@ public class Drawer {
             String zIndexStr = style.zIndex;
 
             boolean childHasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
-            boolean childHasFilter = !Filter.isDisabled(style.filter, style.opacity);
+            boolean childHasFilter = hasCompositedFilter(child, style);
             // 按照规范，filter, opacity, transform 等都会触发层叠上下文
             boolean createsContext = !zIndexStr.equals("auto") || !style.position.equals("static") || childHasFilter || childHasBackdrop;
 
@@ -266,5 +268,11 @@ public class Drawer {
             p = p.parentElement;
         }
         return false;
+    }
+
+    private static boolean hasCompositedFilter(Element element, Style style) {
+        if (!Filter.isDisabled(style.filter, style.opacity)) return true;
+        if (Transition.affectsFilter(element)) return true;
+        return Animation.affectsFilter(style);
     }
 }
