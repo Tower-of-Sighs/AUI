@@ -193,10 +193,10 @@ public @NotNull InteractionResult use(BlockState state, Level level, BlockPos po
     if (level.isClientSide) return InteractionResult.SUCCESS;
     if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
 
-    OpenBindPlan plan = ApricityUIClientUtil.bind()
+    ApricityUIServerUtil.screen(DEMO_TEMPLATE_PATH)
         .primaryBind("block_entity").blockEntity(pos.getX(), pos.getY(), pos.getZ(), "")
-            .bind("player").player().build();
-    ApricityUIServerUtil.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, plan);
+            .bind("player").player()
+            .open(serverPlayer);
     return InteractionResult.CONSUME;
 }
 ```

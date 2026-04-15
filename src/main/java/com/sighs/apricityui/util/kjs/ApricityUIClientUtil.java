@@ -1,15 +1,16 @@
 package com.sighs.apricityui.util.kjs;
 
+import com.sighs.apricityui.dev.ToastManager;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Window;
+import com.sighs.apricityui.instance.ApricityContainerScreen;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.WorldWindow;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.dev.ToastManager;
-import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.element.Container;
-import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
+import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -73,14 +74,38 @@ public class ApricityUIClientUtil {
         ToastManager.clear();
     }
 
+    public static void previewScreen(String path) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return;
+        minecraft.setScreen(new ApricityContainerScreen(path));
+    }
+
+    public static void closePreview() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!(minecraft.screen instanceof ApricityContainerScreen)) return;
+        minecraft.setScreen(null);
+    }
+
+    /**
+     * @deprecated 请改用 {@link #previewScreen(String)}。
+     */
+    @Deprecated
     public static void openScreen(String path) {
-        ApricityScreenNetworkHandler.requestOpenScreen(path);
+        previewScreen(path);
     }
 
+    /**
+     * @deprecated 请改用 {@link #closePreview()}。
+     */
+    @Deprecated
     public static void closeScreen() {
-        ApricityScreenNetworkHandler.requestCloseScreen();
+        closePreview();
     }
 
+    /**
+     * @deprecated 客户端脚本不建议构建绑定计划；请改为服务端 {@code ApricityUI.screen(path)...open(player)}。
+     */
+    @Deprecated
     public static OpenBindPlan.Builder bind() {
         return OpenBindPlan.builder();
     }

@@ -278,23 +278,6 @@ public class Element {
         return attributes.containsKey(name);
     }
 
-    public void setAttribute(String name, String value) {
-        attributes.put(name, value);
-        if (name.equals("style")) {
-            // 保持 style 缓存与 attributes 同步，避免后续读取出现旧值。
-            updateInlineStyle();
-        }
-        if (name.equals("value")) this.value = value;
-        if (name.equals("id")) {
-            id = value;
-            document.recordID(this);
-        }
-        if (name.equals("class")) {
-            classNames = parseClassNameList(value);
-        }
-        updateCSS();
-    }
-
     public Set<String> getClassNames() {
         return classNames == null ? Collections.emptySet() : classNames;
     }
