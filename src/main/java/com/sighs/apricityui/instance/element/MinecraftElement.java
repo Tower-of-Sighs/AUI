@@ -102,7 +102,7 @@ public abstract class MinecraftElement extends Element {
         if (updateCssOnce) pendingCssUpdate = true;
         if (attributeBatchDepth == 0 && pendingCssUpdate) {
             pendingCssUpdate = false;
-            updateCSS();
+            invalidateStyle();
         }
     }
 
@@ -136,11 +136,11 @@ public abstract class MinecraftElement extends Element {
             if (document != null) document.recordID(this);
         }
         if ("class".equals(name)) {
-            this.classNames = Element.parseClassNameList(safeValue);
+            this.classNames = parseClassNames(safeValue);
         }
 
         if (attributeBatchDepth == 0) {
-            updateCSS();
+            invalidateStyle();
         }
     }
 

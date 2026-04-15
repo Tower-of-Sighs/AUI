@@ -53,7 +53,7 @@ public class Position {
     public static Position of(Element element) {
         if (element == null) return ZERO;
         Position resultPosition = new Position(0, 0);
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             resultPosition = resultPosition.add(Position.getOffset(e));
             if (!e.uuid.equals(element.uuid))
                 resultPosition = resultPosition.add(new Position(-e.getScrollLeft(), -e.getScrollTop()));

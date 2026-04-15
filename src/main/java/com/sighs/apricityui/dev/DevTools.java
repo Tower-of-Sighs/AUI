@@ -155,7 +155,12 @@ public class DevTools {
         Element docSwitch = toolDocument.querySelector(".doc-switch");
         Element tree = toolDocument.querySelector(".tree");
         Element inspector = toolDocument.querySelector(".inspector");
-        if (title == null || docSwitch == null || tree == null || inspector == null) return;
+        Element resourceButton = toolDocument.querySelector(".resource-btn");
+        Element closeButton = toolDocument.querySelector(".close-btn");
+        if (title == null || docSwitch == null || tree == null || inspector == null || resourceButton == null || closeButton == null) return;
+
+        bindResourceButton(resourceButton);
+        bindCloseButton(closeButton);
 
         List<Document> docs = getDebuggableDocuments();
         if (docs.isEmpty()) {
@@ -171,7 +176,7 @@ public class DevTools {
         Document selectedDocument = resolveSelectedDocument(docs);
         if (selectedDocument == null || selectedDocument.body == null) return;
         ensureDefaultCollapsedState(selectedDocument);
-        title.innerText = "DevTools - " + selectedDocument.getPath();
+        title.innerText = "DevTools";
 
         buildDocumentSwitcher(docSwitch, docs, selectedDocument);
 
@@ -226,16 +231,16 @@ public class DevTools {
     private static void buildDocumentSwitcher(Element switcher, List<Document> docs, Document selectedDocument) {
         clearChildren(switcher);
 
-        Element prev = createToolElement("DIV");
+        Element prev = createToolElement("SPAN");
         prev.setAttribute("class", "doc-arrow doc-prev");
         prev.innerText = "<";
         prev.addEventListener("mousedown", event -> switchDocumentByOffset(docs, selectedDocument, -1));
 
-        Element name = createToolElement("DIV");
+        Element name = createToolElement("SPAN");
         name.setAttribute("class", "doc-name");
-        name.innerText = selectedDocument.getPath();
+        name.innerText = formatDocumentLabel(selectedDocument.getPath());
 
-        Element next = createToolElement("DIV");
+        Element next = createToolElement("SPAN");
         next.setAttribute("class", "doc-arrow doc-next");
         next.innerText = ">";
         next.addEventListener("mousedown", event -> switchDocumentByOffset(docs, selectedDocument, 1));
@@ -255,6 +260,17 @@ public class DevTools {
         selectedDocumentUuid = nextDoc.getUuid().toString();
         selectedElementUuid = nextDoc.body == null ? null : nextDoc.body.uuid.toString();
         refresh();
+    }
+
+    private static String formatDocumentLabel(String path) {
+        String safePath = safe(path);
+        if (safePath.isBlank()) return "active document";
+        int lastSlash = Math.max(safePath.lastIndexOf('/'), safePath.lastIndexOf('\\'));
+        String fileName = lastSlash >= 0 && lastSlash < safePath.length() - 1
+                ? safePath.substring(lastSlash + 1)
+                : safePath;
+        if (fileName.length() <= 26) return fileName;
+        return fileName.substring(0, 23) + "...";
     }
 
     private static void buildTree(Element container, Element node, int depth) {
@@ -420,7 +436,6 @@ public class DevTools {
     }
 
     private static void buildStyleInspector(Element inspector, Element selectedElement) {
-        inspector.append(sectionTitle("Styles"));
         inspector.append(buildInlineStyleEditor(selectedElement));
         inspector.append(buildMatchedStylesView(selectedElement));
     }
@@ -488,7 +503,7 @@ public class DevTools {
 
     private static Element buildMatchedStylesView(Element target) {
         Element section = section("Matched CSS");
-        Map<String, Map<String, String>> styles = Selector.getDebugStyles(target);
+        List<Selector.DebugStyleBlock> styles = Selector.getDebugStyles(target);
         if (styles.isEmpty()) {
             Element empty = span("No matched selector.");
             empty.setAttribute("class", "hint");
@@ -496,15 +511,19 @@ public class DevTools {
             return section;
         }
 
-        styles.forEach((selector, props) -> {
+        styles.forEach(blockInfo -> {
             Element block = createToolElement("DIV");
             block.setAttribute("class", "style-block");
 
-            Element selectorLine = span(selector);
+            Element sourceLine = span(formatStyleSourceLabel(blockInfo.sourcePath()));
+            sourceLine.setAttribute("class", "source");
+            block.append(sourceLine);
+
+            Element selectorLine = span(blockInfo.selector());
             selectorLine.setAttribute("class", "selector");
             block.append(selectorLine);
 
-            props.forEach((k, v) -> {
+            blockInfo.styles().forEach((k, v) -> {
                 Element prop = span(k + ": " + v + ";");
                 prop.setAttribute("class", "prop");
                 block.append(prop);
@@ -512,6 +531,14 @@ public class DevTools {
             section.append(block);
         });
         return section;
+    }
+
+    private static String formatStyleSourceLabel(String sourcePath) {
+        String value = safe(sourcePath).trim();
+        if (value.isBlank()) return "inline stylesheet";
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        String fileName = slash >= 0 && slash < value.length() - 1 ? value.substring(slash + 1) : value;
+        return fileName.isBlank() ? value : fileName;
     }
 
     private static LinkedHashMap<String, String> parseInlineStyle(String inlineStyle) {
@@ -576,7 +603,7 @@ public class DevTools {
     }
 
     private static Element sectionTitle(String text) {
-        Element title = createToolElement("DIV");
+        Element title = createToolElement("SPAN");
         title.setAttribute("class", "section-title");
         title.innerText = text;
         return title;
@@ -586,6 +613,20 @@ public class DevTools {
         Element span = createToolElement("SPAN");
         span.innerText = text;
         return span;
+    }
+
+    private static void bindResourceButton(Element button) {
+        if (button == null) return;
+        if ("1".equals(button.getAttribute("data-bound"))) return;
+        button.setAttribute("data-bound", "1");
+        button.addEventListener("mousedown", event -> ResourceManager.toggle());
+    }
+
+    private static void bindCloseButton(Element button) {
+        if (button == null) return;
+        if ("1".equals(button.getAttribute("data-bound"))) return;
+        button.setAttribute("data-bound", "1");
+        button.addEventListener("mousedown", event -> toggle());
     }
 
     private static Element textLiteral(String text) {

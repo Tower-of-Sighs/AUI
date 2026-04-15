@@ -13,15 +13,23 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CSS {
+    public record DebugRule(String selector, Map<String, String> properties, String sourcePath, int order) {
+    }
+
     public static void readCSS(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-        Parser.parse(css, targetCache, contextPath);
+        Parser.parse(css, targetCache, null, contextPath, 0);
+    }
+
+    public static int readCSS(String css, Map<String, Map<String, String>> targetCache,
+                              List<DebugRule> debugRules, String contextPath, int orderStart) {
+        return Parser.parse(css, targetCache, debugRules, contextPath, orderStart);
     }
 
     public static class Extractor {
         private static final Pattern STYLE_TAG_PATTERN =
                 Pattern.compile("(?i)<style\\b([^>]*)>(.*?)</style\\s*>", Pattern.DOTALL);
-        private static final Pattern SRC_ATTR_PATTERN =
-                Pattern.compile("(?i)\\bsrc\\s*=\\s*(['\"])(.*?)\\1");
+        private static final Pattern LINK_TAG_PATTERN =
+            Pattern.compile("(?i)<link\\b([^>]*?)>", Pattern.DOTALL);
 
         private final List<String> cachedStyleSrcs = new ArrayList<>();
         private final List<String> cachedStyleContents = new ArrayList<>();
@@ -41,15 +49,8 @@ public class CSS {
                 String attrText = matcher.group(1);
                 String innerCss = matcher.group(2);
 
-                if (attrText != null) {
-                    Matcher srcMatcher = SRC_ATTR_PATTERN.matcher(attrText);
-                    while (srcMatcher.find()) {
-                        String srcValue = srcMatcher.group(2);
-                        if (srcValue != null && !srcValue.isEmpty()) {
-                            cachedStyleSrcs.add(srcValue);
-                        }
-                    }
-                }
+                String srcValue = findAttrValue(attrText, "src");
+                if (srcValue != null && !srcValue.isEmpty()) cachedStyleSrcs.add(srcValue);
 
                 if (innerCss != null && !innerCss.isBlank()) {
                     cachedStyleContents.add(innerCss.trim());
@@ -57,7 +58,47 @@ public class CSS {
                 matcher.appendReplacement(sb, "");
             }
             matcher.appendTail(sb);
-            return sb.toString();
+
+            Matcher linkMatcher = LINK_TAG_PATTERN.matcher(sb.toString());
+            StringBuffer linkFree = new StringBuffer();
+            while (linkMatcher.find()) {
+                String attrText = linkMatcher.group(1);
+                if (!isStylesheetLink(attrText)) {
+                    linkMatcher.appendReplacement(linkFree, Matcher.quoteReplacement(linkMatcher.group()));
+                    continue;
+                }
+
+                String hrefValue = findAttrValue(attrText, "href");
+                if (hrefValue != null && !hrefValue.isEmpty()) {
+                    cachedStyleSrcs.add(hrefValue);
+                }
+                linkMatcher.appendReplacement(linkFree, "");
+            }
+            linkMatcher.appendTail(linkFree);
+            return linkFree.toString();
+        }
+
+        private static boolean isStylesheetLink(String attrText) {
+            String relValue = findAttrValue(attrText, "rel");
+            if (relValue == null || relValue.isBlank()) return false;
+            for (String token : relValue.trim().split("\\s+")) {
+                if ("stylesheet".equalsIgnoreCase(token)) return true;
+            }
+            return false;
+        }
+
+        private static String findAttrValue(String attrText, String attrName) {
+            if (attrText == null || attrText.isBlank() || attrName == null || attrName.isBlank()) return null;
+            Pattern attrPattern = Pattern.compile(
+                    "(?i)\\b" + Pattern.quote(attrName) + "\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s\"'>]+))"
+            );
+            Matcher matcher = attrPattern.matcher(attrText);
+            if (!matcher.find()) return null;
+            for (int i = 2; i <= 4; i++) {
+                String value = matcher.group(i);
+                if (value != null) return value.trim();
+            }
+            return null;
         }
 
         public void pushToDocument(Document document) {
@@ -125,11 +166,13 @@ public class CSS {
             return cleanCss.toString();
         }
 
-        public static void parse(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
-            if (css == null || css.isBlank()) return;
+        public static int parse(String css, Map<String, Map<String, String>> targetCache,
+                                List<DebugRule> debugRules, String contextPath, int orderStart) {
+            if (css == null || css.isBlank()) return orderStart;
             String normalizedCss = parseAndRegisterAnimations(css, contextPath);
 
             Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
+            int order = orderStart;
 
             while (matcher.find()) {
                 String selector = matcher.group(1).trim();
@@ -141,12 +184,22 @@ public class CSS {
                 HashMap<String, String> properties = parseProperties(rules, contextPath);
 
                 for (String sel : selectors) {
-                    targetCache.merge(sel.trim(), properties, (oldMap, newMap) -> {
+                    String normalizedSelector = sel.trim();
+                    targetCache.merge(normalizedSelector, properties, (oldMap, newMap) -> {
                         oldMap.putAll(newMap);
                         return oldMap;
                     });
+                    if (debugRules != null) {
+                        debugRules.add(new DebugRule(
+                                normalizedSelector,
+                                new HashMap<>(properties),
+                                contextPath,
+                                order++
+                        ));
+                    }
                 }
             }
+            return order;
         }
 
         private static String normalizeKeyframeName(String keyframeName) {

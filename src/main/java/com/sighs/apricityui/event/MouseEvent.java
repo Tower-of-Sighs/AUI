@@ -46,7 +46,6 @@ public class MouseEvent extends Event implements Cloneable {
     public static boolean tiggerEvent(MouseEvent event) {
         StyleFrameCache.begin();
         try {
-            boolean consumed = false;
             applyCursorForTopMostDocument(event);
             List<Document> docs = Document.getAll();
             if (docs == null || docs.isEmpty()) return false;
@@ -54,17 +53,12 @@ public class MouseEvent extends Event implements Cloneable {
             for (int i = docs.size() - 1; i >= 0; i--) {
                 Document document = docs.get(i);
                 if (document == null || document.inWorld) continue;
-                Element target = hitTest(document.getPaintList(), new Position(event.clientX, event.clientY));
-                if (target != null) {
-                    consumed |= tiggerEvent(event, document);
-                    if (target != document.body) {
-                        return consumed;
-                    }
-                    continue;
+                boolean consumed = tiggerEvent(event, document);
+                if (consumed) {
+                    return true;
                 }
-                consumed |= tiggerEvent(event, document);
             }
-            return consumed;
+            return false;
         } finally {
             StyleFrameCache.end();
         }
@@ -245,8 +239,11 @@ public class MouseEvent extends Event implements Cloneable {
             }
         }
         if (target != null) {
-            if (event.shiftKey) target.setScrollLeft(target.getTargetScrollLeft() + event.scrollDelta);
-            else target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
+            if (event.shiftKey && target.canScrollHorizontally()) {
+                target.setScrollLeft(target.getTargetScrollLeft() + event.scrollDelta);
+            } else {
+                target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
+            }
             if (target.document != null) {
                 // 滚动不改变层叠/节点关系，仅触发重绘。
                 target.document.markDirty(target, Drawer.REPAINT);
