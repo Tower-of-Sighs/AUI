@@ -430,7 +430,6 @@ public class Client {
         poseStack.pushPose();
         poseStack.translate(position.x, position.y, 0);
         poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 0f);
-        MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
         MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
@@ -446,7 +445,6 @@ public class Client {
             }
         }
         Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
-        bufferSource.endBatch();
         poseStack.popPose();
     }
 
@@ -454,6 +452,5 @@ public class Client {
         drawDefaultFont(poseStack, text, text.content, position);
     }
 }
-
 
 

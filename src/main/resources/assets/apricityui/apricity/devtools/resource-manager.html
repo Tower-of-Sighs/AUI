@@ -16,7 +16,10 @@
     <div class="manager">
         <div class="header">
             <span class="title">Resource Manager</span>
-            <span class="count">0</span>
+            <div class="header-actions">
+                <span class="count">0</span>
+                <div class="close-btn">X</div>
+            </div>
         </div>
         <div class="preview-status hidden">
             <span class="preview-status-path"></span>
@@ -46,6 +49,7 @@
     body, div {
         display: flex;
         flex-direction: column;
+        box-sizing: border-box;
     }
 
     body {
@@ -73,19 +77,19 @@
         color: #e2e8f0;
         border-right: 1px solid #2d4f8f;
         box-shadow: 0 0 8px #00000066;
-        padding-left: 3px;
-        padding-right: 3px;
-        padding-top: 3px;
-        padding-bottom: 3px;
+        padding-left: 4px;
+        padding-right: 4px;
+        padding-top: 4px;
+        padding-bottom: 4px;
         box-sizing: border-box;
-        gap: 3px;
+        gap: 4px;
     }
 
     .preview-name {
         width: 100%;
-        height: 8px;
+        height: 10px;
         color: #93c5fd;
-        line-height: 8px;
+        line-height: 10px;
         font-size: 7px;
         border-bottom: 1px solid #1e3a8a;
     }
@@ -112,14 +116,14 @@
         width: 100%;
         height: 100%;
         border-top: 1px solid #1f2937;
-        padding-top: 2px;
-        gap: 1px;
+        padding-top: 3px;
+        gap: 2px;
         box-sizing: border-box;
     }
 
     .preview-info-line {
         width: 100%;
-        line-height: 7px;
+        line-height: 8px;
         font-size: 6px;
         color: #cbd5e1;
     }
@@ -138,56 +142,75 @@
 
     .header {
         width: 100%;
-        height: 10px;
+        height: 14px;
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
-        padding-left: 3px;
-        padding-right: 3px;
+        padding-left: 4px;
+        padding-right: 4px;
         background-color: #0b1220;
         border-bottom: 1px solid #2d4f8f;
         box-sizing: border-box;
     }
 
+    .header-actions {
+        height: 12px;
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
+    }
+
     .title {
         color: #93c5fd;
-        line-height: 10px;
+        line-height: 12px;
         font-size: 8px;
     }
 
     .count {
         color: #9ca3af;
-        line-height: 7px;
+        line-height: 8px;
+        font-size: 6px;
+    }
+
+    .close-btn {
+        width: 12px;
+        height: 10px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #3559a5;
+        background-color: #1a2235;
+        color: #d6e4ff;
+        line-height: 8px;
         font-size: 6px;
     }
 
     .toolbar {
         width: 100%;
-        height: 10px;
+        height: 14px;
         flex-direction: row;
         align-items: center;
-        gap: 2px;
-        padding-left: 1px;
-        padding-right: 1px;
+        gap: 3px;
+        padding-left: 2px;
+        padding-right: 2px;
         border-bottom: 1px solid #1f2937;
         background-color: #0f172a;
     }
 
     .preview-status {
         width: 100%;
-        height: 9px;
+        height: 11px;
         flex-direction: row;
         align-items: center;
-        gap: 2px;
-        padding-left: 2px;
-        padding-right: 2px;
+        gap: 3px;
+        padding-left: 3px;
+        padding-right: 3px;
         box-sizing: border-box;
         border-bottom: 1px solid #1f2937;
         background-color: #101f35;
     }
 
     .preview-status-path {
-        width: 183px;
+        width: 178px;
         color: #bae6fd;
         line-height: 9px;
         font-size: 6px;
@@ -195,7 +218,7 @@
 
     .preview-close-btn {
         width: 24px;
-        height: 7px;
+        height: 9px;
         align-items: center;
         justify-content: center;
         border: 1px solid #2563eb;
@@ -206,8 +229,8 @@
     }
 
     .mode-wrap {
-        width: 40px;
-        height: 8px;
+        width: 48px;
+        height: 10px;
         flex-direction: row;
         align-items: center;
         border: 1px solid #1d4ed8;
@@ -215,11 +238,12 @@
     }
 
     .mode-btn {
-        width: 20px;
+        width: 24px;
         height: 100%;
         align-items: center;
         justify-content: center;
         line-height: 8px;
+        font-size: 6px;
         color: #9ca3af;
         border-right: 1px solid #1d4ed8;
     }
@@ -234,34 +258,38 @@
     }
 
     .filter-input {
-        width: 130px;
-        height: 7px;
+        width: 124px;
+        height: 9px;
         background-color: #111827;
         color: #e5e7eb;
         border: 1px solid #2563eb;
         line-height: 7px;
-        padding-left: 1px;
-        padding-right: 1px;
+        font-size: 6px;
+        padding-left: 2px;
+        padding-right: 2px;
     }
 
     .refresh-btn {
-        min-width: 24px;
-        height: 7px;
+        min-width: 26px;
+        height: 9px;
         border: 1px solid #2563eb;
         background-color: #0b1220;
         color: #93c5fd;
         align-items: center;
         justify-content: center;
         line-height: 7px;
+        font-size: 6px;
     }
 
     .table-header {
         width: 100%;
-        height: 8px;
+        height: 14px;
         flex-direction: row;
         align-items: center;
         border-bottom: 1px solid #2d4f8f;
         background-color: #131d33;
+        padding-left: 2px;
+        padding-right: 2px;
     }
 
     .rows {
@@ -269,47 +297,59 @@
         height: 90%;
         overflow: auto;
         background-color: #111827;
+        padding-top: 1px;
+        padding-bottom: 1px;
     }
 
     .row {
         width: 100%;
-        height: 7px;
+        height: 14px;
         flex-direction: row;
         align-items: center;
         border-bottom: 1px solid #1f2937;
-    }
-
-    .row.row-selected {
-        background-color: #2563ebaa;
-    }
-
-    .cell {
-        line-height: 7px;
+        padding-left: 2px;
+        padding-right: 2px;
         overflow: hidden;
     }
 
+    .row.row-selected {
+        background-color: #244a4a;
+        box-shadow: inset 2px 0 0 #7fe7d9;
+    }
+
+    .cell {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        height: 100%;
+        line-height: 7px;
+        font-size: 6px;
+        overflow: hidden;
+        white-space: nowrap;
+    }
+
     .c-index {
-        width: 10px;
+        width: 12px;
         color: #9ca3af;
     }
 
     .c-path {
-        width: 118px;
+        width: 116px;
         color: #e5e7eb;
     }
 
     .c-ext {
-        width: 16px;
+        width: 18px;
         color: #93c5fd;
     }
 
     .c-layer {
-        width: 20px;
+        width: 24px;
         color: #fbbf24;
     }
 
     .c-size {
-        width: 36px;
+        width: 40px;
         color: #c4b5fd;
     }
 
@@ -328,15 +368,15 @@
 
     .context-item {
         width: 100%;
-        height: 10px;
-        font-size: 8px;
+        height: 11px;
+        font-size: 7px;
         border-bottom: 1px solid #1d4ed8;
         padding-left: 2px;
         box-sizing: border-box;
     }
 
     .context-item-label {
-        line-height: 10px;
+        line-height: 11px;
         color: #ffffff;
     }
 

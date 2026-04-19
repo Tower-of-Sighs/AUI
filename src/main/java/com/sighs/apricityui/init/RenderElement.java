@@ -9,6 +9,12 @@ import java.util.function.Predicate;
 
 public class RenderElement {
     private final Element element;
+    public Cache<Element[]> route = new Cache<>() {
+        @Override
+        void expandClear() {
+            element.children.forEach(e -> e.getRenderer().route.clear());
+        }
+    };
     public Cache<List<Transform>> transform = new Cache<>() {
         @Override
         void expandClear() {
@@ -26,6 +32,12 @@ public class RenderElement {
         @Override
         void expandClear() {
             element.children.forEach(e -> e.getRenderer().text.clear());
+        }
+    };
+    public Cache<Text.WrappedTextCache> wrappedText = new Cache<>() {
+        @Override
+        void expandClear() {
+            element.children.forEach(e -> e.getRenderer().wrappedText.clear());
         }
     };
     public Cache<Size> size = new Cache<>();
@@ -101,11 +113,11 @@ public class RenderElement {
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
             "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke",
-            "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace"
+            "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace", "textOverflow"
     );
 
     private static final Set<String> STRUCTURAL_PROPS = Set.of(
-            "clipPath", "filter", "backdropFilter", "overflow"
+            "clipPath", "filter", "backdropFilter", "overflow", "overflowX", "overflowY"
     );
 
     public static void observeStyle(Element element, Style origin, Style current) {
@@ -132,9 +144,9 @@ public class RenderElement {
             boolean has = cVal != null && !cVal.equals("none") && !cVal.isEmpty();
 
             // overflow 只有从可见变为裁剪，或从裁剪变回可见时，才需要重建 MaskNode。
-            if (prop.equals("overflow")) {
-                had = Style.clipsOverflow(oVal);
-                has = Style.clipsOverflow(cVal);
+            if (prop.equals("overflow") || prop.equals("overflowX") || prop.equals("overflowY")) {
+                had = Style.clipsOverflow(origin);
+                has = Style.clipsOverflow(current);
             }
 
             if (had != has) {
@@ -173,11 +185,12 @@ public class RenderElement {
 
         if (check.test(Style.getTextProp())) {
             renderer.text.clear();
+            renderer.wrappedText.clear();
             dirtyMask |= Drawer.REPAINT;
 
             if (check.test(TEXT_LAYOUT_PROPS)) {
                 // 字体大小行高变化触发重排
-                element.getRoute().forEach(e -> e.getRenderer().size.clear());
+                element.forEachRoute(e -> e.getRenderer().size.clear());
                 renderer.box.clear();
                 if (element.parentElement != null) {
                     element.parentElement.getRenderer().size.clear();
@@ -189,8 +202,8 @@ public class RenderElement {
         }
 
         if (check.test(PADDING_AND_BORDER_PROPS)) {
-            element.getRoute().forEach(e -> e.getRenderer().size.clear());
-            element.getRoute().forEach(e -> e.getRenderer().box.clear());
+            element.forEachRoute(e -> e.getRenderer().size.clear());
+            element.forEachRoute(e -> e.getRenderer().box.clear());
             if (element.parentElement != null) {
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
@@ -199,7 +212,7 @@ public class RenderElement {
         }
 
         if (check.test(LAYOUT_PROPS)) {
-            element.getRoute().forEach(e -> e.getRenderer().size.clear());
+            element.forEachRoute(e -> e.getRenderer().size.clear());
             renderer.box.clear();
             if (element.parentElement != null) {
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
@@ -248,6 +261,6 @@ public class RenderElement {
             element.id = current.get("id");
             element.document.recordID(element);
         }
-        element.updateCSS();
+        element.invalidateStyle();
     }
 }

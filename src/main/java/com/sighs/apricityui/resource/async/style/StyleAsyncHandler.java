@@ -129,10 +129,13 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
     private void rebuildCssCache(Document document, StyleHandle handle) {
         document.CSSCache.clear();
+        document.CSSDebugRules.clear();
+        int order = 0;
         for (Map.Entry<Integer, StyleHandle.CssEntry> entry : handle.snapshotCssEntries()) {
             StyleHandle.CssEntry cssEntry = entry.getValue();
-            CSS.readCSS(cssEntry.cssText(), document.CSSCache, cssEntry.contextPath());
+            order = CSS.readCSS(cssEntry.cssText(), document.CSSCache, document.CSSDebugRules, cssEntry.contextPath(), order);
         }
+        document.rebuildSelectorIndex();
     }
 
     private boolean registerFont(FontTask fontTask) {

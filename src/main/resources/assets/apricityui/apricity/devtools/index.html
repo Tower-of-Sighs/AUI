@@ -1,272 +1,545 @@
 <body>
-<div class="devtools">
-    <div class="header">
-        <span class="title">DevTools</span>
-        <div class="doc-switch">
-            <div class="doc-arrow doc-prev"></div>
-            <div class="doc-name"></div>
-            <div class="doc-arrow doc-next"></div>
+<div class="devtools-root">
+    <div class="devtools">
+        <div class="chrome">
+            <div class="chrome-row">
+                <div class="brand-block">
+                    <span class="eyebrow">APRACITY DEBUG CONSOLE</span>
+                    <span class="title">DevTools</span>
+                </div>
+                <div class="signal-stack">
+                    <div class="signal-pill signal-live">
+                        <span class="signal-dot"></span>
+                        <span>LIVE</span>
+                    </div>
+                    <div class="signal-pill signal-mode">DOM</div>
+                    <div class="signal-pill signal-tool resource-btn">RES</div>
+                    <div class="signal-pill signal-tool close-btn">X</div>
+                </div>
+            </div>
+            <div class="toolbar">
+                <div class="toolbar-label">Document</div>
+                <div class="doc-switch"></div>
+            </div>
+            <div class="rail"></div>
         </div>
-    </div>
 
-    <div class="tree-panel">
-        <div class="tree"></div>
-    </div>
+        <div class="workspace">
+            <div class="panel panel-tree">
+                <div class="panel-head">
+                    <span class="panel-kicker">Structure</span>
+                    <span class="panel-title">Tree Navigator</span>
+                </div>
+                <div class="panel-frame">
+                    <div class="tree"></div>
+                </div>
+            </div>
 
-    <div class="inspector-panel">
-        <div class="inspector"></div>
+            <div class="panel panel-inspector">
+                <div class="panel-head">
+                    <span class="panel-kicker">Styles</span>
+                    <span class="panel-title">Inspector</span>
+                </div>
+                <div class="panel-frame">
+                    <div class="inspector"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 </body>
 
 <style>
-    body, div {
+    body, div, span, input {
         display: flex;
         flex-direction: column;
+        box-sizing: border-box;
     }
 
     body {
-        width: 100%;
-        height: 100%;
+        width: 427px;
+        height: 240px;
+        margin: 0;
+        padding-top: 6px;
+        padding-right: 6px;
         align-items: flex-end;
         pointer-events: auto;
-        font-family: default;
+        font-family: monospace;
         font-size: 12px;
+        color: #eaf6ff;
         transform: translateZ(100px);
     }
 
-    .devtools {
-        width: 190px;
-        height: 100%;
-        display: flex;
-        flex-direction: column;
-        background-color: #0f172a;
-        color: #cbd5e1;
-        border-left: 1px solid #1e3a8a;
-        box-shadow: 0 0 8px #00000088;
+    .devtools-root {
+        width: 248px;
+        height: 228px;
+        align-items: stretch;
+        justify-content: flex-start;
     }
 
-    .header {
-        height: 10px;
+    .devtools {
+        width: 248px;
+        height: 228px;
+        padding: 6px;
+        background-color: #de0a1323;
+        border: 1px solid #a08ed4ff;
+        box-shadow: 0 0 0 1px #40ffffff, 0 12px 24px #00000088;
+    }
+
+    .chrome {
+        width: 234px;
+        height: 36px;
+        padding: 6px 8px 0 8px;
+        background-color: #d610253a;
+        border: 1px solid #927acfff;
+        box-shadow: inset 0 0 0 1px #48ffffff;
+    }
+
+    .chrome-row {
+        width: 216px;
+        height: 11px;
         flex-direction: row;
         align-items: center;
         justify-content: space-between;
-        padding-left: 3px;
-        padding-right: 2px;
-        background-color: #0b1220;
-        border-bottom: 1px solid #1e3a8a;
+    }
+
+    .brand-block {
+        width: 88px;
+        height: 11px;
+    }
+
+    .eyebrow {
+        height: 0px;
+        color: #b6c8d4;
+        font-size: 4px;
+        line-height: 0px;
+        letter-spacing: 1px;
+        visibility: hidden;
     }
 
     .title {
-        color: #93c5fd;
+        height: 7px;
+        width: 88px;
+        color: #f1fbff;
+        font-size: 7px;
+        line-height: 7px;
+        text-stroke: 0.4px #f1fbff;
+        overflow: hidden;
+    }
+
+    .signal-stack {
+        width: 100px;
+        height: 11px;
+        flex-direction: row;
+        justify-content: flex-end;
+        align-items: center;
+    }
+
+    .signal-pill {
+        height: 11px;
+        padding-left: 2px;
+        padding-right: 2px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #b09bc8e7;
+        background-color: #d41b2f45;
+        color: #e6f3ff;
+        font-size: 6px;
+        line-height: 6px;
+        box-shadow: inset 0 0 0 1px #44ffffff;
+    }
+
+    .signal-live {
+        width: 24px;
+        margin-right: 2px;
+        border-color: #b066d6be;
+        background-color: #d818453d;
+        color: #d8fff4;
+        justify-content: space-around;
+    }
+
+    .signal-mode {
+        width: 14px;
+        margin-right: 2px;
+    }
+
+    .signal-tool {
+        width: 16px;
+        color: #d6f5ff;
+    }
+
+    .resource-btn {
+        background-color: #d84b351f;
+        border-color: #b0ffc886;
+        color: #ffe6c6;
+    }
+
+    .close-btn {
+        width: 12px;
+        color: #ffdbe2;
+        background-color: #d84c2530;
+        border-color: #b0ff9fb2;
+    }
+
+    .signal-dot {
+        width: 3px;
+        height: 3px;
+        margin-right: 0;
+        background-color: #7bffe1;
+        border: 1px solid #d6fff4;
+    }
+
+    .toolbar {
+        width: 216px;
+        height: 14px;
+        margin-top: 3px;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+    }
+
+    .toolbar-label {
+        width: 24px;
+        height: 6px;
+        margin-right: 3px;
+        color: #b9d4ea;
         font-size: 6px;
         line-height: 6px;
     }
 
     .doc-switch {
-        width: 120px;
-        height: 8px;
+        width: 189px;
+        height: 14px;
         flex-direction: row;
         align-items: center;
-        background-color: #111827;
-        border: 1px solid #2563eb;
-        color: #e5e7eb;
+        border: 1px solid #b08fd2ff;
+        background-color: #d6132a42;
+        box-shadow: inset 0 0 0 1px #3cffffff;
+        padding-left: 1px;
+        padding-right: 1px;
     }
 
     .doc-arrow {
-        width: 8px;
-        height: 100%;
+        width: 13px;
+        height: 12px;
+        flex-direction: row;
         align-items: center;
         justify-content: center;
-        color: #93c5fd;
-        border-right: 1px solid #1d4ed8;
+        color: #d9f4ff;
+        border-right: 1px solid #b085c8f8;
+        background-color: #d81a3550;
+        font-size: 7px;
+        line-height: 9px;
     }
 
     .doc-next {
         border-right: none;
-        border-left: 1px solid #1d4ed8;
+        border-left: 1px solid #b085c8f8;
     }
 
     .doc-name {
-        width: 104px;
-        height: 100%;
-        padding-left: 1px;
-        padding-right: 1px;
+        width: 159px;
+        height: 12px;
+        flex-direction: row;
+        padding-left: 3px;
+        padding-right: 2px;
+        padding-top: 1px;
+        align-items: flex-start;
+        justify-content: flex-start;
+        color: #ecf8ff;
+        line-height: 8px;
+        font-size: 7px;
+        text-stroke: 0.2px #ecf8ff;
+        background-color: #d6132941;
+        border-left: 1px solid #9a6fb6e3;
+        border-right: 1px solid #9a6fb6e3;
+        overflow: hidden;
+    }
+
+    .rail {
+        width: 216px;
+        height: 2px;
+        margin-top: 3px;
+        background-color: #c07fd8ff;
+        box-shadow: 0 0 7px #a89be6ff;
+        visibility: visible;
+    }
+
+    .workspace {
+        width: 234px;
+        height: 172px;
+        margin-top: 6px;
+        flex-direction: column;
+    }
+
+    .panel {
+        width: 234px;
+        border: 1px solid #a88cc9f2;
+        background-color: #d60f1e32;
+        box-shadow: inset 0 0 0 1px #36ffffff, 0 0 0 1px #0a1422;
+    }
+
+    .panel-tree {
+        height: 95px;
+        margin-bottom: 4px;
+    }
+
+    .panel-inspector {
+        height: 73px;
+    }
+
+    .panel-head {
+        width: 232px;
+        height: 16px;
+        padding-left: 6px;
+        padding-top: 2px;
+        background-color: #d816304a;
+        border-bottom: 1px solid #b079c4f0;
+        box-shadow: inset 0 -1px 0 #40ffffff;
+    }
+
+    .panel-kicker {
+        height: 5px;
+        color: #b4cbde;
+        font-size: 5px;
+        line-height: 5px;
+        letter-spacing: 1px;
+    }
+
+    .panel-title {
+        height: 7px;
+        color: #f2fbff;
+        font-size: 7px;
         line-height: 7px;
-        color: #e5e7eb;
-        overflow: auto;
     }
 
-    .tree-panel {
-        width: 100%;
-        height: 54%;
-        overflow: auto;
-        background-color: #0b1324;
-        border-bottom: 1px solid #1e3a8a;
-        padding: 2px;
+    .panel-frame {
+        width: 232px;
+        height: 77px;
+        padding: 3px;
+        background-color: #d60b1b2e;
     }
 
-    .inspector-panel {
-        width: 100%;
-        height: 46%;
-        overflow: auto;
-        background-color: #0f172a;
-        padding: 2px;
+    .panel-inspector .panel-frame {
+        height: 55px;
     }
 
-    .tree {
-        width: 100%;
-        height: 100%;
+    .tree, .inspector {
+        width: 226px;
+        height: 71px;
         overflow: auto;
+        background-color: #d6081726;
+        padding-right: 1px;
+    }
+
+    .panel-inspector .inspector {
+        height: 49px;
     }
 
     .tree-row {
-        width: 100%;
-        height: 7px;
+        width: 226px;
+        min-height: 9px;
         flex-direction: row;
         align-items: center;
-        line-height: 7px;
-        color: #cbd5e1;
-        overflow: auto;
+        line-height: 8px;
+        font-size: 7px;
+        color: #dff2ff;
+        border-bottom: 1px solid #a02f4d68;
+        padding-right: 1px;
     }
 
     .tree-row.selected {
-        background-color: #1e3a8a66;
+        background-color: #706ec8ff;
+        box-shadow: inset 2px 0 0 #87f7e3, inset 0 1px 0 #a0b5e8ff;
     }
 
     .toggle {
         width: 6px;
-        color: #60a5fa;
+        color: #9befff;
+        align-items: center;
+        justify-content: center;
     }
 
     .node-label {
-        color: #dbeafe;
+        color: #eefbff;
+        text-stroke: 0.2px #eefbff;
     }
 
     .end-row .node-label {
-        color: #94a3b8;
+        color: #9db4c8;
+    }
+
+    .tree-row.selected .node-label,
+    .tree-row.selected .tree-code {
+        color: #123a56;
+        text-stroke: 0.2px #123a56;
+    }
+
+    .tree-row.end-row.selected .node-label {
+        color: #0d2f46;
+        text-stroke: 0.2px #0d2f46;
     }
 
     .tree-edit-row {
-        width: 100%;
-        height: 7px;
+        width: 226px;
+        min-height: 9px;
         flex-direction: row;
         align-items: center;
-        gap: 1px;
-        overflow: auto;
-        line-height: 7px;
+        line-height: 8px;
+        font-size: 7px;
+        border-bottom: 1px solid #a02f4d68;
+        padding-right: 1px;
     }
 
     .tree-code {
-        color: #93c5fd;
-        line-height: 7px;
+        color: #8ef9e5;
+        line-height: 8px;
+        text-stroke: 0.2px #8ef9e5;
     }
 
     .tree-edit-input {
-        width: 58px;
-        height: 6px;
-        color: #e2e8f0;
-        background-color: #0b1220;
-        border: 1px solid #1d4ed8;
-        padding: 0 1px;
-        line-height: 6px;
+        height: 9px;
+        padding-left: 2px;
+        padding-right: 2px;
+        color: #eaf6ff;
+        background-color: #de132a41;
+        border: 1px solid #b888c8f0;
+        line-height: 8px;
+        font-size: 7px;
+        box-shadow: inset 0 0 0 1px #40ffffff;
     }
 
     .tree-edit-input:focus {
-        background-color: #111827;
+        background-color: #ec193652;
+        border-color: #8ff5df;
     }
 
     .tree-text-input {
-        width: 98px;
+        width: 96px;
     }
 
     .tree-attr-input {
-        width: 30px;
+        width: 28px;
     }
 
     .tree-inline-text-input {
-        width: 46px;
-    }
-
-    .inspector {
-        width: 100%;
-        height: 100%;
-        overflow: auto;
+        width: 38px;
     }
 
     .section {
-        width: 100%;
+        width: 226px;
         margin-bottom: 2px;
-        border-left: 2px solid #2563eb;
-        padding-left: 2px;
+        padding-left: 4px;
+        padding-right: 3px;
+        border-left: 2px solid #83f1e0;
+        background-color: #d00f2135;
+        box-shadow: inset 0 0 0 1px #40ffffff;
     }
 
     .section-title {
-        width: 100%;
-        height: 7px;
-        color: #93c5fd;
-        border-bottom: 1px solid #1d4ed8;
+        width: 214px;
+        height: 8px;
+        flex-direction: row;
+        align-items: center;
         margin-bottom: 1px;
+        color: #9ef6e7;
+        border-bottom: 1px solid #b079c0e6;
         line-height: 7px;
+        font-size: 7px;
     }
 
     .edit-row {
-        width: 100%;
-        height: 7px;
+        width: 214px;
+        min-height: 9px;
         flex-direction: row;
         align-items: center;
-        gap: 2px;
-        margin-bottom: 0px;
+        margin-bottom: 1px;
     }
 
     .k {
-        color: #60a5fa;
-        min-width: 22px;
+        width: 28px;
+        color: #8ce7d8;
+        line-height: 8px;
+        font-size: 7px;
     }
 
     .edit-input {
-        width: 46px;
-        height: 6px;
-        color: #e5e7eb;
-        background-color: #111827;
-        border: 1px solid #1d4ed8;
-        padding: 0 1px;
-        line-height: 6px;
+        width: 128px;
+        height: 9px;
+        padding-left: 2px;
+        padding-right: 2px;
+        color: #eaf6ff;
+        background-color: #de132a41;
+        border: 1px solid #b888c8f0;
+        line-height: 8px;
+        font-size: 7px;
+        box-shadow: inset 0 0 0 1px #40ffffff;
+    }
+
+    .edit-input[placeholder=prop],
+    .edit-input[placeholder=value] {
+        width: 84px;
     }
 
     .edit-input:focus {
-        background-color: #0b1220;
+        background-color: #ec193652;
+        border-color: #8ff5df;
     }
 
     .action {
-        min-width: 10px;
-        height: 6px;
-        border: 1px solid #2563eb;
-        background-color: #0b1220;
-        color: #93c5fd;
-        line-height: 6px;
+        width: 16px;
+        height: 9px;
+        margin-left: 2px;
+        border: 1px solid #b88cc7f0;
+        background-color: #de1b3650;
+        color: #bdfcf0;
+        line-height: 7px;
+        font-size: 7px;
         align-items: center;
         justify-content: center;
+        box-shadow: inset 0 0 0 1px #40ffffff;
     }
 
     .style-block {
         margin-top: 1px;
         margin-bottom: 1px;
-        padding-left: 2px;
-        border-left: 1px solid #1d4ed8;
+        padding-left: 3px;
+        border-left: 1px solid #c872d3f1;
+        background-color: #d0102237;
+    }
+
+    .source {
+        color: #a7bfd3;
+        line-height: 7px;
+        font-size: 7px;
     }
 
     .selector {
-        color: #93c5fd;
+        color: #95f4e3;
         line-height: 7px;
+        font-size: 7px;
     }
 
     .prop {
-        color: #cbd5e1;
+        color: #e0f1ff;
         line-height: 7px;
+        font-size: 7px;
     }
 
     .hint {
-        color: #64748b;
+        color: #8ea6ba;
+        line-height: 7px;
+        font-size: 7px;
     }
 </style>
+
+<script>
+    function syncHeader() {
+        var title = document.querySelector(".title");
+        if (!title) return;
+        title.innerText = "DevTools";
+    }
+
+    syncHeader();
+</script>

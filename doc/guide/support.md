@@ -1,274 +1,287 @@
-让AI跑的，但写得还行，先留着。
+### 支持情况
 
-看到这，我就假装你会写这些了！
+先说结论：晴雪UI确实尽量往 Web 靠，但它不是浏览器。
 
-特别注意：本框架目前只有Flex布局和简单的grid布局，默认是flex布局。
+所以最好的理解方式不是“网页能干啥它就能干啥”，而是“它支持一套很好用、而且越来越像 Web 的子集”。
 
-## 标签
+如果你照着浏览器全家桶去写，那大概率会踩坑。
 
-写成这样就好。
+---
 
-样式和脚本都支持内联和外部导入。
+### 先记住这一条
 
-CSS要写在style属性里也行但还是太丑了。
+本框架默认布局不是浏览器那套文档流，而是更接近 `flex`，而且默认主轴思路基本按纵向来理解更稳妥。
 
-Minecraft专属标签之后单开一页介绍，主要有container、slot、recipe、translation。
+所以你在浏览器里写惯了“一个 div 丢进去先自然往下排”，到了这里最好还是主动写布局，不要偷懒。
 
-```html
-<body>
-    <div class="Web">
-        <span>text</span>
-        <img src="path_to_image" />
-        <input type="text" />
-        <input type="checkbox" />
-        <input type="radio" />
-        <textarea placeholder="iii"></textarea>
-        <select id="selection">
-            <option value="opt1"></option>
-            <option value="opt2"></option>
-            <option value="opt3"></option>
-        </select>
-    </div>
-  <div class="mc">
-    <translation>item.minecraft.tropical_fish</translation>
-    <container>
-      <slot mode="virtual">minecraft:apple</slot>
-      <slot mode="virtual">{id:'minecraft:diamond',Count:12b,tag:[display:{Name:'{"text":"example"}'}}}</slot>
-      <slot mode="virtual" rotate-interval="500" iconScale="1.2">#minecraft:wool</slot>
-    </container>
-    <container primary="true" bind="player" layout="preset:player" title="Inventory">
-      <slot mode="bound" slot-index="0" repeat="36"></slot>
-    </container>
-    <recipe recipe-id="minecraft:crafting_table"></recipe>
-  </div>
-</body>
+---
 
-<style src="path_to_css"></style>
-<style>
-    img {
-        width: 100px;
-        height: 50px;
-    }
-</style>
+### 已注册标签
 
-<script src="path_to_script"></script>
-<script>
-    document.querySelector("span").addEventListener("mousedown", e => {
-        window.setTimeout(_ => {
-            document.querySelector("img").setAttribute("src", "new_path");
-        }, 20);
-    });
-</script>
-```
+日常最常用的是这些：
 
-## CSS 属性
+- `body`
+- `div`
+- `span`
+- `pre`
+- `img`
+- `a`
+- `input`
+- `textarea`
+- `select`
+- `option`
+- `sprite`
+
+Minecraft 专属标签是这些：
+
+- `container`
+- `slot`
+- `recipe`
+- `translation`
+
+另外还有一批标签虽然没做浏览器级别专门逻辑，但 `global.css` 已经给了默认样式，平时可以直接用：
+
+- `p`
+- `h1` 到 `h6`
+- `small`
+- `b` `strong`
+- `i` `em`
+- `mark`
+- `sub` `sup`
+- `code` `kbd`
+- `hr`
+- `blockquote`
+
+---
+
+### CSS 选择器
+
+常用的这些都支持得比较实用：
+
+- 标签选择器
+- `.class`
+- `#id`
+- `[attr]`
+- `[attr=value]`
+- `:first-child`
+- `:last-child`
+- `:nth-child()`
+- `:hover`
+- `:active`
+- `:focus`
+- `:empty`
+- `:checked`
+- 后代选择器空格
+- 子代选择器 `>`
+- 多选择器 `,`
+
+已经够写大部分常规界面了。
+
+---
+
+### CSS 属性
+
+常用布局属性基本都能覆盖到：
 
 ```css
-div {
-  /* 常见布局属性 */
-  width: 200px;          /* 设置宽度，支持 px, %, auto 等 */
-  height: 100px;         /* 设置高度 */
-  margin: 10px;          /* 外边距，支持单值（全部方向）或 4 值（上右下左） */
-  padding: 15px;         /* 内边距 */
-  border: 1px solid #000; /* 边框，支持样式、宽度、颜色 */
-  border-radius: 5px;    /* 圆角 */
-  position: relative;    /* 位置模式：static, relative, absolute, fixed */
-  top: 20px;             /* 与顶部的距离 */
-  left: 20px;            /* 与左侧的距离 */
-  z-index: 10;           /* 层叠顺序 */
-
-  /* 布局方式 */
-  display: flex;         /* 布局方式：flex, none */
-  flex-direction: row;   /* flex 布局方向：row, column */
-  align-content: center; /* flex 布局内容对齐：flex-start, center, flex-end */
-  justify-content: center; /* flex 布局主轴对齐：flex-start, center, flex-end */
-  align-items: center;   /* flex 布局交叉轴对齐：flex-start, center, flex-end */
-
-  /* 文本属性 */
-  color: #333;           /* 文本颜色 */
-  font-size: 16px;       /* 字体大小 */
-  font-family: "Arial", sans-serif; /* 字体 */
-  line-height: 1.5;      /* 行高 */
-  text-align: center;    /* 文本对齐：left, center, right, justify */
-
-  /* 背景属性 */
-  background-color: #f0f0f0; /* 背景颜色 */
-  background-image: url("image.png"); /* 背景图片 */
-  background-repeat: no-repeat; /* 背景重复：repeat, no-repeat, repeat-x, repeat-y */
-  background-size: cover; /* 背景大小：auto, cover, contain */
-  background-position: center; /* 背景位置：top, left, center, right, bottom */
-
-  /* 其他属性 */
-  opacity: 0.8;          /* 透明度（0-1） */
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2); /* 阴影：x-offset y-offset size color */
-  pointer-events: auto;  /* 指针事件：auto, none */
-  visibility: visible;   /* 可见性：visible, hidden */
-  overflow: visible;     /* 溢出处理，默认值：visible；支持 visible, hidden, scroll, auto, clip */
-  transition: all 0.3s;  /* 过渡效果：属性 时长 时延 缓动函数 */
-  transform: translateX(10px); /* 变换：translate, rotate, scale */
-  clip-path: polygon(50% 0%, 0% 100%, 100% 100%); /* 裁剪路径：polygon, circle, ellipse, inset */
-  filter: blur(2px);     /* 滤镜：blur, brightness, contrast, grayscale, invert, opacity, huerotate */
+.panel {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 180px;
+    height: 96px;
+    padding: 8px;
+    margin: 4px;
+    position: relative;
+    top: 4px;
+    left: 4px;
 }
 ```
 
-## Element 类常用接口
+比较常用、也比较靠谱的范围大概有这些：
 
-### 1. 创建和设置元素
+- 布局：`display` `flex-*` `grid-template-*` `grid-row` `grid-column`
+- 尺寸：`width` `height` `min/max-*`
+- 盒模型：`margin*` `padding*` `border*` `border-radius` `border-image`
+- 位置：`position` `top` `right` `bottom` `left` `z-index`
+- 背景：`background-*`
+- 文本：`color` `font-size` `font-family` `font-weight` `font-style` `line-height` `text-stroke`
+- 视觉：`opacity` `box-shadow` `transform` `clip-path` `filter` `backdrop-filter`
+- 交互：`cursor` `pointer-events` `visibility` `user-select`
+- 动画：`transition` `animation` `@keyframes`
+- 字体：`@font-face`
+- 变量：`--*`
 
-```java
-// 创建元素
-Element div = document.createElement("div");
+如果你写了没实现的属性，最常见的结果不是报错，而是安静地没效果。
 
-// 设置属性
-div.setAttribute("id", "myDiv");
-div.setAttribute("class", "container");
-div.setAttribute("style", "width: 200px; height: 100px; background-color: #f0f0f0;"); // 仅行内样式
+所以调样式的时候，别默认自己写对了，先怀疑一下“这个属性到底支不支持”。
 
-// 设置文本内容
-div.innerText = "Hello, World!";
+---
 
-// 设置值（用于输入元素）
-if (div.tagName.equals("INPUT")) {
-    div.value = "Input value";
-}
+### global.css 给了你什么
+
+内置的 `global.css` 已经帮你做了一些基础兜底，比如：
+
+1. `p`、`h1-h6`、`blockquote`、`code`、`kbd`、`pre` 这些常用文本标签的基础样式。
+2. `input`、`select` 这类表单标签的基本表现。
+3. `container`、`slot`、`recipe` 的默认样式骨架。
+4. 一组槽位相关 CSS 变量。
+
+也就是说，你不用从纯白纸开始写，但也别把它当浏览器 UA 样式那样万能。
+
+---
+
+### 槽位相关变量
+
+这些变量在 `slot` 和 `container` 场景里很好用：
+
+- `--aui-slot-size`
+- `--aui-slot-render-bg`
+- `--aui-slot-render-item`
+- `--aui-slot-icon-scale`
+- `--aui-slot-padding`
+- `--aui-slot-z`
+- `--aui-slot-interactive`
+- `--aui-slot-cycle`
+- `--aui-slot-cycle-interval`
+- `--aui-container-columns`
+
+如果你在写容器 UI，这组变量建议直接记住。
+
+---
+
+### JS 支持到什么程度
+
+如果没装 KubeJS，HTML 和 CSS 还能正常用，但脚本和调试台能力会明显缩水。
+
+装了 KubeJS 以后，日常够用的接口大概是这些：
+
+```javascript
+let title = document.querySelector(".title")
+let items = document.querySelectorAll("slot")
+
+let badge = document.createElement("div")
+badge.innerText = "Hello"
+badge.setAttribute("class", "badge")
+document.body.append(badge)
+
+badge.addEventListener("mousedown", e => {
+    badge.setAttribute("data-state", "active")
+})
+
+window.setTimeout(() => {
+    badge.remove()
+}, 1000)
 ```
 
-### 2. 事件处理
+比较稳的接口包括：
 
-```java
-// 添加事件监听
-div.addEventListener("click", event -> {
-    System.out.println("Div clicked!");
-    event.stopPropagation(); // 阻止事件冒泡
-});
+- `document.querySelector()`
+- `document.querySelectorAll()`
+- `document.createElement()`
+- `element.append()`
+- `element.prepend()`
+- `element.remove()`
+- `element.getAttribute()`
+- `element.setAttribute()`
+- `element.removeAttribute()`
+- `element.innerText`
+- `element.value`
+- `addEventListener()`
+- `window.setTimeout()`
+- `window.setInterval()`
+- `window.localStorage`
 
-// 移除事件监听
-div.removeEventListener("click", event -> { /* ... */ }, false);
+不要把它当完整浏览器环境去写：
+
+- 复杂 BOM 不要指望。
+- `fetch` 不要指望。
+- 很多现代 Web API 不要指望。
+
+顺手一提，现在客户端 KJS 绑定里也已经补上了世界内窗口接口：
+
+- `ApricityUI.createInWorldDocument()`
+- `ApricityUI.createWorldWindow()`
+- `ApricityUI.createFollowFacingWorldWindow()`
+- `ApricityUI.removeWorldWindow()`
+- `ApricityUI.clearWorldWindows()`
+
+如果你在写客户端可视化脚本，这几条会很顺手。
+
+---
+
+### Java 侧统一入口
+
+如果你是模组开发者，不想一会儿记 `Document`，一会儿记网络处理器，一会儿记 `WorldWindow`，现在也可以直接从主类 `ApricityUI` 走统一入口。
+
+常用的有这些：
+
+- `ApricityUI.createDocument()`
+- `ApricityUI.createInWorldDocument()`
+- `ApricityUI.removeDocument()`
+- `ApricityUI.openScreen()`
+- `ApricityUI.closeScreen()`
+- `ApricityUI.bind()`
+- `ApricityUI.createWorldWindow()`
+- `ApricityUI.createFollowFacingWorldWindow()`
+- `ApricityUI.removeWorldWindow()`
+- `ApricityUI.clearWorldWindows()`
+
+这样文档里的示例无论写 JS 还是写 Java，思路都能尽量统一。
+
+---
+
+### 几个专属标签的当前语义
+
+这里只点重点，更完整的说明请看对应章节。
+
+1. `slot` 现在统一用一个标签，容器内默认 bound，容器外默认 virtual。
+2. virtual 物品优先读 innerText，不再推荐旧属性写法。
+3. `recipe` 现在是 `<recipe type="..."></recipe>` 这种风格，配方 id 读 innerText，不再读 `recipe-id`。
+4. `translation` 的 innerText 就是翻译 key。
+5. `sprite` 用 `src + steps + duration + direction` 这一套参数，别再用旧时代切图思路硬塞浏览器插件写法。
+
+---
+
+### 常用接口，够你写大部分交互了
+
+#### Element
+
+```javascript
+let panel = document.createElement("div")
+panel.setAttribute("class", "panel")
+panel.innerText = "example"
+
+document.body.append(panel)
+panel.prepend(document.createElement("span"))
+
+let cls = panel.getAttribute("class")
+panel.removeAttribute("class")
+panel.remove()
 ```
 
-### 3. 操作元素
+#### Document
 
-```java
-// 添加子元素
-Element child = document.createElement("div");
-child.innerText = "Child";
-div.appendChild(child); // 添加到末尾
-
-Element firstChild = document.createElement("div");
-firstChild.innerText = "First Child";
-div.prepend(firstChild); // 添加到开头
-
-// 移除元素
-div.removeChild(child);
-
-// 选择子元素
-Element childElement = div.querySelector(".child");
-List<Element> allChildren = div.querySelectorAll("div");
+```javascript
+let el = document.querySelector(".panel")
+let all = document.querySelectorAll("div")
+let node = document.createElement("span")
+document.body.append(node)
 ```
 
-### 4. 获取和修改样式
+#### Window
 
-```java
-// 获取计算样式
-Style style = div.getComputedStyle();
+```javascript
+window.localStorage.localStorage.putString("theme", "dark")
 
-// 修改样式
-div.setAttribute("style", "color: red; font-size: 20px;");
+window.setTimeout(() => {
+    // later
+}, 500)
 
-// 通过计算样式修改
-style.color = "red";
-style.fontSize = "20px";
-div.updateCSS(); // 应用修改
+window.setInterval(() => {
+    // repeat
+}, 1000)
 ```
 
-## Document 类常用接口
-
-### 1. 创建和加载文档
-
-```java
-// 创建新文档
-Document document = Document.create("my_page.html");
-
-// 从 HTML 字符串创建元素
-Element element = document.createHTML("<div class='container'>Hello</div>");
-
-// 创建世界中的文档（用于游戏内 UI）
-Document inWorldDocument = Document.createInWorld("ui.html");
-```
-
-### 2. 文档操作
-
-```java
-// 获取文档元素
-Element body = document.body; // 文档根元素
-Element div = document.querySelector("div"); // 选择第一个 div
-List<Element> allDivs = document.querySelectorAll("div"); // 选择所有 div
-
-// 添加元素到文档
-Element newDiv = document.createElement("div");
-newDiv.innerText = "New element";
-document.body.appendChild(newDiv);
-
-// 刷新文档（基本用不到）
-document.refresh();
-```
-
-### 3. 本地存储
-
-```java
-// 本地存储（类似 localStorage）
-Window.localStorage.localStorage.putString("username", "john_doe");
-String username = Window.localStorage.localStorage.getString("username", "guest");
-```
-
-## Window 类常用接口
-
-### 1. 本地存储
-
-```java
-// 本地存储
-Window.localStorage.localStorage.putString("theme", "dark");
-String theme = Window.localStorage.localStorage.getString("theme", "light");
-```
-
-### 2. 定时器
-
-```java
-// 设置定时器（2秒后执行）
-Window.setTimeout(cancellable -> {
-    System.out.println("This is a timeout!");
-}, 2000);
-
-// 设置间隔定时器（每 1 秒执行）
-Window.setInterval(cancellable -> {
-    System.out.println("This is an interval!");
-}, 1000);
-```
-
-## 五、基本使用示例
-
-```java
-// 创建文档
-Document document = Document.create("main.html");
-
-// 创建根元素
-Element body = document.body;
-body.setAttribute("style", "display: flex; justify-content: center; align-items: center; height: 100vh;");
-
-// 创建一个按钮
-Element button = document.createElement("button");
-button.innerText = "Click Me!";
-button.setAttribute("style", "padding: 10px 20px; background-color: #4CAF50; color: white; border-radius: 4px;");
-
-// 添加点击事件
-button.addEventListener("click", event -> {
-    System.out.println("Button clicked!");
-    button.setAttribute("style", "background-color: #45a049;"); // 修改样式
-    Window.setTimeout(cancellable -> {
-        button.setAttribute("style", "background-color: #4CAF50;"); // 恢复样式
-    }, 500);
-});
-
-// 添加按钮到文档
-body.appendChild(button);
-```
+---

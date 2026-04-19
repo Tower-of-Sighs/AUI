@@ -9,6 +9,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class HTML {
+    private static final Pattern DOCTYPE_PATTERN = Pattern.compile("(?is)^\\s*<!doctype[^>]*>\\s*");
+    private static final Pattern XML_DECL_PATTERN = Pattern.compile("(?is)^\\s*<\\?xml[^>]*\\?>\\s*");
+    private static final Pattern BODY_BLOCK_PATTERN = Pattern.compile("(?is)<body\\b[^>]*>.*?</body\\s*>");
+    private static final Pattern HEAD_BLOCK_PATTERN = Pattern.compile("(?is)<head\\b[^>]*>.*?</head\\s*>");
+    private static final Pattern HTML_OPEN_PATTERN = Pattern.compile("(?is)<html\\b[^>]*>");
+    private static final Pattern HTML_CLOSE_PATTERN = Pattern.compile("(?is)</html\\s*>");
+
     private static final HashMap<String, String> temples = new HashMap<>();
 
     public static void putTemple(String path, String html) {
@@ -26,16 +33,13 @@ public class HTML {
     public static Element create(Document document, String path) {
         String rawHtml = getTemple(path);
         if (rawHtml == null || rawHtml.isBlank()) return null;
-        if (!rawHtml.trim().toLowerCase().startsWith("<body")) {
-            rawHtml = "<body>" + rawHtml + "</body>";
-        }
 
         CSS.Extractor cssExtractor = new CSS.Extractor(path);
         String htmlAfterCss = cssExtractor.handle(rawHtml);
         cssExtractor.pushToDocument(document);
 
         JS.Extractor jsExtractor = new JS.Extractor(path);
-        String cleanHtml = jsExtractor.handle(htmlAfterCss);
+        String cleanHtml = normalizeDocumentMarkup(jsExtractor.handle(htmlAfterCss));
         jsExtractor.pushToDocument(document);
 
         return buildDOM(document, cleanHtml);
@@ -213,6 +217,38 @@ public class HTML {
             }
         }
         return stack.isEmpty() ? root : null;
+    }
+
+    private static String normalizeDocumentMarkup(String html) {
+        if (html == null || html.isBlank()) return "<body></body>";
+
+        String normalized = stripDocumentPreamble(html).trim();
+        if (normalized.isEmpty()) return "<body></body>";
+
+        Matcher bodyMatcher = BODY_BLOCK_PATTERN.matcher(normalized);
+        if (bodyMatcher.find()) {
+            return bodyMatcher.group();
+        }
+
+        normalized = HEAD_BLOCK_PATTERN.matcher(normalized).replaceAll("");
+        normalized = HTML_OPEN_PATTERN.matcher(normalized).replaceAll("");
+        normalized = HTML_CLOSE_PATTERN.matcher(normalized).replaceAll("");
+        normalized = normalized.trim();
+
+        if (normalized.isEmpty()) return "<body></body>";
+        if (normalized.regionMatches(true, 0, "<body", 0, 5)) return normalized;
+        return "<body>" + normalized + "</body>";
+    }
+
+    private static String stripDocumentPreamble(String html) {
+        String normalized = html;
+        boolean changed = true;
+        while (changed) {
+            String updated = DOCTYPE_PATTERN.matcher(XML_DECL_PATTERN.matcher(normalized).replaceFirst("")).replaceFirst("");
+            changed = !updated.equals(normalized);
+            normalized = updated;
+        }
+        return normalized;
     }
 
     private static void applyAttributesFast(Element element, Map<String, String> attributes) {

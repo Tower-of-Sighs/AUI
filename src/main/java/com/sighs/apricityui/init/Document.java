@@ -4,18 +4,27 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public class Document {
+    private static final int MOTION_FLAG_TRANSITION = 1;
+    private static final int MOTION_FLAG_ANIMATION_SPEC = 1 << 1;
+
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
     private final ArrayList<Element> elements = new ArrayList<>();
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
+    private final Set<Element> pendingStyleRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final ConcurrentHashMap<Element, Integer> motionFlags = new ConcurrentHashMap<>();
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private final HashMap<String, Element> IDMap = new HashMap<>();
 
@@ -24,12 +33,15 @@ public class Document {
     private Element focusedElement = null;
 
     private final String path;
-    public final Map<String, Map<String, String>> CSSCache = new HashMap<>();
+    public final Map<String, Map<String, String>> CSSCache = new LinkedHashMap<>();
+    public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
     public final List<String> JSCache = new ArrayList<>();
     public Body body;
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
+
+    private volatile Selector.Index selectorIndex = null;
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -42,9 +54,12 @@ public class Document {
 
     public void refresh() {
         CSSCache.clear();
+        CSSDebugRules.clear();
         JSCache.clear();
         IDMap.clear();
         elements.clear();
+        motionFlags.clear();
+        invalidateSelectorIndex();
         Element bodyElement = HTML.create(this, path);
         try {
             if (bodyElement == null) return;
@@ -53,11 +68,11 @@ public class Document {
             rebuildElementIndexFromBody();
 
             // First pass: ensure computed styles exist for DOM expanders.
-            body.updateCSS();
+            recomputeStyleSubtree(body);
             DocumentExpander.apply(this);
 
             // Final pass: apply styles once after expansion.
-            body.updateCSS();
+            recomputeStyleSubtree(body);
             elements.forEach(Element::clearDirtyFlags);
             dirtyElements.clear();
             paintList = Drawer.createPaintList(body);
@@ -126,6 +141,185 @@ public class Document {
         return dirtyElements;
     }
 
+    public void requestStyleRecalc(Element element) {
+        if (element == null) return;
+        if (element.document != this) return;
+        pendingStyleRoots.add(element);
+    }
+
+    /**
+     * 统一在 tick 阶段刷新样式，避免输入事件/渲染路径反复重算 CSS。
+     * <p>
+     * 当前策略较保守：当某个元素的交互态（hover/active/focus）变化时，刷新该元素及其子树。
+     */
+    public void flushPendingStyleUpdates() {
+        if (pendingStyleRoots.isEmpty()) return;
+
+        ArrayList<Element> candidates = new ArrayList<>(pendingStyleRoots);
+        pendingStyleRoots.clear();
+        candidates.sort(Comparator.comparingInt(Element::getDepth));
+
+        Set<Element> selected = Collections.newSetFromMap(new IdentityHashMap<>());
+        ArrayList<Element> roots = new ArrayList<>();
+
+        for (Element candidate : candidates) {
+            if (candidate == null || candidate.document != this) continue;
+            if (isCoveredByAncestor(candidate, selected)) continue;
+            selected.add(candidate);
+            roots.add(candidate);
+        }
+
+        for (Element root : roots) {
+            recomputeStyleSubtree(root);
+        }
+    }
+
+    /**
+     * 在 Document 层统一调度“样式重算的子树递归”。
+     * <p>
+     * Element 只负责 recompute 自己（无递归），避免任何零散路径随手 children.forEach(...) 扩散计算量。
+     */
+    private void recomputeStyleSubtree(Element root) {
+        if (root == null || root.document != this) return;
+
+        Deque<Element> stack = new ArrayDeque<>();
+        stack.push(root);
+
+        while (!stack.isEmpty()) {
+            Element current = stack.pop();
+            if (current == null || current.document != this) continue;
+
+            current.recomputeStyleSelf();
+
+            List<Element> children = current.children;
+            for (int i = children.size() - 1; i >= 0; i--) {
+                Element child = children.get(i);
+                if (child == null) continue;
+                stack.push(child);
+            }
+        }
+    }
+
+    /**
+     * 单 Document 的 tick 生命周期入口。
+     * <p>
+     * 关键原则：tick 做“提交与构建”，render 做“纯绘制”。
+     * 因此这里负责统一执行样式刷新、元素 tick、以及 dirty flags 的 flushUpdates。
+     */
+    public void tickFrame() {
+        commitStyleRecalc();
+        stepMotion();
+        tickElements();
+        // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
+        commitStyleRecalc();
+        stepMotion();
+        commitRenderState();
+    }
+
+    /**
+     * Style Recalc 阶段：统一在 tick 中重算样式。
+     */
+    public void commitStyleRecalc() {
+        flushPendingStyleUpdates();
+    }
+
+    /**
+     * Transition/Animation 阶段（占位）。
+     * <p>
+     * tick 阶段目前不搞 motion；推进逻辑在 render 阶段执行以保持稳定 60 帧。
+     * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
+     */
+    public void stepMotion() {
+        // Intentionally no-op for now.
+    }
+
+    /**
+     * Render 阶段的 motion 推进：在渲染线程、每帧执行一次，确保动画/过渡丝滑。
+     * <p>
+     * 该阶段只写 {@link StyleFrameCache}（当帧缓存）与少量渲染相关缓存失效（transform/filter），
+     * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
+     */
+    public void stepMotionRender() {
+        if (!StyleFrameCache.isActive()) return;
+        if (motionFlags.isEmpty()) return;
+
+        for (Map.Entry<Element, Integer> entry : motionFlags.entrySet()) {
+            Element element = entry.getKey();
+            if (element == null || element.document != this) {
+                motionFlags.remove(element);
+                continue;
+            }
+
+            int flags = entry.getValue() == null ? 0 : entry.getValue();
+            boolean hasTransition = (flags & MOTION_FLAG_TRANSITION) != 0;
+            boolean hasAnimationSpec = (flags & MOTION_FLAG_ANIMATION_SPEC) != 0;
+            if (!hasTransition && !hasAnimationSpec) {
+                motionFlags.remove(element);
+                continue;
+            }
+
+            Style base = element.getRawComputedStyle();
+
+            // 避免 tick 还没来得及同步 animation spec 时，render 侧重复做无意义工作。
+            if (hasAnimationSpec && !Animation.hasAnimationSpec(base)) {
+                setHasAnimationSpec(element, false);
+                hasAnimationSpec = false;
+            }
+
+            if (!hasTransition && !hasAnimationSpec) continue;
+
+            Style animated = base.clone();
+            if (hasTransition) {
+                boolean stillActive = Transition.updateStyle(element, animated);
+                if (!stillActive) {
+                    setTransitionActive(element, false);
+                }
+            }
+            if (hasAnimationSpec) {
+                Animation.updateStyle(element, animated);
+            }
+
+            // 为当帧提供“带 motion 的 computed style”
+            StyleFrameCache.put(element, animated);
+
+            // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
+            if (!Objects.equals(animated.transform, base.transform)) {
+                element.getRenderer().transform.clear();
+            }
+            if (!Objects.equals(animated.filter, base.filter) || !Objects.equals(animated.opacity, base.opacity)) {
+                element.getRenderer().filter.clear();
+            }
+            if (!Objects.equals(animated.backdropFilter, base.backdropFilter)) {
+                element.getRenderer().backdropFilter.clear();
+            }
+        }
+    }
+
+    /**
+     * Element Tick 阶段：滚动、输入态、逐帧逻辑。
+     */
+    public void tickElements() {
+        for (Element element : getElements()) {
+            element.tick();
+        }
+    }
+
+    /**
+     * Commit RenderState：将 dirty flags 提交为 layout/paintList 的更新。
+     */
+    public void commitRenderState() {
+        Drawer.flushUpdates(this);
+    }
+
+    private static boolean isCoveredByAncestor(Element element, Set<Element> selected) {
+        Element current = element.parentElement;
+        while (current != null) {
+            if (selected.contains(current)) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
     public void markDirty(int mask) {
         elements.forEach(element -> element.addDirtyFlags(mask));
         dirtyElements.addAll(elements);
@@ -139,8 +333,24 @@ public class Document {
 
     public void reapplyStylesFromCache() {
         if (body == null) return;
-        elements.forEach(Element::updateCSS);
+        body.invalidateStyle();
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
+    }
+
+    public void invalidateSelectorIndex() {
+        selectorIndex = null;
+    }
+
+    public void rebuildSelectorIndex() {
+        selectorIndex = Selector.Index.build(CSSCache);
+    }
+
+    Selector.Index getSelectorIndex() {
+        Selector.Index index = selectorIndex;
+        if (index != null) return index;
+        index = Selector.Index.build(CSSCache);
+        selectorIndex = index;
+        return index;
     }
 
     public boolean is(String path) {
@@ -174,6 +384,7 @@ public class Document {
     public void createRelation(Element child, Element parent, boolean head) {
         if (child.parentElement != null) child.parentElement.children.remove(child);
         child.parentElement = parent;
+        child.getRenderer().route.clear();
         if (parent.children.isEmpty() || !head) {
             elements.add(child);
             parent.children.add(child);
@@ -189,7 +400,7 @@ public class Document {
             parent.children.add(0, child);
         }
         child.depth = parent.getDepth() + 1;
-        child.updateCSS();
+        child.invalidateStyle();
         child.getRenderer().size.clear();
 
         // 需要判断一下是否为影响布局的属性，待补充
@@ -275,6 +486,26 @@ public class Document {
         element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
         element.document.markDirty(element.parentElement, Drawer.REORDER);
         elements.removeIf(e -> element.uuid.equals(e.uuid));
+        motionFlags.keySet().removeIf(e -> element.uuid.equals(e.uuid));
+        element.getRenderer().route.clear();
+    }
+
+    public void setTransitionActive(Element element, boolean active) {
+        setMotionFlag(element, MOTION_FLAG_TRANSITION, active);
+    }
+
+    public void setHasAnimationSpec(Element element, boolean hasSpec) {
+        setMotionFlag(element, MOTION_FLAG_ANIMATION_SPEC, hasSpec);
+    }
+
+    private void setMotionFlag(Element element, int flag, boolean enabled) {
+        if (element == null || element.document != this) return;
+        motionFlags.compute(element, (e, old) -> {
+            int v = old == null ? 0 : old;
+            if (enabled) v |= flag;
+            else v &= ~flag;
+            return v == 0 ? null : v;
+        });
     }
 
     public Element getPreviousCursorElement() {
@@ -290,16 +521,29 @@ public class Document {
     }
 
     public void setActiveElement(Element element) {
+        if (activeElement == element) return;
+
         List<Element> oldChain = activeElement != null ? activeElement.getRoute() : Collections.emptyList();
         List<Element> newChain = element != null ? element.getRoute() : Collections.emptyList();
 
+        Set<Element> oldSet = Collections.newSetFromMap(new IdentityHashMap<>());
+        oldSet.addAll(oldChain);
+
+        Set<Element> newSet = Collections.newSetFromMap(new IdentityHashMap<>());
+        newSet.addAll(newChain);
+
+        // 退出 active 链
         for (Element e : oldChain) {
-            if (!newChain.contains(e)) {
+            if (!newSet.contains(e)) {
                 e.setActive(false);
             }
         }
+
+        // 进入 active 链
         for (Element e : newChain) {
-            e.setActive(true);
+            if (!oldSet.contains(e)) {
+                e.setActive(true);
+            }
         }
 
         this.activeElement = element;
@@ -317,8 +561,7 @@ public class Document {
                 focusedElement.clearTextSelection();
             }
             focusedElement.setFocus(false);
-            ArrayList<Event> blurSnapshot = new ArrayList<>(focusedElement.EventListener);
-            for (Event event : blurSnapshot) {
+            for (Event event : focusedElement.EventListener) {
                 if (!"blur".equals(event.type) || event.listener == null) continue;
                 event.listener.accept(event);
             }
@@ -328,8 +571,7 @@ public class Document {
 
         if (element != null) {
             element.setFocus(true);
-            ArrayList<Event> focusSnapshot = new ArrayList<>(element.EventListener);
-            for (Event event : focusSnapshot) {
+            for (Event event : element.EventListener) {
                 if (!"focus".equals(event.type) || event.listener == null) continue;
                 event.listener.accept(event);
             }

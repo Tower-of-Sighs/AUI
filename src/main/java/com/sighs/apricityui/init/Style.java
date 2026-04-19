@@ -15,8 +15,14 @@ public class Style implements Cloneable {
 
     public String width = "unset";
     public String height = "unset";
+    public String minWidth = "unset";
+    public String minHeight = "unset";
+    public String maxWidth = "unset";
+    public String maxHeight = "unset";
     public String boxSizing = "content-box";
     public String overflow = "visible";
+    public String overflowX = "unset";
+    public String overflowY = "unset";
     public String opacity = "1.0";
     public String boxShadow = "unset";
     public String zIndex = "auto";
@@ -83,12 +89,17 @@ public class Style implements Cloneable {
     public String verticalAlign = "unset";
     public String textIndent = "unset";
     public String whiteSpace = "unset";
+    public String textOverflow = "clip";
 
-    public String flexDirection = "column";
+    public String flexDirection = "row";
     public String flexWrap = "nowrap";
     public String alignContent = "stretch";
     public String justifyContent = "flex-start";
-    public String alignItems = "flex-start";
+    public String alignItems = "stretch";
+    public String flex = "unset";
+    public String flexGrow = "0";
+    public String flexShrink = "1";
+    public String flexBasis = "auto";
 
     public String top = "unset";
     public String bottom = "unset";
@@ -387,6 +398,34 @@ public class Style implements Cloneable {
         return !normalizeOverflow(raw).equals("visible");
     }
 
+    public static String resolveOverflowX(Style style) {
+        if (style == null) return "visible";
+        if (style.overflowX != null && !style.overflowX.isBlank() && !style.overflowX.equals("unset")) {
+            return normalizeOverflow(style.overflowX);
+        }
+        return normalizeOverflow(style.overflow);
+    }
+
+    public static String resolveOverflowY(Style style) {
+        if (style == null) return "visible";
+        if (style.overflowY != null && !style.overflowY.isBlank() && !style.overflowY.equals("unset")) {
+            return normalizeOverflow(style.overflowY);
+        }
+        return normalizeOverflow(style.overflow);
+    }
+
+    public static boolean clipsOverflow(Style style) {
+        return clipsOverflow(resolveOverflowX(style)) || clipsOverflow(resolveOverflowY(style));
+    }
+
+    public static boolean allowsUserScrollX(Style style) {
+        return allowsUserScroll(resolveOverflowX(style));
+    }
+
+    public static boolean allowsUserScrollY(Style style) {
+        return allowsUserScroll(resolveOverflowY(style));
+    }
+
     public static boolean allowsUserScroll(String raw) {
         String value = normalizeOverflow(raw);
         return value.equals("auto") || value.equals("scroll");
@@ -420,7 +459,18 @@ public class Style implements Cloneable {
             applyBackgroundShorthand(value);
             return;
         }
+        if ("flex".equals(styleName)) {
+            applyFlexShorthand(value);
+            return;
+        }
         if ("overflow".equals(styleName)) {
+            value = normalizeOverflow(value);
+            overflow = value;
+            overflowX = value;
+            overflowY = value;
+            return;
+        }
+        if ("overflowX".equals(styleName) || "overflowY".equals(styleName)) {
             value = normalizeOverflow(value);
         }
         try {
@@ -466,6 +516,80 @@ public class Style implements Cloneable {
                 break;
             }
         }
+    }
+
+    private void applyFlexShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        flex = value.isEmpty() ? "unset" : value;
+
+        if (value.isEmpty() || value.equalsIgnoreCase("unset") || value.equalsIgnoreCase("initial")) {
+            flexGrow = "0";
+            flexShrink = "1";
+            flexBasis = "auto";
+            return;
+        }
+
+        if (value.equalsIgnoreCase("none")) {
+            flexGrow = "0";
+            flexShrink = "0";
+            flexBasis = "auto";
+            return;
+        }
+
+        if (value.equalsIgnoreCase("auto")) {
+            flexGrow = "1";
+            flexShrink = "1";
+            flexBasis = "auto";
+            return;
+        }
+
+        String[] parts = value.split("\\s+");
+        if (parts.length == 1) {
+            Double grow = Size.parseNumber(parts[0]);
+            if (grow != null) {
+                flexGrow = trimNumber(grow);
+                flexShrink = "1";
+                flexBasis = "0%";
+                return;
+            }
+            flexGrow = "1";
+            flexShrink = "1";
+            flexBasis = parts[0];
+            return;
+        }
+
+        int numericCount = 0;
+        String basis = "auto";
+        String growValue = "0";
+        String shrinkValue = "1";
+
+        for (String part : parts) {
+            Double number = Size.parseNumber(part);
+            if (number != null && !Size.isPercent(part) && !part.endsWith("px")) {
+                if (numericCount == 0) {
+                    growValue = trimNumber(number);
+                } else if (numericCount == 1) {
+                    shrinkValue = trimNumber(number);
+                } else {
+                    basis = part;
+                }
+                numericCount++;
+                continue;
+            }
+            basis = part;
+        }
+
+        flexGrow = growValue;
+        flexShrink = shrinkValue;
+        flexBasis = basis;
+    }
+
+    private static String trimNumber(Double value) {
+        if (value == null) return "0";
+        if (Math.abs(value - Math.rint(value)) < 1e-6) {
+            return Integer.toString((int) Math.rint(value));
+        }
+        return Double.toString(value);
     }
 
     private static boolean isColorToken(String token) {
@@ -577,7 +701,7 @@ public class Style implements Cloneable {
     static Set<String> getTextProp() {
         return Set.of(
                 "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "line-height",
-                "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space"
+            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space", "text-overflow"
         );
     }
 

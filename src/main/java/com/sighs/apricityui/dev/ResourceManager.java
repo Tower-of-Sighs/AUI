@@ -11,7 +11,14 @@ import net.minecraft.Util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 public class ResourceManager {
     private static final String PATH = "devtools/resource-manager.html";
@@ -62,6 +69,7 @@ public class ResourceManager {
         Element manager = toolDocument.querySelector(".manager");
         Element filterInput = toolDocument.querySelector(".filter-input");
         Element refreshBtn = toolDocument.querySelector(".refresh-btn");
+        Element closeBtn = toolDocument.querySelector(".close-btn");
         Element modeAllBtn = toolDocument.querySelector(".mode-all");
         Element modeFolderBtn = toolDocument.querySelector(".mode-folder");
         Element previewPanel = toolDocument.querySelector(".preview-panel");
@@ -75,7 +83,7 @@ public class ResourceManager {
         Element previewStatus = toolDocument.querySelector(".preview-status");
         Element previewStatusPath = toolDocument.querySelector(".preview-status-path");
         Element closePreviewBtn = toolDocument.querySelector(".preview-close-btn");
-        if (title == null || count == null || rows == null || manager == null || filterInput == null || refreshBtn == null
+        if (title == null || count == null || rows == null || manager == null || filterInput == null || refreshBtn == null || closeBtn == null
                 || modeAllBtn == null || modeFolderBtn == null || previewPanel == null || previewName == null
                 || previewImage == null || previewPath == null || previewExt == null || previewLayer == null
                 || previewSize == null || previewSource == null || previewStatus == null
@@ -90,6 +98,7 @@ public class ResourceManager {
         filterInput.setAttribute("value", filterText);
         bindFilterInput(filterInput);
         bindRefreshButton(refreshBtn);
+        bindCloseButton(closeBtn);
         bindModeButtons(modeAllBtn, modeFolderBtn);
         bindMenuDismiss(toolDocument.body);
         bindClosePreviewButton(closePreviewBtn);
@@ -150,6 +159,7 @@ public class ResourceManager {
     private static Element buildFileRow(int index, int depth, Loader.StaticResourceEntry entry, boolean inFolderMode, Element manager) {
         Element row = createToolElement("DIV");
         row.setAttribute("class", "row");
+        row.setAttribute("data-base-class", "row");
         row.addEventListener("mousedown", event -> {
             if (!(event instanceof MouseEvent mouseEvent)) return;
             if (mouseEvent.button != 1) {
@@ -185,6 +195,7 @@ public class ResourceManager {
     private static Element buildFolderRow(int depth, String path, String name, boolean collapsed) {
         Element row = createToolElement("DIV");
         row.setAttribute("class", "row folder-row");
+        row.setAttribute("data-base-class", "row folder-row");
         row.addEventListener("mousedown", event -> {
             if (!(event instanceof MouseEvent mouseEvent) || mouseEvent.button != 0) return;
             if (collapsedFolderPaths.contains(path)) collapsedFolderPaths.remove(path);
@@ -341,17 +352,18 @@ public class ResourceManager {
 
     private static void updateRowSelection(Loader.StaticResourceEntry entry) {
         String nextKey = entry == null ? "" : rowKeyOf(entry);
-        if (!selectedRowKey.isBlank()) {
-            Element previous = fileRowByKey.get(selectedRowKey);
-            if (previous != null) {
-                previous.setAttribute("class", "row");
-            }
+        for (Element row : new ArrayList<>(fileRowByKey.values())) {
+            if (row == null) continue;
+            String baseClass = safe(row.getAttribute("data-base-class"));
+            row.setAttribute("class", baseClass.isBlank() ? "row" : baseClass);
         }
         selectedRowKey = "";
         if (nextKey.isBlank()) return;
         Element current = fileRowByKey.get(nextKey);
         if (current != null) {
-            current.setAttribute("class", "row row-selected");
+            String baseClass = safe(current.getAttribute("data-base-class"));
+            if (baseClass.isBlank()) baseClass = "row";
+            current.setAttribute("class", baseClass + " row-selected");
             selectedRowKey = nextKey;
         }
     }
@@ -453,6 +465,16 @@ public class ResourceManager {
         if ("1".equals(refreshBtn.getAttribute("data-bound"))) return;
         refreshBtn.setAttribute("data-bound", "1");
         refreshBtn.addEventListener("mousedown", event -> refresh());
+    }
+
+    private static void bindCloseButton(Element closeBtn) {
+        if ("1".equals(closeBtn.getAttribute("data-bound"))) return;
+        closeBtn.setAttribute("data-bound", "1");
+        closeBtn.addEventListener("mousedown", event -> {
+            if (!(event instanceof MouseEvent mouseEvent) || mouseEvent.button != 0) return;
+            toggle();
+            event.stopPropagation();
+        });
     }
 
     private static void bindClosePreviewButton(Element closePreviewBtn) {

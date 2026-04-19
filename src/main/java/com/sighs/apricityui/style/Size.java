@@ -4,14 +4,18 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
     public static final Size ZERO = new Size(0, 0);
+    private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(HashSet::new);
 
     public Size add(Size size) {
         return new Size(width + size.width, height + size.height);
@@ -21,8 +25,6 @@ public record Size(double width, double height) {
         return Client.getWindowSize();
     }
 
-    private static final Pattern LEADING_NUMBER = Pattern.compile("^\\s*([+-]?(?:\\d+(?:\\.\\d+)?|\\.\\d+))");
-
     public static int parse(String str) {
         if (str == null || str.isBlank()) return -1;
         Double number = parseNumber(str);
@@ -31,11 +33,36 @@ public record Size(double width, double height) {
     }
 
     public static Double parseNumber(String str) {
-        if (str == null || str.isBlank()) return null;
-        Matcher matcher = LEADING_NUMBER.matcher(str);
-        if (!matcher.find()) return null;
+        if (str == null) return null;
+        int len = str.length();
+        int i = 0;
+        while (i < len && Character.isWhitespace(str.charAt(i))) i++;
+        if (i >= len) return null;
+
+        int start = i;
+        char first = str.charAt(i);
+        if (first == '+' || first == '-') i++;
+
+        boolean hasDigit = false;
+        boolean hasDot = false;
+        while (i < len) {
+            char c = str.charAt(i);
+            if (c >= '0' && c <= '9') {
+                hasDigit = true;
+                i++;
+                continue;
+            }
+            if (c == '.' && !hasDot) {
+                hasDot = true;
+                i++;
+                continue;
+            }
+            break;
+        }
+        if (!hasDigit) return null;
+
         try {
-            return Double.parseDouble(matcher.group(1));
+            return Double.parseDouble(str.substring(start, i));
         } catch (NumberFormatException ignored) {
             return null;
         }
@@ -55,6 +82,24 @@ public record Size(double width, double height) {
     }
 
     public static Size of(Element element) {
+        Size cache = element.getRenderer().size.get();
+        if (cache != null) return cache;
+
+        Set<Element> resolving = RESOLVING.get();
+        boolean firstVisit = resolving.add(element);
+        try {
+            return computeSize(element, firstVisit);
+        } finally {
+            if (firstVisit) {
+                resolving.remove(element);
+                if (resolving.isEmpty()) {
+                    RESOLVING.remove();
+                }
+            }
+        }
+    }
+
+    private static Size computeSize(Element element, boolean allowFlexAdjustments) {
         Size cache = element.getRenderer().size.get();
         if (cache != null) return cache;
 
@@ -87,6 +132,41 @@ public record Size(double width, double height) {
             contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
         }
 
+        if (allowFlexAdjustments && element.parentElement != null && Layout.isInFlow(style)
+                && "flex".equals(element.parentElement.getComputedStyle().display)) {
+            Element parent = element.parentElement;
+            Flex parentFlex = Flex.of(parent);
+            Size parentContentSize = Box.of(parent).innerSize();
+
+            if (parentFlex.flexDirection.isColumn()) {
+                if (unsetWidth && Flex.shouldStretchCrossAxis(element, parent)) {
+                    double stretchedOuterWidth = Math.max(0, parentContentSize.width() - box.getMarginHorizontal());
+                    contentWidth = Math.max(0, stretchedOuterWidth - horizontalBox);
+                }
+            } else {
+                if (unsetHeight && Flex.shouldStretchCrossAxis(element, parent)) {
+                    double stretchedOuterHeight = Math.max(0, parentContentSize.height() - box.getMarginVertical());
+                    contentHeight = Math.max(0, stretchedOuterHeight - verticalBox);
+                }
+            }
+
+            double totalWidth = contentWidth + horizontalBox;
+            double totalHeight = contentHeight + verticalBox;
+            if (parentFlex.flexDirection.isColumn() && unsetHeight && Flex.resolveFlexGrow(element) > 0) {
+                double assignedOuterHeight = Flex.resolveAssignedMainSize(element, parent, totalHeight + box.getMarginVertical());
+                double usableOuterHeight = Math.max(0, assignedOuterHeight - box.getMarginVertical());
+                contentHeight = Math.max(0, usableOuterHeight - verticalBox);
+            }
+            if (parentFlex.flexDirection.isRow() && unsetWidth && Flex.resolveFlexGrow(element) > 0) {
+                double assignedOuterWidth = Flex.resolveAssignedMainSize(element, parent, totalWidth + box.getMarginHorizontal());
+                double usableOuterWidth = Math.max(0, assignedOuterWidth - box.getMarginHorizontal());
+                contentWidth = Math.max(0, usableOuterWidth - horizontalBox);
+            }
+        }
+
+        contentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth);
+        contentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight);
+
         double totalWidth = contentWidth + horizontalBox;
         double totalHeight = contentHeight + verticalBox;
 
@@ -94,6 +174,22 @@ public record Size(double width, double height) {
 
         element.getRenderer().size.set(resultSize);
         return resultSize;
+    }
+
+    private static double clampContentExtent(double contentExtent, double boxExtent,
+                                             String minValue, String maxValue, double percentBasis) {
+        double result = contentExtent;
+        Double minParsed = parseNumber(minValue);
+        if (minParsed != null) {
+            double minTotal = resolveLength(minValue, percentBasis, minParsed);
+            result = Math.max(result, Math.max(0, minTotal - boxExtent));
+        }
+        Double maxParsed = parseNumber(maxValue);
+        if (maxParsed != null) {
+            double maxTotal = resolveLength(maxValue, percentBasis, maxParsed);
+            result = Math.min(result, Math.max(0, maxTotal - boxExtent));
+        }
+        return Math.max(0, result);
     }
 
     public static Size getTextSize(Element element) {
@@ -111,7 +207,7 @@ public record Size(double width, double height) {
     public static double getScaleWidth(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
-            Style parentStyle = parent.getComputedStyle();
+            Style parentStyle = parent.getRawComputedStyle();
             if (parseNumber(parentStyle.width) != null) {
                 double resolvedWidth;
                 if (isPercent(parentStyle.width)) {
@@ -132,7 +228,7 @@ public record Size(double width, double height) {
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
-            Style parentStyle = parent.getComputedStyle();
+            Style parentStyle = parent.getRawComputedStyle();
             if (parseNumber(parentStyle.height) != null) {
                 double resolvedHeight;
                 if (isPercent(parentStyle.height)) {

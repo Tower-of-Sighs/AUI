@@ -1,17 +1,13 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Filter;
-import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transition;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class Drawer {
     public static final int REPAINT = 1;
@@ -23,23 +19,34 @@ public class Drawer {
         if (dirtyElements.isEmpty()) return;
 
         List<Element> sortedDirty = consolidateDirtyElements(dirtyElements);
+        Set<Element> reorderRoots = Collections.newSetFromMap(new IdentityHashMap<>());
 
         for (Element e : sortedDirty) {
             // 如果标记了 RELAYOUT，通常意味着尺寸变化，这往往也会影响绘制顺序或边界
             if (e.hasDirtyFlag(RELAYOUT)) {
-                e.getRoute().forEach(element -> element.getRenderer().size.clear());
-                e.getRoute().forEach(element -> element.getRenderer().position.clear());
+                e.forEachRoute(element -> element.getRenderer().size.clear());
+                e.forEachRoute(element -> element.getRenderer().position.clear());
                 // 布局变化通常需要重绘，但不一定需要重排队列（除非影响了层叠上下文）
                 // 但为了安全起见，布局变动通常触发 REPAINT
                 e.addDirtyFlags(REPAINT);
             }
 
             if (e.hasDirtyFlag(REORDER)) {
-                // 重新寻找最近的层叠上下文并局部替换 RenderNode
+                // REORDER 通常会同时标记一批同层元素；按层叠上下文去重，避免同一帧重复 rebuild 大子树。
                 Element contextRoot = findNearestStackingContext(e);
-                List<RenderNode> localSubtreeOrder = createPaintList(contextRoot);
-                updateGlobalPaintList(document.getPaintList(), contextRoot, localSubtreeOrder);
+                reorderRoots.add(contextRoot);
             }
+        }
+
+        if (!reorderRoots.isEmpty()) {
+            List<Element> minimizedRoots = minimizeRoots(reorderRoots);
+            for (Element root : minimizedRoots) {
+                List<RenderNode> localSubtreeOrder = createPaintList(root);
+                updateGlobalPaintList(document.getPaintList(), root, localSubtreeOrder);
+            }
+        }
+
+        for (Element e : sortedDirty) {
             e.clearDirtyFlags();
         }
         dirtyElements.clear();
@@ -53,21 +60,24 @@ public class Drawer {
 
     public static ArrayList<RenderNode> createPaintList(Element body) {
         ArrayList<RenderNode> paintList = new ArrayList<>();
-
-        Size window = Size.getWindowSize();
-        AABB initialClip = new AABB(0, 0, (float) window.width(), (float) window.height());
-
-        processStackingContext(body, paintList, initialClip);
+        processStackingContext(body, paintList);
         return paintList;
     }
 
-    private static void processStackingContext(Element contextRoot, List<RenderNode> paintList, AABB currentClip) {
-        Style rootStyle = contextRoot.getComputedStyle();
+    /**
+     * 注意：paintList 构建阶段不做裁剪/视锥剔除。
+     * <p>
+     * 过去这里用 {@code Rect.of(...).getVisualBounds().intersects(...)} 做剔除，
+     * 但该路径需要计算完整 Rect（Position/Box/Background），在频繁 REORDER 时会造成极高分配。
+     * 实际上渲染节点在 {@link RenderNode.ElementPhaseNode#render} 中已经会做 clip 检查，
+     * hitTest 也有自己的 mask stack，因此这里保持“只负责顺序”，把“是否可见”交给渲染阶段处理。
+     */
+    private static void processStackingContext(Element contextRoot, List<RenderNode> paintList) {
+        Style rootStyle = contextRoot.getRawComputedStyle();
         if ("none".equals(rootStyle.display)) {
             // CSS display:none should suppress the entire subtree, not just the node itself.
             return;
         }
-        Rect rootRect = Rect.of(contextRoot);
 
         boolean hasClipPath = !"none".equals(rootStyle.clipPath);
         if (hasClipPath) {
@@ -91,7 +101,7 @@ public class Drawer {
             }
         }
 
-        boolean hasFilter = !Filter.isDisabled(contextRoot);
+        boolean hasFilter = hasCompositedFilter(contextRoot, rootStyle);
         if (hasFilter) {
             paintList.add(new RenderNode.FilterPushNode(contextRoot));
         }
@@ -99,7 +109,7 @@ public class Drawer {
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
 
-        boolean needsMask = Style.clipsOverflow(rootStyle.overflow);
+        boolean needsMask = Style.clipsOverflow(rootStyle);
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }
@@ -114,55 +124,53 @@ public class Drawer {
             return;
         }
 
-        AABB childClip = currentClip;
-        if (needsMask) {
-            Position p = rootRect.getBodyRectPosition();
-            Size s = rootRect.getBodyRectSize();
-            AABB maskBounds = new AABB((float) p.x, (float) p.y, (float) s.width(), (float) s.height());
-            childClip = currentClip.intersection(maskBounds);
-        }
-
         List<Paintable> negativeZ = new ArrayList<>();
         List<Element> normalFlow = new ArrayList<>();
+        List<Paintable> autoOrZeroContext = new ArrayList<>();
         List<Paintable> positiveZ = new ArrayList<>();
 
         for (int i = 0; i < children.size(); i++) {
             Element child = children.get(i);
-            if ("none".equals(child.getComputedStyle().display)) {
+            Style style = child.getRawComputedStyle();
+            if ("none".equals(style.display)) {
                 continue;
             }
-            Rect childRect = Rect.of(child);
-            if (!childRect.getVisualBounds().intersects(childClip)) {
-                continue;
-            }
-
-            Style style = child.getComputedStyle();
             String zIndexStr = style.zIndex;
 
             boolean childHasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
-            boolean childHasFilter = !Filter.isDisabled(child);
+            boolean childHasFilter = hasCompositedFilter(child, style);
             // 按照规范，filter, opacity, transform 等都会触发层叠上下文
             boolean createsContext = !zIndexStr.equals("auto") || !style.position.equals("static") || childHasFilter || childHasBackdrop;
 
-            if (createsContext) {
+            // 关键：保持 CSS 的大体绘制顺序
+            // - 普通流（static, 不创建层叠上下文）应当先绘制
+            // - position:relative 等“创建层叠上下文但 z-index:auto/0”的节点，应当在普通流之后绘制
+            // 否则会出现典型问题：后面的普通节点覆盖前面的 relative 节点（比如 <div> 盖住 <img> 等奇奇怪怪的问题）
+            if (!createsContext) {
                 normalFlow.add(child);
+                continue;
+            }
+
+            int zValue = "auto".equals(zIndexStr) ? 0 : Size.parse(zIndexStr);
+            Paintable p = new Paintable(child, zValue, i);
+            if (zValue < 0) {
+                negativeZ.add(p);
+            } else if (zValue == 0) {
+                autoOrZeroContext.add(p);
             } else {
-                int zValue = Size.parse(zIndexStr);
-                Paintable p = new Paintable(child, zValue, i);
-                if (zValue < 0) {
-                    negativeZ.add(p);
-                } else {
-                    positiveZ.add(p);
-                }
+                positiveZ.add(p);
             }
         }
 
-        if (negativeZ.size() > 1) negativeZ.sort(Comparator.comparingInt(p -> p.zValue));
-        if (positiveZ.size() > 1) positiveZ.sort(Comparator.comparingInt(p -> p.zValue));
+        if (negativeZ.size() > 1) negativeZ.sort(Comparator.comparingInt(Paintable::zValue));
+        // auto/0 组按 DOM 顺序，避免抖动
+        if (autoOrZeroContext.size() > 1) autoOrZeroContext.sort(Comparator.comparingInt(Paintable::domOrder));
+        if (positiveZ.size() > 1) positiveZ.sort(Comparator.comparingInt(Paintable::zValue).thenComparingInt(Paintable::domOrder));
 
-        for (Paintable p : negativeZ) processStackingContext(p.element, paintList, childClip);
-        for (Element e : normalFlow) processStackingContext(e, paintList, childClip);
-        for (Paintable p : positiveZ) processStackingContext(p.element, paintList, childClip);
+        for (Paintable p : negativeZ) processStackingContext(p.element, paintList);
+        for (Element e : normalFlow) processStackingContext(e, paintList);
+        for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList);
+        for (Paintable p : positiveZ) processStackingContext(p.element, paintList);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
         if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
@@ -170,6 +178,26 @@ public class Drawer {
     }
 
     private record Paintable(Element element, int zValue, int domOrder) {
+    }
+
+    private static List<Element> minimizeRoots(Set<Element> roots) {
+        ArrayList<Element> list = new ArrayList<>(roots);
+        list.sort(Comparator.comparingInt(Element::getDepth));
+
+        ArrayList<Element> result = new ArrayList<>();
+        for (Element candidate : list) {
+            boolean covered = false;
+            for (Element selected : result) {
+                if (isDescendantOf(candidate, selected)) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                result.add(candidate);
+            }
+        }
+        return result;
     }
 
     private static Element getNodeTarget(RenderNode node) {
@@ -188,7 +216,7 @@ public class Drawer {
     private static Element findNearestStackingContext(Element e) {
         Element current = e.parentElement;
         while (current != null) {
-            String zi = current.getComputedStyle().zIndex;
+            String zi = current.getRawComputedStyle().zIndex;
             if (zi != null && !"auto".equals(zi)) {
                 return current;
             }
@@ -240,5 +268,11 @@ public class Drawer {
             p = p.parentElement;
         }
         return false;
+    }
+
+    private static boolean hasCompositedFilter(Element element, Style style) {
+        if (!Filter.isDisabled(style.filter, style.opacity)) return true;
+        if (Transition.affectsFilter(element)) return true;
+        return Animation.affectsFilter(style);
     }
 }

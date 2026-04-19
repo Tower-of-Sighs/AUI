@@ -4,9 +4,8 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
-import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.init.FrameScheduler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
@@ -44,11 +43,14 @@ public class Base {
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
+        // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
+        FrameScheduler.renderBegin();
         RectFrameCache.begin();
         StyleFrameCache.begin();
-        Drawer.flushUpdates(document);
         FilterRenderer.beginFrame();
         try {
+            document.stepMotionRender();
             for (RenderNode node : document.getPaintList()) {
                 poseStack.pushPose();
                 Base.resolveOffset(poseStack);
@@ -61,7 +63,6 @@ public class Base {
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
-        AbstractAsyncHandler.tickAll();
     }
 
     public static void beginRendering() {
@@ -72,15 +73,15 @@ public class Base {
         GlStateManager._blendFuncSeparate(
                 GlStateManager.SourceFactor.SRC_ALPHA.value,
                 GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
+                GlStateManager.SourceFactor.ONE.value, // Source Alpha 乘 1
+                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value // Dest Alpha 乘 (1 - src)
         );
         setPositionColorShader();
     }
 
     public static void finishRendering() {
-        RenderSystem.enableCull();
-        RenderSystem.disableBlend();
+        GlStateManager._enableCull();
+        GlStateManager._disableBlend();
     }
 
     public static Tesselator getBuffer() {
@@ -88,16 +89,21 @@ public class Base {
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {
-        List<Element> route = element.getRoute();
+        Element[] route = element.getRouteArray();
         double lastAbsX = 0;
         double lastAbsY = 0;
 
-        int routeSize = route.size();
-        double[] absX = new double[routeSize];
-        double[] absY = new double[routeSize];
+        int routeSize = route.length;
+        Scratch scratch = SCRATCH.get();
+        if (scratch.absX.length < routeSize) {
+            scratch = new Scratch(new double[Math.max(routeSize, scratch.absX.length * 2)], new double[Math.max(routeSize, scratch.absY.length * 2)]);
+            SCRATCH.set(scratch);
+        }
+        double[] absX = scratch.absX;
+        double[] absY = scratch.absY;
 
         for (int i = routeSize - 1; i >= 0; i--) {
-            Element e = route.get(i);
+            Element e = route[i];
             Position offset = Position.getOffset(e);
             if ("fixed".equals(e.getComputedStyle().position)) {
                 absX[i] = offset.x;
@@ -106,14 +112,14 @@ public class Base {
                 absX[i] = offset.x;
                 absY[i] = offset.y;
             } else {
-                Element parent = route.get(i + 1);
+                Element parent = route[i + 1];
                 absX[i] = offset.x + absX[i + 1] - parent.getScrollLeft();
                 absY[i] = offset.y + absY[i + 1] - parent.getScrollTop();
             }
         }
 
         for (int i = 0; i < routeSize; i++) {
-            Element e = route.get(i);
+            Element e = route[i];
             double posX = absX[i];
             double posY = absY[i];
             Box box = Box.of(e);
@@ -158,6 +164,11 @@ public class Base {
             lastAbsY = currentAbsY;
         }
     }
+
+    private record Scratch(double[] absX, double[] absY) {
+    }
+
+    private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(() -> new Scratch(new double[64], new double[64]));
 
     public static void resolveOffset(PoseStack poseStack) {
         if (accumulateDepth) {
@@ -208,18 +219,23 @@ public class Base {
     public static Matrix4f getProjectionMatrix() {
         return RenderSystem.getProjectionMatrix();
     }
+
     public static void setShader(ShaderInstance shader) {
         RenderSystem.setShader(() -> shader);
     }
+
     public static void setPositionColorShader() {
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
     }
+
     public static void setPositionTexShader() {
         RenderSystem.setShader(GameRenderer::getPositionTexShader);
     }
+
     public static void setShaderTexture(int i, int v) {
         RenderSystem.setShaderTexture(i, v);
     }
+
     public static void setShaderColor(float a, float r, float g, float b) {
         RenderSystem.setShaderColor(a, r, g, b);
     }
