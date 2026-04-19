@@ -184,6 +184,7 @@ public class Client {
         }
         // 由于不可抗拒原因？，这里需以 pip 形式渲染
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
+            BASparkOverlay.renderFrame();
             ApricityGuiLayers.submitOverlay(event.getGuiGraphics());
         }
     }
@@ -311,6 +312,7 @@ public class Client {
             lastWindowWidth = w;
             lastWindowHeight = h;
             Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
+            com.sighs.apricityui.init.Window.window.fireResizeEvent();
         }
     }
 
