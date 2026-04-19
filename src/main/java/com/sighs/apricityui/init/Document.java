@@ -80,7 +80,17 @@ public class Document {
 
             for (String js : JSCache) {
                 String head = "let document = ApricityUI.getDocumentByUUID(\"" + uuid + "\");\n";
-                head += "let window = ApricityUI.getWindow();";
+                head += "let window = ApricityUI.getWindow();\n";
+                head += "let performance = window.getPerformance();\n";
+                head += "let requestAnimationFrame = (callback) => window.requestAnimationFrame(callback);\n";
+                head += "let cancelAnimationFrame = (id) => window.cancelAnimationFrame(id);\n";
+                head += "function MouseEvent(type, init) {\n";
+                head += "  init = init || {};\n";
+                head += "  let x = init.clientX || 0;\n";
+                head += "  let y = init.clientY || 0;\n";
+                head += "  let button = init.button == null ? -1 : init.button;\n";
+                head += "  return window.createMouseEvent(type, x, y, button);\n";
+                head += "}\n";
                 ApricityJS.eval(head + js);
             }
             for (Event eventListener : body.EventListener) {

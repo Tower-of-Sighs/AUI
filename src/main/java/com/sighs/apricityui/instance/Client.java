@@ -185,6 +185,7 @@ public class Client {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
+            BASparkOverlay.renderFrame();
             Base.drawAllDocument(event.getGuiGraphics().pose());
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
@@ -199,6 +200,7 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
+            BASparkOverlay.renderFrame();
             Base.drawAllDocument(event.getGuiGraphics().pose());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
@@ -335,6 +337,7 @@ public class Client {
                 lastWindowWidth = w;
                 lastWindowHeight = h;
                 Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
+                com.sighs.apricityui.init.Window.window.fireResizeEvent();
             }
         }
     }
