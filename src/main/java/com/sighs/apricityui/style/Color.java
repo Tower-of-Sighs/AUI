@@ -25,9 +25,11 @@ public class Color {
     }
 
     public static int parse(String string) {
+        if (string == null) return 0;
         if (string.equals("unset")) string = "#000";
 
         String input = string.trim().toLowerCase();
+        if (input.equals("transparent")) return 0;
 
         if (input.startsWith("#")) {
             return parseHex(input);

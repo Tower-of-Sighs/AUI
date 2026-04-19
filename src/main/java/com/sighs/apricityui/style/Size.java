@@ -113,7 +113,12 @@ public record Size(double width, double height) {
         boolean unsetHeight = parseNumber(style.height) == null;
 
         boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
-        Size contentSize = isText ? getTextSize(element) : getContentSize(element);
+        Size contentSize;
+        if (element instanceof com.sighs.apricityui.element.Canvas canvas) {
+            contentSize = canvas.getIntrinsicSize();
+        } else {
+            contentSize = isText ? getTextSize(element) : getContentSize(element);
+        }
         Box box = Box.of(element);
         double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
         double verticalBox = box.getBorderVertical() + box.getPaddingVertical();
