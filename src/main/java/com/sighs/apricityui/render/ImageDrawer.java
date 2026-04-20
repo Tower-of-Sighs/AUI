@@ -156,6 +156,10 @@ public final class ImageDrawer {
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur);
     }
 
+    public static void drawOverlay(PoseStack poseStack, Identifier texture, float x, float y, float width, float height, boolean blur) {
+        draw(poseStack, texture, x, y, width, height, blur);
+    }
+
     public static void draw(PoseStack poseStack, Element element, Rect rect) {
         String src = element.getAttribute("src");
         if (src == null || src.isEmpty()) return;

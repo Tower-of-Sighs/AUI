@@ -5,7 +5,7 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Mutable;
 import org.spongepowered.asm.mixin.gen.Accessor;
 
-@Mixin(Slot.class)
+@Mixin(value = Slot.class, remap = false)
 public interface SlotAccessor {
     @Mutable
     @Accessor("x")

@@ -17,6 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class Cursor {
+    private static final float PSEUDO_CURSOR_Z = 1000.0F;
     private static final Map<Integer, Long> STANDARD = new HashMap<>();
     private static boolean initialized = false;
     private static long currentHandle = 0L;
@@ -96,16 +97,32 @@ public class Cursor {
         Image.ITexture texture = handle.texture();
         if (texture == null || texture.identifier() == null) return;
 
-        int width = texture.width();
-        int height = texture.height();
+        Minecraft mc = Minecraft.getInstance();
+        if (mc == null || mc.getWindow() == null) return;
+
+        double guiScale = mc.getWindow().getGuiScale();
+        if (guiScale <= 0) guiScale = 1.0;
+
+        float width = (float) (texture.width() / guiScale);
+        float height = (float) (texture.height() / guiScale);
         if (width <= 0 || height <= 0) return;
 
-        Position mouse = Client.getMousePosition();
-        float drawX = (float) mouse.x - pseudoCursorSpec.hotspotX();
-        float drawY = (float) mouse.y - pseudoCursorSpec.hotspotY();
+        int hotspotX = pseudoCursorSpec.hotspotX() >= 0 ? pseudoCursorSpec.hotspotX() : texture.hotspotX();
+        int hotspotY = pseudoCursorSpec.hotspotY() >= 0 ? pseudoCursorSpec.hotspotY() : texture.hotspotY();
+        float drawHotspotX = (float) (hotspotX / guiScale);
+        float drawHotspotY = (float) (hotspotY / guiScale);
 
+        Position mouse = Client.getMousePosition();
+        float drawX = (float) mouse.x - drawHotspotX;
+        float drawY = (float) mouse.y - drawHotspotY;
+
+        poseStack.pushPose();
+        ImageDrawer.flushBatch();
         Base.resolveOffset(poseStack);
-        ImageDrawer.draw(poseStack, texture.identifier(), drawX, drawY, width, height, false);
+        poseStack.translate(0.0D, 0.0D, PSEUDO_CURSOR_Z);
+        ImageDrawer.drawOverlay(poseStack, texture.identifier(), drawX, drawY, width, height, false);
+        ImageDrawer.flushBatch();
+        poseStack.popPose();
     }
 
     private static void enablePseudoCursor(CursorUrlSpec spec) {
@@ -174,8 +191,8 @@ public class Cursor {
         if (raw.isEmpty()) return null;
         String resolved = contextPath == null ? raw : Loader.resolve(contextPath, raw);
 
-        int hotspotX = 0;
-        int hotspotY = 0;
+        int hotspotX = -1;
+        int hotspotY = -1;
         String tail = v.substring(end + 1).trim();
         if (!tail.isEmpty()) {
             // 允许 "url(...) 6 0"，多余 token 忽略
