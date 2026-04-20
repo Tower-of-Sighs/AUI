@@ -191,7 +191,6 @@ public class Client {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            BASparkOverlay.renderFrame();
             Base.drawAllDocument(event.getPoseStack());
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
@@ -207,7 +206,6 @@ public class Client {
     public static void drawOverlay(RenderGameOverlayEvent.PostLayer event) {
         if (!event.getOverlay().equals(ForgeIngameGui.HOTBAR_ELEMENT)) return;
         if (Minecraft.getInstance().screen == null) {
-            BASparkOverlay.renderFrame();
             Base.drawAllDocument(event.getMatrixStack());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {

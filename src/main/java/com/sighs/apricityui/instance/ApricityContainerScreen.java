@@ -125,7 +125,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 syncAllSlotPositions(false);
             }
         }
-
         super.render(poseStack, mouseX, mouseY, partialTick);
         drawSlotHoverTooltipByElement(poseStack, mouseX, mouseY);
         drawDevToolsOverlay(poseStack);

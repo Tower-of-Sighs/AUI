@@ -12,21 +12,42 @@ public final class DecodedImage implements AutoCloseable {
     private final int[] frameDelaysMs;
     private final int width;
     private final int height;
+    private final int hotspotX;
+    private final int hotspotY;
 
-    private DecodedImage(NativeImage staticImage, List<NativeImage> frames, int[] frameDelaysMs, int width, int height) {
+    private DecodedImage(
+            NativeImage staticImage,
+            List<NativeImage> frames,
+            int[] frameDelaysMs,
+            int width,
+            int height,
+            int hotspotX,
+            int hotspotY
+    ) {
         this.staticImage = staticImage;
         this.frames = frames;
         this.frameDelaysMs = frameDelaysMs;
         this.width = width;
         this.height = height;
+        this.hotspotX = hotspotX;
+        this.hotspotY = hotspotY;
     }
 
     public static DecodedImage ofStatic(NativeImage image) {
         if (image == null) return null;
-        return new DecodedImage(image, List.of(), new int[0], image.getWidth(), image.getHeight());
+        return new DecodedImage(image, List.of(), new int[0], image.getWidth(), image.getHeight(), 0, 0);
+    }
+
+    public static DecodedImage ofStatic(NativeImage image, int hotspotX, int hotspotY) {
+        if (image == null) return null;
+        return new DecodedImage(image, List.of(), new int[0], image.getWidth(), image.getHeight(), hotspotX, hotspotY);
     }
 
     public static DecodedImage ofAnimated(List<NativeImage> images, List<Integer> delaysMs) {
+        return ofAnimated(images, delaysMs, 0, 0);
+    }
+
+    public static DecodedImage ofAnimated(List<NativeImage> images, List<Integer> delaysMs, int hotspotX, int hotspotY) {
         if (images == null || images.isEmpty()) return null;
         ArrayList<NativeImage> copied = new ArrayList<>(images.size());
         for (NativeImage frame : images) {
@@ -45,7 +66,15 @@ public final class DecodedImage implements AutoCloseable {
         }
 
         NativeImage first = copied.get(0);
-        return new DecodedImage(null, Collections.unmodifiableList(copied), delays, first.getWidth(), first.getHeight());
+        return new DecodedImage(
+                null,
+                Collections.unmodifiableList(copied),
+                delays,
+                first.getWidth(),
+                first.getHeight(),
+                hotspotX,
+                hotspotY
+        );
     }
 
     public boolean isAnimated() {
@@ -70,6 +99,14 @@ public final class DecodedImage implements AutoCloseable {
 
     public int getHeight() {
         return height;
+    }
+
+    public int getHotspotX() {
+        return hotspotX;
+    }
+
+    public int getHotspotY() {
+        return hotspotY;
     }
 
     @Override
