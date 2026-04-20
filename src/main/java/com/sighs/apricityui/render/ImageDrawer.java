@@ -33,12 +33,24 @@ public class ImageDrawer {
     private static MultiBufferSource.BufferSource batchBufferSource = null;
 
     private static RenderType getRenderType(ResourceLocation texture, boolean blur) {
-        return RENDER_TYPE_CACHE.computeIfAbsent(new RenderKey(texture, blur), key -> CustomRenderType.createSmooth(key.location(), key.blur()));
+        return getRenderType(texture, blur, true);
+    }
+
+    private static RenderType getRenderType(ResourceLocation texture, boolean blur, boolean depthTest) {
+        return RENDER_TYPE_CACHE.computeIfAbsent(
+                new RenderKey(texture, blur, depthTest),
+                key -> CustomRenderType.createSmooth(key.location(), key.blur(), key.depthTest())
+        );
     }
 
     public static void draw(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, boolean blur) {
         if (texture == null) return;
-        innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur);
+        innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, true);
+    }
+
+    public static void drawOverlay(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, boolean blur) {
+        if (texture == null) return;
+        innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, false);
     }
 
     public static void draw(PoseStack poseStack, Element element, Rect rect) {
@@ -87,7 +99,7 @@ public class ImageDrawer {
             height = (float) (1d * width / textureWidth * textureHeight);
         }
 
-        innerBlit(poseStack, currentLocation, x, y, width, height, 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur);
+        innerBlit(poseStack, currentLocation, x, y, width, height, 0, 0, textureWidth, textureHeight, textureWidth, textureHeight, blur, true);
     }
 
     public static void clearCache() {
@@ -141,13 +153,13 @@ public class ImageDrawer {
         float startY = repeatMode.repeatY ? normalizeRepeatStart(offsetY, renderH) : offsetY;
 
         if (!repeatMode.repeatX && !repeatMode.repeatY) {
-            innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH, 0, 0, tw, th, tw, th, false);
+            innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH, 0, 0, tw, th, tw, th, false, true);
         } else {
             float xEnd = repeatMode.repeatX ? width : startX + 1;
             float yEnd = repeatMode.repeatY ? height : startY + 1;
             for (float ix = startX; ix < xEnd; ix += renderW) {
                 for (float iy = startY; iy < yEnd; iy += renderH) {
-                    innerBlit(poseStack, loc, x + ix, y + iy, renderW, renderH, 0, 0, tw, th, tw, th, false);
+                    innerBlit(poseStack, loc, x + ix, y + iy, renderW, renderH, 0, 0, tw, th, tw, th, false, true);
                 }
             }
         }
@@ -278,13 +290,13 @@ public class ImageDrawer {
         String repeatV = bi.repeat;
 
         // 4 corners
-        if (bL > 0 && bT > 0) innerBlit(poseStack, loc, finalX, finalY, bL, bT, 0, 0, sL, sT, texW, texH, false);
+        if (bL > 0 && bT > 0) innerBlit(poseStack, loc, finalX, finalY, bL, bT, 0, 0, sL, sT, texW, texH, false, true);
         if (bR > 0 && bT > 0)
-            innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, false);
+            innerBlit(poseStack, loc, finalX + finalW - bR, finalY, bR, bT, texW - sR, 0, sR, sT, texW, texH, false, true);
         if (bL > 0 && bB > 0)
-            innerBlit(poseStack, loc, finalX, finalY + finalH - bB, bL, bB, 0, texH - sB, sL, sB, texW, texH, false);
+            innerBlit(poseStack, loc, finalX, finalY + finalH - bB, bL, bB, 0, texH - sB, sL, sB, texW, texH, false, true);
         if (bR > 0 && bB > 0)
-            innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, false);
+            innerBlit(poseStack, loc, finalX + finalW - bR, finalY + finalH - bB, bR, bB, texW - sR, texH - sB, sR, sB, texW, texH, false, true);
 
         // 4 edges
         drawTiledPart(poseStack, loc, finalX + bL, finalY, destCW, bT, sL, 0, srcCW, sT, texW, texH, repeatH, "stretch");
@@ -314,7 +326,7 @@ public class ImageDrawer {
         }
 
         if (tileW == dw && tileV == dh) {
-            innerBlit(poseStack, loc, dx, dy, dw, dh, sx, sy, sw, sh, texW, texH, false);
+            innerBlit(poseStack, loc, dx, dy, dw, dh, sx, sy, sw, sh, texW, texH, false, true);
             return;
         }
 
@@ -325,7 +337,7 @@ public class ImageDrawer {
             for (float curY = 0; curY < dh; curY += tileV) {
                 int drawW = (int) Math.min(tileW, dw - curX + 1);
                 int drawH = (int) Math.min(tileV, dh - curY + 1);
-                innerBlit(poseStack, loc, (int) (dx + curX), (int) (dy + curY), drawW, drawH, sx, sy, sw, sh, texW, texH, false);
+                innerBlit(poseStack, loc, (int) (dx + curX), (int) (dy + curY), drawW, drawH, sx, sy, sw, sh, texW, texH, false, true);
             }
         }
 
@@ -355,8 +367,8 @@ public class ImageDrawer {
         return new ReadyTexture(location, textureWidth, textureHeight);
     }
 
-    private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur) {
-        RenderType renderType = getRenderType(texture, blur);
+    private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
+        RenderType renderType = getRenderType(texture, blur, depthTest);
         if (Mask.isActive()) {
             flushBatch();
             MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
@@ -395,7 +407,7 @@ public class ImageDrawer {
             super(name, format, mode, bufferSize, affectsCrumbling, sortOnUpload, setupState, clearState);
         }
 
-        public static RenderType createSmooth(ResourceLocation location, boolean blur) {
+        public static RenderType createSmooth(ResourceLocation location, boolean blur, boolean depthTest) {
             return create("apricity_image",
                     DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP,
                     VertexFormat.Mode.QUADS,
@@ -405,7 +417,7 @@ public class ImageDrawer {
                     RenderType.CompositeState.builder()
                             .setTextureState(new TextureStateShard(location, blur, false))
                             .setShaderState(POSITION_COLOR_TEX_LIGHTMAP_SHADER)
-                            .setDepthTestState(LEQUAL_DEPTH_TEST)
+                            .setDepthTestState(depthTest ? LEQUAL_DEPTH_TEST : NO_DEPTH_TEST)
                             .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                             .setWriteMaskState(COLOR_WRITE)
                             .createCompositeState(false)
@@ -416,7 +428,7 @@ public class ImageDrawer {
     private record ReadyTexture(ResourceLocation location, int width, int height) {
     }
 
-    private record RenderKey(ResourceLocation location, boolean blur) {
+    private record RenderKey(ResourceLocation location, boolean blur, boolean depthTest) {
     }
 
     private record RepeatMode(boolean repeatX, boolean repeatY) {

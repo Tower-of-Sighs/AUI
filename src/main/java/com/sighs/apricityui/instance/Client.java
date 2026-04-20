@@ -185,14 +185,13 @@ public class Client {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            BASparkOverlay.renderFrame();
             Base.drawAllDocument(event.getGuiGraphics().pose());
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
                     ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
@@ -200,7 +199,6 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
-            BASparkOverlay.renderFrame();
             Base.drawAllDocument(event.getGuiGraphics().pose());
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
@@ -208,7 +206,7 @@ public class Client {
                     ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
