@@ -16,7 +16,10 @@
     <div class="manager">
         <div class="header">
             <span class="title">Resource Manager</span>
-            <span class="count">0</span>
+            <div class="header-actions">
+                <span class="count">0</span>
+                <div class="close-btn">X</div>
+            </div>
         </div>
         <div class="preview-status hidden">
             <span class="preview-status-path"></span>
@@ -46,6 +49,7 @@
     body, div {
         display: flex;
         flex-direction: column;
+        box-sizing: border-box;
     }
 
     body {
@@ -149,6 +153,13 @@
         box-sizing: border-box;
     }
 
+    .header-actions {
+        height: 12px;
+        flex-direction: row;
+        align-items: center;
+        gap: 4px;
+    }
+
     .title {
         color: #93c5fd;
         line-height: 10px;
@@ -158,6 +169,18 @@
     .count {
         color: #9ca3af;
         line-height: 7px;
+        font-size: 6px;
+    }
+
+    .close-btn {
+        width: 12px;
+        height: 10px;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #3559a5;
+        background-color: #1a2235;
+        color: #d6e4ff;
+        line-height: 8px;
         font-size: 6px;
     }
 
