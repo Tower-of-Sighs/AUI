@@ -14,7 +14,7 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
@@ -57,7 +57,7 @@ public class Canvas extends Element {
     private BufferedImage surface;
     private NativeImage nativeImage;
     private DynamicTexture texture;
-    private ResourceLocation textureLocation;
+    private Identifier textureLocation;
     private boolean surfaceDirty = true;
     private int bitmapWidth = DEFAULT_WIDTH;
     private int bitmapHeight = DEFAULT_HEIGHT;
@@ -198,9 +198,8 @@ public class Canvas extends Element {
                 || nativeImage.getWidth() != bitmapWidth || nativeImage.getHeight() != bitmapHeight) {
             destroyTexture();
             nativeImage = new NativeImage(NativeImage.Format.RGBA, bitmapWidth, bitmapHeight, true);
-            texture = new DynamicTexture(nativeImage);
-            texture.setFilter(true, false);
-            textureLocation = new ResourceLocation(
+            texture = new DynamicTexture(() -> "AUI canvas " + uuid, nativeImage);
+            textureLocation = Identifier.fromNamespaceAndPath(
                     "apricityui",
                     "canvas/" + UUID.nameUUIDFromBytes(uuid.toString().getBytes(StandardCharsets.UTF_8))
             );
@@ -209,7 +208,7 @@ public class Canvas extends Element {
 
         for (int y = 0; y < bitmapHeight; y++) {
             for (int x = 0; x < bitmapWidth; x++) {
-                nativeImage.setPixelRGBA(x, y, argbToAbgr(surface.getRGB(x, y)));
+                nativeImage.setPixelABGR(x, y, argbToAbgr(surface.getRGB(x, y)));
             }
         }
         texture.upload();

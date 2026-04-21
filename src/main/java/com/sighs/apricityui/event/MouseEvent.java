@@ -81,13 +81,23 @@ public class MouseEvent extends Event implements Cloneable {
 
             Element target = hitTest(document.getPaintList(), detectionPos);
             if (target == null) continue;
-            if (target == document.body) continue;
+            String cursor = resolveCursor(target);
+            if (target == document.body && isDefaultCursor(cursor)) continue;
 
-            Cursor.applyCssCursor(document.getPath(), resolveCursor(target));
+            Cursor.applyCssCursor(document.getPath(), cursor);
             return;
         }
 
         Cursor.resetToDefault();
+    }
+
+    private static boolean isDefaultCursor(String cursor) {
+        if (cursor == null) return true;
+        String value = cursor.trim();
+        return value.isEmpty()
+                || value.equalsIgnoreCase("auto")
+                || value.equalsIgnoreCase("default")
+                || value.equalsIgnoreCase("unset");
     }
 
     private static String resolveCursor(Element target) {

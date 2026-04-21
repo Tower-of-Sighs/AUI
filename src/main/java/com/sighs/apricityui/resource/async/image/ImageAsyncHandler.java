@@ -45,6 +45,7 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
             }
             String borderSource = firstNonUnset(style.borderImageSource, style.borderImage);
             addIfValid(paths, resolveCssUrl(document.getPath(), borderSource));
+            addIfValid(paths, resolveCssUrl(document.getPath(), style.cursor));
         }
         INSTANCE.prefetch(paths);
     }

@@ -184,7 +184,6 @@ public class Client {
         }
         // 由于不可抗拒原因？，这里需以 pip 形式渲染
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            BASparkOverlay.renderFrame();
             ApricityGuiLayers.submitOverlay(event.getGuiGraphics());
         }
     }

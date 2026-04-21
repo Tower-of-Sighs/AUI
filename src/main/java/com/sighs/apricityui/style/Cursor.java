@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.Map;
 
 public class Cursor {
-    private static final float PSEUDO_CURSOR_Z = 1000.0F;
+    private static final float PSEUDO_CURSOR_Z = 999.0F;
     private static final Map<Integer, Long> STANDARD = new HashMap<>();
     private static boolean initialized = false;
     private static long currentHandle = 0L;
