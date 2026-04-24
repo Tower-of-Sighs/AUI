@@ -192,7 +192,7 @@ public class Client {
                     ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
@@ -207,7 +207,7 @@ public class Client {
                     ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
                 }
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+            Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
@@ -288,6 +288,7 @@ public class Client {
             lastWindowWidth = w;
             lastWindowHeight = h;
             Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
+            com.sighs.apricityui.init.Window.window.fireResizeEvent();
         }
     }
 
@@ -452,5 +453,4 @@ public class Client {
         drawDefaultFont(poseStack, text, text.content, position);
     }
 }
-
 

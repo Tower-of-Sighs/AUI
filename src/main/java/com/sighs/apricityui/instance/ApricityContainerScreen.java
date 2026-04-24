@@ -126,7 +126,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
         drawDevToolsOverlay(guiGraphics);
-        Cursor.drawPseudoCursor(guiGraphics.pose());
+        Cursor.drawPseudoCursor(guiGraphics);
     }
 
     private void bindSlotsFromDocument() {

@@ -8,7 +8,6 @@
   ],
   "client": [
     "AbstractContainerScreenMixin",
-    "SignRendererMixin",
     "accessor.AbstractContainerScreenAccessor"
   ],
   "injectors": {

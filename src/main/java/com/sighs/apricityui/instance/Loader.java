@@ -99,6 +99,13 @@ public class Loader {
                     return Files.newInputStream(devPath);
                 }
             }
+            for (Path projectRoot : getDevProjectRoots()) {
+                for (Path candidate : buildProjectRootCandidates(projectRoot, normalizedPath)) {
+                    if (Files.exists(candidate) && Files.isRegularFile(candidate)) {
+                        return Files.newInputStream(candidate);
+                    }
+                }
+            }
             Path local = FMLPaths.GAMEDIR.get().resolve("apricity/" + normalizedPath);
             if (Files.exists(local)) return Files.newInputStream(local);
 
@@ -250,6 +257,52 @@ public class Loader {
         List<Path> roots = new ArrayList<>(candidates);
         roots.sort(Comparator.comparingInt((Path path) -> distanceFrom(gameDir, path)).reversed());
         return roots;
+    }
+
+    private static List<Path> getDevProjectRoots() {
+        Path gameDir = FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();
+        LinkedHashSet<Path> candidates = new LinkedHashSet<>();
+
+        for (Path devRoot : getDevResourceRoots()) {
+            Path current = devRoot;
+            for (int depth = 0; depth <= 8 && current != null; depth++) {
+                if (isProjectRoot(current)) {
+                    candidates.add(current);
+                    break;
+                }
+                current = current.getParent();
+            }
+        }
+
+        Path base = gameDir;
+        for (int depth = 0; depth <= 8 && base != null; depth++) {
+            if (isProjectRoot(base)) {
+                candidates.add(base);
+            }
+            base = base.getParent();
+        }
+
+        return new ArrayList<>(candidates);
+    }
+
+    private static boolean isProjectRoot(Path path) {
+        if (path == null) return false;
+        return Files.exists(path.resolve("build.gradle"))
+                || Files.exists(path.resolve("settings.gradle"))
+                || Files.exists(path.resolve(".git"));
+    }
+
+    private static List<Path> buildProjectRootCandidates(Path projectRoot, String normalizedPath) {
+        ArrayList<Path> candidates = new ArrayList<>();
+        if (projectRoot == null || normalizedPath == null || normalizedPath.isBlank()) return candidates;
+
+        String[] parts = normalizedPath.replace("\\", "/").split("/");
+        for (int i = 0; i < parts.length; i++) {
+            String candidatePath = String.join("/", Arrays.copyOfRange(parts, i, parts.length));
+            if (candidatePath.isBlank()) continue;
+            candidates.add(projectRoot.resolve(candidatePath).normalize());
+        }
+        return candidates;
     }
 
     private static void loadResourcePackEntries(Map<String, StaticResourceEntry> merged) {

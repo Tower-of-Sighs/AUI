@@ -1,0 +1,95 @@
+<body>
+<div class="page">
+    <div class="title">Canvas 2D Test</div>
+    <canvas id="demo" width="240" height="140"></canvas>
+    <div class="hint">脚本会绘制矩形、路径、文字和旋转图形。</div>
+</div>
+</body>
+
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 12px;
+        background-color: #151a22;
+        color: #f4f7fb;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .title {
+        font-size: 16px;
+        color: #f9d27a;
+    }
+
+    canvas {
+        width: 240px;
+        height: 140px;
+        border: 1px solid #506070;
+        background-color: #0f1218;
+        border-radius: 6px;
+        box-shadow: 0 4px 12px #66000000;
+    }
+
+    .hint {
+        font-size: 10px;
+        color: #91a0b3;
+    }
+</style>
+
+<script>
+    function drawDemo() {
+        var canvas = document.querySelector("#demo");
+        if (!canvas) return;
+        var ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        ctx.clear();
+
+        ctx.fillStyle = "#1f2c3b";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        ctx.fillStyle = "#4fc3f7";
+        ctx.fillRect(16, 16, 72, 40);
+
+        ctx.strokeStyle = "#ffd166";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(14, 14, 76, 44);
+
+        ctx.beginPath();
+        ctx.moveTo(120, 26);
+        ctx.lineTo(210, 26);
+        ctx.lineTo(165, 72);
+        ctx.closePath();
+        ctx.fillStyle = "#ef476f";
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(54, 100, 24, 0, 6.283185307179586, false);
+        ctx.strokeStyle = "#06d6a0";
+        ctx.lineWidth = 4;
+        ctx.stroke();
+
+        ctx.save();
+        ctx.translate(178, 98);
+        ctx.rotate(0.45);
+        ctx.fillStyle = "#7bd389";
+        ctx.fillRect(-22, -22, 44, 44);
+        ctx.restore();
+
+        ctx.font = "bold 18px SansSerif";
+        ctx.fillStyle = "#ffffff";
+        ctx.fillText("Apricity Canvas", 16, 128);
+    }
+
+    if (document.body) {
+        document.body.addEventListener("load", drawDemo);
+    }
+</script>
