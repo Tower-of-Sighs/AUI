@@ -9,7 +9,6 @@ import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.HashMap;
@@ -86,13 +85,6 @@ public class Cursor {
 
     public static void resetToDefault() {
         applyCssCursor("default");
-    }
-
-    public static void drawPseudoCursor(GuiGraphics guiGraphics) {
-        if (guiGraphics == null) return;
-        guiGraphics.flush();
-        drawPseudoCursor(guiGraphics.pose());
-        guiGraphics.flush();
     }
 
     public static void drawPseudoCursor(PoseStack poseStack) {
