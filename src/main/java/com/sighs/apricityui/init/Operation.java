@@ -1,5 +1,4 @@
 package com.sighs.apricityui.init;
-
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
@@ -296,4 +295,5 @@ public class Operation {
         lastModifiers = modifiers;
         return false;
     }
+
 }
