@@ -294,7 +294,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+    public static void onScreenKeyPressed(ScreenEvent.KeyboardKeyPressedEvent.Pre event) {
         int action = InputConstants.PRESS;
         boolean canceled = Operation.handleKeyInput(
                 event.getKeyCode(),
@@ -308,7 +308,7 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void onScreenKeyReleased(ScreenEvent.KeyReleased.Pre event) {
+    public static void onScreenKeyReleased(ScreenEvent.KeyboardKeyReleasedEvent.Pre event) {
         int action = InputConstants.RELEASE;
         Operation.handleKeyInput(
                 event.getKeyCode(),
