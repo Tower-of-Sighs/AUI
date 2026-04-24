@@ -436,7 +436,7 @@ public class Client {
         poseStack.translate(position.x, position.y, 0);
         poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 0f);
         MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
-        MutableComponent renderText = Component.literal(content == null ? "" : content);
+        MutableComponent renderText = new TextComponent(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
         int stroke = Math.max(0, text.strokeWidth);

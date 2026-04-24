@@ -32,8 +32,11 @@ import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
@@ -258,20 +261,17 @@ public class Loader {
 
     private static void loadResourcePackEntries(Map<String, StaticResourceEntry> merged) {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity", loc -> true);
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
-            ResourceLocation location = entry.getKey();
+        Collection<ResourceLocation> resources = manager.listResources("apricity", loc -> true);
+        for (ResourceLocation location : resources) {
             String path = location.getPath();
             if (path.startsWith("apricity/")) path = path.substring(9);
             if (path.isBlank()) continue;
-            Resource resource = entry.getValue();
-            String sourcePack = safe(resource.sourcePackId());
             merged.put(path, new StaticResourceEntry(
                     path,
                     extensionOf(path),
                     ResourceLayer.RESOURCE_PACK,
                     "resource-pack",
-                    sourcePack,
+                    "",
                     -1L
             ));
         }
