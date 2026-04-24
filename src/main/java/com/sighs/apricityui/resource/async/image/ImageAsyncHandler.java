@@ -152,7 +152,7 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
     protected void applyOnMainThread(ApplyTask task, long currentGeneration) {
         // 纹理上传必须在渲染线程执行，但 applyQueue 的 tick 发生在 ClientTick
         if (!RenderSystem.isOnRenderThread()) {
-            RenderSystem.queueFencedTask(() -> applyOnRenderThread(task));
+            RenderSystem.recordRenderCall(() -> applyOnRenderThread(task));
             return;
         }
         applyOnRenderThread(task);
