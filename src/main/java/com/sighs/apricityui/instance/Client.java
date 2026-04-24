@@ -20,13 +20,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.network.chat.TextComponent;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.InputEvent;
-import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
+import net.minecraftforge.client.event.ScreenEvent;
 import net.minecraftforge.client.gui.ForgeIngameGui;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -253,7 +252,7 @@ public class Client {
         if (event.getAction() == InputConstants.PRESS) consumed = Operation.onMouseDown(event.getButton());
         if (event.getAction() == InputConstants.RELEASE) consumed = Operation.onMouseUp(event.getButton());
         if (Minecraft.getInstance().screen != null) {
-            if (consumed) event.setCanceled(true);
+            if (consumed && event.isCancelable()) event.setCanceled(true);
             return;
         }
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
@@ -266,7 +265,7 @@ public class Client {
                 }
             }
         }
-        if (consumed) event.setCanceled(true);
+        if (consumed && event.isCancelable()) event.setCanceled(true);
     }
 
     @SubscribeEvent
