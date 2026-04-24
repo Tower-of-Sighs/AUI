@@ -55,7 +55,7 @@ public class BASparkOverlay {
     }
 
     @SubscribeEvent
-    public static void onMouseButton(InputEvent.MouseButton.Pre event) {
+    public static void onMouseButton(InputEvent.MouseInputEvent event) {
         if (event.getButton() != 0) return;
 
         Position pos = Client.getMousePositionDirectly();
