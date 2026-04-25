@@ -3,19 +3,18 @@ package com.sighs.apricityui;
 import com.mojang.logging.LogUtils;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.instance.ApricityUIConfig;
-import com.sighs.apricityui.instance.FollowFacingWorldWindow;
-import com.sighs.apricityui.instance.ShaderRegistry;
-import com.sighs.apricityui.instance.WorldWindow;
+import com.sighs.apricityui.instance.*;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
-import com.sighs.apricityui.instance.network.ApricityNetwork;
-import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
+import com.sighs.apricityui.instance.container.bind.ScreenOpenRequest;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import dev.latvian.mods.rhino.util.HideFromJS;
+import net.minecraft.client.Minecraft;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -25,8 +24,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -47,7 +44,6 @@ public class ApricityUI {
         }
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.instance.element");
         ApricityMenus.register(modEventBus);
-        ApricityNetwork.register();
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ApricityUIRegistry.register();
@@ -90,16 +86,46 @@ public class ApricityUI {
         return Document.getAll();
     }
 
+    public static ScreenOpenRequest screen(String path) {
+        return ScreenOpenRequest.of(path);
+    }
+
+    public static void previewScreen(String path) {
+        if (FMLEnvironment.dist != Dist.CLIENT) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null) return;
+        minecraft.setScreen(new ApricityContainerScreen(path));
+    }
+
+    public static void closePreview() {
+        if (FMLEnvironment.dist != Dist.CLIENT) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (!(minecraft.screen instanceof ApricityContainerScreen)) return;
+        minecraft.setScreen(null);
+    }
+
+    /**
+     * @deprecated 请改用 {@link #previewScreen(String)}。
+     */
+    @Deprecated
     public static void openScreen(String path) {
-        ApricityScreenNetworkHandler.requestOpenScreen(path);
+        previewScreen(path);
     }
 
+    /**
+     * @deprecated 请改用 {@link #screen(String)} 链式接口。
+     */
+    @Deprecated
     public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
-        ApricityScreenNetworkHandler.openScreen(player, path, plan);
+        screen(path).withPlan(plan).open(player);
     }
 
+    /**
+     * @deprecated 请改用 {@link #closePreview()}。
+     */
+    @Deprecated
     public static void closeScreen() {
-        ApricityScreenNetworkHandler.requestCloseScreen();
+        closePreview();
     }
 
     public static OpenBindPlan.Builder bind() {

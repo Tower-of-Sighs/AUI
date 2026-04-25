@@ -108,7 +108,10 @@ public class CSS {
 
     static class Parser {
         private static final Pattern COMMENT_PATTERN = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
-        private static final Pattern RULE_PATTERN = Pattern.compile("(.*?)\\s*\\{([^}]*)}");
+        // 支持跨行 selector；否则像
+        // `a,\n b { ... }`
+        // 这种写法会只解析到最后一行，导致前面的 selector 丢失。
+        private static final Pattern RULE_PATTERN = Pattern.compile("(?s)([^{}]+?)\\s*\\{([^}]*)}");
         private static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
         private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile(
                 "(?i)@(?:-webkit-)?keyframes\\s+((?:\"[^\"]+\"|'[^']+'|[\\w-]+))\\s*\\{"

@@ -51,7 +51,7 @@ CSS 同目录下引用字体：
 
 ### HTML、CSS、JS 的加载方式
 
-HTML 本身由 `ApricityUI.createDocument(path)` 或 `ApricityUI.openScreen(path)` 这类入口加载。
+HTML 本身由 `ApricityUI.createDocument(path)` 或 `ApricityUI.previewScreen(path)` 这类入口加载。
 
 CSS 和 JS 都支持两种写法：
 

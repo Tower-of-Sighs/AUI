@@ -349,7 +349,7 @@ public final class TestBlockEntity {
                     .primaryBlockEntity(pos.getX(), pos.getY(), pos.getZ(), "")
                     .containerIndexPlayer(1)
                     .build();
-            ApricityUI.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, plan);
+            ApricityUI.screen(DEMO_TEMPLATE_PATH).withPlan(plan).open(serverPlayer);
             return InteractionResult.CONSUME;
         }
 

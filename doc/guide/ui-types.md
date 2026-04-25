@@ -66,15 +66,15 @@ Screen 就是更标准的“打开一个界面”。
 KJS：
 
 ```javascript
-ApricityUI.openScreen("demo/index.html")
-ApricityUI.closeScreen()
+ApricityUI.previewScreen("demo/index.html")
+ApricityUI.closePreview()
 ```
 
 Java：
 
 ```java
-ApricityUI.openScreen("demo/index.html");
-ApricityUI.closeScreen();
+ApricityUI.previewScreen("demo/index.html");
+ApricityUI.closePreview();
 ```
 
 这适合：
@@ -89,23 +89,19 @@ ApricityUI.closeScreen();
 这种情况应该走服务端权威入口：
 
 ```javascript
-let plan = ApricityUI.bind()
+ApricityUI.screen("demo/index.html")
     .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
     .bind("player").player()
-    .build()
-
-ApricityUI.openScreen(player, "demo/index.html", plan)
+    .open(player)
 ```
 
 Java 写法也是同一套接口：
 
 ```java
-OpenBindPlan plan = ApricityUI.bind()
+ApricityUI.screen("demo/index.html")
     .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
     .bind("player").player()
-    .build();
-
-ApricityUI.openScreen(player, "demo/index.html", plan);
+    .open(player);
 ```
 
 这里有个关键点：
@@ -128,36 +124,36 @@ ApricityUI.openScreen(player, "demo/index.html", plan);
 #### 1. 玩家背包
 
 ```javascript
-let plan = ApricityUI.bind()
+ApricityUI.screen("demo/index.html")
     .primaryBind("player").player()
-    .build()
+    .open(player)
 ```
 
 #### 2. SavedData 容器
 
 ```javascript
-let plan = ApricityUI.bind()
+ApricityUI.screen("demo/index.html")
     .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
     .bind("player").player()
-    .build()
+    .open(player)
 ```
 
 #### 3. 方块实体背包
 
 ```javascript
-let plan = ApricityUI.bind()
+ApricityUI.screen("demo/index.html")
     .primaryBind("machine").blockEntity(100, 64, 200, "up")
     .bind("player").player()
-    .build()
+    .open(player)
 ```
 
 #### 4. 实体背包
 
 ```javascript
-let plan = ApricityUI.bind()
+ApricityUI.screen("demo/index.html")
     .primaryBind("entity_inv").entity("00000000-0000-0000-0000-000000000000")
     .bind("player").player()
-    .build()
+    .open(player)
 ```
 
 要注意，实体绑定需要目标实体真的提供物品能力，不然开不起来。

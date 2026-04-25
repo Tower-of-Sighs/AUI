@@ -220,9 +220,10 @@ window.setTimeout(() => {
 - `ApricityUI.createDocument()`
 - `ApricityUI.createInWorldDocument()`
 - `ApricityUI.removeDocument()`
-- `ApricityUI.openScreen()`
-- `ApricityUI.closeScreen()`
-- `ApricityUI.bind()`
+- `ApricityUI.previewScreen()`
+- `ApricityUI.closePreview()`
+- `ApricityUI.screen()`
+- `ApricityUI.bind()`（兼容保留）
 - `ApricityUI.createWorldWindow()`
 - `ApricityUI.createFollowFacingWorldWindow()`
 - `ApricityUI.removeWorldWindow()`
