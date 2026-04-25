@@ -495,7 +495,14 @@ public class Element {
             origin.children.forEach(e -> e.parentElement = element);
             element.children = new CopyOnWriteArrayList<>(origin.children);
             element.updateInlineStyle();
-            element.EventListener.addAll(origin.EventListener);
+            for (Event eventListener : origin.EventListener) {
+                // origin 在替换前是通用 Element，它构造时注册的 internal 监听器会闭包捕获旧实例。
+                // 如果直接整包复制，点击/聚焦会落到脱离 DOM 的旧对象上，导致输入链失效。
+                // 因此这里只保留外部注册的监听器；内建监听器由新实例自己的构造过程重新注册。
+                if (!eventListener.internal) {
+                    element.EventListener.add(eventListener);
+                }
+            }
             origin.document.updateElement(element);
 
             if (!element.innerText.isEmpty() && element.tagName.equals("DIV")) {
