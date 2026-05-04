@@ -1,6 +1,6 @@
 package com.sighs.apricityui.instance;
 
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
+import com.sighs.apricityui.instance.container.bind.ResizePolicy;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
@@ -67,21 +67,19 @@ public class ApricitySavedData extends SavedData {
     }
 
     public ItemStackHandler getOrCreate(String inventoryKey, int slotCount) {
-        return getOrCreate(inventoryKey, slotCount, OpenBindPlan.ResizePolicy.KEEP_OVERFLOW);
+        return getOrCreate(inventoryKey, slotCount, ResizePolicy.KEEP_OVERFLOW);
     }
 
-    public ItemStackHandler getOrCreate(String inventoryKey, int slotCount, OpenBindPlan.ResizePolicy resizePolicy) {
+    public ItemStackHandler getOrCreate(String inventoryKey, int slotCount, ResizePolicy resizePolicy) {
         String key = normalizeInventoryKey(inventoryKey);
         int normalizedSlotCount = Math.max(1, slotCount);
-        OpenBindPlan.ResizePolicy effectivePolicy = resizePolicy == null
-                ? OpenBindPlan.ResizePolicy.KEEP_OVERFLOW
-                : resizePolicy;
+        ResizePolicy effectivePolicy = resizePolicy == null ? ResizePolicy.KEEP_OVERFLOW : resizePolicy;
 
         ItemStackHandler existing = inventories.get(key);
         if (existing == null) {
             ItemStackHandler created = createTrackedHandler(normalizedSlotCount);
             inventories.put(key, created);
-            if (effectivePolicy == OpenBindPlan.ResizePolicy.KEEP_OVERFLOW) {
+            if (effectivePolicy == ResizePolicy.KEEP_OVERFLOW) {
                 restoreOverflow(key, created, created.getSlots());
             } else {
                 overflows.remove(key);
@@ -90,7 +88,7 @@ public class ApricitySavedData extends SavedData {
             return created;
         }
 
-        if (effectivePolicy == OpenBindPlan.ResizePolicy.KEEP_OVERFLOW) {
+        if (effectivePolicy == ResizePolicy.KEEP_OVERFLOW) {
             // KEEP_OVERFLOW：物理容量只增不减。
             if (normalizedSlotCount <= existing.getSlots()) {
                 if (restoreOverflow(key, existing, existing.getSlots())) {

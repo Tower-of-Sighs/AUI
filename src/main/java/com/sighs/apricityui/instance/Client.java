@@ -19,7 +19,6 @@ import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.screens.TitleScreen;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.api.distmarker.Dist;
@@ -182,6 +181,9 @@ public class Client {
     @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
+            return;
+        }
+        if (Minecraft.getInstance().screen instanceof ApricityScreen) {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {

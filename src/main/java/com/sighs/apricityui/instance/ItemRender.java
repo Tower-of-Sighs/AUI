@@ -26,7 +26,7 @@ public final class ItemRender {
         for (Element element : elements) {
             if (!(element instanceof Slot slot)) continue;
 
-            if (slot.getMcSlot() != null) continue;
+            if (slot.hasView()) continue;
 
             if (!slot.isVisible) continue;
             if ("none".equals(slot.getComputedStyle().display)) continue;
