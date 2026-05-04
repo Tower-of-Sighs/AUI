@@ -24,6 +24,9 @@ import java.util.List;
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class WorldWindow {
     static final List<WorldWindow> windows = new ArrayList<>();
+    private static final float DEFAULT_NEAR_DEPTH_STEP = 0.00035f;
+    private static final float DEFAULT_FAR_DEPTH_STEP = 0.0030f;
+    private static final float DEFAULT_DEPTH_NEAR_DISTANCE = 2.0f;
 
     public Document document;
     private Vec3 position;
@@ -33,6 +36,10 @@ public class WorldWindow {
     private final float width;
     private final float height;
     private final int maxDistance;
+    private float nearDepthStep = DEFAULT_NEAR_DEPTH_STEP;
+    private float farDepthStep = DEFAULT_FAR_DEPTH_STEP;
+    private float depthNearDistance = DEFAULT_DEPTH_NEAR_DISTANCE;
+    private float depthFarDistance;
 
     public WorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
         this.document = Document.createInWorld(documentPath);
@@ -43,6 +50,7 @@ public class WorldWindow {
         this.xRot = 0;
         this.scale = 0.02f; // 默认缩放: 50px = 1 block
         this.maxDistance = maxDistance;
+        this.depthFarDistance = Math.max(DEFAULT_DEPTH_NEAR_DISTANCE + 1.0f, maxDistance);
     }
 
     public void setPosition(Vec3 position) {
@@ -60,6 +68,13 @@ public class WorldWindow {
 
     public void setScale(float scale) {
         this.scale = scale;
+    }
+
+    public void setDynamicDepthStep(float nearDepthStep, float farDepthStep, float nearDistance, float farDistance) {
+        this.nearDepthStep = Math.max(0.0f, nearDepthStep);
+        this.farDepthStep = Math.max(this.nearDepthStep, farDepthStep);
+        this.depthNearDistance = Math.max(0.0f, nearDistance);
+        this.depthFarDistance = Math.max(this.depthNearDistance + 0.001f, farDistance);
     }
 
     public float getWidth() {
@@ -100,7 +115,7 @@ public class WorldWindow {
         RenderSystem.enablePolygonOffset();
         RenderSystem.polygonOffset(-1.0f, -1.0f);
 
-        float desiredWorldStep = 0.0020f;
+        float desiredWorldStep = computeDepthStep(cameraPos);
         float safeScale = Math.max(1.0e-4f, scale);
         float localStep = desiredWorldStep / safeScale;
         if (localStep > 0.2f) localStep = 0.2f;
@@ -118,6 +133,14 @@ public class WorldWindow {
         RenderSystem.disablePolygonOffset();
 
         poseStack.popPose();
+    }
+
+    private float computeDepthStep(Vec3 cameraPos) {
+        double distance = cameraPos.distanceTo(position);
+        float t = (float) ((distance - depthNearDistance) / (depthFarDistance - depthNearDistance));
+        t = Math.max(0.0f, Math.min(1.0f, t));
+        t = t * t * (3.0f - 2.0f * t);
+        return nearDepthStep + (farDepthStep - nearDepthStep) * t;
     }
 
     public static void addWindow(WorldWindow window) {

@@ -8,7 +8,7 @@ import org.spongepowered.asm.mixin.gen.Accessor;
 
 import java.util.Set;
 
-@Mixin(value = AbstractContainerScreen.class, remap = false)
+@Mixin(value = AbstractContainerScreen.class)
 public interface AbstractContainerScreenAccessor {
     @Accessor("clickedSlot")
     Slot apricityui$getClickedSlot();
