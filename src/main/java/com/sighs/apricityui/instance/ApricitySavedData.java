@@ -1,33 +1,19 @@
 package com.sighs.apricityui.instance;
 
-import com.mojang.datafixers.util.Pair;
-import com.mojang.serialization.Codec;
-import com.mojang.serialization.DataResult;
-import com.mojang.serialization.DynamicOps;
-import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
-import net.minecraft.core.HolderLookup;
+import com.sighs.apricityui.instance.container.bind.ResizePolicy;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
-import net.minecraft.resources.Identifier;
-import net.minecraft.resources.RegistryOps;
 import net.minecraft.server.MinecraftServer;
-import net.minecraft.util.ProblemReporter;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraft.world.level.saveddata.SavedDataType;
-import net.minecraft.world.level.storage.TagValueInput;
-import net.minecraft.world.level.storage.TagValueOutput;
-import net.minecraft.world.level.storage.ValueInput;
-import net.minecraft.world.level.storage.ValueOutput;
-import net.neoforged.neoforge.transfer.item.ItemResource;
-import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
-import net.neoforged.neoforge.transfer.item.ItemUtil;
-import org.jspecify.annotations.NonNull;
+import net.minecraftforge.items.ItemStackHandler;
 
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
+import javax.annotation.Nonnull;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * 通用世界级库存 SavedData。
@@ -38,121 +24,38 @@ public class ApricitySavedData extends SavedData {
     private static final String OVERFLOW_SLOT_KEY = "Slot";
     private static final String OVERFLOW_STACK_KEY = "Stack";
 
-    private static final Map<String, SavedDataType<ApricitySavedData>> TYPES = new ConcurrentHashMap<>();
-
-    @SuppressWarnings("unchecked")
-    private static final Codec<ApricitySavedData> CODEC = new Codec<>() {
-        @Override
-        public <T> DataResult<Pair<ApricitySavedData, T>> decode(DynamicOps<T> ops, T input) {
-            Object raw = input;
-            if (!(raw instanceof Tag tag)) {
-                return DataResult.error(() -> "ApricitySavedData expects NBT Tag input, got: " + raw);
-            }
-            if (!(tag instanceof CompoundTag compoundTag)) {
-                return DataResult.error(() -> "ApricitySavedData expects CompoundTag input, got: " + tag.getType());
-            }
-
-            DynamicOps<Tag> tagOps = (DynamicOps<Tag>) ops;
-            ApricitySavedData parsed = ApricitySavedData.load(tagOps, compoundTag);
-
-            T remainder = input;
-            return DataResult.success(Pair.of(parsed, remainder));
-        }
-
-        @Override
-        public <T> DataResult<T> encode(ApricitySavedData input, DynamicOps<T> ops, T prefix) {
-            DynamicOps<Tag> tagOps = (DynamicOps<Tag>) ops;
-            CompoundTag tag = input.save(tagOps);
-
-            T casted = (T) tag;
-            return DataResult.success(casted);
-        }
-    };
-
-    private final LinkedHashMap<String, ItemStacksResourceHandler> inventories = new LinkedHashMap<>();
+    private final LinkedHashMap<String, ItemStackHandler> inventories = new LinkedHashMap<>();
     private final LinkedHashMap<String, TreeMap<Integer, ItemStack>> overflows = new LinkedHashMap<>();
 
     public static ApricitySavedData get(MinecraftServer server, String dataName) {
-        if (server == null) {
-            return new ApricitySavedData();
-        }
-
-        String normalizedName = normalizeDataName(dataName);
-        SavedDataType<ApricitySavedData> type = TYPES.computeIfAbsent(normalizedName, ApricitySavedData::createType);
-        return server.overworld().getDataStorage().computeIfAbsent(type);
+        return server.overworld().getDataStorage().computeIfAbsent(
+                ApricitySavedData::load,
+                ApricitySavedData::new,
+                dataName
+        );
     }
 
-    private static SavedDataType<ApricitySavedData> createType(String normalizedName) {
-        Identifier id = Identifier.fromNamespaceAndPath(ApricityUI.MODID, "saved_data/" + normalizedName);
-        return new SavedDataType<>(id, ignored -> new ApricitySavedData(), ignored -> CODEC, null);
-    }
-
-    private static String normalizeDataName(String dataName) {
-        String raw = dataName == null ? "" : dataName.trim();
-        if (raw.isEmpty()) {
-            return "apricityui_saved";
-        }
-
-        String lower = raw.toLowerCase();
-        StringBuilder sanitized = new StringBuilder(lower.length());
-        for (int i = 0; i < lower.length(); i++) {
-            char c = lower.charAt(i);
-            boolean ok = (c >= 'a' && c <= 'z')
-                    || (c >= '0' && c <= '9')
-                    || c == '_' || c == '-' || c == '.' || c == '/';
-            sanitized.append(ok ? c : '_');
-        }
-
-        String result = sanitized.toString();
-        while (result.startsWith("/")) {
-            result = result.substring(1);
-        }
-        if (result.isEmpty()) {
-            return "apricityui_saved";
-        }
-        return result;
-    }
-
-    private static HolderLookup.Provider lookupProvider(DynamicOps<Tag> ops) {
-        if (ops instanceof RegistryOps<Tag> registryOps
-                && registryOps.lookupProvider instanceof RegistryOps.HolderLookupAdapter adapter) {
-            return adapter.lookupProvider;
-        }
-        return null;
-    }
-
-    private static ApricitySavedData load(DynamicOps<Tag> ops, CompoundTag tag) {
+    public static ApricitySavedData load(CompoundTag tag) {
         ApricitySavedData data = new ApricitySavedData();
-
-        HolderLookup.Provider provider = lookupProvider(ops);
-        if (provider == null) {
-            return data;
-        }
-
-        CompoundTag allInventories = tag.getCompoundOrEmpty(INVENTORIES_KEY);
-        for (String key : allInventories.keySet()) {
-            CompoundTag serialized = allInventories.getCompoundOrEmpty(key);
-            ItemStacksResourceHandler handler = data.createTrackedHandler(1);
-            ValueInput input = TagValueInput.create(ProblemReporter.DISCARDING, provider, serialized);
-            handler.deserialize(input);
+        CompoundTag allInventories = tag.getCompound(INVENTORIES_KEY);
+        for (String key : allInventories.getAllKeys()) {
+            CompoundTag serialized = allInventories.getCompound(key);
+            int slotCount = Math.max(1, serialized.getInt("Size"));
+            ItemStackHandler handler = data.createTrackedHandler(slotCount);
+            handler.deserializeNBT(serialized);
             data.inventories.put(key, handler);
         }
 
-        CompoundTag allOverflows = tag.getCompoundOrEmpty(OVERFLOWS_KEY);
-        for (String key : allOverflows.keySet()) {
-            Optional<ListTag> optionalOverflow = allOverflows.getList(key);
-            if (optionalOverflow.isEmpty()) continue;
-
-            ListTag serializedOverflow = optionalOverflow.get();
+        CompoundTag allOverflows = tag.getCompound(OVERFLOWS_KEY);
+        for (String key : allOverflows.getAllKeys()) {
+            ListTag serializedOverflow = allOverflows.getList(key, Tag.TAG_COMPOUND);
             TreeMap<Integer, ItemStack> overflow = new TreeMap<>();
-            for (Tag value : serializedOverflow) {
-                if (!(value instanceof CompoundTag overflowEntry)) continue;
-                int slot = overflowEntry.getIntOr(OVERFLOW_SLOT_KEY, -1);
+            for (int i = 0; i < serializedOverflow.size(); i++) {
+                CompoundTag overflowEntry = serializedOverflow.getCompound(i);
+                int slot = overflowEntry.getInt(OVERFLOW_SLOT_KEY);
                 if (slot < 0) continue;
-                Tag stackTag = overflowEntry.get(OVERFLOW_STACK_KEY);
-                if (stackTag == null) continue;
-
-                ItemStack stack = ItemStack.CODEC.parse(ops, stackTag).result().orElse(ItemStack.EMPTY);
+                if (!overflowEntry.contains(OVERFLOW_STACK_KEY, Tag.TAG_COMPOUND)) continue;
+                ItemStack stack = ItemStack.of(overflowEntry.getCompound(OVERFLOW_STACK_KEY));
                 if (stack.isEmpty()) continue;
                 overflow.put(slot, stack);
             }
@@ -160,27 +63,24 @@ public class ApricitySavedData extends SavedData {
                 data.overflows.put(key, overflow);
             }
         }
-
         return data;
     }
 
-    public ItemStacksResourceHandler getOrCreate(String inventoryKey, int slotCount) {
-        return getOrCreate(inventoryKey, slotCount, OpenBindPlan.ResizePolicy.KEEP_OVERFLOW);
+    public ItemStackHandler getOrCreate(String inventoryKey, int slotCount) {
+        return getOrCreate(inventoryKey, slotCount, ResizePolicy.KEEP_OVERFLOW);
     }
 
-    public ItemStacksResourceHandler getOrCreate(String inventoryKey, int slotCount, OpenBindPlan.ResizePolicy resizePolicy) {
+    public ItemStackHandler getOrCreate(String inventoryKey, int slotCount, ResizePolicy resizePolicy) {
         String key = normalizeInventoryKey(inventoryKey);
         int normalizedSlotCount = Math.max(1, slotCount);
-        OpenBindPlan.ResizePolicy effectivePolicy = resizePolicy == null
-                ? OpenBindPlan.ResizePolicy.KEEP_OVERFLOW
-                : resizePolicy;
+        ResizePolicy effectivePolicy = resizePolicy == null ? ResizePolicy.KEEP_OVERFLOW : resizePolicy;
 
-        ItemStacksResourceHandler existing = inventories.get(key);
+        ItemStackHandler existing = inventories.get(key);
         if (existing == null) {
-            ItemStacksResourceHandler created = createTrackedHandler(normalizedSlotCount);
+            ItemStackHandler created = createTrackedHandler(normalizedSlotCount);
             inventories.put(key, created);
-            if (effectivePolicy == OpenBindPlan.ResizePolicy.KEEP_OVERFLOW) {
-                restoreOverflow(key, created, created.size());
+            if (effectivePolicy == ResizePolicy.KEEP_OVERFLOW) {
+                restoreOverflow(key, created, created.getSlots());
             } else {
                 overflows.remove(key);
             }
@@ -188,20 +88,20 @@ public class ApricitySavedData extends SavedData {
             return created;
         }
 
-        if (effectivePolicy == OpenBindPlan.ResizePolicy.KEEP_OVERFLOW) {
+        if (effectivePolicy == ResizePolicy.KEEP_OVERFLOW) {
             // KEEP_OVERFLOW：物理容量只增不减。
-            if (normalizedSlotCount <= existing.size()) {
-                if (restoreOverflow(key, existing, existing.size())) {
+            if (normalizedSlotCount <= existing.getSlots()) {
+                if (restoreOverflow(key, existing, existing.getSlots())) {
                     setDirty();
                 }
                 return existing;
             }
 
-            ItemStacksResourceHandler resized = createTrackedHandler(normalizedSlotCount);
-            for (int i = 0; i < existing.size(); i++) {
-                ItemStack stack = ItemUtil.getStack(existing, i);
+            ItemStackHandler resized = createTrackedHandler(normalizedSlotCount);
+            for (int i = 0; i < existing.getSlots(); i++) {
+                ItemStack stack = existing.getStackInSlot(i);
                 if (stack.isEmpty()) continue;
-                resized.set(i, ItemResource.of(stack), stack.getCount());
+                resized.setStackInSlot(i, stack.copy());
             }
             restoreOverflow(key, resized, normalizedSlotCount);
             inventories.put(key, resized);
@@ -210,19 +110,19 @@ public class ApricitySavedData extends SavedData {
         }
 
         // TRUNCATE：按目标容量物理重建并清空 overflow。
-        if (existing.size() == normalizedSlotCount) {
+        if (existing.getSlots() == normalizedSlotCount) {
             if (overflows.remove(key) != null) {
                 setDirty();
             }
             return existing;
         }
 
-        ItemStacksResourceHandler resized = createTrackedHandler(normalizedSlotCount);
-        int copyCount = Math.min(existing.size(), normalizedSlotCount);
+        ItemStackHandler resized = createTrackedHandler(normalizedSlotCount);
+        int copyCount = Math.min(existing.getSlots(), normalizedSlotCount);
         for (int i = 0; i < copyCount; i++) {
-            ItemStack stack = ItemUtil.getStack(existing, i);
+            ItemStack stack = existing.getStackInSlot(i);
             if (stack.isEmpty()) continue;
-            resized.set(i, ItemResource.of(stack), stack.getCount());
+            resized.setStackInSlot(i, stack.copy());
         }
         overflows.remove(key);
         inventories.put(key, resized);
@@ -230,22 +130,11 @@ public class ApricitySavedData extends SavedData {
         return resized;
     }
 
-    private CompoundTag save(DynamicOps<Tag> ops) {
-        CompoundTag tag = new CompoundTag();
-
-        HolderLookup.Provider provider = lookupProvider(ops);
-        if (provider == null) {
-            return tag;
-        }
-
+    @Override
+    public @Nonnull CompoundTag save(@Nonnull CompoundTag tag) {
         CompoundTag allInventories = new CompoundTag();
-        for (Map.Entry<String, ItemStacksResourceHandler> entry : inventories.entrySet()) {
-            ItemStacksResourceHandler handler = entry.getValue();
-            if (handler == null) continue;
-
-            TagValueOutput output = TagValueOutput.createWithContext(ProblemReporter.DISCARDING, provider);
-            handler.serialize(output);
-            allInventories.put(entry.getKey(), output.buildResult());
+        for (Map.Entry<String, ItemStackHandler> entry : inventories.entrySet()) {
+            allInventories.put(entry.getKey(), entry.getValue().serializeNBT());
         }
         tag.put(INVENTORIES_KEY, allInventories);
 
@@ -253,16 +142,14 @@ public class ApricitySavedData extends SavedData {
         for (Map.Entry<String, TreeMap<Integer, ItemStack>> entry : overflows.entrySet()) {
             TreeMap<Integer, ItemStack> overflow = entry.getValue();
             if (overflow == null || overflow.isEmpty()) continue;
-
             ListTag serializedOverflow = new ListTag();
             for (Map.Entry<Integer, ItemStack> overflowEntry : overflow.entrySet()) {
                 Integer slot = overflowEntry.getKey();
                 ItemStack stack = overflowEntry.getValue();
                 if (slot == null || slot < 0 || stack == null || stack.isEmpty()) continue;
-
                 CompoundTag record = new CompoundTag();
                 record.putInt(OVERFLOW_SLOT_KEY, slot);
-                ItemStack.CODEC.encodeStart(ops, stack).result().ifPresent(encoded -> record.put(OVERFLOW_STACK_KEY, encoded));
+                record.put(OVERFLOW_STACK_KEY, stack.save(new CompoundTag()));
                 serializedOverflow.add(record);
             }
             if (!serializedOverflow.isEmpty()) {
@@ -282,7 +169,7 @@ public class ApricitySavedData extends SavedData {
         return inventoryKey.trim();
     }
 
-    private boolean restoreOverflow(String inventoryKey, ItemStacksResourceHandler target, int capacity) {
+    private boolean restoreOverflow(String inventoryKey, ItemStackHandler target, int capacity) {
         TreeMap<Integer, ItemStack> overflow = overflows.get(inventoryKey);
         if (overflow == null || overflow.isEmpty()) return false;
 
@@ -291,7 +178,7 @@ public class ApricitySavedData extends SavedData {
         for (Map.Entry<Integer, ItemStack> entry : overflow.entrySet()) {
             int slot = entry.getKey();
             if (slot < 0 || slot >= capacity) continue;
-            ItemStack existing = ItemUtil.getStack(target, slot);
+            ItemStack existing = target.getStackInSlot(slot);
             if (!existing.isEmpty()) continue;
             ItemStack restoreStack = entry.getValue();
             if (restoreStack == null || restoreStack.isEmpty()) {
@@ -299,8 +186,7 @@ public class ApricitySavedData extends SavedData {
                 changed = true;
                 continue;
             }
-            ItemStack copied = restoreStack.copy();
-            target.set(slot, ItemResource.of(copied), copied.getCount());
+            target.setStackInSlot(slot, restoreStack.copy());
             consumedSlots.add(slot);
             changed = true;
         }
@@ -313,22 +199,12 @@ public class ApricitySavedData extends SavedData {
         return changed;
     }
 
-    private ItemStacksResourceHandler createTrackedHandler(int slotCount) {
+    private ItemStackHandler createTrackedHandler(int slotCount) {
         int normalized = Math.max(1, slotCount);
-        return new ItemStacksResourceHandler(normalized) {
+        return new ItemStackHandler(normalized) {
             @Override
-            protected void onContentsChanged(int index, ItemStack previousContents) {
+            protected void onContentsChanged(int slot) {
                 setDirty();
-            }
-
-            @Override
-            public void serialize(@NonNull ValueOutput output) {
-                super.serialize(output);
-            }
-
-            @Override
-            public void deserialize(@NonNull ValueInput input) {
-                super.deserialize(input);
             }
         };
     }

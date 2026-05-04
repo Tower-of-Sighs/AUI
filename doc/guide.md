@@ -24,32 +24,26 @@ ApricityUI.closeScreen()
 
 如果你只做 UI 预览（无服务端槽位绑定），直接使用上面的 `openScreen(path)` 即可。
 
-如果你需要真实容器与数据源绑定，建议走服务端权威入口（Java 或 KubeJS 服务端事件中调用）：
+如果你需要真实容器与数据源绑定，建议走服务端权威入口。容器信息由模板中的 `<container>` 元素声明，客户端 `openScreen`
+会自动提取容器声明并发送到服务端：
 ```javascript
-OpenBindPlan plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build()
-
-ApricityUI.openScreen(ServerPlayer player, String path, OpenBindPlan plan)
+// 容器信息由模板中的 <container> 元素声明
+// 客户端 openScreen 会自动提取并发送到服务端
+ApricityUI.openScreen("demo/index.html")
 ```
 
-其中 `main` / `player` 必须与模板里的顶层 `<container id="...">` 对应。
+其中 `main` / `player` 等容器名必须与模板里的顶层 `<container id="...">` 对应，容器声明由模板驱动。
 
-其它常见绑定方式：
+其它常见容器声明示例（写在模板中）：
 
-```javascript
-// 方块实体背包
-OpenBindPlan blockEntityPlan = ApricityUI.bind()
-    .primaryBind("machine").blockEntity(100, 64, 200, "up")
-    .bind("player").player()
-    .build()
+```html
+<!-- 方块实体背包 -->
+<container id="machine" bind="block_entity" size="9" primary="true"></container>
+<container id="player" bind="player"></container>
 
-// 实体背包（按 uuid）
-OpenBindPlan entityPlan = ApricityUI.bind()
-    .primaryBind("entity_inv").entity("00000000-0000-0000-0000-000000000000")
-    .bind("player").player()
-    .build()
+<!-- 实体背包 -->
+<container id="entity_inv" bind="entity" size="27" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 框架不内置触发器；右键物品、快捷键、右键方块、右键方块实体这些触发逻辑由你自己在事件中编写，再调用上述接口。

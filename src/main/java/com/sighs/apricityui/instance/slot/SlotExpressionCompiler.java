@@ -5,7 +5,7 @@ import com.google.gson.JsonParser;
 import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.serialization.JsonOps;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.element.ApricityRecipe;
+import com.sighs.apricityui.instance.element.Recipe;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -25,7 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * 将 slot innerText 编译为可展示候选集合。
+ * �?slot innerText 编译为可展示候选集合�?
  */
 public final class SlotExpressionCompiler {
     public static final int MAX_CANDIDATES = 128;
@@ -233,7 +233,7 @@ public final class SlotExpressionCompiler {
     }
 
     private static String normalize(String raw) {
-        return ApricityRecipe.normalizeRecipeIdLiteral(raw);
+        return Recipe.normalizeRecipeIdLiteral(raw);
     }
 
     private static ItemStack parseItemStackLiteral(String literal) {

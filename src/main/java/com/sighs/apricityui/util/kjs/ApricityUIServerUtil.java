@@ -1,18 +1,26 @@
 package com.sighs.apricityui.util.kjs;
 
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
+import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
-import com.sighs.apricityui.registry.annotation.NJSBindings;
+import com.sighs.apricityui.registry.annotation.KJSBindings;
 import net.minecraft.server.level.ServerPlayer;
 
-@NJSBindings(value = "ApricityUI")
+import java.util.List;
+
+@KJSBindings(value = "ApricityUI")
 public class ApricityUIServerUtil {
 
-    public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
-        ApricityScreenNetworkHandler.openScreen(player, path, plan);
+    /**
+     * 服务端打开 Screen（带容器声明）。
+     */
+    public static void openScreen(ServerPlayer player, String path, List<ContainerDeclaration> declarations) {
+        ApricityScreenNetworkHandler.openScreen(player, path, declarations);
     }
 
-    public static OpenBindPlan.Builder bind() {
-        return OpenBindPlan.builder();
+    /**
+     * 服务端打开纯 UI Screen（无容器）。
+     */
+    public static void openScreen(ServerPlayer player, String path) {
+        ApricityScreenNetworkHandler.openScreen(player, path, List.of());
     }
 }

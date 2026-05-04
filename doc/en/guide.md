@@ -86,31 +86,26 @@ This is suitable for:
 
 If you need real slots, real containers, or real inventory data, do not use the client-only path.
 
-In that case, use the server-authoritative entry:
+In that case, use the server-authoritative entry. Container information is driven by `<container>` element attributes in
+the template, and the client `openScreen` automatically extracts container declarations and sends them to the server:
 
 ```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build()
-
-ApricityUI.openScreen(player, "demo/index.html", plan)
+// Container info is declared by <container> elements in the template
+// Client openScreen automatically extracts and sends declarations to the server
+ApricityUI.openScreen("demo/index.html")
 ```
 
 Java uses the same API model:
 
 ```java
-OpenBindPlan plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build();
-
-ApricityUI.openScreen(player, "demo/index.html", plan);
+// Container info is declared by <container> elements in the template
+// Client openScreen automatically extracts and sends declarations to the server
+ApricityUI.openScreen("demo/index.html");
 ```
 
 One key rule:
 
-The top-level `container id` values in the template must match the names used in `OpenBindPlan`.
+The top-level `container id` values in the template must match the names used in container declarations.
 
 For example:
 
@@ -119,45 +114,40 @@ For example:
 <container id="player"></container>
 ```
 
-Then the bind plan must also use `main` and `player`.
+Then the declarations must also use `main` and `player`.
 
 ---
 
-### Common Screen Bindings
+### Common Container Declarations
+
+Container declarations are driven by `<container>` element attributes (`id`, `bind`, `size`, `primary`) in the template.
+Here are common examples:
 
 #### 1. Player Inventory
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("player").player()
-    .build()
+```html
+<container id="player" bind="player"></container>
 ```
 
 #### 2. SavedData Container
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build()
+```html
+<container id="main" bind="saved_data" size="27" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 #### 3. Block Entity Inventory
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("machine").blockEntity(100, 64, 200, "up")
-    .bind("player").player()
-    .build()
+```html
+<container id="machine" bind="block_entity" size="9" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 #### 4. Entity Inventory
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("entity_inv").entity("00000000-0000-0000-0000-000000000000")
-    .bind("player").player()
-    .build()
+```html
+<container id="entity_inv" bind="entity" size="27" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 For entity binding, the target entity must actually expose an item capability, otherwise the screen cannot open correctly.

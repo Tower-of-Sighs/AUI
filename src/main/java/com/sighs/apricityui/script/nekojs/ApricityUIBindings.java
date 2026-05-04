@@ -1,8 +1,8 @@
 package com.sighs.apricityui.script.nekojs;
 
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.element.Container;
+import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
 import com.sighs.apricityui.util.kjs.ApricityUIServerUtil;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.api.distmarker.Dist;
@@ -29,16 +29,16 @@ public final class ApricityUIBindings {
 
     // ================= Common / Server =================
 
-    public static OpenBindPlan.Builder bind() {
-        return OpenBindPlan.builder();
-    }
-
     public static boolean hasDataSource(ContainerBindType bindType) {
         return Container.hasBindingDataSource(bindType);
     }
 
-    public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
-        ApricityUIServerUtil.openScreen(player, path, plan);
+    public static void openScreen(ServerPlayer player, String path, List<ContainerDeclaration> declarations) {
+        ApricityUIServerUtil.openScreen(player, path, declarations);
+    }
+
+    public static void openScreen(ServerPlayer player, String path) {
+        ApricityUIServerUtil.openScreen(player, path);
     }
 
     // ================= Client =================

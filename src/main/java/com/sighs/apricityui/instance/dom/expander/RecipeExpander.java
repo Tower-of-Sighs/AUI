@@ -6,8 +6,8 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.element.ApricityRecipe;
-import com.sighs.apricityui.instance.element.ApricitySlot;
+import com.sighs.apricityui.instance.element.Recipe;
+import com.sighs.apricityui.instance.element.Slot;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.Registry;
 import net.minecraft.core.RegistryAccess;
@@ -29,19 +29,19 @@ import net.neoforged.neoforge.client.event.RecipesReceivedEvent;
 import java.util.*;
 
 /**
- * 在文档刷新阶段触发 recipe DOM 预览槽位生成。
+ * 在文档刷新阶段触�?recipe DOM 预览槽位生成�?
  */
 public final class RecipeExpander {
     public static void expand(Document document) {
         if (document == null) return;
         ArrayList<Element> snapshot = new ArrayList<>(document.getElements());
         for (Element element : snapshot) {
-            if (!(element instanceof ApricityRecipe recipe)) continue;
+            if (!(element instanceof Recipe recipe)) continue;
             expandSingleRecipe(document, recipe);
         }
     }
 
-    private static void expandSingleRecipe(Document document, ApricityRecipe recipe) {
+    private static void expandSingleRecipe(Document document, Recipe recipe) {
         boolean changed = recipe.clearGeneratedRecipeSlots();
 
         RecipeResolver.DeclaredType declaredType = RecipeResolver.DeclaredType.fromRaw(recipe.getAttribute("type"));
@@ -121,13 +121,13 @@ public final class RecipeExpander {
 
     private static void appendPreviewSlot(
             Document document,
-            ApricityRecipe recipe,
+            Recipe recipe,
             RecipeResolver.PreviewEntry entry,
             int roleIndex,
             String group
     ) {
         if (entry == null) return;
-        ApricitySlot slot = new ApricitySlot(document);
+        Slot slot = new Slot(document);
         String roleName = entry.role().name().toLowerCase(Locale.ROOT);
         slot.applyRecipeSlotMeta(
                 "recipe-slot recipe-slot-" + roleName
@@ -148,7 +148,7 @@ public final class RecipeExpander {
         recipe.append(slot);
     }
 
-    private static boolean setAttributeIfChanged(ApricityRecipe recipe, String key, String value) {
+    private static boolean setAttributeIfChanged(Recipe recipe, String key, String value) {
         String normalized = value == null ? "" : value;
         if (Objects.equals(recipe.getAttribute(key), normalized)) return false;
         recipe.setAttribute(key, normalized);
@@ -156,7 +156,7 @@ public final class RecipeExpander {
     }
 
     /**
-     * 解析客户端配方并生成 UI 预览槽位数据。
+     * 解析客户端配方并生成 UI 预览槽位数据�?
      */
     private static final class RecipeResolver {
         public static final int STONECUTTING_LIST_VISIBLE_ROWS = 3;
@@ -298,7 +298,7 @@ public final class RecipeExpander {
             if (inputEntry != null) output.add(inputEntry);
 
             PreviewEntry fuelEntry = toLiteralEntry(
-                    ApricitySlot.furnaceFuelVirtualTagLiteral(),
+                    Slot.furnaceFuelVirtualTagLiteral(),
                     PreviewRole.FUEL
             );
             output.add(fuelEntry);
@@ -422,7 +422,7 @@ public final class RecipeExpander {
             if (stack == null || stack.isEmpty()) return null;
             Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
             int count = Math.max(1, stack.getCount());
-            String expression = ApricitySlot.buildLiteralWithCount(itemId.toString(), count);
+            String expression = Slot.buildLiteralWithCount(itemId.toString(), count);
             return new PreviewEntry(role, expression);
         }
 
@@ -633,7 +633,7 @@ public final class RecipeExpander {
             @SubscribeEvent
             public static void onRecipesReceived(RecipesReceivedEvent event) {
                 clearCache();
-                ApricitySlot.clearCandidateCache();
+                Slot.clearCandidateCache();
             }
         }
     }

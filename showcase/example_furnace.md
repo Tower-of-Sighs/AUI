@@ -251,7 +251,8 @@
 package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
+import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
+import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.nbt.CompoundTag;
@@ -345,11 +346,11 @@ public final class TestBlockEntity {
             if (level.isClientSide) return InteractionResult.SUCCESS;
             if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
 
-            OpenBindPlan plan = ApricityUI.bind()
-                    .primaryBlockEntity(pos.getX(), pos.getY(), pos.getZ(), "")
-                    .containerIndexPlayer(1)
-                    .build();
-            ApricityUI.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, plan);
+            List<ContainerDeclaration> declarations = List.of(
+                    new ContainerDeclaration("block_entity", ContainerBindType.BLOCK_ENTITY, 3, true),
+                    new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false)
+            );
+            ApricityScreenNetworkHandler.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, declarations);
             return InteractionResult.CONSUME;
         }
 

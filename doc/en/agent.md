@@ -56,7 +56,7 @@ These are usable, but do not treat them like full browser-native components.
 
 ### 5.1 `container`
 
-1. Top-level containers should usually declare an explicit `id` so they can match server-side `OpenBindPlan`.
+1. Top-level containers should usually declare an explicit `id` so they can match server-side container declarations.
 2. For `bind="player"`, if no bound slots are written explicitly, 36 player slots are injected automatically.
 3. Do not use the old title attribute style. Container titles now come only from the text of the first child element.
 

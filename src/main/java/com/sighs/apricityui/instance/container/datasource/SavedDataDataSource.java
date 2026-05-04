@@ -2,7 +2,7 @@ package com.sighs.apricityui.instance.container.datasource;
 
 import com.sighs.apricityui.instance.ApricitySavedData;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
+import com.sighs.apricityui.instance.container.bind.ResizePolicy;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
@@ -48,11 +48,9 @@ public final class SavedDataDataSource implements ContainerDataSource {
     }
 
     @Override
-    public int resize(int newCapacity, OpenBindPlan.ResizePolicy policy) {
+    public int resize(int newCapacity, ResizePolicy policy) {
         int normalized = Math.max(1, newCapacity);
-        OpenBindPlan.ResizePolicy effectivePolicy = policy == null
-                ? OpenBindPlan.ResizePolicy.KEEP_OVERFLOW
-                : policy;
+        ResizePolicy effectivePolicy = policy == null ? ResizePolicy.KEEP_OVERFLOW : policy;
         handler = savedData.getOrCreate(inventoryKey, normalized, effectivePolicy);
         return handler.size();
     }
