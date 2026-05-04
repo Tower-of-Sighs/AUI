@@ -3,7 +3,6 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.container.layout.MenuLayoutSpec;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.instance.element.Recipe;
@@ -103,7 +102,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     protected void renderBg(@Nonnull GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         if (linkedDocument == null) return;
 
-        Base.drawDocument(guiGraphics.pose(), linkedDocument);
+        Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
         drawBoundSlotItems(guiGraphics);
         drawUnboundSlotItems(guiGraphics);
     }
@@ -453,7 +452,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         Document devToolsDocument = devToolsDocuments.get(0);
         if (devToolsDocument == null || devToolsDocument.body == null) return;
         if (devToolsDocument == linkedDocument) return;
-        Base.drawDocument(guiGraphics.pose(), devToolsDocument);
+        Base.drawScreenDocument(guiGraphics.pose(), devToolsDocument);
     }
 
     @Override

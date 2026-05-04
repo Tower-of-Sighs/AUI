@@ -6,13 +6,9 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.FrameScheduler;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.StyleFrameCache;
-import com.sighs.apricityui.style.Transform;
+import com.sighs.apricityui.init.FrameScheduler;
+import com.sighs.apricityui.style.*;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
@@ -41,6 +37,12 @@ public class Base {
         for (Document document : Document.getAll()) {
             if (!document.inWorld) drawDocument(poseStack, document);
         }
+    }
+
+    public static void drawScreenDocument(PoseStack poseStack, Document document) {
+        // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
+        Mask.resetDepth();
+        drawDocument(poseStack, document);
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
