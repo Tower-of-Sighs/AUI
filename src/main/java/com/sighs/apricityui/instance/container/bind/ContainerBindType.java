@@ -40,6 +40,13 @@ public enum ContainerBindType {
         return bindType == VIRTUAL_UI;
     }
 
+    /**
+     * 判断指定绑定类型是否有对应的数据源（非虚拟 UI）。
+     */
+    public static boolean hasDataSource(ContainerBindType bindType) {
+        return bindType != null && bindType != VIRTUAL_UI;
+    }
+
     public String id() {
         return id;
     }

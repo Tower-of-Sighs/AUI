@@ -5,17 +5,14 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.WorldWindow;
-import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
-import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
-import com.sighs.apricityui.registry.annotation.NJSBindings;
+import com.sighs.apricityui.registry.annotation.KJSBindings;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@NJSBindings(value = "ApricityUI", isClient = true)
+@KJSBindings(value = "ApricityUI", isClient = true)
 public class ApricityUIClientUtil {
     public static Window getWindow() {
         return Window.window;
@@ -79,14 +76,6 @@ public class ApricityUIClientUtil {
 
     public static void closeScreen() {
         ApricityScreenNetworkHandler.requestCloseScreen();
-    }
-
-    public static OpenBindPlan.Builder bind() {
-        return OpenBindPlan.builder();
-    }
-
-    public static boolean hasDataSource(ContainerBindType bindType) {
-        return Container.hasBindingDataSource(bindType);
     }
 
     public static WorldWindow createWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance) {

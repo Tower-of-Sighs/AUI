@@ -7,8 +7,8 @@ import com.sighs.apricityui.instance.ApricityUIConfig;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.element.Container;
+import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
@@ -66,16 +66,12 @@ public class ApricityUI {
         ApricityScreenNetworkHandler.requestOpenScreen(path);
     }
 
-    public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
-        ApricityScreenNetworkHandler.openScreen(player, path, plan);
-    }
-
     public static void closeScreen() {
         ApricityScreenNetworkHandler.requestCloseScreen();
     }
 
-    public static OpenBindPlan.Builder bind() {
-        return OpenBindPlan.builder();
+    public static void openScreen(ServerPlayer player, String path, List<ContainerDeclaration> declarations) {
+        ApricityScreenNetworkHandler.openScreen(player, path, declarations);
     }
 
     public static boolean hasDataSource(ContainerBindType bindType) {

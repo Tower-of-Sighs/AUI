@@ -3,23 +3,23 @@ package com.sighs.apricityui.instance.element;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@ElementRegister(ApricityRecipe.TAG_NAME)
-public class ApricityRecipe extends MinecraftElement {
+@ElementRegister(Recipe.TAG_NAME)
+public class Recipe extends MinecraftElement {
     public static final String TAG_NAME = "RECIPE";
 
-    public ApricityRecipe(Document document) {
+    public Recipe(Document document) {
         super(document, TAG_NAME);
     }
 
-    public Identifier parseRecipeIdFromInnerText() {
+    public ResourceLocation parseRecipeIdFromInnerText() {
         String normalized = normalizeRecipeIdLiteral(innerText);
         if (normalized.isBlank()) return null;
-        return Identifier.tryParse(normalized);
+        return ResourceLocation.tryParse(normalized);
     }
 
     public boolean clearGeneratedRecipeSlots() {

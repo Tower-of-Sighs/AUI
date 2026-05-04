@@ -5,10 +5,11 @@
 当前版本的模板不再把炉子槽位和玩家槽位静态写死在 HTML 里，而是：
 
 1. 顶层 `container` 先声明绑定关系。
-2. `block_entity` 容器显式声明 `size="3"`，让服务端模板编译阶段知道它有 3 个真实槽位。
+2. `block_entity` 容器显式声明 `size="3"`，让客户端提取容器声明时知道它有 3 个真实槽位。
 3. 再在内联 KJS 中动态创建炉子 3 槽和玩家 36 槽。
 
-`size="3"` 这一步不能省。原因是服务端在打开界面时会先按原始 HTML 编译模板容量，它看不到后续脚本动态追加的 `slot`。如果不给 `block_entity` 容器声明容量，动态创建出来的熔炉槽位只能显示，不能真正放物品。
+`size="3"` 这一步不能省。原因是客户端在发送打开请求时会从模板提取容器声明，它看不到后续脚本动态追加的 `slot`。如果不给
+`block_entity` 容器声明容量，动态创建出来的熔炉槽位只能显示，不能真正放物品。
 
 ```html
 <body>
@@ -174,7 +175,7 @@
 
 ## Java 端
 
-当前 `TestBlockEntity` 的打开方式依赖容器 `id` 与 `OpenBindPlan` 一一对应：
+当前 `TestBlockEntity` 的打开方式依赖容器 `id` 与声明列表一一对应：
 
 - `block_entity` 绑定方块实体库存
 - `player` 绑定玩家背包
@@ -193,10 +194,11 @@ public @NotNull InteractionResult use(BlockState state, Level level, BlockPos po
     if (level.isClientSide) return InteractionResult.SUCCESS;
     if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
 
-    OpenBindPlan plan = ApricityUIClientUtil.bind()
-        .primaryBind("block_entity").blockEntity(pos.getX(), pos.getY(), pos.getZ(), "")
-            .bind("player").player().build();
-    ApricityUIServerUtil.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, plan);
+    List<ContainerDeclaration> declarations = List.of(
+        new ContainerDeclaration("block_entity", ContainerBindType.BLOCK_ENTITY, 3, true),
+        new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false)
+    );
+    ApricityScreenNetworkHandler.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, declarations);
     return InteractionResult.CONSUME;
 }
 ```
@@ -486,5 +488,6 @@ public static final class FurnaceDemoBlockEntity extends BlockEntity {
 ## 使用这个示例时的注意点
 
 1. 如果你想把槽位用 KJS 动态创建出来，顶层 `container` 仍然要提供正确的 `id`。
-2. 对于真实绑定容器，动态槽位之外还要保证服务端模板编译能推导出容量；最稳妥的方式就是像本例一样给 `block_entity` 写 `size="3"`。
+2. 对于真实绑定容器，动态槽位之外还要保证客户端提取声明时能推导出容量；最稳妥的方式就是像本例一样给 `block_entity` 写
+   `size="3"`。
 3. `clearSlots(container)` 不能去掉，否则 `Document.refresh()` 重新执行内联脚本时会把旧槽位重复堆出来。
