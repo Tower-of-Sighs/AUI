@@ -34,6 +34,12 @@ public class Base {
         Mask.resetDepth();
     }
 
+    public static void drawScreenDocument(PoseStack poseStack, Document document) {
+        // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
+        Mask.resetDepth();
+        drawDocument(poseStack, document);
+    }
+
     public static void drawDocument(PoseStack poseStack, Document document) {
         // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
         // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
