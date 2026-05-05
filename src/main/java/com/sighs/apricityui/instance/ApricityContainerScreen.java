@@ -102,9 +102,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     protected void renderBg(@NotNull GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         if (linkedDocument == null) return;
 
-        Base.drawDocument(guiGraphics.pose(), linkedDocument);
-        drawBoundSlotItems(guiGraphics);
-        drawUnboundSlotItems(guiGraphics);
+        Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+        drawMenuSlotItems(guiGraphics);
+        drawDisplaySlotItems(guiGraphics);
     }
 
     @Override
@@ -341,7 +341,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return boundElement.shouldAcceptPointer();
     }
 
-    private void drawBoundSlotItems(GuiGraphics guiGraphics) {
+    private void drawMenuSlotItems(GuiGraphics guiGraphics) {
         AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) this;
         net.minecraft.world.inventory.Slot clicked = accessor.apricityui$getClickedSlot();
         ItemStack draggingItem = accessor.apricityui$getDraggingItem();
@@ -405,10 +405,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
     }
 
-    private void drawUnboundSlotItems(GuiGraphics guiGraphics) {
+    private void drawDisplaySlotItems(GuiGraphics guiGraphics) {
         // Keep bound-slot rendering specialized for container screens.
-        // Unbound (virtual) slot items are rendered via the shared pass.
-        ItemRender.renderUnboundSlotItems(guiGraphics, new ArrayList<>(unboundSlots));
+        // Display-only slot items are rendered via the shared pass.
+        ItemRender.renderDisplaySlotItems(guiGraphics, new ArrayList<>(unboundSlots));
     }
 
     private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {
@@ -452,7 +452,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         Document devToolsDocument = devToolsDocuments.get(0);
         if (devToolsDocument == null || devToolsDocument.body == null) return;
         if (devToolsDocument == linkedDocument) return;
-        Base.drawDocument(guiGraphics.pose(), devToolsDocument);
+        Base.drawScreenDocument(guiGraphics.pose(), devToolsDocument);
     }
 
     @Override

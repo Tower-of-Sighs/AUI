@@ -189,7 +189,7 @@ public class Client {
             Base.drawAllDocument(event.getGuiGraphics().pose());
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
                 }
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
@@ -204,7 +204,7 @@ public class Client {
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
                 }
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
