@@ -324,5 +324,4 @@ public final class ApricityScreenNetworkHandler {
         if (title == null || title.isBlank()) return null;
         return title.trim();
     }
-
 }
