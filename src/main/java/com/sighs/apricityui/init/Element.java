@@ -334,6 +334,7 @@ public class Element {
             computedStyle = new Style();
             cssCache.forEach(computedStyle::update);
             computedStyle.merge(getAttribute("style"));
+            computedStyle.resolveVarReferences(this);
             renderElement.computedStyle.set(computedStyle);
             isPointerEnabled = computedStyle.pointerEvents.equals("auto");
             isVisible = computedStyle.visibility.equals("visible");
