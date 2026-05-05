@@ -5,6 +5,8 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.instance.container.SlotLayout;
+import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.world.item.ItemStack;
@@ -17,9 +19,8 @@ import java.util.*;
 public final class SlotDataBinder {
     private final ApricityContainerMenu menu;
     private final LinkedHashMap<Integer, SlotBinding> bindingsByGlobalIndex = new LinkedHashMap<>();
-    private final ArrayList<Slot> displaySlots = new ArrayList<>();
+    private final ArrayList<Slot> unboundSlots = new ArrayList<>();
     private int lastBindSlotCount = -1;
-    private long lastBindGeneration = -1L;
 
     public SlotDataBinder(ApricityContainerMenu menu) {
         this.menu = Objects.requireNonNull(menu);
@@ -30,22 +31,15 @@ public final class SlotDataBinder {
      */
     public void bindSlotsFromDocument(Document document) {
         clear();
-        if (document == null) return;
+        if (document == null || menu.getLayout().isUiOnly()) return;
 
-        boolean uiOnly = menu.getLayout().isUiOnly();
         List<Element> elements = document.getElements();
         for (Element element : elements) {
             if (!(element instanceof Slot slotElement)) continue;
 
-            // 纯 UI 页面没有真实菜单槽位可绑定，但 slot / recipe 预览仍应作为展示槽位参与物品渲染。
-            if (uiOnly) {
-                displaySlots.add(slotElement);
-                continue;
-            }
-
             Container container = slotElement.findAncestor(Container.class);
             if (container == null) {
-                displaySlots.add(slotElement);
+                unboundSlots.add(slotElement);
                 continue;
             }
 
@@ -56,13 +50,13 @@ public final class SlotDataBinder {
 
             int localIndex = slotElement.getSlotIndex();
             if (localIndex < 0) {
-                displaySlots.add(slotElement);
+                unboundSlots.add(slotElement);
                 continue;
             }
 
             Integer globalIndex = menu.resolveGlobalSlotIndex(containerId, localIndex);
             if (globalIndex == null || globalIndex < 0 || globalIndex >= menu.slots.size()) {
-                displaySlots.add(slotElement);
+                unboundSlots.add(slotElement);
                 continue;
             }
 
@@ -75,7 +69,6 @@ public final class SlotDataBinder {
         }
 
         lastBindSlotCount = countSlotElements(document);
-        lastBindGeneration = document.getRefreshGeneration();
     }
 
     /**
@@ -87,7 +80,7 @@ public final class SlotDataBinder {
             net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(binding.globalIndex);
 
             Slot slotElement = binding.slotElement;
-            Position pos = Position.of(slotElement);
+            Position pos = Position.getOffset(slotElement);
             int elementX = (int) Math.round(pos.x) - leftPos;
             int elementY = (int) Math.round(pos.y) - topPos;
 
@@ -106,11 +99,10 @@ public final class SlotDataBinder {
     }
 
     /**
-     * 判断是否需要重新绑定（Document 被 refresh 重建，或 slot 数量发生变化）。
+     * 判断是否需要重新绑定（Document 中 slot 数量发生变化）。
      */
     public boolean shouldRebindSlotsFromDom(Document document) {
         if (document == null) return false;
-        if (document.getRefreshGeneration() != lastBindGeneration) return true;
         return countSlotElements(document) != lastBindSlotCount;
     }
 
@@ -122,7 +114,7 @@ public final class SlotDataBinder {
             Slot slotElement = binding.slotElement;
             if (!slotElement.shouldAcceptPointer()) continue;
 
-            Position pos = Position.of(slotElement);
+            Position pos = Position.getOffset(slotElement);
             double ex = pos.x;
             double ey = pos.y;
             int size = slotElement.resolveSlotSizeHint(16);
@@ -164,24 +156,17 @@ public final class SlotDataBinder {
                 slotElement.isDisabled(),
                 slotElement.shouldRenderItem(),
                 slotElement.resolveSlotSizeHint(16),
+                slotElement.resolveItemPadding(0),
                 slotElement.resolveIconScale(1.0F),
                 slotElement.resolveZIndex(0)
         );
     }
 
     /**
-     * 获取未绑定到菜单的展示型 Slot 元素列表。
+     * 获取未绑定到菜单的 Slot 元素列表。
      */
-    public List<Slot> getDisplaySlots() {
-        return Collections.unmodifiableList(displaySlots);
-    }
-
-    public Slot getBoundElement(net.minecraft.world.inventory.Slot slot) {
-        if (slot == null) return null;
-        int index = menu.slots.indexOf(slot);
-        if (index < 0) return null;
-        SlotBinding binding = bindingsByGlobalIndex.get(index);
-        return binding == null ? null : binding.slotElement;
+    public List<Slot> getUnboundSlots() {
+        return Collections.unmodifiableList(unboundSlots);
     }
 
     /**
@@ -192,7 +177,7 @@ public final class SlotDataBinder {
             binding.slotElement.setView(null);
         }
         bindingsByGlobalIndex.clear();
-        displaySlots.clear();
+        unboundSlots.clear();
     }
 
     private static int countSlotElements(Document document) {
@@ -256,10 +241,11 @@ public final class SlotDataBinder {
             boolean disabled,
             boolean renderItem,
             int slotSize,
+            int padding,
             float iconScale,
             int zIndex
     ) {
-        public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
+        public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 0, 1.0F, 0);
     }
 
     private record SlotBinding(Slot slotElement, int globalIndex, int localIndex) {

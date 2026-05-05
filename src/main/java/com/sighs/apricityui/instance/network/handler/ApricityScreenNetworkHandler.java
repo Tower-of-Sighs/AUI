@@ -4,7 +4,6 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.container.SlotLayout;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.ResizePolicy;
 import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.instance.container.datasource.DataSourceFactory;
 import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
@@ -55,27 +54,7 @@ public final class ApricityScreenNetworkHandler {
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations) {
-        if (player == null) return;
-
-        String normalizedPath = NormalizeUtil.normalizeTemplatePath(templatePath);
-        if (normalizedPath == null) {
-            ApricityUI.LOGGER.warn("Open screen ignored: invalid template path={}", templatePath);
-            return;
-        }
-
-        if (declarations == null || declarations.isEmpty()) {
-            SlotLayout layout = SlotLayout.createUiOnly(normalizedPath);
-            openScreenFromServer(player, layout, Map.of(), null);
-            return;
-        }
-
-        Map<String, ContainerDataSource> sources = resolveDataSources(player, declarations);
-        if (sources == null) return;
-
-        SlotLayout layout = buildSlotLayout(normalizedPath, declarations, sources);
-        if (layout == null) return;
-
-        openScreenFromServer(player, layout, sources, null);
+        openScreen(player, templatePath, declarations, Map.of());
     }
 
     /**
@@ -84,8 +63,7 @@ public final class ApricityScreenNetworkHandler {
     public static void openScreen(ServerPlayer player,
                                   String templatePath,
                                   List<ContainerDeclaration> declarations,
-                                  Map<String, Map<String, String>> argsById,
-                                  Map<String, ResizePolicy> policyById) {
+                                  Map<String, Map<String, String>> argsById) {
         if (player == null) return;
 
         String normalizedPath = NormalizeUtil.normalizeTemplatePath(templatePath);
@@ -100,7 +78,7 @@ public final class ApricityScreenNetworkHandler {
             return;
         }
 
-        Map<String, ContainerDataSource> sources = resolveDataSourcesWithArgs(player, declarations, argsById, policyById);
+        Map<String, ContainerDataSource> sources = resolveDataSources(player, declarations, argsById);
         if (sources == null) return;
 
         SlotLayout layout = buildSlotLayout(normalizedPath, declarations, sources);
@@ -131,7 +109,7 @@ public final class ApricityScreenNetworkHandler {
                 return;
             }
 
-            Map<String, ContainerDataSource> sources = resolveDataSources(player, declarations);
+            Map<String, ContainerDataSource> sources = resolveDataSources(player, declarations, Map.of());
             if (sources == null) return;
 
             SlotLayout layout = buildSlotLayout(normalizedPath, declarations, sources);
@@ -160,48 +138,11 @@ public final class ApricityScreenNetworkHandler {
 
     private static Map<String, ContainerDataSource> resolveDataSources(
             ServerPlayer player,
-            List<ContainerDeclaration> declarations
-    ) {
-        LinkedHashMap<String, ContainerDataSource> sources = new LinkedHashMap<>();
-
-        for (ContainerDeclaration decl : declarations) {
-            if (decl == null) continue;
-            ContainerBindType bindType = decl.bindType();
-            if (bindType == ContainerBindType.PLAYER) continue;
-            if (bindType == ContainerBindType.VIRTUAL_UI) continue;
-            if (decl.capacity() <= 0) continue;
-
-            try {
-                ContainerDataSource dataSource = DataSourceFactory.resolve(
-                        player, decl.id(), bindType, Map.of(), decl.capacity(), ResizePolicy.KEEP_OVERFLOW
-                );
-                if (dataSource == null) {
-                    ApricityUI.LOGGER.warn(
-                            "Open container failed: bindType={} / container={} / reason=UNRESOLVED_BINDING",
-                            bindType.id(), decl.id()
-                    );
-                    return null;
-                }
-                sources.put(decl.id(), dataSource);
-            } catch (Exception exception) {
-                ApricityUI.LOGGER.warn("Open container failed: bindType={} / container={} / reason={}",
-                        bindType.id(), decl.id(), exception.getMessage());
-                return null;
-            }
-        }
-
-        return sources;
-    }
-
-    private static Map<String, ContainerDataSource> resolveDataSourcesWithArgs(
-            ServerPlayer player,
             List<ContainerDeclaration> declarations,
-            Map<String, Map<String, String>> argsById,
-            Map<String, ResizePolicy> policyById
+            Map<String, Map<String, String>> argsById
     ) {
         LinkedHashMap<String, ContainerDataSource> sources = new LinkedHashMap<>();
         Map<String, Map<String, String>> safeArgs = argsById == null ? Map.of() : argsById;
-        Map<String, ResizePolicy> safePolicies = policyById == null ? Map.of() : policyById;
 
         for (ContainerDeclaration decl : declarations) {
             if (decl == null) continue;
@@ -211,11 +152,10 @@ public final class ApricityScreenNetworkHandler {
             if (decl.capacity() <= 0) continue;
 
             Map<String, String> args = safeArgs.getOrDefault(decl.id(), Map.of());
-            ResizePolicy policy = safePolicies.getOrDefault(decl.id(), ResizePolicy.KEEP_OVERFLOW);
 
             try {
                 ContainerDataSource dataSource = DataSourceFactory.resolve(
-                        player, decl.id(), bindType, args, decl.capacity(), policy
+                        player, decl.id(), bindType, args, decl.capacity()
                 );
                 if (dataSource == null) {
                     ApricityUI.LOGGER.warn(
