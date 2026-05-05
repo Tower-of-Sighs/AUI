@@ -62,8 +62,17 @@ public class ApricityUI {
         return Document.getAll();
     }
 
-    public static void openScreen(String path) {
+    public static void screen(String path) {
         ApricityScreenNetworkHandler.requestOpenScreen(path);
+    }
+
+    public static PendingMenu menu(ServerPlayer player, String templatePath) {
+        return new PendingMenu(player, templatePath);
+    }
+
+    @Deprecated
+    public static void openScreen(String path) {
+        screen(path);
     }
 
     public static void closeScreen() {
