@@ -24,9 +24,6 @@ public final class BindingBuilder {
     private final Map<String, Map<String, String>> argsById = new LinkedHashMap<>();
     private boolean primarySet = false;
 
-    BindingBuilder() {
-    }
-
     /**
      * 绑定玩家背包容器（36 格）。
      */

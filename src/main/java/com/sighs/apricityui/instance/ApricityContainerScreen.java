@@ -76,8 +76,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (linkedDocument == null) return;
 
         Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
-        drawBoundSlotItems(guiGraphics);
-        drawUnboundSlotItems(guiGraphics);
+        drawMenuSlotItems(guiGraphics);
+        drawDisplaySlotItems(guiGraphics);
     }
 
     @Override
@@ -102,7 +102,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         Cursor.drawPseudoCursor(guiGraphics);
     }
 
-    private void drawBoundSlotItems(GuiGraphics guiGraphics) {
+    private void drawMenuSlotItems(GuiGraphics guiGraphics) {
         if (slotBinder == null) return;
 
         AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) this;
@@ -167,9 +167,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
     }
 
-    private void drawUnboundSlotItems(GuiGraphics guiGraphics) {
+    private void drawDisplaySlotItems(GuiGraphics guiGraphics) {
         if (slotBinder == null) return;
-        ItemRender.renderUnboundSlotItems(guiGraphics, new ArrayList<>(slotBinder.getUnboundSlots()));
+        ItemRender.renderDisplaySlotItems(guiGraphics, new ArrayList<>(slotBinder.getDisplaySlots()));
     }
 
     private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {

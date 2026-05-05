@@ -29,7 +29,6 @@ public final class DataSourceFactory {
                                               int capacity) {
         if (player == null || bindType == null) return null;
         if (ContainerBindType.isPlayer(bindType)) return null;
-        if (ContainerBindType.isVirtualUi(bindType)) return null;
 
         return switch (bindType) {
             case SAVED_DATA -> resolveSavedData(player, containerId, args, capacity);

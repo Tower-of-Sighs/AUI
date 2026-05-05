@@ -14,12 +14,12 @@ import net.minecraft.world.item.ItemStack;
 public final class ItemRender {
     private static final float ICON_SCALE_EPSILON = 0.0001F;
 
-    public static void renderDocumentUnboundSlotItems(GuiGraphics guiGraphics, Document document) {
+    public static void renderDocumentSlotItems(GuiGraphics guiGraphics, Document document) {
         if (guiGraphics == null || document == null) return;
-        renderUnboundSlotItems(guiGraphics, document.getElements());
+        renderDisplaySlotItems(guiGraphics, document.getElements());
     }
 
-    public static void renderUnboundSlotItems(GuiGraphics guiGraphics, Iterable<? extends Element> elements) {
+    public static void renderDisplaySlotItems(GuiGraphics guiGraphics, Iterable<? extends Element> elements) {
         if (guiGraphics == null || elements == null) return;
 
         Font font = Minecraft.getInstance().font;
