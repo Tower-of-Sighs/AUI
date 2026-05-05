@@ -16,10 +16,18 @@ public final class ItemRender {
 
     public static void renderDocumentUnboundSlotItems(GuiGraphicsExtractor guiGraphics, Document document) {
         if (guiGraphics == null || document == null) return;
-        renderUnboundSlotItems(guiGraphics, document.getElements());
+        renderDisplaySlotItems(guiGraphics, document.getElements());
+    }
+
+    public static void renderDocumentSlotItems(GuiGraphicsExtractor guiGraphics, Document document) {
+        renderDocumentUnboundSlotItems(guiGraphics, document);
     }
 
     public static void renderUnboundSlotItems(GuiGraphicsExtractor guiGraphics, Iterable<? extends Element> elements) {
+        renderDisplaySlotItems(guiGraphics, elements);
+    }
+
+    public static void renderDisplaySlotItems(GuiGraphicsExtractor guiGraphics, Iterable<? extends Element> elements) {
         if (guiGraphics == null || elements == null) return;
 
         Font font = Minecraft.getInstance().font;

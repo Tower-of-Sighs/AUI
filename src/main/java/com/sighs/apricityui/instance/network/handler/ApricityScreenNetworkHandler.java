@@ -148,7 +148,6 @@ public final class ApricityScreenNetworkHandler {
             if (decl == null) continue;
             ContainerBindType bindType = decl.bindType();
             if (bindType == ContainerBindType.PLAYER) continue;
-            if (bindType == ContainerBindType.VIRTUAL_UI) continue;
             if (decl.capacity() <= 0) continue;
 
             Map<String, String> args = safeArgs.getOrDefault(decl.id(), Map.of());

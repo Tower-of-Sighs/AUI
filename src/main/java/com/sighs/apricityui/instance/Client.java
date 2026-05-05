@@ -182,6 +182,9 @@ public class Client {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
+        if (Minecraft.getInstance().screen instanceof ApricityScreen) {
+            return;
+        }
         // 由于不可抗拒原因？，这里需以 pip 形式渲染
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             ApricityGuiLayers.submitOverlay(event.getGuiGraphics());
