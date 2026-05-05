@@ -9,10 +9,12 @@ import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
+import com.sighs.apricityui.instance.network.handler.PendingMenu;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import dev.latvian.mods.rhino.util.HideFromJS;
+import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterShadersEvent;
@@ -87,10 +89,36 @@ public class ApricityUI {
     }
 
     /**
-     * 客户端请求打开 Screen（发送网络包到服务端解析容器）。
+     * 客户端打开纯展示 UI Screen（不涉及服务端容器绑定）。
      */
-    public static void openScreen(String path) {
+    public static void screen(String path) {
         ApricityScreenNetworkHandler.requestOpenScreen(path);
+    }
+
+    /**
+     * 服务端创建带容器绑定的菜单 Screen。
+     * <p>
+     * 使用示例：
+     * <pre>
+     * ApricityUI.menu(player, "test/test.html").bind(b -> b.blockEntity(pos).player());
+     * </pre>
+     *
+     * @param player       服务端玩家
+     * @param templatePath 模板路径
+     * @return 待绑定的菜单对象，调用 {@code .bind()} 后立即打开
+     */
+    public static PendingMenu menu(ServerPlayer player, String templatePath) {
+        return new PendingMenu(player, templatePath);
+    }
+
+    /**
+     * 客户端请求打开 Screen（发送网络包到服务端解析容器）。
+     *
+     * @deprecated 使用 {@link #screen(String)} 替代
+     */
+    @Deprecated
+    public static void openScreen(String path) {
+        screen(path);
     }
 
     /**
