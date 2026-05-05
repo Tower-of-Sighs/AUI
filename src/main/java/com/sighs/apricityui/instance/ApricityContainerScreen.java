@@ -169,7 +169,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     private void drawUnboundSlotItems(GuiGraphics guiGraphics) {
         if (slotBinder == null) return;
-        ItemRender.renderUnboundSlotItems(guiGraphics, new ArrayList<>(slotBinder.getDisplaySlots()));
+        ItemRender.renderUnboundSlotItems(guiGraphics, new ArrayList<>(slotBinder.getUnboundSlots()));
     }
 
     private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {
