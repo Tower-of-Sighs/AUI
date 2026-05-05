@@ -11,6 +11,7 @@ import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
+import com.sighs.apricityui.instance.network.handler.PendingMenu;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import net.minecraft.client.Minecraft;
@@ -84,8 +85,26 @@ public class ApricityUI {
         return Document.getAll();
     }
 
-    public static void openScreen(String path) {
+    /**
+     * 客户端打开纯展示 UI Screen。
+     */
+    public static void screen(String path) {
         ApricityScreenNetworkHandler.requestOpenScreen(path);
+    }
+
+    /**
+     * 服务端创建带容器绑定的菜单 Screen。
+     */
+    public static PendingMenu menu(ServerPlayer player, String templatePath) {
+        return new PendingMenu(player, templatePath);
+    }
+
+    /**
+     * @deprecated 使用 {@link #screen(String)} 替代
+     */
+    @Deprecated
+    public static void openScreen(String path) {
+        screen(path);
     }
 
     public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {

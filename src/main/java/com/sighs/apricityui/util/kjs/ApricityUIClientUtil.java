@@ -73,8 +73,19 @@ public class ApricityUIClientUtil {
         ToastManager.clear();
     }
 
-    public static void openScreen(String path) {
+    /**
+     * 客户端打开纯展示 UI Screen。
+     */
+    public static void screen(String path) {
         ApricityScreenNetworkHandler.requestOpenScreen(path);
+    }
+
+    /**
+     * @deprecated 使用 {@link #screen(String)} 替代
+     */
+    @Deprecated
+    public static void openScreen(String path) {
+        screen(path);
     }
 
     public static void closeScreen() {
