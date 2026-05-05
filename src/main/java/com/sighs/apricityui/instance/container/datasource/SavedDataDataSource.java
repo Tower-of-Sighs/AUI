@@ -2,14 +2,13 @@ package com.sighs.apricityui.instance.container.datasource;
 
 import com.sighs.apricityui.instance.ApricitySavedData;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.ResizePolicy;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraftforge.items.SlotItemHandler;
 
 /**
- * SavedData 物品槽数据源，支持扩缩容。
+ * SavedData 物品槽数据源，支持扩缩容（截断策略）。
  */
 public final class SavedDataDataSource implements ContainerDataSource {
     private final ContainerBindType bindType;
@@ -48,10 +47,9 @@ public final class SavedDataDataSource implements ContainerDataSource {
     }
 
     @Override
-    public int resize(int newCapacity, ResizePolicy policy) {
+    public int resize(int newCapacity) {
         int normalized = Math.max(1, newCapacity);
-        ResizePolicy effectivePolicy = policy == null ? ResizePolicy.KEEP_OVERFLOW : policy;
-        handler = savedData.getOrCreate(inventoryKey, normalized, effectivePolicy);
+        handler = savedData.getOrCreate(inventoryKey, normalized);
         return handler.getSlots();
     }
 
