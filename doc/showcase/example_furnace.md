@@ -194,11 +194,7 @@ public @NotNull InteractionResult use(BlockState state, Level level, BlockPos po
     if (level.isClientSide) return InteractionResult.SUCCESS;
     if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
 
-    List<ContainerDeclaration> declarations = List.of(
-        new ContainerDeclaration("block_entity", ContainerBindType.BLOCK_ENTITY, 3, true),
-        new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false)
-    );
-    ApricityScreenNetworkHandler.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, declarations);
+    ApricityUI.menu(serverPlayer, DEMO_TEMPLATE_PATH).bind(b -> b.blockEntity(pos).player());
     return InteractionResult.CONSUME;
 }
 ```
