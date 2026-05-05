@@ -19,7 +19,7 @@ import java.util.*;
 public final class SlotDataBinder {
     private final ApricityContainerMenu menu;
     private final LinkedHashMap<Integer, SlotBinding> bindingsByGlobalIndex = new LinkedHashMap<>();
-    private final ArrayList<Slot> unboundSlots = new ArrayList<>();
+    private final ArrayList<Slot> displaySlots = new ArrayList<>();
     private int lastBindSlotCount = -1;
 
     public SlotDataBinder(ApricityContainerMenu menu) {
@@ -39,7 +39,7 @@ public final class SlotDataBinder {
 
             Container container = slotElement.findAncestor(Container.class);
             if (container == null) {
-                unboundSlots.add(slotElement);
+                displaySlots.add(slotElement);
                 continue;
             }
 
@@ -50,13 +50,13 @@ public final class SlotDataBinder {
 
             int localIndex = slotElement.getSlotIndex();
             if (localIndex < 0) {
-                unboundSlots.add(slotElement);
+                displaySlots.add(slotElement);
                 continue;
             }
 
             Integer globalIndex = menu.resolveGlobalSlotIndex(containerId, localIndex);
             if (globalIndex == null || globalIndex < 0 || globalIndex >= menu.slots.size()) {
-                unboundSlots.add(slotElement);
+                displaySlots.add(slotElement);
                 continue;
             }
 
@@ -163,10 +163,10 @@ public final class SlotDataBinder {
     }
 
     /**
-     * 获取未绑定到菜单的 Slot 元素列表。
+     * 获取未绑定到菜单的展示型 Slot 元素列表。
      */
-    public List<Slot> getUnboundSlots() {
-        return Collections.unmodifiableList(unboundSlots);
+    public List<Slot> getDisplaySlots() {
+        return Collections.unmodifiableList(displaySlots);
     }
 
     /**
@@ -177,7 +177,7 @@ public final class SlotDataBinder {
             binding.slotElement.setView(null);
         }
         bindingsByGlobalIndex.clear();
-        unboundSlots.clear();
+        displaySlots.clear();
     }
 
     private static int countSlotElements(Document document) {
