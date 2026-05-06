@@ -62,7 +62,8 @@ public final class EntityDataSource implements ContainerDataSource {
                 .orElse(null);
         if (handler == null) return null;
 
-        int resolvedCapacity = Math.min(Math.max(1, capacity), handler.getSlots());
+        int handlerSlots = Math.max(0, handler.getSlots());
+        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
         return new EntityDataSource(entity, handler, resolvedCapacity);
     }
 }

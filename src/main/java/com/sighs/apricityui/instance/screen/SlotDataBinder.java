@@ -5,8 +5,6 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Slot;
-import com.sighs.apricityui.instance.container.SlotLayout;
-import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.world.item.ItemStack;
@@ -21,6 +19,7 @@ public final class SlotDataBinder {
     private final LinkedHashMap<Integer, SlotBinding> bindingsByGlobalIndex = new LinkedHashMap<>();
     private final ArrayList<Slot> displaySlots = new ArrayList<>();
     private int lastBindSlotCount = -1;
+    private long lastBindGeneration = -1L;
 
     public SlotDataBinder(ApricityContainerMenu menu) {
         this.menu = Objects.requireNonNull(menu);
@@ -69,6 +68,7 @@ public final class SlotDataBinder {
         }
 
         lastBindSlotCount = countSlotElements(document);
+        lastBindGeneration = document.getRefreshGeneration();
     }
 
     /**
@@ -80,7 +80,7 @@ public final class SlotDataBinder {
             net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(binding.globalIndex);
 
             Slot slotElement = binding.slotElement;
-            Position pos = Position.getOffset(slotElement);
+            Position pos = Position.of(slotElement);
             int elementX = (int) Math.round(pos.x) - leftPos;
             int elementY = (int) Math.round(pos.y) - topPos;
 
@@ -99,10 +99,11 @@ public final class SlotDataBinder {
     }
 
     /**
-     * 判断是否需要重新绑定（Document 中 slot 数量发生变化）。
+     * 判断是否需要重新绑定（Document 被 refresh 重建，或 slot 数量发生变化）。
      */
     public boolean shouldRebindSlotsFromDom(Document document) {
         if (document == null) return false;
+        if (document.getRefreshGeneration() != lastBindGeneration) return true;
         return countSlotElements(document) != lastBindSlotCount;
     }
 
@@ -114,7 +115,7 @@ public final class SlotDataBinder {
             Slot slotElement = binding.slotElement;
             if (!slotElement.shouldAcceptPointer()) continue;
 
-            Position pos = Position.getOffset(slotElement);
+            Position pos = Position.of(slotElement);
             double ex = pos.x;
             double ey = pos.y;
             int size = slotElement.resolveSlotSizeHint(16);

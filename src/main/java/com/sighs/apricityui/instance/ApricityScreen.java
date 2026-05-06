@@ -3,6 +3,7 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -28,6 +29,13 @@ public class ApricityScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+
+        // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
+        if (linkedDocument != null) {
+            linkedDocument.remove();
+            linkedDocument = null;
+        }
+
         linkedDocument = Document.create(templatePath);
     }
 
@@ -35,6 +43,8 @@ public class ApricityScreen extends Screen {
     public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (linkedDocument != null) {
             Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+            // 默认字体使用 Minecraft 的 BufferSource，文档绘制结束后立即提交，避免文本延迟到后续阶段才显示。
+            Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         }
         Cursor.drawPseudoCursor(guiGraphics);
     }
