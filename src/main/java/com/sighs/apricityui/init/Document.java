@@ -40,6 +40,7 @@ public class Document {
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
+    private volatile long refreshGeneration = 0L;
 
     private volatile Selector.Index selectorIndex = null;
 
@@ -53,6 +54,7 @@ public class Document {
     }
 
     public void refresh() {
+        refreshGeneration++;
         CSSCache.clear();
         CSSDebugRules.clear();
         JSCache.clear();
@@ -381,6 +383,13 @@ public class Document {
 
     public void setReloadPersistent(boolean reloadPersistent) {
         this.reloadPersistent = reloadPersistent;
+    }
+
+    /**
+     * 每次 refresh() 递增，用于外部检测 Document 内容是否已被重建。
+     */
+    public long getRefreshGeneration() {
+        return refreshGeneration;
     }
 
     public Element createHTML(String html) {

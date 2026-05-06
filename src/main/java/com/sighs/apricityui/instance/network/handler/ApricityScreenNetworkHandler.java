@@ -148,8 +148,7 @@ public final class ApricityScreenNetworkHandler {
             if (decl == null) continue;
             ContainerBindType bindType = decl.bindType();
             if (bindType == ContainerBindType.PLAYER) continue;
-            if (decl.capacity() <= 0) continue;
-
+            // 非玩家容器的容量 0 表示由数据源自动推导，不能提前跳过。
             Map<String, String> args = safeArgs.getOrDefault(decl.id(), Map.of());
 
             try {

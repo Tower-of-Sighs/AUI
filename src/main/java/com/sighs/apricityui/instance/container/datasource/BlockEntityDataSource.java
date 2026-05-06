@@ -53,7 +53,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
      *
      * @param player 服务端玩家
      * @param pos    方块坐标
-     * @param capacity 请求容量（实际容量取 handler 与请求的较小值）
+     * @param capacity 请求容量；小于等于 0 时自动使用 handler 的完整容量
      * @return 数据源实例，无法解析时返回 null
      */
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity) {
@@ -73,7 +73,8 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         }
         if (handler == null) return null;
 
-        int resolvedCapacity = Math.min(Math.max(1, capacity), handler.getSlots());
+        int handlerSlots = Math.max(0, handler.getSlots());
+        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
         return new BlockEntityDataSource(blockEntity, handler, resolvedCapacity);
     }
 }

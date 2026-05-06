@@ -8,6 +8,7 @@ import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.ChatFormatting;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -63,6 +64,16 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         imageHeight = height;
         super.init();
 
+        // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
+        if (linkedDocument != null) {
+            linkedDocument.remove();
+            linkedDocument = null;
+        }
+        if (slotBinder != null) {
+            slotBinder.clear();
+            slotBinder = null;
+        }
+
         linkedDocument = Document.create(menu.getTemplatePath());
         if (linkedDocument == null) return;
 
@@ -76,6 +87,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (linkedDocument == null) return;
 
         Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+        Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         drawMenuSlotItems(guiGraphics);
         drawDisplaySlotItems(guiGraphics);
     }
