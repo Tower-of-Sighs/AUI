@@ -139,7 +139,7 @@ public final class ApricityScreenNetworkHandler {
             if (bindType == ContainerBindType.VIRTUAL_UI) continue;
 
             int requiredSlotCount = resolveRequiredSlotCount(containerSpec, plan);
-            if (requiredSlotCount <= 0) continue;
+            // 非玩家容器的容量 0 表示由数据源自动推导，不能提前跳过。
 
             Map<String, String> args = resolveArgs(plan, containerId);
             OpenBindPlan.ResizePolicy resizePolicy = resolveResizePolicy(plan, containerId);

@@ -54,7 +54,7 @@ public final class BlockEntityDataSource implements ContainerDataSource {
      * @param player   服务端玩家
      * @param pos      方块坐标
      * @param side     可选朝向
-     * @param capacity 请求容量（实际容量取 handler 与请求的较小值）
+     * @param capacity 请求容量；小于等于 0 时自动使用 handler 的完整容量
      * @return 数据源实例，无法解析时返回 null
      */
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, Direction side, int capacity) {
@@ -68,8 +68,8 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         IItemHandler handler = level.getCapability(Capabilities.ItemHandler.BLOCK, pos, blockEntity.getBlockState(), blockEntity, side);
         if (handler == null || handler.getSlots() <= 0) return null;
 
-        int requestedCapacity = capacity <= 0 ? handler.getSlots() : capacity;
-        int resolvedCapacity = Math.min(Math.max(1, requestedCapacity), handler.getSlots());
+        int handlerSlots = Math.max(0, handler.getSlots());
+        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
         return new BlockEntityDataSource(blockEntity, handler, resolvedCapacity);
     }
 

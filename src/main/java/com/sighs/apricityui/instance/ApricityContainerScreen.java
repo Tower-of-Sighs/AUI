@@ -31,7 +31,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private static final float ICON_SCALE_EPSILON = 0.0001F;
     private static final int OFFSCREEN_SLOT_POS = -10000;
 
-    private final Document linkedDocument;
+    private Document linkedDocument;
     private final ArrayList<Slot> boundSlots = new ArrayList<>();
     private final ArrayList<Slot> unboundSlots = new ArrayList<>();
     private final HashMap<Slot, Integer> boundGlobalIndexByElement = new HashMap<>();
@@ -40,10 +40,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private boolean slotsBound = false;
     private boolean slotSyncDirty = true;
     private int lastKnownDomSlotCount = -1;
+    private long lastBindGeneration = -1L;
 
     public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
-        linkedDocument = Document.create(menu.getTemplatePath());
     }
 
     public ApricityContainerScreen(String path) {
@@ -92,6 +92,15 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         imageWidth = width;
         imageHeight = height;
         super.init();
+
+        // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
+        if (linkedDocument != null) {
+            linkedDocument.remove();
+            linkedDocument = null;
+        }
+        clearSlotBindings();
+
+        linkedDocument = Document.create(menu.getTemplatePath());
         if (linkedDocument == null) return;
 
         bindSlotsFromDocument();
@@ -103,6 +112,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (linkedDocument == null) return;
 
         Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+        Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         drawMenuSlotItems(guiGraphics);
         drawDisplaySlotItems(guiGraphics);
     }
@@ -197,11 +207,13 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         slotsBound = true;
         slotSyncDirty = true;
         lastKnownDomSlotCount = countDomSlotElements();
+        lastBindGeneration = linkedDocument.getRefreshGeneration();
     }
 
     private boolean shouldRebindSlotsFromDom() {
         if (!slotsBound) return true;
         if (linkedDocument == null) return false;
+        if (linkedDocument.getRefreshGeneration() != lastBindGeneration) return true;
         int currentSlotCount = countDomSlotElements();
         if (currentSlotCount < 0) return false;
         if (currentSlotCount != lastKnownDomSlotCount) return true;
@@ -484,15 +496,20 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (linkedDocument != null) {
             linkedDocument.remove();
         }
+        clearSlotBindings();
+        super.removed();
+    }
+
+    private void clearSlotBindings() {
         slotsBound = false;
         slotSyncDirty = true;
         lastKnownDomSlotCount = -1;
+        lastBindGeneration = -1L;
         boundSlots.clear();
         unboundSlots.clear();
         boundGlobalIndexByElement.clear();
         boundContainerByElement.clear();
         boundElementByMenuSlot.clear();
-        super.removed();
     }
 
     private SlotVisual resolveSlotVisual(net.minecraft.world.inventory.Slot slot) {
