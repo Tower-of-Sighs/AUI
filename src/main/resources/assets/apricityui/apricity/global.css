@@ -154,6 +154,8 @@ slot {
     width: 18px;
     height: 18px;
     background-image: url("apricityui/img/gui/area.png");
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
     pointer-events: none;
 }
 
