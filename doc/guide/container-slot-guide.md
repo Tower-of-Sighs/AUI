@@ -98,8 +98,8 @@
 
 - `size`（别名 `slot-size`）：槽位像素尺寸
 - `iconScale`：物品图标缩放比例
-- `padding`：物品内边距
-- CSS 自定义属性：`--aui-slot-size`、`--aui-slot-icon-scale`、`--aui-slot-padding`
+- CSS 自定义属性：`--aui-slot-size`、`--aui-slot-icon-scale`
+- 物品纹理始终在 slot 内自动居中；若需拉开 slot 与 slot 的距离，请使用容器或 recipe 的 `gap`
 - CSS（`position/top/left/...`）可用于手动布局
 
 ## 4. 玩家容器默认 36 格

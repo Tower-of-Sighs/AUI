@@ -140,7 +140,6 @@ Minecraft 专属标签是这些：
 - `--aui-slot-render-bg`
 - `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
-- `--aui-slot-padding`
 - `--aui-slot-z`
 - `--aui-slot-interactive`
 - `--aui-slot-cycle`
