@@ -3,9 +3,8 @@
 ```html
 <body>
 <div class="screen">
+    <div class="title">Java BlockEntity 熔炉演示</div>
     <container class="furnace-panel" primary="true" bind="block_entity">
-        <div class="title">Java BlockEntity 熔炉演示</div>
-
         <slot class="slot slot-input" mode="bound" slot-index="0"></slot>
         <slot class="slot slot-fuel" mode="bound" slot-index="1"></slot>
         <slot class="slot slot-output" mode="bound" slot-index="2"></slot>
@@ -13,8 +12,8 @@
         <div class="stats">I:0 F:0 O:0</div>
     </container>
 
+    <div class="title">玩家背包</div>
     <container class="player-panel" bind="player" layout="preset:player">
-        <div class="title">玩家背包</div>
         <slot class="slot" mode="bound" repeat="36" slot-index="0"></slot>
     </container>
 </div>

@@ -82,12 +82,11 @@ For `bind="player"`:
 - If there are no bound slots inside the container, the system injects 36 player slots automatically
 - Slot background rendering is controlled by the `slot` CSS `background-image`; if not configured, it stays transparent
 
-Container title rules:
+`container` has no built-in title mechanism:
 
-- The title is rendered inside the container, not fixed in the top-left corner of the screen
-- It only reads the text from the first child element, such as `div` or `span`
-- `container.title` is no longer supported
-- If the first child is missing or empty, no title area is rendered and no placeholder is kept
+- It does not read a `title` attribute
+- It does not infer a title from the first child element text
+- If you need a title, write and lay it out as an ordinary DOM node
 
 Unified slot semantics:
 
