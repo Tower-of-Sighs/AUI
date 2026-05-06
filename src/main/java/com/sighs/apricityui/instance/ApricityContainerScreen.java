@@ -162,18 +162,31 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             int drawX = leftPos + slot.x + (int) Math.round((visual.slotSize() - 16) / 2.0);
             int drawY = topPos + slot.y + (int) Math.round((visual.slotSize() - 16) / 2.0);
 
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + visual.zIndex());
-            if (drawQuickCraftGhost) {
-                int ghostSize = Math.max(1, Math.round(16.0F * visual.iconScale()));
-                int ghostX = Math.round(drawX + 8.0F - ghostSize / 2.0F);
-                int ghostY = Math.round(drawY + 8.0F - ghostSize / 2.0F);
-                guiGraphics.fill(ghostX, ghostY, ghostX + ghostSize, ghostY + ghostSize, QUICK_CRAFT_GHOST_COLOR);
+            com.sighs.apricityui.instance.element.Slot slotElement = slotBinder.getBoundElement(slot);
+            final ItemStack finalRenderStack = renderStack;
+            final String finalOverlayText = overlayText;
+            final boolean finalDrawQuickCraftGhost = drawQuickCraftGhost;
+            final int finalDrawX = drawX;
+            final int finalDrawY = drawY;
+            Runnable drawAction = () -> {
+                guiGraphics.pose().pushPose();
+                guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + visual.zIndex());
+                if (finalDrawQuickCraftGhost) {
+                    int ghostSize = Math.max(1, Math.round(16.0F * visual.iconScale()));
+                    int ghostX = Math.round(finalDrawX + 8.0F - ghostSize / 2.0F);
+                    int ghostY = Math.round(finalDrawY + 8.0F - ghostSize / 2.0F);
+                    guiGraphics.fill(ghostX, ghostY, ghostX + ghostSize, ghostY + ghostSize, QUICK_CRAFT_GHOST_COLOR);
+                }
+                applyItemScaleTransform(guiGraphics, finalDrawX, finalDrawY, visual.iconScale());
+                guiGraphics.renderItem(finalRenderStack, finalDrawX, finalDrawY, slot.x + slot.y * imageWidth);
+                guiGraphics.renderItemDecorations(font, finalRenderStack, finalDrawX, finalDrawY, finalOverlayText);
+                guiGraphics.pose().popPose();
+            };
+            if (slotElement == null) {
+                drawAction.run();
+            } else {
+                ItemRender.withInheritedClip(slotElement, drawAction);
             }
-            applyItemScaleTransform(guiGraphics, drawX, drawY, visual.iconScale());
-            guiGraphics.renderItem(renderStack, drawX, drawY, slot.x + slot.y * imageWidth);
-            guiGraphics.renderItemDecorations(font, renderStack, drawX, drawY, overlayText);
-            guiGraphics.pose().popPose();
         }
     }
 

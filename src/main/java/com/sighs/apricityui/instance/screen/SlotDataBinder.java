@@ -176,6 +176,14 @@ public final class SlotDataBinder {
         return Collections.unmodifiableList(displaySlots);
     }
 
+    public Slot getBoundElement(net.minecraft.world.inventory.Slot slot) {
+        if (slot == null) return null;
+        int index = menu.slots.indexOf(slot);
+        if (index < 0) return null;
+        SlotBinding binding = bindingsByGlobalIndex.get(index);
+        return binding == null ? null : binding.slotElement;
+    }
+
     /**
      * 清理所有绑定。
      */
