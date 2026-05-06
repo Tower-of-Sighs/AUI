@@ -159,10 +159,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
             if (renderStack.isEmpty()) continue;
 
-            int padding = clampPadding(visual.slotSize(), visual.padding());
-            int renderAreaSize = Math.max(1, visual.slotSize() - padding * 2);
-            int drawX = leftPos + slot.x + padding + (int) Math.round((renderAreaSize - 16) / 2.0);
-            int drawY = topPos + slot.y + padding + (int) Math.round((renderAreaSize - 16) / 2.0);
+            int drawX = leftPos + slot.x + (int) Math.round((visual.slotSize() - 16) / 2.0);
+            int drawY = topPos + slot.y + (int) Math.round((visual.slotSize() - 16) / 2.0);
 
             guiGraphics.pose().pushPose();
             guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + visual.zIndex());
@@ -260,12 +258,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             slotBinder.clear();
         }
         super.removed();
-    }
-
-    private static int clampPadding(int slotSize, int padding) {
-        int maxPadding = Math.max(0, (Math.max(1, slotSize) - 1) / 2);
-        int normalized = Math.max(0, padding);
-        return Math.min(normalized, maxPadding);
     }
 
     private static void applyItemScaleTransform(GuiGraphics guiGraphics, int drawX, int drawY, float iconScale) {

@@ -140,7 +140,6 @@ These variables are useful in `slot` and `container` scenarios:
 - `--aui-slot-render-bg`
 - `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
-- `--aui-slot-padding`
 - `--aui-slot-z`
 - `--aui-slot-interactive`
 - `--aui-slot-cycle`

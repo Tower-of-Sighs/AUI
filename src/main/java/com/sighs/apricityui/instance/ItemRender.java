@@ -36,14 +36,15 @@ public final class ItemRender {
             Position body = rect.getBodyRectPosition();
             Size bodySize = rect.getBodyRectSize();
 
-            int slotWidth = Math.max(1, (int) Math.round(bodySize.width()));
-            int slotHeight = Math.max(1, (int) Math.round(bodySize.height()));
-            int padding = clampPadding(Math.min(slotWidth, slotHeight), slot.resolveItemPadding(0));
-
-            int renderWidth = Math.max(1, slotWidth - padding * 2);
-            int renderHeight = Math.max(1, slotHeight - padding * 2);
-            int drawX = (int) Math.round(body.x + padding + (renderWidth - 16) / 2.0);
-            int drawY = (int) Math.round(body.y + padding + (renderHeight - 16) / 2.0);
+            // 背景贴图在 Rect/ImageDrawer 路径里会按整数像素栅格落点；
+            // 这里也使用同一套取整方式，避免 18x18 slot 在出现 0.5px 等小数坐标时，
+            // 物品图标因为 round 而相对背景偏移 1px，导致视觉上不居中。
+            int snappedBodyX = (int) body.x;
+            int snappedBodyY = (int) body.y;
+            int slotWidth = Math.max(1, (int) bodySize.width());
+            int slotHeight = Math.max(1, (int) bodySize.height());
+            int drawX = snappedBodyX + (int) Math.round((slotWidth - 16) / 2.0);
+            int drawY = snappedBodyY + (int) Math.round((slotHeight - 16) / 2.0);
 
             ItemStack stack = slot.resolveDisplayStack();
             if (stack.isEmpty()) continue;
@@ -56,12 +57,6 @@ public final class ItemRender {
             guiGraphics.renderItemDecorations(font, stack, drawX, drawY);
             guiGraphics.pose().popPose();
         }
-    }
-
-    private static int clampPadding(int slotSize, int padding) {
-        int maxPadding = Math.max(0, (Math.max(1, slotSize) - 1) / 2);
-        int normalized = Math.max(0, padding);
-        return Math.min(normalized, maxPadding);
     }
 
     private static void applyItemScaleTransform(GuiGraphics guiGraphics, int drawX, int drawY, float iconScale) {

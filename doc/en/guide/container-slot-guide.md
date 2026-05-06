@@ -99,8 +99,8 @@ Example:
 
 - `size` (alias `slot-size`): slot pixel size
 - `iconScale`: item icon scale factor
-- `padding`: item padding
-- CSS custom properties: `--aui-slot-size`, `--aui-slot-icon-scale`, `--aui-slot-padding`
+- CSS custom properties: `--aui-slot-size`, `--aui-slot-icon-scale`
+- Item textures are always auto-centered inside the slot; use container/recipe `gap` if you want more space between slots
 - CSS such as `position/top/left/...` can still be used for manual layout
 
 ## 4. Player Container Default 36 Slots

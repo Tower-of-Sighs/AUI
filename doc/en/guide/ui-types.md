@@ -104,7 +104,6 @@ Default `global.css` variables:
 - `--aui-slot-render-bg`: whether to render slot background (`1/0`)
 - `--aui-slot-render-item`: whether to render item (`1/0`)
 - `--aui-slot-icon-scale`: icon scale
-- `--aui-slot-padding`: icon padding
 - `--aui-slot-z`: slot z-index
 - `--aui-slot-interactive`: whether interaction is allowed (`1/0`)
 - `--aui-slot-cycle` / `--aui-slot-cycle-interval`: virtual slot cycling toggle and interval

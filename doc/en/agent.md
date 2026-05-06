@@ -142,7 +142,6 @@ Do not require `frameW` or `frameH`. The current implementation can infer frame 
 - `--aui-slot-render-bg`
 - `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
-- `--aui-slot-padding`
 - `--aui-slot-z`
 - `--aui-slot-interactive`
 - `--aui-slot-cycle`
