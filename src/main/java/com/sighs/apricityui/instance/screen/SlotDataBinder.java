@@ -30,11 +30,18 @@ public final class SlotDataBinder {
      */
     public void bindSlotsFromDocument(Document document) {
         clear();
-        if (document == null || menu.getLayout().isUiOnly()) return;
+        if (document == null) return;
 
+        boolean uiOnly = menu.getLayout().isUiOnly();
         List<Element> elements = document.getElements();
         for (Element element : elements) {
             if (!(element instanceof Slot slotElement)) continue;
+
+            // 纯 UI 页面没有真实菜单槽位可绑定，但 slot / recipe 预览仍应作为展示槽位参与物品渲染。
+            if (uiOnly) {
+                displaySlots.add(slotElement);
+                continue;
+            }
 
             Container container = slotElement.findAncestor(Container.class);
             if (container == null) {
