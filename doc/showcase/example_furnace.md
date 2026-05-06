@@ -14,13 +14,11 @@
 ```html
 <body>
 <div class="screen">
-    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3">
-        <div class="title">换皮熔炉QAQ</div>
-    </container>
+    <div class="title">换皮熔炉QAQ</div>
+    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3"></container>
 
-    <container id="player" class="player-panel" bind="player" layout="preset:player">
-        <div class="title">玩家背包</div>
-    </container>
+    <div class="title">玩家背包</div>
+    <container id="player" class="player-panel" bind="player" layout="preset:player"></container>
 </div>
 </body>
 
