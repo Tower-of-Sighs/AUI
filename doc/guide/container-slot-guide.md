@@ -15,7 +15,7 @@
 - 在 container 内且被数据源绑定的 slot 自动获得交互能力，显示真实菜单物品
 - 在 container 外或未被绑定的 slot 为展示用途，通过 innerText 设置展示物品
 - `container` 使用 `layout` 描述槽位布局（仅布局，不负责一般性自动补齐实例）
-- `container` 标题只从容器首个子元素文本读取（如 `div` / `span`）
+- `container` 没有内建标题机制；标题请作为普通 DOM 节点自行编写和布局
 - `recipe` 生成的槽位始终不可交互
 
 ## 2. `container` 属性
@@ -33,17 +33,15 @@
 
 说明：`layout` 仅影响布局，不会在普通场景自动创建缺失槽位实例。
 
-### 2.3 标题规则
+### 2.3 标题
 
-- 标题渲染位置：容器内部
-- 标题来源规则：
-  - 仅读取容器第一个子元素（元素节点）的文本
-  - 首个子元素缺失或文本为空时，不渲染标题区域且不保留占位
+`container` 没有内建标题机制，不会读取 `title` 属性，也不会从首个子元素文本自动推断标题。
+如果需要标题，请作为普通 DOM 节点自行编写和布局。
 
-示例（首子元素作为标题）：
+示例（普通 DOM 标题）：
 ```html
+<div class="demo-title">我的标题</div>
 <container primary="true" bind="player" layout="preset:player">
-  <div class="demo-title">我的标题（跟随容器布局）</div>
   <slot slot-index="0" repeat="36"></slot>
 </container>
 ```
@@ -137,13 +135,13 @@
 示例片段（saveddata + playerinv）：
 
 ```html
+<div class="demo-title">SavedData 仓库（9 格，primary）</div>
 <container primary="true" bind="saved_data" layout="[9,3,3]">
-  <div class="demo-title">SavedData 仓库（9 格，primary）</div>
   <slot repeat="9" slot-index="0"></slot>
 </container>
 
+<div class="demo-title">PlayerInv（36 格）</div>
 <container bind="player" layout="preset:player">
-  <div class="demo-title">PlayerInv（36 格）</div>
   <slot repeat="36" slot-index="0"></slot>
 </container>
 

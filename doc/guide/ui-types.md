@@ -263,7 +263,7 @@ let window = ApricityUI.createFollowFacingWorldWindow(
 1. `slot` 现在统一一个标签，容器内默认绑定真实槽位，容器外默认 virtual。
 2. `bind="player"` 的容器在没有显式 bound 槽位时，会自动补玩家 36 格。
 3. `recipe` 始终只负责展示，不参与真实容器绑定。
-4. `container` 标题只读取首个子元素的文本，不再读旧式标题属性。
+4. `container` 没有内建标题机制；标题请作为普通 DOM 节点自行编写和布局。
 
 ---
 

@@ -263,7 +263,7 @@ These matter a lot, especially for Screen:
 1. `slot` is now unified into one tag. Inside a container it defaults to real bound slots, outside a container it defaults to virtual slots.
 2. A `bind="player"` container automatically gets 36 player slots if no explicit bound slots are declared.
 3. `recipe` is display-only and never participates in real container binding.
-4. Container titles only read the text of the first child element, not legacy title attributes.
+4. `container` has no built-in title mechanism; write and lay out titles as ordinary DOM nodes.
 
 ---
 
