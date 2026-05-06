@@ -2,7 +2,10 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.render.AABB;
+import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -50,13 +53,54 @@ public final class ItemRender {
             if (stack.isEmpty()) continue;
 
             float iconScale = Math.max(0.01F, slot.resolveIconScale(1.0F));
-            guiGraphics.pose().pushPose();
-            guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + slot.resolveZIndex(0));
-            applyItemScaleTransform(guiGraphics, drawX, drawY, iconScale);
-            guiGraphics.renderItem(stack, drawX, drawY);
-            guiGraphics.renderItemDecorations(font, stack, drawX, drawY);
-            guiGraphics.pose().popPose();
+            withInheritedClip(slot, () -> {
+                guiGraphics.pose().pushPose();
+                guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + slot.resolveZIndex(0));
+                applyItemScaleTransform(guiGraphics, drawX, drawY, iconScale);
+                guiGraphics.renderItem(stack, drawX, drawY);
+                guiGraphics.renderItemDecorations(font, stack, drawX, drawY);
+                guiGraphics.pose().popPose();
+            });
         }
+    }
+
+    public static void withInheritedClip(Slot slot, Runnable drawAction) {
+        if (slot == null || drawAction == null) return;
+
+        AABB inheritedClip = resolveInheritedClip(slot);
+        if (inheritedClip == null) {
+            drawAction.run();
+            return;
+        }
+
+        AABB previousScissor = Mask.getCurrentScissor();
+        AABB effectiveClip = previousScissor == null ? inheritedClip : previousScissor.intersection(inheritedClip);
+        if (effectiveClip == null || !effectiveClip.isValid()) return;
+
+        Mask.restoreScissor(effectiveClip);
+        try {
+            drawAction.run();
+        } finally {
+            Mask.restoreScissor(previousScissor);
+        }
+    }
+
+    private static AABB resolveInheritedClip(Slot slot) {
+        AABB resolved = null;
+        for (Element current = slot; current != null; current = current.parentElement) {
+            if (!Style.clipsOverflow(current.getComputedStyle())) continue;
+            AABB currentClip = toBodyClip(current);
+            resolved = resolved == null ? currentClip : resolved.intersection(currentClip);
+            if (!resolved.isValid()) return resolved;
+        }
+        return resolved;
+    }
+
+    private static AABB toBodyClip(Element element) {
+        Rect rect = Rect.of(element);
+        Position body = rect.getBodyRectPosition();
+        Size bodySize = rect.getBodyRectSize();
+        return new AABB((float) body.x, (float) body.y, Math.max(0.0F, (float) bodySize.width()), Math.max(0.0F, (float) bodySize.height()));
     }
 
     private static void applyItemScaleTransform(GuiGraphics guiGraphics, int drawX, int drawY, float iconScale) {
