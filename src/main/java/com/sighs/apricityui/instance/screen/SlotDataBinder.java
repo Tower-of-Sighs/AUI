@@ -162,7 +162,6 @@ public final class SlotDataBinder {
                 slotElement.isDisabled(),
                 slotElement.shouldRenderItem(),
                 slotElement.resolveSlotSizeHint(16),
-                slotElement.resolveItemPadding(0),
                 slotElement.resolveIconScale(1.0F),
                 slotElement.resolveZIndex(0)
         );
@@ -214,11 +213,10 @@ public final class SlotDataBinder {
             boolean disabled,
             boolean renderItem,
             int slotSize,
-            int padding,
             float iconScale,
             int zIndex
     ) {
-        public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 0, 1.0F, 0);
+        public static final SlotVisual DEFAULT = new SlotVisual(false, false, true, 16, 1.0F, 0);
     }
 
     private record SlotBinding(Slot slotElement, int globalIndex, int localIndex) {

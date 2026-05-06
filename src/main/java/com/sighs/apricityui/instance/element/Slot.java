@@ -157,16 +157,6 @@ public class Slot extends MinecraftElement {
         return Math.max(0.01F, fallback);
     }
 
-    public int resolveItemPadding(int fallback) {
-        Integer cssPadding = parseNonNegativeInt(getCustomPropertyInherit("--aui-slot-padding"));
-        if (cssPadding != null) return cssPadding;
-        Integer attrPadding = parseNonNegativeInt(getAttribute("padding"));
-        if (attrPadding != null) return attrPadding;
-        ApricityContainerMenu.UiSlot uiSlot = resolveUiSlot();
-        if (isBoundToMenuSlot() && uiSlot != null) return Math.max(0, uiSlot.getUiPadding());
-        return Math.max(0, fallback);
-    }
-
     public int resolveZIndex(int fallback) {
         Integer cssZ = parseInt(getCustomPropertyInherit("--aui-slot-z"));
         if (cssZ != null) return cssZ;
@@ -331,11 +321,6 @@ public class Slot extends MinecraftElement {
     private static Integer parsePositiveInt(String raw) {
         Integer parsed = parseInt(raw);
         return parsed != null && parsed > 0 ? parsed : null;
-    }
-
-    private static Integer parseNonNegativeInt(String raw) {
-        Integer parsed = parseInt(raw);
-        return parsed != null && parsed >= 0 ? parsed : null;
     }
 
     private static Long parsePositiveLong(String raw) {

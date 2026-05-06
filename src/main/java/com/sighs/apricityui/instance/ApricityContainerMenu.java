@@ -269,7 +269,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         private boolean uiRenderBackground = true;
         private boolean uiRenderItem = true;
         private float uiIconScale = 1.0F;
-        private int uiPadding = 0;
         private int uiZIndex = 0;
 
         public UiSlot(Container container, int slot, int x, int y) {
@@ -347,14 +346,6 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
         public void setUiIconScale(float uiIconScale) {
             this.uiIconScale = Math.max(0.01F, uiIconScale);
-        }
-
-        public int getUiPadding() {
-            return uiPadding;
-        }
-
-        public void setUiPadding(int uiPadding) {
-            this.uiPadding = Math.max(0, uiPadding);
         }
 
         public int getUiZIndex() {
