@@ -78,7 +78,6 @@ ApricityUI.openScreen("demo/index.html")
 - `--aui-slot-render-bg`：是否渲染槽位背景（1/0）；
 - `--aui-slot-render-item`：是否渲染物品（1/0）；
 - `--aui-slot-icon-scale`：图标缩放（浮点）；
-- `--aui-slot-padding`：图标内边距（整数）；
 - `--aui-slot-z`：槽位层级（整数）；
 - `--aui-slot-interactive`：是否允许交互（1/0）；
 - `--aui-slot-cycle` / `--aui-slot-cycle-interval`：virtual 槽位轮播开关与间隔；
