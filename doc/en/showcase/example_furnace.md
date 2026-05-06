@@ -16,13 +16,11 @@ display items but cannot accept real item placement.
 ```html
 <body>
 <div class="screen">
-    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3">
-        <div class="title">Reskinned Furnace QAQ</div>
-    </container>
+    <div class="title">Reskinned Furnace QAQ</div>
+    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3"></container>
 
-    <container id="player" class="player-panel" bind="player" layout="preset:player">
-        <div class="title">Player Inventory</div>
-    </container>
+    <div class="title">Player Inventory</div>
+    <container id="player" class="player-panel" bind="player" layout="preset:player"></container>
 </div>
 </body>
 

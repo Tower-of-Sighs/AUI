@@ -119,7 +119,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     @Override
     protected void renderLabels(@NotNull GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        // 标题改为容器内节点渲染，不再固定绘制到屏幕左上角。
+        // 不绘制 Minecraft 默认标题；标题如有需要由模板普通 DOM 自行实现。
     }
 
     @Override

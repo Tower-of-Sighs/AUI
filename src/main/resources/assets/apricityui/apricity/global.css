@@ -169,10 +169,6 @@ container[layout="preset:player"] {
     align-items: stretch;
 }
 
-container[layout="preset:player"] > .title:first-child {
-    grid-column: 1 / span 9;
-}
-
 container[layout="preset:player"] > slot[slot-index="9"] { grid-column: 1; grid-row: 2; }
 container[layout="preset:player"] > slot[slot-index="10"] { grid-column: 2; grid-row: 2; }
 container[layout="preset:player"] > slot[slot-index="11"] { grid-column: 3; grid-row: 2; }
