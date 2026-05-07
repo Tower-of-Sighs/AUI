@@ -70,7 +70,10 @@ public class Element {
         String trimmed = value.trim();
         if (trimmed.isEmpty()) return Collections.emptySet();
         // 只在 class 属性变化时解析；selector match 路径只读缓存，避免 split/Set.of 的高频分配。
-        return Set.of(trimmed.split("\\s+"));
+        // class token 允许重复输入，这里按出现顺序去重，避免因为重复 class 导致整个页面初始化失败。
+        LinkedHashSet<String> classNames = new LinkedHashSet<>(Arrays.asList(trimmed.split("\\s+")));
+        if (classNames.isEmpty()) return Collections.emptySet();
+        return Collections.unmodifiableSet(classNames);
     }
 
     protected final void invalidateStyleCaches() {
@@ -184,6 +187,21 @@ public class Element {
 
     public String getCustomProperty(String name) {
         return getRawComputedStyle().getCustomProperty(name);
+    }
+
+    /**
+     * 仅返回当前元素原始 custom property 值，不触发 var() 解析，也不重入 computed style 构建。
+     */
+    public String getRawCustomProperty(String name) {
+        Style cached = renderElement.computedStyle.get();
+        if (cached != null) {
+            return cached.getCustomProperty(name);
+        }
+
+        Style rawStyle = new Style();
+        cssCache.forEach(rawStyle::update);
+        rawStyle.merge(getAttribute("style"));
+        return rawStyle.getCustomProperty(name);
     }
 
     public String getCustomPropertyInherit(String name) {
@@ -332,8 +350,9 @@ public class Element {
             computedStyle = new Style();
             cssCache.forEach(computedStyle::update);
             computedStyle.merge(getAttribute("style"));
-            computedStyle.resolveVarReferences(this);
+            // 先缓存当前构建中的 Style，避免 var() 解析阶段再次回到本元素时重复创建并递归进入。
             renderElement.computedStyle.set(computedStyle);
+            computedStyle.resolveVarReferences(this);
             isPointerEnabled = computedStyle.pointerEvents.equals("auto");
             isVisible = computedStyle.visibility.equals("visible");
         }
