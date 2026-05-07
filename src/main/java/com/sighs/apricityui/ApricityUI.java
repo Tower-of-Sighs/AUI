@@ -10,6 +10,7 @@ import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
+import com.sighs.apricityui.instance.network.handler.PendingMenu;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import net.minecraft.server.level.ServerPlayer;
