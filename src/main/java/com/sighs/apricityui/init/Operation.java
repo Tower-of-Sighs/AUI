@@ -7,7 +7,7 @@ import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.client.Minecraft;
@@ -176,7 +176,7 @@ public class Operation {
             ResourceManager.toggle();
         }
         if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
-            Loader.reload();
+            ClientLoader.reload();
         }
         return cancel;
     }

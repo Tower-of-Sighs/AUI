@@ -2,6 +2,7 @@ package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.CSS;
@@ -43,7 +44,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
         int order = 0;
 
-        String globalCss = Loader.readGlobalCSS();
+        String globalCss = ClientLoader.readGlobalCSS();
         if (globalCss != null && !globalCss.isBlank()) {
             ParsedCss parsed = parseCss(globalCss, "global.css");
             handle.putCssEntry(order++, new StyleHandle.CssEntry("global.css", parsed.cssText));
@@ -196,7 +197,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         if (Loader.isRemotePath(path)) {
             return NetworkAsyncHandler.INSTANCE.fetchBytes(path);
         }
-        try (InputStream stream = Loader.getResourceStream(path)) {
+        try (InputStream stream = ClientLoader.getResourceStream(path)) {
             if (stream == null) throw new IOException("未找到样式资源: " + path);
             return stream.readAllBytes();
         }
