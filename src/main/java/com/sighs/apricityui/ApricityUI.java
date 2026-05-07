@@ -1,7 +1,6 @@
 package com.sighs.apricityui;
 
 import com.mojang.logging.LogUtils;
-import com.sighs.apricityui.dev.TestBlockEntity;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.ApricityUIConfig;
@@ -46,7 +45,6 @@ public class ApricityUI {
         }
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.instance.element");
         ApricityMenus.register(modEventBus);
-        TestBlockEntity.register(modEventBus);
         ApricityNetwork.register();
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
