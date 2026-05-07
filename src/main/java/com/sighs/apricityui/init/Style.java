@@ -765,9 +765,14 @@ public class Style implements Cloneable {
         String local = customProperties.get(normalized);
         if (local != null && !local.isBlank()) return local;
 
-        // 沿继承链向上查找
-        if (context == null) return null;
-        return context.getCustomPropertyInherit(normalized);
+        // 沿继承链向上查找原始 customProperties，避免重入 computed style 构建。
+        Element current = context;
+        while (current != null) {
+            String inherited = current.getRawCustomProperty(normalized);
+            if (inherited != null && !inherited.isBlank()) return inherited;
+            current = current.parentElement;
+        }
+        return null;
     }
 
     // font-size转为fontSize这样的
