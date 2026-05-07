@@ -5,20 +5,14 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.Util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class ResourceManager {
     private static final String PATH = "devtools/resource-manager.html";
@@ -89,7 +83,7 @@ public class ResourceManager {
                 || previewSize == null || previewSource == null || previewStatus == null
                 || previewStatusPath == null || closePreviewBtn == null) return;
 
-        List<Loader.StaticResourceEntry> allEntries = Loader.listFinalStaticResources();
+        List<Loader.StaticResourceEntry> allEntries = ClientLoader.listFinalStaticResources();
         List<Loader.StaticResourceEntry> displayEntries = applyFilter(allEntries, filterText);
         title.innerText = "Resource Manager";
         count.innerText = displayEntries.size() + " / " + allEntries.size();
@@ -129,7 +123,7 @@ public class ResourceManager {
 
     public static boolean devOpenContextMenuForFirstResource() {
         if (toolDocument == null || toolDocument.body == null) return false;
-        List<Loader.StaticResourceEntry> allEntries = Loader.listFinalStaticResources();
+        List<Loader.StaticResourceEntry> allEntries = ClientLoader.listFinalStaticResources();
         List<Loader.StaticResourceEntry> displayEntries = applyFilter(allEntries, filterText);
         if (displayEntries.isEmpty()) return false;
         viewMode = ViewMode.ALL;
