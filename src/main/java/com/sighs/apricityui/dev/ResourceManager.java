@@ -2,7 +2,12 @@ package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.util.Util;
@@ -81,7 +86,7 @@ public class ResourceManager {
                 || previewSize == null || previewSource == null || previewStatus == null
                 || previewStatusPath == null || closePreviewBtn == null) return;
 
-        List<Loader.StaticResourceEntry> allEntries = Loader.listFinalStaticResources();
+        List<Loader.StaticResourceEntry> allEntries = ClientLoader.listFinalStaticResources();
         List<Loader.StaticResourceEntry> displayEntries = applyFilter(allEntries, filterText);
         title.innerText = "Resource Manager";
         count.innerText = displayEntries.size() + " / " + allEntries.size();
@@ -121,7 +126,7 @@ public class ResourceManager {
 
     public static boolean devOpenContextMenuForFirstResource() {
         if (toolDocument == null || toolDocument.body == null) return false;
-        List<Loader.StaticResourceEntry> allEntries = Loader.listFinalStaticResources();
+        List<Loader.StaticResourceEntry> allEntries = ClientLoader.listFinalStaticResources();
         List<Loader.StaticResourceEntry> displayEntries = applyFilter(allEntries, filterText);
         if (displayEntries.isEmpty()) return false;
         viewMode = ViewMode.ALL;

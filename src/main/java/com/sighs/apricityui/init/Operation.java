@@ -8,8 +8,8 @@ import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
-import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.registry.ApricityKeybindings;
+import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.style.Position;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -180,7 +180,7 @@ public class Operation {
             ExamplePage.toggle(key);
         }
         if (!repeat && key == ApricityKeybindings.RELOAD.get().getKey().getValue()) {
-            Loader.reload();
+            ClientLoader.reload();
         }
         return cancel;
     }
