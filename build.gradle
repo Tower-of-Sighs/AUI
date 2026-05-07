@@ -157,6 +157,10 @@ dependencies {
     // additionalRuntimeClasspath("dev.vfyjxf:mixin-hotswap-agent:1.1")
 }
 
+tasks.withType(GenerateModuleMetadata) {
+    enabled = false
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
