@@ -77,7 +77,7 @@ public final class DebugReloadWatcher {
         }
         lastReloadMs = now;
         ApricityUI.LOGGER.info("[DebugReload] change detected: {}", path.toAbsolutePath());
-        Loader.reload();
+        ClientLoader.reload();
         ApricityUI.LOGGER.info("[DebugReload] reload completed");
     }
 }

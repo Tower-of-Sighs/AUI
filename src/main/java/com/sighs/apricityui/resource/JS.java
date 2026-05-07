@@ -1,6 +1,7 @@
 package com.sighs.apricityui.resource;
 
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 
 import java.io.IOException;
@@ -69,7 +70,7 @@ public class JS {
         public void pushToDocument(Document document) {
             for (String src : cachedScriptSrcs) {
                 String resolvedPath = Loader.resolve(contextPath, src);
-                try (InputStream is = Loader.getResourceStream(resolvedPath)) {
+                try (InputStream is = ClientLoader.getResourceStream(resolvedPath)) {
                     if (is != null) {
                         String content = new String(is.readAllBytes(), StandardCharsets.UTF_8);
                         document.JSCache.add(content);

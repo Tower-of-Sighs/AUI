@@ -2,6 +2,7 @@ package com.sighs.apricityui.resource.async.image;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
@@ -141,7 +142,7 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         if (Loader.isRemotePath(path)) {
             return NetworkAsyncHandler.INSTANCE.fetchBytes(path);
         }
-        try (InputStream stream = Loader.getResourceStream(path)) {
+        try (InputStream stream = ClientLoader.getResourceStream(path)) {
             if (stream == null) {
                 throw new IllegalStateException("未找到图片资源: " + path);
             }
