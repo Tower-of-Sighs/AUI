@@ -47,15 +47,10 @@ public final class ItemRender {
             Position body = rect.getBodyRectPosition();
             Size bodySize = rect.getBodyRectSize();
 
-            // 背景贴图在 Rect/ImageDrawer 路径里会按整数像素栅格落点；
-            // 这里也使用同一套取整方式，避免 18x18 slot 在出现 0.5px 等小数坐标时，
-            // 物品图标因为 round 而相对背景偏移 1px，导致视觉上不居中。
-            int snappedBodyX = (int) body.x;
-            int snappedBodyY = (int) body.y;
-            int slotWidth = Math.max(1, (int) bodySize.width());
-            int slotHeight = Math.max(1, (int) bodySize.height());
-            int drawX = snappedBodyX + (int) Math.round((slotWidth - 16) / 2.0);
-            int drawY = snappedBodyY + (int) Math.round((slotHeight - 16) / 2.0);
+            float slotWidth = Math.max(1.0F, (float) bodySize.width());
+            float slotHeight = Math.max(1.0F, (float) bodySize.height());
+            float drawX = (float) body.x + (slotWidth - 16.0F) / 2.0F;
+            float drawY = (float) body.y + (slotHeight - 16.0F) / 2.0F;
 
             ItemStack stack = slot.resolveDisplayStack();
             if (stack.isEmpty()) continue;
@@ -64,9 +59,10 @@ public final class ItemRender {
             withInheritedClip(slot, () -> {
                 guiGraphics.nextStratum();
                 guiGraphics.pose().pushMatrix();
-                applyItemScaleTransform(guiGraphics, drawX, drawY, iconScale);
-                guiGraphics.item(stack, drawX, drawY);
-                guiGraphics.itemDecorations(font, stack, drawX, drawY);
+                guiGraphics.pose().translate(drawX, drawY);
+                applyItemScaleTransform(guiGraphics, iconScale);
+                guiGraphics.item(stack, 0, 0);
+                guiGraphics.itemDecorations(font, stack, 0, 0);
                 guiGraphics.pose().popMatrix();
             });
         }
@@ -111,12 +107,10 @@ public final class ItemRender {
         return new AABB((float) body.x, (float) body.y, Math.max(0.0F, (float) bodySize.width()), Math.max(0.0F, (float) bodySize.height()));
     }
 
-    private static void applyItemScaleTransform(GuiGraphicsExtractor guiGraphics, int drawX, int drawY, float iconScale) {
+    private static void applyItemScaleTransform(GuiGraphicsExtractor guiGraphics, float iconScale) {
         if (Math.abs(iconScale - 1.0F) <= ICON_SCALE_EPSILON) return;
-        float centerX = drawX + 8.0F;
-        float centerY = drawY + 8.0F;
-        guiGraphics.pose().translate(centerX, centerY);
+        guiGraphics.pose().translate(8.0F, 8.0F);
         guiGraphics.pose().scale(iconScale, iconScale);
-        guiGraphics.pose().translate(-centerX, -centerY);
+        guiGraphics.pose().translate(-8.0F, -8.0F);
     }
 }
