@@ -146,7 +146,7 @@ public class Rect {
                 }
                 if (!"unset".equals(layer.imagePath)) {
                     Graph.endBatch();
-                    ImageDrawer.drawComplexBackground(poseStack, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), layer);
+                    ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), layer);
                     Graph.beginBatch();
                 }
             }
@@ -163,7 +163,7 @@ public class Rect {
         }
         if (!background.imagePath.equals("unset")) {
             Graph.endBatch();
-            ImageDrawer.drawComplexBackground(poseStack, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), background);
+            ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), background);
             return;
         }
         Graph.endBatch();
