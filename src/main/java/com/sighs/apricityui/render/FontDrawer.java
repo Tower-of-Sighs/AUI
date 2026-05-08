@@ -126,7 +126,7 @@ public class FontDrawer {
 
     private static FontEntry rebuildTextureEntry(Text text, String content, String cacheKey) {
         String fontKey = text.fontFamily;
-        java.awt.Font baseFont = Font.getBaseFont(fontKey);
+        java.awt.Font baseFont = Font.resolveBaseFont(fontKey);
         int fontStyle = java.awt.Font.PLAIN;
         if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
         if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;

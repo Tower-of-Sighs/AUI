@@ -419,7 +419,7 @@ public class Element {
     }
 
     public boolean canScroll() {
-        return canScrollVertically();
+        return canScrollVertically() || canScrollHorizontally();
     }
 
     public boolean canScrollVertically() {
