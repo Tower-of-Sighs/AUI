@@ -227,25 +227,42 @@ public class MouseEvent extends Event implements Cloneable {
 
     // 触发滚动，印象中是有个单独事件的，但是目前也并在鼠标事件里，以后要单独做出来。
     private static void scroll(MouseEvent event) {
-        Element target = null;
-        ArrayList<Element> route = event.target.getRoute();
-        for (Element element : route) {
-            if (element.canScroll()) {
-                target = element;
-                break;
-            }
-        }
-        if (target != null) {
-            if (event.shiftKey && target.canScrollHorizontally()) {
+        Element target = resolveScrollTarget(event);
+        if (target == null) return;
+
+        if (event.shiftKey) {
+            if (target.canScrollHorizontally()) {
                 target.setScrollLeft(target.getTargetScrollLeft() + event.scrollDelta);
             } else {
                 target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
             }
-            if (target.document != null) {
-                // 滚动不改变层叠/节点关系，仅触发重绘。
-                target.document.markDirty(target, Drawer.REPAINT);
-            }
+        } else {
+            target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
         }
+        if (target.document != null) {
+            // 滚动不改变层叠/节点关系，仅触发重绘。
+            target.document.markDirty(target, Drawer.REPAINT);
+        }
+    }
+
+    private static Element resolveScrollTarget(MouseEvent event) {
+        if (event == null || event.target == null) return null;
+        ArrayList<Element> route = event.target.getRoute();
+        if (event.shiftKey) {
+            Element verticalFallback = null;
+            for (Element element : route) {
+                if (element.canScrollHorizontally()) return element;
+                if (verticalFallback == null && element.canScrollVertically()) {
+                    verticalFallback = element;
+                }
+            }
+            return verticalFallback;
+        }
+
+        for (Element element : route) {
+            if (element.canScrollVertically()) return element;
+        }
+        return null;
     }
 
     // 肥简单的范围检查，看鼠标位置是否在某元素的范围内。

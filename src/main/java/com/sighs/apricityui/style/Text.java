@@ -200,7 +200,7 @@ public class Text {
             return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * (text.fontSize / 9.0) + text.strokeWidth * 2.0 + letterSpacingWidth;
         }
 
-        java.awt.Font baseFont = Font.getBaseFont(text.fontFamily);
+        java.awt.Font baseFont = Font.resolveBaseFont(text.fontFamily);
         if (baseFont == null) return 0;
         int fontStyle = java.awt.Font.PLAIN;
         if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
