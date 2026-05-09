@@ -86,31 +86,25 @@ ApricityUI.closeScreen();
 
 但如果你要接真实槽位、真实容器、真实背包数据，就别只走客户端开屏了。
 
-这种情况应该走服务端权威入口：
+这种情况应该走服务端权威入口。容器信息由模板中的 `<container>` 元素声明，客户端 `openScreen` 会自动提取容器声明并发送到服务端：
 
 ```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build()
-
-ApricityUI.openScreen(player, "demo/index.html", plan)
+// 容器信息由模板中的 <container> 元素声明
+// 客户端 openScreen 会自动提取并发送到服务端
+ApricityUI.openScreen("demo/index.html")
 ```
 
 Java 写法也是同一套接口：
 
 ```java
-OpenBindPlan plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build();
-
-ApricityUI.openScreen(player, "demo/index.html", plan);
+// 容器信息由模板中的 <container> 元素声明
+// 客户端 openScreen 会自动提取并发送到服务端
+ApricityUI.openScreen("demo/index.html");
 ```
 
 这里有个关键点：
 
-模板里的顶层 `container id`，必须和 `OpenBindPlan` 里的名字对上。
+模板里的顶层 `container id`，必须和容器声明里的名字对上。
 
 比如你写了：
 
@@ -123,41 +117,35 @@ ApricityUI.openScreen(player, "demo/index.html", plan);
 
 ---
 
-### Screen 里最常见的几种绑定
+### Screen 里最常见的几种容器声明
+
+容器声明由模板中的 `<container>` 元素属性（`id`、`bind`、`size`、`primary`）驱动。以下是常见的模板声明示例：
 
 #### 1. 玩家背包
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("player").player()
-    .build()
+```html
+<container id="player" bind="player"></container>
 ```
 
 #### 2. SavedData 容器
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build()
+```html
+<container id="main" bind="saved_data" size="27" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 #### 3. 方块实体背包
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("machine").blockEntity(100, 64, 200, "up")
-    .bind("player").player()
-    .build()
+```html
+<container id="machine" bind="block_entity" size="9" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 #### 4. 实体背包
 
-```javascript
-let plan = ApricityUI.bind()
-    .primaryBind("entity_inv").entity("00000000-0000-0000-0000-000000000000")
-    .bind("player").player()
-    .build()
+```html
+<container id="entity_inv" bind="entity" size="27" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 要注意，实体绑定需要目标实体真的提供物品能力，不然开不起来。
@@ -275,7 +263,7 @@ let window = ApricityUI.createFollowFacingWorldWindow(
 1. `slot` 现在统一一个标签，容器内默认绑定真实槽位，容器外默认 virtual。
 2. `bind="player"` 的容器在没有显式 bound 槽位时，会自动补玩家 36 格。
 3. `recipe` 始终只负责展示，不参与真实容器绑定。
-4. `container` 标题只读取首个子元素的文本，不再读旧式标题属性。
+4. `container` 没有内建标题机制；标题请作为普通 DOM 节点自行编写和布局。
 
 ---
 

@@ -7,15 +7,15 @@ import com.sighs.apricityui.instance.ApricityUIConfig;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.instance.WorldWindow;
-import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
-import com.sighs.apricityui.instance.element.Container;
+import com.sighs.apricityui.instance.network.handler.PendingMenu;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import dev.latvian.mods.rhino.util.HideFromJS;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
@@ -25,8 +25,6 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
-import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.phys.Vec3;
 import org.slf4j.Logger;
 
 import java.io.IOException;
@@ -90,24 +88,44 @@ public class ApricityUI {
         return Document.getAll();
     }
 
-    public static void openScreen(String path) {
+    /**
+     * 客户端打开纯展示 UI Screen（不涉及服务端容器绑定）。
+     */
+    public static void screen(String path) {
         ApricityScreenNetworkHandler.requestOpenScreen(path);
     }
 
-    public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
-        ApricityScreenNetworkHandler.openScreen(player, path, plan);
+    /**
+     * 服务端创建带容器绑定的菜单 Screen。
+     * <p>
+     * 使用示例：
+     * <pre>
+     * ApricityUI.menu(player, "test/test.html").bind(b -> b.blockEntity(pos).player());
+     * </pre>
+     *
+     * @param player       服务端玩家
+     * @param templatePath 模板路径
+     * @return 待绑定的菜单对象，调用 {@code .bind()} 后立即打开
+     */
+    public static PendingMenu menu(ServerPlayer player, String templatePath) {
+        return new PendingMenu(player, templatePath);
     }
 
+    /**
+     * 客户端请求打开 Screen（发送网络包到服务端解析容器）。
+     *
+     * @deprecated 使用 {@link #screen(String)} 替代
+     */
+    @Deprecated
+    public static void openScreen(String path) {
+        screen(path);
+    }
+
+    /**
+     * 客户端请求关闭当前 Screen。
+     */
     public static void closeScreen() {
         ApricityScreenNetworkHandler.requestCloseScreen();
-    }
-
-    public static OpenBindPlan.Builder bind() {
-        return OpenBindPlan.builder();
-    }
-
-    public static boolean hasDataSource(ContainerBindType bindType) {
-        return Container.hasBindingDataSource(bindType);
     }
 
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {

@@ -8,8 +8,7 @@ public enum ContainerBindType {
     PLAYER("player"),
     ENTITY("entity"),
     BLOCK_ENTITY("block_entity"),
-    SAVED_DATA("saved_data"),
-    VIRTUAL_UI("__virtual_ui");
+    SAVED_DATA("saved_data");
 
     public static final int PLAYER_SLOT_COUNT = 36;
 
@@ -36,8 +35,11 @@ public enum ContainerBindType {
         return bindType == PLAYER;
     }
 
-    public static boolean isVirtualUi(ContainerBindType bindType) {
-        return bindType == VIRTUAL_UI;
+    /**
+     * 判断指定绑定类型是否有对应的数据源。
+     */
+    public static boolean hasDataSource(ContainerBindType bindType) {
+        return bindType != null;
     }
 
     public String id() {

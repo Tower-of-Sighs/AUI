@@ -2,7 +2,7 @@ package com.sighs.apricityui.resource;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.ClientLoader;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -27,7 +27,7 @@ public class HTML {
     }
 
     public static void scan() {
-        new Loader("html").loadResources(HTML::putTemple);
+        new ClientLoader("html").loadResources(HTML::putTemple);
     }
 
     public static Element create(Document document, String path) {

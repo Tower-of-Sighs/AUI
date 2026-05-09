@@ -57,9 +57,9 @@
 
 ### 5.1 `container`
 
-1. 顶层容器建议显式写 `id`，方便和服务端 `OpenBindPlan` 对齐。
+1. 顶层容器建议显式写 `id`，方便和服务端容器声明对齐。
 2. `bind="player"` 的容器如果没有显式写出 bound 槽位，会自动补玩家 36 格。
-3. 标题不要再写旧属性，容器标题只会读取“首个子元素”的文本内容。
+3. `container` 没有内建标题机制；标题请作为普通 DOM 节点自行编写和布局。
 
 ### 5.2 `slot`
 
@@ -143,7 +143,6 @@ innerText 就是翻译 key。
 - `--aui-slot-render-bg`
 - `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
-- `--aui-slot-padding`
 - `--aui-slot-z`
 - `--aui-slot-interactive`
 - `--aui-slot-cycle`
@@ -204,7 +203,7 @@ Minecraft 默认 GUI 缩放下，可用的 GUI 像素尺寸大约是 `427 * 240`
 2. 有没有写进当前并不可靠的 CSS 或 JS API？
 3. `recipe` 是否使用了 `type + innerText`？
 4. virtual `slot` 是否由 innerText 提供物品？
-5. 容器标题是否仍在用旧写法？
+5. 是否误把 `container` 当成有内建标题机制？
 6. 整份结果能不能直接贴进 ApricityUI 跑？
 
 ---

@@ -24,32 +24,26 @@ ApricityUI.closeScreen()
 
 如果你只做 UI 预览（无服务端槽位绑定），直接使用上面的 `openScreen(path)` 即可。
 
-如果你需要真实容器与数据源绑定，建议走服务端权威入口（Java 或 KubeJS 服务端事件中调用）：
+如果你需要真实容器与数据源绑定，建议走服务端权威入口。容器信息由模板中的 `<container>` 元素声明，客户端 `openScreen`
+会自动提取容器声明并发送到服务端：
 ```javascript
-OpenBindPlan plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build()
-
-ApricityUI.openScreen(ServerPlayer player, String path, OpenBindPlan plan)
+// 容器信息由模板中的 <container> 元素声明
+// 客户端 openScreen 会自动提取并发送到服务端
+ApricityUI.openScreen("demo/index.html")
 ```
 
-其中 `main` / `player` 必须与模板里的顶层 `<container id="...">` 对应。
+其中 `main` / `player` 等容器名必须与模板里的顶层 `<container id="...">` 对应，容器声明由模板驱动。
 
-其它常见绑定方式：
+其它常见容器声明示例（写在模板中）：
 
-```javascript
-// 方块实体背包
-OpenBindPlan blockEntityPlan = ApricityUI.bind()
-    .primaryBind("machine").blockEntity(100, 64, 200, "up")
-    .bind("player").player()
-    .build()
+```html
+<!-- 方块实体背包 -->
+<container id="machine" bind="block_entity" size="9" primary="true"></container>
+<container id="player" bind="player"></container>
 
-// 实体背包（按 uuid）
-OpenBindPlan entityPlan = ApricityUI.bind()
-    .primaryBind("entity_inv").entity("00000000-0000-0000-0000-000000000000")
-    .bind("player").player()
-    .build()
+<!-- 实体背包 -->
+<container id="entity_inv" bind="entity" size="27" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 框架不内置触发器；右键物品、快捷键、右键方块、右键方块实体这些触发逻辑由你自己在事件中编写，再调用上述接口。
@@ -62,12 +56,11 @@ OpenBindPlan entityPlan = ApricityUI.bind()
 - 容器内无 `bound` 槽位时，会隐式注入玩家 36 格（27 背包 + 9 快捷栏）；
 - 槽位背景由 `slot` 的 CSS `background-image` 决定，未配置时保持透明。
 
-`container` 的标题策略为：
+`container` 没有内建标题机制：
 
-- 标题在容器内部渲染，不再固定显示在屏幕左上角；
-- 仅从容器首个子元素的文本读取标题（如 `div` / `span`）；
-- 不再支持 `container.title` 属性；
-- 首个子元素缺失或文本为空时，不渲染标题区域且不保留占位。
+- 不会读取 `title` 属性；
+- 不会从首个子元素文本自动推断标题；
+- 标题如有需要，请作为普通 DOM 节点自行编写和布局。
 
 统一槽位语义（新模板推荐）：
 
@@ -85,7 +78,6 @@ OpenBindPlan entityPlan = ApricityUI.bind()
 - `--aui-slot-render-bg`：是否渲染槽位背景（1/0）；
 - `--aui-slot-render-item`：是否渲染物品（1/0）；
 - `--aui-slot-icon-scale`：图标缩放（浮点）；
-- `--aui-slot-padding`：图标内边距（整数）；
 - `--aui-slot-z`：槽位层级（整数）；
 - `--aui-slot-interactive`：是否允许交互（1/0）；
 - `--aui-slot-cycle` / `--aui-slot-cycle-interval`：virtual 槽位轮播开关与间隔；

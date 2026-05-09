@@ -1,6 +1,7 @@
 package com.sighs.apricityui.event;
 
 import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.*;
 
@@ -117,7 +118,7 @@ public class MouseEvent extends Event implements Cloneable {
             Element target = hitTest(paintList, detectionPos);
 
             if (target != null) {
-                Position targetPosition = Position.of(target);
+                Position targetPosition = resolveHitBoxPosition(target);
                 event.offsetX = event.clientX - targetPosition.x;
                 event.offsetY = event.clientY - targetPosition.y;
             }
@@ -146,7 +147,7 @@ public class MouseEvent extends Event implements Cloneable {
             if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
                 MouseEvent activeEvent = event.clone();
                 activeEvent.target = activeElement;
-                Position activePosition = Position.of(activeElement);
+                Position activePosition = resolveHitBoxPosition(activeElement);
                 activeEvent.offsetX = activeEvent.clientX - activePosition.x;
                 activeEvent.offsetY = activeEvent.clientY - activePosition.y;
                 consumed |= Event.triggerSingle(activeEvent);
@@ -226,53 +227,74 @@ public class MouseEvent extends Event implements Cloneable {
 
     // 触发滚动，印象中是有个单独事件的，但是目前也并在鼠标事件里，以后要单独做出来。
     private static void scroll(MouseEvent event) {
-        Element target = null;
-        ArrayList<Element> route = event.target.getRoute();
-        for (Element element : route) {
-            if (element.canScroll()) {
-                target = element;
-                break;
-            }
-        }
-        if (target != null) {
-            if (event.shiftKey && target.canScrollHorizontally()) {
+        Element target = resolveScrollTarget(event);
+        if (target == null) return;
+
+        if (event.shiftKey) {
+            if (target.canScrollHorizontally()) {
                 target.setScrollLeft(target.getTargetScrollLeft() + event.scrollDelta);
             } else {
                 target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
             }
-            if (target.document != null) {
-                // 滚动不改变层叠/节点关系，仅触发重绘。
-                target.document.markDirty(target, Drawer.REPAINT);
-            }
+        } else {
+            target.setScrollTop(target.getTargetScrollTop() + event.scrollDelta);
         }
+        if (target.document != null) {
+            // 滚动不改变层叠/节点关系，仅触发重绘。
+            target.document.markDirty(target, Drawer.REPAINT);
+        }
+    }
+
+    private static Element resolveScrollTarget(MouseEvent event) {
+        if (event == null || event.target == null) return null;
+        ArrayList<Element> route = event.target.getRoute();
+        if (event.shiftKey) {
+            Element verticalFallback = null;
+            for (Element element : route) {
+                if (element.canScrollHorizontally()) return element;
+                if (verticalFallback == null && element.canScrollVertically()) {
+                    verticalFallback = element;
+                }
+            }
+            return verticalFallback;
+        }
+
+        for (Element element : route) {
+            if (element.canScrollVertically()) return element;
+        }
+        return null;
     }
 
     // 肥简单的范围检查，看鼠标位置是否在某元素的范围内。
     public static boolean checkCursor(Element element, Position mousePos) {
         if (mousePos == null) return false;
-        double absX = 0;
-        double absY = 0;
-        boolean first = true;
-        Element current = element;
-        while (current != null) {
-            Position offset = Position.getOffset(current);
-            absX += offset.x;
-            absY += offset.y;
-            if (!first) {
-                absX -= current.getScrollLeft();
-                absY -= current.getScrollTop();
-            }
-            if ("fixed".equals(current.getComputedStyle().position)) break;
-            current = current.parentElement;
-            first = false;
+        Position hitBoxPosition = resolveHitBoxPosition(element);
+        Size hitBoxSize = resolveHitBoxSize(element);
+        return (mousePos.x >= hitBoxPosition.x && mousePos.x <= hitBoxPosition.x + hitBoxSize.width()) &&
+                (mousePos.y >= hitBoxPosition.y && mousePos.y <= hitBoxPosition.y + hitBoxSize.height());
+    }
+
+    private static Position resolveHitBoxPosition(Element element) {
+        if (element == null) return Position.ZERO;
+        if (usesBodyHitBox(element)) {
+            return Rect.of(element).getBodyRectPosition();
         }
 
-        Size size = Size.of(element);
+        Position position = Position.of(element);
         Box box = Box.of(element);
-        double elementX = absX + box.getMarginLeft();
-        double elementY = absY + box.getMarginTop();
-        return (mousePos.x >= elementX && mousePos.x <= elementX + size.width()) &&
-                (mousePos.y >= elementY && mousePos.y <= elementY + size.height());
+        return new Position(position.x + box.getMarginLeft(), position.y + box.getMarginTop());
+    }
+
+    private static Size resolveHitBoxSize(Element element) {
+        if (element == null) return Size.ZERO;
+        if (usesBodyHitBox(element)) {
+            return Rect.of(element).getBodyRectSize();
+        }
+        return Size.of(element);
+    }
+
+    private static boolean usesBodyHitBox(Element element) {
+        return element != null && "IMG".equals(element.tagName);
     }
 
     // 用于寻找鼠标事件的目标元素，也就是鼠标正对着的最上层元素，这块一般没啥问题。

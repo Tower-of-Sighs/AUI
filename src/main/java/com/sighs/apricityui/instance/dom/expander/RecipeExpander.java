@@ -110,6 +110,17 @@ public final class RecipeExpander {
         return "aui-recipe-input";
     }
 
+    private static String buildPreviewSlotClassName(RecipeResolver.PreviewRole role) {
+        String roleName = role.name().toLowerCase(Locale.ROOT);
+        LinkedHashSet<String> classNames = new LinkedHashSet<>();
+        classNames.add("recipe-slot");
+        classNames.add("recipe-slot-" + roleName);
+        classNames.add("aui-recipe-slot");
+        classNames.add(toRoleClass(role));
+        classNames.add("aui-recipe-" + roleName);
+        return String.join(" ", classNames);
+    }
+
     private static void appendPreviewSlot(
             Document document,
             Recipe recipe,
@@ -121,10 +132,7 @@ public final class RecipeExpander {
         Slot slot = new Slot(document);
         String roleName = entry.role().name().toLowerCase(Locale.ROOT);
         slot.applyRecipeSlotMeta(
-                "recipe-slot recipe-slot-" + roleName
-                        + " aui-recipe-slot "
-                        + toRoleClass(entry.role())
-                        + " aui-recipe-" + roleName,
+                buildPreviewSlotClassName(entry.role()),
                 "recipe-slot"
         );
         slot.setAttributesBatch(Map.of(

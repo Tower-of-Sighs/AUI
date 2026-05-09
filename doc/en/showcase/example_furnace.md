@@ -5,21 +5,22 @@
 The current version of the template no longer hardcodes furnace slots and player slots statically in HTML. Instead:
 
 1. The top-level `container` declares the binding relationship first.
-2. The `block_entity` container explicitly declares `size="3"` so the server-side template compiler knows there are three real slots.
+2. The `block_entity` container explicitly declares `size="3"` so the client-side declaration extractor knows there are
+   three real slots.
 3. Inline KJS then creates the three furnace slots and the 36 player slots dynamically.
 
-The `size="3"` step cannot be skipped. The server compiles template capacity from the original HTML before the UI opens, and it cannot see slots appended later by script. Without this declaration, dynamically created furnace slots can display items but cannot accept real item placement.
+The `size="3"` step cannot be skipped. The client extracts container declarations from the template before the UI opens,
+and it cannot see slots appended later by script. Without this declaration, dynamically created furnace slots can
+display items but cannot accept real item placement.
 
 ```html
 <body>
 <div class="screen">
-    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3">
-        <div class="title">Reskinned Furnace QAQ</div>
-    </container>
+    <div class="title">Reskinned Furnace QAQ</div>
+    <container id="block_entity" class="furnace-panel" primary="true" bind="block_entity" size="3"></container>
 
-    <container id="player" class="player-panel" bind="player" layout="preset:player">
-        <div class="title">Player Inventory</div>
-    </container>
+    <div class="title">Player Inventory</div>
+    <container id="player" class="player-panel" bind="player" layout="preset:player"></container>
 </div>
 </body>
 
@@ -174,7 +175,7 @@ The `size="3"` step cannot be skipped. The server compiles template capacity fro
 
 ## Java Side
 
-The current `TestBlockEntity` opening path depends on a one-to-one match between container `id` and `OpenBindPlan` names:
+The current `TestBlockEntity` opening path depends on a one-to-one match between container `id` and declaration list:
 
 - `block_entity` binds the block entity inventory
 - `player` binds the player inventory
@@ -193,10 +194,7 @@ public @NotNull InteractionResult use(BlockState state, Level level, BlockPos po
     if (level.isClientSide) return InteractionResult.SUCCESS;
     if (!(player instanceof ServerPlayer serverPlayer)) return InteractionResult.PASS;
 
-    OpenBindPlan plan = ApricityUIClientUtil.bind()
-        .primaryBind("block_entity").blockEntity(pos.getX(), pos.getY(), pos.getZ(), "")
-            .bind("player").player().build();
-    ApricityUIServerUtil.openScreen(serverPlayer, DEMO_TEMPLATE_PATH, plan);
+    ApricityUI.menu(serverPlayer, DEMO_TEMPLATE_PATH).bind(b -> b.blockEntity(pos).player());
     return InteractionResult.CONSUME;
 }
 ```
@@ -204,5 +202,6 @@ public @NotNull InteractionResult use(BlockState state, Level level, BlockPos po
 ## Notes When Using This Example
 
 1. If you dynamically create slots with KJS, the top-level `container` still needs the correct `id`.
-2. For real bound containers, server-side template compilation must still be able to infer capacity. The safest pattern is declaring `size="3"` on `block_entity`, as in this example.
+2. For real bound containers, the client-side declaration extractor must still be able to infer capacity. The safest
+   pattern is declaring `size="3"` on `block_entity`, as in this example.
 3. Do not remove `clearSlots(container)`. When `Document.refresh()` reruns the inline script, old slots would otherwise accumulate repeatedly.

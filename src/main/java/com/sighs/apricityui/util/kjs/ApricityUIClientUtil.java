@@ -1,13 +1,10 @@
 package com.sighs.apricityui.util.kjs;
 
+import com.sighs.apricityui.dev.ToastManager;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.WorldWindow;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.dev.ToastManager;
-import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
-import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
 import net.minecraft.world.phys.Vec3;
@@ -73,20 +70,23 @@ public class ApricityUIClientUtil {
         ToastManager.clear();
     }
 
-    public static void openScreen(String path) {
+    /**
+     * 客户端打开纯展示 UI Screen。
+     */
+    public static void screen(String path) {
         ApricityScreenNetworkHandler.requestOpenScreen(path);
+    }
+
+    /**
+     * @deprecated 使用 {@link #screen(String)} 替代
+     */
+    @Deprecated
+    public static void openScreen(String path) {
+        screen(path);
     }
 
     public static void closeScreen() {
         ApricityScreenNetworkHandler.requestCloseScreen();
-    }
-
-    public static OpenBindPlan.Builder bind() {
-        return OpenBindPlan.builder();
-    }
-
-    public static boolean hasDataSource(ContainerBindType bindType) {
-        return Container.hasBindingDataSource(bindType);
     }
 
     public static WorldWindow createWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance) {

@@ -5,7 +5,6 @@ body {
     --aui-slot-render-bg: 1;
     --aui-slot-render-item: 1;
     --aui-slot-icon-scale: 1;
-    --aui-slot-padding: 0;
     --aui-slot-z: 0;
     --aui-slot-interactive: 1;
     --aui-slot-cycle: 1;
@@ -155,6 +154,8 @@ slot {
     width: 18px;
     height: 18px;
     background-image: url("apricityui/img/gui/area.png");
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
     pointer-events: none;
 }
 
@@ -167,10 +168,6 @@ container[layout="preset:player"] {
     grid-template-columns: var(--aui-player-columns);
     justify-items: stretch;
     align-items: stretch;
-}
-
-container[layout="preset:player"] > .title:first-child {
-    grid-column: 1 / span 9;
 }
 
 container[layout="preset:player"] > slot[slot-index="9"] { grid-column: 1; grid-row: 2; }

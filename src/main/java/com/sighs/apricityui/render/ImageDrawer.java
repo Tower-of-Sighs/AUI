@@ -119,6 +119,10 @@ public class ImageDrawer {
     }
 
     public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background bg) {
+        drawComplexBackground(poseStack, (float) x, (float) y, (float) width, (float) height, bg);
+    }
+
+    public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background bg) {
         if (bg == null) return;
         Background.Layer layer = new Background.Layer();
         layer.imagePath = bg.imagePath;
@@ -129,6 +133,10 @@ public class ImageDrawer {
     }
 
     public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background.Layer layer) {
+        drawComplexBackground(poseStack, (float) x, (float) y, (float) width, (float) height, layer);
+    }
+
+    public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background.Layer layer) {
         if (layer == null) return;
         String path = layer.imagePath;
         ReadyTexture readyTexture = requestReadyTexture(path, poseStack, x, y, width, height);
@@ -166,7 +174,7 @@ public class ImageDrawer {
         Mask.popMask(poseStack, x, y, width, height, NO_RADIUS);
     }
 
-    private static float[] resolveRenderSize(String backgroundSize, int boxW, int boxH, int texW, int texH) {
+    private static float[] resolveRenderSize(String backgroundSize, float boxW, float boxH, int texW, int texH) {
         String size = (backgroundSize == null || backgroundSize.isEmpty() || "unset".equals(backgroundSize))
                 ? "auto"
                 : backgroundSize.trim().toLowerCase(Locale.ROOT);
@@ -351,7 +359,7 @@ public class ImageDrawer {
         Graph.drawFillRect(poseStack.last().pose(), x, y, x + width, y + height, PLACEHOLDER_COLOR);
     }
 
-    private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, int x, int y, int width, int height) {
+    private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, float x, float y, float width, float height) {
         if (path == null || path.isEmpty() || "unset".equals(path)) return null;
         ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path);
         if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {

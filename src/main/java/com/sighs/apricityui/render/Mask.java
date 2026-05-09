@@ -35,6 +35,15 @@ public class Mask {
         return currentClip;
     }
 
+    public static AABB getCurrentScissor() {
+        return currentScissor;
+    }
+
+    public static void restoreScissor(AABB rect) {
+        currentScissor = rect;
+        applyScissor(currentScissor);
+    }
+
     public static boolean isActive() {
         return depth > 0;
     }

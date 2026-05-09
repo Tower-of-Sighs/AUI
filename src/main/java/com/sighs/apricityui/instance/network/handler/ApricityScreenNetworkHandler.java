@@ -2,12 +2,11 @@ package com.sighs.apricityui.instance.network.handler;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
+import com.sighs.apricityui.instance.container.SlotLayout;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
-import com.sighs.apricityui.instance.container.layout.MenuLayoutSpec;
-import com.sighs.apricityui.instance.element.Container;
-import com.sighs.apricityui.instance.element.Container.TemplateSpec;
+import com.sighs.apricityui.instance.container.datasource.DataSourceFactory;
+import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.instance.network.packet.OpenScreenRequestPacket;
@@ -21,61 +20,109 @@ import net.minecraftforge.network.NetworkHooks;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
+/**
+ * Screen 网络请求处理器。
+ * 使用声明式数据流：容器声明 → DataSourceFactory → SlotLayout → Menu。
+ */
 public final class ApricityScreenNetworkHandler {
+
+    /**
+     * 客户端请求打开 Screen（发送网络包到服务端）。
+     */
     public static void requestOpenScreen(String path) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
         ApricityNetwork.sendToServer(new OpenScreenRequestPacket(path));
     }
 
+    /**
+     * 客户端请求关闭 Screen。
+     */
     public static void requestCloseScreen() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
         ApricityNetwork.sendToServer(new CloseContainerRequestPacket());
     }
 
-    public static void openScreen(ServerPlayer player, String path, OpenBindPlan plan) {
-        if (player == null) return;
-
-        TemplateSpec compiled = resolveTemplateSpec(path, plan);
-        if (compiled == null) return;
-        TemplateSpec boundTemplateSpec = applyBindPlan(compiled, plan);
-
-        Map<String, ContainerDataSource> containerSources = resolveContainerSources(player, boundTemplateSpec, plan);
-        if (containerSources == null) return;
-
-        MenuLayoutSpec layoutSpec = buildLayoutSpec(boundTemplateSpec, plan, containerSources);
-        if (layoutSpec == null) return;
-
-        String titleLiteral = resolvePrimaryContainerTitleLiteral(boundTemplateSpec, layoutSpec.primaryContainerId());
-        openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
+    /**
+     * 服务端 API 入口：根据容器声明列表打开 Screen。
+     */
+    public static void openScreen(ServerPlayer player,
+                                  String templatePath,
+                                  List<ContainerDeclaration> declarations) {
+        openScreen(player, templatePath, declarations, Map.of());
     }
 
+    /**
+     * 服务端 API 入口（带额外参数）：根据容器声明列表和参数映射打开 Screen。
+     */
+    public static void openScreen(ServerPlayer player,
+                                  String templatePath,
+                                  List<ContainerDeclaration> declarations,
+                                  Map<String, Map<String, String>> argsById) {
+        if (player == null) return;
+
+        String normalizedPath = NormalizeUtil.normalizeTemplatePath(templatePath);
+        if (normalizedPath == null) {
+            ApricityUI.LOGGER.warn("Open screen ignored: invalid template path={}", templatePath);
+            return;
+        }
+
+        if (declarations == null || declarations.isEmpty()) {
+            SlotLayout layout = SlotLayout.createUiOnly(normalizedPath);
+            openScreenFromServer(player, layout, Map.of(), null);
+            return;
+        }
+
+        Map<String, ContainerDataSource> sources = resolveDataSources(player, declarations, argsById);
+        if (sources == null) return;
+
+        SlotLayout layout = buildSlotLayout(normalizedPath, declarations, sources);
+        if (layout == null) return;
+
+        openScreenFromServer(player, layout, sources, null);
+    }
+
+    /**
+     * 处理客户端发来的 OpenScreenRequest 网络包。
+     */
     public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
             ServerPlayer player = context.getSender();
             if (player == null) return;
 
-            TemplateSpec compiled = resolveTemplateSpec(packet.templatePath(), null);
-            if (compiled == null) return;
-            TemplateSpec boundTemplateSpec = applyBindPlan(compiled, null);
+            String normalizedPath = NormalizeUtil.normalizeTemplatePath(packet.templatePath());
+            if (normalizedPath == null) {
+                ApricityUI.LOGGER.warn("Open screen request ignored: invalid path={}", packet.templatePath());
+                return;
+            }
 
-            Map<String, ContainerDataSource> containerSources = resolveContainerSources(player, boundTemplateSpec, null);
-            if (containerSources == null) return;
+            List<ContainerDeclaration> declarations = packet.containers();
+            if (declarations == null || declarations.isEmpty()) {
+                SlotLayout layout = SlotLayout.createUiOnly(normalizedPath);
+                openScreenFromServer(player, layout, Map.of(), null);
+                return;
+            }
 
-            MenuLayoutSpec layoutSpec = buildLayoutSpec(boundTemplateSpec, null, containerSources);
-            if (layoutSpec == null) return;
+            Map<String, ContainerDataSource> sources = resolveDataSources(player, declarations, Map.of());
+            if (sources == null) return;
 
-            String titleLiteral = resolvePrimaryContainerTitleLiteral(boundTemplateSpec, layoutSpec.primaryContainerId());
-            openScreenFromServer(player, layoutSpec, containerSources, titleLiteral);
+            SlotLayout layout = buildSlotLayout(normalizedPath, declarations, sources);
+            if (layout == null) return;
+
+            openScreenFromServer(player, layout, sources, null);
         });
         context.setPacketHandled(true);
     }
 
+    /**
+     * 处理客户端发来的关闭容器请求。
+     */
     public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
         NetworkEvent.Context context = contextSupplier.get();
         context.enqueueWork(() -> {
@@ -89,95 +136,36 @@ public final class ApricityScreenNetworkHandler {
         context.setPacketHandled(true);
     }
 
-    private static TemplateSpec resolveTemplateSpec(String rawTemplatePath, OpenBindPlan plan) {
-        String planTemplatePath = plan == null ? null : NormalizeUtil.normalizeTemplatePath(plan.templatePath());
-        String requestTemplatePath = NormalizeUtil.normalizeTemplatePath(rawTemplatePath);
-
-        String selectedTemplatePath = planTemplatePath != null ? planTemplatePath : requestTemplatePath;
-        if (selectedTemplatePath == null) {
-            ApricityUI.LOGGER.warn("Open screen ignored: invalid template path, requestPath={}, planPath={}",
-                    rawTemplatePath, plan == null ? "" : plan.templatePath());
-            return null;
-        }
-
-        TemplateSpec compiled = Container.compileTemplate(selectedTemplatePath);
-        if (compiled == null) {
-            ApricityUI.LOGGER.warn("Open screen ignored: template compile failed, path={}", selectedTemplatePath);
-        }
-        return compiled;
-    }
-
-    private static TemplateSpec applyBindPlan(TemplateSpec templateSpec, OpenBindPlan plan) {
-        if (templateSpec == null) return null;
-        if (plan == null) return templateSpec;
-
-        String primaryContainerId = resolvePrimaryContainerId(plan, templateSpec);
-        ArrayList<TemplateSpec.ContainerSpec> containers = new ArrayList<>(templateSpec.containers().size());
-        for (TemplateSpec.ContainerSpec containerSpec : templateSpec.containers()) {
-            if (containerSpec == null) continue;
-            ContainerBindType bindType = resolveBindType(containerSpec, plan);
-            containers.add(new TemplateSpec.ContainerSpec(
-                    containerSpec.id(),
-                    bindType,
-                    containerSpec.id().equals(primaryContainerId),
-                    containerSpec.requiredCapacity(),
-                    containerSpec.title()
-            ));
-        }
-        return new TemplateSpec(templateSpec.templatePath(), primaryContainerId, containers);
-    }
-
-    private static ContainerBindType resolveBindType(TemplateSpec.ContainerSpec containerSpec, OpenBindPlan plan) {
-        ContainerBindType bindType = containerSpec == null ? null : containerSpec.bindType();
-        if (containerSpec != null && plan != null) {
-            OpenBindPlan.ContainerOverride override = plan.container(containerSpec.id());
-            if (override != null && override.bind() != null) {
-                bindType = override.bind().bindType();
-            }
-        }
-        return bindType == null ? ContainerBindType.PLAYER : bindType;
-    }
-
-    private static Map<String, ContainerDataSource> resolveContainerSources(
+    private static Map<String, ContainerDataSource> resolveDataSources(
             ServerPlayer player,
-            TemplateSpec templateSpec,
-            OpenBindPlan plan) {
+            List<ContainerDeclaration> declarations,
+            Map<String, Map<String, String>> argsById
+    ) {
         LinkedHashMap<String, ContainerDataSource> sources = new LinkedHashMap<>();
-        if (templateSpec == null) return sources;
+        Map<String, Map<String, String>> safeArgs = argsById == null ? Map.of() : argsById;
 
-        for (TemplateSpec.ContainerSpec containerSpec : templateSpec.containers()) {
-            if (containerSpec == null) continue;
-            String containerId = containerSpec.id();
-            ContainerBindType bindType = resolveBindType(containerSpec, plan);
+        for (ContainerDeclaration decl : declarations) {
+            if (decl == null) continue;
+            ContainerBindType bindType = decl.bindType();
             if (bindType == ContainerBindType.PLAYER) continue;
-            if (bindType == ContainerBindType.VIRTUAL_UI) continue;
+            // 非玩家容器的容量 0 表示由数据源自动推导，不能提前跳过。
+            Map<String, String> args = safeArgs.getOrDefault(decl.id(), Map.of());
 
-            int requiredSlotCount = resolveRequiredSlotCount(containerSpec, plan);
-            if (requiredSlotCount <= 0) continue;
-
-            Map<String, String> args = resolveArgs(plan, containerId);
-            OpenBindPlan.ResizePolicy resizePolicy = resolveResizePolicy(plan, containerId);
             try {
-                ContainerDataSource dataSource = Container.resolveBinding(
-                        player,
-                        containerId,
-                        bindType,
-                        args,
-                        requiredSlotCount,
-                        resizePolicy
+                ContainerDataSource dataSource = DataSourceFactory.resolve(
+                        player, decl.id(), bindType, args, decl.capacity()
                 );
                 if (dataSource == null) {
                     ApricityUI.LOGGER.warn(
                             "Open container failed: bindType={} / container={} / reason=UNRESOLVED_BINDING",
-                            bindType.id(),
-                            containerId
+                            bindType.id(), decl.id()
                     );
                     return null;
                 }
-                sources.put(containerId, dataSource);
+                sources.put(decl.id(), dataSource);
             } catch (Exception exception) {
                 ApricityUI.LOGGER.warn("Open container failed: bindType={} / container={} / reason={}",
-                        bindType.id(), containerId, exception.getMessage());
+                        bindType.id(), decl.id(), exception.getMessage());
                 return null;
             }
         }
@@ -185,134 +173,78 @@ public final class ApricityScreenNetworkHandler {
         return sources;
     }
 
-    private static Map<String, String> resolveArgs(OpenBindPlan plan, String containerId) {
-        if (plan == null) return Map.of();
-        OpenBindPlan.ContainerOverride override = plan.container(containerId);
-        if (override != null && override.bind() != null) {
-            return override.bind().args();
+    private static SlotLayout buildSlotLayout(
+            String templatePath,
+            List<ContainerDeclaration> declarations,
+            Map<String, ContainerDataSource> sources
+    ) {
+        if (declarations == null || declarations.isEmpty()) {
+            return SlotLayout.createUiOnly(templatePath);
         }
-        return Map.of();
-    }
 
-    private static int resolveRequiredSlotCount(TemplateSpec.ContainerSpec containerSpec, OpenBindPlan plan) {
-        if (containerSpec == null) return 0;
-        int required = Math.max(0, containerSpec.requiredCapacity());
-
-        OpenBindPlan.ContainerOverride override = plan == null ? null : plan.container(containerSpec.id());
-        if (override != null && override.capacity() != null) {
-            OpenBindPlan.CapacityOverride capacityOverride = override.capacity();
-            if (capacityOverride.exactCapacity() != null) {
-                required = Math.max(0, capacityOverride.exactCapacity());
-            } else if (capacityOverride.minCapacity() != null) {
-                required = Math.max(required, capacityOverride.minCapacity());
+        String primaryContainerId = "";
+        for (ContainerDeclaration decl : declarations) {
+            if (decl.primary()) {
+                primaryContainerId = decl.id();
+                break;
             }
         }
-        return Math.max(0, required);
-    }
-
-    private static OpenBindPlan.ResizePolicy resolveResizePolicy(OpenBindPlan plan, String containerId) {
-        if (plan == null) return OpenBindPlan.ResizePolicy.KEEP_OVERFLOW;
-        OpenBindPlan.ContainerOverride override = plan.container(containerId);
-        if (override != null && override.capacity() != null && override.capacity().resizePolicy() != null) {
-            return override.capacity().resizePolicy();
+        if (primaryContainerId.isEmpty() && !declarations.isEmpty()) {
+            primaryContainerId = declarations.get(0).id();
         }
-        if (plan.options() != null && plan.options().defaultResizePolicy() != null) {
-            return plan.options().defaultResizePolicy();
-        }
-        return OpenBindPlan.ResizePolicy.KEEP_OVERFLOW;
-    }
-
-    private static String resolvePrimaryContainerId(OpenBindPlan plan, TemplateSpec templateSpec) {
-        if (templateSpec == null) return "";
-
-        String override = plan == null ? "" : NormalizeUtil.normalizeContainerId(plan.primaryContainerIdOverride());
-        if (override != null && templateSpec.findContainer(override) != null) {
-            return override;
-        }
-
-        String primaryFromTemplate = NormalizeUtil.normalizeContainerId(templateSpec.primaryContainerId());
-        if (primaryFromTemplate != null && templateSpec.findContainer(primaryFromTemplate) != null) {
-            return primaryFromTemplate;
-        }
-
-        if (!templateSpec.containers().isEmpty()) {
-            return templateSpec.containers().get(0).id();
-        }
-        return "";
-    }
-
-    private static MenuLayoutSpec buildLayoutSpec(
-            TemplateSpec templateSpec,
-            OpenBindPlan plan,
-            Map<String, ContainerDataSource> containerSources) {
-        if (templateSpec == null) return null;
-        if (templateSpec.containers().isEmpty()) {
-            return MenuLayoutSpec.createUiOnly(templateSpec.templatePath());
-        }
-
-        String primaryContainerId = resolvePrimaryContainerId(plan, templateSpec);
-        LinkedHashMap<String, Integer> requiredCapacityById = new LinkedHashMap<>();
-        LinkedHashMap<String, Integer> customBaseById = new LinkedHashMap<>();
-        LinkedHashMap<String, Integer> customCapacityById = new LinkedHashMap<>();
 
         int customCursor = 0;
         int playerPoolCapacity = 0;
-        for (TemplateSpec.ContainerSpec containerSpec : templateSpec.containers()) {
-            if (containerSpec == null) continue;
-            String containerId = containerSpec.id();
-            ContainerBindType bindType = resolveBindType(containerSpec, plan);
-            int requiredCapacity = resolveRequiredSlotCount(containerSpec, plan);
-            requiredCapacityById.put(containerId, requiredCapacity);
+        LinkedHashMap<String, Integer> customBaseById = new LinkedHashMap<>();
+        LinkedHashMap<String, Integer> customCapacityById = new LinkedHashMap<>();
+
+        for (ContainerDeclaration decl : declarations) {
+            ContainerBindType bindType = decl.bindType();
+            int requiredCapacity = decl.capacity();
 
             if (bindType == ContainerBindType.PLAYER) {
-                playerPoolCapacity = Math.max(
-                        playerPoolCapacity,
-                        Math.min(ContainerBindType.PLAYER_SLOT_COUNT, requiredCapacity)
-                );
+                playerPoolCapacity = Math.max(playerPoolCapacity,
+                        Math.min(ContainerBindType.PLAYER_SLOT_COUNT, requiredCapacity));
                 continue;
             }
 
             int resolvedCapacity = requiredCapacity;
-            if (containerSources != null) {
-                ContainerDataSource source = containerSources.get(containerId);
-                if (source != null) {
-                    resolvedCapacity = Math.max(resolvedCapacity, source.capacity());
-                }
+            ContainerDataSource source = sources.get(decl.id());
+            if (source != null) {
+                resolvedCapacity = Math.max(resolvedCapacity, source.capacity());
             }
-            customBaseById.put(containerId, customCursor);
-            customCapacityById.put(containerId, Math.max(0, resolvedCapacity));
+            customBaseById.put(decl.id(), customCursor);
+            customCapacityById.put(decl.id(), Math.max(0, resolvedCapacity));
             customCursor += Math.max(0, resolvedCapacity);
         }
 
         int playerBaseIndex = customCursor;
-        ArrayList<MenuLayoutSpec.ContainerLayout> layouts = new ArrayList<>(templateSpec.containers().size());
-        for (TemplateSpec.ContainerSpec containerSpec : templateSpec.containers()) {
-            if (containerSpec == null) continue;
 
-            String containerId = containerSpec.id();
-            ContainerBindType bindType = resolveBindType(containerSpec, plan);
+        ArrayList<SlotLayout.ContainerEntry> entries = new ArrayList<>(declarations.size());
+        for (ContainerDeclaration decl : declarations) {
+            String containerId = decl.id();
+            ContainerBindType bindType = decl.bindType();
             boolean primary = containerId.equals(primaryContainerId);
 
             if (bindType == ContainerBindType.PLAYER) {
-                int requiredCapacity = requiredCapacityById.getOrDefault(containerId, 0);
-                int capacity = Math.min(playerPoolCapacity, Math.max(0, requiredCapacity));
-                layouts.add(new MenuLayoutSpec.ContainerLayout(containerId, bindType, playerBaseIndex, capacity, primary));
+                int capacity = Math.min(playerPoolCapacity, Math.max(0, decl.capacity()));
+                entries.add(new SlotLayout.ContainerEntry(containerId, bindType, playerBaseIndex, capacity, primary));
                 continue;
             }
 
             int baseIndex = customBaseById.getOrDefault(containerId, 0);
             int capacity = customCapacityById.getOrDefault(containerId, 0);
-            layouts.add(new MenuLayoutSpec.ContainerLayout(containerId, bindType, baseIndex, capacity, primary));
+            entries.add(new SlotLayout.ContainerEntry(containerId, bindType, baseIndex, capacity, primary));
         }
 
-        return new MenuLayoutSpec(templateSpec.templatePath(), layouts);
+        return new SlotLayout(templatePath, entries);
     }
 
     private static void openScreenFromServer(ServerPlayer player,
-                                             MenuLayoutSpec layoutSpec,
+                                             SlotLayout layout,
                                              Map<String, ContainerDataSource> containerSources,
                                              String titleLiteral) {
-        if (player == null || layoutSpec == null) return;
+        if (player == null || layout == null) return;
         Component titleComponent = (titleLiteral == null || titleLiteral.isBlank())
                 ? Component.empty()
                 : Component.literal(titleLiteral);
@@ -321,22 +253,10 @@ public final class ApricityScreenNetworkHandler {
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,
                         playerInventory,
-                        layoutSpec,
+                        layout,
                         containerSources,
                         player),
                 titleComponent
-        ), layoutSpec::write);
+        ), layout::write);
     }
-
-    private static String resolvePrimaryContainerTitleLiteral(TemplateSpec templateSpec, String primaryContainerId) {
-        if (templateSpec == null) return null;
-        String normalizedPrimaryId = NormalizeUtil.normalizeContainerId(primaryContainerId);
-        if (normalizedPrimaryId == null) return null;
-        TemplateSpec.ContainerSpec primaryContainer = templateSpec.findContainer(normalizedPrimaryId);
-        if (primaryContainer == null) return null;
-        String title = primaryContainer.title();
-        if (title == null || title.isBlank()) return null;
-        return title.trim();
-    }
-
 }

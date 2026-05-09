@@ -48,33 +48,28 @@ ApricityUI.closeScreen()
 
 If you only need UI preview without real server-side container binding, `openScreen(path)` is enough.
 
-If you need real container and data-source binding, use the server-authoritative entry from Java or KubeJS server events:
+If you need real container and data-source binding, use the server-authoritative entry from Java or KubeJS server
+events. Container information is driven by `<container>` element attributes in the template, and the client `openScreen`
+automatically extracts container declarations and sends them to the server:
 
 ```javascript
-OpenBindPlan plan = ApricityUI.bind()
-    .primaryBind("main").savedData("apricityui_demo", "demo_key", 27)
-    .bind("player").player()
-    .build()
-
-ApricityUI.openScreen(ServerPlayer player, String path, OpenBindPlan plan)
+// Container info is declared by <container> elements in the template
+// Client openScreen automatically extracts and sends declarations to the server
+ApricityUI.openScreen("demo/index.html")
 ```
 
 The names such as `main` and `player` must match the top-level `<container id="...">` values in the template.
 
-Other common bindings:
+Common container declaration examples in templates:
 
-```javascript
-// Block entity inventory
-OpenBindPlan blockEntityPlan = ApricityUI.bind()
-    .primaryBind("machine").blockEntity(100, 64, 200, "up")
-    .bind("player").player()
-    .build()
+```html
+<!-- Block entity inventory -->
+<container id="machine" bind="block_entity" size="9" primary="true"></container>
+<container id="player" bind="player"></container>
 
-// Entity inventory by UUID
-OpenBindPlan entityPlan = ApricityUI.bind()
-    .primaryBind("entity_inv").entity("00000000-0000-0000-0000-000000000000")
-    .bind("player").player()
-    .build()
+<!-- Entity inventory -->
+<container id="entity_inv" bind="entity" size="27" primary="true"></container>
+<container id="player" bind="player"></container>
 ```
 
 The framework does not include trigger logic for you. Right-clicking items, hotkeys, right-clicking blocks, or opening block entities should still be handled in your own events before calling these APIs.
@@ -87,12 +82,11 @@ For `bind="player"`:
 - If there are no bound slots inside the container, the system injects 36 player slots automatically
 - Slot background rendering is controlled by the `slot` CSS `background-image`; if not configured, it stays transparent
 
-Container title rules:
+`container` has no built-in title mechanism:
 
-- The title is rendered inside the container, not fixed in the top-left corner of the screen
-- It only reads the text from the first child element, such as `div` or `span`
-- `container.title` is no longer supported
-- If the first child is missing or empty, no title area is rendered and no placeholder is kept
+- It does not read a `title` attribute
+- It does not infer a title from the first child element text
+- If you need a title, write and lay it out as an ordinary DOM node
 
 Unified slot semantics:
 
@@ -110,7 +104,6 @@ Default `global.css` variables:
 - `--aui-slot-render-bg`: whether to render slot background (`1/0`)
 - `--aui-slot-render-item`: whether to render item (`1/0`)
 - `--aui-slot-icon-scale`: icon scale
-- `--aui-slot-padding`: icon padding
 - `--aui-slot-z`: slot z-index
 - `--aui-slot-interactive`: whether interaction is allowed (`1/0`)
 - `--aui-slot-cycle` / `--aui-slot-cycle-interval`: virtual slot cycling toggle and interval

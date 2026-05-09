@@ -19,7 +19,6 @@ import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
 import net.minecraft.client.gui.screens.TitleScreen;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.api.distmarker.Dist;
@@ -184,11 +183,14 @@ public class Client {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
         }
+        if (Minecraft.getInstance().screen instanceof ApricityScreen) {
+            return;
+        }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             Base.drawAllDocument(event.getGuiGraphics().pose());
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
                 }
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
@@ -203,7 +205,7 @@ public class Client {
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentUnboundSlotItems(event.getGuiGraphics(), document);
+                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
                 }
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
@@ -433,7 +435,8 @@ public class Client {
     public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
         poseStack.pushPose();
         poseStack.translate(position.x, position.y, 0);
-        poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 0f);
+        // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
+        poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 1f);
         MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);

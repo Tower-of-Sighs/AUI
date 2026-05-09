@@ -1,7 +1,6 @@
 package com.sighs.apricityui.instance.container.datasource;
 
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 
@@ -26,7 +25,10 @@ public interface ContainerDataSource {
         return false;
     }
 
-    default int resize(int newCapacity, OpenBindPlan.ResizePolicy policy) {
+    /**
+     * 调整容量，直接截断。返回调整后的实际容量。
+     */
+    default int resize(int newCapacity) {
         return capacity();
     }
 }
