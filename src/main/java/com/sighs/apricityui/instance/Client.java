@@ -172,13 +172,6 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void icon(TickEvent.ClientTickEvent event) {
-        if (Minecraft.getInstance().screen instanceof TitleScreen) {
-            if (Document.get("apricityui/icon.html").isEmpty()) Document.create("apricityui/icon.html");
-        } else Document.remove("apricityui/icon.html");
-    }
-
-    @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
