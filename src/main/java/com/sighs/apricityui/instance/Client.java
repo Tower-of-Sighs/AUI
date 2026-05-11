@@ -170,14 +170,6 @@ public class Client {
         KEY_MAP.put("key.keyboard.world.2", 162);
     }
 
-    @SubscribeEvent
-    public static void icon(ClientTickEvent.Pre event) {
-        if (Minecraft.getInstance().screen instanceof TitleScreen) {
-            if (Document.get("apricityui/icon.html").isEmpty()) Document.create("apricityui/icon.html");
-        } else Document.remove("apricityui/icon.html");
-    }
-
-    @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
