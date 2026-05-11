@@ -18,7 +18,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
-import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -171,13 +170,6 @@ public class Client {
         KEY_MAP.put("key.keyboard.print.screen", 283);
         KEY_MAP.put("key.keyboard.world.1", 161);
         KEY_MAP.put("key.keyboard.world.2", 162);
-    }
-
-    @SubscribeEvent
-    public static void icon(ClientTickEvent.Post event) {
-        if (Minecraft.getInstance().screen instanceof TitleScreen) {
-            if (Document.get("apricityui/icon.html").isEmpty()) Document.create("apricityui/icon.html");
-        } else Document.remove("apricityui/icon.html");
     }
 
     @SubscribeEvent
@@ -454,4 +446,3 @@ public class Client {
         drawDefaultFont(poseStack, text, text.content, position);
     }
 }
-
