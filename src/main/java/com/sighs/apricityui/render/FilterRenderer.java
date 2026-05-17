@@ -131,6 +131,11 @@ public class FilterRenderer {
     public static void popFilter(Filter.FilterState state) {
         if (fboStack.isEmpty()) return;
 
+        // 在切回父 FBO 之前 flush 批处理绘制，使 batched draw calls
+        // 先写入当前离屏 FBO，避免绕过 filter/opacity 合成。
+        ImageDrawer.flushBatch();
+        Graph.endBatch();
+
         RenderTarget currentFbo = fboStack.pop();
         RenderTarget parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
         parentFbo.bindWrite(false);
