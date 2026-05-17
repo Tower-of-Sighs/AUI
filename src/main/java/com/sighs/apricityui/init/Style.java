@@ -117,7 +117,7 @@ public class Style implements Cloneable {
     public String userSelect = "unset";
 
     public String pointerEvents = "auto";
-    public String visibility = "visible";
+    public String visibility = "unset";
     public String transition = "none";
     public String transform = "none";
     public String clipPath = "none";
@@ -389,6 +389,27 @@ public class Style implements Cloneable {
         return !getUserSelect(element).equals("none");
     }
 
+    public static String getVisibility(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().visibility;
+            if (!value.equals("unset")) return normalizeVisibility(value);
+        }
+        return "visible";
+    }
+
+    public static boolean isVisible(Element element) {
+        return getVisibility(element).equals("visible");
+    }
+
+    public static String normalizeVisibility(String raw) {
+        if (raw == null || raw.isBlank()) return "visible";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "visible", "hidden", "collapse" -> value;
+            default -> "visible";
+        };
+    }
+
     public static String normalizeOverflow(String raw) {
         if (raw == null || raw.isBlank()) return "visible";
         String value = raw.trim().toLowerCase(Locale.ROOT);
@@ -476,6 +497,9 @@ public class Style implements Cloneable {
         }
         if ("overflowX".equals(styleName) || "overflowY".equals(styleName)) {
             value = normalizeOverflow(value);
+        }
+        if ("visibility".equals(styleName)) {
+            value = normalizeVisibility(value);
         }
         try {
             Field field = FIELD_CACHE.get(styleName);

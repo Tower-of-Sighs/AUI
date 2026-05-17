@@ -31,7 +31,7 @@ public final class ItemRender {
 
             if (slot.hasView()) continue;
 
-            if (!slot.isVisible) continue;
+            if (!Style.isVisible(slot)) continue;
             if ("none".equals(slot.getComputedStyle().display)) continue;
             if (!slot.shouldRenderItem()) continue;
 
