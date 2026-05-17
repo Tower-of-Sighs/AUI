@@ -354,7 +354,7 @@ public class Element {
             renderElement.computedStyle.set(computedStyle);
             computedStyle.resolveVarReferences(this);
             isPointerEnabled = computedStyle.pointerEvents.equals("auto");
-            isVisible = computedStyle.visibility.equals("visible");
+            isVisible = Style.isVisible(this);
         }
         return computedStyle;
     }
