@@ -14,14 +14,13 @@ import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
 import net.minecraft.client.Minecraft;
-import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import org.apache.commons.io.IOUtils;
 
 import java.io.IOException;
@@ -30,8 +29,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
 
-@OnlyIn(Dist.CLIENT)
-@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID, value = Dist.CLIENT)
+@EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class ClientLoader extends Loader {
     public ClientLoader(String extension) {
         super(extension);
@@ -82,7 +80,7 @@ public class ClientLoader extends Loader {
         }
         if (path == null || path.isEmpty()) return null;
         try {
-            ResourceLocation resourceLocation = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
+            Identifier resourceLocation = Identifier.fromNamespaceAndPath(ApricityUI.MODID, "apricity/" + path);
             Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(resourceLocation);
             if (resource.isPresent()) return resource.get().open();
         } catch (IOException ignored) {
@@ -109,9 +107,9 @@ public class ClientLoader extends Loader {
 
     private static void loadResourcePackEntries(Map<String, StaticResourceEntry> merged) {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity", location -> true);
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
-            ResourceLocation location = entry.getKey();
+        Map<Identifier, Resource> resources = manager.listResources("apricity", location -> true);
+        for (Map.Entry<Identifier, Resource> entry : resources.entrySet()) {
+            Identifier location = entry.getKey();
             String path = location.getPath();
             if (path.startsWith("apricity/")) path = path.substring(9);
             if (path.isBlank()) continue;
@@ -137,10 +135,10 @@ public class ClientLoader extends Loader {
 
     private void loadFromResourcePack() {
         ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity",
+        Map<Identifier, Resource> resources = manager.listResources("apricity",
                 location -> location.getPath().endsWith("." + extension));
 
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
+        for (Map.Entry<Identifier, Resource> entry : resources.entrySet()) {
             try (InputStream stream = entry.getValue().open()) {
                 String path = entry.getKey().getPath();
                 if (path.startsWith("apricity/")) path = path.substring(9);

@@ -1,7 +1,6 @@
 package com.sighs.apricityui.script.nekojs;
 
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
 import com.sighs.apricityui.util.kjs.ApricityUIServerUtil;
 import net.minecraft.server.level.ServerPlayer;
@@ -30,7 +29,7 @@ public final class ApricityUIBindings {
     // ================= Common / Server =================
 
     public static boolean hasDataSource(ContainerBindType bindType) {
-        return Container.hasBindingDataSource(bindType);
+        return ContainerBindType.hasDataSource(bindType);
     }
 
     public static void openScreen(ServerPlayer player, String path, List<ContainerDeclaration> declarations) {

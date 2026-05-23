@@ -25,7 +25,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * �?slot innerText 编译为可展示候选集合�?
+ * Compiles slot innerText into display candidates.
  */
 public final class SlotExpressionCompiler {
     public static final int MAX_CANDIDATES = 128;

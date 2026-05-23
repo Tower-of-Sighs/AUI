@@ -15,14 +15,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkEvent;
-import net.minecraftforge.network.NetworkHooks;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Screen 网络请求处理器。
@@ -90,11 +88,9 @@ public final class ApricityScreenNetworkHandler {
     /**
      * 处理客户端发来的 OpenScreenRequest 网络包。
      */
-    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
-            if (player == null) return;
+            if (!(context.player() instanceof ServerPlayer player)) return;
 
             String normalizedPath = NormalizeUtil.normalizeTemplatePath(packet.templatePath());
             if (normalizedPath == null) {
@@ -102,38 +98,22 @@ public final class ApricityScreenNetworkHandler {
                 return;
             }
 
-            List<ContainerDeclaration> declarations = packet.containers();
-            if (declarations == null || declarations.isEmpty()) {
-                SlotLayout layout = SlotLayout.createUiOnly(normalizedPath);
-                openScreenFromServer(player, layout, Map.of(), null);
-                return;
-            }
-
-            Map<String, ContainerDataSource> sources = resolveDataSources(player, declarations, Map.of());
-            if (sources == null) return;
-
-            SlotLayout layout = buildSlotLayout(normalizedPath, declarations, sources);
-            if (layout == null) return;
-
-            openScreenFromServer(player, layout, sources, null);
+            SlotLayout layout = SlotLayout.createUiOnly(normalizedPath);
+            openScreenFromServer(player, layout, Map.of(), null);
         });
-        context.setPacketHandled(true);
     }
 
     /**
      * 处理客户端发来的关闭容器请求。
      */
-    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, IPayloadContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
-            if (player == null) return;
+            if (!(context.player() instanceof ServerPlayer player)) return;
 
             if (player.containerMenu instanceof ApricityContainerMenu) {
                 player.closeContainer();
             }
         });
-        context.setPacketHandled(true);
     }
 
     private static Map<String, ContainerDataSource> resolveDataSources(
@@ -249,7 +229,7 @@ public final class ApricityScreenNetworkHandler {
                 ? Component.empty()
                 : Component.literal(titleLiteral);
 
-        NetworkHooks.openScreen(player, new SimpleMenuProvider(
+        player.openMenu(new SimpleMenuProvider(
                 (menuContainerId, playerInventory, ignoredPlayer) -> new ApricityContainerMenu(
                         menuContainerId,
                         playerInventory,

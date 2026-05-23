@@ -7,7 +7,6 @@ import com.sighs.apricityui.instance.ApricityUIConfig;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
-import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Container.ContainerDeclaration;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.instance.network.handler.PendingMenu;
@@ -85,7 +84,7 @@ public class ApricityUI {
     }
 
     public static boolean hasDataSource(ContainerBindType bindType) {
-        return Container.hasBindingDataSource(bindType);
+        return ContainerBindType.hasDataSource(bindType);
     }
 
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
