@@ -5,25 +5,18 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.level.block.entity.BlockEntity;
-import net.minecraftforge.common.capabilities.ForgeCapabilities;
-import net.minecraftforge.items.IItemHandler;
-import net.minecraftforge.items.SlotItemHandler;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.transfer.ResourceHandler;
+import net.neoforged.neoforge.transfer.item.ItemResource;
 
-/**
- * 方块实体物品槽数据源。
- * 通过 Forge IItemHandler capability 访问方块实体的物品存储。
- */
 public final class BlockEntityDataSource implements ContainerDataSource {
     private final BlockEntity blockEntity;
-    private final IItemHandler itemHandler;
-    private final int capacity;
+    private final NeoForgeItemHandlerDataSource delegate;
 
-    public BlockEntityDataSource(BlockEntity blockEntity, IItemHandler itemHandler, int capacity) {
+    public BlockEntityDataSource(BlockEntity blockEntity, ResourceHandler<ItemResource> itemHandler) {
         this.blockEntity = blockEntity;
-        this.itemHandler = itemHandler;
-        this.capacity = Math.max(0, capacity);
+        this.delegate = new NeoForgeItemHandlerDataSource(ContainerBindType.BLOCK_ENTITY, itemHandler, this::stillValid);
     }
 
     @Override
@@ -33,12 +26,12 @@ public final class BlockEntityDataSource implements ContainerDataSource {
 
     @Override
     public int capacity() {
-        return capacity;
+        return delegate.capacity();
     }
 
     @Override
-    public Slot createSlot(int slotIndex, int x, int y) {
-        return new SlotItemHandler(itemHandler, slotIndex, x, y);
+    public net.minecraft.world.inventory.Slot createSlot(int slotIndex, int x, int y) {
+        return delegate.createSlot(slotIndex, x, y);
     }
 
     @Override
@@ -48,33 +41,29 @@ public final class BlockEntityDataSource implements ContainerDataSource {
         return player.distanceToSqr(pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5) <= 64.0;
     }
 
-    /**
-     * 从方块坐标解析数据源。
-     *
-     * @param player 服务端玩家
-     * @param pos    方块坐标
-     * @param capacity 请求容量；小于等于 0 时自动使用 handler 的完整容量
-     * @return 数据源实例，无法解析时返回 null
-     */
     public static BlockEntityDataSource resolve(ServerPlayer player, BlockPos pos, int capacity) {
         if (player == null || pos == null) return null;
-        ServerLevel level = player.serverLevel();
+        ServerLevel level = player.level();
         if (!level.isLoaded(pos)) return null;
 
         BlockEntity blockEntity = level.getBlockEntity(pos);
         if (blockEntity == null) return null;
 
-        IItemHandler handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER, Direction.UP)
-                .orElse(null);
+        ResourceHandler<ItemResource> handler = Capabilities.Item.BLOCK.getCapability(
+                level,
+                pos,
+                blockEntity.getBlockState(),
+                blockEntity,
+                Direction.UP
+        );
         if (handler == null) {
-            // 尝试无方向获取
-            handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER)
-                    .orElse(null);
+            handler = Capabilities.Item.BLOCK.getCapability(level, pos, blockEntity.getBlockState(), blockEntity, null);
         }
         if (handler == null) return null;
 
-        int handlerSlots = Math.max(0, handler.getSlots());
+        int handlerSlots = Math.max(0, handler.size());
         int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
-        return new BlockEntityDataSource(blockEntity, handler, resolvedCapacity);
+        if (resolvedCapacity <= 0) return null;
+        return new BlockEntityDataSource(blockEntity, handler);
     }
 }

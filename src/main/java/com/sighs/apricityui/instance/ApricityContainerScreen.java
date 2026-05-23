@@ -5,18 +5,16 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.instance.screen.SlotDataBinder;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
-import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
 
-import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -33,7 +31,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private SlotDataBinder slotBinder;
 
     public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
-        super(menu, inventory, title);
+        super(menu, inventory, title, Minecraft.getInstance().getWindow().getGuiScaledWidth(), Minecraft.getInstance().getWindow().getGuiScaledHeight());
     }
 
     public Document getLinkedDocument() {
@@ -60,8 +58,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     @Override
     protected void init() {
-        imageWidth = width;
-        imageHeight = height;
         super.init();
 
         // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
@@ -83,22 +79,21 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     @Override
-    protected void renderBg(@Nonnull GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
+    public void extractContents(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (linkedDocument == null) return;
 
-        Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         drawMenuSlotItems(guiGraphics);
         drawDisplaySlotItems(guiGraphics);
     }
 
     @Override
-    protected void renderLabels(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    protected void extractLabels(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         // 不绘制 Minecraft 默认标题；标题如有需要由模板普通 DOM 自行实现。
     }
 
     @Override
-    public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (linkedDocument != null && slotBinder != null) {
             if (slotBinder.shouldRebindSlotsFromDom(linkedDocument)) {
                 slotBinder.bindSlotsFromDocument(linkedDocument);
@@ -108,13 +103,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             }
         }
 
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
+        super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
         drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
         drawDevToolsOverlay(guiGraphics);
-        Cursor.drawPseudoCursor(guiGraphics);
     }
 
-    private void drawMenuSlotItems(GuiGraphics guiGraphics) {
+    private void drawMenuSlotItems(GuiGraphicsExtractor guiGraphics) {
         if (slotBinder == null) return;
 
         AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) this;
@@ -128,7 +122,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         int quickCraftBasePlaceCount = 0;
         if (quickCrafting && !carried.isEmpty() && quickCraftSlots != null && quickCraftSlots.size() > 1) {
-            quickCraftBasePlaceCount = AbstractContainerMenu.getQuickCraftPlaceCount(quickCraftSlots, quickCraftingType, carried);
+            quickCraftBasePlaceCount = AbstractContainerMenu.getQuickCraftPlaceCount(quickCraftSlots.size(), quickCraftingType, carried);
         }
 
         for (net.minecraft.world.inventory.Slot slot : menu.slots) {
@@ -169,8 +163,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             final int finalDrawX = drawX;
             final int finalDrawY = drawY;
             Runnable drawAction = () -> {
-                guiGraphics.pose().pushPose();
-                guiGraphics.pose().translate(0.0D, 0.0D, 100.0D + visual.zIndex());
+                guiGraphics.pose().pushMatrix();
+                guiGraphics.nextStratum();
                 if (finalDrawQuickCraftGhost) {
                     int ghostSize = Math.max(1, Math.round(16.0F * visual.iconScale()));
                     int ghostX = Math.round(finalDrawX + 8.0F - ghostSize / 2.0F);
@@ -178,9 +172,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                     guiGraphics.fill(ghostX, ghostY, ghostX + ghostSize, ghostY + ghostSize, QUICK_CRAFT_GHOST_COLOR);
                 }
                 applyItemScaleTransform(guiGraphics, finalDrawX, finalDrawY, visual.iconScale());
-                guiGraphics.renderItem(finalRenderStack, finalDrawX, finalDrawY, slot.x + slot.y * imageWidth);
-                guiGraphics.renderItemDecorations(font, finalRenderStack, finalDrawX, finalDrawY, finalOverlayText);
-                guiGraphics.pose().popPose();
+                guiGraphics.item(finalRenderStack, finalDrawX, finalDrawY, slot.x + slot.y * imageWidth);
+                guiGraphics.itemDecorations(font, finalRenderStack, finalDrawX, finalDrawY, finalOverlayText);
+                guiGraphics.pose().popMatrix();
             };
             if (slotElement == null) {
                 drawAction.run();
@@ -190,12 +184,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
     }
 
-    private void drawDisplaySlotItems(GuiGraphics guiGraphics) {
+    private void drawDisplaySlotItems(GuiGraphicsExtractor guiGraphics) {
         if (slotBinder == null) return;
         ItemRender.renderDisplaySlotItems(guiGraphics, new ArrayList<>(slotBinder.getDisplaySlots()));
     }
 
-    private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    private void drawSlotHoverTooltipByElement(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         if (linkedDocument == null) return;
 
         List<Element> elements = linkedDocument.getElements();
@@ -213,7 +207,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (hoveredSlot != null && hoveredSlot.isActive() && isSlotPointerInteractable(hoveredSlot)) {
             ItemStack stack = hoveredSlot.getItem();
             if (!stack.isEmpty()) {
-                guiGraphics.renderTooltip(font, stack, mouseX, mouseY);
+                guiGraphics.setTooltipForNextFrame(font, stack, mouseX, mouseY);
                 return;
             }
         }
@@ -226,17 +220,16 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         ItemStack stack = menuSlot.getItem();
         if (stack.isEmpty()) return;
 
-        guiGraphics.renderTooltip(font, stack, mouseX, mouseY);
+        guiGraphics.setTooltipForNextFrame(font, stack, mouseX, mouseY);
     }
 
-    private void drawDevToolsOverlay(GuiGraphics guiGraphics) {
+    private void drawDevToolsOverlay(GuiGraphicsExtractor guiGraphics) {
         var devToolsDocuments = Document.get(DEVTOOLS_PATH);
         if (devToolsDocuments.isEmpty()) return;
 
         Document devToolsDocument = devToolsDocuments.get(0);
         if (devToolsDocument == null || devToolsDocument.body == null) return;
         if (devToolsDocument == linkedDocument) return;
-        Base.drawScreenDocument(guiGraphics.pose(), devToolsDocument);
     }
 
     @Override
@@ -273,12 +266,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         super.removed();
     }
 
-    private static void applyItemScaleTransform(GuiGraphics guiGraphics, int drawX, int drawY, float iconScale) {
+    private static void applyItemScaleTransform(GuiGraphicsExtractor guiGraphics, int drawX, int drawY, float iconScale) {
         if (Math.abs(iconScale - 1.0F) <= ICON_SCALE_EPSILON) return;
         float centerX = drawX + 8.0F;
         float centerY = drawY + 8.0F;
-        guiGraphics.pose().translate(centerX, centerY, 0.0D);
-        guiGraphics.pose().scale(iconScale, iconScale, 1.0F);
-        guiGraphics.pose().translate(-centerX, -centerY, 0.0D);
+        guiGraphics.pose().translate(centerX, centerY);
+        guiGraphics.pose().scale(iconScale, iconScale);
+        guiGraphics.pose().translate(-centerX, -centerY);
     }
 }

@@ -260,10 +260,10 @@ public class Slot extends MinecraftElement {
     }
 
     @Override
-    public void renderTooltip(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    public void renderTooltip(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY) {
         ItemStack stack = getTooltipStack();
         if (stack.isEmpty()) return;
-        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+        guiGraphics.setTooltipForNextFrame(Minecraft.getInstance().font, stack, mouseX, mouseY);
     }
 
     /**

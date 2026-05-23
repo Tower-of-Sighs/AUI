@@ -29,7 +29,7 @@ import net.neoforged.neoforge.client.event.RecipesReceivedEvent;
 import java.util.*;
 
 /**
- * 在文档刷新阶段触�?recipe DOM 预览槽位生成�?
+ * Generates recipe preview slots during document refresh.
  */
 public final class RecipeExpander {
     public static void expand(Document document) {
@@ -164,7 +164,7 @@ public final class RecipeExpander {
     }
 
     /**
-     * 解析客户端配方并生成 UI 预览槽位数据�?
+     * 瑙ｆ瀽瀹㈡埛绔厤鏂瑰苟鐢熸垚 UI 棰勮妲戒綅鏁版嵁銆?
      */
     private static final class RecipeResolver {
         public static final int STONECUTTING_LIST_VISIBLE_ROWS = 3;
@@ -205,9 +205,9 @@ public final class RecipeExpander {
             }
 
             RegistryAccess registryAccess = minecraft.level.registryAccess();
-            Registry<Recipe<?>> recipeRegistry = registryAccess.lookupOrThrow(Registries.RECIPE);
-            ResourceKey<Recipe<?>> recipeKey = ResourceKey.create(Registries.RECIPE, recipeId);
-            Recipe<?> recipe = recipeRegistry.getValue(recipeKey);
+            Registry<net.minecraft.world.item.crafting.Recipe<?>> recipeRegistry = registryAccess.lookupOrThrow(Registries.RECIPE);
+            ResourceKey<net.minecraft.world.item.crafting.Recipe<?>> recipeKey = ResourceKey.create(Registries.RECIPE, recipeId);
+            net.minecraft.world.item.crafting.Recipe<?> recipe = recipeRegistry.getValue(recipeKey);
             if (recipe == null) {
                 return ResolveResult.empty("Recipe not found");
             }
@@ -397,7 +397,7 @@ public final class RecipeExpander {
         }
 
         private static void buildFallbackEntries(
-                Recipe<?> recipe,
+                net.minecraft.world.item.crafting.Recipe<?> recipe,
                 List<PreviewEntry> output,
                 RegistryAccess registryAccess
         ) {
@@ -501,7 +501,7 @@ public final class RecipeExpander {
                     .create(SlotDisplayContext.CONTEXT);
         }
 
-        private static ItemStack resolveRecipeResult(Recipe<?> recipe, RegistryAccess registryAccess) {
+        private static ItemStack resolveRecipeResult(net.minecraft.world.item.crafting.Recipe<?> recipe, RegistryAccess registryAccess) {
             if (recipe == null) return ItemStack.EMPTY;
             ContextMap context = slotDisplayContext(registryAccess);
             List<RecipeDisplay> displays = recipe.display();
@@ -535,55 +535,55 @@ public final class RecipeExpander {
         public enum DeclaredType {
             CRAFTING_SHAPED("crafting_shaped", LayoutKind.CRAFTING_SHAPED) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof ShapedRecipe;
                 }
             },
             CRAFTING_SHAPELESS("crafting_shapeless", LayoutKind.CRAFTING_SHAPELESS) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof CraftingRecipe && !(recipe instanceof ShapedRecipe);
                 }
             },
             SMELTING("smelting", LayoutKind.SMELTING_FAMILY) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.SMELTING;
                 }
             },
             BLASTING("blasting", LayoutKind.SMELTING_FAMILY) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.BLASTING;
                 }
             },
             SMOKING("smoking", LayoutKind.SMELTING_FAMILY) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.SMOKING;
                 }
             },
             CAMPFIRE_COOKING("campfire_cooking", LayoutKind.SMELTING_FAMILY) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof AbstractCookingRecipe && recipe.getType() == RecipeType.CAMPFIRE_COOKING;
                 }
             },
             STONECUTTING("stonecutting", LayoutKind.STONECUTTING) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof StonecutterRecipe;
                 }
             },
             SMITHING("smithing", LayoutKind.SMITHING) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe instanceof SmithingRecipe;
                 }
             },
             FALLBACK("fallback", LayoutKind.FALLBACK) {
                 @Override
-                boolean matches(Recipe<?> recipe) {
+                boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe) {
                     return recipe != null;
                 }
             };
@@ -604,7 +604,7 @@ public final class RecipeExpander {
                 return layoutKind;
             }
 
-            abstract boolean matches(Recipe<?> recipe);
+            abstract boolean matches(net.minecraft.world.item.crafting.Recipe<?> recipe);
 
             public static DeclaredType fromRaw(String raw) {
                 if (raw == null || raw.isBlank()) return null;

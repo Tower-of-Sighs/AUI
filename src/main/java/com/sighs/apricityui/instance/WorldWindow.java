@@ -17,7 +17,6 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector4f;
-import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -107,14 +106,6 @@ public class WorldWindow {
 
         poseStack.last().pose().set(poseStack.last().pose());
         poseStack.last().normal().set(poseStack.last().normal());
-
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthFunc(GL11.GL_LEQUAL);
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        // Depth bias to avoid z-fighting with world geometry.
-        RenderSystem.enablePolygonOffset();
-        RenderSystem.polygonOffset(-1.0f, -1.0f);
 
         float desiredWorldStep = computeDepthStep(cameraPos);
         float safeScale = Math.max(1.0e-4f, scale);

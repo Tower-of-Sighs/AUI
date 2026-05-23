@@ -10,7 +10,7 @@ import com.sighs.apricityui.instance.element.Container;
 import java.util.*;
 
 /**
- * �?container 的自动槽位前移到 Document 刷新阶段生成�?
+ * Generates automatic container slots during document refresh.
  */
 public final class ContainerExpander {
     private static final String GENERATED_CONTAINER_AUTO = "container-auto";

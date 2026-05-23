@@ -6,13 +6,11 @@ import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
-import com.sighs.apricityui.registry.annotation.KJSBindings;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@KJSBindings(value = "ApricityUI", isClient = true)
 public class ApricityUIClientUtil {
     public static Window getWindow() {
         return Window.window;

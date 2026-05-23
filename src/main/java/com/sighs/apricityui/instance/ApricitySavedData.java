@@ -1,104 +1,119 @@
 package com.sighs.apricityui.instance;
 
-import net.minecraft.nbt.CompoundTag;
-import net.minecraft.nbt.ListTag;
-import net.minecraft.nbt.Tag;
+import com.mojang.serialization.Codec;
+import com.sighs.apricityui.ApricityUI;
+import net.minecraft.core.NonNullList;
+import net.minecraft.resources.Identifier;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.saveddata.SavedData;
-import net.minecraftforge.items.ItemStackHandler;
+import net.minecraft.world.level.saveddata.SavedDataType;
+import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
-import javax.annotation.Nonnull;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
-/**
- * 通用世界级库存 SavedData。
- * 热重载时直接截断：按目标容量物理重建，超出部分丢弃。
- */
 public class ApricitySavedData extends SavedData {
-    private static final String INVENTORIES_KEY = "inventories";
+    private static final Codec<Map<String, List<ItemStack>>> INVENTORIES_CODEC =
+            Codec.unboundedMap(Codec.STRING, ItemStack.OPTIONAL_CODEC.listOf());
+    private static final Codec<ApricitySavedData> CODEC =
+            INVENTORIES_CODEC.xmap(ApricitySavedData::fromSerialized, ApricitySavedData::toSerialized);
 
-    private final LinkedHashMap<String, ItemStackHandler> inventories = new LinkedHashMap<>();
+    private final LinkedHashMap<String, ItemStacksResourceHandler> inventories = new LinkedHashMap<>();
 
     public static ApricitySavedData get(MinecraftServer server, String dataName) {
-        return server.overworld().getDataStorage().computeIfAbsent(
-                ApricitySavedData::load,
+        String normalizedName = normalizeDataName(dataName);
+        SavedDataType<ApricitySavedData> type = new SavedDataType<>(
+                Identifier.fromNamespaceAndPath(ApricityUI.MODID, normalizedName),
                 ApricitySavedData::new,
-                dataName
+                CODEC,
+                null
         );
+        return server.getDataStorage().computeIfAbsent(type);
     }
 
-    public static ApricitySavedData load(CompoundTag tag) {
-        ApricitySavedData data = new ApricitySavedData();
-        CompoundTag allInventories = tag.getCompound(INVENTORIES_KEY);
-        for (String key : allInventories.getAllKeys()) {
-            CompoundTag serialized = allInventories.getCompound(key);
-            int slotCount = Math.max(1, serialized.getInt("Size"));
-            ItemStackHandler handler = data.createTrackedHandler(slotCount);
-            handler.deserializeNBT(serialized);
-            data.inventories.put(key, handler);
-        }
-        return data;
-    }
-
-    /**
-     * 获取或创建指定容量的库存。
-     * 若已存在且容量不同，按目标容量截断重建。
-     */
-    public ItemStackHandler getOrCreate(String inventoryKey, int slotCount) {
+    public ItemStacksResourceHandler getOrCreate(String inventoryKey, int slotCount) {
         String key = normalizeInventoryKey(inventoryKey);
         int normalizedSlotCount = Math.max(1, slotCount);
 
-        ItemStackHandler existing = inventories.get(key);
+        ItemStacksResourceHandler existing = inventories.get(key);
         if (existing == null) {
-            ItemStackHandler created = createTrackedHandler(normalizedSlotCount);
+            ItemStacksResourceHandler created = createTrackedHandler(normalizedSlotCount);
             inventories.put(key, created);
             setDirty();
             return created;
         }
 
-        if (existing.getSlots() == normalizedSlotCount) {
+        if (existing.size() == normalizedSlotCount) {
             return existing;
         }
 
-        // 截断：按目标容量物理重建，保留可容纳的物品，超出部分丢弃。
-        ItemStackHandler resized = createTrackedHandler(normalizedSlotCount);
-        int copyCount = Math.min(existing.getSlots(), normalizedSlotCount);
+        ItemStacksResourceHandler resized = createTrackedHandler(normalizedSlotCount);
+        NonNullList<ItemStack> existingStacks = existing.copyToList();
+        int copyCount = Math.min(existingStacks.size(), normalizedSlotCount);
         for (int i = 0; i < copyCount; i++) {
-            ItemStack stack = existing.getStackInSlot(i);
+            ItemStack stack = existingStacks.get(i);
             if (stack.isEmpty()) continue;
-            resized.setStackInSlot(i, stack.copy());
+            resized.set(i, resized.getResourceFrom(stack), stack.getCount());
         }
         inventories.put(key, resized);
         setDirty();
         return resized;
     }
 
-    @Override
-    public @Nonnull CompoundTag save(@Nonnull CompoundTag tag) {
-        CompoundTag allInventories = new CompoundTag();
-        for (Map.Entry<String, ItemStackHandler> entry : inventories.entrySet()) {
-            allInventories.put(entry.getKey(), entry.getValue().serializeNBT());
+    private static ApricitySavedData fromSerialized(Map<String, List<ItemStack>> serialized) {
+        ApricitySavedData data = new ApricitySavedData();
+        if (serialized == null) return data;
+
+        for (Map.Entry<String, List<ItemStack>> entry : serialized.entrySet()) {
+            String key = normalizeInventoryKey(entry.getKey());
+            List<ItemStack> stacks = entry.getValue();
+            int size = Math.max(1, stacks == null ? 1 : stacks.size());
+            ItemStacksResourceHandler handler = data.createTrackedHandler(size);
+            if (stacks != null) {
+                for (int i = 0; i < stacks.size(); i++) {
+                    ItemStack stack = stacks.get(i);
+                    if (stack == null || stack.isEmpty()) continue;
+                    handler.set(i, handler.getResourceFrom(stack), stack.getCount());
+                }
+            }
+            data.inventories.put(key, handler);
         }
-        tag.put(INVENTORIES_KEY, allInventories);
-        return tag;
+        return data;
     }
 
-    private String normalizeInventoryKey(String inventoryKey) {
-        if (inventoryKey == null || inventoryKey.trim().isEmpty()) {
-            return "__default__";
+    private static Map<String, List<ItemStack>> toSerialized(ApricitySavedData data) {
+        LinkedHashMap<String, List<ItemStack>> serialized = new LinkedHashMap<>();
+        if (data == null) return serialized;
+        for (Map.Entry<String, ItemStacksResourceHandler> entry : data.inventories.entrySet()) {
+            serialized.put(entry.getKey(), List.copyOf(entry.getValue().copyToList()));
         }
+        return serialized;
+    }
+
+    private static String normalizeDataName(String dataName) {
+        if (dataName == null || dataName.isBlank()) return "apricityui_data";
+        return dataName.trim().replace('\\', '/').replaceAll("[^a-z0-9_./-]", "_");
+    }
+
+    private static String normalizeInventoryKey(String inventoryKey) {
+        if (inventoryKey == null || inventoryKey.trim().isEmpty()) return "__default__";
         return inventoryKey.trim();
     }
 
-    private ItemStackHandler createTrackedHandler(int slotCount) {
-        int normalized = Math.max(1, slotCount);
-        return new ItemStackHandler(normalized) {
-            @Override
-            protected void onContentsChanged(int slot) {
-                setDirty();
-            }
-        };
+    private ItemStacksResourceHandler createTrackedHandler(int slotCount) {
+        return new TrackingItemStacksResourceHandler(Math.max(1, slotCount));
+    }
+
+    private final class TrackingItemStacksResourceHandler extends ItemStacksResourceHandler {
+        private TrackingItemStacksResourceHandler(int slots) {
+            super(slots);
+        }
+
+        @Override
+        protected void onContentsChanged(int slot, ItemStack stack) {
+            setDirty();
+        }
     }
 }

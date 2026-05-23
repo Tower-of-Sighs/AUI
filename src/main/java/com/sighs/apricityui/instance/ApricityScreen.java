@@ -1,14 +1,11 @@
 package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-
-import javax.annotation.Nonnull;
 
 /**
  * 纯 UI Screen（不带容器交互）。
@@ -40,13 +37,12 @@ public class ApricityScreen extends Screen {
     }
 
     @Override
-    public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+    public void extractRenderState(GuiGraphicsExtractor guiGraphics, int mouseX, int mouseY, float partialTick) {
+        super.extractRenderState(guiGraphics, mouseX, mouseY, partialTick);
         if (linkedDocument != null) {
-            Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
             // 默认字体使用 Minecraft 的 BufferSource，文档绘制结束后立即提交，避免文本延迟到后续阶段才显示。
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         }
-        Cursor.drawPseudoCursor(guiGraphics);
     }
 
     @Override

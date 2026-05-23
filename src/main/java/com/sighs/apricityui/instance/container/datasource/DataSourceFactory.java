@@ -4,7 +4,7 @@ import com.sighs.apricityui.instance.ApricitySavedData;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraftforge.items.ItemStackHandler;
+import net.neoforged.neoforge.transfer.item.ItemStacksResourceHandler;
 
 import java.util.Map;
 
@@ -42,14 +42,13 @@ public final class DataSourceFactory {
                                                         String containerId,
                                                         Map<String, String> args,
                                                         int capacity) {
-        if (player.getServer() == null) return null;
-
         String dataName = getArg(args, "data_name", "apricityui_data");
         String inventoryKey = containerId != null && !containerId.isBlank() ? containerId : "__default__";
         int normalizedCapacity = Math.max(1, capacity);
 
-        ApricitySavedData savedData = ApricitySavedData.get(player.getServer(), dataName);
-        ItemStackHandler handler = savedData.getOrCreate(inventoryKey, normalizedCapacity);
+        if (player.level().getServer() == null) return null;
+        ApricitySavedData savedData = ApricitySavedData.get(player.level().getServer(), dataName);
+        ItemStacksResourceHandler handler = savedData.getOrCreate(inventoryKey, normalizedCapacity);
 
         return new SavedDataDataSource(ContainerBindType.SAVED_DATA, savedData, inventoryKey, handler);
     }
