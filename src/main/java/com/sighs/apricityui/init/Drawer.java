@@ -114,7 +114,7 @@ public class Drawer {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }
 
-        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BODY));
+        appendBodyRenderNodes(contextRoot, paintList);
 
         List<Element> children = contextRoot.children;
         if (children.isEmpty()) {
@@ -178,6 +178,17 @@ public class Drawer {
     }
 
     private record Paintable(Element element, int zValue, int domOrder) {
+    }
+
+    private static void appendBodyRenderNodes(Element contextRoot, List<RenderNode> paintList) {
+        if (contextRoot instanceof BodyRenderNodeProvider provider) {
+            List<RenderNode> nodes = provider.createBodyRenderNodes();
+            if (nodes != null && !nodes.isEmpty()) {
+                paintList.addAll(nodes);
+                return;
+            }
+        }
+        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BODY));
     }
 
     private static List<Element> minimizeRoots(Set<Element> roots) {
