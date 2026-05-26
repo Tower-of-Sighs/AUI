@@ -37,12 +37,22 @@ public class ClientLoader extends Loader {
 
     @SubscribeEvent
     public static void setup(FMLClientSetupEvent event) {
-        event.enqueueWork(ClientLoader::reload);
+        // 初始加载时不调用 ApricityJS.reload()，因为此时其他模组的客户端资源
+        // （如模型层）可能尚未注册完毕，强制重载 KubeJS 客户端脚本会导致崩溃。
+        event.enqueueWork(ClientLoader::reloadResources);
     }
 
     public static void reload() {
         long beginNs = System.nanoTime();
         ApricityJS.reload();
+        reloadResourcesInternal(beginNs);
+    }
+
+    private static void reloadResources() {
+        reloadResourcesInternal(System.nanoTime());
+    }
+
+    private static void reloadResourcesInternal(long beginNs) {
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
