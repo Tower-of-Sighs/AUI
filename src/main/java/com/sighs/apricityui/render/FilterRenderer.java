@@ -42,13 +42,34 @@ public class FilterRenderer {
         return false;
     }
 
+    private static boolean stencilInitialized = false;
+
+    /**
+     * 在其它渲染代码（Iris 着色器管线、fabulous graphics 目标等）创建自己的 FBO
+     * 之前，确保主渲染目标的 depth 缓冲包含 stencil 格式。
+     *
+     * <p>如果不提前固定格式，后续 {@link #beginFrame()} 首次调用时会触发
+     * {@code resize()} 将 depth 格式从 {@code GL_DEPTH_COMPONENT} 改为
+     * {@code GL_DEPTH32F_STENCIL8}，导致主目标与旧格式 FBO 之间的
+     * {@code glBlitFramebuffer} 每帧报
+     * {@code GL_INVALID_OPERATION — Depth formats do not match}。
+     */
+    public static void init() {
+        if (stencilInitialized) return;
+        stencilInitialized = true;
+        RenderTarget target = Minecraft.getInstance().getMainRenderTarget();
+        if (!target.isStencilEnabled()) {
+            target.enableStencil();
+        }
+    }
+
     public static void beginFrame() {
         // 防御式清理：若上帧因异常或节点错配残留栈，避免 poolPointer 无界增长
         if (!fboStack.isEmpty()) {
             fboStack.clear();
         }
         mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
-        if (mainRenderTarget != null) {
+        if (!mainRenderTarget.isStencilEnabled()) {
             mainRenderTarget.enableStencil();
         }
         poolPointer = 0;
