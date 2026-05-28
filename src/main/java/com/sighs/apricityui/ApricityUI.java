@@ -14,6 +14,8 @@ import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandle
 import com.sighs.apricityui.instance.network.handler.PendingMenu;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
+import com.sighs.apricityui.render.FilterRenderer;
+import com.sighs.apricityui.script.KubeJS;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
@@ -55,6 +57,7 @@ public class ApricityUI {
             ShaderRegistry.register(event);
         } catch (IOException ignored) {
         }
+        FilterRenderer.init();
     }
 
     public static Window getWindow() {

@@ -4,8 +4,8 @@ import com.sighs.apricityui.ApricityUI;
 import lombok.experimental.UtilityClass;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforgespi.language.ModFileScanData;
-import org.jetbrains.annotations.Nullable;
 
+import javax.annotation.Nullable;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.ElementType;
 import java.lang.reflect.*;

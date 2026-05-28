@@ -63,7 +63,10 @@ base {
     archivesName = "${mod_name}-neoforge-${minecraft_version}"
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+java {
+    toolchain.languageVersion.set(JavaLanguageVersion.of(21))
+    withSourcesJar()
+}
 
 configurations {
     create("mixinAgent") {
@@ -121,8 +124,8 @@ neoForge {
             }
             systemProperty 'forge.logging.markers', 'REGISTRIES'
 
-            jvmArguments.add '-XX:+AllowEnhancedClassRedefinition'
-            jvmArguments.add '-XX:HotswapAgent=fatjar'
+//            jvmArguments.add '-XX:+AllowEnhancedClassRedefinition'
+//            jvmArguments.add '-XX:HotswapAgent=fatjar'
 
             logLevel = org.slf4j.event.Level.DEBUG
         }
@@ -155,6 +158,10 @@ dependencies {
 
     //plugin
     // additionalRuntimeClasspath("dev.vfyjxf:mixin-hotswap-agent:1.1")
+}
+
+tasks.withType(GenerateModuleMetadata) {
+    enabled = false
 }
 
 publishing {
