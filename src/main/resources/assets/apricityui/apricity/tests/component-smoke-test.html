@@ -1,0 +1,494 @@
+<body>
+<div class="title">AUI Component Smoke Test</div>
+<div class="desc">用途: 回归常用组件的基础交互，重点覆盖 textarea 的 focus / 编辑 / 回车 / value 同步 / 滚动。</div>
+
+<div class="layout">
+    <div class="panel summary">
+        <div class="group-title">覆盖点</div>
+        <div class="line">1. input / textarea 的 focus / blur</div>
+        <div class="line">2. textarea 多行编辑与 Enter 插入换行</div>
+        <div class="line">3. textarea 的运行时内容以 value 为准</div>
+        <div class="line">4. select / option / checkbox / radio 状态更新</div>
+        <div class="line">5. span / pre / img / sprite / translation / slot 显示</div>
+
+        <div class="group-title top-gap">手动验证</div>
+        <div class="line">1. 先点 textarea，确认右侧出现 focus 日志。</div>
+        <div class="line">2. 在 textarea 里输入字符并按 Enter，再点 Read Value。</div>
+        <div class="line">3. 内容超过盒子高度后，滚轮应能滚动 textarea。</div>
+        <div class="line">4. 点 Set Demo / Clear，确认 textarea 内容和镜像同步变化。</div>
+        <div class="line">5. 切换 checkbox / radio / select，确认日志和状态文本更新。</div>
+    </div>
+
+    <div class="panel stage">
+        <div class="section-title">Form Elements</div>
+
+        <div class="field">
+            <div class="label">input</div>
+            <input id="textInput" value="editable input" />
+        </div>
+
+        <div class="field">
+            <div class="label">textarea</div>
+            <textarea id="textareaInput">line 1
+line 2
+line 3</textarea>
+        </div>
+
+        <div class="action-row">
+            <div class="action-btn" id="btnReadTextarea">Read Value</div>
+            <div class="action-btn" id="btnSetTextarea">Set Demo</div>
+            <div class="action-btn" id="btnClearTextarea">Clear</div>
+        </div>
+
+        <pre class="mirror" id="textareaMirror">waiting for textarea value...</pre>
+
+        <div class="field">
+            <div class="label">select</div>
+            <select id="selectInput" value="beta">
+                <option value="alpha">alpha</option>
+                <option value="beta">beta</option>
+                <option value="gamma">gamma</option>
+            </select>
+        </div>
+
+        <div class="field inline-field">
+            <div class="label">check</div>
+            <div class="toggle-row">
+                <input id="checkInput" type="checkbox" checked />
+                <span class="tiny-label">checkbox</span>
+            </div>
+            <div class="toggle-row">
+                <input id="radioInputA" type="radio" name="smoke-group" checked />
+                <span class="tiny-label">radio A</span>
+            </div>
+            <div class="toggle-row">
+                <input id="radioInputB" type="radio" name="smoke-group" />
+                <span class="tiny-label">radio B</span>
+            </div>
+        </div>
+
+        <div class="status-card" id="stateMirror">state mirror loading...</div>
+
+        <div class="section-title">Generic Elements</div>
+
+        <div class="asset-grid">
+            <span class="tag-pill">span chip</span>
+
+            <pre class="asset-pre">PRE-LINE-1
+PRE-LINE-2    keep spaces
+PRE-LINE-3</pre>
+
+            <img class="asset-icon" src="../apricityui/icon.png" />
+
+            <sprite
+                    class="asset-sprite"
+                    src="../devtools/lava_bucket.png"
+                    steps="24"
+                    direction="right"
+                    duration="1.2s"
+                    loop="infinite"
+                    steps-mode="end"
+                    autoplay="true">
+            </sprite>
+
+            <translation class="asset-translation">key.apricityui.reload</translation>
+
+            <div class="slot-wrap">
+                <slot class="asset-slot">minecraft:diamond</slot>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel log-panel">
+        <div class="group-title">Event Log</div>
+        <div class="log" id="logPanel">waiting for events...</div>
+    </div>
+</div>
+
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 4px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background-image: linear-gradient(160deg, #101a24 0%, #18283a 48%, #30516b 100%);
+        color: #eaf4ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 11px;
+        line-height: 1.35;
+        selection-color: #2f7fe0;
+        transform: translateZ(2px);
+    }
+
+    .title {
+        font-size: 15px;
+        font-weight: 700;
+        color: #f7fbff;
+    }
+
+    .desc {
+        color: #bdd4ec;
+        font-size: 10px;
+    }
+
+    .layout {
+        width: 100%;
+        flex: 1;
+        display: flex;
+        flex-direction: row;
+        gap: 8px;
+    }
+
+    .panel {
+        border: 1px solid #5c87a6;
+        border-radius: 8px;
+        background: rgba(10, 18, 27, 0.62);
+        padding: 6px;
+        box-sizing: border-box;
+        overflow: hidden;
+    }
+
+    .summary {
+        width: 168px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .stage {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: auto;
+    }
+
+    .log-panel {
+        width: 160px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .group-title {
+        color: #ffe39a;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .top-gap {
+        margin-top: 6px;
+    }
+
+    .line {
+        color: #d7e7f8;
+        font-size: 9px;
+    }
+
+    .section-title {
+        color: #ffd28b;
+        font-size: 10px;
+        font-weight: 700;
+    }
+
+    .field {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 5px;
+        border: 1px solid #4e6f8d;
+        border-radius: 6px;
+        background: rgba(17, 28, 39, 0.54);
+    }
+
+    .inline-field {
+        gap: 4px;
+    }
+
+    .label {
+        color: #a7c8e6;
+        font-size: 9px;
+    }
+
+    .tiny-label {
+        color: #d8e9fb;
+        font-size: 9px;
+    }
+
+    input,
+    textarea,
+    select {
+        background: rgba(8, 14, 20, 0.9);
+        color: #f6fbff;
+        border: 1px solid #8fb4d6;
+        padding: 3px;
+        box-sizing: border-box;
+    }
+
+    input {
+        width: 130px;
+    }
+
+    textarea {
+        width: 100%;
+        height: 66px;
+        overflow: auto;
+        selection-color: #418cff;
+    }
+
+    select {
+        width: 90px;
+        selection-color: #418cff;
+    }
+
+    input:focus,
+    textarea:focus,
+    select:focus {
+        background: rgba(13, 24, 36, 0.96);
+    }
+
+    .action-row {
+        display: flex;
+        flex-direction: row;
+        gap: 4px;
+    }
+
+    .action-btn {
+        padding: 3px 6px;
+        border: 1px solid #86b5d0;
+        border-radius: 5px;
+        background: rgba(29, 72, 104, 0.6);
+        color: #f5fbff;
+    }
+
+    .mirror,
+    .status-card,
+    .log {
+        border: 1px solid #4c6f8f;
+        border-radius: 6px;
+        background: rgba(7, 12, 18, 0.86);
+        padding: 5px;
+        box-sizing: border-box;
+        color: #edf6ff;
+        white-space: pre-wrap;
+    }
+
+    .mirror {
+        min-height: 54px;
+    }
+
+    .status-card {
+        min-height: 38px;
+        color: #cfe3f8;
+    }
+
+    .toggle-row {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .asset-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 6px;
+        align-items: start;
+    }
+
+    .tag-pill {
+        padding: 3px 5px;
+        border-radius: 999px;
+        background: rgba(52, 96, 130, 0.7);
+        color: #f7fbff;
+    }
+
+    .asset-pre {
+        margin: 0;
+        min-height: 38px;
+        border: 1px solid #7195b8;
+        background: rgba(8, 13, 19, 0.82);
+        color: #f0f6ff;
+        padding: 5px;
+        box-sizing: border-box;
+    }
+
+    .asset-icon {
+        width: 28px;
+        height: 28px;
+        border: 1px solid #6d91b6;
+        padding: 2px;
+        background: rgba(8, 13, 18, 0.82);
+    }
+
+    .asset-sprite {
+        width: 48px;
+        height: 48px;
+        border: 1px solid #6d91b6;
+        background-color: rgba(8, 13, 18, 0.82);
+    }
+
+    .asset-translation {
+        padding: 4px;
+        border: 1px solid #6d91b6;
+        background: rgba(8, 13, 18, 0.82);
+        color: #ffe0a7;
+    }
+
+    .slot-wrap {
+        padding: 4px;
+        border: 1px solid #6d91b6;
+        background: rgba(8, 13, 18, 0.82);
+    }
+
+    .asset-slot {
+        width: 18px;
+        height: 18px;
+    }
+
+    .log {
+        flex: 1;
+        overflow: auto;
+        font-size: 9px;
+        line-height: 1.4;
+    }
+</style>
+
+<script>
+    function log(message) {
+        var panel = document.querySelector("#logPanel");
+        if (!panel) return;
+        var oldText = panel.innerText;
+        panel.innerText = message + "\n" + oldText;
+    }
+
+    function safeAttr(element, key) {
+        if (!element) return "";
+        return element.getAttribute(key) || "";
+    }
+
+    function syncTextareaMirror(reason) {
+        var textarea = document.querySelector("#textareaInput");
+        var mirror = document.querySelector("#textareaMirror");
+        if (!textarea || !mirror) return;
+
+        var valueText = safeAttr(textarea, "value");
+        var innerText = textarea.innerText || "";
+        mirror.innerText =
+            "reason: " + reason + "\n" +
+            "value:\n" + valueText + "\n" +
+            "---\n" +
+            "innerText:\n" + innerText;
+    }
+
+    function syncStateMirror() {
+        var selectEl = document.querySelector("#selectInput");
+        var checkEl = document.querySelector("#checkInput");
+        var radioA = document.querySelector("#radioInputA");
+        var radioB = document.querySelector("#radioInputB");
+        var card = document.querySelector("#stateMirror");
+        if (!card) return;
+
+        card.innerText =
+            "select=" + safeAttr(selectEl, "value") + "\n" +
+            "checkbox.checked=" + safeAttr(checkEl, "checked") + "\n" +
+            "radioA.checked=" + safeAttr(radioA, "checked") + "\n" +
+            "radioB.checked=" + safeAttr(radioB, "checked");
+    }
+
+    document.body.addEventListener("load", function () {
+        var textInput = document.querySelector("#textInput");
+        var textarea = document.querySelector("#textareaInput");
+        var selectEl = document.querySelector("#selectInput");
+        var checkEl = document.querySelector("#checkInput");
+        var radioA = document.querySelector("#radioInputA");
+        var radioB = document.querySelector("#radioInputB");
+        var btnRead = document.querySelector("#btnReadTextarea");
+        var btnSet = document.querySelector("#btnSetTextarea");
+        var btnClear = document.querySelector("#btnClearTextarea");
+
+        syncTextareaMirror("load");
+        syncStateMirror();
+        log("body load");
+
+        if (textInput) {
+            textInput.addEventListener("focus", function () {
+                log("input focus");
+            });
+            textInput.addEventListener("blur", function () {
+                log("input blur");
+            });
+        }
+
+        if (textarea) {
+            textarea.addEventListener("focus", function () {
+                log("textarea focus");
+            });
+            textarea.addEventListener("blur", function () {
+                syncTextareaMirror("textarea blur");
+                log("textarea blur");
+            });
+            textarea.addEventListener("keydown", function (event) {
+                log("textarea keydown key=" + event.key + " repeat=" + event.repeat);
+            });
+        }
+
+        if (selectEl) {
+            selectEl.addEventListener("mousedown", function () {
+                log("select open value=" + safeAttr(selectEl, "value"));
+            });
+        }
+
+        if (checkEl) {
+            checkEl.addEventListener("mousedown", function () {
+                syncStateMirror();
+                log("checkbox checked=" + safeAttr(checkEl, "checked"));
+            });
+        }
+
+        if (radioA) {
+            radioA.addEventListener("mousedown", function () {
+                syncStateMirror();
+                log("radio A checked=" + safeAttr(radioA, "checked"));
+            });
+        }
+
+        if (radioB) {
+            radioB.addEventListener("mousedown", function () {
+                syncStateMirror();
+                log("radio B checked=" + safeAttr(radioB, "checked"));
+            });
+        }
+
+        if (btnRead) {
+            btnRead.addEventListener("mousedown", function () {
+                syncTextareaMirror("manual read");
+                syncStateMirror();
+                log("textarea read value length=" + safeAttr(textarea, "value").length);
+            });
+        }
+
+        if (btnSet) {
+            btnSet.addEventListener("mousedown", function () {
+                if (!textarea) return;
+                textarea.setAttribute("value", "Preset-A\\nPreset-B\\nPreset-C\\nTry editing me.");
+                syncTextareaMirror("set demo");
+                log("textarea set demo");
+            });
+        }
+
+        if (btnClear) {
+            btnClear.addEventListener("mousedown", function () {
+                if (!textarea) return;
+                textarea.setAttribute("value", "");
+                syncTextareaMirror("clear");
+                log("textarea clear");
+            });
+        }
+    });
+</script>
+</body>

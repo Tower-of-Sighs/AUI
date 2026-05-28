@@ -2,6 +2,7 @@ package com.sighs.apricityui.script;
 
 import com.sighs.apricityui.ApricityUI;
 import dev.latvian.mods.kubejs.KubeJS;
+import dev.latvian.mods.kubejs.client.KubeJSClient;
 import dev.latvian.mods.kubejs.script.KubeJSContext;
 import net.neoforged.fml.ModList;
 
@@ -19,6 +20,6 @@ public class ApricityJS {
 
     public static void reload() {
         if (!ModList.get().isLoaded("kubejs")) return;
-        KubeJS.PROXY.reloadClientInternal();
+        KubeJSClient.reloadClientScripts();
     }
 }
