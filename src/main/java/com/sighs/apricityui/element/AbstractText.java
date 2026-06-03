@@ -5,12 +5,9 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.*;
 
 import java.util.*;
 
@@ -44,7 +41,7 @@ public abstract class AbstractText extends Element {
                 document.clearAllTextSelectionsExcept(this);
             }
 
-            if (canSelectText() && Style.isUserSelectAll(this)) {
+            if (canSelectText() && Interaction.isUserSelectAll(this)) {
                 selectAll();
                 selecting = false;
                 clampScroll();
@@ -141,7 +138,7 @@ public abstract class AbstractText extends Element {
     }
 
     public boolean canSelectText() {
-        return Style.isUserSelectable(this);
+        return Interaction.isUserSelectable(this);
     }
 
     public boolean isMultiline() {
@@ -402,7 +399,7 @@ public abstract class AbstractText extends Element {
         float x1 = (float) (contentPos.x + endX);
         float y0 = (float) contentPos.y;
         float y1 = y0 + (float) lineHeight;
-        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
+        Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
     }
 
     protected void drawSingleLineCursor(PoseStack poseStack, String renderText, float drawX, float drawY, float lineHeight) {
@@ -410,7 +407,7 @@ public abstract class AbstractText extends Element {
         String textBefore = renderText.substring(0, Math.min(cursor, renderText.length()));
         double cursorXOffset = Size.measureText(this, textBefore);
         float renderX = (float) (drawX + cursorXOffset);
-        Graph.drawCursor(poseStack.last().pose(), renderX, drawY, lineHeight, Style.getFontColor(this), this.lastBlinkTime);
+        Graph.drawCursor(poseStack.last().pose(), renderX, drawY, lineHeight, Text.getFontColor(this), this.lastBlinkTime);
     }
 
     protected List<String> splitLines(String text) {

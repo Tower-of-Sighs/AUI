@@ -1,7 +1,4 @@
-package com.sighs.apricityui.style;
-
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+package com.sighs.apricityui.init;
 
 import java.util.IdentityHashMap;
 import java.util.Map;

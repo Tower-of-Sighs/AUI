@@ -32,6 +32,203 @@ public class Text {
     public double letterSpacing = 0;
     public Size size = null;
 
+    public static int getFontSize(Element element) {
+        int fontSize = 16;
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontSize;
+            if (!f.equals("unset")) {
+                fontSize = Size.parse(f);
+                break;
+            }
+        }
+        return (int) (fontSize / 16d * 9);
+    }
+
+    public static String getFontFamily(Element element) {
+        String fontFamily = "unset";
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontFamily;
+            if (!f.equals("unset")) {
+                fontFamily = f;
+                break;
+            }
+        }
+        return fontFamily;
+    }
+
+    public static int getFontWeight(Element element) {
+        int fontWeight = 400;
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontWeight;
+            if (!f.equals("unset")) {
+                fontWeight = parseFontWeight(f);
+                break;
+            }
+        }
+        return fontWeight;
+    }
+
+    public static boolean isOblique(Element element) {
+        for (Element e : element.getRoute()) {
+            String f = e.getComputedStyle().fontStyle;
+            if (!f.equals("unset")) {
+                return isObliqueValue(f);
+            }
+        }
+        return false;
+    }
+
+    public static int parseFontWeight(String raw) {
+        if (raw == null || raw.isBlank()) return 400;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if (value.equals("unset") || value.equals("normal")) return 400;
+        if (value.equals("bold") || value.equals("bolder")) return 700;
+        if (value.equals("lighter")) return 300;
+        try {
+            int parsed = Integer.parseInt(value);
+            if (parsed < 1) return 1;
+            return Math.min(parsed, 1000);
+        } catch (NumberFormatException ignored) {
+        }
+        return 400;
+    }
+
+    public static boolean isObliqueValue(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return value.equals("oblique");
+    }
+
+    public static Style.TextStroke parseTextStroke(String raw) {
+        if (raw == null || raw.isBlank()) return Style.TextStroke.NONE;
+        String value = raw.trim();
+        String lower = value.toLowerCase(Locale.ROOT);
+        if (lower.equals("unset") || lower.equals("none")) return Style.TextStroke.NONE;
+
+        int width = 0;
+        String colorPart = value;
+
+        int pxIndex = lower.indexOf("px");
+        if (pxIndex > 0) {
+            int start = pxIndex - 1;
+            while (start >= 0 && Character.isDigit(lower.charAt(start))) start--;
+            String number = lower.substring(start + 1, pxIndex).trim();
+            try {
+                width = Math.max(0, Integer.parseInt(number));
+            } catch (NumberFormatException ignored) {
+            }
+            colorPart = (value.substring(0, Math.max(0, start + 1)) + " " + value.substring(pxIndex + 2)).trim();
+        }
+
+        int color = Color.parse(colorPart.isBlank() ? "#000" : colorPart);
+        if (width <= 0) return Style.TextStroke.NONE;
+        return new Style.TextStroke(width, color);
+    }
+
+    public static Style.TextStroke getTextStroke(Element element) {
+        for (Element e : element.getRoute()) {
+            String s = e.getComputedStyle().textStroke;
+            if (!s.equals("unset")) {
+                return parseTextStroke(s);
+            }
+        }
+        return Style.TextStroke.NONE;
+    }
+
+    public static String getTextDirection(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().direction;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "ltr";
+    }
+
+    public static String getTextAlign(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().textAlign;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "start";
+    }
+
+    public static String getVerticalAlign(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().verticalAlign;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "top";
+    }
+
+    public static String getWhiteSpace(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().whiteSpace;
+            if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
+        }
+        return "normal";
+    }
+
+    public static double getTextIndent(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().textIndent;
+            if (!value.equals("unset")) {
+                Double indent = Size.parseNumber(value);
+                return indent == null ? 0 : indent;
+            }
+        }
+        return 0;
+    }
+
+    public static double getLetterSpacing(Element element) {
+        for (Element e : element.getRoute()) {
+            String value = e.getComputedStyle().letterSpacing;
+            if (!value.equals("unset")) {
+                String normalized = value.trim().toLowerCase(Locale.ROOT);
+                if (normalized.equals("normal")) return 0;
+                Double spacing = Size.parseNumber(value);
+                return spacing == null ? 0 : spacing;
+            }
+        }
+        return 0;
+    }
+
+    public static int getFontColor(Element element) {
+        String styleColor = element.getComputedStyle().color;
+        if (styleColor.equals("unset")) {
+            Element parent = element.parentElement;
+            while (parent != null) {
+                String parentColor = parent.getComputedStyle().color;
+                if (!parentColor.equals("unset")) {
+                    styleColor = parentColor;
+                    break;
+                }
+                parent = parent.parentElement;
+            }
+        }
+        if (styleColor.equals("unset")) {
+            styleColor = "#000";
+        }
+        return Color.parse(styleColor);
+    }
+
+    public static int getSelectionColor(Element element) {
+        String selection = element.getComputedStyle().selectionColor;
+        if (selection.equals("unset")) {
+            Element parent = element.parentElement;
+            while (parent != null) {
+                String parentSelection = parent.getComputedStyle().selectionColor;
+                if (!parentSelection.equals("unset")) {
+                    selection = parentSelection;
+                    break;
+                }
+                parent = parent.parentElement;
+            }
+        }
+        if (selection.equals("unset")) {
+            selection = "#0078D7";
+        }
+        return Color.parse(selection);
+    }
+
     public static Text of(Element element) {
         Text cache = element.getRenderer().text.get();
         if (cache != null) return cache;
@@ -61,19 +258,19 @@ public class Text {
             }
             if (text.fontWeight == -1) {
                 shouldBreak = false;
-                if (!style.fontWeight.equals("unset")) text.fontWeight = Style.parseFontWeight(style.fontWeight);
+                if (!style.fontWeight.equals("unset")) text.fontWeight = parseFontWeight(style.fontWeight);
             }
             if (!resolvedFontStyle) {
                 shouldBreak = false;
                 if (!style.fontStyle.equals("unset")) {
-                    text.oblique = Style.isObliqueValue(style.fontStyle);
+                    text.oblique = isObliqueValue(style.fontStyle);
                     resolvedFontStyle = true;
                 }
             }
             if (!resolvedTextStroke) {
                 shouldBreak = false;
                 if (!style.textStroke.equals("unset")) {
-                    Style.TextStroke stroke = Style.parseTextStroke(style.textStroke);
+                    Style.TextStroke stroke = parseTextStroke(style.textStroke);
                     text.strokeWidth = stroke.width();
                     text.strokeColor = new Color(stroke.color());
                     resolvedTextStroke = true;

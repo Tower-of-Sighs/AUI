@@ -9,7 +9,6 @@ import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.style.Transition;
 
 import java.util.*;

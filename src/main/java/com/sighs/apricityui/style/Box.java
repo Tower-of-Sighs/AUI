@@ -40,7 +40,11 @@ public class Box {
     }
 
     public void applyMarginAll(String value) {
-        SIDE.forEach(side -> applyMargin(side, value));
+        double[] values = parseFourSideLengths(value);
+        margin.put("top", values[0]);
+        margin.put("right", values[1]);
+        margin.put("bottom", values[2]);
+        margin.put("left", values[3]);
     }
 
     public void applyPadding(String side, String value) {
@@ -48,7 +52,11 @@ public class Box {
     }
 
     public void applyPaddingAll(String value) {
-        SIDE.forEach(side -> applyPadding(side, value));
+        double[] values = parseFourSideLengths(value);
+        padding.put("top", values[0]);
+        padding.put("right", values[1]);
+        padding.put("bottom", values[2]);
+        padding.put("left", values[3]);
     }
 
     private static boolean valid(String s) {
@@ -169,6 +177,25 @@ public class Box {
         if (element == null) return Math.max(0, Size.resolveLength(value, 0, 0));
         double basis = Size.getScaleWidth(element);
         return Math.max(0, Size.resolveLength(value, basis, 0));
+    }
+
+    private double[] parseFourSideLengths(String raw) {
+        if (raw == null || raw.isBlank() || "unset".equals(raw)) {
+            return new double[]{0, 0, 0, 0};
+        }
+
+        String[] parts = raw.trim().split("\\s+");
+        double[] parsed = new double[Math.min(parts.length, 4)];
+        for (int i = 0; i < parsed.length; i++) {
+            parsed[i] = resolveBoxLength(parts[i]);
+        }
+
+        return switch (parsed.length) {
+            case 1 -> new double[]{parsed[0], parsed[0], parsed[0], parsed[0]};
+            case 2 -> new double[]{parsed[0], parsed[1], parsed[0], parsed[1]};
+            case 3 -> new double[]{parsed[0], parsed[1], parsed[2], parsed[1]};
+            default -> new double[]{parsed[0], parsed[1], parsed[2], parsed[3]};
+        };
     }
 
     public double offset(String side) {

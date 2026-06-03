@@ -100,7 +100,7 @@ public class Element {
                 document.clearAllTextSelectionsExcept(this);
             }
 
-            if (Style.isUserSelectAll(this)) {
+            if (Interaction.isUserSelectAll(this)) {
                 selectAllInnerText();
                 selectingText = false;
                 setFocusedForTextSelection();
@@ -354,7 +354,7 @@ public class Element {
             renderElement.computedStyle.set(computedStyle);
             computedStyle.resolveVarReferences(this);
             isPointerEnabled = computedStyle.pointerEvents.equals("auto");
-            isVisible = Style.isVisible(this);
+            isVisible = Interaction.isVisible(this);
         }
         return computedStyle;
     }
@@ -423,11 +423,11 @@ public class Element {
     }
 
     public boolean canScrollVertically() {
-        return Style.allowsUserScrollY(getComputedStyle());
+        return Interaction.allowsUserScrollY(getComputedStyle());
     }
 
     public boolean canScrollHorizontally() {
-        return Style.allowsUserScrollX(getComputedStyle());
+        return Interaction.allowsUserScrollX(getComputedStyle());
     }
 
     public void setValue(String value) {
@@ -764,7 +764,7 @@ public class Element {
         if (this instanceof com.sighs.apricityui.element.AbstractText) return false;
         if (innerText == null || innerText.isEmpty()) return false;
         if (!children.isEmpty()) return false;
-        return Style.isUserSelectable(this);
+        return Interaction.isUserSelectable(this);
     }
 
     private int getTextCursor() {
@@ -778,7 +778,7 @@ public class Element {
             return;
         }
 
-        if (Style.isUserSelectAll(this)) {
+        if (Interaction.isUserSelectAll(this)) {
             textSelectionEnd = content.length();
             return;
         }
@@ -831,7 +831,7 @@ public class Element {
             float x1 = (float) (drawX + endX);
             float y0 = (float) (baseY + i * baseText.lineHeight);
             float y1 = y0 + (float) baseText.lineHeight;
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
+            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
         }
     }
 
@@ -839,7 +839,7 @@ public class Element {
         Text text = Text.of(this);
         Position contentPos = rectRenderer.getContentPosition();
         text.content = getSelectableInnerText();
-        text.color = new Color(Style.getFontColor(this));
+        text.color = new Color(Text.getFontColor(this));
 
         if (text.content == null || text.content.isEmpty()) return;
 
@@ -963,7 +963,7 @@ public class Element {
         if (contentWidth <= 0) return false;
         String overflow = getComputedStyle().overflow;
         String textOverflow = getComputedStyle().textOverflow;
-        if (!Style.clipsOverflow(overflow)) return false;
+        if (!Interaction.clipsOverflow(overflow)) return false;
         if (!"ellipsis".equalsIgnoreCase(textOverflow)) return false;
         if (Text.allowsSoftWrap(text.whiteSpace)) return false;
         return true;
