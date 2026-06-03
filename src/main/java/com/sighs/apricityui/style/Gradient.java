@@ -100,12 +100,12 @@ public class Gradient {
 
         for (int i = startIndex; i < parts.length; i++) {
             String part = parts[i].trim();
-            String[] stopParts = part.split("\\s+");
-            int color = Color.parse(stopParts[0]);
+            StopTokens stop = splitStop(part);
+            int color = Color.parse(stop.colorToken());
             float pos = -1;
-            if (stopParts.length > 1 && stopParts[1].endsWith("%")) {
+            if (stop.positionToken() != null && stop.positionToken().endsWith("%")) {
                 try {
-                    pos = Float.parseFloat(stopParts[1].replace("%", "")) / 100f;
+                    pos = Float.parseFloat(stop.positionToken().replace("%", "")) / 100f;
                 } catch (NumberFormatException ignored) {
                 }
             }
@@ -169,5 +169,31 @@ public class Gradient {
         }
         result.add(sb.toString());
         return result.toArray(new String[0]);
+    }
+
+    private static StopTokens splitStop(String raw) {
+        String part = raw == null ? "" : raw.trim();
+        if (part.isEmpty()) {
+            return new StopTokens("", null);
+        }
+
+        int parens = 0;
+        for (int i = 0; i < part.length(); i++) {
+            char c = part.charAt(i);
+            if (c == '(') {
+                parens++;
+            } else if (c == ')') {
+                parens = Math.max(0, parens - 1);
+            } else if (Character.isWhitespace(c) && parens == 0) {
+                String colorToken = part.substring(0, i).trim();
+                String positionToken = part.substring(i).trim();
+                return new StopTokens(colorToken, positionToken.isEmpty() ? null : positionToken);
+            }
+        }
+
+        return new StopTokens(part, null);
+    }
+
+    private record StopTokens(String colorToken, String positionToken) {
     }
 }

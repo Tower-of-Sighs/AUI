@@ -4,6 +4,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Transition;
 
@@ -109,7 +110,7 @@ public class Drawer {
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
 
-        boolean needsMask = Style.clipsOverflow(rootStyle);
+        boolean needsMask = Interaction.clipsOverflow(rootStyle);
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }

@@ -136,7 +136,7 @@ public class TextArea extends AbstractText {
             text.color = new Color("#888888");
             FontDrawer.drawFont(poseStack, text, new Position(baseX, baseY));
             if (Element.isElementFocusing(this)) {
-                Graph.drawCursor(poseStack.last().pose(), baseX, baseY, (float) lineHeight, Style.getFontColor(this), lastBlinkTime);
+                Graph.drawCursor(poseStack.last().pose(), baseX, baseY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
             }
             return;
         }
@@ -153,7 +153,7 @@ public class TextArea extends AbstractText {
             float y = (float) (baseY + i * lineHeight);
             if (!canSelectText() || !hasSelection()) {
                 text.content = line;
-                text.color = new Color(Style.getFontColor(this));
+                text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
                 continue;
             }
@@ -164,7 +164,7 @@ public class TextArea extends AbstractText {
             int max = Math.min(selMax(), lineEnd);
             if (min >= max) {
                 text.content = line;
-                text.color = new Color(Style.getFontColor(this));
+                text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
                 continue;
             }
@@ -176,7 +176,7 @@ public class TextArea extends AbstractText {
             float segmentX = baseX;
             if (!before.isEmpty()) {
                 text.content = before;
-                text.color = new Color(Style.getFontColor(this));
+                text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
                 segmentX += (float) Size.measureText(this, before);
             }
@@ -188,7 +188,7 @@ public class TextArea extends AbstractText {
             }
             if (!after.isEmpty()) {
                 text.content = after;
-                text.color = new Color(Style.getFontColor(this));
+                text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, y));
             }
         }
@@ -200,7 +200,7 @@ public class TextArea extends AbstractText {
         double cursorOffset = Size.measureText(this, lines.get(cursorLine).substring(0, column));
         float cursorX = (float) (baseX + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
-        Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Style.getFontColor(this), lastBlinkTime);
+        Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
     }
 
     private void drawSelection(PoseStack poseStack, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
@@ -226,7 +226,7 @@ public class TextArea extends AbstractText {
             float x1 = (float) (baseX + endX);
             float y0 = (float) (baseY + i * lineHeight);
             float y1 = (float) (y0 + lineHeight);
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Style.getSelectionColor(this));
+            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
         }
     }
 

@@ -123,7 +123,7 @@ public class Input extends AbstractText {
         if (!isChecked()) return;
         Text text = Text.of(this);
         text.content = mode == Mode.RADIO ? "●" : "✓";
-        text.color = new Color(Style.getFontColor(this));
+        text.color = new Color(Text.getFontColor(this));
         FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
     }
 
@@ -136,7 +136,7 @@ public class Input extends AbstractText {
 
         Text text = Text.of(this);
         text.content = renderContent;
-        text.color = isPlaceholder ? new Color("#888888") : new Color(Style.getFontColor(this));
+        text.color = isPlaceholder ? new Color("#888888") : new Color(Text.getFontColor(this));
 
         Position contentPos = rectRenderer.getContentPosition();
         float drawX = (float) (contentPos.x - scrollLeft);
@@ -155,7 +155,7 @@ public class Input extends AbstractText {
             float segmentX = drawX;
             if (!before.isEmpty()) {
                 text.content = before;
-                text.color = new Color(Style.getFontColor(this));
+                text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
                 segmentX += (float) com.sighs.apricityui.style.Size.measureText(this, before);
             }
@@ -167,7 +167,7 @@ public class Input extends AbstractText {
             }
             if (!after.isEmpty()) {
                 text.content = after;
-                text.color = new Color(Style.getFontColor(this));
+                text.color = new Color(Text.getFontColor(this));
                 FontDrawer.drawFont(poseStack, text, new Position(segmentX, drawY));
             }
         } else {

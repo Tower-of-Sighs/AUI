@@ -7,6 +7,7 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
@@ -31,7 +32,8 @@ public final class ItemRender {
 
             if (slot.hasView()) continue;
 
-            if (!Style.isVisible(slot)) continue;
+            if (!Interaction.isDisplayed(slot)) continue;
+            if (!Interaction.isVisible(slot)) continue;
             if ("none".equals(slot.getComputedStyle().display)) continue;
             if (!slot.shouldRenderItem()) continue;
 
@@ -83,7 +85,7 @@ public final class ItemRender {
     private static AABB resolveInheritedClip(Slot slot) {
         AABB resolved = null;
         for (Element current = slot; current != null; current = current.parentElement) {
-            if (!Style.clipsOverflow(current.getComputedStyle())) continue;
+            if (!Interaction.clipsOverflow(current.getComputedStyle())) continue;
             AABB currentClip = toBodyClip(current);
             resolved = resolved == null ? currentClip : resolved.intersection(currentClip);
             if (!resolved.isValid()) return resolved;

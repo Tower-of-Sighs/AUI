@@ -3,7 +3,9 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import org.lwjgl.opengl.GL11;
@@ -21,7 +23,7 @@ public interface RenderNode {
     }
 
     static boolean shouldSkip(Element target) {
-        return target.getRawComputedStyle().display.equals("none") || !target.isVisible;
+        return !Interaction.isDisplayed(target) || !target.isVisible;
     }
 
     record MaskPushNode(Element target) implements RenderNode {

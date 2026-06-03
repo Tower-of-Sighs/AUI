@@ -145,8 +145,8 @@ public class RenderElement {
 
             // overflow 只有从可见变为裁剪，或从裁剪变回可见时，才需要重建 MaskNode。
             if (prop.equals("overflow") || prop.equals("overflowX") || prop.equals("overflowY")) {
-                had = Style.clipsOverflow(origin);
-                has = Style.clipsOverflow(current);
+                had = Interaction.clipsOverflow(origin);
+                has = Interaction.clipsOverflow(current);
             }
 
             if (had != has) {
@@ -219,6 +219,10 @@ public class RenderElement {
             } else renderer.position.clear();
 
             dirtyMask |= Drawer.RELAYOUT;
+        }
+
+        if (!origin.display.equals(current.display)) {
+            dirtyMask |= Drawer.REORDER;
         }
 
         if (!origin.zIndex.equals(current.zIndex)) {

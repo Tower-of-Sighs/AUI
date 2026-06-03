@@ -316,7 +316,7 @@ public class MouseEvent extends Event implements Cloneable {
             } else if (node instanceof RenderNode.ElementPhaseNode phaseNode) {
                 Element element = phaseNode.target();
 
-                if (!element.isVisible || !element.isPointerEnabled) continue;
+                if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;
 
                 if (checkCursor(element, cursorPosition)) {
                     boolean isClipped = false;
