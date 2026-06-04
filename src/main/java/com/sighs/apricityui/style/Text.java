@@ -397,15 +397,17 @@ public class Text {
             return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * (text.fontSize / 9.0) + text.strokeWidth * 2.0 + letterSpacingWidth;
         }
 
-        java.awt.Font baseFont = Font.resolveBaseFont(text.fontFamily);
-        if (baseFont == null) return 0;
         int fontStyle = java.awt.Font.PLAIN;
         if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
         if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
-        java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
-
-        FontMetrics fm = METRICS_CANVAS.getFontMetrics(resolvedFont);
-        int baseWidth = fm.stringWidth(line);
+        java.util.List<Font.FontRun> runs = Font.planFontRuns(text.fontFamily, fontStyle, Font.getBaseFontSize(), line);
+        if (runs.isEmpty()) return 0;
+        int baseWidth = 0;
+        for (Font.FontRun run : runs) {
+            if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
+            FontMetrics fm = METRICS_CANVAS.getFontMetrics(run.font());
+            baseWidth += fm.stringWidth(run.text());
+        }
 
         float currentSize = (float) text.fontSize;
         float scale = currentSize / Font.getBaseFontSize();

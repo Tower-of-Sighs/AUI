@@ -6,6 +6,7 @@ import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
@@ -137,11 +138,16 @@ public class Drawer {
                 continue;
             }
             String zIndexStr = style.zIndex;
+            double translateZ = Transform.getTranslateZ(style.transform);
 
             boolean childHasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
             boolean childHasFilter = hasCompositedFilter(child, style);
             // 按照规范，filter, opacity, transform 等都会触发层叠上下文
-            boolean createsContext = !zIndexStr.equals("auto") || !style.position.equals("static") || childHasFilter || childHasBackdrop;
+            boolean createsContext = !zIndexStr.equals("auto")
+                    || !style.position.equals("static")
+                    || childHasFilter
+                    || childHasBackdrop
+                    || Transform.createsStackingContext(style.transform);
 
             // 关键：保持 CSS 的大体绘制顺序
             // - 普通流（static, 不创建层叠上下文）应当先绘制
@@ -153,7 +159,7 @@ public class Drawer {
             }
 
             int zValue = "auto".equals(zIndexStr) ? 0 : Size.parse(zIndexStr);
-            Paintable p = new Paintable(child, zValue, i);
+            Paintable p = new Paintable(child, zValue, translateZ, i);
             if (zValue < 0) {
                 negativeZ.add(p);
             } else if (zValue == 0) {
@@ -163,10 +169,10 @@ public class Drawer {
             }
         }
 
-        if (negativeZ.size() > 1) negativeZ.sort(Comparator.comparingInt(Paintable::zValue));
-        // auto/0 组按 DOM 顺序，避免抖动
-        if (autoOrZeroContext.size() > 1) autoOrZeroContext.sort(Comparator.comparingInt(Paintable::domOrder));
-        if (positiveZ.size() > 1) positiveZ.sort(Comparator.comparingInt(Paintable::zValue).thenComparingInt(Paintable::domOrder));
+        if (negativeZ.size() > 1) negativeZ.sort(PAINTABLE_ORDER);
+        // auto/0 组内允许 translateZ 影响前后关系；同值再回落到 DOM 顺序
+        if (autoOrZeroContext.size() > 1) autoOrZeroContext.sort(PAINTABLE_ORDER);
+        if (positiveZ.size() > 1) positiveZ.sort(PAINTABLE_ORDER);
 
         for (Paintable p : negativeZ) processStackingContext(p.element, paintList);
         for (Element e : normalFlow) processStackingContext(e, paintList);
@@ -178,7 +184,12 @@ public class Drawer {
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
 
-    private record Paintable(Element element, int zValue, int domOrder) {
+    private static final Comparator<Paintable> PAINTABLE_ORDER = Comparator
+            .comparingInt(Paintable::zValue)
+            .thenComparingDouble(Paintable::translateZ)
+            .thenComparingInt(Paintable::domOrder);
+
+    private record Paintable(Element element, int zValue, double translateZ, int domOrder) {
     }
 
     private static void appendBodyRenderNodes(Element contextRoot, List<RenderNode> paintList) {

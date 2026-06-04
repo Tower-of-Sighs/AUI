@@ -165,6 +165,10 @@ public class RenderElement {
         if (!current.transform.equals(origin.transform)) {
             renderer.transform.clear();
             dirtyMask |= Drawer.REPAINT;
+            if (Transform.createsStackingContext(origin.transform) != Transform.createsStackingContext(current.transform)
+                    || Math.abs(Transform.getTranslateZ(origin.transform) - Transform.getTranslateZ(current.transform)) > 0.0001) {
+                dirtyMask |= Drawer.REORDER;
+            }
         }
 
         if (!origin.opacity.equals(current.opacity)) {
