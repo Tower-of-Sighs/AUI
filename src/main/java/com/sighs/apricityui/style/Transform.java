@@ -101,6 +101,21 @@ public interface Transform {
         return result;
     }
 
+    static boolean createsStackingContext(String transform) {
+        return transform != null && !transform.isBlank() && !"none".equalsIgnoreCase(transform.trim());
+    }
+
+    static double getTranslateZ(String transform) {
+        if (!createsStackingContext(transform)) return 0;
+        double z = 0;
+        for (Transform item : parse(transform)) {
+            if (item instanceof Translate t) {
+                z += t.z();
+            }
+        }
+        return z;
+    }
+
     private static List<String> splitArgs(String argText) {
         List<String> out = new ArrayList<>();
         if (argText == null || argText.isBlank()) return out;

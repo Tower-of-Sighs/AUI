@@ -11,8 +11,14 @@ public class Animation {
     private static final Map<String, Set<String>> KEYFRAME_PROPS = new HashMap<>();
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
     private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(\\s*([0-9]+)\\s*(?:,\\s*(start|end)\\s*)?\\)\\s*$");
+    private static final Pattern CUBIC_BEZIER_PATTERN = Pattern.compile(
+            "^cubic-bezier\\(\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*\\)\\s*$"
+    );
     private static final Set<String> DIRECTION_SET = Set.of("normal", "reverse", "alternate", "alternate-reverse");
     private static final Set<String> FILL_SET = Set.of("none", "forwards", "backwards", "both");
+    private static final Set<String> TIMING_SET = Set.of(
+            "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
+    );
 
     private static class AnimationConfig {
         String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "linear";
@@ -160,6 +166,8 @@ public class Animation {
     }
 
     private static double applyTiming(double p, String tf) {
+        if (tf == null || tf.isBlank()) return p;
+        tf = tf.trim();
         if (tf.startsWith("steps")) {
             var m = STEPS_PATTERN.matcher(tf);
             if (m.matches()) {
@@ -167,6 +175,24 @@ public class Animation {
                 String mode = m.group(2);
                 return (mode != null && mode.equals("start")) ? Math.ceil(p * steps) / steps : Math.floor(p * steps) / steps;
             }
+        }
+        if ("step-start".equals(tf)) return 1.0;
+        if ("step-end".equals(tf)) return p >= 1.0 ? 1.0 : 0.0;
+        if ("linear".equals(tf)) return p;
+        if ("ease".equals(tf)) return cubicBezierAtTime(p, 0.25, 0.1, 0.25, 1.0);
+        if ("ease-in".equals(tf)) return cubicBezierAtTime(p, 0.42, 0.0, 1.0, 1.0);
+        if ("ease-out".equals(tf)) return cubicBezierAtTime(p, 0.0, 0.0, 0.58, 1.0);
+        if ("ease-in-out".equals(tf)) return cubicBezierAtTime(p, 0.42, 0.0, 0.58, 1.0);
+
+        var bezier = CUBIC_BEZIER_PATTERN.matcher(tf);
+        if (bezier.matches()) {
+            return cubicBezierAtTime(
+                    p,
+                    Double.parseDouble(bezier.group(1)),
+                    Double.parseDouble(bezier.group(2)),
+                    Double.parseDouble(bezier.group(3)),
+                    Double.parseDouble(bezier.group(4))
+            );
         }
         return p;
     }
@@ -200,13 +226,8 @@ public class Animation {
         if (start >= end) return;
 
         AnimationConfig c = new AnimationConfig();
-        int i = start;
-        while (i < end) {
-            while (i < end && Character.isWhitespace(spec.charAt(i))) i++;
-            if (i >= end) break;
-            int tokStart = i;
-            while (i < end && !Character.isWhitespace(spec.charAt(i))) i++;
-            String t = spec.substring(tokStart, i);
+        for (String t : splitAnimationTokens(spec, start, end)) {
+            if (t.isEmpty()) continue;
 
             if (isTimeToken(t)) {
                 if (c.duration.equals("0s")) c.duration = t;
@@ -214,10 +235,59 @@ public class Animation {
             } else if (t.equals("infinite") || isNumberToken(t)) c.count = t;
             else if (DIRECTION_SET.contains(t)) c.direction = t;
             else if (FILL_SET.contains(t)) c.fill = t;
-            else if (t.startsWith("steps") || t.equals("linear")) c.timing = t;
+            else if (isTimingFunctionToken(t)) c.timing = t;
             else c.name = t;
         }
         configs.add(c);
+    }
+
+    private static boolean isTimingFunctionToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        if (TIMING_SET.contains(token)) return true;
+        if (token.startsWith("steps")) return STEPS_PATTERN.matcher(token).matches();
+        return CUBIC_BEZIER_PATTERN.matcher(token).matches();
+    }
+
+    private static List<String> splitAnimationTokens(String spec, int start, int end) {
+        List<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (int i = start; i < end; i++) {
+            char ch = spec.charAt(i);
+            if (Character.isWhitespace(ch) && depth == 0) {
+                if (!current.isEmpty()) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            if (ch == '(') depth++;
+            else if (ch == ')' && depth > 0) depth--;
+            current.append(ch);
+        }
+        if (!current.isEmpty()) tokens.add(current.toString());
+        return tokens;
+    }
+
+    private static double cubicBezierAtTime(double x, double x1, double y1, double x2, double y2) {
+        x = Math.max(0.0, Math.min(1.0, x));
+
+        double low = 0.0;
+        double high = 1.0;
+        double t = x;
+        for (int i = 0; i < 12; i++) {
+            double estimate = cubicBezierCoord(t, x1, x2);
+            if (Math.abs(estimate - x) < 1e-5) break;
+            if (estimate < x) low = t;
+            else high = t;
+            t = (low + high) * 0.5;
+        }
+        return cubicBezierCoord(t, y1, y2);
+    }
+
+    private static double cubicBezierCoord(double t, double p1, double p2) {
+        double omt = 1.0 - t;
+        return 3.0 * omt * omt * t * p1 + 3.0 * omt * t * t * p2 + t * t * t;
     }
 
     private static boolean isTimeToken(String t) {

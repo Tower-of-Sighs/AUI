@@ -126,11 +126,11 @@ public class FontDrawer {
 
     private static FontEntry rebuildTextureEntry(Text text, String content, String cacheKey) {
         String fontKey = text.fontFamily;
-        java.awt.Font baseFont = Font.resolveBaseFont(fontKey);
         int fontStyle = java.awt.Font.PLAIN;
         if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
         if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
-        java.awt.Font resolvedFont = baseFont.deriveFont(fontStyle, Font.getBaseFontSize());
+        var runs = Font.planFontRuns(fontKey, fontStyle, Font.getBaseFontSize(), content);
+        if (runs.isEmpty()) return null;
         Color color = text.color;
         Color strokeColor = text.strokeColor;
         int stroke = Math.max(0, text.strokeWidth);
@@ -139,15 +139,14 @@ public class FontDrawer {
         try {
             BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g2d = tmp.createGraphics();
-            g2d.setFont(resolvedFont);
-            FontMetrics fm = g2d.getFontMetrics();
+            LineMetrics metrics = measureRuns(g2d, runs);
             g2d.dispose();
 
             float scale = text.fontSize / Font.getBaseFontSize();
             if (scale <= 1e-6f) scale = 1.0f;
             double baseLetterSpacing = text.letterSpacing / scale;
-            int textW = Math.max(1, measureAwtWidthWithSpacing(fm, drawText, baseLetterSpacing));
-            int textH = Math.max(1, fm.getHeight());
+            int textW = Math.max(1, measureRunsWidth(runs, baseLetterSpacing));
+            int textH = Math.max(1, metrics.height());
             int pad = 2 + stroke;
 
             int imgW = textW + pad * 2;
@@ -160,28 +159,20 @@ public class FontDrawer {
             g.setComposite(AlphaComposite.Clear);
             g.fillRect(0, 0, imgW, imgH);
             g.setComposite(AlphaComposite.SrcOver);
-            g.setFont(resolvedFont);
+            int baseline = pad + metrics.ascent();
             if (stroke > 0) {
                 g.setColor(new java.awt.Color(strokeColor.getR(), strokeColor.getG(), strokeColor.getB(), strokeColor.getA()));
                 for (int ox = -stroke; ox <= stroke; ox++) {
                     for (int oy = -stroke; oy <= stroke; oy++) {
                         if (ox == 0 && oy == 0) continue;
                         if (ox * ox + oy * oy > stroke * stroke) continue;
-                        if (Math.abs(baseLetterSpacing) <= 1e-6) {
-                            g.drawString(drawText, pad + ox, pad + fm.getAscent() + oy);
-                        } else {
-                            drawStringWithSpacing(g, fm, drawText, pad + ox, pad + fm.getAscent() + oy, baseLetterSpacing);
-                        }
+                        drawRuns(g, runs, pad + ox, baseline + oy, baseLetterSpacing);
                     }
                 }
             }
 
             g.setColor(new java.awt.Color(color.getR(), color.getG(), color.getB(), color.getA()));
-            if (Math.abs(baseLetterSpacing) <= 1e-6) {
-                g.drawString(drawText, pad, pad + fm.getAscent());
-            } else {
-                drawStringWithSpacing(g, fm, drawText, pad, pad + fm.getAscent(), baseLetterSpacing);
-            }
+            drawRuns(g, runs, pad, baseline, baseLetterSpacing);
             g.dispose();
 
             NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, imgW, imgH, true);
@@ -246,6 +237,31 @@ public class FontDrawer {
         return Math.max(0, (int) Math.ceil(width));
     }
 
+    private static int measureAwtWidthWithSpacing(Graphics2D g, java.util.List<Font.FontRun> runs, double spacing) {
+        if (runs == null || runs.isEmpty()) return 0;
+        double width = 0;
+        int glyphCount = 0;
+        for (Font.FontRun run : runs) {
+            if (run == null || run.text() == null || run.text().isEmpty() || run.font() == null) continue;
+            g.setFont(run.font());
+            FontMetrics fm = g.getFontMetrics();
+            width += fm.stringWidth(run.text());
+            glyphCount += run.text().codePointCount(0, run.text().length());
+        }
+        if (glyphCount > 1) width += spacing * (glyphCount - 1);
+        return Math.max(0, (int) Math.ceil(width));
+    }
+
+    private static int measureRunsWidth(java.util.List<Font.FontRun> runs, double spacing) {
+        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g = tmp.createGraphics();
+        try {
+            return measureAwtWidthWithSpacing(g, runs, spacing);
+        } finally {
+            g.dispose();
+        }
+    }
+
     private static void drawStringWithSpacing(Graphics2D g, FontMetrics fm, String content, double x, int y, double spacing) {
         double cursor = x;
         for (int i = 0; i < content.length(); ) {
@@ -255,6 +271,40 @@ public class FontDrawer {
             cursor += fm.stringWidth(glyph) + spacing;
             i += Character.charCount(cp);
         }
+    }
+
+    private static void drawRuns(Graphics2D g, java.util.List<Font.FontRun> runs, double x, int baselineY, double spacing) {
+        double cursor = x;
+        for (Font.FontRun run : runs) {
+            if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
+            g.setFont(run.font());
+            FontMetrics fm = g.getFontMetrics();
+            if (Math.abs(spacing) <= 1e-6) {
+                g.drawString(run.text(), (float) cursor, baselineY);
+                cursor += fm.stringWidth(run.text());
+            } else {
+                drawStringWithSpacing(g, fm, run.text(), cursor, baselineY, spacing);
+                cursor += measureAwtWidthWithSpacing(fm, run.text(), spacing);
+            }
+        }
+    }
+
+    private static LineMetrics measureRuns(Graphics2D g, java.util.List<Font.FontRun> runs) {
+        int ascent = 0;
+        int descent = 0;
+        int leading = 0;
+        for (Font.FontRun run : runs) {
+            if (run == null || run.font() == null) continue;
+            g.setFont(run.font());
+            FontMetrics fm = g.getFontMetrics();
+            ascent = Math.max(ascent, fm.getAscent());
+            descent = Math.max(descent, fm.getDescent());
+            leading = Math.max(leading, fm.getLeading());
+        }
+        return new LineMetrics(ascent, descent, leading, Math.max(1, ascent + descent + leading));
+    }
+
+    private record LineMetrics(int ascent, int descent, int leading, int height) {
     }
 
     public record FontEntry(ResourceLocation location, NativeImage nativeImage, DynamicTexture dynamicTexture,
