@@ -17,9 +17,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import org.apache.commons.io.IOUtils;
 
@@ -29,13 +26,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
 
-@EventBusSubscriber(modid = ApricityUI.MOD_ID, value = Dist.CLIENT)
 public class ClientLoader extends Loader {
     public ClientLoader(String extension) {
         super(extension);
     }
 
-    @SubscribeEvent
     public static void setup(FMLClientSetupEvent event) {
         event.enqueueWork(ClientLoader::reload);
     }
