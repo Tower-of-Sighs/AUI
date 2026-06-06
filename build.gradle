@@ -89,6 +89,9 @@ repositories {
 dependencies {
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
 
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
     modCompileOnly ("curse.maven:kubejs-238086:5853326")
     modCompileOnly ("curse.maven:rhino-416294:6186971")
     modCompileOnly ("curse.maven:architectury-api-419699:5137938")
@@ -196,4 +199,8 @@ tasks.named('jar', Jar).configure {
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
 }

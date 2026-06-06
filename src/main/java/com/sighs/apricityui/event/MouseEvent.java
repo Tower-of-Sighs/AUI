@@ -113,7 +113,7 @@ public class MouseEvent extends Event implements Cloneable {
         try {
             boolean consumed = false;
             List<RenderNode> paintList = document.getPaintList();
-            Element activeElement = document.getActiveElement();
+            Element activeElement = document.getPressedElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
             Element target = hitTest(paintList, detectionPos);
 
@@ -129,7 +129,7 @@ public class MouseEvent extends Event implements Cloneable {
             if (event.type.equals("mousedown")) {
                 clearGlobalSelectionsOnMouseDown(document, target);
                 if (target != null) {
-                    document.setActiveElement(target);
+                    document.setPressedElement(target);
                     if (target.canFocus()) {
                         clearGlobalFocusExcept(document);
                         document.setFocusedElement(target);
@@ -154,7 +154,7 @@ public class MouseEvent extends Event implements Cloneable {
             }
 
             if (event.type.equals("mouseup")) {
-                document.setActiveElement(null);
+                document.setPressedElement(null);
             }
 
             return consumed;

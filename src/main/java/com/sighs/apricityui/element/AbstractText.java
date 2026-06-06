@@ -63,7 +63,7 @@ public abstract class AbstractText extends Element {
 
         addEventListener("mousemove", event -> {
             if (!(event instanceof MouseEvent mouseEvent) || !canSelectText()) return;
-            if (!selecting || document.getActiveElement() != this) return;
+            if (!selecting || document.getPressedElement() != this) return;
 
             locateCursor(mouseEvent.offsetX, mouseEvent.offsetY);
             selectionStart = selectionAnchor;

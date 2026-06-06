@@ -3,7 +3,6 @@ package com.sighs.apricityui.init;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
-import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
 
@@ -13,6 +12,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 public class Element {
+    public static final short ELEMENT_NODE = 1;
     public UUID uuid = UUID.randomUUID();
     private HashMap<String, String> attributes = new HashMap<>();
     public Document document;
@@ -23,12 +23,8 @@ public class Element {
     // drawInnerText 每帧都会走这里；normalizeWhiteSpaceContent 里包含 replaceAll/regex，分配与 CPU 都很重。
     // 同时，如果每帧都创建新字符串，会让 wrapCached 的 hash 计算成本上升。
     // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
-    private String normalizedInnerTextCache = null;
-    private String normalizedInnerTextSource = null;
-    private String normalizedInnerTextWhiteSpace = null;
     public boolean isLoaded = false;
     public HashMap<String, String> cssCache = new HashMap<>();
-    private int dirtyFlags = 0;
     public int depth = 0;
     public Element parentElement = null;
     public CopyOnWriteArrayList<Element> children = new CopyOnWriteArrayList<>();
@@ -36,6 +32,11 @@ public class Element {
     public boolean isVisible = true;
     public String id = null;
     public String value = null;
+    private boolean valueDirty = false;
+    private Boolean checkedState = null;
+    private boolean checkedDirty = false;
+    private Boolean selectedState = null;
+    private boolean selectedDirty = false;
     public boolean isHover = false;
     public boolean isActive = false;
     public boolean isFocus = false;
@@ -47,22 +48,22 @@ public class Element {
     public double targetScrollTop = 0;
     public Set<String> classNames = Collections.emptySet();
     private RenderElement renderElement = new RenderElement(this);
-    private int textSelectionStart = 0;
-    private int textSelectionEnd = 0;
-    private int textSelectionAnchor = 0;
-    private boolean selectingText = false;
-    private static final double SCROLL_EASING_FACTOR = 0.2;
-    private static final double SCROLL_OVERSCROLL_DAMPING = 0.4;
-    private static final double SCROLL_INTERPOLATION_FRAME_MS = 50.0;
-    private static final double SCROLL_STOP_EPSILON = 0.01;
+    private final DirtyFlags dirty = new DirtyFlags();
+    private final EventRegistry events = new EventRegistry(this);
+    private final NodeTree node = new NodeTree(this);
+    private final ScrollModel scroll = new ScrollModel(this);
+    private final TextSelection textSelection = new TextSelection(this);
+    private final DOMTokenList classList = new DOMTokenList(this);
+    private final DOMStringMap dataset = new DOMStringMap(this);
+    public CopyOnWriteArrayList<Event> EventListener = events.listeners();
+    private boolean domInitHookInvoked = false;
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
-    private boolean domInitHookInvoked = false;
 
     public Element(Document document, String tagName) {
         this.document = document;
         this.tagName = tagName.toUpperCase();
-        addTextSelectionEventListeners();
+        textSelection.addEventListeners();
     }
 
     protected static Set<String> parseClassNames(String value) {
@@ -92,56 +93,9 @@ public class Element {
         requestStyleRecalc();
     }
 
-    private void addTextSelectionEventListeners() {
-        addInternalEventListener("mousedown", event -> {
-            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
-            if (!canSelectInnerText()) return;
-            if (document != null) {
-                document.clearAllTextSelectionsExcept(this);
-            }
-
-            if (Interaction.isUserSelectAll(this)) {
-                selectAllInnerText();
-                selectingText = false;
-                setFocusedForTextSelection();
-                return;
-            }
-
-            locateTextCursor(mouseEvent.offsetX);
-            if (mouseEvent.shiftKey) {
-                textSelectionStart = textSelectionAnchor;
-                textSelectionEnd = getTextCursor();
-            } else {
-                textSelectionAnchor = getTextCursor();
-                clearTextSelection();
-            }
-            selectingText = true;
-            setFocusedForTextSelection();
-        });
-
-        addInternalEventListener("mousemove", event -> {
-            if (!(event instanceof com.sighs.apricityui.event.MouseEvent mouseEvent)) return;
-            if (!canSelectInnerText()) return;
-            if (!selectingText || document.getActiveElement() != this) return;
-
-            locateTextCursor(mouseEvent.offsetX);
-            textSelectionStart = textSelectionAnchor;
-            textSelectionEnd = getTextCursor();
-            addDirtyFlags(Drawer.REPAINT);
-        });
-
-        addInternalEventListener("mouseup", event -> selectingText = false);
-    }
-
     // 从自己开始，最后是body
     public ArrayList<Element> getRoute() {
-        ArrayList<Element> result = new ArrayList<>();
-        Element parent = this;
-        while (parent != null) {
-            result.add(parent);
-            parent = parent.parentElement;
-        }
-        return result;
+        return node.getRoute();
     }
 
     /**
@@ -150,32 +104,11 @@ public class Element {
      * 该结果会缓存到 {@link RenderElement} 中，并在结构变化时清空。
      */
     public Element[] getRouteArray() {
-        Element[] cache = getRenderer().route.get();
-        if (cache != null) return cache;
-
-        int count = 0;
-        Element cur = this;
-        while (cur != null) {
-            count++;
-            cur = cur.parentElement;
-        }
-        Element[] route = new Element[count];
-        cur = this;
-        for (int i = 0; i < count; i++) {
-            route[i] = cur;
-            cur = cur.parentElement;
-        }
-        getRenderer().route.set(route);
-        return route;
+        return node.getRouteArray();
     }
 
     public void forEachRoute(Consumer<Element> consumer) {
-        if (consumer == null) return;
-        Element cur = this;
-        while (cur != null) {
-            consumer.accept(cur);
-            cur = cur.parentElement;
-        }
+        node.forEachRoute(consumer);
     }
 
     public Style style = null;
@@ -220,6 +153,9 @@ public class Element {
 
     public String getAttribute(String name) {
         if (name.equals("value")) {
+            return attributes.getOrDefault(name, "");
+        }
+        if (name.equals("value")) {
             String _value = attributes.getOrDefault(name, "");
             if (value == null) value = _value;
             else if (!_value.equals(value)) {
@@ -252,48 +188,83 @@ public class Element {
     }
 
     public void setAttribute(String name, String value) {
+        String oldId = "id".equals(name) ? id : null;
         attributes.put(name, value);
         if (name.equals("style")) {
             // 保持 style 缓存与 attributes 同步，避免后续读取出现旧值。
             updateInlineStyle();
         }
         if (name.equals("value")) {
-            this.value = value;
+            if (!valueDirty || this.value == null) {
+                this.value = value;
+            }
             getRenderer().text.clear();
             getRenderer().wrappedText.clear();
         }
         if (name.equals("id")) {
+            if (oldId != null && !oldId.isBlank() && document != null && !oldId.equals(value)) {
+                document.removeID(oldId, this);
+            }
             id = value;
-            document.recordID(this);
+            if (document != null) {
+                document.recordID(this);
+            }
         }
         if (name.equals("class")) {
             classNames = parseClassNames(value);
         }
         // 统一在 tick 阶段刷新样式；此处只做失效与入队，避免事件回调里同步重算 CSS/布局。
+        syncAttributeState(name);
         invalidateStyle();
     }
 
     public void removeAttribute(String name) {
+        String oldId = "id".equals(name) ? id : null;
         attributes.remove(name);
         if (name.equals("style")) {
             updateInlineStyle();
         }
         if (name.equals("value")) {
-            this.value = null;
+            if (!valueDirty) {
+                this.value = null;
+            }
             getRenderer().text.clear();
             getRenderer().wrappedText.clear();
         }
         if (name.equals("id")) {
+            if (oldId != null && !oldId.isBlank() && document != null) {
+                document.removeID(oldId, this);
+            }
             id = null;
         }
         if (name.equals("class")) {
             classNames = Collections.emptySet();
         }
+        syncAttributeState(name);
         invalidateStyle();
     }
 
     public boolean hasAttribute(String name) {
         return attributes.containsKey(name);
+    }
+
+    public boolean toggleAttribute(String name) {
+        return toggleAttribute(name, null);
+    }
+
+    public boolean toggleAttribute(String name, Boolean force) {
+        if (name == null || name.isBlank()) return false;
+        String normalized = name.trim();
+        boolean present = hasAttribute(normalized);
+        boolean shouldContain = force == null ? !present : force;
+        if (shouldContain) {
+            if (!present) {
+                setAttribute(normalized, "");
+            }
+        } else if (present) {
+            removeAttribute(normalized);
+        }
+        return shouldContain;
     }
 
     public Set<String> getClassNames() {
@@ -395,43 +366,177 @@ public class Element {
     }
 
     public void setScrollLeft(double value) {
-        targetScrollLeft = applyOverscroll(value, getHorizontalScrollLimit());
+        scroll.setScrollLeft(value);
     }
 
     public void setScrollTop(double value) {
-        targetScrollTop = applyOverscroll(value, getVerticalScrollLimit());
+        scroll.setScrollTop(value);
     }
 
     public double getScrollLeft() {
-        return interpolateScroll(scrollLeft, targetScrollLeft);
+        return scroll.getScrollLeft();
     }
 
     public double getScrollTop() {
-        return interpolateScroll(scrollTop, targetScrollTop);
+        return scroll.getScrollTop();
     }
 
     public double getTargetScrollLeft() {
-        return targetScrollLeft;
+        return scroll.getTargetScrollLeft();
     }
 
     public double getTargetScrollTop() {
-        return targetScrollTop;
+        return scroll.getTargetScrollTop();
     }
 
     public boolean canScroll() {
-        return canScrollVertically() || canScrollHorizontally();
+        return scroll.canScroll();
     }
 
     public boolean canScrollVertically() {
-        return Interaction.allowsUserScrollY(getComputedStyle());
+        return scroll.canScrollVertically();
     }
 
     public boolean canScrollHorizontally() {
-        return Interaction.allowsUserScrollX(getComputedStyle());
+        return scroll.canScrollHorizontally();
+    }
+
+    public String getDefaultValue() {
+        return attributes.getOrDefault("value", "");
+    }
+
+    public void setDefaultValue(String value) {
+        String normalized = value == null ? "" : value;
+        attributes.put("value", normalized);
+        if (!valueDirty || this.value == null) {
+            this.value = normalized;
+            getRenderer().text.clear();
+            getRenderer().wrappedText.clear();
+            if ("SELECT".equalsIgnoreCase(tagName)) {
+                syncSelectOptionSelectionState();
+            }
+        }
+        invalidateStyle();
+    }
+
+    public String getValue() {
+        return value == null ? getDefaultValue() : value;
     }
 
     public void setValue(String value) {
-        this.value = value;
+        this.value = value == null ? "" : value;
+        valueDirty = true;
+        getRenderer().text.clear();
+        getRenderer().wrappedText.clear();
+        syncSelectOptionSelectionState();
+        invalidateStyle();
+    }
+
+    public String getPlaceholder() {
+        return getAttribute("placeholder");
+    }
+
+    public void setPlaceholder(String value) {
+        setAttribute("placeholder", value == null ? "" : value);
+    }
+
+    public boolean isDisabled() {
+        return hasBooleanAttribute("disabled");
+    }
+
+    public void setDisabled(boolean disabled) {
+        setBooleanAttribute("disabled", disabled);
+    }
+
+    public boolean isChecked() {
+        return checkedState != null ? checkedState : hasRawBooleanAttribute("checked");
+    }
+
+    public void setChecked(boolean checked) {
+        checkedState = checked;
+        checkedDirty = true;
+        if ("INPUT".equalsIgnoreCase(tagName) && checked && "radio".equalsIgnoreCase(getAttribute("type")) && document != null) {
+            enforceRadioGroupChecked();
+        }
+        invalidateStyle();
+    }
+
+    public boolean isDefaultChecked() {
+        return hasRawBooleanAttribute("checked");
+    }
+
+    public void setDefaultChecked(boolean checked) {
+        setRawBooleanAttribute("checked", checked);
+        if (!checkedDirty) {
+            checkedState = checked;
+        }
+        if ("INPUT".equalsIgnoreCase(tagName) && checked && "radio".equalsIgnoreCase(getAttribute("type")) && document != null) {
+            enforceRadioGroupChecked();
+        }
+        invalidateStyle();
+    }
+
+    public boolean isSelected() {
+        if ("OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
+            return Objects.equals(parentElement.getValue(), getOptionValue());
+        }
+        return selectedState != null ? selectedState : hasRawBooleanAttribute("selected");
+    }
+
+    public void setSelected(boolean selected) {
+        boolean wasSelected = isSelected();
+        selectedState = selected;
+        selectedDirty = true;
+        if ("OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
+            if (selected) {
+                parentElement.setValue(getOptionValue());
+            } else if (wasSelected) {
+                parentElement.setValue(resolveFallbackSelectValue(parentElement, this));
+            }
+        } else {
+            invalidateStyle();
+        }
+    }
+
+    public boolean isDefaultSelected() {
+        return hasRawBooleanAttribute("selected");
+    }
+
+    public void setDefaultSelected(boolean selected) {
+        setRawBooleanAttribute("selected", selected);
+        if (!selectedDirty) {
+            selectedState = selected;
+        }
+        syncAttributeState("selected");
+        invalidateStyle();
+    }
+
+    public int getSelectedIndex() {
+        if (!"SELECT".equalsIgnoreCase(tagName)) return -1;
+        String selectedValue = getValue();
+        List<Element> options = getOptionChildren();
+        for (int i = 0; i < options.size(); i++) {
+            if (Objects.equals(selectedValue, options.get(i).getOptionValue())) return i;
+        }
+        if (options.isEmpty()) return -1;
+        return selectedValue == null || selectedValue.isEmpty() ? 0 : -1;
+    }
+
+    public void setSelectedIndex(int index) {
+        if (!"SELECT".equalsIgnoreCase(tagName)) return;
+        List<Element> options = getOptionChildren();
+        if (options.isEmpty()) {
+            setValue("");
+            return;
+        }
+        if (index < 0 || index >= options.size()) {
+            setValue("");
+            for (Element option : options) {
+                option.setBooleanAttribute("selected", false);
+            }
+            return;
+        }
+        setValue(options.get(index).getOptionValue());
     }
 
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
@@ -440,9 +545,9 @@ public class Element {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
-                drawInnerTextSelection(poseStack, rectRenderer);
-                drawInnerText(poseStack, rectRenderer);
-                drawScrollbar(poseStack, rectRenderer);
+                textSelection.drawInnerTextSelection(poseStack, rectRenderer);
+                textSelection.drawInnerText(poseStack, rectRenderer);
+                scroll.drawScrollbar(poseStack, rectRenderer);
             }
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
@@ -490,6 +595,7 @@ public class Element {
         }
 
         onInitFromDom(origin);
+        applyDomStateFromAttributes();
     }
 
     // 元素工厂
@@ -541,58 +647,214 @@ public class Element {
     }
 
     public List<Element> querySelectorAll(String selector) {
-        return Selector.querySelectorAll(this, selector);
+        return node.querySelectorAll(selector);
     }
 
     public Element querySelector(String selector) {
-        return Selector.querySelector(this, selector);
+        return node.querySelector(selector);
     }
 
     public void prepend(Element element) {
-        document.createRelation(init(element), this, true);
+        node.prepend(element);
     }
 
     public void append(Element element) {
-        document.createRelation(init(element), this, false);
+        node.append(element);
+    }
+
+    public Element appendChild(Element element) {
+        return node.appendChild(element);
+    }
+
+    public Element removeChild(Element element) {
+        return node.removeChild(element);
+    }
+
+    public Element insertBefore(Element newElement, Element referenceElement) {
+        return node.insertBefore(newElement, referenceElement);
+    }
+
+    public Element replaceChild(Element newElement, Element oldElement) {
+        return node.replaceChild(newElement, oldElement);
+    }
+
+    public Element getFirstElementChild() {
+        return children.isEmpty() ? null : children.get(0);
+    }
+
+    public Element getLastElementChild() {
+        return children.isEmpty() ? null : children.get(children.size() - 1);
+    }
+
+    public int getChildElementCount() {
+        return children.size();
+    }
+
+    public boolean hasChildNodes() {
+        return !children.isEmpty();
+    }
+
+    public List<Element> getChildren() {
+        return Collections.unmodifiableList(children);
+    }
+
+    public Element getNextElementSibling() {
+        if (parentElement == null) return null;
+        int index = parentElement.children.indexOf(this);
+        if (index < 0 || index + 1 >= parentElement.children.size()) return null;
+        return parentElement.children.get(index + 1);
+    }
+
+    public Element getPreviousElementSibling() {
+        if (parentElement == null) return null;
+        int index = parentElement.children.indexOf(this);
+        if (index <= 0) return null;
+        return parentElement.children.get(index - 1);
+    }
+
+    public Element getParentNode() {
+        return parentElement;
+    }
+
+    public short getNodeType() {
+        return ELEMENT_NODE;
+    }
+
+    public String getNodeName() {
+        return tagName;
+    }
+
+    public String getTextContent() {
+        return innerText;
+    }
+
+    public void setTextContent(String value) {
+        innerText = value == null ? "" : value;
+    }
+
+    public String getClassName() {
+        return getAttribute("class");
+    }
+
+    public void setClassName(String value) {
+        setAttribute("class", value == null ? "" : value);
+    }
+
+    public DOMTokenList getClassList() {
+        return classList;
+    }
+
+    public DOMStringMap getDataset() {
+        return dataset;
+    }
+
+    public boolean matches(String selector) {
+        return Selector.matches(this, selector);
+    }
+
+    public Element closest(String selector) {
+        Element current = this;
+        while (current != null) {
+            if (current.matches(selector)) return current;
+            current = current.parentElement;
+        }
+        return null;
+    }
+
+    public boolean contains(Element element) {
+        Element current = element;
+        while (current != null) {
+            if (current == this) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
+    public List<Element> getElementsByClassName(String className) {
+        String normalized = className == null ? "" : className.trim();
+        if (normalized.isEmpty()) return List.of();
+        String selector = "." + String.join(".", normalized.split("\\s+"));
+        return querySelectorAll(selector);
+    }
+
+    public List<Element> getElementsByTagName(String tagName) {
+        String normalized = tagName == null ? "" : tagName.trim();
+        if (normalized.isEmpty()) return List.of();
+        return querySelectorAll(normalized);
+    }
+
+    public List<Element> getElementsByName(String name) {
+        String normalized = name == null ? "" : name.trim();
+        if (normalized.isEmpty()) return List.of();
+        return querySelectorAll("[name=\"" + normalized + "\"]");
+    }
+
+    public void focus() {
+        if (document == null) return;
+        document.setFocusedElement(this);
+    }
+
+    public void blur() {
+        if (document == null) return;
+        if (document.getFocusedElement() == this) {
+            document.clearFocus();
+        }
+    }
+
+    public void before(Element element) {
+        if (parentElement == null || element == null) return;
+        parentElement.insertBefore(element, this);
+    }
+
+    public void after(Element element) {
+        if (parentElement == null || element == null) return;
+        Element nextSibling = getNextElementSibling();
+        parentElement.insertBefore(element, nextSibling);
+    }
+
+    public void replaceWith(Element element) {
+        if (parentElement == null || element == null) return;
+        parentElement.replaceChild(element, this);
+    }
+
+    public boolean dispatchEvent(Object event) {
+        if (!(event instanceof Event targetEvent)) return false;
+        if (targetEvent.target == null) targetEvent.target = this;
+        if (targetEvent.currentTarget == null) targetEvent.currentTarget = this;
+        return Event.tiggerEvent(targetEvent);
+    }
+
+    public void click() {
+        if (isDisabled()) return;
+        Event.tiggerEvent(new Event(this, "click", null, false));
     }
 
     public void addDirtyFlags(int mask) {
-        this.dirtyFlags |= mask;
+        dirty.add(mask);
     }
 
     public boolean hasDirtyFlag(int mask) {
-        return (this.dirtyFlags & mask) != 0;
+        return dirty.has(mask);
     }
 
     public void clearDirtyFlags() {
-        this.dirtyFlags = 0;
+        dirty.clear();
     }
 
     public int getDepth() {
-        return this.depth;
+        return node.getDepth();
     }
 
     public Element getParentStackContext() {
-        Element parent = parentElement;
-        while (parent != null) {
-            if (parent.isStackContext()) return parent;
-            else parent = parent.parentElement;
-        }
-        return document.body;
+        return node.getParentStackContext();
     }
 
     public boolean isStackContext() {
-        Style style = getComputedStyle();
-        return !style.position.equals("static") || !style.zIndex.equals("auto");
+        return node.isStackContext();
     }
 
-    private long lastTickTime;
-
     public void tick() {
-        lastTickTime = System.currentTimeMillis();
-        boolean scrollingX = stepHorizontalScroll();
-        boolean scrollingY = stepVerticalScroll();
-        if (scrollingX || scrollingY) {
+        if (scroll.tick()) {
             // 滚动只影响视觉偏移与命中测试，不应触发绘制队列重建。
             // TODO：这里保留 REPAINT 作为语义标记，便于未来在 flushUpdates 中做更细粒度处理。
             document.markDirty(this, Drawer.REPAINT);
@@ -612,105 +874,35 @@ public class Element {
         }
     }
 
-    private boolean stepHorizontalScroll() {
-        ScrollStep step = stepScrollAxis(scrollLeft, targetScrollLeft, getHorizontalScrollLimit());
-        scrollLeft = step.current();
-        targetScrollLeft = step.target();
-        return step.moving();
-    }
-
-    private boolean stepVerticalScroll() {
-        ScrollStep step = stepScrollAxis(scrollTop, targetScrollTop, getVerticalScrollLimit());
-        scrollTop = step.current();
-        targetScrollTop = step.target();
-        return step.moving();
-    }
-
-    private ScrollStep stepScrollAxis(double current, double target, double limit) {
-        double clampedTarget = clampScrollTarget(target, limit);
-        if (target < 0 || target > limit) {
-            target = target + (clampedTarget - target) * 0.28;
-        }
-        if (!isScrollSettled(current, target)) {
-            current = current + (target - current) * SCROLL_EASING_FACTOR;
-        }
-        if (Math.abs(target - clampedTarget) <= SCROLL_STOP_EPSILON) {
-            target = clampedTarget;
-        }
-        if (isScrollSettled(current, target) && isScrollSettled(target, clampedTarget)) {
-            current = clampedTarget;
-            target = clampedTarget;
-        }
-        return new ScrollStep(current, target, !isScrollSettled(current, target));
-    }
-
-    private double interpolateScroll(double current, double target) {
-        if (isScrollSettled(current, target)) return target;
-        double process = (System.currentTimeMillis() - lastTickTime) / SCROLL_INTERPOLATION_FRAME_MS;
-        process = Math.max(0, Math.min(1, process));
-        double next = current + (target - current) * SCROLL_EASING_FACTOR;
-        return current + (next - current) * process;
-    }
-
-    private double applyOverscroll(double value, double limit) {
-        if (value < 0) return value * SCROLL_OVERSCROLL_DAMPING;
-        if (value > limit) return (value - limit) * SCROLL_OVERSCROLL_DAMPING + limit;
-        return value;
-    }
-
-    private double clampScrollTarget(double value, double limit) {
-        if (value < 0) return 0;
-        if (value > limit) return limit;
-        return value;
-    }
-
-    private double getHorizontalScrollLimit() {
-        return Math.max(0, scrollWidth - Box.of(this).innerSize().width());
-    }
-
-    private double getVerticalScrollLimit() {
-        return Math.max(0, scrollHeight - Box.of(this).innerSize().height());
-    }
-
-    private boolean isScrollSettled(double current, double target) {
-        return Math.abs(current - target) <= SCROLL_STOP_EPSILON;
-    }
-
-    private record ScrollStep(double current, double target, boolean moving) {
-    }
-
     // 事件部分
-    public CopyOnWriteArrayList<Event> EventListener = new CopyOnWriteArrayList<>();
 
     public void addEventListener(String type, Consumer<Event> listener) {
-        addEventListener(type, listener, false, false);
+        events.addEventListener(type, listener);
     }
 
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        addEventListener(type, listener, useCapture, false);
+        events.addEventListener(type, listener, useCapture);
     }
 
     public void addInternalEventListener(String type, Consumer<Event> listener) {
-        addEventListener(type, listener, false, true);
+        events.addInternalEventListener(type, listener);
     }
 
     public void addInternalEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        addEventListener(type, listener, useCapture, true);
-    }
-
-    private void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean internal) {
-        EventListener.add(new Event(this, type, listener, useCapture, internal));
+        events.addInternalEventListener(type, listener, useCapture);
     }
 
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        EventListener.removeIf(event -> type.equals(event.type) && listener.equals(event.listener) && useCapture == event.useCapture);
+        events.removeEventListener(type, listener, useCapture);
     }
 
     public void triggerEvent(Consumer<Event> handler) {
-        if (handler == null) return;
-        for (Event event : EventListener) {
-            handler.accept(event);
-        }
+        events.triggerEvent(handler);
+    }
+
+    public void setEventListeners(CopyOnWriteArrayList<Event> listeners) {
+        events.setListeners(listeners);
+        EventListener = events.listeners();
     }
 
     public RenderElement getRenderer() {
@@ -726,193 +918,340 @@ public class Element {
     }
 
     public boolean hasInnerTextSelection() {
-        return textSelectionStart != textSelectionEnd;
+        return textSelection.hasInnerTextSelection();
     }
 
     public String getSelectedInnerText() {
-        if (!canSelectInnerText()) return "";
-        String content = getSelectableInnerText();
-        if (content.isEmpty()) return "";
-        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
-        int max = Math.min(content.length(), Math.max(textSelectionStart, textSelectionEnd));
-        if (min >= max) return "";
-        return content.substring(min, max);
+        return textSelection.getSelectedInnerText();
     }
 
     public void selectAllInnerText() {
-        if (!canSelectInnerText()) return;
-        String content = getSelectableInnerText();
-        textSelectionAnchor = 0;
-        textSelectionStart = 0;
-        textSelectionEnd = content.length();
-        addDirtyFlags(Drawer.REPAINT);
+        textSelection.selectAllInnerText();
     }
 
     public void clearTextSelection() {
-        int cursor = getTextCursor();
-        textSelectionStart = cursor;
-        textSelectionEnd = cursor;
-        addDirtyFlags(Drawer.REPAINT);
-    }
-
-    private void setFocusedForTextSelection() {
-        if (document == null) return;
-        document.setFocusedElement(this);
+        textSelection.clearTextSelection();
     }
 
     public boolean canSelectInnerText() {
-        if (this instanceof com.sighs.apricityui.element.AbstractText) return false;
-        if (innerText == null || innerText.isEmpty()) return false;
-        if (!children.isEmpty()) return false;
-        return Interaction.isUserSelectable(this);
+        return textSelection.canSelectInnerText();
     }
 
-    private int getTextCursor() {
-        return Math.max(0, Math.min(textSelectionEnd, getSelectableInnerText().length()));
+    protected final boolean hasBooleanAttribute(String name) {
+        if (!hasAttribute(name)) return false;
+        String attrValue = getAttribute(name);
+        if (attrValue == null || attrValue.isBlank()) return true;
+        return !("false".equalsIgnoreCase(attrValue) || "0".equals(attrValue));
     }
 
-    private void locateTextCursor(double mouseOffsetX) {
-        String content = getSelectableInnerText();
-        if (content.isEmpty()) {
-            textSelectionEnd = 0;
+    protected final void setBooleanAttribute(String name, boolean enabled) {
+        if (enabled) setAttribute(name, "");
+        else removeAttribute(name);
+    }
+
+    protected final boolean hasRawBooleanAttribute(String name) {
+        if (!attributes.containsKey(name)) return false;
+        String attrValue = attributes.get(name);
+        if (attrValue == null || attrValue.isBlank()) return true;
+        return !("false".equalsIgnoreCase(attrValue) || "0".equals(attrValue));
+    }
+
+    protected final void setRawBooleanAttribute(String name, boolean enabled) {
+        if (enabled) attributes.put(name, "");
+        else attributes.remove(name);
+    }
+
+    private List<Element> getOptionChildren() {
+        if (!"SELECT".equalsIgnoreCase(tagName)) return List.of();
+        ArrayList<Element> options = new ArrayList<>();
+        for (Element child : children) {
+            if (child != null && "OPTION".equalsIgnoreCase(child.tagName)) {
+                options.add(child);
+            }
+        }
+        return options;
+    }
+
+    private String getOptionValue() {
+        String optionValue = getAttribute("value");
+        if (optionValue == null || optionValue.isBlank()) return innerText == null ? "" : innerText;
+        return optionValue;
+    }
+
+    private static String resolveFallbackSelectValue(Element select, Element removedOption) {
+        if (select == null) return "";
+        for (Element option : select.children) {
+            if (option == null || option == removedOption) continue;
+            if (!"OPTION".equalsIgnoreCase(option.tagName)) continue;
+            return option.getOptionValue();
+        }
+        return "";
+    }
+
+    private void syncSelectOptionSelectionState() {
+        if (!"SELECT".equalsIgnoreCase(tagName)) return;
+        String selectedValue = getValue();
+        for (Element option : children) {
+            if (option == null || !"OPTION".equalsIgnoreCase(option.tagName)) continue;
+            option.selectedState = Objects.equals(selectedValue, option.getOptionValue());
+        }
+    }
+
+    private void syncAttributeState(String name) {
+        if (name == null || name.isBlank()) return;
+
+        if ("value".equals(name) && "SELECT".equalsIgnoreCase(tagName)) {
+            if (!valueDirty || value == null) {
+                value = getDefaultValue();
+            }
+            syncSelectOptionSelectionState();
             return;
         }
 
-        if (Interaction.isUserSelectAll(this)) {
-            textSelectionEnd = content.length();
+        if ("value".equals(name)) {
+            if (!valueDirty || value == null) {
+                value = getDefaultValue();
+            }
             return;
         }
 
-        Box box = Box.of(this);
-        double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
-        double relativeX = mouseOffsetX - contentStartX + scrollLeft;
-        double currentWidth = 0;
-        int cursor = 0;
-        for (int i = 0; i < content.length(); i++) {
-            double charWidth = measureTextSegmentWidth(content.substring(i, i + 1));
-            if (relativeX <= currentWidth + charWidth / 2.0) break;
-            currentWidth += charWidth;
-            cursor++;
+        if ("checked".equals(name)) {
+            if (!checkedDirty) {
+                checkedState = hasRawBooleanAttribute("checked");
+            }
+            if ("INPUT".equalsIgnoreCase(tagName) && "radio".equalsIgnoreCase(getAttribute("type")) && isChecked()) {
+                enforceRadioGroupChecked();
+            }
+            return;
         }
-        textSelectionEnd = cursor;
-    }
 
-    private void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
-        if (!canSelectInnerText() || !hasInnerTextSelection()) return;
-        Text baseText = Text.of(this);
-        baseText.content = getSelectableInnerText();
-        if (baseText.content.isEmpty()) return;
-        Text.WrappedText wrapped = Text.wrapCached(this, baseText);
-        List<String> lines = wrapped.lines();
-        int[] starts = wrapped.starts();
-        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
-        int max = Math.min(baseText.content.length(), Math.max(textSelectionStart, textSelectionEnd));
-        if (min >= max) return;
+        if ("selected".equals(name) && "OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
+            String optionValue = getOptionValue();
+            String parentValue = parentElement.getValue();
+            if (!selectedDirty) {
+                selectedState = hasRawBooleanAttribute("selected");
+            }
+            if (hasRawBooleanAttribute("selected")) {
+                if (!Objects.equals(parentValue, optionValue)) {
+                    parentElement.setValue(optionValue);
+                }
+            } else if (Objects.equals(parentValue, optionValue)) {
+                parentElement.setValue(resolveFallbackSelectValue(parentElement, this));
+            }
+            return;
+        }
 
-        Position contentPos = rectRenderer.getContentPosition();
-        double contentWidth = Box.of(this).innerSize().width();
-        double contentHeight = Box.of(this).innerSize().height();
-        double textHeight = wrapped.height(baseText.lineHeight);
-        double baseY = contentPos.y + computeVerticalOffset(baseText, contentHeight, textHeight);
-
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-            int lineStart = starts[i];
-            int lineEnd = lineStart + line.length();
-            int drawStart = Math.max(min, lineStart);
-            int drawEnd = Math.min(max, lineEnd);
-            if (drawStart >= drawEnd) continue;
-
-            double lineWidth = Text.measureLine(baseText, line);
-            double drawX = contentPos.x + computeAlignedX(baseText, contentWidth, lineWidth, i == 0);
-            double startX = measureTextSegmentWidth(line.substring(0, drawStart - lineStart)) - scrollLeft;
-            double endX = measureTextSegmentWidth(line.substring(0, drawEnd - lineStart)) - scrollLeft;
-            float x0 = (float) (drawX + startX);
-            float x1 = (float) (drawX + endX);
-            float y0 = (float) (baseY + i * baseText.lineHeight);
-            float y1 = y0 + (float) baseText.lineHeight;
-            Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
+        if ("selected".equals(name)) {
+            if (!selectedDirty) {
+                selectedState = hasRawBooleanAttribute("selected");
+            }
         }
     }
 
-    private void drawInnerText(PoseStack poseStack, Rect rectRenderer) {
-        Text text = Text.of(this);
-        Position contentPos = rectRenderer.getContentPosition();
-        text.content = getSelectableInnerText();
-        text.color = new Color(Text.getFontColor(this));
+    private void applyDomStateFromAttributes() {
+        if ("SELECT".equalsIgnoreCase(tagName)) {
+            syncSelectOptionSelectionState();
+            return;
+        }
 
-        if (text.content == null || text.content.isEmpty()) return;
+        if ("OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
+            if (selectedDirty) {
+                if (Boolean.TRUE.equals(selectedState)) {
+                    String parentValue = parentElement.getValue();
+                    if (parentValue == null || parentValue.isEmpty() || !Objects.equals(parentValue, getOptionValue())) {
+                        parentElement.setValue(getOptionValue());
+                    }
+                } else if (Boolean.FALSE.equals(selectedState) && Objects.equals(parentElement.getValue(), getOptionValue())) {
+                    parentElement.setValue(resolveFallbackSelectValue(parentElement, this));
+                }
+                return;
+            }
+            selectedState = hasRawBooleanAttribute("selected");
+            if (hasRawBooleanAttribute("selected")) {
+                String parentValue = parentElement.getValue();
+                if (parentValue == null || parentValue.isEmpty() || !Objects.equals(parentValue, getOptionValue())) {
+                    parentElement.setValue(getOptionValue());
+                }
+            } else if (Objects.equals(parentElement.getValue(), getOptionValue())) {
+                selectedState = true;
+            }
+            return;
+        }
 
-        double contentWidth = Box.of(this).innerSize().width();
-        double contentHeight = Box.of(this).innerSize().height();
-        Text.WrappedText wrapped = Text.wrapCached(this, text);
-        List<String> lines = wrapped.lines();
-        int[] starts = wrapped.starts();
-        double textHeight = wrapped.height(text.lineHeight);
-        double drawY = contentPos.y + computeVerticalOffset(text, contentHeight, textHeight);
-        boolean drawSelectionText = canSelectInnerText() && hasInnerTextSelection();
-        int min = Math.max(0, Math.min(textSelectionStart, textSelectionEnd));
-        int max = Math.min(text.content.length(), Math.max(textSelectionStart, textSelectionEnd));
-        Position linePos = new Position(0, 0);
-        Text runText = null;
+        if (value == null) {
+            value = getDefaultValue();
+        }
+        if (!checkedDirty) {
+            checkedState = hasRawBooleanAttribute("checked");
+        }
+        if (!selectedDirty) {
+            selectedState = hasRawBooleanAttribute("selected");
+        }
+        if ("INPUT".equalsIgnoreCase(tagName) && "radio".equalsIgnoreCase(getAttribute("type")) && isChecked()) {
+            enforceRadioGroupChecked();
+        }
+    }
 
-        for (int i = 0; i < lines.size(); i++) {
-            String line = lines.get(i);
-            double lineWidth = Text.measureLine(text, line);
-            double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, i == 0);
-            double lineY = drawY + i * text.lineHeight;
-            if (!drawSelectionText) {
-                text.content = line;
-                linePos.x = drawX - scrollLeft;
-                linePos.y = lineY;
-                FontDrawer.drawFont(poseStack, text, linePos);
-                continue;
+    void syncDomStateAfterAttach() {
+        applyDomStateFromAttributes();
+        for (Element child : children) {
+            if (child != null) {
+                child.syncDomStateAfterAttach();
             }
+        }
+    }
 
-            int lineStart = starts[i];
-            int lineEnd = lineStart + line.length();
-            int segStart = Math.max(min, lineStart);
-            int segEnd = Math.min(max, lineEnd);
-            if (segStart >= segEnd) {
-                text.content = line;
-                linePos.x = drawX - scrollLeft;
-                linePos.y = lineY;
-                FontDrawer.drawFont(poseStack, text, linePos);
-                continue;
-            }
+    private void enforceRadioGroupChecked() {
+        if (document == null) return;
+        String group = getAttribute("name");
+        if (group == null || group.isBlank()) return;
+        for (Element element : document.getElements()) {
+            if (element == this) continue;
+            if (!"INPUT".equalsIgnoreCase(element.tagName)) continue;
+            if (!"radio".equalsIgnoreCase(element.getAttribute("type"))) continue;
+            if (!group.equals(element.getAttribute("name"))) continue;
+            element.checkedState = false;
+            element.checkedDirty = true;
+            element.invalidateStyle();
+        }
+    }
 
-            if (runText == null) {
-                runText = new Text();
-                copyTextForRun(text, runText);
-            }
+    public static final class DOMTokenList {
+        private final Element owner;
 
-            String before = line.substring(0, segStart - lineStart);
-            String selected = line.substring(segStart - lineStart, segEnd - lineStart);
-            String after = line.substring(segEnd - lineStart);
-            double segmentX = drawX - scrollLeft;
-            if (!before.isEmpty()) {
-                runText.content = before;
-                runText.color = text.color;
-                linePos.x = segmentX;
-                linePos.y = lineY;
-                FontDrawer.drawFont(poseStack, runText, linePos);
-                segmentX += measureTextSegmentWidth(before);
+        DOMTokenList(Element owner) {
+            this.owner = owner;
+        }
+
+        public int getLength() {
+            return owner.getClassNames().size();
+        }
+
+        public boolean contains(String token) {
+            if (token == null || token.isBlank()) return false;
+            return owner.getClassNames().contains(token.trim());
+        }
+
+        public void add(String... tokens) {
+            updateTokens(true, tokens);
+        }
+
+        public void remove(String... tokens) {
+            updateTokens(false, tokens);
+        }
+
+        public boolean toggle(String token) {
+            return toggle(token, null);
+        }
+
+        public boolean toggle(String token, Boolean force) {
+            if (token == null || token.isBlank()) return false;
+            String normalized = token.trim();
+            LinkedHashSet<String> values = new LinkedHashSet<>(owner.getClassNames());
+            boolean present = values.contains(normalized);
+            boolean shouldContain = force == null ? !present : force;
+            if (shouldContain) values.add(normalized);
+            else values.remove(normalized);
+            owner.setClassName(String.join(" ", values));
+            return shouldContain;
+        }
+
+        public String item(int index) {
+            if (index < 0 || index >= owner.getClassNames().size()) return null;
+            return new ArrayList<>(owner.getClassNames()).get(index);
+        }
+
+        @Override
+        public String toString() {
+            return owner.getClassName();
+        }
+
+        private void updateTokens(boolean add, String... tokens) {
+            if (tokens == null || tokens.length == 0) return;
+            LinkedHashSet<String> values = new LinkedHashSet<>(owner.getClassNames());
+            boolean changed = false;
+            for (String token : tokens) {
+                if (token == null || token.isBlank()) continue;
+                String normalized = token.trim();
+                changed |= add ? values.add(normalized) : values.remove(normalized);
             }
-            if (!selected.isEmpty()) {
-                runText.content = selected;
-                runText.color = new Color("#FFFFFF");
-                linePos.x = segmentX;
-                linePos.y = lineY;
-                FontDrawer.drawFont(poseStack, runText, linePos);
-                segmentX += measureTextSegmentWidth(selected);
+            if (changed) {
+                owner.setClassName(String.join(" ", values));
             }
-            if (!after.isEmpty()) {
-                runText.content = after;
-                runText.color = text.color;
-                linePos.x = segmentX;
-                linePos.y = lineY;
-                FontDrawer.drawFont(poseStack, runText, linePos);
+        }
+    }
+
+    public static final class DOMStringMap {
+        private final Element owner;
+
+        DOMStringMap(Element owner) {
+            this.owner = owner;
+        }
+
+        public String get(String key) {
+            if (key == null || key.isBlank()) return "";
+            return owner.getAttribute(toDataAttributeName(key));
+        }
+
+        public void set(String key, String value) {
+            if (key == null || key.isBlank()) return;
+            owner.setAttribute(toDataAttributeName(key), value == null ? "" : value);
+        }
+
+        public boolean has(String key) {
+            if (key == null || key.isBlank()) return false;
+            return owner.hasAttribute(toDataAttributeName(key));
+        }
+
+        public void delete(String key) {
+            if (key == null || key.isBlank()) return;
+            owner.removeAttribute(toDataAttributeName(key));
+        }
+
+        public Set<String> keys() {
+            LinkedHashSet<String> keys = new LinkedHashSet<>();
+            for (String attrName : owner.getAttributes().keySet()) {
+                if (!attrName.startsWith("data-") || attrName.length() <= 5) continue;
+                keys.add(fromDataAttributeName(attrName));
             }
+            return Collections.unmodifiableSet(keys);
+        }
+
+        @Override
+        public String toString() {
+            return keys().toString();
+        }
+
+        private static String toDataAttributeName(String key) {
+            String trimmed = key.trim();
+            StringBuilder result = new StringBuilder("data-");
+            for (int i = 0; i < trimmed.length(); i++) {
+                char c = trimmed.charAt(i);
+                if (Character.isUpperCase(c)) {
+                    result.append('-').append(Character.toLowerCase(c));
+                } else if (c == '_') {
+                    result.append('-');
+                } else {
+                    result.append(Character.toLowerCase(c));
+                }
+            }
+            return result.toString();
+        }
+
+        private static String fromDataAttributeName(String attrName) {
+            String raw = attrName.substring(5);
+            StringBuilder result = new StringBuilder();
+            boolean upperNext = false;
+            for (int i = 0; i < raw.length(); i++) {
+                char c = raw.charAt(i);
+                if (c == '-') {
+                    upperNext = true;
+                    continue;
+                }
+                result.append(upperNext ? Character.toUpperCase(c) : c);
+                upperNext = false;
+            }
+            return result.toString();
         }
     }
 
@@ -989,58 +1328,7 @@ public class Element {
         return ellipsis;
     }
 
-    private void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
-        if (!canScrollVertically()) return;
-        double innerHeight = Box.of(this).innerSize().height();
-        double innerWidth = Box.of(this).innerSize().width();
-        if (scrollHeight <= innerHeight + 0.5 || innerHeight <= 0 || innerWidth <= 0) return;
-
-        Position bodyPos = rectRenderer.getBodyRectPosition();
-        Size bodySize = rectRenderer.getBodyRectSize();
-        float trackWidth = 4f;
-        float trackPadding = 1f;
-        float trackX = (float) (bodyPos.x + bodySize.width() - trackWidth - trackPadding);
-        float trackY = (float) (bodyPos.y + trackPadding);
-        float trackH = (float) Math.max(8, bodySize.height() - trackPadding * 2);
-        float thumbH = (float) Math.max(10, trackH * (innerHeight / Math.max(innerHeight, scrollHeight)));
-        float maxThumbTravel = Math.max(0, trackH - thumbH);
-        double scrollLimit = Math.max(1, scrollHeight - innerHeight);
-        float thumbY = trackY + (float) (Math.max(0, Math.min(scrollTop, scrollLimit)) / scrollLimit) * maxThumbTravel;
-
-        float radius = trackWidth / 2f;
-        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, trackY, trackWidth, trackH,
-                new float[]{radius, radius, radius, radius}, 0x18B96A91);
-        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, thumbY, trackWidth, thumbH,
-                new float[]{radius, radius, radius, radius}, 0xB39F9F9F);
-    }
-
-    private String getSelectableInnerText() {
-        Text text = Text.of(this);
-        String raw = innerText == null ? "" : innerText;
-        String whiteSpace = text.whiteSpace;
-
-        boolean sameSource = normalizedInnerTextSource == raw;
-        boolean sameWhiteSpace = (normalizedInnerTextWhiteSpace == whiteSpace)
-                || (normalizedInnerTextWhiteSpace != null && normalizedInnerTextWhiteSpace.equals(whiteSpace));
-        if (normalizedInnerTextCache != null && sameSource && sameWhiteSpace) {
-            return normalizedInnerTextCache;
-        }
-
-        String normalized = Text.normalizeWhiteSpaceContent(raw, whiteSpace);
-        normalizedInnerTextCache = normalized == null ? "" : normalized;
-        normalizedInnerTextSource = raw;
-        normalizedInnerTextWhiteSpace = whiteSpace;
-        return normalizedInnerTextCache;
-    }
-
-    private double measureTextSegmentWidth(String segment) {
-        if (segment == null || segment.isEmpty()) return 0;
-        Text base = Text.of(this);
-        Text copy = cloneTextForSegment(base, segment, Color.BLACK);
-        return Text.measureLine(copy, segment);
-    }
-
-    private static Text cloneTextForSegment(Text base, String content, Color fallbackStrokeColor) {
+    static Text cloneTextForSegment(Text base, String content, Color fallbackStrokeColor) {
         Text copy = new Text();
         copy.fontSize = base.fontSize;
         copy.fontWeight = base.fontWeight;
@@ -1060,7 +1348,7 @@ public class Element {
         return copy;
     }
 
-    private static void copyTextForRun(Text base, Text out) {
+    static void copyTextForRun(Text base, Text out) {
         out.fontSize = base.fontSize;
         out.fontWeight = base.fontWeight;
         out.oblique = base.oblique;

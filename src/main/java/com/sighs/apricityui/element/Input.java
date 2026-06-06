@@ -31,12 +31,12 @@ public class Input extends AbstractText {
 
         this.addEventListener("mousedown", event -> {
             if (!(event instanceof MouseEvent)) return;
+            if (isDisabled()) return;
             Mode mode = getMode();
             if (mode == Mode.CHECKBOX) {
                 setChecked(!isChecked());
                 triggerChangeEvent();
             } else if (mode == Mode.RADIO && !isChecked()) {
-                clearRadioGroupChecked();
                 setChecked(true);
                 triggerChangeEvent();
             }
@@ -58,34 +58,12 @@ public class Input extends AbstractText {
         return getMode() == Mode.TEXT;
     }
 
-    private boolean isChecked() {
-        if (!hasAttribute("checked")) return false;
-        String value = getAttribute("checked");
-        if (value == null || value.isBlank()) return true;
-        return !("false".equalsIgnoreCase(value) || "0".equals(value));
-    }
-
-    private void setChecked(boolean checked) {
-        if (checked) setAttribute("checked", "");
-        else removeAttribute("checked");
-    }
-
-    private void clearRadioGroupChecked() {
-        String group = getAttribute("name");
-        if (group == null || group.isBlank()) return;
-        for (Element element : document.getElements()) {
-            if (element == this) continue;
-            if (element instanceof Input input && input.getMode() == Mode.RADIO && group.equals(input.getAttribute("name"))) {
-                input.setChecked(false);
-            }
-        }
-    }
-
     private void triggerChangeEvent() {
         Event.tiggerEvent(new Event(this, "change", null, true));
     }
 
     public boolean handleSpaceKey() {
+        if (isDisabled()) return false;
         Mode mode = getMode();
         if (mode == Mode.CHECKBOX) {
             setChecked(!isChecked());
@@ -94,7 +72,6 @@ public class Input extends AbstractText {
         }
         if (mode == Mode.RADIO) {
             if (!isChecked()) {
-                clearRadioGroupChecked();
                 setChecked(true);
                 triggerChangeEvent();
             }

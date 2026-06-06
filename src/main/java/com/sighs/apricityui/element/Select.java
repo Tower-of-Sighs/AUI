@@ -25,12 +25,11 @@ public class Select extends Element {
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
                 Text text = Text.of(this);
-                if (!children.isEmpty()) text.content = children.get(0).innerText;
-                for (Element child : children) {
-                    if (getAttribute("value").equals(child.getAttribute("value"))) {
-                        text.content = child.innerText;
-                        break;
-                    }
+                int selectedIndex = getSelectedIndex();
+                if (selectedIndex >= 0 && selectedIndex < children.size()) {
+                    text.content = children.get(selectedIndex).innerText;
+                } else if (!children.isEmpty()) {
+                    text.content = children.get(0).innerText;
                 }
                 FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
             }

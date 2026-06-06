@@ -208,7 +208,7 @@ public class Operation {
         String selected = getSelectedTextFromElement(focusedElement);
         if (!selected.isEmpty()) return selected;
 
-        Element active = document.getActiveElement();
+        Element active = document.getPressedElement();
         if (active != focusedElement) {
             selected = getSelectedTextFromElement(active);
             if (!selected.isEmpty()) return selected;
