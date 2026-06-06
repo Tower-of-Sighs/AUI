@@ -191,7 +191,35 @@ public class ImageDrawer {
                 return new float[]{texW, texH};
             }
         }
-        return new float[]{boxW, boxH};
+
+        String[] parts = size.split("\\s+");
+        String widthToken = parts.length > 0 ? parts[0] : "auto";
+        String heightToken = parts.length > 1 ? parts[1] : "auto";
+
+        float intrinsicW = texW;
+        float intrinsicH = texH;
+        float aspect = intrinsicH == 0 ? 1.0f : intrinsicW / intrinsicH;
+
+        Float resolvedW = resolveBackgroundSizeToken(widthToken, boxW, intrinsicW);
+        Float resolvedH = resolveBackgroundSizeToken(heightToken, boxH, intrinsicH);
+
+        if (parts.length == 1 && !"auto".equals(widthToken)) {
+            if (resolvedW != null) {
+                return new float[]{resolvedW, aspect == 0 ? intrinsicH : resolvedW / aspect};
+            }
+        }
+
+        if (resolvedW == null && resolvedH == null) {
+            return new float[]{intrinsicW, intrinsicH};
+        }
+        if (resolvedW == null) {
+            float height = resolvedH == null ? intrinsicH : resolvedH;
+            return new float[]{height * aspect, height};
+        }
+        if (resolvedH == null) {
+            return new float[]{resolvedW, aspect == 0 ? intrinsicH : resolvedW / aspect};
+        }
+        return new float[]{resolvedW, resolvedH};
     }
 
     private static float normalizeRepeatStart(float offset, float tileSize) {
@@ -258,6 +286,28 @@ public class ImageDrawer {
             return Float.parseFloat(raw);
         } catch (NumberFormatException ignored) {
             return 0;
+        }
+    }
+
+    private static Float resolveBackgroundSizeToken(String token, float boxSize, float intrinsicSize) {
+        if (token == null || token.isEmpty()) return null;
+        String normalized = token.trim().toLowerCase(Locale.ROOT);
+        if ("auto".equals(normalized)) return null;
+        if (normalized.endsWith("%")) {
+            try {
+                float percent = Float.parseFloat(normalized.substring(0, normalized.length() - 1).trim()) / 100f;
+                return boxSize * percent;
+            } catch (NumberFormatException ignored) {
+                return intrinsicSize;
+            }
+        }
+        String raw = normalized.endsWith("px")
+                ? normalized.substring(0, normalized.length() - 2).trim()
+                : normalized;
+        try {
+            return Float.parseFloat(raw);
+        } catch (NumberFormatException ignored) {
+            return intrinsicSize;
         }
     }
 

@@ -280,9 +280,11 @@ public class Box {
 
 
     public static SideBorder parseSideBorder(String string) {
-        String[] res = string.split(" ");
+        String[] res = string.trim().split("\\s+");
         if (res.length != 3) return SideBorder.getDefault();
-        return new SideBorder(Size.parse(res[0]), res[1], new Color(res[2]));
+        Double width = Size.parseNumber(res[0]);
+        if (width == null) return SideBorder.getDefault();
+        return new SideBorder(Math.max(0, width), res[1], new Color(res[2]));
     }
 
     public static Shadow parseShadow(String string) {
@@ -300,16 +302,17 @@ public class Box {
             String[] res = shadowToken.trim().split("\\s+");
             if (res.length < 3) continue;
 
-            int x = Size.parse(res[0]);
-            int y = Size.parse(res[1]);
-            int blur = Size.parse(res[2]);
+            Double x = Size.parseNumber(res[0]);
+            Double y = Size.parseNumber(res[1]);
+            Double blur = Size.parseNumber(res[2]);
+            if (x == null || y == null || blur == null) continue;
             String color = res.length >= 4 ? res[res.length - 1] : "#000";
             result.add(new Shadow(x, y, blur, new Color(color)));
         }
         return result;
     }
 
-    public record SideBorder(int size, String type, Color color) {
+    public record SideBorder(double size, String type, Color color) {
         public static SideBorder getDefault() {
             return new SideBorder(0, "solid", Color.BLACK);
         }
@@ -320,7 +323,7 @@ public class Box {
         }
     }
 
-    public record Shadow(int x, int y, int size, Color color) {
+    public record Shadow(double x, double y, double size, Color color) {
         public static Shadow getDefault() {
             return new Shadow(0, 0, 0, Color.BLACK);
         }

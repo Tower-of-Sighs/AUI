@@ -121,8 +121,8 @@ public record Transition(String name, double start, double end, double duration,
         }
         if (name.contains("color")) return new Color(value).getValue();
         if (name.equals("opacity")) return Double.parseDouble(value);
-
-        return Size.parse(value);
+        Double parsed = Size.parseNumber(value);
+        return parsed == null ? 0 : parsed;
     }
 
     public static void merge(Style style, String name, double value) {

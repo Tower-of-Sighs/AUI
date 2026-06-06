@@ -28,9 +28,9 @@ public class KubeJS extends KubeJSPlugin {
             String value = annotation.value();
             boolean isClient = annotation.isClient();
             if (value.isEmpty()) value = clazz.getSimpleName();
-            if (isClient && scriptType == ScriptType.CLIENT) {
+            if (isClient && scriptType != ScriptType.SERVER) {
                 event.add(value, clazz);
-            } else if (!isClient && scriptType == ScriptType.SERVER) {
+            } else if (!isClient && scriptType != ScriptType.CLIENT) {
                 event.add(value, clazz);
             }
         }, () -> {

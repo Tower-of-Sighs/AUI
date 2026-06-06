@@ -31,6 +31,7 @@ public class FilterRenderer {
     private static int backdropPoolPointer = 0;
     private static final Map<String, Long> LOG_TIMES = new HashMap<>();
     private static final long LOG_INTERVAL_MS = 2000L;
+    private static final float MAX_REASONABLE_BACKDROP_BLUR = 32.0f;
 
     private static boolean shouldLog(String key, long intervalMs) {
         long now = System.currentTimeMillis();
@@ -279,12 +280,20 @@ public class FilterRenderer {
 
         Tesselator tesselator = Tesselator.getInstance();
         BufferBuilder bufferbuilder = tesselator.getBuilder();
+        float x0 = (float) p.x;
+        float y0 = (float) p.y;
+        float x1 = x0 + (float) s.width();
+        float y1 = y0 + (float) s.height();
+        float u0 = guiW <= 0 ? 0.0f : x0 / guiW;
+        float v0 = guiH <= 0 ? 0.0f : 1.0f - (y0 / guiH);
+        float u1 = guiW <= 0 ? 1.0f : x1 / guiW;
+        float v1 = guiH <= 0 ? 1.0f : 1.0f - (y1 / guiH);
 
         bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferbuilder.vertex(0, guiH, 0).uv(0, 0).endVertex();
-        bufferbuilder.vertex(guiW, guiH, 0).uv(1, 0).endVertex();
-        bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
-        bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
+        bufferbuilder.vertex(x0, y1, 0).uv(u0, v1).endVertex();
+        bufferbuilder.vertex(x1, y1, 0).uv(u1, v1).endVertex();
+        bufferbuilder.vertex(x1, y0, 0).uv(u1, v0).endVertex();
+        bufferbuilder.vertex(x0, y0, 0).uv(u0, v0).endVertex();
 
         BufferUploader.drawWithShader(bufferbuilder.end());
 
@@ -347,7 +356,8 @@ public class FilterRenderer {
     }
 
     private static void setupUniforms(ShaderInstance shader, Filter.FilterState state, RenderTarget fbo, boolean forceAlpha) {
-        if (shader.getUniform("BlurRadius") != null) shader.getUniform("BlurRadius").set(state.blurRadius());
+        float blurRadius = forceAlpha ? Math.min(state.blurRadius(), MAX_REASONABLE_BACKDROP_BLUR) : state.blurRadius();
+        if (shader.getUniform("BlurRadius") != null) shader.getUniform("BlurRadius").set(blurRadius);
         if (shader.getUniform("Brightness") != null) shader.getUniform("Brightness").set(state.brightness());
         if (shader.getUniform("Grayscale") != null) shader.getUniform("Grayscale").set(state.grayscale());
         if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
