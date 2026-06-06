@@ -103,7 +103,7 @@ public class FontDrawer {
             return;
         }
 
-        float scale = text.fontSize / Font.getBaseFontSize();
+        float scale = (float) (text.fontSize / Font.getBaseFontSize());
         float drawW = entry.width() * scale;
         float drawH = entry.height() * scale;
 
@@ -133,7 +133,7 @@ public class FontDrawer {
         if (runs.isEmpty()) return null;
         Color color = text.color;
         Color strokeColor = text.strokeColor;
-        int stroke = Math.max(0, text.strokeWidth);
+        int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
         String drawText = content == null ? "" : content;
 
         try {
@@ -142,7 +142,7 @@ public class FontDrawer {
             LineMetrics metrics = measureRuns(g2d, runs);
             g2d.dispose();
 
-            float scale = text.fontSize / Font.getBaseFontSize();
+            float scale = (float) (text.fontSize / Font.getBaseFontSize());
             if (scale <= 1e-6f) scale = 1.0f;
             double baseLetterSpacing = text.letterSpacing / scale;
             int textW = Math.max(1, measureRunsWidth(runs, baseLetterSpacing));

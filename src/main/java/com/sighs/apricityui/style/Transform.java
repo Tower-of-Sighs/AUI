@@ -40,21 +40,21 @@ public interface Transform {
 
             switch (func) {
                 case "translate", "translate3d" -> {
-                    double x = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
-                    double y = args.size() > 1 ? Size.parse(args.get(1)) : 0;
-                    double z = args.size() > 2 ? Size.parse(args.get(2)) : 0;
+                    double x = parseLength(args, 0);
+                    double y = parseLength(args, 1);
+                    double z = parseLength(args, 2);
                     result.add(new Translate(x, y, z));
                 }
                 case "translatex" -> {
-                    double x = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
+                    double x = parseLength(args, 0);
                     result.add(new Translate(x, translate.y(), translate.z()));
                 }
                 case "translatey" -> {
-                    double y = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
+                    double y = parseLength(args, 0);
                     result.add(new Translate(translate.x(), y, translate.z()));
                 }
                 case "translatez" -> {
-                    double z = !args.isEmpty() ? Size.parse(args.get(0)) : 0;
+                    double z = parseLength(args, 0);
                     result.add(new Translate(translate.x(), translate.y(), z));
                 }
                 case "rotate", "rotatez" -> {
@@ -143,6 +143,12 @@ public interface Transform {
                 return 1.0;
             }
         }
+    }
+
+    private static double parseLength(List<String> args, int index) {
+        if (args == null || index < 0 || index >= args.size()) return 0;
+        Double parsed = Size.parseNumber(args.get(index));
+        return parsed == null ? 0 : parsed;
     }
 
     private static double parseAngleToDegrees(String token) {

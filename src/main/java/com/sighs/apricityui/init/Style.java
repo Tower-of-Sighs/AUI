@@ -571,7 +571,7 @@ public class Style implements Cloneable {
         );
     }
 
-    public record TextStroke(int width, int color) {
+    public record TextStroke(double width, int color) {
         public static final TextStroke NONE = new TextStroke(0, 0);
     }
 

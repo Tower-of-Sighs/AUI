@@ -410,24 +410,24 @@ public class Client {
         return getDefaultFontWidth(text, bold, oblique, 0);
     }
 
-    public static int getDefaultFontWidth(String text, boolean bold, boolean oblique, int strokeWidth) {
-        int stroke = Math.max(0, strokeWidth) * 2;
-        if (!bold && !oblique) return Minecraft.getInstance().font.width(text) + stroke;
+    public static int getDefaultFontWidth(String text, boolean bold, boolean oblique, double strokeWidth) {
+        double stroke = Math.max(0, strokeWidth) * 2;
+        if (!bold && !oblique) return (int) Math.ceil(Minecraft.getInstance().font.width(text) + stroke);
         MutableComponent renderText = Component.literal(text);
         if (bold) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (oblique) renderText = renderText.withStyle(ChatFormatting.ITALIC);
-        return Minecraft.getInstance().font.width(renderText) + stroke;
+        return (int) Math.ceil(Minecraft.getInstance().font.width(renderText) + stroke);
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
         poseStack.pushPose();
         poseStack.translate(position.x, position.y, 0);
         // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
-        poseStack.scale(text.fontSize / 9f, text.fontSize / 9f, 1f);
+        poseStack.scale((float) (text.fontSize / 9f), (float) (text.fontSize / 9f), 1f);
         MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
-        int stroke = Math.max(0, text.strokeWidth);
+        int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
         if (stroke > 0) {
             int strokeColor = text.strokeColor.getValue();
             for (int ox = -stroke; ox <= stroke; ox++) {

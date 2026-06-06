@@ -66,13 +66,14 @@ public class Position {
         return Layout.computeChildPosition(element, parent, siblings);
     }
 
-    public static int parseSignedInt(String str) {
+    public static double parseSignedNumber(String str) {
         if (str == null || str.isEmpty() || "unset".equals(str)) {
             return 0;
         }
 
         StringBuilder numberBuilder = new StringBuilder();
         boolean foundNumber = false;
+        boolean foundDot = false;
 
         char[] chars = str.toCharArray();
         for (int i = 0; i < chars.length; i++) {
@@ -84,6 +85,9 @@ public class Position {
             } else if (Character.isDigit(c)) {
                 numberBuilder.append(c);
                 foundNumber = true;
+            } else if (c == '.' && foundNumber && !foundDot) {
+                numberBuilder.append(c);
+                foundDot = true;
             } else if (foundNumber) {
                 break;
             }
@@ -91,7 +95,7 @@ public class Position {
 
         if (!numberBuilder.isEmpty()) {
             try {
-                return Integer.parseInt(numberBuilder.toString());
+                return Double.parseDouble(numberBuilder.toString());
             } catch (NumberFormatException e) {
                 return 0;
             }

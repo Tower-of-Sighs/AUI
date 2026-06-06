@@ -60,17 +60,17 @@ public class Rect {
         return new AABB((float) x, (float) y, (float) w, (float) h);
     }
 
-    private int getMinBorderSize() {
+    private double getMinBorderSize() {
         return Math.min(Math.min(box.border.get("left").size(), box.border.get("top").size()), Math.min(box.border.get("right").size(), box.border.get("bottom").size()));
     }
 
     public void drawBorder(PoseStack poseStack) {
-        int topW = box.border.get("top").size();
-        int bottomW = box.border.get("bottom").size();
-        int leftW = box.border.get("left").size();
-        int rightW = box.border.get("right").size();
+        float topW = (float) box.border.get("top").size();
+        float bottomW = (float) box.border.get("bottom").size();
+        float leftW = (float) box.border.get("left").size();
+        float rightW = (float) box.border.get("right").size();
 
-        if (topW == 0 && bottomW == 0 && leftW == 0 && rightW == 0) return;
+        if (topW <= 0 && bottomW <= 0 && leftW <= 0 && rightW <= 0) return;
 
         Graph.beginBatch();
         int topC = box.border.get("top").color().getValue();
@@ -120,7 +120,7 @@ public class Rect {
 
     public float[] getBodyRadius() {
         Size s = box.elementSize();
-        return box.getCalculatedRadii((float) s.width(), (float) s.height(), getMinBorderSize());
+        return box.getCalculatedRadii((float) s.width(), (float) s.height(), (float) getMinBorderSize());
     }
 
     public void drawBody(PoseStack poseStack) {
@@ -191,7 +191,7 @@ public class Rect {
             if (shadow.size() == 0) continue;
             double x = position.x + box.getMarginLeft() + shadow.x();
             double y = position.y + box.getMarginTop() + shadow.y();
-            Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
+            Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
         }
         Graph.endBatch();
     }

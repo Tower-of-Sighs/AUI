@@ -15,10 +15,10 @@ public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
     private String cachedKey = null;
     private int cachedKeyHash = 0;
-    public int fontSize = -1;
+    public double fontSize = -1;
     public int fontWeight = -1;
     public boolean oblique = false;
-    public int strokeWidth = 0;
+    public double strokeWidth = 0;
     public Color strokeColor = null;
     public Color color = null;
     public String fontFamily = "unset";
@@ -32,16 +32,17 @@ public class Text {
     public double letterSpacing = 0;
     public Size size = null;
 
-    public static int getFontSize(Element element) {
-        int fontSize = 16;
+    public static double getFontSize(Element element) {
+        double fontSize = 16;
         for (Element e : element.getRoute()) {
             String f = e.getComputedStyle().fontSize;
             if (!f.equals("unset")) {
-                fontSize = Size.parse(f);
+                Double parsed = Size.parseNumber(f);
+                if (parsed != null) fontSize = parsed;
                 break;
             }
         }
-        return (int) (fontSize / 16d * 9);
+        return fontSize / 16d * 9;
     }
 
     public static String getFontFamily(Element element) {
@@ -105,7 +106,7 @@ public class Text {
         String lower = value.toLowerCase(Locale.ROOT);
         if (lower.equals("unset") || lower.equals("none")) return Style.TextStroke.NONE;
 
-        int width = 0;
+        double width = 0;
         String colorPart = value;
 
         int pxIndex = lower.indexOf("px");
@@ -113,10 +114,8 @@ public class Text {
             int start = pxIndex - 1;
             while (start >= 0 && Character.isDigit(lower.charAt(start))) start--;
             String number = lower.substring(start + 1, pxIndex).trim();
-            try {
-                width = Math.max(0, Integer.parseInt(number));
-            } catch (NumberFormatException ignored) {
-            }
+            Double parsed = Size.parseNumber(number);
+            if (parsed != null) width = Math.max(0, parsed);
             colorPart = (value.substring(0, Math.max(0, start + 1)) + " " + value.substring(pxIndex + 2)).trim();
         }
 
@@ -254,7 +253,10 @@ public class Text {
             }
             if (text.fontSize == -1) {
                 shouldBreak = false;
-                if (!style.fontSize.equals("unset")) text.fontSize = Size.parse(style.fontSize);
+                if (!style.fontSize.equals("unset")) {
+                    Double parsed = Size.parseNumber(style.fontSize);
+                    if (parsed != null) text.fontSize = parsed;
+                }
             }
             if (text.fontWeight == -1) {
                 shouldBreak = false;
@@ -330,7 +332,7 @@ public class Text {
             if (shouldBreak) break;
         }
         if (text.fontSize == -1) text.fontSize = 16;
-        text.fontSize = (int) (text.fontSize / 16d * 9);
+        text.fontSize = text.fontSize / 16d * 9;
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
@@ -356,17 +358,19 @@ public class Text {
         }
 
         if (lh.endsWith("px")) {
-            return Size.parse(lh);
+            Double parsed = Size.parseNumber(lh);
+            return parsed != null ? parsed : fontSize + 2;
         } else if (lh.endsWith("%")) {
-            double percent = Size.parse(lh);
+            Double percent = Size.parseNumber(lh);
+            if (percent == null) return fontSize + 2;
             return fontSize * (percent / 100.0);
         } else {
             try {
                 double multiplier = Double.parseDouble(lh);
                 return fontSize * multiplier;
             } catch (NumberFormatException e) {
-                int val = Size.parse(lh);
-                return val != -1 ? val : fontSize + 2;
+                Double val = Size.parseNumber(lh);
+                return val != null ? val : fontSize + 2;
             }
         }
     }
@@ -417,10 +421,10 @@ public class Text {
 
     public String toKey() {
         int h = 1;
-        h = 31 * h + fontSize;
+        h = 31 * h + (int) Math.round(fontSize * 1000);
         h = 31 * h + fontWeight;
         h = 31 * h + (oblique ? 1 : 0);
-        h = 31 * h + strokeWidth;
+        h = 31 * h + (int) Math.round(strokeWidth * 1000);
         h = 31 * h + (strokeColor == null ? 0 : strokeColor.getValue());
         h = 31 * h + (color == null ? 0 : color.getValue());
         h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
@@ -520,10 +524,10 @@ public class Text {
     private static int wrapMetricsHash(Text text) {
         if (text == null) return 0;
         int h = 1;
-        h = 31 * h + text.fontSize;
+        h = 31 * h + (int) Math.round(text.fontSize * 1000);
         h = 31 * h + text.fontWeight;
         h = 31 * h + (text.oblique ? 1 : 0);
-        h = 31 * h + text.strokeWidth;
+        h = 31 * h + (int) Math.round(text.strokeWidth * 1000);
         h = 31 * h + (text.fontFamily == null ? 0 : text.fontFamily.hashCode());
         h = 31 * h + (text.whiteSpace == null ? 0 : text.whiteSpace.hashCode());
         h = 31 * h + (text.direction == null ? 0 : text.direction.hashCode());

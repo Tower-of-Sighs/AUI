@@ -20,6 +20,12 @@ uniform float ClipEnabled;
 in vec2 texCoord;
 out vec4 fragColor;
 
+int getBlurStep(int radius) {
+    if (radius <= 24) return 1;
+    if (radius <= 32) return 2;
+    return max(1, radius / 16);
+}
+
 vec3 applyHue(vec3 color, float angle) {
     float h = angle * 0.01745329251;
     vec3 k = vec3(0.57735);
@@ -74,6 +80,7 @@ void main() {
         vec2 texelSize = vec2(1.0 / texSize.x, 1.0 / texSize.y);
 
         int radius = int(BlurRadius);
+        int step = getBlurStep(radius);
         float sigma = max(0.001, float(radius) / 3.0);
         float twoSigmaSq = 2.0 * sigma * sigma;
 
@@ -81,8 +88,8 @@ void main() {
         float totalAlphaWeight = 0.0;
         float totalWeight = 0.0;
 
-        for (int x = -radius; x <= radius; ++x) {
-            for (int y = -radius; y <= radius; ++y) {
+        for (int x = -radius; x <= radius; x += step) {
+            for (int y = -radius; y <= radius; y += step) {
                 vec2 offset = vec2(x, y) * texelSize;
                 vec4 sampleCol = texture(Sampler0, texCoord + offset);
                 float sampleAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
@@ -116,12 +123,13 @@ void main() {
         float shadowAlpha = 0.0;
         if (ShadowBlur >= 1.0) {
             int radius = int(ShadowBlur);
+            int step = getBlurStep(radius);
             float sigma = max(0.001, float(radius) / 3.0);
             float twoSigmaSq = 2.0 * sigma * sigma;
             float totalWeight = 0.0;
 
-            for (int x = -radius; x <= radius; ++x) {
-                for (int y = -radius; y <= radius; ++y) {
+            for (int x = -radius; x <= radius; x += step) {
+                for (int y = -radius; y <= radius; y += step) {
                     vec2 offset = vec2(x, y) * texelSize;
                     vec4 sampleCol = texture(Sampler0, shadowBaseUv + offset);
                     float sampleAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
