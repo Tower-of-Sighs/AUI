@@ -427,7 +427,7 @@ public class ImageDrawer {
 
     private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
         RenderType renderType = getRenderType(texture, blur, depthTest);
-        if (Mask.isActive()) {
+        if (Mask.isActive() || Mask.getCurrentScissor() != null) {
             flushBatch();
             MultiBufferSource.BufferSource bufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
             VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
