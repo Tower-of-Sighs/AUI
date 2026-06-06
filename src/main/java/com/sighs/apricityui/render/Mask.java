@@ -55,6 +55,8 @@ public class Mask {
             ImageDrawer.flushBatch();
             scissorStack.push(currentScissor);
             AABB newMask = new AABB(x, y, width, height);
+            clipStack.push(currentClip);
+            currentClip = currentClip.intersection(newMask);
             currentScissor = currentScissor == null ? newMask : currentScissor.intersection(newMask);
             applyScissor(currentScissor);
             return;
@@ -87,6 +89,8 @@ public class Mask {
     public static void popMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
         boolean useScissor = !maskScissorStack.isEmpty() && maskScissorStack.pop();
         if (useScissor) {
+            ImageDrawer.flushBatch();
+            if (!clipStack.isEmpty()) currentClip = clipStack.pop();
             currentScissor = scissorStack.isEmpty() ? null : scissorStack.pop();
             if (currentScissor == null) disableScissor();
             else applyScissor(currentScissor);
