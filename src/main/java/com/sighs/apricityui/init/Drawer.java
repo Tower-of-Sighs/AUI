@@ -41,11 +41,12 @@ public class Drawer {
         }
 
         if (!reorderRoots.isEmpty()) {
-            List<Element> minimizedRoots = minimizeRoots(reorderRoots);
-            for (Element root : minimizedRoots) {
-                List<RenderNode> localSubtreeOrder = createPaintList(root);
-                updateGlobalPaintList(document.getPaintList(), root, localSubtreeOrder);
-            }
+            ArrayList<RenderNode> rebuilt = document.body == null
+                    ? new ArrayList<>()
+                    : createPaintList(document.body);
+            List<RenderNode> globalList = document.getPaintList();
+            globalList.clear();
+            globalList.addAll(rebuilt);
         }
 
         for (Element e : sortedDirty) {
