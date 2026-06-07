@@ -188,6 +188,7 @@ public class Element {
     }
 
     public void setAttribute(String name, String value) {
+        String oldValue = attributes.get(name);
         String oldId = "id".equals(name) ? id : null;
         attributes.put(name, value);
         if (name.equals("style")) {
@@ -216,9 +217,13 @@ public class Element {
         // 统一在 tick 阶段刷新样式；此处只做失效与入队，避免事件回调里同步重算 CSS/布局。
         syncAttributeState(name);
         invalidateStyle();
+        if (document != null && name != null && !Objects.equals(oldValue, value)) {
+            document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
+        }
     }
 
     public void removeAttribute(String name) {
+        String oldValue = attributes.get(name);
         String oldId = "id".equals(name) ? id : null;
         attributes.remove(name);
         if (name.equals("style")) {
@@ -242,6 +247,9 @@ public class Element {
         }
         syncAttributeState(name);
         invalidateStyle();
+        if (document != null && name != null && oldValue != null) {
+            document.queueMutation(Document.MutationRecord.attributes(this, name, oldValue));
+        }
     }
 
     public boolean hasAttribute(String name) {
@@ -698,6 +706,32 @@ public class Element {
         return Collections.unmodifiableList(children);
     }
 
+    public List<Element> getChildNodes() {
+        return getChildren();
+    }
+
+    public List<Element> getOptions() {
+        if (!"SELECT".equalsIgnoreCase(tagName)) return List.of();
+        ArrayList<Element> options = new ArrayList<>();
+        for (Element child : children) {
+            if (child != null && "OPTION".equalsIgnoreCase(child.tagName)) {
+                options.add(child);
+            }
+        }
+        return Collections.unmodifiableList(options);
+    }
+
+    public List<Element> getSelectedOptions() {
+        if (!"SELECT".equalsIgnoreCase(tagName)) return List.of();
+        ArrayList<Element> selected = new ArrayList<>();
+        for (Element option : getOptions()) {
+            if (option != null && option.isSelected()) {
+                selected.add(option);
+            }
+        }
+        return Collections.unmodifiableList(selected);
+    }
+
     public Element getNextElementSibling() {
         if (parentElement == null) return null;
         int index = parentElement.children.indexOf(this);
@@ -729,7 +763,68 @@ public class Element {
     }
 
     public void setTextContent(String value) {
+        String oldValue = innerText;
         innerText = value == null ? "" : value;
+        if (document != null && !Objects.equals(oldValue, innerText)) {
+            document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
+        }
+    }
+
+    public String getInnerHTML() {
+        if (children.isEmpty()) {
+            return escapeHtml(innerText);
+        }
+        StringBuilder builder = new StringBuilder();
+        for (Element child : children) {
+            if (child != null) {
+                builder.append(serializeHtml(child));
+            }
+        }
+        return builder.toString();
+    }
+
+    public void setInnerHTML(String html) {
+        ArrayList<Element> snapshot = new ArrayList<>(children);
+        for (Element child : snapshot) {
+            removeChild(child);
+        }
+        innerText = "";
+
+        if (document == null || html == null || html.isEmpty()) return;
+
+        Element wrapper = document.createHTML("<div>" + html + "</div>");
+        if (wrapper == null) return;
+
+        ArrayList<Element> newChildren = new ArrayList<>(wrapper.children);
+        for (Element child : newChildren) {
+            appendChild(child);
+        }
+    }
+
+    public String getOuterHTML() {
+        return serializeHtml(this);
+    }
+
+    public void setOuterHTML(String html) {
+        if (document == null) return;
+        if (parentElement == null) {
+            setInnerHTML(html);
+            return;
+        }
+
+        Element wrapper = document.createHTML("<div>" + (html == null ? "" : html) + "</div>");
+        if (wrapper == null) {
+            remove();
+            return;
+        }
+
+        ArrayList<Element> replacements = new ArrayList<>(wrapper.children);
+        Element insertionParent = parentElement;
+        Element anchor = this;
+        for (Element replacement : replacements) {
+            insertionParent.insertBefore(replacement, anchor);
+        }
+        remove();
     }
 
     public String getClassName() {
@@ -799,6 +894,26 @@ public class Element {
         if (document.getFocusedElement() == this) {
             document.clearFocus();
         }
+    }
+
+    public void scrollTo(double x, double y) {
+        setScrollLeft(x);
+        setScrollTop(y);
+    }
+
+    public void scrollBy(double x, double y) {
+        setScrollLeft(getTargetScrollLeft() + x);
+        setScrollTop(getTargetScrollTop() + y);
+    }
+
+    public DOMRect getBoundingClientRect() {
+        Rect rect = Rect.of(this);
+        Box box = rect.box;
+        double x = rect.position.x + box.getMarginLeft();
+        double y = rect.position.y + box.getMarginTop();
+        double width = box.elementSize().width();
+        double height = box.elementSize().height();
+        return new DOMRect(x, y, width, height);
     }
 
     public void before(Element element) {
@@ -1252,6 +1367,62 @@ public class Element {
                 upperNext = false;
             }
             return result.toString();
+        }
+    }
+
+    private static String serializeHtml(Element element) {
+        if (element == null) return "";
+        StringBuilder builder = new StringBuilder();
+        builder.append('<').append(element.tagName.toLowerCase(Locale.ROOT));
+        for (Map.Entry<String, String> entry : element.getAttributes().entrySet()) {
+            String key = entry.getKey();
+            if (key == null || key.isBlank()) continue;
+            builder.append(' ').append(key);
+            String value = entry.getValue();
+            if (value != null && !value.isEmpty()) {
+                builder.append("=\"").append(escapeHtml(value)).append('"');
+            }
+        }
+        builder.append('>');
+        if (!element.children.isEmpty()) {
+            for (Element child : element.children) {
+                builder.append(serializeHtml(child));
+            }
+        } else if (!element.innerText.isEmpty()) {
+            builder.append(escapeHtml(element.innerText));
+        }
+        builder.append("</").append(element.tagName.toLowerCase(Locale.ROOT)).append('>');
+        return builder.toString();
+    }
+
+    private static String escapeHtml(String value) {
+        if (value == null || value.isEmpty()) return "";
+        return value
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;");
+    }
+
+    public static final class DOMRect {
+        public final double x;
+        public final double y;
+        public final double width;
+        public final double height;
+        public final double left;
+        public final double top;
+        public final double right;
+        public final double bottom;
+
+        public DOMRect(double x, double y, double width, double height) {
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.left = x;
+            this.top = y;
+            this.right = x + width;
+            this.bottom = y + height;
         }
     }
 

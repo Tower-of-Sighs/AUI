@@ -111,6 +111,8 @@ final class ElementTree {
 
         int safeIndex = Math.max(0, Math.min(childIndex, parent.children.size()));
         parent.children.add(safeIndex, child);
+        Element previousSibling = safeIndex > 0 ? parent.children.get(safeIndex - 1) : null;
+        Element nextSibling = safeIndex + 1 < parent.children.size() ? parent.children.get(safeIndex + 1) : null;
 
         updateSubtree(child, parent, parent.getDepth() + 1, owner);
         child.syncDomStateAfterAttach();
@@ -122,13 +124,18 @@ final class ElementTree {
         child.invalidateStyle();
         child.getRenderer().size.clear();
         owner.markDirty(parent, Drawer.RELAYOUT | Drawer.REORDER);
+        owner.queueMutation(Document.MutationRecord.childList(parent, List.of(child), List.of(), previousSibling, nextSibling));
     }
 
     private void detachSubtree(Element element) {
         Element oldParent = element.parentElement;
         if (oldParent != null) {
+            int index = oldParent.children.indexOf(element);
+            Element previousSibling = index > 0 ? oldParent.children.get(index - 1) : null;
+            Element nextSibling = index >= 0 && index + 1 < oldParent.children.size() ? oldParent.children.get(index + 1) : null;
             oldParent.children.removeIf(e -> element.uuid.equals(e.uuid));
             owner.markDirty(oldParent, Drawer.RELAYOUT | Drawer.REORDER);
+            owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(element), previousSibling, nextSibling));
         }
 
         List<Element> subtree = flattenSubtree(element);

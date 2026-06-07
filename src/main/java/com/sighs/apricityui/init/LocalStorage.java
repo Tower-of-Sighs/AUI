@@ -7,6 +7,8 @@ import net.minecraftforge.fml.loading.FMLPaths;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class LocalStorage {
     public CompoundTag localStorage = new CompoundTag();
@@ -34,5 +36,38 @@ public class LocalStorage {
             ApricityUI.LOGGER.error("Failed to save LocalStorage data to {}", LOCAL_STORAGE_FILE_PATH.getAbsolutePath(), e);
         }
 
+    }
+
+    public String getItem(String key) {
+        if (key == null || key.isBlank()) return null;
+        return localStorage.contains(key) ? localStorage.getString(key) : null;
+    }
+
+    public void setItem(String key, String value) {
+        if (key == null || key.isBlank()) return;
+        localStorage.putString(key, value == null ? "null" : value);
+        save();
+    }
+
+    public void removeItem(String key) {
+        if (key == null || key.isBlank()) return;
+        localStorage.remove(key);
+        save();
+    }
+
+    public void clear() {
+        localStorage = new CompoundTag();
+        save();
+    }
+
+    public int getLength() {
+        return localStorage.getAllKeys().size();
+    }
+
+    public String key(int index) {
+        if (index < 0) return null;
+        List<String> keys = new ArrayList<>(localStorage.getAllKeys());
+        if (index >= keys.size()) return null;
+        return keys.get(index);
     }
 }
