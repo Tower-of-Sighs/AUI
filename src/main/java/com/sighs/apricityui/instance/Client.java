@@ -170,6 +170,7 @@ public class Client {
         KEY_MAP.put("key.keyboard.world.2", 162);
     }
 
+    @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
