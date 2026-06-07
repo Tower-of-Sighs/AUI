@@ -5,13 +5,18 @@ import com.sighs.apricityui.instance.ApricityContainerMenu;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterMenuScreensEvent;
 
 import java.lang.reflect.Constructor;
 
+@EventBusSubscriber(modid = ApricityUI.MOD_ID, value = Dist.CLIENT)
 public class ClientMenuScreens {
     private static final String CONTAINER_SCREEN_CLASS = "com.sighs.apricityui.instance.ApricityContainerScreen";
 
+    @SubscribeEvent
     public static void onRegisterMenuScreens(RegisterMenuScreensEvent event) {
         event.register(
                 ApricityMenus.APRICITY_CONTAINER.get(),

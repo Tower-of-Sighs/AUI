@@ -5,20 +5,15 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.ApricityUIConfig;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
-import com.sighs.apricityui.instance.ClientLoader;
-import com.sighs.apricityui.instance.InitEvent;
 import com.sighs.apricityui.instance.ShaderRegistry;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.bind.OpenBindPlan;
 import com.sighs.apricityui.instance.element.Container;
-import com.sighs.apricityui.instance.network.ApricityUINetwork;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.instance.network.handler.PendingMenu;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
-import com.sighs.apricityui.registry.ClientMenuScreens;
-import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.render.FilterRenderer;
 import com.sighs.apricityui.script.KubeJS;
 import net.minecraft.client.Minecraft;
@@ -53,13 +48,8 @@ public class ApricityUI {
             ApricityUIRegistry.register();
             modContainer.registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC, "%s_config.toml".formatted(MOD_ID));
             modContainer.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
-            modEventBus.addListener(Keybindings::registerKeyMapping);
-            modEventBus.addListener(ClientMenuScreens::onRegisterMenuScreens);
-            modEventBus.addListener(ClientLoader::setup);
-            modEventBus.addListener(InitEvent.ModEvents::localStorageInit);
             modEventBus.addListener(this::onRegisterShaders);
         }
-        modEventBus.addListener(ApricityUINetwork::register);
     }
 
     private void onRegisterShaders(RegisterShadersEvent event) {
