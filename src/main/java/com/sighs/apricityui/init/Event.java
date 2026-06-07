@@ -9,6 +9,10 @@ public class Event {
     public Element target;
     public Element currentTarget;
     public String type;
+    public boolean bubbles = true;
+    public boolean cancelable = false;
+    public boolean defaultPrevented = false;
+    public Object detail = null;
     public Consumer<Event> listener;
     public boolean useCapture;
     public boolean internal;
@@ -29,6 +33,12 @@ public class Event {
 
     public void stopPropagation() {
         stoppedPropagation = true;
+    }
+
+    public void preventDefault() {
+        if (cancelable) {
+            defaultPrevented = true;
+        }
     }
 
     public static ArrayList<Element> getRoute(Element element) {
@@ -75,19 +85,21 @@ public class Event {
         // 冒泡阶段，事件从目标元素的父元素开始向上冒泡回body。
         if (targetEvent.stoppedPropagation) return consumed.get();
 
-        Collections.reverse(route);
-        for (Element element : route) {
-            AtomicBoolean stoppedPropagation = new AtomicBoolean(false);
-            element.triggerEvent(event -> {
-                if (event.type.equals(type) && !event.useCapture) {
-                    targetEvent.currentTarget = element;
-                    targetEvent.listener = event.listener;
-                    if (!event.internal) consumed.set(true);
-                    event.listener.accept(targetEvent);
-                    stoppedPropagation.set(targetEvent.stoppedPropagation);
-                }
-            });
-            if (stoppedPropagation.get()) break;
+        if (targetEvent.bubbles) {
+            Collections.reverse(route);
+            for (Element element : route) {
+                AtomicBoolean stoppedPropagation = new AtomicBoolean(false);
+                element.triggerEvent(event -> {
+                    if (event.type.equals(type) && !event.useCapture) {
+                        targetEvent.currentTarget = element;
+                        targetEvent.listener = event.listener;
+                        if (!event.internal) consumed.set(true);
+                        event.listener.accept(targetEvent);
+                        stoppedPropagation.set(targetEvent.stoppedPropagation);
+                    }
+                });
+                if (stoppedPropagation.get()) break;
+            }
         }
 
         return consumed.get();
@@ -108,5 +120,13 @@ public class Event {
             }
         });
         return consumed.get();
+    }
+
+    public static class CustomEvent extends Event {
+        public CustomEvent(String type, Object detail, boolean bubbles) {
+            super(null, type, null, false);
+            this.detail = detail;
+            this.bubbles = bubbles;
+        }
     }
 }

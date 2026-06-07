@@ -93,6 +93,10 @@ public class HTML {
     }
 
     static class HtmlTokenizer {
+        private static final Set<String> VOID_TAGS = Set.of(
+                "area", "base", "br", "col", "embed", "hr", "img", "input",
+                "link", "meta", "param", "source", "track", "wbr"
+        );
 
         private static final Pattern TOKEN_PATTERN =
                 Pattern.compile("<!--.*?-->|</?[^>]+>|[^<]+", Pattern.DOTALL);
@@ -124,12 +128,13 @@ public class HTML {
 
                 // 开始 / 自闭合
                 if (part.startsWith("<")) {
-                    boolean selfClosing = part.endsWith("/>");
-                    String body = part.substring(1, part.length() - (selfClosing ? 2 : 1)).trim();
+                    boolean explicitSelfClosing = part.endsWith("/>");
+                    String body = part.substring(1, part.length() - (explicitSelfClosing ? 2 : 1)).trim();
 
                     Matcher nameMatcher = TAG_NAME_PATTERN.matcher(body);
                     if (nameMatcher.find()) {
                         String tagName = nameMatcher.group(1);
+                        boolean selfClosing = explicitSelfClosing || isVoidTag(tagName);
                         Token token = Token.start(tagName, selfClosing);
 
                         String attrSection = body.substring(nameMatcher.end()).trim();
@@ -148,6 +153,11 @@ public class HTML {
             }
 
             return tokens;
+        }
+
+        private static boolean isVoidTag(String tagName) {
+            if (tagName == null || tagName.isBlank()) return false;
+            return VOID_TAGS.contains(tagName.toLowerCase(Locale.ROOT));
         }
 
         private static void parseAttributes(String src, Map<String, String> out) {

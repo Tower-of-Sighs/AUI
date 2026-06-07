@@ -18,7 +18,10 @@ public class Option extends Element {
     public Option(Document document) {
         super(document, TAG_NAME);
         addEventListener("mousedown", event -> {
-            if (parentElement != null) parentElement.setAttribute("value", getAttribute("value"));
+            if (isDisabled()) return;
+            if (parentElement != null && !parentElement.isDisabled()) {
+                setSelected(true);
+            }
             document.clearFocus();
         });
     }

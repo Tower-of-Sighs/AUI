@@ -9,7 +9,10 @@ import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Text;
@@ -22,6 +25,7 @@ public class Input extends AbstractText {
 
     private enum Mode {
         TEXT,
+        BUTTON,
         CHECKBOX,
         RADIO
     }
@@ -31,12 +35,12 @@ public class Input extends AbstractText {
 
         this.addEventListener("mousedown", event -> {
             if (!(event instanceof MouseEvent)) return;
+            if (isDisabled()) return;
             Mode mode = getMode();
             if (mode == Mode.CHECKBOX) {
                 setChecked(!isChecked());
                 triggerChangeEvent();
             } else if (mode == Mode.RADIO && !isChecked()) {
-                clearRadioGroupChecked();
                 setChecked(true);
                 triggerChangeEvent();
             }
@@ -47,6 +51,7 @@ public class Input extends AbstractText {
         String type = getAttribute("type");
         if (type == null || type.isBlank()) return Mode.TEXT;
         return switch (type.toLowerCase(Locale.ROOT)) {
+            case "button", "submit", "reset" -> Mode.BUTTON;
             case "checkbox" -> Mode.CHECKBOX;
             case "radio" -> Mode.RADIO;
             default -> Mode.TEXT;
@@ -58,27 +63,9 @@ public class Input extends AbstractText {
         return getMode() == Mode.TEXT;
     }
 
-    private boolean isChecked() {
-        if (!hasAttribute("checked")) return false;
-        String value = getAttribute("checked");
-        if (value == null || value.isBlank()) return true;
-        return !("false".equalsIgnoreCase(value) || "0".equals(value));
-    }
-
-    private void setChecked(boolean checked) {
-        if (checked) setAttribute("checked", "");
-        else removeAttribute("checked");
-    }
-
-    private void clearRadioGroupChecked() {
-        String group = getAttribute("name");
-        if (group == null || group.isBlank()) return;
-        for (Element element : document.getElements()) {
-            if (element == this) continue;
-            if (element instanceof Input input && input.getMode() == Mode.RADIO && group.equals(input.getAttribute("name"))) {
-                input.setChecked(false);
-            }
-        }
+    @Override
+    public boolean canSelectText() {
+        return getMode() == Mode.TEXT && super.canSelectText();
     }
 
     private void triggerChangeEvent() {
@@ -86,6 +73,7 @@ public class Input extends AbstractText {
     }
 
     public boolean handleSpaceKey() {
+        if (isDisabled()) return false;
         Mode mode = getMode();
         if (mode == Mode.CHECKBOX) {
             setChecked(!isChecked());
@@ -94,7 +82,6 @@ public class Input extends AbstractText {
         }
         if (mode == Mode.RADIO) {
             if (!isChecked()) {
-                clearRadioGroupChecked();
                 setChecked(true);
                 triggerChangeEvent();
             }
@@ -107,24 +94,125 @@ public class Input extends AbstractText {
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
         if (phase == Base.RenderPhase.SHADOW) rectRenderer.drawShadow(poseStack);
+
+        Mode mode = getMode();
+        if (mode == Mode.CHECKBOX || mode == Mode.RADIO) {
+            if (phase == Base.RenderPhase.BODY) {
+                drawCheckableInput(poseStack, rectRenderer, mode);
+            }
+            return;
+        }
+
         if (phase == Base.RenderPhase.BORDER) rectRenderer.drawBorder(poseStack);
         if (phase != Base.RenderPhase.BODY) return;
 
         rectRenderer.drawBody(poseStack);
-        Mode mode = getMode();
-        if (mode == Mode.CHECKBOX || mode == Mode.RADIO) {
-            drawCheckableInput(poseStack, rectRenderer, mode);
+        if (mode == Mode.BUTTON) {
+            drawButtonInput(poseStack, rectRenderer);
             return;
         }
         drawTextInput(poseStack, rectRenderer);
     }
 
-    private void drawCheckableInput(PoseStack poseStack, Rect rectRenderer, Mode mode) {
-        if (!isChecked()) return;
+    private void drawButtonInput(PoseStack poseStack, Rect rectRenderer) {
+        String label = value == null || value.isBlank() ? getAttribute("value") : value;
+        if (label == null || label.isBlank()) {
+            label = "button";
+        }
         Text text = Text.of(this);
-        text.content = mode == Mode.RADIO ? "●" : "✓";
+        text.content = label;
         text.color = new Color(Text.getFontColor(this));
         FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
+    }
+
+    private void drawCheckableInput(PoseStack poseStack, Rect rectRenderer, Mode mode) {
+        Box box = rectRenderer.box;
+        Background background = rectRenderer.background;
+
+        float outerX = (float) (rectRenderer.position.x + box.getMarginLeft());
+        float outerY = (float) (rectRenderer.position.y + box.getMarginTop());
+        float outerW = (float) box.elementSize().width();
+        float outerH = (float) box.elementSize().height();
+        float controlSize = Math.max(0f, Math.min(outerW, outerH));
+        float x = outerX + (outerW - controlSize) * 0.5f;
+        float y = outerY + (outerH - controlSize) * 0.5f;
+
+        float borderWidth = Math.max(1f, Math.min(2f, controlSize / 8f));
+        float radius = mode == Mode.RADIO ? controlSize * 0.5f : Math.min(controlSize * 0.25f, 4f);
+
+        int backgroundColor = "unset".equals(background.color)
+                ? new Color("#133043E6").getValue()
+                : new Color(background.color).getValue();
+        int borderColor = resolveCheckableBorderColor(box);
+
+        Graph.beginBatch();
+        Graph.drawUnifiedRoundedRect(
+                poseStack.last().pose(),
+                x,
+                y,
+                controlSize,
+                controlSize,
+                uniformRadii(radius),
+                backgroundColor
+        );
+        Graph.drawComplexRoundedBorder(
+                poseStack.last().pose(),
+                x,
+                y,
+                controlSize,
+                controlSize,
+                uniformRadii(radius),
+                new float[]{borderWidth, borderWidth, borderWidth, borderWidth},
+                new int[]{borderColor, borderColor, borderColor, borderColor}
+        );
+
+        if (isChecked()) {
+            int indicatorColor = new Color(Text.getFontColor(this)).getValue();
+            if (mode == Mode.RADIO) {
+                float dotSize = Math.max(4f, controlSize * 0.42f);
+                float dotX = x + (controlSize - dotSize) * 0.5f;
+                float dotY = y + (controlSize - dotSize) * 0.5f;
+                Graph.drawUnifiedRoundedRect(
+                        poseStack.last().pose(),
+                        dotX,
+                        dotY,
+                        dotSize,
+                        dotSize,
+                        uniformRadii(dotSize * 0.5f),
+                        indicatorColor
+                );
+            } else {
+                drawCheckboxMark(poseStack, x, y, controlSize, indicatorColor);
+            }
+        }
+        Graph.endBatch();
+    }
+
+    private void drawCheckboxMark(PoseStack poseStack, float x, float y, float size, int color) {
+        float stroke = Math.max(1f, size * 0.14f);
+        float leftX = x + size * 0.24f;
+        float midX = x + size * 0.43f;
+        float rightX = x + size * 0.76f;
+        float topY = y + size * 0.28f;
+        float midY = y + size * 0.52f;
+        float bottomY = y + size * 0.74f;
+
+        Graph.drawFillRect(poseStack.last().pose(), leftX, midY, leftX + stroke, bottomY, color);
+        Graph.drawFillRect(poseStack.last().pose(), leftX + stroke, midY, midX, midY + stroke, color);
+        Graph.drawFillRect(poseStack.last().pose(), midX, topY, midX + stroke, bottomY, color);
+        Graph.drawFillRect(poseStack.last().pose(), midX + stroke, topY + stroke, rightX, topY + stroke * 2f, color);
+    }
+
+    private int resolveCheckableBorderColor(Box box) {
+        Box.SideBorder top = box.border.get("top");
+        if (top != null && top.size() > 0) {
+            return top.color().getValue();
+        }
+        return new Color(Text.getFontColor(this)).getValue();
+    }
+
+    private float[] uniformRadii(float radius) {
+        return new float[]{radius, radius, radius, radius};
     }
 
     private void drawTextInput(PoseStack poseStack, Rect rectRenderer) {

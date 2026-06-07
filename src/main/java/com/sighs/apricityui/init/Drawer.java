@@ -41,11 +41,12 @@ public class Drawer {
         }
 
         if (!reorderRoots.isEmpty()) {
-            List<Element> minimizedRoots = minimizeRoots(reorderRoots);
-            for (Element root : minimizedRoots) {
-                List<RenderNode> localSubtreeOrder = createPaintList(root);
-                updateGlobalPaintList(document.getPaintList(), root, localSubtreeOrder);
-            }
+            ArrayList<RenderNode> rebuilt = document.body == null
+                    ? new ArrayList<>()
+                    : createPaintList(document.body);
+            List<RenderNode> globalList = document.getPaintList();
+            globalList.clear();
+            globalList.addAll(rebuilt);
         }
 
         for (Element e : sortedDirty) {
@@ -108,15 +109,14 @@ public class Drawer {
             paintList.add(new RenderNode.FilterPushNode(contextRoot));
         }
 
-        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
+        appendBodyRenderNodes(contextRoot, paintList);
+        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
 
         boolean needsMask = Interaction.clipsOverflow(rootStyle);
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }
-
-        appendBodyRenderNodes(contextRoot, paintList);
 
         List<Element> children = contextRoot.children;
         if (children.isEmpty()) {

@@ -50,7 +50,7 @@ public class KeyEvent extends Event {
     public static void triggerEvent(Document document, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
         if (document == null) return;
         Element target = document.getFocusedElement();
-        if (target == null) target = document.getActiveElement();
+        if (target == null) target = document.getPressedElement();
         if (target == null) target = document.body;
         if (target == null) return;
         Event.tiggerEvent(new KeyEvent(target, type, keyCode, scanCode, modifiers, repeat, source));

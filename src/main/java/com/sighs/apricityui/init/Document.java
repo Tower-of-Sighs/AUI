@@ -1,6 +1,5 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
@@ -8,29 +7,15 @@ import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 public class Document {
-    private static final int MOTION_FLAG_TRANSITION = 1;
-    private static final int MOTION_FLAG_ANIMATION_SPEC = 1 << 1;
-
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
-    private final ArrayList<Element> elements = new ArrayList<>();
-    private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
-    private final Set<Element> pendingStyleRoots = Collections.newSetFromMap(new IdentityHashMap<>());
-    private final ConcurrentHashMap<Element, Integer> motionFlags = new ConcurrentHashMap<>();
-    private ArrayList<RenderNode> paintList = new ArrayList<>();
-    private final HashMap<String, Element> IDMap = new HashMap<>();
-
-    private Element previousCursorElement = null;
-    private Element activeElement = null;
-    private Element focusedElement = null;
-
+    private final ElementTree tree = new ElementTree(this);
+    private final RenderQueue render = new RenderQueue(this);
     private final String path;
     public final Map<String, Map<String, String>> CSSCache = new LinkedHashMap<>();
     public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
@@ -40,8 +25,12 @@ public class Document {
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
     private volatile long refreshGeneration = 0L;
+    private volatile String readyState = "loading";
+    private final CopyOnWriteArrayList<MutationObserver> mutationObservers = new CopyOnWriteArrayList<>();
 
-    private volatile Selector.Index selectorIndex = null;
+    private final StyleScope style = new StyleScope(this);
+    private final MotionTrack motion = new MotionTrack(this);
+    private final FocusRing focus = new FocusRing(this);
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -53,38 +42,70 @@ public class Document {
     }
 
     public void refresh() {
+        readyState = "loading";
         refreshGeneration++;
         CSSCache.clear();
         CSSDebugRules.clear();
         JSCache.clear();
-        IDMap.clear();
-        elements.clear();
-        motionFlags.clear();
+        tree.clear();
+        render.reset();
+        motion.clear();
         invalidateSelectorIndex();
         Element bodyElement = HTML.create(this, path);
         try {
             if (bodyElement == null) return;
-            if (body != null) bodyElement.EventListener = body.EventListener;
+            if (body != null) bodyElement.setEventListeners(body.EventListener);
             body = (Body) Element.init(bodyElement);
             rebuildElementIndexFromBody();
 
             // First pass: ensure computed styles exist for DOM expanders.
-            recomputeStyleSubtree(body);
+            style.recomputeSubtree(body);
             DocumentExpander.apply(this);
 
             // Final pass: apply styles once after expansion.
-            recomputeStyleSubtree(body);
-            elements.forEach(Element::clearDirtyFlags);
-            dirtyElements.clear();
-            paintList = Drawer.createPaintList(body);
+            style.recomputeSubtree(body);
+            tree.getElements().forEach(Element::clearDirtyFlags);
+            render.reset();
+            render.rebuildPaintList();
             ImageAsyncHandler.prefetchImages(this);
+            readyState = "interactive";
 
             for (String js : JSCache) {
                 String head = "let document = ApricityUI.getDocumentByUUID(\"" + uuid + "\");\n";
                 head += "let window = ApricityUI.getWindow();\n";
+                head += "let console = window.getConsole();\n";
+                head += "let localStorage = window.getLocalStorage();\n";
+                head += "let sessionStorage = window.getSessionStorage();\n";
                 head += "let performance = window.getPerformance();\n";
+                head += "let getComputedStyle = (element) => window.getComputedStyle(element);\n";
+                head += "let fetch = (url) => {\n";
+                head += "  let p = window.fetch(url, document.getBaseURI());\n";
+                head += "  p['catch'] = (fn) => p.catchError(fn);\n";
+                head += "  return p;\n";
+                head += "};\n";
                 head += "let requestAnimationFrame = (callback) => window.requestAnimationFrame(callback);\n";
                 head += "let cancelAnimationFrame = (id) => window.cancelAnimationFrame(id);\n";
+                head += "let setTimeout = (callback, delay) => window.setTimeout(callback, delay == null ? 0 : delay);\n";
+                head += "let clearTimeout = (handle) => window.clearTimeout(handle);\n";
+                head += "let setInterval = (callback, delay) => window.setInterval(callback, delay == null ? 0 : delay);\n";
+                head += "let clearInterval = (handle) => window.clearInterval(handle);\n";
+                head += "try {\n";
+                head += "  Object.defineProperty(document, 'readyState', { get: () => document.getReadyState() });\n";
+                head += "  Object.defineProperty(document, 'activeElement', { get: () => document.getActiveElement() });\n";
+                head += "  Object.defineProperty(window, 'innerWidth', { get: () => window.getInnerWidth() });\n";
+                head += "  Object.defineProperty(window, 'innerHeight', { get: () => window.getInnerHeight() });\n";
+                head += "  Object.defineProperty(window, 'devicePixelRatio', { get: () => window.getDevicePixelRatio() });\n";
+                head += "  Object.defineProperty(localStorage, 'length', { get: () => localStorage.getLength() });\n";
+                head += "  Object.defineProperty(sessionStorage, 'length', { get: () => sessionStorage.getLength() });\n";
+                head += "} catch (e) {}\n";
+                head += "function Event(type, init) {\n";
+                head += "  init = init || {};\n";
+                head += "  return window.createEvent(type, !!init.bubbles);\n";
+                head += "}\n";
+                head += "function CustomEvent(type, init) {\n";
+                head += "  init = init || {};\n";
+                head += "  return window.createCustomEvent(type, init.detail, !!init.bubbles);\n";
+                head += "}\n";
                 head += "function MouseEvent(type, init) {\n";
                 head += "  init = init || {};\n";
                 head += "  let x = init.clientX || 0;\n";
@@ -92,70 +113,473 @@ public class Document {
                 head += "  let button = init.button == null ? -1 : init.button;\n";
                 head += "  return window.createMouseEvent(type, x, y, button);\n";
                 head += "}\n";
+                head += "function __auiDecorateResponse(resp) {\n";
+                head += "  if (!resp || resp.__auiDecoratedResponse) return resp;\n";
+                head += "  try {\n";
+                head += "    Object.defineProperty(resp, '__auiDecoratedResponse', { value: true });\n";
+                head += "    Object.defineProperty(resp, 'ok', { get: () => resp.isOk() });\n";
+                head += "    Object.defineProperty(resp, 'status', { get: () => resp.getStatus() });\n";
+                head += "    Object.defineProperty(resp, 'url', { get: () => resp.getUrl() });\n";
+                head += "  } catch (e) {}\n";
+                head += "  return resp;\n";
+                head += "}\n";
+                head += "function __auiDecorateList(list) {\n";
+                head += "  if (!list) return [];\n";
+                head += "  let out = [];\n";
+                head += "  let size = typeof list.size === 'function' ? list.size() : (list.length || 0);\n";
+                head += "  for (let i = 0; i < size; i++) {\n";
+                head += "    let item = typeof list.get === 'function' ? list.get(i) : list[i];\n";
+                head += "    out.push(__auiDecorateElement(item));\n";
+                head += "  }\n";
+                head += "  return out;\n";
+                head += "}\n";
+                head += "function __auiDecorateResizeEntries(list) {\n";
+                head += "  if (!list) return [];\n";
+                head += "  let out = [];\n";
+                head += "  let size = typeof list.size === 'function' ? list.size() : (list.length || 0);\n";
+                head += "  for (let i = 0; i < size; i++) {\n";
+                head += "    let entry = typeof list.get === 'function' ? list.get(i) : list[i];\n";
+                head += "    if (!entry) continue;\n";
+                head += "    let rect = entry.contentRect;\n";
+                head += "    out.push({\n";
+                head += "      target: __auiDecorateElement(entry.target),\n";
+                head += "      contentRect: rect,\n";
+                head += "      borderBoxSize: [{ inlineSize: rect.borderBoxWidth, blockSize: rect.borderBoxHeight }],\n";
+                head += "      contentBoxSize: [{ inlineSize: rect.width, blockSize: rect.height }]\n";
+                head += "    });\n";
+                head += "  }\n";
+                head += "  return out;\n";
+                head += "}\n";
+                head += "function __auiDecorateMutationRecords(list) {\n";
+                head += "  if (!list) return [];\n";
+                head += "  let out = [];\n";
+                head += "  let size = typeof list.size === 'function' ? list.size() : (list.length || 0);\n";
+                head += "  for (let i = 0; i < size; i++) {\n";
+                head += "    let record = typeof list.get === 'function' ? list.get(i) : list[i];\n";
+                head += "    if (!record) continue;\n";
+                head += "    out.push({\n";
+                head += "      type: record.type,\n";
+                head += "      target: __auiDecorateElement(record.target),\n";
+                head += "      addedNodes: __auiDecorateList(record.addedNodes),\n";
+                head += "      removedNodes: __auiDecorateList(record.removedNodes),\n";
+                head += "      previousSibling: __auiDecorateElement(record.previousSibling),\n";
+                head += "      nextSibling: __auiDecorateElement(record.nextSibling),\n";
+                head += "      attributeName: record.attributeName,\n";
+                head += "      oldValue: record.oldValue\n";
+                head += "    });\n";
+                head += "  }\n";
+                head += "  return out;\n";
+                head += "}\n";
+                head += "function __auiDecorateTokenList(list) {\n";
+                head += "  if (!list || list.__auiDecoratedTokenList) return list;\n";
+                head += "  try {\n";
+                head += "    Object.defineProperty(list, '__auiDecoratedTokenList', { value: true });\n";
+                head += "    Object.defineProperty(list, 'length', { get: () => list.getLength() });\n";
+                head += "    if (typeof list.add === 'function') {\n";
+                head += "      let add = list.add;\n";
+                head += "      list.add = function() { return add.apply(list, arguments); };\n";
+                head += "    }\n";
+                head += "    if (typeof list.remove === 'function') {\n";
+                head += "      let remove = list.remove;\n";
+                head += "      list.remove = function() { return remove.apply(list, arguments); };\n";
+                head += "    }\n";
+                head += "  } catch (e) {}\n";
+                head += "  return list;\n";
+                head += "}\n";
+                head += "function __auiSyncDatasetProperties(dataset) {\n";
+                head += "  if (!dataset || typeof dataset.keys !== 'function') return dataset;\n";
+                head += "  let keys = dataset.keys();\n";
+                head += "  let size = typeof keys.size === 'function' ? keys.size() : (keys.length || 0);\n";
+                head += "  for (let i = 0; i < size; i++) {\n";
+                head += "    let key = typeof keys.get === 'function' ? keys.get(i) : keys[i];\n";
+                head += "    if (!key || dataset.__auiDatasetKeys[key]) continue;\n";
+                head += "    dataset.__auiDatasetKeys[key] = true;\n";
+                head += "    try {\n";
+                head += "      Object.defineProperty(dataset, key, {\n";
+                head += "        get: () => dataset.get(key),\n";
+                head += "        set: (value) => dataset.set(key, value == null ? '' : String(value)),\n";
+                head += "        enumerable: true,\n";
+                head += "        configurable: true\n";
+                head += "      });\n";
+                head += "    } catch (e) {}\n";
+                head += "  }\n";
+                head += "  return dataset;\n";
+                head += "}\n";
+                head += "function __auiDecorateDataset(dataset) {\n";
+                head += "  if (!dataset || dataset.__auiDecoratedDataset) return dataset;\n";
+                head += "  try {\n";
+                head += "    Object.defineProperty(dataset, '__auiDecoratedDataset', { value: true });\n";
+                head += "    Object.defineProperty(dataset, '__auiDatasetKeys', { value: {}, writable: true });\n";
+                head += "    let set = dataset.set;\n";
+                head += "    dataset.set = function(key, value) {\n";
+                head += "      let result = set.call(dataset, key, value);\n";
+                head += "      __auiSyncDatasetProperties(dataset);\n";
+                head += "      return result;\n";
+                head += "    };\n";
+                head += "    let del = dataset.delete;\n";
+                head += "    dataset.delete = function(key) {\n";
+                head += "      let result = del.call(dataset, key);\n";
+                head += "      if (key && dataset.__auiDatasetKeys[key]) {\n";
+                head += "        delete dataset.__auiDatasetKeys[key];\n";
+                head += "        try { delete dataset[key]; } catch (e) {}\n";
+                head += "      }\n";
+                head += "      return result;\n";
+                head += "    };\n";
+                head += "    __auiSyncDatasetProperties(dataset);\n";
+                head += "  } catch (e) {}\n";
+                head += "  return dataset;\n";
+                head += "}\n";
+                head += "function __auiParseQueryPairs(input) {\n";
+                head += "  let raw = input == null ? '' : String(input);\n";
+                head += "  if (raw.startsWith('?')) raw = raw.substring(1);\n";
+                head += "  if (!raw) return [];\n";
+                head += "  let parts = raw.split('&');\n";
+                head += "  let out = [];\n";
+                head += "  for (let i = 0; i < parts.length; i++) {\n";
+                head += "    let part = parts[i];\n";
+                head += "    if (!part) continue;\n";
+                head += "    let idx = part.indexOf('=');\n";
+                head += "    let key = idx >= 0 ? part.substring(0, idx) : part;\n";
+                head += "    let value = idx >= 0 ? part.substring(idx + 1) : '';\n";
+                head += "    out.push([decodeURIComponent(key.replace(/\\+/g, ' ')), decodeURIComponent(value.replace(/\\+/g, ' '))]);\n";
+                head += "  }\n";
+                head += "  return out;\n";
+                head += "}\n";
+                head += "function URLSearchParams(init) {\n";
+                head += "  let pairs = [];\n";
+                head += "  if (typeof init === 'string') pairs = __auiParseQueryPairs(init);\n";
+                head += "  else if (init && typeof init.forEach === 'function') init.forEach((value, key) => pairs.push([String(key), String(value)]));\n";
+                head += "  else if (init && typeof init.length === 'number') {\n";
+                head += "    for (let i = 0; i < init.length; i++) {\n";
+                head += "      let entry = init[i];\n";
+                head += "      if (entry && entry.length >= 2) pairs.push([String(entry[0]), String(entry[1])]);\n";
+                head += "    }\n";
+                head += "  } else if (init && typeof init === 'object') {\n";
+                head += "    let keys = Object.keys(init);\n";
+                head += "    for (let i = 0; i < keys.length; i++) pairs.push([keys[i], String(init[keys[i]])]);\n";
+                head += "  }\n";
+                head += "  let api = {\n";
+                head += "    append: function(key, value) { pairs.push([String(key), String(value)]); },\n";
+                head += "    delete: function(key) { key = String(key); pairs = pairs.filter((entry) => entry[0] !== key); },\n";
+                head += "    get: function(key) { key = String(key); for (let i = 0; i < pairs.length; i++) if (pairs[i][0] === key) return pairs[i][1]; return null; },\n";
+                head += "    getAll: function(key) { key = String(key); let out = []; for (let i = 0; i < pairs.length; i++) if (pairs[i][0] === key) out.push(pairs[i][1]); return out; },\n";
+                head += "    has: function(key) { key = String(key); for (let i = 0; i < pairs.length; i++) if (pairs[i][0] === key) return true; return false; },\n";
+                head += "    set: function(key, value) { key = String(key); value = String(value); let next = []; let replaced = false; for (let i = 0; i < pairs.length; i++) { let entry = pairs[i]; if (entry[0] === key) { if (!replaced) { next.push([key, value]); replaced = true; } } else next.push(entry); } if (!replaced) next.push([key, value]); pairs = next; },\n";
+                head += "    sort: function() { pairs.sort((a, b) => a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0); },\n";
+                head += "    keys: function() { return pairs.map((entry) => entry[0]); },\n";
+                head += "    values: function() { return pairs.map((entry) => entry[1]); },\n";
+                head += "    entries: function() { return pairs.map((entry) => [entry[0], entry[1]]); },\n";
+                head += "    forEach: function(callback, thisArg) { for (let i = 0; i < pairs.length; i++) callback.call(thisArg, pairs[i][1], pairs[i][0], api); },\n";
+                head += "    toString: function() { return pairs.map((entry) => encodeURIComponent(entry[0]) + '=' + encodeURIComponent(entry[1])).join('&'); }\n";
+                head += "  };\n";
+                head += "  return api;\n";
+                head += "}\n";
+                head += "function __auiCreateLocation(href) {\n";
+                head += "  let raw = href == null ? '' : String(href);\n";
+                head += "  let hashIndex = raw.indexOf('#');\n";
+                head += "  let hash = hashIndex >= 0 ? raw.substring(hashIndex) : '';\n";
+                head += "  let hashless = hashIndex >= 0 ? raw.substring(0, hashIndex) : raw;\n";
+                head += "  let queryIndex = hashless.indexOf('?');\n";
+                head += "  let search = queryIndex >= 0 ? hashless.substring(queryIndex) : '';\n";
+                head += "  let pathname = queryIndex >= 0 ? hashless.substring(0, queryIndex) : hashless;\n";
+                head += "  let protocol = '';\n";
+                head += "  let host = '';\n";
+                head += "  let hostname = '';\n";
+                head += "  let port = '';\n";
+                head += "  let origin = '';\n";
+                head += "  let schemeIndex = pathname.indexOf('://');\n";
+                head += "  if (schemeIndex >= 0) {\n";
+                head += "    protocol = pathname.substring(0, schemeIndex + 1);\n";
+                head += "    let hostStart = schemeIndex + 3;\n";
+                head += "    let slashIndex = pathname.indexOf('/', hostStart);\n";
+                head += "    host = slashIndex >= 0 ? pathname.substring(hostStart, slashIndex) : pathname.substring(hostStart);\n";
+                head += "    pathname = slashIndex >= 0 ? pathname.substring(slashIndex) : '/';\n";
+                head += "    let colonIndex = host.indexOf(':');\n";
+                head += "    hostname = colonIndex >= 0 ? host.substring(0, colonIndex) : host;\n";
+                head += "    port = colonIndex >= 0 ? host.substring(colonIndex + 1) : '';\n";
+                head += "    origin = protocol + '//' + host;\n";
+                head += "  }\n";
+                head += "  let location = {\n";
+                head += "    href: raw,\n";
+                head += "    protocol: protocol,\n";
+                head += "    host: host,\n";
+                head += "    hostname: hostname,\n";
+                head += "    port: port,\n";
+                head += "    origin: origin,\n";
+                head += "    pathname: pathname,\n";
+                head += "    search: search,\n";
+                head += "    hash: hash,\n";
+                head += "    assign: function() {},\n";
+                head += "    replace: function() {},\n";
+                head += "    reload: function() {},\n";
+                head += "    toString: function() { return raw; }\n";
+                head += "  };\n";
+                head += "  location.searchParams = new URLSearchParams(search);\n";
+                head += "  return location;\n";
+                head += "}\n";
+                head += "function __auiPushFormValue(entries, key, value) {\n";
+                head += "  if (key == null || key === '') return;\n";
+                head += "  entries.push([String(key), value == null ? '' : String(value)]);\n";
+                head += "}\n";
+                head += "function __auiCollectFormData(entries, form) {\n";
+                head += "  if (!form || typeof form.querySelectorAll !== 'function') return;\n";
+                head += "  let fields = form.querySelectorAll('input, select, textarea');\n";
+                head += "  for (let i = 0; i < fields.length; i++) {\n";
+                head += "    let field = fields[i];\n";
+                head += "    if (!field || typeof field.getAttribute !== 'function') continue;\n";
+                head += "    if (field.hasAttribute && field.hasAttribute('disabled')) continue;\n";
+                head += "    let name = field.getAttribute('name');\n";
+                head += "    if (!name) continue;\n";
+                head += "    let tag = String(field.tagName || '').toLowerCase();\n";
+                head += "    let type = String(field.getAttribute('type') || '').toLowerCase();\n";
+                head += "    if (tag === 'input' && (type === 'checkbox' || type === 'radio')) {\n";
+                head += "      if (field.checked) __auiPushFormValue(entries, name, field.value || 'on');\n";
+                head += "      continue;\n";
+                head += "    }\n";
+                head += "    if (tag === 'select') {\n";
+                head += "      let selected = field.selectedOptions || [];\n";
+                head += "      if (selected.length > 0) {\n";
+                head += "        for (let j = 0; j < selected.length; j++) __auiPushFormValue(entries, name, selected[j].value);\n";
+                head += "      } else {\n";
+                head += "        __auiPushFormValue(entries, name, field.value);\n";
+                head += "      }\n";
+                head += "      continue;\n";
+                head += "    }\n";
+                head += "    __auiPushFormValue(entries, name, field.value);\n";
+                head += "  }\n";
+                head += "}\n";
+                head += "function FormData(form) {\n";
+                head += "  let entries = [];\n";
+                head += "  if (form) __auiCollectFormData(entries, __auiDecorateElement(form));\n";
+                head += "  let api = {\n";
+                head += "    append: function(key, value) { __auiPushFormValue(entries, key, value); },\n";
+                head += "    delete: function(key) { key = String(key); entries = entries.filter((entry) => entry[0] !== key); },\n";
+                head += "    get: function(key) { key = String(key); for (let i = 0; i < entries.length; i++) if (entries[i][0] === key) return entries[i][1]; return null; },\n";
+                head += "    getAll: function(key) { key = String(key); let out = []; for (let i = 0; i < entries.length; i++) if (entries[i][0] === key) out.push(entries[i][1]); return out; },\n";
+                head += "    has: function(key) { key = String(key); for (let i = 0; i < entries.length; i++) if (entries[i][0] === key) return true; return false; },\n";
+                head += "    set: function(key, value) { key = String(key); value = value == null ? '' : String(value); let next = []; let replaced = false; for (let i = 0; i < entries.length; i++) { let entry = entries[i]; if (entry[0] === key) { if (!replaced) { next.push([key, value]); replaced = true; } } else next.push(entry); } if (!replaced) next.push([key, value]); entries = next; },\n";
+                head += "    keys: function() { return entries.map((entry) => entry[0]); },\n";
+                head += "    values: function() { return entries.map((entry) => entry[1]); },\n";
+                head += "    entries: function() { return entries.map((entry) => [entry[0], entry[1]]); },\n";
+                head += "    forEach: function(callback, thisArg) { for (let i = 0; i < entries.length; i++) callback.call(thisArg, entries[i][1], entries[i][0], api); },\n";
+                head += "    toString: function() { return entries.map((entry) => encodeURIComponent(entry[0]) + '=' + encodeURIComponent(entry[1])).join('&'); }\n";
+                head += "  };\n";
+                head += "  return api;\n";
+                head += "}\n";
+                head += "function __auiToNode(value) {\n";
+                head += "  if (value == null) return null;\n";
+                head += "  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {\n";
+                head += "    return __auiDecorateElement(document.createTextNode(String(value)));\n";
+                head += "  }\n";
+                head += "  return __auiDecorateElement(value);\n";
+                head += "}\n";
+                head += "function __auiAppendMany(target, args, mode) {\n";
+                head += "  if (!target || !args) return null;\n";
+                head += "  let last = null;\n";
+                head += "  for (let i = 0; i < args.length; i++) {\n";
+                head += "    let node = __auiToNode(args[i]);\n";
+                head += "    if (!node) continue;\n";
+                head += "    if (mode === 'prepend') target.__auiNativePrepend(node);\n";
+                head += "    else if (mode === 'before') target.__auiNativeBefore(node);\n";
+                head += "    else if (mode === 'after') target.__auiNativeAfter(node);\n";
+                head += "    else if (mode === 'replaceWith') target.__auiNativeReplaceWith(node);\n";
+                head += "    else last = target.appendChild(node);\n";
+                head += "    if (mode !== 'append') last = node;\n";
+                head += "  }\n";
+                head += "  return __auiDecorateElement(last);\n";
+                head += "}\n";
+                head += "function __auiDecorateElement(el) {\n";
+                head += "  if (!el || el.__auiDecoratedElement) return el;\n";
+                head += "  try {\n";
+                head += "    Object.defineProperty(el, '__auiDecoratedElement', { value: true });\n";
+                head += "    Object.defineProperty(el, 'textContent', { get: () => el.getTextContent(), set: (v) => el.setTextContent(v == null ? '' : String(v)) });\n";
+                head += "    Object.defineProperty(el, 'innerHTML', { get: () => el.getInnerHTML(), set: (v) => el.setInnerHTML(v == null ? '' : String(v)) });\n";
+                head += "    Object.defineProperty(el, 'outerHTML', { get: () => el.getOuterHTML(), set: (v) => el.setOuterHTML(v == null ? '' : String(v)) });\n";
+                head += "    Object.defineProperty(el, 'className', { get: () => el.getClassName(), set: (v) => el.setClassName(v == null ? '' : String(v)) });\n";
+                head += "    Object.defineProperty(el, 'classList', { get: () => __auiDecorateTokenList(el.getClassList()) });\n";
+                head += "    Object.defineProperty(el, 'dataset', { get: () => __auiDecorateDataset(el.getDataset()) });\n";
+                head += "    Object.defineProperty(el, 'value', { get: () => el.getValue(), set: (v) => el.setValue(v == null ? '' : String(v)) });\n";
+                head += "    Object.defineProperty(el, 'checked', { get: () => el.isChecked(), set: (v) => el.setChecked(!!v) });\n";
+                head += "    Object.defineProperty(el, 'selectedIndex', { get: () => el.getSelectedIndex(), set: (v) => el.setSelectedIndex(v == null ? -1 : Number(v)) });\n";
+                head += "    Object.defineProperty(el, 'scrollTop', { get: () => el.getScrollTop(), set: (v) => el.setScrollTop(Number(v) || 0) });\n";
+                head += "    Object.defineProperty(el, 'scrollLeft', { get: () => el.getScrollLeft(), set: (v) => el.setScrollLeft(Number(v) || 0) });\n";
+                head += "    Object.defineProperty(el, 'children', { get: () => __auiDecorateList(el.getChildren()) });\n";
+                head += "    Object.defineProperty(el, 'childNodes', { get: () => __auiDecorateList(el.getChildNodes()) });\n";
+                head += "    Object.defineProperty(el, 'options', { get: () => __auiDecorateList(el.getOptions()) });\n";
+                head += "    Object.defineProperty(el, 'selectedOptions', { get: () => __auiDecorateList(el.getSelectedOptions()) });\n";
+                head += "    Object.defineProperty(el, 'firstElementChild', { get: () => __auiDecorateElement(el.getFirstElementChild()) });\n";
+                head += "    Object.defineProperty(el, 'lastElementChild', { get: () => __auiDecorateElement(el.getLastElementChild()) });\n";
+                head += "    Object.defineProperty(el, 'nextElementSibling', { get: () => __auiDecorateElement(el.getNextElementSibling()) });\n";
+                head += "    Object.defineProperty(el, 'previousElementSibling', { get: () => __auiDecorateElement(el.getPreviousElementSibling()) });\n";
+                head += "    Object.defineProperty(el, 'parentElement', { get: () => __auiDecorateElement(el.getParentNode()) });\n";
+                head += "    let qs = el.querySelector;\n";
+                head += "    el.querySelector = function(sel) { return __auiDecorateElement(qs.call(el, sel)); };\n";
+                head += "    let qsa = el.querySelectorAll;\n";
+                head += "    el.querySelectorAll = function(sel) { return __auiDecorateList(qsa.call(el, sel)); };\n";
+                head += "    let gec = el.getElementsByClassName;\n";
+                head += "    el.getElementsByClassName = function(sel) { return __auiDecorateList(gec.call(el, sel)); };\n";
+                head += "    let get = el.getElementsByTagName;\n";
+                head += "    el.getElementsByTagName = function(sel) { return __auiDecorateList(get.call(el, sel)); };\n";
+                head += "    let gen = el.getElementsByName;\n";
+                head += "    el.getElementsByName = function(sel) { return __auiDecorateList(gen.call(el, sel)); };\n";
+                head += "    let ac = el.appendChild;\n";
+                head += "    el.appendChild = function(child) { return __auiDecorateElement(ac.call(el, child)); };\n";
+                head += "    el.__auiNativePrepend = el.prepend;\n";
+                head += "    el.append = function() { return __auiAppendMany(el, arguments, 'append'); };\n";
+                head += "    el.prepend = function() { return __auiAppendMany(el, arguments, 'prepend'); };\n";
+                head += "    let ic = el.insertBefore;\n";
+                head += "    el.insertBefore = function(child, ref) { return __auiDecorateElement(ic.call(el, child, ref)); };\n";
+                head += "    let rc = el.removeChild;\n";
+                head += "    el.removeChild = function(child) { return __auiDecorateElement(rc.call(el, child)); };\n";
+                head += "    let rm = el.remove;\n";
+                head += "    el.remove = function() { return rm.call(el); };\n";
+                head += "    el.__auiNativeBefore = el.before;\n";
+                head += "    el.before = function() { return __auiAppendMany(el, arguments, 'before'); };\n";
+                head += "    el.__auiNativeAfter = el.after;\n";
+                head += "    el.after = function() { return __auiAppendMany(el, arguments, 'after'); };\n";
+                head += "    el.__auiNativeReplaceWith = el.replaceWith;\n";
+                head += "    el.replaceWith = function() { return __auiAppendMany(el, arguments, 'replaceWith'); };\n";
+                head += "    let cc = el.closest;\n";
+                head += "    el.closest = function(sel) { return __auiDecorateElement(cc.call(el, sel)); };\n";
+                head += "    let gbcr = el.getBoundingClientRect;\n";
+                head += "    el.getBoundingClientRect = function() { return gbcr.call(el); };\n";
+                head += "    let contains = el.contains;\n";
+                head += "    el.contains = function(node) { return contains.call(el, node); };\n";
+                head += "    let matches = el.matches;\n";
+                head += "    el.matches = function(sel) { return matches.call(el, sel); };\n";
+                head += "    let focus = el.focus;\n";
+                head += "    el.focus = function() { return focus.call(el); };\n";
+                head += "    let blur = el.blur;\n";
+                head += "    el.blur = function() { return blur.call(el); };\n";
+                head += "    let click = el.click;\n";
+                head += "    el.click = function() { return click.call(el); };\n";
+                head += "    let scrollTo = el.scrollTo;\n";
+                head += "    el.scrollTo = function(x, y) {\n";
+                head += "      if (typeof x === 'object' && x) return scrollTo.call(el, Number(x.left || 0), Number(x.top || 0));\n";
+                head += "      return scrollTo.call(el, Number(x) || 0, Number(y) || 0);\n";
+                head += "    };\n";
+                head += "    let scrollBy = el.scrollBy;\n";
+                head += "    el.scrollBy = function(x, y) {\n";
+                head += "      if (typeof x === 'object' && x) return scrollBy.call(el, Number(x.left || 0), Number(x.top || 0));\n";
+                head += "      return scrollBy.call(el, Number(x) || 0, Number(y) || 0);\n";
+                head += "    };\n";
+                head += "  } catch (e) {}\n";
+                head += "  return el;\n";
+                head += "}\n";
+                head += "function ResizeObserver(callback) {\n";
+                head += "  let nativeObserver = window.createResizeObserver(function(entries) {\n";
+                head += "    if (!callback) return;\n";
+                head += "    callback(__auiDecorateResizeEntries(entries), observer);\n";
+                head += "  });\n";
+                head += "  let observer = {\n";
+                head += "    observe: function(target) { nativeObserver.observe(__auiDecorateElement(target)); },\n";
+                head += "    unobserve: function(target) { nativeObserver.unobserve(__auiDecorateElement(target)); },\n";
+                head += "    disconnect: function() { nativeObserver.disconnect(); }\n";
+                head += "  };\n";
+                head += "  return observer;\n";
+                head += "}\n";
+                head += "function MutationObserver(callback) {\n";
+                head += "  let nativeObserver = document.createMutationObserver(function(records) {\n";
+                head += "    if (!callback) return;\n";
+                head += "    callback(__auiDecorateMutationRecords(records), observer);\n";
+                head += "  });\n";
+                head += "  let observer = {\n";
+                head += "    observe: function(target, options) {\n";
+                head += "      options = options || {};\n";
+                head += "      let filter = options.attributeFilter && options.attributeFilter.length ? options.attributeFilter.join(',') : null;\n";
+                head += "      nativeObserver.observe(__auiDecorateElement(target), !!options.childList, !!options.attributes, !!options.characterData, !!options.subtree, !!options.attributeOldValue, !!options.characterDataOldValue, filter);\n";
+                head += "    },\n";
+                head += "    disconnect: function() { nativeObserver.disconnect(); },\n";
+                head += "    takeRecords: function() { return __auiDecorateMutationRecords(nativeObserver.takeRecords()); }\n";
+                head += "  };\n";
+                head += "  return observer;\n";
+                head += "}\n";
+                head += "try {\n";
+                head += "  console.debug = console.log;\n";
+                head += "  let __auiLocation = __auiCreateLocation(document.getBaseURI());\n";
+                head += "  Object.defineProperty(window, 'location', { get: () => __auiLocation });\n";
+                head += "  Object.defineProperty(document, 'location', { get: () => __auiLocation });\n";
+                head += "  let __auiDocumentQS = document.querySelector;\n";
+                head += "  document.querySelector = function(sel) { return __auiDecorateElement(__auiDocumentQS.call(document, sel)); };\n";
+                head += "  let __auiDocumentQSA = document.querySelectorAll;\n";
+                head += "  document.querySelectorAll = function(sel) { return __auiDecorateList(__auiDocumentQSA.call(document, sel)); };\n";
+                head += "  let __auiGetById = document.getElementById;\n";
+                head += "  document.getElementById = function(id) { return __auiDecorateElement(__auiGetById.call(document, id)); };\n";
+                head += "  let __auiCreateElement = document.createElement;\n";
+                head += "  document.createElement = function(tag) { return __auiDecorateElement(__auiCreateElement.call(document, tag)); };\n";
+                head += "  let __auiCreateTextNode = document.createTextNode;\n";
+                head += "  document.createTextNode = function(text) { return __auiDecorateElement(__auiCreateTextNode.call(document, text)); };\n";
+                head += "  let __auiDocGEC = document.getElementsByClassName;\n";
+                head += "  document.getElementsByClassName = function(sel) { return __auiDecorateList(__auiDocGEC.call(document, sel)); };\n";
+                head += "  let __auiDocGET = document.getElementsByTagName;\n";
+                head += "  document.getElementsByTagName = function(sel) { return __auiDecorateList(__auiDocGET.call(document, sel)); };\n";
+                head += "  let __auiDocGEN = document.getElementsByName;\n";
+                head += "  document.getElementsByName = function(sel) { return __auiDecorateList(__auiDocGEN.call(document, sel)); };\n";
+                head += "  let __auiDocAppend = document.appendChild;\n";
+                head += "  document.appendChild = function(child) { return __auiDecorateElement(__auiDocAppend.call(document, child)); };\n";
+                head += "  document.__auiNativePrepend = document.prepend;\n";
+                head += "  document.append = function() { return __auiAppendMany(document, arguments, 'append'); };\n";
+                head += "  document.prepend = function() { return __auiAppendMany(document, arguments, 'prepend'); };\n";
+                head += "  let __auiFetch = fetch;\n";
+                head += "  fetch = function(url) {\n";
+                head += "    let p = __auiFetch(url);\n";
+                head += "    let origThen = p.then;\n";
+                head += "    p.then = function(onFulfilled, onRejected) {\n";
+                head += "      if (!onFulfilled) return origThen.call(p, onFulfilled, onRejected);\n";
+                head += "      return origThen.call(p, function(resp) { return onFulfilled(__auiDecorateResponse(resp)); }, onRejected);\n";
+                head += "    };\n";
+                head += "    p['catch'] = (fn) => p.catchError(fn);\n";
+                head += "    return p;\n";
+                head += "  };\n";
+                head += "  window.scrollTo = function(x, y) {\n";
+                head += "    if (typeof x === 'object' && x) return document.scrollTo(Number(x.left || 0), Number(x.top || 0));\n";
+                head += "    return document.scrollTo(Number(x) || 0, Number(y) || 0);\n";
+                head += "  };\n";
+                head += "  window.scrollBy = function(x, y) {\n";
+                head += "    if (typeof x === 'object' && x) return document.scrollBy(Number(x.left || 0), Number(x.top || 0));\n";
+                head += "    return document.scrollBy(Number(x) || 0, Number(y) || 0);\n";
+                head += "  };\n";
+                head += "  __auiDecorateElement(document.body);\n";
+                head += "} catch (e) {}\n";
                 ApricityJS.eval(head + js);
             }
-            for (Event eventListener : body.EventListener) {
-                if (eventListener.type.equals("load")) body.triggerEvent(eventListener.listener);
-            }
+            fireLifecycleEvent("DOMContentLoaded", false);
+            readyState = "complete";
+            fireLifecycleEvent("load", false);
         } catch (Exception ignored) {
         }
     }
 
+    private void fireLifecycleEvent(String type, boolean bubbles) {
+        if (body == null || type == null || type.isBlank()) return;
+        Event event = new Event(body, type, null, false);
+        event.bubbles = bubbles;
+        Event.triggerSingle(event);
+    }
+
     private void rebuildElementIndexFromBody() {
-        elements.clear();
-        IDMap.clear();
-        if (body == null) return;
-
-        body.parentElement = null;
-        body.depth = 0;
-
-        Deque<Element> stack = new ArrayDeque<>();
-        stack.push(body);
-
-        while (!stack.isEmpty()) {
-            Element current = stack.pop();
-            elements.add(current);
-
-            current.runInitFromDomOnce(current);
-            if (current.id != null && !current.id.isBlank()) {
-                IDMap.put(current.id, current);
-            }
-
-            List<Element> children = current.children;
-            for (int i = children.size() - 1; i >= 0; i--) {
-                Element child = children.get(i);
-                if (child == null) continue;
-                child.parentElement = current;
-                child.depth = current.depth + 1;
-                stack.push(child);
-            }
-        }
+        tree.rebuildFromBody();
     }
 
 
     // 绘制队列，详见Drawer类
     public ArrayList<RenderNode> getPaintList() {
-        return paintList;
+        return render.getPaintList();
     }
 
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
     public void updateElement(Element element) {
-        int index = -1;
-        for (Element e : elements) {
-            if (e.uuid.equals(element.uuid)) index = elements.indexOf(e);
-        }
-        if (index == -1) return;
-        elements.set(index, element);
+        tree.updateElement(element);
     }
 
     public Set<Element> getDirtyElements() {
-        return dirtyElements;
+        return render.getDirtyElements();
     }
 
     public void requestStyleRecalc(Element element) {
         if (element == null) return;
         if (element.document != this) return;
-        pendingStyleRoots.add(element);
+        style.requestRecalc(element);
     }
 
     /**
@@ -164,25 +588,7 @@ public class Document {
      * 当前策略较保守：当某个元素的交互态（hover/active/focus）变化时，刷新该元素及其子树。
      */
     public void flushPendingStyleUpdates() {
-        if (pendingStyleRoots.isEmpty()) return;
-
-        ArrayList<Element> candidates = new ArrayList<>(pendingStyleRoots);
-        pendingStyleRoots.clear();
-        candidates.sort(Comparator.comparingInt(Element::getDepth));
-
-        Set<Element> selected = Collections.newSetFromMap(new IdentityHashMap<>());
-        ArrayList<Element> roots = new ArrayList<>();
-
-        for (Element candidate : candidates) {
-            if (candidate == null || candidate.document != this) continue;
-            if (isCoveredByAncestor(candidate, selected)) continue;
-            selected.add(candidate);
-            roots.add(candidate);
-        }
-
-        for (Element root : roots) {
-            recomputeStyleSubtree(root);
-        }
+        style.flushPendingUpdates();
     }
 
     /**
@@ -190,27 +596,6 @@ public class Document {
      * <p>
      * Element 只负责 recompute 自己（无递归），避免任何零散路径随手 children.forEach(...) 扩散计算量。
      */
-    private void recomputeStyleSubtree(Element root) {
-        if (root == null || root.document != this) return;
-
-        Deque<Element> stack = new ArrayDeque<>();
-        stack.push(root);
-
-        while (!stack.isEmpty()) {
-            Element current = stack.pop();
-            if (current == null || current.document != this) continue;
-
-            current.recomputeStyleSelf();
-
-            List<Element> children = current.children;
-            for (int i = children.size() - 1; i >= 0; i--) {
-                Element child = children.get(i);
-                if (child == null) continue;
-                stack.push(child);
-            }
-        }
-    }
-
     /**
      * 单 Document 的 tick 生命周期入口。
      * <p>
@@ -224,6 +609,7 @@ public class Document {
         // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
         commitStyleRecalc();
         stepMotion();
+        flushMutationObservers();
         commitRenderState();
     }
 
@@ -231,7 +617,7 @@ public class Document {
      * Style Recalc 阶段：统一在 tick 中重算样式。
      */
     public void commitStyleRecalc() {
-        flushPendingStyleUpdates();
+        style.flushPendingUpdates();
     }
 
     /**
@@ -251,95 +637,29 @@ public class Document {
      * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
      */
     public void stepMotionRender() {
-        if (!StyleFrameCache.isActive()) return;
-        if (motionFlags.isEmpty()) return;
-
-        for (Map.Entry<Element, Integer> entry : motionFlags.entrySet()) {
-            Element element = entry.getKey();
-            if (element == null || element.document != this) {
-                motionFlags.remove(element);
-                continue;
-            }
-
-            int flags = entry.getValue() == null ? 0 : entry.getValue();
-            boolean hasTransition = (flags & MOTION_FLAG_TRANSITION) != 0;
-            boolean hasAnimationSpec = (flags & MOTION_FLAG_ANIMATION_SPEC) != 0;
-            if (!hasTransition && !hasAnimationSpec) {
-                motionFlags.remove(element);
-                continue;
-            }
-
-            Style base = element.getRawComputedStyle();
-
-            // 避免 tick 还没来得及同步 animation spec 时，render 侧重复做无意义工作。
-            if (hasAnimationSpec && !Animation.hasAnimationSpec(base)) {
-                setHasAnimationSpec(element, false);
-                hasAnimationSpec = false;
-            }
-
-            if (!hasTransition && !hasAnimationSpec) continue;
-
-            Style animated = base.clone();
-            if (hasTransition) {
-                boolean stillActive = Transition.updateStyle(element, animated);
-                if (!stillActive) {
-                    setTransitionActive(element, false);
-                }
-            }
-            if (hasAnimationSpec) {
-                Animation.updateStyle(element, animated);
-            }
-
-            // 为当帧提供“带 motion 的 computed style”
-            StyleFrameCache.put(element, animated);
-
-            // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
-            if (!Objects.equals(animated.transform, base.transform)) {
-                element.getRenderer().transform.clear();
-            }
-            if (!Objects.equals(animated.filter, base.filter) || !Objects.equals(animated.opacity, base.opacity)) {
-                element.getRenderer().filter.clear();
-            }
-            if (!Objects.equals(animated.backdropFilter, base.backdropFilter)) {
-                element.getRenderer().backdropFilter.clear();
-            }
-        }
+        motion.stepRender();
     }
 
     /**
      * Element Tick 阶段：滚动、输入态、逐帧逻辑。
      */
     public void tickElements() {
-        for (Element element : getElements()) {
-            element.tick();
-        }
+        render.tickElements();
     }
 
     /**
-     * Commit RenderState：将 dirty flags 提交为 layout/paintList 的更新。
+     * Commit Render：将 dirty flags 提交为 layout/paintList 的更新。
      */
     public void commitRenderState() {
-        Drawer.flushUpdates(this);
-    }
-
-    private static boolean isCoveredByAncestor(Element element, Set<Element> selected) {
-        Element current = element.parentElement;
-        while (current != null) {
-            if (selected.contains(current)) return true;
-            current = current.parentElement;
-        }
-        return false;
+        render.commit();
     }
 
     public void markDirty(int mask) {
-        elements.forEach(element -> element.addDirtyFlags(mask));
-        dirtyElements.addAll(elements);
+        render.markDirty(mask);
     }
 
     public void markDirty(Element element, int mask) {
-        if (element == null) return;
-        element.addDirtyFlags(mask);
-        dirtyElements.add(element);
+        render.markDirty(element, mask);
     }
 
     public void reapplyStylesFromCache() {
@@ -349,19 +669,19 @@ public class Document {
     }
 
     public void invalidateSelectorIndex() {
-        selectorIndex = null;
+        style.invalidateSelectorIndex();
     }
 
     public void rebuildSelectorIndex() {
-        selectorIndex = Selector.Index.build(CSSCache);
+        style.rebuildSelectorIndex();
     }
 
     Selector.Index getSelectorIndex() {
-        Selector.Index index = selectorIndex;
-        if (index != null) return index;
-        index = Selector.Index.build(CSSCache);
-        selectorIndex = index;
-        return index;
+        return style.getSelectorIndex();
+    }
+
+    ElementTree getTree() {
+        return tree;
     }
 
     public boolean is(String path) {
@@ -399,30 +719,14 @@ public class Document {
         return new Element(this, tagName);
     }
 
-    public void createRelation(Element child, Element parent, boolean head) {
-        if (child.parentElement != null) child.parentElement.children.remove(child);
-        child.parentElement = parent;
-        child.getRenderer().route.clear();
-        if (parent.children.isEmpty() || !head) {
-            elements.add(child);
-            parent.children.add(child);
-        } else {
-            int maxIndex = elements.size() - 1;
-            for (int i = 0; i <= maxIndex; i++) {
-                Element parentElement = elements.get(i).parentElement;
-                if (parentElement != null && parentElement.uuid.equals(parent.uuid)) {
-                    elements.add(i, child);
-                    break;
-                }
-            }
-            parent.children.add(0, child);
-        }
-        child.depth = parent.getDepth() + 1;
-        child.invalidateStyle();
-        child.getRenderer().size.clear();
+    public Element createTextNode(String text) {
+        Element node = new Element(this, "SPAN");
+        node.setTextContent(text);
+        return node;
+    }
 
-        // 需要判断一下是否为影响布局的属性，待补充
-        markDirty(parent, Drawer.RELAYOUT);
+    public void createRelation(Element child, Element parent, boolean head) {
+        tree.createRelation(child, parent, head);
     }
 
     public List<Element> querySelectorAll(String selector) {
@@ -434,11 +738,113 @@ public class Document {
     }
 
     public void recordID(Element element) {
-        IDMap.put(element.id, element);
+        tree.recordId(element);
+    }
+
+    public void removeID(String id, Element element) {
+        tree.removeId(id, element);
     }
 
     public Element getElementById(String id) {
-        return IDMap.get(id);
+        return tree.getElementById(id);
+    }
+
+    public Element getDocumentElement() {
+        return body;
+    }
+
+    public String getURL() {
+        return path;
+    }
+
+    public String getDocumentURI() {
+        return path;
+    }
+
+    public String getBaseURI() {
+        return path;
+    }
+
+    public String getReadyState() {
+        return readyState;
+    }
+
+    public boolean hasFocus() {
+        return getFocusedElement() != null;
+    }
+
+    public void blur() {
+        clearFocus();
+    }
+
+    public Element appendChild(Element element) {
+        if (body == null) return null;
+        return body.appendChild(element);
+    }
+
+    public void scrollTo(double x, double y) {
+        if (body == null) return;
+        body.scrollTo(x, y);
+    }
+
+    public void scrollBy(double x, double y) {
+        if (body == null) return;
+        body.scrollBy(x, y);
+    }
+
+    public Element prepend(Element element) {
+        if (body == null || element == null) return null;
+        body.prepend(element);
+        return element;
+    }
+
+    public void addEventListener(String type, java.util.function.Consumer<Event> listener) {
+        if (body == null) return;
+        body.addEventListener(type, listener);
+    }
+
+    public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
+        if (body == null) return;
+        body.addEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
+        if (body == null) return;
+        body.removeEventListener(type, listener, useCapture);
+    }
+
+    public boolean dispatchEvent(Object event) {
+        if (!(event instanceof Event targetEvent)) return false;
+        if (body == null) return false;
+        if (targetEvent.target == null) targetEvent.target = body;
+        if (targetEvent.currentTarget == null) targetEvent.currentTarget = body;
+        return Event.tiggerEvent(targetEvent);
+    }
+
+    public List<Element> getElementsByClassName(String className) {
+        if (body == null) return List.of();
+        String normalized = className == null ? "" : className.trim();
+        if (normalized.isEmpty()) return List.of();
+        String selector = "." + String.join(".", normalized.split("\\s+"));
+        return Selector.querySelectorAll(body, selector);
+    }
+
+    public List<Element> getElementsByTagName(String tagName) {
+        if (body == null) return List.of();
+        String normalized = tagName == null ? "" : tagName.trim();
+        if (normalized.isEmpty()) return List.of();
+        return Selector.querySelectorAll(body, normalized);
+    }
+
+    public List<Element> getElementsByName(String name) {
+        if (body == null) return List.of();
+        String normalized = name == null ? "" : name.trim();
+        if (normalized.isEmpty()) return List.of();
+        return Selector.querySelectorAll(body, "[name=\"" + normalized + "\"]");
     }
 
     public static void refreshAll() {
@@ -485,7 +891,7 @@ public class Document {
     }
 
     public ArrayList<Element> getElements() {
-        return elements;
+        return tree.getElements();
     }
 
     public static void remove(String path) {
@@ -501,130 +907,246 @@ public class Document {
     }
 
     public void removeElement(Element element) {
-        element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
-        element.document.markDirty(element.parentElement, Drawer.REORDER);
-        elements.removeIf(e -> element.uuid.equals(e.uuid));
-        motionFlags.keySet().removeIf(e -> element.uuid.equals(e.uuid));
-        element.getRenderer().route.clear();
+        tree.removeElement(element);
+        motion.removeElement(element);
+    }
+
+    public MutationObserver createMutationObserver(Consumer<Object> callback) {
+        MutationObserver observer = new MutationObserver(this, callback);
+        mutationObservers.add(observer);
+        return observer;
+    }
+
+    public void queueMutation(MutationRecord record) {
+        if (record == null) return;
+        for (MutationObserver observer : mutationObservers) {
+            if (observer != null) observer.enqueue(record);
+        }
+    }
+
+    public void flushMutationObservers() {
+        for (MutationObserver observer : mutationObservers) {
+            if (observer == null) continue;
+            observer.flush();
+            if (observer.disconnected) {
+                mutationObservers.remove(observer);
+            }
+        }
     }
 
     public void setTransitionActive(Element element, boolean active) {
-        setMotionFlag(element, MOTION_FLAG_TRANSITION, active);
+        motion.setTransitionActive(element, active);
     }
 
     public void setHasAnimationSpec(Element element, boolean hasSpec) {
-        setMotionFlag(element, MOTION_FLAG_ANIMATION_SPEC, hasSpec);
-    }
-
-    private void setMotionFlag(Element element, int flag, boolean enabled) {
-        if (element == null || element.document != this) return;
-        motionFlags.compute(element, (e, old) -> {
-            int v = old == null ? 0 : old;
-            if (enabled) v |= flag;
-            else v &= ~flag;
-            return v == 0 ? null : v;
-        });
+        motion.setHasAnimationSpec(element, hasSpec);
     }
 
     public Element getPreviousCursorElement() {
-        return previousCursorElement;
+        return focus.getPreviousCursorElement();
     }
 
     public void setPreviousCursorElement(Element element) {
-        this.previousCursorElement = element;
+        focus.setPreviousCursorElement(element);
+    }
+
+    public Element getPressedElement() {
+        return focus.getPressedElement();
+    }
+
+    public void setPressedElement(Element element) {
+        focus.setPressedElement(element);
     }
 
     public Element getActiveElement() {
-        return activeElement;
-    }
-
-    public void setActiveElement(Element element) {
-        if (activeElement == element) return;
-
-        List<Element> oldChain = activeElement != null ? activeElement.getRoute() : Collections.emptyList();
-        List<Element> newChain = element != null ? element.getRoute() : Collections.emptyList();
-
-        Set<Element> oldSet = Collections.newSetFromMap(new IdentityHashMap<>());
-        oldSet.addAll(oldChain);
-
-        Set<Element> newSet = Collections.newSetFromMap(new IdentityHashMap<>());
-        newSet.addAll(newChain);
-
-        // 退出 active 链
-        for (Element e : oldChain) {
-            if (!newSet.contains(e)) {
-                e.setActive(false);
-            }
-        }
-
-        // 进入 active 链
-        for (Element e : newChain) {
-            if (!oldSet.contains(e)) {
-                e.setActive(true);
-            }
-        }
-
-        this.activeElement = element;
+        Element focused = focus.getFocusedElement();
+        if (focused != null) return focused;
+        return body;
     }
 
     public Element getFocusedElement() {
-        return focusedElement;
+        return focus.getFocusedElement();
     }
 
     public void setFocusedElement(Element element) {
-        if (focusedElement != null && focusedElement != element) {
-            if (focusedElement instanceof AbstractText textElement) {
-                textElement.clearSelection();
-            } else {
-                focusedElement.clearTextSelection();
-            }
-            focusedElement.setFocus(false);
-            for (Event event : focusedElement.EventListener) {
-                if (!"blur".equals(event.type) || event.listener == null) continue;
-                event.listener.accept(event);
-            }
-        }
-
-        focusedElement = element;
-
-        if (element != null) {
-            element.setFocus(true);
-            for (Event event : element.EventListener) {
-                if (!"focus".equals(event.type) || event.listener == null) continue;
-                event.listener.accept(event);
-            }
-        }
+        focus.setFocusedElement(element);
     }
 
 
     public boolean hasAnyTextSelection() {
-        for (Element element : elements) {
-            if (element instanceof AbstractText textElement) {
-                if (textElement.hasSelection()) return true;
-                continue;
-            }
-            if (element.hasInnerTextSelection()) return true;
-        }
-        return false;
+        return focus.hasAnyTextSelection();
     }
 
     public void clearAllTextSelections() {
-        clearAllTextSelectionsExcept(null);
+        focus.clearAllTextSelections();
     }
 
     public void clearAllTextSelectionsExcept(Element keep) {
-        for (Element element : elements) {
-            if (element == keep) continue;
-            if (element instanceof AbstractText textElement) {
-                if (textElement.hasSelection()) textElement.clearSelection();
-                continue;
-            }
-            if (element.hasInnerTextSelection()) element.clearTextSelection();
-        }
+        focus.clearAllTextSelectionsExcept(keep);
     }
     // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
     public void clearFocus() {
-        setFocusedElement(null);
+        focus.clearFocus();
+    }
+
+    public static final class MutationObserver {
+        private final Document owner;
+        private final Consumer<Object> callback;
+        private final CopyOnWriteArrayList<ObservedTarget> observed = new CopyOnWriteArrayList<>();
+        private final ArrayList<MutationRecord> pending = new ArrayList<>();
+        private volatile boolean disconnected = false;
+
+        public MutationObserver(Document owner, Consumer<Object> callback) {
+            this.owner = owner;
+            this.callback = callback;
+        }
+
+        public void observe(Element target, boolean childList, boolean attributes, boolean characterData, boolean subtree,
+                            boolean attributeOldValue, boolean characterDataOldValue, String attributeFilterCsv) {
+            if (target == null || disconnected) return;
+            observed.removeIf(entry -> entry.target == target);
+            observed.add(new ObservedTarget(
+                    target,
+                    childList,
+                    attributes,
+                    characterData,
+                    subtree,
+                    attributeOldValue,
+                    characterDataOldValue,
+                    parseAttributeFilter(attributeFilterCsv)
+            ));
+        }
+
+        public void disconnect() {
+            disconnected = true;
+            observed.clear();
+            synchronized (pending) {
+                pending.clear();
+            }
+            owner.mutationObservers.remove(this);
+        }
+
+        public List<MutationRecord> takeRecords() {
+            synchronized (pending) {
+                ArrayList<MutationRecord> snapshot = new ArrayList<>(pending);
+                pending.clear();
+                return snapshot;
+            }
+        }
+
+        void enqueue(MutationRecord record) {
+            if (disconnected || record == null || !matches(record)) return;
+            synchronized (pending) {
+                pending.add(adapt(record));
+            }
+        }
+
+        void flush() {
+            if (disconnected || callback == null) return;
+            List<MutationRecord> snapshot = takeRecords();
+            if (snapshot.isEmpty()) return;
+            callback.accept(snapshot);
+        }
+
+        private boolean matches(MutationRecord record) {
+            for (ObservedTarget entry : observed) {
+                if (entry == null || entry.target == null || !entry.accepts(record)) continue;
+                if (record.target == entry.target) return true;
+                if (entry.subtree && entry.target.contains(record.target)) return true;
+            }
+            return false;
+        }
+
+        private MutationRecord adapt(MutationRecord record) {
+            if ("attributes".equals(record.type) && !record.attributeName.isBlank()) {
+                for (ObservedTarget entry : observed) {
+                    if (entry == null || entry.target == null || !entry.accepts(record)) continue;
+                    boolean targetMatch = record.target == entry.target || (entry.subtree && entry.target.contains(record.target));
+                    if (!targetMatch) continue;
+                    String oldValue = entry.attributeOldValue ? record.oldValue : null;
+                    return MutationRecord.attributes(record.target, record.attributeName, oldValue);
+                }
+            }
+            if ("characterData".equals(record.type)) {
+                for (ObservedTarget entry : observed) {
+                    if (entry == null || entry.target == null || !entry.accepts(record)) continue;
+                    boolean targetMatch = record.target == entry.target || (entry.subtree && entry.target.contains(record.target));
+                    if (!targetMatch) continue;
+                    return MutationRecord.characterData(record.target, entry.characterDataOldValue ? record.oldValue : null);
+                }
+            }
+            return record;
+        }
+
+        private static Set<String> parseAttributeFilter(String csv) {
+            if (csv == null || csv.isBlank()) return Collections.emptySet();
+            LinkedHashSet<String> values = new LinkedHashSet<>();
+            for (String part : csv.split(",")) {
+                if (part == null) continue;
+                String normalized = part.trim();
+                if (!normalized.isEmpty()) values.add(normalized);
+            }
+            return values.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(values);
+        }
+    }
+
+    private record ObservedTarget(
+            Element target,
+            boolean childList,
+            boolean attributes,
+            boolean characterData,
+            boolean subtree,
+            boolean attributeOldValue,
+            boolean characterDataOldValue,
+            Set<String> attributeFilter
+    ) {
+        private boolean accepts(MutationRecord record) {
+            if (record == null) return false;
+            if ("childList".equals(record.type)) return childList;
+            if ("attributes".equals(record.type)) {
+                if (!attributes) return false;
+                return attributeFilter == null || attributeFilter.isEmpty() || attributeFilter.contains(record.attributeName);
+            }
+            if ("characterData".equals(record.type)) return characterData;
+            return false;
+        }
+    }
+
+    public static final class MutationRecord {
+        public final String type;
+        public final Element target;
+        public final List<Element> addedNodes;
+        public final List<Element> removedNodes;
+        public final Element previousSibling;
+        public final Element nextSibling;
+        public final String attributeName;
+        public final String oldValue;
+
+        private MutationRecord(String type, Element target, List<Element> addedNodes, List<Element> removedNodes,
+                               Element previousSibling, Element nextSibling, String attributeName, String oldValue) {
+            this.type = type == null ? "" : type;
+            this.target = target;
+            this.addedNodes = addedNodes == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(addedNodes));
+            this.removedNodes = removedNodes == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(removedNodes));
+            this.previousSibling = previousSibling;
+            this.nextSibling = nextSibling;
+            this.attributeName = attributeName == null ? "" : attributeName;
+            this.oldValue = oldValue;
+        }
+
+        public static MutationRecord childList(Element target, List<Element> addedNodes, List<Element> removedNodes,
+                                               Element previousSibling, Element nextSibling) {
+            return new MutationRecord("childList", target, addedNodes, removedNodes, previousSibling, nextSibling, null, null);
+        }
+
+        public static MutationRecord attributes(Element target, String attributeName, String oldValue) {
+            return new MutationRecord("attributes", target, List.of(), List.of(), null, null, attributeName, oldValue);
+        }
+
+        public static MutationRecord characterData(Element target, String oldValue) {
+            return new MutationRecord("characterData", target, List.of(), List.of(), null, null, null, oldValue);
+        }
     }
 }
+
 
