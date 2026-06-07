@@ -54,6 +54,11 @@ public class Base {
         StyleFrameCache.begin();
         FilterRenderer.beginFrame();
         try {
+            // 这个if是应对paintList更新没跟上节点树更新的情况，也就是渲染状态滞后，差不多这个意思。
+            if (!document.getDirtyElements().isEmpty()) {
+                document.commitStyleRecalc();
+                document.commitRenderState();
+            }
             document.stepMotionRender();
             for (RenderNode node : document.getPaintList()) {
                 poseStack.pushPose();

@@ -109,15 +109,14 @@ public class Drawer {
             paintList.add(new RenderNode.FilterPushNode(contextRoot));
         }
 
-        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
+        appendBodyRenderNodes(contextRoot, paintList);
+        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
 
         boolean needsMask = Interaction.clipsOverflow(rootStyle);
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }
-
-        appendBodyRenderNodes(contextRoot, paintList);
 
         List<Element> children = contextRoot.children;
         if (children.isEmpty()) {

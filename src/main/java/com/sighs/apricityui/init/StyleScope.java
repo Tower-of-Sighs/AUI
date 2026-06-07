@@ -11,6 +11,7 @@ import java.util.Set;
 final class StyleScope {
     private final Document owner;
     private final Set<Element> pendingRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Object pendingRootsLock = new Object();
     private volatile Selector.Index selectorIndex = null;
 
     StyleScope(Document owner) {
@@ -20,14 +21,18 @@ final class StyleScope {
     void requestRecalc(Element element) {
         if (element == null) return;
         if (element.document != owner) return;
-        pendingRoots.add(element);
+        synchronized (pendingRootsLock) {
+            pendingRoots.add(element);
+        }
     }
 
     void flushPendingUpdates() {
-        if (pendingRoots.isEmpty()) return;
-
-        ArrayList<Element> candidates = new ArrayList<>(pendingRoots);
-        pendingRoots.clear();
+        ArrayList<Element> candidates;
+        synchronized (pendingRootsLock) {
+            if (pendingRoots.isEmpty()) return;
+            candidates = new ArrayList<>(pendingRoots);
+            pendingRoots.clear();
+        }
         candidates.sort(Comparator.comparingInt(Element::getDepth));
 
         Set<Element> selected = Collections.newSetFromMap(new IdentityHashMap<>());
