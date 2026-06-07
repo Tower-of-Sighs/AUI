@@ -10,6 +10,20 @@ import java.util.concurrent.ConcurrentHashMap;
 final class MotionTrack {
     private static final int FLAG_TRANSITION = 1;
     private static final int FLAG_ANIMATION_SPEC = 1 << 1;
+    private static final String[] LAYOUT_PROPS = {
+            "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "boxSizing",
+            "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
+            "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
+            "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
+    };
+    private static final String[] VISUAL_BOX_PROPS = {
+            "borderRadius", "boxShadow",
+            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
+            "borderImage", "borderImageSource", "borderImageSlice", "borderImageWidth", "borderImageOutset", "borderImageRepeat"
+    };
+    private static final String[] BACKGROUND_PROPS = {
+            "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
+    };
 
     private final Document owner;
     private final ConcurrentHashMap<Element, Integer> flags = new ConcurrentHashMap<>();
@@ -76,6 +90,7 @@ final class MotionTrack {
             }
 
             // 为当帧提供“带 motion 的 computed style”
+            invalidateMotionCaches(element, base, animated);
             StyleFrameCache.put(element, animated);
 
             // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
@@ -89,6 +104,35 @@ final class MotionTrack {
                 element.getRenderer().backdropFilter.clear();
             }
         }
+    }
+
+    private static void invalidateMotionCaches(Element element, Style base, Style animated) {
+        RenderElement renderer = element.getRenderer();
+
+        if (differsAny(base, animated, LAYOUT_PROPS)) {
+            element.forEachRoute(e -> e.getRenderer().size.clear());
+            element.forEachRoute(e -> e.getRenderer().box.clear());
+            if (element.parentElement != null) {
+                element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
+            } else {
+                renderer.position.clear();
+            }
+        } else if (differsAny(base, animated, VISUAL_BOX_PROPS)) {
+            renderer.box.clear();
+        }
+
+        if (differsAny(base, animated, BACKGROUND_PROPS)) {
+            renderer.background.clear();
+        }
+    }
+
+    private static boolean differsAny(Style base, Style animated, String[] props) {
+        for (String prop : props) {
+            if (!Objects.equals(base.get(prop), animated.get(prop))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void setFlag(Element element, int flag, boolean enabled) {

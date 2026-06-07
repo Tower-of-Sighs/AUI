@@ -136,8 +136,8 @@
                 <div class="demo-row">
                     <div class="stage">
                         <div class="z-stage">
-                            <div class="z-back">base</div>
                             <div class="tile t-z" id="t-z">z-lift</div>
+                            <div class="z-back">base</div>
                         </div>
                     </div>
                     <div class="meta">transition: transform with translateZ</div>
@@ -548,26 +548,25 @@
     }
 
     .z-stage {
-        position: relative;
+        display: flex;
+        align-items: center;
         min-height: 40px;
         height: 40px;
     }
 
     .z-back {
-        position: absolute;
-        left: 4px;
-        top: 9px;
         width: 78px;
         min-height: 22px;
+        margin-left: -28px;
+        position: relative;
+        transform: translateZ(4px);
         background-color: rgba(204, 225, 237, 0.78);
         color: #173041;
         border-color: rgba(230, 241, 248, 0.8);
     }
 
     .t-z {
-        position: absolute;
-        left: 30px;
-        top: 4px;
+        position: relative;
         background-color: rgba(186, 126, 38, 0.88);
         border-color: #ffe0a6;
         color: #2a1c08;
@@ -646,12 +645,12 @@
     }
 
     .t-z {
-        transform: translateZ(0px) translateY(0px);
+        transform: translateZ(0px) translateX(0px);
         transition: transform 240ms, background-color 240ms;
     }
 
     .t-z.on {
-        transform: translateZ(10px) translateY(-4px);
+        transform: translateZ(12px) translateX(10px);
         background-color: rgba(245, 158, 11, 0.95);
     }
 
@@ -754,6 +753,7 @@
         width: 46px;
         min-height: 20px;
     }
+
 </style>
 
 <script>
