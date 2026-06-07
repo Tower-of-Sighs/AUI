@@ -1,6 +1,8 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.element.Body;
+import com.sighs.apricityui.canvas.CanvasPath2D;
+import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.CSS;
@@ -89,6 +91,19 @@ public class Document {
                 head += "let clearTimeout = (handle) => window.clearTimeout(handle);\n";
                 head += "let setInterval = (callback, delay) => window.setInterval(callback, delay == null ? 0 : delay);\n";
                 head += "let clearInterval = (handle) => window.clearInterval(handle);\n";
+                head += "let createImageBitmap = function(source, sx, sy, sw, sh) {\n";
+                head += "  if (arguments.length >= 5) return window.createImageBitmap(source, Number(sx), Number(sy), Number(sw), Number(sh));\n";
+                head += "  return window.createImageBitmap(source);\n";
+                head += "};\n";
+                head += "let createImageBitmapAsync = function(source, sx, sy, sw, sh) {\n";
+                head += "  let p = arguments.length >= 5\n";
+                head += "    ? window.createImageBitmapAsync(source, Number(sx), Number(sy), Number(sw), Number(sh))\n";
+                head += "    : window.createImageBitmapAsync(source);\n";
+                head += "  p['catch'] = (fn) => p.catchError(fn);\n";
+                head += "  return p;\n";
+                head += "};\n";
+                head += "function OffscreenCanvas(width, height) { return window.createOffscreenCanvas(Number(width) || 0, Number(height) || 0); }\n";
+                head += "function DOMMatrix(init) { return arguments.length === 0 ? window.createDOMMatrix() : window.createDOMMatrix(init); }\n";
                 head += "try {\n";
                 head += "  Object.defineProperty(document, 'readyState', { get: () => document.getReadyState() });\n";
                 head += "  Object.defineProperty(document, 'activeElement', { get: () => document.getActiveElement() });\n";
@@ -509,6 +524,9 @@ public class Document {
                 head += "  document.createElement = function(tag) { return __auiDecorateElement(__auiCreateElement.call(document, tag)); };\n";
                 head += "  let __auiCreateTextNode = document.createTextNode;\n";
                 head += "  document.createTextNode = function(text) { return __auiDecorateElement(__auiCreateTextNode.call(document, text)); };\n";
+                head += "  let __auiCreatePath2D = document.createPath2D;\n";
+                head += "  document.createPath2D = function(path) { return __auiCreatePath2D.call(document, path); };\n";
+                head += "  function Path2D(path) { return document.createPath2D(path); }\n";
                 head += "  let __auiDocGEC = document.getElementsByClassName;\n";
                 head += "  document.getElementsByClassName = function(sel) { return __auiDecorateList(__auiDocGEC.call(document, sel)); };\n";
                 head += "  let __auiDocGET = document.getElementsByTagName;\n";
@@ -915,6 +933,24 @@ public class Document {
         MutationObserver observer = new MutationObserver(this, callback);
         mutationObservers.add(observer);
         return observer;
+    }
+
+    public CanvasPath2D createPath2D() {
+        return new CanvasPath2D();
+    }
+
+    public CanvasPath2D createPath2D(Object source) {
+        if (source instanceof CanvasPath2D path) return new CanvasPath2D(path);
+        if (source instanceof String text) return new CanvasPath2D(text);
+        return new CanvasPath2D();
+    }
+
+    public DOMMatrix createDOMMatrix() {
+        return new DOMMatrix();
+    }
+
+    public DOMMatrix createDOMMatrix(Object source) {
+        return new DOMMatrix(source);
     }
 
     public void queueMutation(MutationRecord record) {

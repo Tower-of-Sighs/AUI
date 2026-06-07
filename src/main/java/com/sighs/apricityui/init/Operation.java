@@ -15,6 +15,7 @@ import org.lwjgl.glfw.GLFW;
 
 public class Operation {
     public static Position cachedMousePosition = null;
+    private static int mouseButtons = 0;
     private static final long KEY_DEDUP_WINDOW_NS = 5_000_000L; // 5ms
     private static long lastKeyEventTimeNs = 0L;
     private static int lastKeyCode = -1;
@@ -27,6 +28,7 @@ public class Operation {
     }
 
     public static boolean onMouseDown(int button) {
+        mouseButtons |= buttonMask(button);
         return MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition(), button));
     }
 
@@ -35,6 +37,7 @@ public class Operation {
     }
 
     public static boolean onMouseUp(int button) {
+        mouseButtons &= ~buttonMask(button);
         return MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition(), button));
     }
 
@@ -52,6 +55,21 @@ public class Operation {
         MouseEvent mouseEvent = new MouseEvent("scroll", getMousePosition());
         mouseEvent.scrollDelta = -delta * 50;
         return MouseEvent.tiggerEvent(mouseEvent);
+    }
+
+    public static int getMouseButtons() {
+        return mouseButtons;
+    }
+
+    private static int buttonMask(int button) {
+        return switch (button) {
+            case 0 -> 1;
+            case 1 -> 2;
+            case 2 -> 4;
+            case 3 -> 8;
+            case 4 -> 16;
+            default -> 0;
+        };
     }
 
     public static boolean onCharTyped(char code) {

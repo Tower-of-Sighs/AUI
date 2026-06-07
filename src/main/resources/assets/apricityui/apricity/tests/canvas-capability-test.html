@@ -1,0 +1,704 @@
+<style>
+    body {
+        margin: 0;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background: linear-gradient(180deg, #0f1820 0%, #182938 100%);
+        color: #e9f4fb;
+        font-size: 11px;
+    }
+
+    .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 12px;
+        background-color: rgba(6, 14, 22, 0.72);
+        border: 1px solid rgba(188, 217, 233, 0.18);
+    }
+
+    .title {
+        font-size: 14px;
+        font-weight: bold;
+    }
+
+    .desc, .hint, .status {
+        line-height: 1.25;
+        color: rgba(223, 236, 244, 0.8);
+    }
+
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .btn {
+        padding: 4px 8px;
+        border-radius: 999px;
+        background-color: rgba(38, 95, 130, 0.82);
+        border: 1px solid rgba(197, 225, 240, 0.24);
+        color: #f3fbff;
+        text-align: center;
+    }
+
+    .boards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .board-card {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px;
+        border-radius: 12px;
+        background-color: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(190, 218, 233, 0.14);
+    }
+
+    .board-name {
+        color: #f2fbff;
+        font-weight: bold;
+    }
+
+    .canvas-shell {
+        width: 220px;
+        height: 140px;
+        padding: 6px;
+        border-radius: 12px;
+        background:
+            linear-gradient(45deg, rgba(14, 20, 26, 0.94) 25%, rgba(24, 31, 39, 0.94) 25%, rgba(24, 31, 39, 0.94) 50%, rgba(14, 20, 26, 0.94) 50%, rgba(14, 20, 26, 0.94) 75%, rgba(24, 31, 39, 0.94) 75%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01));
+        background-size: 18px 18px, 100% 100%;
+        border: 1px solid rgba(189, 219, 235, 0.18);
+    }
+
+    canvas {
+        width: 220px;
+        height: 140px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        border: 1px solid rgba(20, 42, 58, 0.22);
+    }
+</style>
+
+<body>
+<div class="panel">
+    <div class="title">Canvas Capability Test</div>
+    <div class="desc">用于验证本轮补齐的 2D 接口：measureText、bezierCurveTo、ellipse、clip、drawImage。</div>
+
+    <div class="toolbar">
+        <div class="btn" id="renderBtn">Render</div>
+    </div>
+
+    <div class="boards">
+        <div class="board-card">
+            <div class="board-name">T1 Path</div>
+            <div class="canvas-shell"><canvas id="pathBoard" width="220" height="140"></canvas></div>
+            <div class="hint">贝塞尔曲线和旋转椭圆。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T2 Clip</div>
+            <div class="canvas-shell"><canvas id="clipBoard" width="220" height="140"></canvas></div>
+            <div class="hint">星形裁剪后只显示内部渐变与文字。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T3 DrawImage</div>
+            <div class="canvas-shell"><canvas id="imageBoard" width="220" height="140"></canvas></div>
+            <div class="hint">从源 canvas 复制整图和裁切区域。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T4 LineDash</div>
+            <div class="canvas-shell"><canvas id="dashBoard" width="220" height="140"></canvas></div>
+            <div class="hint">虚线、miterLimit、dashOffset。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T5 RoundRect</div>
+            <div class="canvas-shell"><canvas id="roundRectBoard" width="220" height="140"></canvas></div>
+            <div class="hint">roundRect、arcTo、命中测试。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T6 Paint</div>
+            <div class="canvas-shell"><canvas id="paintBoard" width="220" height="140"></canvas></div>
+            <div class="hint">radialGradient 与 pattern。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T7 Path2D</div>
+            <div class="canvas-shell"><canvas id="path2dBoard" width="220" height="140"></canvas></div>
+            <div class="hint">Path2D、addPath、toBlob。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T8 Bitmap</div>
+            <div class="canvas-shell"><canvas id="bitmapBoard" width="220" height="140"></canvas></div>
+            <div class="hint">createImageBitmap 与 smoothing。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T9 SVG Path</div>
+            <div class="canvas-shell"><canvas id="svgPathBoard" width="220" height="140"></canvas></div>
+            <div class="hint">Path2D(pathString) 与 createImageBitmapAsync。</div>
+        </div>
+
+        <div class="board-card">
+            <div class="board-name">T10 FX</div>
+            <div class="canvas-shell"><canvas id="fxBoard" width="220" height="140"></canvas></div>
+            <div class="hint">filter、composite、OffscreenCanvas。</div>
+        </div>
+    </div>
+
+        <div class="board-card">
+            <div class="board-name">T11 Matrix</div>
+            <div class="canvas-shell"><canvas id="matrixBoard" width="220" height="140"></canvas></div>
+            <div class="hint">DOMMatrix銆佹笎鍙樺彉鎹乸attern transform銆乼ransferToImageBitmap銆?/div>
+        </div>
+    </div>
+
+    <div class="status" id="status">Ready</div>
+</div>
+
+<script>
+    function byId(id) {
+        return document.getElementById(id);
+    }
+
+    function setStatus(text) {
+        let status = byId("status");
+        if (status) status.innerText = text;
+    }
+
+    function clearBoard(ctx, canvas) {
+        if (!ctx || !canvas) return;
+        ctx.resetTransform();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.clearRect(0, 0, canvas.getWidth(), canvas.getHeight());
+    }
+
+    function renderPathBoard() {
+        let canvas = byId("pathBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        let gradient = ctx.createLinearGradient(0, 0, 220, 0);
+        gradient.addColorStop(0, "#1f79c6");
+        gradient.addColorStop(1, "#49d4aa");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 220, 140);
+
+        ctx.strokeStyle = "#0d2130";
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.beginPath();
+        ctx.moveTo(14, 112);
+        ctx.bezierCurveTo(42, 12, 120, 130, 205, 22);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#ffffff";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.ellipse(112, 72, 72, 30, 0.58, 0, Math.PI * 2, false);
+        ctx.stroke();
+    }
+
+    function buildStarPath(ctx, cx, cy, outerRadius, innerRadius, points) {
+        let step = Math.PI / points;
+        ctx.beginPath();
+        for (let i = 0; i < points * 2; i++) {
+            let radius = i % 2 == 0 ? outerRadius : innerRadius;
+            let angle = -Math.PI / 2 + i * step;
+            let x = cx + Math.cos(angle) * radius;
+            let y = cy + Math.sin(angle) * radius;
+            if (i == 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+    }
+
+    function renderClipBoard() {
+        let canvas = byId("clipBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        ctx.save();
+        buildStarPath(ctx, 110, 68, 58, 26, 5);
+        ctx.clip();
+
+        let gradient = ctx.createLinearGradient(0, 0, 220, 140);
+        gradient.addColorStop(0, "#ffe28c");
+        gradient.addColorStop(1, "#d76b39");
+        ctx.fillStyle = gradient;
+        ctx.fillRect(0, 0, 220, 140);
+
+        ctx.fillStyle = "rgba(255,255,255,0.92)";
+        ctx.font = "bold 28px SansSerif";
+        let text = "CLIP";
+        let metrics = ctx.measureText(text);
+        ctx.fillText(text, (220 - metrics.width) / 2, 83);
+        ctx.restore();
+
+        ctx.strokeStyle = "#163145";
+        ctx.lineWidth = 3;
+        buildStarPath(ctx, 110, 68, 58, 26, 5);
+        ctx.stroke();
+    }
+
+    function renderImageBoard() {
+        let canvas = byId("imageBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        let source = document.createElement("canvas");
+        source.setWidth(84);
+        source.setHeight(84);
+        let sourceCtx = source.getContext("2d");
+        if (!sourceCtx) return;
+
+        let gradient = sourceCtx.createLinearGradient(0, 0, 84, 84);
+        gradient.addColorStop(0, "#4db6ff");
+        gradient.addColorStop(1, "#173d7d");
+        sourceCtx.fillStyle = gradient;
+        sourceCtx.fillRect(0, 0, 84, 84);
+        sourceCtx.fillStyle = "#ffffff";
+        sourceCtx.beginPath();
+        sourceCtx.ellipse(42, 42, 20, 20, 0, 0, Math.PI * 2, false);
+        sourceCtx.fill();
+        sourceCtx.strokeStyle = "#09243e";
+        sourceCtx.lineWidth = 4;
+        sourceCtx.beginPath();
+        sourceCtx.moveTo(16, 64);
+        sourceCtx.bezierCurveTo(26, 18, 58, 18, 68, 64);
+        sourceCtx.stroke();
+
+        ctx.fillStyle = "#eef6fb";
+        ctx.fillRect(0, 0, 220, 140);
+        ctx.drawImage(source, 12, 18, 84, 84);
+        ctx.drawImage(source, 20, 20, 44, 44, 118, 30, 76, 76);
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "12px SansSerif";
+        ctx.fillText("full", 38, 118);
+        ctx.fillText("crop", 146, 118);
+    }
+
+    function renderDashBoard() {
+        let canvas = byId("dashBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        ctx.fillStyle = "#f4f9fc";
+        ctx.fillRect(0, 0, 220, 140);
+
+        ctx.strokeStyle = "#1b6ea9";
+        ctx.lineWidth = 10;
+        ctx.lineJoin = "miter";
+        ctx.miterLimit = 2;
+        ctx.setLineDash([14, 8]);
+        ctx.lineDashOffset = 6;
+        ctx.beginPath();
+        ctx.moveTo(24, 94);
+        ctx.lineTo(64, 38);
+        ctx.lineTo(104, 94);
+        ctx.lineTo(144, 38);
+        ctx.lineTo(184, 94);
+        ctx.stroke();
+
+        ctx.strokeStyle = "#ee7c45";
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.miterLimit = 10;
+        ctx.setLineDash([4, 10]);
+        ctx.lineDashOffset = 0;
+        ctx.beginPath();
+        ctx.moveTo(26, 112);
+        ctx.lineTo(194, 112);
+        ctx.stroke();
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("miterLimit=2", 18, 22);
+        ctx.fillText("dash=[14,8], offset=6", 18, 132);
+    }
+
+    function renderRoundRectBoard() {
+        let canvas = byId("roundRectBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        ctx.fillStyle = "#f7fafc";
+        ctx.fillRect(0, 0, 220, 140);
+
+        ctx.beginPath();
+        ctx.roundRect(18, 18, 84, 50, [20, 8, 24, 12]);
+        let fillHit = ctx.isPointInPath(40, 40);
+        ctx.fillStyle = fillHit ? "#6fcf97" : "#d9e6ef";
+        ctx.fill();
+
+        ctx.strokeStyle = "#21435a";
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(126, 96);
+        ctx.lineTo(126, 42);
+        ctx.arcTo(126, 22, 146, 22, 20);
+        ctx.lineTo(184, 22);
+        ctx.arcTo(204, 22, 204, 42, 20);
+        ctx.lineTo(204, 96);
+        ctx.strokeStyle = "#e48a41";
+        ctx.lineWidth = 8;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke();
+
+        let strokeHit = ctx.isPointInStroke(146, 23);
+        ctx.fillStyle = strokeHit ? "#2e7d32" : "#9aa8b5";
+        ctx.beginPath();
+        ctx.ellipse(146, 23, 5, 5, 0, 0, Math.PI * 2, false);
+        ctx.fill();
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("fill hit: " + fillHit, 18, 88);
+        ctx.fillText("stroke hit: " + strokeHit, 118, 118);
+    }
+
+    function renderPaintBoard() {
+        let canvas = byId("paintBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        let radial = ctx.createRadialGradient(58, 50, 6, 58, 50, 52);
+        radial.addColorStop(0, "#fff8c8");
+        radial.addColorStop(0.45, "#ffb347");
+        radial.addColorStop(1, "#c94b4b");
+        ctx.fillStyle = radial;
+        ctx.beginPath();
+        ctx.ellipse(58, 50, 46, 36, -0.25, 0, Math.PI * 2, false);
+        ctx.fill();
+
+        let tile = document.createElement("canvas");
+        tile.setWidth(20);
+        tile.setHeight(20);
+        let tileCtx = tile.getContext("2d");
+        if (!tileCtx) return;
+        tileCtx.fillStyle = "#15344d";
+        tileCtx.fillRect(0, 0, 20, 20);
+        tileCtx.fillStyle = "#63d2ff";
+        tileCtx.fillRect(0, 0, 10, 10);
+        tileCtx.fillStyle = "#ffe58f";
+        tileCtx.fillRect(10, 10, 10, 10);
+
+        let pattern = ctx.createPattern(tile, "repeat");
+        if (pattern) {
+            pattern.setTransform(1, 0, 0, 1, 4, 4);
+            ctx.fillStyle = pattern;
+            ctx.beginPath();
+            ctx.roundRect(118, 20, 80, 80, 16);
+            ctx.fill();
+        }
+
+        let patternX = ctx.createPattern(tile, "repeat-x");
+        if (patternX) {
+            ctx.fillStyle = patternX;
+            ctx.fillRect(16, 94, 56, 18);
+        }
+
+        let patternOnce = ctx.createPattern(tile, "no-repeat");
+        if (patternOnce) {
+            ctx.fillStyle = patternOnce;
+            ctx.fillRect(82, 94, 20, 18);
+        }
+
+        ctx.strokeStyle = "#21435a";
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.roundRect(118, 20, 80, 80, 16);
+        ctx.stroke();
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("radial", 36, 112);
+        ctx.fillText("pattern", 140, 112);
+    }
+
+    function renderPath2DBoard() {
+        let canvas = byId("path2dBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        ctx.fillStyle = "#f6fafc";
+        ctx.fillRect(0, 0, 220, 140);
+
+        let chip = new Path2D();
+        chip.roundRect(14, 18, 72, 38, 12);
+
+        let wave = new Path2D();
+        wave.moveTo(0, 0);
+        wave.arcTo(24, -18, 48, 0, 16);
+        wave.arcTo(72, 18, 96, 0, 16);
+        wave.addPath(chip, 1, 0, 0, 1, 104, 52);
+
+        let bubble = new Path2D();
+        bubble.addPath(chip);
+        bubble.addPath(wave, 1, 0, 0, 1, 6, 32);
+
+        ctx.fillStyle = "#78c6a3";
+        ctx.fill(bubble);
+        ctx.strokeStyle = "#1d4258";
+        ctx.lineWidth = 3;
+        ctx.stroke(bubble);
+
+        let blobSize = 0;
+        let blobType = "";
+        let jpegPrefix = "";
+        canvas.toBlob(function (blob) {
+            blobSize = blob ? blob.getSize() : 0;
+            blobType = blob ? blob.getType() : "";
+        }, "image/png");
+        canvas.toBlob(function (blob) {
+            let url = blob ? blob.toDataURL() : "";
+            jpegPrefix = url ? url.substring(0, 15) : "";
+        }, "image/jpeg", 0.55);
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("blob: " + blobType, 16, 122);
+        ctx.fillText("size: " + blobSize, 122, 122);
+        ctx.fillText(jpegPrefix, 16, 136);
+    }
+
+    function renderBitmapBoard() {
+        let canvas = byId("bitmapBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        let src = document.createElement("canvas");
+        src.setWidth(16);
+        src.setHeight(16);
+        let srcCtx = src.getContext("2d");
+        if (!srcCtx) return;
+        srcCtx.fillStyle = "#101820";
+        srcCtx.fillRect(0, 0, 16, 16);
+        srcCtx.fillStyle = "#ffd166";
+        srcCtx.fillRect(0, 0, 8, 8);
+        srcCtx.fillStyle = "#06d6a0";
+        srcCtx.fillRect(8, 0, 8, 8);
+        srcCtx.fillStyle = "#ef476f";
+        srcCtx.fillRect(0, 8, 8, 8);
+        srcCtx.fillStyle = "#118ab2";
+        srcCtx.fillRect(8, 8, 8, 8);
+
+        let full = createImageBitmap(src);
+        let crop = createImageBitmap(src, 8, 8, 8, 8);
+
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(full, 16, 18, 64, 64);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        ctx.drawImage(full, 92, 18, 64, 64);
+        ctx.drawImage(crop, 170, 30, 24, 24);
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("nearest", 24, 104);
+        ctx.fillText("smooth", 102, 104);
+        ctx.fillText(crop.getWidth() + "x" + crop.getHeight(), 156, 118);
+    }
+
+    function renderSvgPathBoard() {
+        let canvas = byId("svgPathBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        ctx.fillStyle = "#f6fafc";
+        ctx.fillRect(0, 0, 220, 140);
+
+        let heart = new Path2D("M110 38 C110 18 84 14 78 34 C72 14 46 18 46 38 C46 66 78 86 78 86 C78 86 110 66 110 38 Z");
+        ctx.fillStyle = "#e4566a";
+        ctx.fill(heart);
+
+        let arcPath = new Path2D("M136 78 A20 20 0 1 1 176 78 A20 20 0 1 1 136 78 Z");
+        ctx.strokeStyle = "#21435a";
+        ctx.lineWidth = 3;
+        ctx.stroke(arcPath);
+
+        let src = document.createElement("canvas");
+        src.setWidth(12);
+        src.setHeight(12);
+        let sctx = src.getContext("2d");
+        if (sctx) {
+            sctx.fillStyle = "#0f4c5c";
+            sctx.fillRect(0, 0, 12, 12);
+            sctx.fillStyle = "#ffd166";
+            sctx.fillRect(0, 0, 6, 6);
+        }
+        createImageBitmapAsync(src).then(function(bitmap) {
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(bitmap, 150, 18, 36, 36);
+        });
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("svg path", 50, 112);
+        ctx.fillText("async bitmap", 138, 112);
+    }
+
+    function renderFxBoard() {
+        let canvas = byId("fxBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        let off = new OffscreenCanvas(48, 48);
+        let offCtx = off.getContext("2d");
+        if (offCtx) {
+            offCtx.fillStyle = "#112233";
+            offCtx.fillRect(0, 0, 48, 48);
+            offCtx.fillStyle = "#ffd166";
+            offCtx.beginPath();
+            offCtx.ellipse(24, 24, 18, 18, 0, 0, Math.PI * 2, false);
+            offCtx.fill();
+        }
+
+        ctx.filter = "drop-shadow(5px 6px 4px rgba(16, 34, 58, 0.55)) blur(2px) saturate(1.4)";
+        ctx.drawImage(off, 12, 16, 52, 52);
+        ctx.filter = "none";
+
+        ctx.fillStyle = "#1d70b8";
+        ctx.fillRect(88, 22, 54, 54);
+        ctx.globalCompositeOperation = "multiply";
+        ctx.fillStyle = "#f2994a";
+        ctx.beginPath();
+        ctx.ellipse(128, 50, 28, 20, -0.3, 0, Math.PI * 2, false);
+        ctx.fill();
+        ctx.globalCompositeOperation = "screen";
+        ctx.fillStyle = "#7fe7c4";
+        ctx.fillRect(116, 32, 48, 48);
+        ctx.globalCompositeOperation = "source-over";
+
+        ctx.filter = "grayscale(0.9) contrast(1.2)";
+        ctx.drawImage(off, 168, 18, 34, 34);
+        ctx.filter = "none";
+
+        ctx.fillStyle = "#29475c";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("filter", 18, 106);
+        ctx.fillText("multiply/screen", 88, 106);
+        ctx.fillText("offscreen", 154, 118);
+    }
+
+    function renderMatrixBoard() {
+        let canvas = byId("matrixBoard");
+        let ctx = canvas ? canvas.getContext("2d") : null;
+        if (!ctx) return;
+        clearBoard(ctx, canvas);
+
+        ctx.fillStyle = "#f5f9fc";
+        ctx.fillRect(0, 0, 220, 140);
+
+        let grad = ctx.createLinearGradient(0, 0, 84, 0);
+        grad.addColorStop(0, "#7a5cff");
+        grad.addColorStop(1, "#4de2b1");
+        let gradMatrix = new DOMMatrix();
+        gradMatrix.translateSelf(122, 18);
+        gradMatrix.rotateSelf(22);
+        grad.setTransform(gradMatrix);
+        ctx.fillStyle = grad;
+        ctx.fillRect(118, 18, 80, 48);
+
+        let tile = document.createElement("canvas");
+        tile.setWidth(16);
+        tile.setHeight(16);
+        let tileCtx = tile.getContext("2d");
+        if (tileCtx) {
+            tileCtx.fillStyle = "#17324a";
+            tileCtx.fillRect(0, 0, 16, 16);
+            tileCtx.fillStyle = "#9ae6ff";
+            tileCtx.fillRect(0, 0, 8, 8);
+            tileCtx.fillStyle = "#ffd27f";
+            tileCtx.fillRect(8, 8, 8, 8);
+        }
+
+        let pattern = ctx.createPattern(tile, "repeat");
+        if (pattern) {
+            let patternMatrix = new DOMMatrix("matrix(1,0,0,1,10,6)");
+            patternMatrix.rotateSelf(18);
+            pattern.setTransform(patternMatrix);
+            ctx.fillStyle = pattern;
+            ctx.beginPath();
+            ctx.roundRect(118, 76, 80, 40, 10);
+            ctx.fill();
+        }
+
+        let off = new OffscreenCanvas(56, 56);
+        let offCtx = off.getContext("2d");
+        if (offCtx) {
+            offCtx.fillStyle = "#15344d";
+            offCtx.fillRect(0, 0, 56, 56);
+            offCtx.translate(28, 28);
+            offCtx.transform(new DOMMatrix([1, 0.12, -0.28, 1, 0, 0]));
+            offCtx.fillStyle = "#f5c24b";
+            offCtx.fillRect(-15, -15, 30, 30);
+        }
+        let bitmap = off.transferToImageBitmap();
+        ctx.drawImage(bitmap, 20, 22, 64, 64);
+        let afterTransfer = off.getContext("2d").getImageData(0, 0, 1, 1).data[3];
+
+        let current = ctx.getTransform();
+        ctx.setTransform(new DOMMatrix().translateSelf(24, 116));
+        ctx.fillStyle = "#21435a";
+        ctx.font = "11px SansSerif";
+        ctx.fillText("m=" + Math.round(current.a * 10) / 10, 0, 0);
+        ctx.resetTransform();
+        ctx.fillText("clr:" + afterTransfer, 18, 132);
+        ctx.fillText("bitmap", 28, 104);
+        ctx.fillText("gradient", 126, 70);
+        ctx.fillText("pattern", 132, 130);
+    }
+
+    function renderAll() {
+        renderPathBoard();
+        renderClipBoard();
+        renderImageBoard();
+        renderDashBoard();
+        renderRoundRectBoard();
+        renderPaintBoard();
+        renderPath2DBoard();
+        renderBitmapBoard();
+        renderSvgPathBoard();
+        renderFxBoard();
+        renderMatrixBoard();
+        setStatus("Rendered all canvas capability cases");
+    }
+
+    let renderBtn = byId("renderBtn");
+    if (renderBtn) {
+        renderBtn.addEventListener("mousedown", renderAll);
+    }
+
+    document.body.addEventListener("load", renderAll);
+</script>
+</body>

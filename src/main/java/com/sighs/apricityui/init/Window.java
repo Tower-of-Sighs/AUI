@@ -2,6 +2,10 @@ package com.sighs.apricityui.init;
 
 import com.google.gson.Gson;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.canvas.CanvasImageBitmap;
+import com.sighs.apricityui.canvas.CanvasImageSupport;
+import com.sighs.apricityui.canvas.DOMMatrix;
+import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
@@ -47,6 +51,36 @@ public class Window {
 
     public void clearInterval(Object handle) {
         cancelScheduled(handle);
+    }
+
+    public OffscreenCanvas createOffscreenCanvas(int width, int height) {
+        return new OffscreenCanvas(width, height);
+    }
+
+    public DOMMatrix createDOMMatrix() {
+        return new DOMMatrix();
+    }
+
+    public DOMMatrix createDOMMatrix(Object init) {
+        return new DOMMatrix(init);
+    }
+
+    public CanvasImageBitmap createImageBitmap(Object source) {
+        return new CanvasImageBitmap(CanvasImageSupport.resolveImageSource(source));
+    }
+
+    public CanvasImageBitmap createImageBitmap(Object source, int sx, int sy, int sw, int sh) {
+        CanvasImageBitmap bitmap = createImageBitmap(source);
+        if (bitmap == null || bitmap.isClosed()) return bitmap;
+        return bitmap.crop(sx, sy, sw, sh);
+    }
+
+    public ImageBitmapPromise createImageBitmapAsync(Object source) {
+        return new ImageBitmapPromise(() -> createImageBitmap(source));
+    }
+
+    public ImageBitmapPromise createImageBitmapAsync(Object source, int sx, int sy, int sw, int sh) {
+        return new ImageBitmapPromise(() -> createImageBitmap(source, sx, sy, sw, sh));
     }
 
     public double getInnerWidth() {
@@ -306,6 +340,52 @@ public class Window {
                 }
             }
             return new FetchResponse(resolved, 200, bytes);
+        }
+    }
+
+    public static class ImageBitmapPromise {
+        private final CompletableFuture<CanvasImageBitmap> future;
+
+        public ImageBitmapPromise(java.util.concurrent.Callable<CanvasImageBitmap> task) {
+            this.future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return task.call();
+                } catch (Exception exception) {
+                    throw new RuntimeException(exception);
+                }
+            });
+        }
+
+        public ImageBitmapPromise then(Consumer<CanvasImageBitmap> onFulfilled) {
+            if (onFulfilled != null) {
+                future.thenAccept(onFulfilled);
+            }
+            return this;
+        }
+
+        public ImageBitmapPromise then(Consumer<CanvasImageBitmap> onFulfilled, Consumer<Object> onRejected) {
+            future.whenComplete((bitmap, throwable) -> {
+                if (throwable == null) {
+                    if (onFulfilled != null) onFulfilled.accept(bitmap);
+                    return;
+                }
+                if (onRejected != null) {
+                    Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+                    onRejected.accept(cause.getMessage());
+                }
+            });
+            return this;
+        }
+
+        public ImageBitmapPromise catchError(Consumer<Object> onRejected) {
+            if (onRejected != null) {
+                future.exceptionally(throwable -> {
+                    Throwable cause = throwable.getCause() == null ? throwable : throwable.getCause();
+                    onRejected.accept(cause.getMessage());
+                    return null;
+                });
+            }
+            return this;
         }
     }
 

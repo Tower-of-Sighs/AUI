@@ -1,0 +1,431 @@
+<style>
+    body {
+        margin: 0;
+        padding: 10px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        background-image: linear-gradient(160deg, #0d1822 0%, #15293a 48%, #1c3a4f 100%);
+        color: #e5f0f8;
+        font-size: 11px;
+    }
+
+    .panel {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px;
+        border-radius: 12px;
+        background-color: rgba(9, 18, 27, 0.74);
+        border: 1px solid rgba(185, 214, 232, 0.2);
+    }
+
+    .title {
+        font-size: 14px;
+        font-weight: bold;
+        color: #f0f7fb;
+    }
+
+    .desc {
+        color: rgba(214, 230, 240, 0.78);
+        line-height: 1.25;
+    }
+
+    .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+    }
+
+    .group {
+        display: flex;
+        gap: 5px;
+        align-items: center;
+        padding: 5px 7px;
+        border-radius: 10px;
+        background-color: rgba(255, 255, 255, 0.04);
+    }
+
+    .label {
+        color: rgba(213, 229, 238, 0.76);
+    }
+
+    .btn {
+        min-width: 40px;
+        padding: 4px 7px;
+        border-radius: 999px;
+        background-color: rgba(45, 93, 125, 0.8);
+        border: 1px solid rgba(190, 223, 242, 0.28);
+        color: #eff8fd;
+        text-align: center;
+    }
+
+    .btn.active {
+        background-color: rgba(24, 168, 127, 0.9);
+        border-color: #adffe4;
+        color: #081710;
+    }
+
+    .swatch {
+        width: 16px;
+        min-width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.42);
+    }
+
+    .swatch.active {
+        border-color: #ffffff;
+        transform: scale(1.12);
+    }
+
+    .board-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        align-items: flex-start;
+    }
+
+    .board-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 8px;
+        border-radius: 12px;
+        background-color: rgba(5, 12, 19, 0.5);
+        border: 1px solid rgba(174, 207, 226, 0.18);
+    }
+
+    .board-meta {
+        color: rgba(214, 231, 241, 0.76);
+    }
+
+    .canvas-shell {
+        width: 400px;
+        height: 225px;
+        padding: 6px;
+        border-radius: 14px;
+        background:
+            linear-gradient(45deg, rgba(15, 22, 29, 0.9) 25%, rgba(26, 35, 44, 0.9) 25%, rgba(26, 35, 44, 0.9) 50%, rgba(15, 22, 29, 0.9) 50%, rgba(15, 22, 29, 0.9) 75%, rgba(26, 35, 44, 0.9) 75%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+        background-size: 20px 20px, 100% 100%;
+        border: 1px solid rgba(194, 225, 242, 0.2);
+    }
+
+    canvas {
+        width: 400px;
+        height: 225px;
+        background-color: #ffffff;
+        border-radius: 10px;
+        border: 1px solid rgba(15, 38, 53, 0.3);
+    }
+
+    .status {
+        min-height: 18px;
+        color: #b9d3e2;
+    }
+
+    .export-box {
+        width: 100%;
+        min-height: 48px;
+        padding: 6px 8px;
+        border-radius: 10px;
+        background-color: rgba(8, 16, 24, 0.72);
+        border: 1px solid rgba(187, 218, 236, 0.18);
+        color: #dcecf5;
+    }
+
+    .side {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .hint {
+        color: rgba(215, 229, 238, 0.74);
+        line-height: 1.2;
+    }
+</style>
+
+<body>
+<div class="panel">
+    <div class="title">Canvas Doodle Board</div>
+    <div class="desc">用于验证当前 canvas 能力是否足够支撑最小涂鸦板：连续画线、橡皮擦、撤销重做、清空和导出。</div>
+
+    <div class="toolbar">
+        <div class="group">
+            <div class="label">Tool</div>
+            <div class="btn active" id="tool-pen">Pen</div>
+            <div class="btn" id="tool-eraser">Eraser</div>
+        </div>
+
+        <div class="group">
+            <div class="label">Width</div>
+            <div class="btn active" data-width="4">4</div>
+            <div class="btn" data-width="8">8</div>
+            <div class="btn" data-width="14">14</div>
+            <div class="btn" data-width="22">22</div>
+        </div>
+
+        <div class="group">
+            <div class="label">Color</div>
+            <div class="swatch active" data-color="#111111" style="background-color:#111111;"></div>
+            <div class="swatch" data-color="#1d70b8" style="background-color:#1d70b8;"></div>
+            <div class="swatch" data-color="#1ea672" style="background-color:#1ea672;"></div>
+            <div class="swatch" data-color="#d07a22" style="background-color:#d07a22;"></div>
+            <div class="swatch" data-color="#d43f65" style="background-color:#d43f65;"></div>
+        </div>
+
+        <div class="group">
+            <div class="btn" id="undoBtn">Undo</div>
+            <div class="btn" id="redoBtn">Redo</div>
+            <div class="btn" id="clearBtn">Clear</div>
+            <div class="btn" id="exportBtn">Export</div>
+        </div>
+    </div>
+
+    <div class="board-wrap">
+        <div class="board-panel">
+            <div class="board-meta">画布真实尺寸与显示尺寸现在一致，统一为 400x225，不再使用缩放显示，避免鼠标坐标和笔触位置偏移。</div>
+            <div class="canvas-shell">
+                <canvas id="board" width="400" height="225"></canvas>
+            </div>
+            <div class="status" id="status">Ready</div>
+            <textarea class="export-box" id="exportBox">Export result will appear here.</textarea>
+        </div>
+
+        <div class="side">
+            <div class="panel">
+                <div class="title">Checks</div>
+                <div class="hint">1. 连续拖动时笔迹应连贯，鼠标位置与线条起点应贴合。</div>
+                <div class="hint">2. 橡皮擦应真正擦掉像素，而不是盖白色块。</div>
+                <div class="hint">3. Undo / Redo 应恢复画布快照。</div>
+                <div class="hint">4. Export 应返回 `data:image/png;base64,...`。</div>
+                <div class="hint">5. `event.buttons` 释放鼠标后应停止绘制。</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let board = document.getElementById("board");
+    let ctx = board ? board.getContext("2d") : null;
+    let drawing = false;
+    let tool = "pen";
+    let strokeColor = "#111111";
+    let strokeWidth = 4;
+    let lastX = 0;
+    let lastY = 0;
+    let undoStack = [];
+    let redoStack = [];
+    let maxSnapshots = 24;
+
+    function byId(id) {
+        return document.getElementById(id);
+    }
+
+    function status(text) {
+        let el = byId("status");
+        if (el) el.innerText = text;
+    }
+
+    function snapshot() {
+        if (!ctx) return null;
+        return ctx.getImageData(0, 0, board.getWidth(), board.getHeight());
+    }
+
+    function pushUndoState() {
+        let shot = snapshot();
+        if (!shot) return;
+        undoStack.push(shot);
+        if (undoStack.length > maxSnapshots) {
+            undoStack.shift();
+        }
+        redoStack = [];
+    }
+
+    function restoreSnapshot(shot) {
+        if (!ctx || !shot) return;
+        ctx.clearRect(0, 0, board.getWidth(), board.getHeight());
+        ctx.putImageData(shot, 0, 0);
+    }
+
+    function selectTool(nextTool) {
+        tool = nextTool;
+        let pen = byId("tool-pen");
+        let eraser = byId("tool-eraser");
+        if (pen) pen.setAttribute("class", nextTool == "pen" ? "btn active" : "btn");
+        if (eraser) eraser.setAttribute("class", nextTool == "eraser" ? "btn active" : "btn");
+        status("Tool: " + tool + " | width " + strokeWidth + " | color " + strokeColor);
+    }
+
+    function selectWidth(nextWidth) {
+        strokeWidth = nextWidth;
+        let buttons = document.querySelectorAll("[data-width]");
+        for (let i = 0; i < buttons.length; i++) {
+            let button = buttons[i];
+            let active = String(button.getAttribute("data-width")) == String(nextWidth);
+            button.setAttribute("class", active ? "btn active" : "btn");
+        }
+        status("Tool: " + tool + " | width " + strokeWidth + " | color " + strokeColor);
+    }
+
+    function selectColor(nextColor) {
+        strokeColor = nextColor;
+        let swatches = document.querySelectorAll("[data-color]");
+        for (let i = 0; i < swatches.length; i++) {
+            let swatch = swatches[i];
+            let active = swatch.getAttribute("data-color") == nextColor;
+            swatch.setAttribute("class", active ? "swatch active" : "swatch");
+        }
+        status("Tool: " + tool + " | width " + strokeWidth + " | color " + strokeColor);
+    }
+
+    function configureContext() {
+        ctx.lineWidth = strokeWidth;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.globalAlpha = 1;
+        if (tool == "eraser") {
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.strokeStyle = "#000000";
+        } else {
+            ctx.globalCompositeOperation = "source-over";
+            ctx.strokeStyle = strokeColor;
+        }
+    }
+
+    function beginStroke(x, y) {
+        if (!ctx) return;
+        drawing = true;
+        lastX = x;
+        lastY = y;
+        pushUndoState();
+        configureContext();
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + 0.001, y + 0.001);
+        ctx.stroke();
+        status("Drawing at " + Math.round(x) + ", " + Math.round(y));
+    }
+
+    function continueStroke(x, y) {
+        if (!ctx || !drawing) return;
+        configureContext();
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        lastX = x;
+        lastY = y;
+    }
+
+    function endStroke() {
+        if (!drawing) return;
+        drawing = false;
+        status("Stroke finished");
+    }
+
+    function clearBoard() {
+        if (!ctx) return;
+        pushUndoState();
+        ctx.globalCompositeOperation = "source-over";
+        ctx.clearRect(0, 0, board.getWidth(), board.getHeight());
+        status("Cleared");
+    }
+
+    function undo() {
+        if (!ctx || undoStack.length == 0) return;
+        let current = snapshot();
+        if (current) redoStack.push(current);
+        let previous = undoStack.pop();
+        restoreSnapshot(previous);
+        status("Undo");
+    }
+
+    function redo() {
+        if (!ctx || redoStack.length == 0) return;
+        let current = snapshot();
+        if (current) undoStack.push(current);
+        let next = redoStack.pop();
+        restoreSnapshot(next);
+        status("Redo");
+    }
+
+    function exportBoard() {
+        if (!board) return;
+        let result = board.toDataURL("image/png");
+        let box = byId("exportBox");
+        if (box) box.value = result;
+        status("Exported PNG data URL");
+    }
+
+    function bindButtons() {
+        let pen = byId("tool-pen");
+        let eraser = byId("tool-eraser");
+        let undoBtn = byId("undoBtn");
+        let redoBtn = byId("redoBtn");
+        let clearBtn = byId("clearBtn");
+        let exportBtn = byId("exportBtn");
+
+        if (pen) pen.addEventListener("mousedown", function () { selectTool("pen"); });
+        if (eraser) eraser.addEventListener("mousedown", function () { selectTool("eraser"); });
+        if (undoBtn) undoBtn.addEventListener("mousedown", undo);
+        if (redoBtn) redoBtn.addEventListener("mousedown", redo);
+        if (clearBtn) clearBtn.addEventListener("mousedown", clearBoard);
+        if (exportBtn) exportBtn.addEventListener("mousedown", exportBoard);
+
+        let widthButtons = document.querySelectorAll("[data-width]");
+        for (let i = 0; i < widthButtons.length; i++) {
+            let button = widthButtons[i];
+            button.addEventListener("mousedown", function () {
+                selectWidth(Number(button.getAttribute("data-width")));
+            });
+        }
+
+        let swatches = document.querySelectorAll("[data-color]");
+        for (let i = 0; i < swatches.length; i++) {
+            let swatch = swatches[i];
+            swatch.addEventListener("mousedown", function () {
+                selectColor(swatch.getAttribute("data-color"));
+            });
+        }
+    }
+
+    function bindCanvas() {
+        if (!board || !ctx) return;
+        board.addEventListener("mousedown", function (event) {
+            beginStroke(event.offsetX, event.offsetY);
+        });
+        board.addEventListener("mousemove", function (event) {
+            if (!drawing || event.buttons == 0) {
+                if (drawing && event.buttons == 0) endStroke();
+                return;
+            }
+            continueStroke(event.offsetX, event.offsetY);
+        });
+        board.addEventListener("mouseup", function () {
+            endStroke();
+        });
+        board.addEventListener("mouseleave", function (event) {
+            if (drawing && event.buttons == 0) {
+                endStroke();
+            }
+        });
+    }
+
+    document.body.addEventListener("load", function () {
+        bindButtons();
+        bindCanvas();
+        if (ctx) {
+            ctx.clearRect(0, 0, board.getWidth(), board.getHeight());
+        }
+        selectTool("pen");
+        selectWidth(4);
+        selectColor("#111111");
+        status("Ready");
+    });
+</script>
+</body>

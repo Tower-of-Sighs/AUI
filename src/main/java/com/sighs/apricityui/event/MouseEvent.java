@@ -25,6 +25,7 @@ public class MouseEvent extends Event implements Cloneable {
     public boolean controlKey;
     public double scrollDelta = 0;
     public int button = -1;
+    public int buttons = 0;
 
     public MouseEvent(String type, Position mousePosition) {
         this(type, mousePosition, -1);
@@ -34,10 +35,13 @@ public class MouseEvent extends Event implements Cloneable {
         super(null, type, null, true);
         clientX = mousePosition.x;
         clientY = mousePosition.y;
+        pageX = clientX;
+        pageY = clientY;
         altKey = Operation.isKeyPressed("key.keyboard.left.alt") || Operation.isKeyPressed("key.keyboard.right.alt");
         shiftKey = Operation.isKeyPressed("key.keyboard.left.shift") || Operation.isKeyPressed("key.keyboard.right.shift");
         controlKey = Operation.isKeyPressed("key.keyboard.left.control") || Operation.isKeyPressed("key.keyboard.right.control");
         this.button = button;
+        this.buttons = Operation.getMouseButtons();
     }
 
     public static boolean tiggerEvent(MouseEvent event) {
