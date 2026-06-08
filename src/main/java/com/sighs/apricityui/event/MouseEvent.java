@@ -12,6 +12,9 @@ import java.util.Stack;
 
 // 鼠标事件，现在还没有做得很完善
 public class MouseEvent extends Event implements Cloneable {
+    public static final int DOM_DELTA_PIXEL = 0;
+    public static final int PRIMARY_POINTER_ID = 1;
+    private static final long DOUBLE_CLICK_WINDOW_NS = 500_000_000L;
     public double clientX = 0;
     public double clientY = 0;
     public double pageX = 0;
@@ -23,25 +26,42 @@ public class MouseEvent extends Event implements Cloneable {
     public boolean altKey;
     public boolean shiftKey;
     public boolean controlKey;
+    public double deltaX = 0;
+    public double deltaY = 0;
+    public int deltaMode = DOM_DELTA_PIXEL;
     public double scrollDelta = 0;
     public int button = -1;
     public int buttons = 0;
+    public int pointerId = PRIMARY_POINTER_ID;
+    public String pointerType = "mouse";
+    public boolean isPrimary = true;
 
     public MouseEvent(String type, Position mousePosition) {
         this(type, mousePosition, -1);
     }
 
     public MouseEvent(String type, Position mousePosition, int button) {
+        this(type, mousePosition, button, true);
+    }
+
+    public MouseEvent(String type, Position mousePosition, int button, boolean readEnvironmentState) {
         super(null, type, null, true);
         clientX = mousePosition.x;
         clientY = mousePosition.y;
         pageX = clientX;
         pageY = clientY;
-        altKey = Operation.isKeyPressed("key.keyboard.left.alt") || Operation.isKeyPressed("key.keyboard.right.alt");
-        shiftKey = Operation.isKeyPressed("key.keyboard.left.shift") || Operation.isKeyPressed("key.keyboard.right.shift");
-        controlKey = Operation.isKeyPressed("key.keyboard.left.control") || Operation.isKeyPressed("key.keyboard.right.control");
+        if (readEnvironmentState) {
+            altKey = isModifierPressed("key.keyboard.left.alt") || isModifierPressed("key.keyboard.right.alt");
+            shiftKey = isModifierPressed("key.keyboard.left.shift") || isModifierPressed("key.keyboard.right.shift");
+            controlKey = isModifierPressed("key.keyboard.left.control") || isModifierPressed("key.keyboard.right.control");
+            this.buttons = resolveButtons();
+        } else {
+            altKey = false;
+            shiftKey = false;
+            controlKey = false;
+            this.buttons = 0;
+        }
         this.button = button;
-        this.buttons = Operation.getMouseButtons();
     }
 
     public static boolean tiggerEvent(MouseEvent event) {
@@ -120,48 +140,16 @@ public class MouseEvent extends Event implements Cloneable {
             Element activeElement = document.getPressedElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
             Element target = hitTest(paintList, detectionPos);
+            return triggerResolvedEvent(event, document, target, activeElement, true);
+        } finally {
+            StyleFrameCache.end();
+        }
+    }
 
-            if (target != null) {
-                Position targetPosition = resolveHitBoxPosition(target);
-                event.offsetX = event.clientX - targetPosition.x;
-                event.offsetY = event.clientY - targetPosition.y;
-            }
-
-            event.target = target;
-
-            if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
-            if (event.type.equals("mousedown")) {
-                clearGlobalSelectionsOnMouseDown(document, target);
-                if (target != null) {
-                    document.setPressedElement(target);
-                    if (target.canFocus()) {
-                        clearGlobalFocusExcept(document);
-                        document.setFocusedElement(target);
-                    } else {
-                        document.setFocusedElement(null);
-                    }
-                }
-            }
-
-            if (target != null && event.type.equals("scroll")) scroll(event);
-            if (target != null) {
-                consumed |= Event.tiggerEvent(event);
-            }
-
-            if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
-                MouseEvent activeEvent = event.clone();
-                activeEvent.target = activeElement;
-                Position activePosition = resolveHitBoxPosition(activeElement);
-                activeEvent.offsetX = activeEvent.clientX - activePosition.x;
-                activeEvent.offsetY = activeEvent.clientY - activePosition.y;
-                consumed |= Event.triggerSingle(activeEvent);
-            }
-
-            if (event.type.equals("mouseup")) {
-                document.setPressedElement(null);
-            }
-
-            return consumed;
+    public static boolean dispatchToTarget(MouseEvent event, Document document, Element target) {
+        StyleFrameCache.begin();
+        try {
+            return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
         } finally {
             StyleFrameCache.end();
         }
@@ -201,11 +189,13 @@ public class MouseEvent extends Event implements Cloneable {
                 out.type = "mouseout";
                 out.target = element;
                 Event.triggerSingle(out);
+                dispatchPointerCompatEvent(out, element, true);
 
                 MouseEvent leave = originalEvent.clone();
                 leave.type = "mouseleave";
                 leave.target = element;
                 Event.triggerSingle(leave);
+                dispatchPointerCompatEvent(leave, element, true);
             }
         }
 
@@ -219,11 +209,13 @@ public class MouseEvent extends Event implements Cloneable {
                 over.type = "mouseover";
                 over.target = element;
                 Event.triggerSingle(over);
+                dispatchPointerCompatEvent(over, element, true);
 
                 MouseEvent enter = originalEvent.clone();
                 enter.type = "mouseenter";
                 enter.target = element;
                 Event.triggerSingle(enter);
+                dispatchPointerCompatEvent(enter, element, true);
             }
         }
         document.setPreviousCursorElement(newTarget);
@@ -267,6 +259,121 @@ public class MouseEvent extends Event implements Cloneable {
             if (element.canScrollVertically()) return element;
         }
         return null;
+    }
+
+    private static boolean applyScrollDefault(MouseEvent event) {
+        Element target = resolveScrollTarget(event);
+        if (target == null) return false;
+        double beforeLeft = target.getTargetScrollLeft();
+        double beforeTop = target.getTargetScrollTop();
+        scroll(event);
+        return target.dispatchScrollEventIfChanged(beforeLeft, beforeTop);
+    }
+
+    private static boolean triggerResolvedEvent(MouseEvent event, Document document, Element target, Element activeElement, boolean resolveGeometry) {
+        boolean consumed = false;
+
+        if (resolveGeometry && target != null) {
+            Position targetPosition = resolveHitBoxPosition(target);
+            event.offsetX = event.clientX - targetPosition.x;
+            event.offsetY = event.clientY - targetPosition.y;
+        }
+
+        event.target = target;
+
+        if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
+        if (event.type.equals("mousedown")) {
+            clearGlobalSelectionsOnMouseDown(document, target);
+            if (target != null) {
+                document.setPressedElement(target);
+                if (target.canFocus()) {
+                    clearGlobalFocusExcept(document);
+                    document.setFocusedElement(target);
+                } else {
+                    document.setFocusedElement(null);
+                }
+            }
+        }
+
+        if (target != null) {
+            consumed |= Event.tiggerEvent(event);
+            consumed |= dispatchPointerCompatEvent(event, target, false);
+        }
+
+        if (target != null && event.type.equals("wheel") && !event.defaultPrevented) {
+            consumed |= applyScrollDefault(event);
+        }
+
+        if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
+            MouseEvent activeEvent = event.clone();
+            activeEvent.target = activeElement;
+            if (resolveGeometry) {
+                Position activePosition = resolveHitBoxPosition(activeElement);
+                activeEvent.offsetX = activeEvent.clientX - activePosition.x;
+                activeEvent.offsetY = activeEvent.clientY - activePosition.y;
+            }
+            consumed |= Event.triggerSingle(activeEvent);
+        }
+
+        if (event.type.equals("mouseup")) {
+            consumed |= dispatchMouseUpFollowupEvents(document, event, target, activeElement);
+            document.setPressedElement(null);
+        }
+
+        return consumed;
+    }
+
+    private static boolean dispatchMouseUpFollowupEvents(Document document, MouseEvent originalEvent, Element target, Element activeElement) {
+        if (document == null || target == null || activeElement == null) return false;
+        if (target != activeElement || target.isDisabled()) return false;
+
+        boolean consumed = false;
+        if (originalEvent.button == 0) {
+            MouseEvent click = originalEvent.clone();
+            click.type = "click";
+            click.target = target;
+            click.cancelable = true;
+            consumed |= Event.tiggerEvent(click);
+
+            if (document.registerClickAndCheckDoubleClick(target, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {
+                MouseEvent dblclick = originalEvent.clone();
+                dblclick.type = "dblclick";
+                dblclick.target = target;
+                dblclick.cancelable = true;
+                consumed |= Event.tiggerEvent(dblclick);
+            }
+        } else if (originalEvent.button == 1) {
+            MouseEvent contextmenu = originalEvent.clone();
+            contextmenu.type = "contextmenu";
+            contextmenu.target = target;
+            contextmenu.cancelable = true;
+            consumed |= Event.tiggerEvent(contextmenu);
+        }
+        return consumed;
+    }
+
+    private static boolean dispatchPointerCompatEvent(MouseEvent source, Element target, boolean singleTargetOnly) {
+        if (source == null || target == null) return false;
+        String compatType = switch (source.type) {
+            case "mousedown" -> "pointerdown";
+            case "mouseup" -> "pointerup";
+            case "mousemove" -> "pointermove";
+            case "mouseover" -> "pointerover";
+            case "mouseout" -> "pointerout";
+            case "mouseenter" -> "pointerenter";
+            case "mouseleave" -> "pointerleave";
+            default -> null;
+        };
+        if (compatType == null) return false;
+
+        MouseEvent pointerEvent = source.clone();
+        pointerEvent.type = compatType;
+        pointerEvent.target = target;
+        if ("pointerenter".equals(compatType) || "pointerleave".equals(compatType)) {
+            pointerEvent.bubbles = false;
+            singleTargetOnly = true;
+        }
+        return singleTargetOnly ? Event.triggerSingle(pointerEvent) : Event.tiggerEvent(pointerEvent);
     }
 
     // 肥简单的范围检查，看鼠标位置是否在某元素的范围内。
@@ -345,6 +452,22 @@ public class MouseEvent extends Event implements Cloneable {
             return (MouseEvent) super.clone();
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static boolean isModifierPressed(String key) {
+        try {
+            return Operation.isKeyPressed(key);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static int resolveButtons() {
+        try {
+            return Operation.getMouseButtons();
+        } catch (Throwable ignored) {
+            return 0;
         }
     }
 }

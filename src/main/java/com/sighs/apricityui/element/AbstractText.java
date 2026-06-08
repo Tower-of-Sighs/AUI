@@ -5,6 +5,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
@@ -25,12 +26,22 @@ public abstract class AbstractText extends Element {
     protected final Deque<TextState> undoStack = new ArrayDeque<>();
     protected boolean restoringUndo = false;
     protected static final int MAX_UNDO_STACK = 128;
+    private String focusValueSnapshot = "";
 
     protected AbstractText(Document document, String tagName) {
         super(document, tagName);
         ensureValue();
+        focusValueSnapshot = value;
         clearSelection();
         addSelectionEventListeners();
+        addInternalEventListener("focus", event -> focusValueSnapshot = getValue());
+        addInternalEventListener("blur", event -> {
+            String currentValue = getValue();
+            if (!Objects.equals(focusValueSnapshot, currentValue)) {
+                dispatchChangeEvent();
+                focusValueSnapshot = currentValue;
+            }
+        });
     }
 
     private void addSelectionEventListeners() {
@@ -217,6 +228,7 @@ public abstract class AbstractText extends Element {
         clearSelection();
         clampScroll();
         getRenderer().text.clear();
+        dispatchInputEvent();
     }
 
     private String normalizeInsertedText(String str) {
@@ -289,6 +301,7 @@ public abstract class AbstractText extends Element {
         clearSelection();
         clampScroll();
         getRenderer().text.clear();
+        dispatchInputEvent();
     }
 
     public boolean undo() {
@@ -304,10 +317,23 @@ public abstract class AbstractText extends Element {
             selectionAnchor = clamp(state.selectionAnchor, 0, value.length());
             clampScroll();
             getRenderer().text.clear();
+            dispatchInputEvent();
         } finally {
             restoringUndo = false;
         }
         return true;
+    }
+
+    protected void dispatchInputEvent() {
+        Event event = new Event(this, "input", null, false);
+        event.bubbles = true;
+        Event.tiggerEvent(event);
+    }
+
+    protected void dispatchChangeEvent() {
+        Event event = new Event(this, "change", null, false);
+        event.bubbles = true;
+        Event.tiggerEvent(event);
     }
 
     protected void pushUndoState() {

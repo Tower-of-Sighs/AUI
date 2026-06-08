@@ -43,6 +43,8 @@ public class Input extends AbstractText {
             } else if (mode == Mode.RADIO && !isChecked()) {
                 setChecked(true);
                 triggerChangeEvent();
+            } else if (mode == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
+                submitEnclosingForm();
             }
         });
     }
@@ -64,11 +66,21 @@ public class Input extends AbstractText {
     }
 
     @Override
+    public void click() {
+        super.click();
+        if (isDisabled()) return;
+        if (getMode() == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
+            submitEnclosingForm();
+        }
+    }
+
+    @Override
     public boolean canSelectText() {
         return getMode() == Mode.TEXT && super.canSelectText();
     }
 
     private void triggerChangeEvent() {
+        Event.tiggerEvent(new Event(this, "input", null, true));
         Event.tiggerEvent(new Event(this, "change", null, true));
     }
 

@@ -47,6 +47,8 @@ new MutationObserver(...)
 - `Event`
 - `CustomEvent`
 - `MouseEvent`
+- `WheelEvent`
+- `PointerEvent`
 - `ResizeObserver`
 - `MutationObserver`
 - `URLSearchParams`
@@ -126,6 +128,7 @@ new MutationObserver(...)
 
 - `readyState` 当前会经历 `loading -> interactive -> complete`
 - 生命周期事件在页面脚本执行后触发
+- `DOMContentLoaded` / `load` 只做实时派发，不补发历史事件
 
 ### 查询与创建
 
@@ -162,6 +165,15 @@ new MutationObserver(...)
 - `DOMContentLoaded`
 - `load`
 
+当前常用交互事件：
+
+- `click`
+- `dblclick`
+- `contextmenu`
+- `wheel`
+- `scroll`
+- `load` / `error`（当前主要针对 `img`）
+
 ### 滚动
 
 - `document.scrollTo(x, y)`
@@ -184,6 +196,10 @@ new MutationObserver(...)
 - `el.selectedIndex`
 - `el.scrollTop`
 - `el.scrollLeft`
+- `el.currentSrc`
+- `el.naturalWidth`
+- `el.naturalHeight`
+- `el.complete`
 - `el.children`
 - `el.childNodes`
 - `el.options`
@@ -314,7 +330,7 @@ new MutationObserver(...)
 - 会在 `data-foo-bar` 与 `dataset.fooBar` 间做转换
 - 当前是轻量实现，不提供完整浏览器枚举行为
 
-## Event / CustomEvent / MouseEvent
+## Event / CustomEvent / MouseEvent / WheelEvent / PointerEvent
 
 ### Event
 
@@ -367,6 +383,70 @@ let e = new MouseEvent(type, {
 - `pageY`
 - `button`
 - `bubbles`
+
+### WheelEvent
+
+```js
+let e = new WheelEvent(type, {
+  clientX: 10,
+  clientY: 20,
+  deltaX: 0,
+  deltaY: 32,
+  deltaMode: 0
+});
+```
+
+当前支持字段：
+
+- `clientX`
+- `clientY`
+- `pageX`
+- `pageY`
+- `deltaX`
+- `deltaY`
+- `deltaMode`
+
+### PointerEvent
+
+```js
+let e = new PointerEvent(type, {
+  clientX: 10,
+  clientY: 20,
+  button: 0,
+  pointerId: 1,
+  pointerType: "mouse",
+  isPrimary: true
+})
+```
+
+当前可用字段：
+
+- `clientX`
+- `clientY`
+- `pageX`
+- `pageY`
+- `button`
+- `buttons`
+- `pointerId`
+- `pointerType`
+- `isPrimary`
+- `bubbles`
+- `bubbles`
+
+说明：
+
+- 用户真实滚轮输入现在优先走 `wheel`
+- `wheel` 是输入事件，可通过 `preventDefault()` 阻止默认滚动
+- `scroll` 表示滚动结果事件，仅在滚动位置实际变化时触发
+- `scroll` 当前默认不冒泡，但捕获阶段仍可监听到
+- `dblclick` 当前基于同目标主按钮连续两次 `click` 判定
+- `contextmenu` 当前由右键抬起触发，事件可取消
+- Pointer Events 当前先作为 mouse 兼容层提供：`pointerdown` / `pointerup` / `pointermove` / `pointerover` / `pointerout` / `pointerenter` / `pointerleave`
+- `pointerenter` / `pointerleave` 当前不冒泡，`pointerover` / `pointerout` 走兼容派发
+- `img` 在图片句柄首次进入 ready 时派发 `load`，首次进入 failed 时派发 `error`
+- `img load` / `error` 当前默认不冒泡，不补发历史状态
+- `img.currentSrc` 返回当前解析后的资源路径；`naturalWidth` / `naturalHeight` 在资源 ready 前为 `0`
+- `img.complete` 当前在无 `src`、ready、failed 三种状态下为 `true`
 
 ## localStorage / sessionStorage
 

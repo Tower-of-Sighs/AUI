@@ -3,6 +3,7 @@ package com.sighs.apricityui.element;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
@@ -42,5 +43,18 @@ public class Select extends Element {
     @Override
     public boolean canFocus() {
         return true;
+    }
+
+    void dispatchUserValueChangeEvents(String previousValue) {
+        String currentValue = getValue();
+        if (java.util.Objects.equals(previousValue, currentValue)) return;
+
+        Event inputEvent = new Event(this, "input", null, false);
+        inputEvent.bubbles = true;
+        Event.tiggerEvent(inputEvent);
+
+        Event changeEvent = new Event(this, "change", null, false);
+        changeEvent.bubbles = true;
+        Event.tiggerEvent(changeEvent);
     }
 }

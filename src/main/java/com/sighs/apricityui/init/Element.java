@@ -896,14 +896,29 @@ public class Element {
         }
     }
 
+    public boolean submit() {
+        if (!"FORM".equalsIgnoreCase(tagName)) return false;
+        Event event = new Event(this, "submit", null, false);
+        event.bubbles = true;
+        event.cancelable = true;
+        Event.tiggerEvent(event);
+        return !event.defaultPrevented;
+    }
+
     public void scrollTo(double x, double y) {
+        double beforeLeft = getTargetScrollLeft();
+        double beforeTop = getTargetScrollTop();
         setScrollLeft(x);
         setScrollTop(y);
+        dispatchScrollEventIfChanged(beforeLeft, beforeTop);
     }
 
     public void scrollBy(double x, double y) {
+        double beforeLeft = getTargetScrollLeft();
+        double beforeTop = getTargetScrollTop();
         setScrollLeft(getTargetScrollLeft() + x);
         setScrollTop(getTargetScrollTop() + y);
+        dispatchScrollEventIfChanged(beforeLeft, beforeTop);
     }
 
     public DOMRect getBoundingClientRect() {
@@ -942,6 +957,29 @@ public class Element {
     public void click() {
         if (isDisabled()) return;
         Event.tiggerEvent(new Event(this, "click", null, false));
+    }
+
+    public Element findEnclosingForm() {
+        Element current = this;
+        while (current != null) {
+            if ("FORM".equalsIgnoreCase(current.tagName)) return current;
+            current = current.parentElement;
+        }
+        return null;
+    }
+
+    public boolean submitEnclosingForm() {
+        Element form = findEnclosingForm();
+        return form != null && form.submit();
+    }
+
+    public boolean dispatchScrollEventIfChanged(double previousLeft, double previousTop) {
+        if (Double.compare(previousLeft, getTargetScrollLeft()) == 0 && Double.compare(previousTop, getTargetScrollTop()) == 0) {
+            return false;
+        }
+        Event event = new Event(this, "scroll", null, false);
+        event.bubbles = false;
+        return Event.tiggerEvent(event);
     }
 
     public void addDirtyFlags(int mask) {
