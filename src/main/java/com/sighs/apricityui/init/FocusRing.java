@@ -62,27 +62,29 @@ final class FocusRing {
 
     void setFocusedElement(Element element) {
         if (focusedElement != null && focusedElement != element) {
+            Element previous = focusedElement;
             if (focusedElement instanceof AbstractText textElement) {
                 textElement.clearSelection();
             } else {
                 focusedElement.clearTextSelection();
             }
-            focusedElement.setFocus(false);
-            for (Event event : focusedElement.EventListener) {
-                if (!"blur".equals(event.type) || event.listener == null) continue;
-                event.listener.accept(event);
-            }
+            previous.setFocus(false);
+            dispatchFocusEvent(previous, "blur");
         }
 
         focusedElement = element;
 
         if (element != null) {
             element.setFocus(true);
-            for (Event event : element.EventListener) {
-                if (!"focus".equals(event.type) || event.listener == null) continue;
-                event.listener.accept(event);
-            }
+            dispatchFocusEvent(element, "focus");
         }
+    }
+
+    private static void dispatchFocusEvent(Element element, String type) {
+        if (element == null || type == null || type.isBlank()) return;
+        Event event = new Event(element, type, null, false);
+        event.bubbles = false;
+        Event.triggerSingle(event);
     }
 
     boolean hasAnyTextSelection() {

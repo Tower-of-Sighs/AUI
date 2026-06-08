@@ -20,7 +20,11 @@ public class Option extends Element {
         addEventListener("mousedown", event -> {
             if (isDisabled()) return;
             if (parentElement != null && !parentElement.isDisabled()) {
+                String previousValue = parentElement.getValue();
                 setSelected(true);
+                if (parentElement instanceof Select select) {
+                    select.dispatchUserValueChangeEvents(previousValue);
+                }
             }
             document.clearFocus();
         });

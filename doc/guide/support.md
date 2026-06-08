@@ -284,3 +284,29 @@ window.setInterval(() => {
 ```
 
 ---
+
+### 回归测试页入口
+
+框架内已经放了一组独立的手工回归页，统一放在：
+
+- `src/main/resources/assets/apricityui/apricity/tests/`
+
+现在可以直接从下面这个入口页开始点：
+
+- `src/main/resources/assets/apricityui/apricity/tests/index.html`
+
+里面已经把现有测试页按主题归了类，当前重点包括：
+
+- 生命周期回归：`lifecycle-event-test.html`
+- 交互控件回归：`interactive-controls-test.html`
+- 扩展鼠标事件回归：`mouse-extended-event-test.html`
+- Pointer 兼容事件回归：`pointer-event-test.html`
+- 图片资源事件回归：`img-load-event-test.html`
+- 滚轮 / 滚动事件回归：`wheel-scroll-event-test.html`
+- 布局与文本回归：`layout-*`、`text-*`
+- Canvas 与专用标签回归：`canvas-*`、`container-slot-recipe-test.html`
+- 世界内窗口验收页：`world-window-acceptance.html`
+
+建议后面每补一类事件或生命周期语义，都顺手加一个独立回归页，不要只靠示例页手点。
+
+---

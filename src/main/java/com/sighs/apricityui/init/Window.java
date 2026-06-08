@@ -167,6 +167,14 @@ public class Window {
         return new WindowMouseEvent(type, clientX, clientY, button);
     }
 
+    public WindowWheelEvent createWheelEvent(String type, double clientX, double clientY, double deltaX, double deltaY, int deltaMode) {
+        return new WindowWheelEvent(type, clientX, clientY, deltaX, deltaY, deltaMode);
+    }
+
+    public WindowPointerEvent createPointerEvent(String type, double clientX, double clientY, int button, int pointerId, String pointerType, boolean isPrimary) {
+        return new WindowPointerEvent(type, clientX, clientY, button, pointerId, pointerType, isPrimary);
+    }
+
     public Event createEvent(String type, boolean bubbles) {
         Event event = new Event(null, type, null, false);
         event.bubbles = bubbles;
@@ -255,6 +263,32 @@ public class Window {
             this.pageY = clientY;
             this.bubbles = true;
             this.button = button;
+        }
+    }
+
+    public static class WindowWheelEvent extends WindowMouseEvent {
+        public final double deltaX;
+        public final double deltaY;
+        public final int deltaMode;
+
+        public WindowWheelEvent(String type, double clientX, double clientY, double deltaX, double deltaY, int deltaMode) {
+            super(type, clientX, clientY, -1);
+            this.deltaX = deltaX;
+            this.deltaY = deltaY;
+            this.deltaMode = deltaMode;
+        }
+    }
+
+    public static class WindowPointerEvent extends WindowMouseEvent {
+        public final int pointerId;
+        public final String pointerType;
+        public final boolean isPrimary;
+
+        public WindowPointerEvent(String type, double clientX, double clientY, int button, int pointerId, String pointerType, boolean isPrimary) {
+            super(type, clientX, clientY, button);
+            this.pointerId = pointerId;
+            this.pointerType = pointerType == null || pointerType.isBlank() ? "mouse" : pointerType;
+            this.isPrimary = isPrimary;
         }
     }
 
@@ -519,7 +553,7 @@ public class Window {
             ArrayList<ResizeObserverEntry> entries = new ArrayList<>();
             for (Map.Entry<Element, SizeSnapshot> entry : observed.entrySet()) {
                 Element element = entry.getKey();
-                if (element == null || element.document == null) continue;
+                if (element == null || element.document == null || !element.document.isActive()) continue;
                 SizeSnapshot previous = entry.getValue();
                 SizeSnapshot current = SizeSnapshot.capture(element);
                 if (!current.sameAs(previous)) {

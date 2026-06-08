@@ -1,0 +1,198 @@
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">ApricityUI Regression Pages</div>
+        <div class="title">Manual Test Index</div>
+        <div class="summary">
+            Entry page for focused regression HTML files. Open individual cases to verify layout,
+            controls, animation, canvas behavior, world window flow, and browser-style events.
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <div class="section-title">Event And Interaction</div>
+            <div class="link-list">
+                <a class="case-link" href="./lifecycle-event-test.html">
+                    <span class="case-name">lifecycle-event-test.html</span>
+                    <span class="case-desc">readyState, DOMContentLoaded, load, and late-listener behavior.</span>
+                </a>
+                <a class="case-link" href="./interactive-controls-test.html">
+                    <span class="case-name">interactive-controls-test.html</span>
+                    <span class="case-desc">Focus, text editing, select, checkbox, radio, button behavior.</span>
+                </a>
+                <a class="case-link" href="./mouse-extended-event-test.html">
+                    <span class="case-name">mouse-extended-event-test.html</span>
+                    <span class="case-desc">Primary click, double click, and right-button context menu behavior.</span>
+                </a>
+                <a class="case-link" href="./pointer-event-test.html">
+                    <span class="case-name">pointer-event-test.html</span>
+                    <span class="case-desc">Mouse compatibility mapping for pointerdown/up/move and hover pointer events.</span>
+                </a>
+                <a class="case-link" href="./img-load-event-test.html">
+                    <span class="case-name">img-load-event-test.html</span>
+                    <span class="case-desc">Img load/error resource events for valid and missing image sources.</span>
+                </a>
+                <a class="case-link" href="./wheel-scroll-event-test.html">
+                    <span class="case-name">wheel-scroll-event-test.html</span>
+                    <span class="case-desc">Wheel input, preventDefault, and scroll result ordering.</span>
+                </a>
+                <a class="case-link" href="./transition-animation-test.html">
+                    <span class="case-name">transition-animation-test.html</span>
+                    <span class="case-desc">Transition timing and animation playback checks.</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Layout And Text</div>
+            <div class="link-list">
+                <a class="case-link" href="./layout-test.html">
+                    <span class="case-name">layout-test.html</span>
+                    <span class="case-desc">Baseline layout behavior and block arrangement checks.</span>
+                </a>
+                <a class="case-link" href="./layout-properties-test.html">
+                    <span class="case-name">layout-properties-test.html</span>
+                    <span class="case-desc">Property-level layout regressions and sizing checks.</span>
+                </a>
+                <a class="case-link" href="./text-style-test.html">
+                    <span class="case-name">text-style-test.html</span>
+                    <span class="case-desc">Text style rendering, weight, stroke, and decoration checks.</span>
+                </a>
+                <a class="case-link" href="./text-wrap-test.html">
+                    <span class="case-name">text-wrap-test.html</span>
+                    <span class="case-desc">Wrapping, line breaking, and multiline rendering checks.</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Canvas And Specialized UI</div>
+            <div class="link-list">
+                <a class="case-link" href="./canvas-test.html">
+                    <span class="case-name">canvas-test.html</span>
+                    <span class="case-desc">General canvas rendering behavior.</span>
+                </a>
+                <a class="case-link" href="./canvas-capability-test.html">
+                    <span class="case-name">canvas-capability-test.html</span>
+                    <span class="case-desc">Canvas API capability coverage spot-check.</span>
+                </a>
+                <a class="case-link" href="./canvas-doodle-board.html">
+                    <span class="case-name">canvas-doodle-board.html</span>
+                    <span class="case-desc">Interactive drawing behavior and pointer-style input path.</span>
+                </a>
+                <a class="case-link" href="./container-slot-recipe-test.html">
+                    <span class="case-name">container-slot-recipe-test.html</span>
+                    <span class="case-desc">Container, slot, and recipe tag rendering checks.</span>
+                </a>
+                <a class="case-link" href="./world-window-acceptance.html">
+                    <span class="case-name">world-window-acceptance.html</span>
+                    <span class="case-desc">In-world window creation and acceptance flow.</span>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-image: linear-gradient(160deg, #08121d 0%, #102336 52%, #1f3e58 100%);
+        color: #edf6ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .hero {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .eyebrow {
+        color: #7dd3fc;
+    }
+
+    .title {
+        font-size: 16px;
+        font-weight: bold;
+        color: #f8fbff;
+    }
+
+    .summary {
+        color: #b9d7ea;
+    }
+
+    .content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding-right: 2px;
+    }
+
+    .section {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        padding: 6px;
+        border: 1px solid rgba(156, 204, 228, 0.52);
+        border-radius: 8px;
+        background-color: rgba(5, 12, 18, 0.55);
+        box-shadow: 0 0 0 1px rgba(6, 16, 24, 0.2);
+    }
+
+    .section-title {
+        color: #ffd78f;
+    }
+
+    .link-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .case-link {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 6px;
+        color: #edf6ff;
+        text-decoration: none;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 7px;
+        background-color: rgba(4, 10, 16, 0.42);
+    }
+
+    .case-link:hover {
+        background-color: rgba(14, 30, 44, 0.7);
+        border-color: rgba(154, 210, 241, 0.65);
+    }
+
+    .case-name {
+        color: #f8fbff;
+    }
+
+    .case-desc {
+        color: #b9d7ea;
+    }
+</style>

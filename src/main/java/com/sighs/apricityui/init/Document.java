@@ -15,6 +15,19 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class Document {
+    private enum LifecycleState {
+        LOADING("loading"),
+        INTERACTIVE("interactive"),
+        COMPLETE("complete"),
+        DISPOSED("complete");
+
+        private final String readyStateValue;
+
+        LifecycleState(String readyStateValue) {
+            this.readyStateValue = readyStateValue;
+        }
+    }
+
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
@@ -27,7 +40,11 @@ public class Document {
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
     private volatile long refreshGeneration = 0L;
-    private volatile String readyState = "loading";
+    private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
+    private volatile String readyState = LifecycleState.LOADING.readyStateValue;
+    private volatile Element lastClickTarget = null;
+    private volatile int lastClickButton = -1;
+    private volatile long lastClickTimeNs = 0L;
     private final CopyOnWriteArrayList<MutationObserver> mutationObservers = new CopyOnWriteArrayList<>();
 
     private final StyleScope style = new StyleScope(this);
@@ -44,8 +61,7 @@ public class Document {
     }
 
     public void refresh() {
-        readyState = "loading";
-        refreshGeneration++;
+        beginRefreshLifecycle();
         CSSCache.clear();
         CSSDebugRules.clear();
         JSCache.clear();
@@ -70,7 +86,7 @@ public class Document {
             render.reset();
             render.rebuildPaintList();
             ImageAsyncHandler.prefetchImages(this);
-            readyState = "interactive";
+            enterInteractive();
 
             for (String js : JSCache) {
                 String head = "let document = ApricityUI.getDocumentByUUID(\"" + uuid + "\");\n";
@@ -127,6 +143,25 @@ public class Document {
                 head += "  let y = init.clientY || 0;\n";
                 head += "  let button = init.button == null ? -1 : init.button;\n";
                 head += "  return window.createMouseEvent(type, x, y, button);\n";
+                head += "}\n";
+                head += "function WheelEvent(type, init) {\n";
+                head += "  init = init || {};\n";
+                head += "  let x = init.clientX || 0;\n";
+                head += "  let y = init.clientY || 0;\n";
+                head += "  let dx = Number(init.deltaX || 0);\n";
+                head += "  let dy = Number(init.deltaY || 0);\n";
+                head += "  let mode = init.deltaMode == null ? 0 : Number(init.deltaMode);\n";
+                head += "  return window.createWheelEvent(type, x, y, dx, dy, mode);\n";
+                head += "}\n";
+                head += "function PointerEvent(type, init) {\n";
+                head += "  init = init || {};\n";
+                head += "  let x = init.clientX || 0;\n";
+                head += "  let y = init.clientY || 0;\n";
+                head += "  let button = init.button == null ? -1 : Number(init.button);\n";
+                head += "  let pointerId = init.pointerId == null ? 1 : Number(init.pointerId);\n";
+                head += "  let pointerType = init.pointerType == null ? 'mouse' : String(init.pointerType);\n";
+                head += "  let isPrimary = init.isPrimary == null ? true : !!init.isPrimary;\n";
+                head += "  return window.createPointerEvent(type, x, y, button, pointerId, pointerType, isPrimary);\n";
                 head += "}\n";
                 head += "function __auiDecorateResponse(resp) {\n";
                 head += "  if (!resp || resp.__auiDecoratedResponse) return resp;\n";
@@ -418,6 +453,10 @@ public class Document {
                 head += "    Object.defineProperty(el, 'selectedIndex', { get: () => el.getSelectedIndex(), set: (v) => el.setSelectedIndex(v == null ? -1 : Number(v)) });\n";
                 head += "    Object.defineProperty(el, 'scrollTop', { get: () => el.getScrollTop(), set: (v) => el.setScrollTop(Number(v) || 0) });\n";
                 head += "    Object.defineProperty(el, 'scrollLeft', { get: () => el.getScrollLeft(), set: (v) => el.setScrollLeft(Number(v) || 0) });\n";
+                head += "    Object.defineProperty(el, 'currentSrc', { get: () => el.getCurrentSrc ? el.getCurrentSrc() : '' });\n";
+                head += "    Object.defineProperty(el, 'naturalWidth', { get: () => el.getNaturalWidth ? el.getNaturalWidth() : 0 });\n";
+                head += "    Object.defineProperty(el, 'naturalHeight', { get: () => el.getNaturalHeight ? el.getNaturalHeight() : 0 });\n";
+                head += "    Object.defineProperty(el, 'complete', { get: () => el.isComplete ? !!el.isComplete() : false });\n";
                 head += "    Object.defineProperty(el, 'children', { get: () => __auiDecorateList(el.getChildren()) });\n";
                 head += "    Object.defineProperty(el, 'childNodes', { get: () => __auiDecorateList(el.getChildNodes()) });\n";
                 head += "    Object.defineProperty(el, 'options', { get: () => __auiDecorateList(el.getOptions()) });\n";
@@ -468,6 +507,8 @@ public class Document {
                 head += "    el.blur = function() { return blur.call(el); };\n";
                 head += "    let click = el.click;\n";
                 head += "    el.click = function() { return click.call(el); };\n";
+                head += "    let submit = el.submit;\n";
+                head += "    if (typeof submit === 'function') el.submit = function() { return submit.call(el); };\n";
                 head += "    let scrollTo = el.scrollTo;\n";
                 head += "    el.scrollTo = function(x, y) {\n";
                 head += "      if (typeof x === 'object' && x) return scrollTo.call(el, Number(x.left || 0), Number(x.top || 0));\n";
@@ -562,14 +603,45 @@ public class Document {
                 ApricityJS.eval(head + js);
             }
             fireLifecycleEvent("DOMContentLoaded", false);
-            readyState = "complete";
+            enterComplete();
             fireLifecycleEvent("load", false);
         } catch (Exception ignored) {
         }
     }
 
+    private void beginRefreshLifecycle() {
+        refreshGeneration++;
+        lifecycleState = LifecycleState.LOADING;
+        readyState = lifecycleState.readyStateValue;
+        clearMutationObservers();
+    }
+
+    private void enterInteractive() {
+        if (lifecycleState == LifecycleState.DISPOSED) return;
+        lifecycleState = LifecycleState.INTERACTIVE;
+        readyState = lifecycleState.readyStateValue;
+    }
+
+    private void enterComplete() {
+        if (lifecycleState == LifecycleState.DISPOSED) return;
+        lifecycleState = LifecycleState.COMPLETE;
+        readyState = lifecycleState.readyStateValue;
+    }
+
+    private void disposeLifecycle() {
+        if (lifecycleState == LifecycleState.DISPOSED) return;
+        lifecycleState = LifecycleState.DISPOSED;
+        clearMutationObservers();
+        focus.clearFocus();
+        focus.setPressedElement(null);
+        focus.setPreviousCursorElement(null);
+        lastClickTarget = null;
+        lastClickButton = -1;
+        lastClickTimeNs = 0L;
+    }
+
     private void fireLifecycleEvent(String type, boolean bubbles) {
-        if (body == null || type == null || type.isBlank()) return;
+        if (body == null || type == null || type.isBlank() || !isActive()) return;
         Event event = new Event(body, type, null, false);
         event.bubbles = bubbles;
         Event.triggerSingle(event);
@@ -621,6 +693,7 @@ public class Document {
      * 因此这里负责统一执行样式刷新、元素 tick、以及 dirty flags 的 flushUpdates。
      */
     public void tickFrame() {
+        if (!isActive()) return;
         commitStyleRecalc();
         stepMotion();
         tickElements();
@@ -635,6 +708,7 @@ public class Document {
      * Style Recalc 阶段：统一在 tick 中重算样式。
      */
     public void commitStyleRecalc() {
+        if (!isActive()) return;
         style.flushPendingUpdates();
     }
 
@@ -655,6 +729,7 @@ public class Document {
      * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
      */
     public void stepMotionRender() {
+        if (!isActive()) return;
         motion.stepRender();
     }
 
@@ -662,6 +737,7 @@ public class Document {
      * Element Tick 阶段：滚动、输入态、逐帧逻辑。
      */
     public void tickElements() {
+        if (!isActive()) return;
         render.tickElements();
     }
 
@@ -669,6 +745,7 @@ public class Document {
      * Commit Render：将 dirty flags 提交为 layout/paintList 的更新。
      */
     public void commitRenderState() {
+        if (!isActive()) return;
         render.commit();
     }
 
@@ -727,6 +804,18 @@ public class Document {
      */
     public long getRefreshGeneration() {
         return refreshGeneration;
+    }
+
+    public boolean isDisposed() {
+        return lifecycleState == LifecycleState.DISPOSED;
+    }
+
+    public boolean isActive() {
+        return lifecycleState != LifecycleState.DISPOSED;
+    }
+
+    public boolean isCurrentGeneration(long generation) {
+        return isActive() && refreshGeneration == generation;
     }
 
     public Element createHTML(String html) {
@@ -867,7 +956,7 @@ public class Document {
 
     public static void refreshAll() {
         for (Document document : documents) {
-            if (document == null || document.isReloadPersistent()) continue;
+            if (document == null || document.isReloadPersistent() || document.isDisposed()) continue;
             document.refresh();
         }
     }
@@ -892,14 +981,14 @@ public class Document {
     public static ArrayList<Document> get(String path) {
         ArrayList<Document> result = new ArrayList<>();
         for (Document document : documents) {
-            if (document.getPath().equals(path)) result.add(document);
+            if (!document.isDisposed() && document.getPath().equals(path)) result.add(document);
         }
         return result;
     }
 
     public static Document getByUUID(String uuid) {
         for (Document document : documents) {
-            if (document.uuid.toString().equals(uuid)) return document;
+            if (!document.isDisposed() && document.uuid.toString().equals(uuid)) return document;
         }
         return null;
     }
@@ -913,11 +1002,19 @@ public class Document {
     }
 
     public static void remove(String path) {
-        documents.removeIf(document -> document.is(path));
+        documents.removeIf(document -> {
+            if (!document.is(path)) return false;
+            document.disposeLifecycle();
+            return true;
+        });
     }
 
     public static void remove(UUID uuid) {
-        documents.removeIf(document -> document.is(uuid));
+        documents.removeIf(document -> {
+            if (!document.is(uuid)) return false;
+            document.disposeLifecycle();
+            return true;
+        });
     }
 
     public void remove() {
@@ -931,7 +1028,11 @@ public class Document {
 
     public MutationObserver createMutationObserver(Consumer<Object> callback) {
         MutationObserver observer = new MutationObserver(this, callback);
-        mutationObservers.add(observer);
+        if (isActive()) {
+            mutationObservers.add(observer);
+        } else {
+            observer.disconnect();
+        }
         return observer;
     }
 
@@ -954,13 +1055,14 @@ public class Document {
     }
 
     public void queueMutation(MutationRecord record) {
-        if (record == null) return;
+        if (record == null || !isActive()) return;
         for (MutationObserver observer : mutationObservers) {
             if (observer != null) observer.enqueue(record);
         }
     }
 
     public void flushMutationObservers() {
+        if (!isActive()) return;
         for (MutationObserver observer : mutationObservers) {
             if (observer == null) continue;
             observer.flush();
@@ -994,6 +1096,17 @@ public class Document {
         focus.setPressedElement(element);
     }
 
+    public boolean registerClickAndCheckDoubleClick(Element target, int button, long nowNs, long thresholdNs) {
+        boolean isDoubleClick = target != null
+                && lastClickTarget == target
+                && lastClickButton == button
+                && (nowNs - lastClickTimeNs) <= thresholdNs;
+        lastClickTarget = target;
+        lastClickButton = button;
+        lastClickTimeNs = nowNs;
+        return isDoubleClick;
+    }
+
     public Element getActiveElement() {
         Element focused = focus.getFocusedElement();
         if (focused != null) return focused;
@@ -1025,9 +1138,17 @@ public class Document {
         focus.clearFocus();
     }
 
+    private void clearMutationObservers() {
+        for (MutationObserver observer : mutationObservers) {
+            if (observer != null) observer.disconnect();
+        }
+        mutationObservers.clear();
+    }
+
     public static final class MutationObserver {
         private final Document owner;
         private final Consumer<Object> callback;
+        private final long ownerGeneration;
         private final CopyOnWriteArrayList<ObservedTarget> observed = new CopyOnWriteArrayList<>();
         private final ArrayList<MutationRecord> pending = new ArrayList<>();
         private volatile boolean disconnected = false;
@@ -1035,6 +1156,7 @@ public class Document {
         public MutationObserver(Document owner, Consumer<Object> callback) {
             this.owner = owner;
             this.callback = callback;
+            this.ownerGeneration = owner == null ? -1L : owner.getRefreshGeneration();
         }
 
         public void observe(Element target, boolean childList, boolean attributes, boolean characterData, boolean subtree,
@@ -1071,14 +1193,14 @@ public class Document {
         }
 
         void enqueue(MutationRecord record) {
-            if (disconnected || record == null || !matches(record)) return;
+            if (disconnected || record == null || owner == null || !owner.isCurrentGeneration(ownerGeneration) || !matches(record)) return;
             synchronized (pending) {
                 pending.add(adapt(record));
             }
         }
 
         void flush() {
-            if (disconnected || callback == null) return;
+            if (disconnected || callback == null || owner == null || !owner.isCurrentGeneration(ownerGeneration)) return;
             List<MutationRecord> snapshot = takeRecords();
             if (snapshot.isEmpty()) return;
             callback.accept(snapshot);

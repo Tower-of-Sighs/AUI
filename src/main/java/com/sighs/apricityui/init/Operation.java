@@ -52,8 +52,10 @@ public class Operation {
     }
 
     public static boolean scroll(double delta) {
-        MouseEvent mouseEvent = new MouseEvent("scroll", getMousePosition());
-        mouseEvent.scrollDelta = -delta * 50;
+        MouseEvent mouseEvent = new MouseEvent("wheel", getMousePosition());
+        mouseEvent.deltaY = -delta * 50;
+        mouseEvent.scrollDelta = mouseEvent.deltaY;
+        mouseEvent.cancelable = true;
         return MouseEvent.tiggerEvent(mouseEvent);
     }
 
@@ -160,7 +162,9 @@ public class Operation {
                     if (focusedElement instanceof TextArea) {
                         textElement.insertText("\n");
                     } else {
-                        document.clearFocus();
+                        if (!focusedElement.submitEnclosingForm()) {
+                            document.clearFocus();
+                        }
                     }
                     cancel = true;
                 } else if (key == GLFW.GLFW_KEY_ESCAPE) {
