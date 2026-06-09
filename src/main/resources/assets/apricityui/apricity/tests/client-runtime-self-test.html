@@ -1,0 +1,66 @@
+<body>
+<div id="status">running</div>
+
+<form id="form">
+    <input name="alpha" value="1">
+    <select name="beta" multiple>
+        <option value="x" selected>X</option>
+        <option value="y" selected>Y</option>
+    </select>
+</form>
+
+<script>
+    (function () {
+        var body = document.body;
+
+        function mark(name, value) {
+            body.setAttribute(name, value == null ? "" : String(value));
+        }
+
+        mark("data-initial-ready-state", document.readyState);
+
+        var params = new URLSearchParams("?a=1&a=2");
+        mark("data-urlsearchparams", params.getAll("a").join(","));
+
+        var form = document.querySelector("#form");
+        var select = form.querySelector("select");
+        var formData = new FormData(form);
+        mark("data-formdata", formData.toString());
+        mark("data-form-field-name", form.querySelector("input").name);
+        mark("data-form-select-multiple", select.multiple);
+        var optionNodes = select.getElementsByTagName("option");
+        var selectedFlags = [];
+        for (var optionIndex = 0; optionIndex < optionNodes.length; optionIndex++) {
+            selectedFlags.push(optionNodes[optionIndex].hasAttribute("selected") ? "1" : "0");
+        }
+        mark("data-form-select-options", optionNodes.length);
+        mark("data-form-select-selected-flags", selectedFlags.join(","));
+        mark("data-location-type", typeof document.location);
+        mark("data-location-href", document.location && document.location.href);
+
+        document.addEventListener("DOMContentLoaded", function () {
+            mark("data-domcontentloaded-ready-state", document.readyState);
+        });
+
+        document.addEventListener("load", function () {
+            mark("data-load-ready-state", document.readyState);
+            mark("data-location-pathname", document.location.pathname);
+            mark("data-load-handler-entered", "yes");
+
+            window.setTimeout(function () {
+                mark("data-timeout", "done");
+            }, 20);
+
+            window.setTimeout(function () {
+                var replayed = false;
+                document.addEventListener("load", function () {
+                    replayed = true;
+                });
+                window.setTimeout(function () {
+                    mark("data-late-load-replay", replayed ? "yes" : "no");
+                }, 20);
+            }, 20);
+        });
+    })();
+</script>
+</body>

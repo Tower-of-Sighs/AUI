@@ -33,8 +33,11 @@
 <script>
     (function () {
         var sequence = 0;
+        var body = document.body;
         var snapshot = document.querySelector("#snapshot");
         var log = document.querySelector("#log");
+
+        body.setAttribute("data-late-listener-result", "pending");
 
         function pushLog(message) {
             sequence += 1;
@@ -65,11 +68,13 @@
 
                 document.addEventListener("DOMContentLoaded", function () {
                     lateTriggered = true;
+                    body.setAttribute("data-late-listener-result", "replayed");
                     pushLog("late DOMContentLoaded listener fired");
                 });
 
                 document.addEventListener("load", function () {
                     lateTriggered = true;
+                    body.setAttribute("data-late-listener-result", "replayed");
                     pushLog("late load listener fired");
                 });
 
@@ -77,6 +82,7 @@
 
                 window.setTimeout(function () {
                     if (!lateTriggered) {
+                        body.setAttribute("data-late-listener-result", "no");
                         pushLog("late listeners received no historical replay");
                     }
                 }, 10);

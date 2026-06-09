@@ -3,6 +3,7 @@ plugins {
     id 'idea'
     id 'java-library'
     id 'maven-publish'
+    id 'jacoco'
     id 'net.neoforged.moddev.legacyforge' version '2.0.91'
 }
 
@@ -203,4 +204,21 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+}
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('test', Test).configure {
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('jacocoTestReport', JacocoReport).configure {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
+    }
 }

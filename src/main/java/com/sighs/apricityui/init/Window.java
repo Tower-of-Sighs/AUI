@@ -1,6 +1,5 @@
 package com.sighs.apricityui.init;
 
-import com.google.gson.Gson;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.canvas.CanvasImageBitmap;
 import com.sighs.apricityui.canvas.CanvasImageSupport;
@@ -111,6 +110,15 @@ public class Window {
 
     public Console getConsole() {
         return console;
+    }
+
+    public BrowserLocation getLocation() {
+        for (Document document : Document.getAll()) {
+            if (document != null && document.isActive()) {
+                return document.getLocation();
+            }
+        }
+        return new BrowserLocation("");
     }
 
     public void addEventListener(String type, Consumer<Object> listener) {
@@ -424,7 +432,6 @@ public class Window {
     }
 
     public static class FetchResponse {
-        private static final Gson GSON = new Gson();
         private final String url;
         private final int status;
         private final byte[] bytes;
@@ -452,11 +459,173 @@ public class Window {
         }
 
         public Object json() {
-            return GSON.fromJson(text(), Object.class);
+            return new SimpleJsonParser(text()).parse();
         }
 
         public byte[] bytes() {
             return bytes.clone();
+        }
+    }
+
+    private static final class SimpleJsonParser {
+        private final String source;
+        private int index = 0;
+
+        private SimpleJsonParser(String source) {
+            this.source = source == null ? "" : source;
+        }
+
+        private Object parse() {
+            skipWhitespace();
+            Object value = parseValue();
+            skipWhitespace();
+            if (index != source.length()) {
+                throw new IllegalArgumentException("Unexpected trailing JSON content at index " + index);
+            }
+            return value;
+        }
+
+        private Object parseValue() {
+            skipWhitespace();
+            if (index >= source.length()) {
+                throw new IllegalArgumentException("Unexpected end of JSON input");
+            }
+            char c = source.charAt(index);
+            return switch (c) {
+                case '{' -> parseObject();
+                case '[' -> parseArray();
+                case '"' -> parseString();
+                case 't' -> parseLiteral("true", Boolean.TRUE);
+                case 'f' -> parseLiteral("false", Boolean.FALSE);
+                case 'n' -> parseLiteral("null", null);
+                default -> parseNumber();
+            };
+        }
+
+        private Map<String, Object> parseObject() {
+            LinkedHashMap<String, Object> result = new LinkedHashMap<>();
+            index++;
+            skipWhitespace();
+            if (peek('}')) {
+                index++;
+                return result;
+            }
+            while (true) {
+                skipWhitespace();
+                String key = parseString();
+                skipWhitespace();
+                expect(':');
+                Object value = parseValue();
+                result.put(key, value);
+                skipWhitespace();
+                if (peek('}')) {
+                    index++;
+                    return result;
+                }
+                expect(',');
+            }
+        }
+
+        private List<Object> parseArray() {
+            ArrayList<Object> result = new ArrayList<>();
+            index++;
+            skipWhitespace();
+            if (peek(']')) {
+                index++;
+                return result;
+            }
+            while (true) {
+                result.add(parseValue());
+                skipWhitespace();
+                if (peek(']')) {
+                    index++;
+                    return result;
+                }
+                expect(',');
+            }
+        }
+
+        private String parseString() {
+            expect('"');
+            StringBuilder builder = new StringBuilder();
+            while (index < source.length()) {
+                char c = source.charAt(index++);
+                if (c == '"') {
+                    return builder.toString();
+                }
+                if (c != '\\') {
+                    builder.append(c);
+                    continue;
+                }
+                if (index >= source.length()) {
+                    throw new IllegalArgumentException("Unexpected end of JSON string escape");
+                }
+                char escaped = source.charAt(index++);
+                switch (escaped) {
+                    case '"', '\\', '/' -> builder.append(escaped);
+                    case 'b' -> builder.append('\b');
+                    case 'f' -> builder.append('\f');
+                    case 'n' -> builder.append('\n');
+                    case 'r' -> builder.append('\r');
+                    case 't' -> builder.append('\t');
+                    case 'u' -> {
+                        if (index + 4 > source.length()) {
+                            throw new IllegalArgumentException("Invalid unicode escape in JSON string");
+                        }
+                        String hex = source.substring(index, index + 4);
+                        builder.append((char) Integer.parseInt(hex, 16));
+                        index += 4;
+                    }
+                    default -> throw new IllegalArgumentException("Unsupported JSON escape: \\" + escaped);
+                }
+            }
+            throw new IllegalArgumentException("Unterminated JSON string");
+        }
+
+        private Object parseLiteral(String literal, Object value) {
+            if (!source.startsWith(literal, index)) {
+                throw new IllegalArgumentException("Invalid JSON literal at index " + index);
+            }
+            index += literal.length();
+            return value;
+        }
+
+        private Double parseNumber() {
+            int start = index;
+            if (peek('-')) index++;
+            while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
+            if (peek('.')) {
+                index++;
+                while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
+            }
+            if (peek('e') || peek('E')) {
+                index++;
+                if (peek('+') || peek('-')) index++;
+                while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
+            }
+            String token = source.substring(start, index);
+            if (token.isEmpty() || "-".equals(token)) {
+                throw new IllegalArgumentException("Invalid JSON number at index " + start);
+            }
+            return Double.parseDouble(token);
+        }
+
+        private void skipWhitespace() {
+            while (index < source.length() && Character.isWhitespace(source.charAt(index))) {
+                index++;
+            }
+        }
+
+        private void expect(char expected) {
+            skipWhitespace();
+            if (!peek(expected)) {
+                throw new IllegalArgumentException("Expected '" + expected + "' at index " + index);
+            }
+            index++;
+        }
+
+        private boolean peek(char expected) {
+            return index < source.length() && source.charAt(index) == expected;
         }
     }
 
