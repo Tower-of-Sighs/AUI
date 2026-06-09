@@ -1,7 +1,5 @@
 package com.sighs.apricityui.instance;
 
-import net.minecraftforge.fml.loading.FMLPaths;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -55,12 +53,15 @@ public class Loader {
                     }
                 }
             }
-            Path local = FMLPaths.GAMEDIR.get().resolve("apricity/" + normalizedPath);
+            Path local = getGameDir().resolve("apricity/" + normalizedPath);
             if (Files.exists(local) && Files.isRegularFile(local)) {
                 return Files.newInputStream(local);
             }
         } catch (IOException ignored) {
         }
+        InputStream bundled = Loader.class.getClassLoader()
+                .getResourceAsStream("assets/apricityui/apricity/" + (path.startsWith("/") ? path.substring(1) : path));
+        if (bundled != null) return bundled;
         return null;
     }
 
@@ -94,7 +95,7 @@ public class Loader {
     }
 
     static List<Path> getDevResourceRoots() {
-        Path gameDir = FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();
+        Path gameDir = getGameDir();
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
         Path base = gameDir;
         for (int depth = 0; depth <= 6 && base != null; depth++) {
@@ -111,7 +112,7 @@ public class Loader {
     }
 
     static List<Path> getDevProjectRoots() {
-        Path gameDir = FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();
+        Path gameDir = getGameDir();
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
 
         for (Path devRoot : getDevResourceRoots()) {
@@ -162,6 +163,14 @@ public class Loader {
         return null;
     }
 
+    public static String readGlobalJS() {
+        try (InputStream stream = getResourceStream("global.js")) {
+            if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+        }
+        return null;
+    }
+
     private static boolean isProjectRoot(Path path) {
         if (path == null) return false;
         return Files.exists(path.resolve("build.gradle"))
@@ -182,7 +191,7 @@ public class Loader {
 
     public static List<Path> getWatchRoots() {
         List<Path> roots = new ArrayList<>(getDevResourceRoots());
-        Path localRoot = FMLPaths.GAMEDIR.get().resolve("apricity").toAbsolutePath().normalize();
+        Path localRoot = getGameDir().resolve("apricity").toAbsolutePath().normalize();
         if (Files.exists(localRoot) && Files.isDirectory(localRoot)) {
             roots.add(localRoot);
         }
@@ -191,7 +200,7 @@ public class Loader {
 
     protected void loadFromLocalFolder() {
         try {
-            Path root = FMLPaths.GAMEDIR.get().resolve("apricity");
+            Path root = getGameDir().resolve("apricity");
             if (!Files.exists(root)) {
                 Files.createDirectories(root);
                 return;
@@ -244,7 +253,7 @@ public class Loader {
     }
 
     private static void loadLocalFolderEntries(Map<String, StaticResourceEntry> merged) {
-        Path root = FMLPaths.GAMEDIR.get().resolve("apricity").toAbsolutePath().normalize();
+        Path root = getGameDir().resolve("apricity").toAbsolutePath().normalize();
         loadFromRootEntries(merged, root, ResourceLayer.LOCAL_FOLDER, root.toString(), root.toString());
     }
 
@@ -299,5 +308,18 @@ public class Loader {
         } catch (Exception ignored) {
             return Integer.MAX_VALUE;
         }
+    }
+
+    private static Path getGameDir() {
+        try {
+            Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
+            Object gameDirHolder = fmlPathsClass.getField("GAMEDIR").get(null);
+            Object path = gameDirHolder.getClass().getMethod("get").invoke(gameDirHolder);
+            if (path instanceof Path resolved) {
+                return resolved.toAbsolutePath().normalize();
+            }
+        } catch (Throwable ignored) {
+        }
+        return Path.of("").toAbsolutePath().normalize();
     }
 }

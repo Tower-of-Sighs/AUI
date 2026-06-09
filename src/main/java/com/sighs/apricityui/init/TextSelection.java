@@ -91,7 +91,12 @@ final class TextSelection {
     }
 
     void clearTextSelection() {
-        int cursor = getTextCursor();
+        int cursor;
+        try {
+            cursor = getTextCursor();
+        } catch (NoClassDefFoundError error) {
+            cursor = 0;
+        }
         start = cursor;
         end = cursor;
         owner.addDirtyFlags(Drawer.REPAINT);

@@ -448,6 +448,30 @@ public class Element {
         setAttribute("placeholder", value == null ? "" : value);
     }
 
+    public String getName() {
+        return getAttribute("name");
+    }
+
+    public void setName(String value) {
+        setAttribute("name", value == null ? "" : value);
+    }
+
+    public String getType() {
+        return getAttribute("type");
+    }
+
+    public void setType(String value) {
+        setAttribute("type", value == null ? "" : value);
+    }
+
+    public boolean isMultiple() {
+        return hasBooleanAttribute("multiple");
+    }
+
+    public void setMultiple(boolean multiple) {
+        setBooleanAttribute("multiple", multiple);
+    }
+
     public boolean isDisabled() {
         return hasBooleanAttribute("disabled");
     }

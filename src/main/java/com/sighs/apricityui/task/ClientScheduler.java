@@ -1,11 +1,11 @@
 package com.sighs.apricityui.task;
 
+import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.function.Consumer;
 
 public class ClientScheduler {
-    // 创建全局唯一的守护线程 Timer
     private static final Timer TIMER = new Timer("ApricityUI-Timer", true);
 
     @FunctionalInterface
@@ -13,54 +13,54 @@ public class ClientScheduler {
         boolean cancel();
     }
 
-    // 让 Task 继承 TimerTask 以便直接投递给 Timer
-    private static class Task extends TimerTask implements Cancellable {
+    private static final class Task extends TimerTask implements Cancellable {
         private final Consumer<Cancellable> action;
-        private final boolean isRepeat;
+        private final boolean repeat;
 
-        public Task(Consumer<Cancellable> action, boolean isRepeat) {
+        private Task(Consumer<Cancellable> action, boolean repeat) {
             this.action = action;
-            this.isRepeat = isRepeat;
+            this.repeat = repeat;
         }
 
         @Override
         public void run() {
             try {
-                // 执行逻辑
-                action.accept(this);
+                runOnClientThread(() -> action.accept(this));
             } catch (Exception e) {
                 e.printStackTrace();
             }
 
-            // 如果不是循环任务，执行完后自动清理（TimerTask 内部逻辑）
-            if (!isRepeat) {
-                this.cancel();
+            if (!repeat) {
+                cancel();
             }
         }
     }
 
-    /**
-     * 客户端延时 (setTimeout)
-     *
-     * @param ms     延迟毫秒数 (1秒 = 1000ms)
-     * @param action 回调
-     */
     public static Cancellable setTimeout(int ms, Consumer<Cancellable> action) {
         Task task = new Task(action, false);
         TIMER.schedule(task, ms);
         return task;
     }
 
-    /**
-     * 客户端循环 (setInterval)
-     *
-     * @param ms     间隔毫秒数
-     * @param action 回调
-     */
     public static Cancellable setInterval(int ms, Consumer<Cancellable> action) {
         Task task = new Task(action, true);
-        // 使用 scheduleAtFixedRate 保证频率稳定
         TIMER.scheduleAtFixedRate(task, ms, ms);
         return task;
+    }
+
+    private static void runOnClientThread(Runnable action) {
+        if (action == null) return;
+        try {
+            Class<?> minecraftClass = Class.forName("net.minecraft.client.Minecraft");
+            Method getInstance = minecraftClass.getMethod("getInstance");
+            Object minecraft = getInstance.invoke(null);
+            if (minecraft != null) {
+                Method execute = minecraftClass.getMethod("execute", Runnable.class);
+                execute.invoke(minecraft, action);
+                return;
+            }
+        } catch (Throwable ignored) {
+        }
+        action.run();
     }
 }

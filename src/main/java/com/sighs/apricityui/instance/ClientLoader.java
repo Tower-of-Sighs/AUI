@@ -22,8 +22,6 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import org.apache.commons.io.IOUtils;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -111,7 +109,7 @@ public class ClientLoader extends Loader {
 
     public static String readGlobalCSS() {
         try (InputStream stream = getResourceStream("global.css")) {
-            if (stream != null) return IOUtils.toString(stream, StandardCharsets.UTF_8);
+            if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         } catch (IOException ignored) {
         }
         return null;
@@ -154,7 +152,7 @@ public class ClientLoader extends Loader {
             try (InputStream stream = entry.getValue().open()) {
                 String path = entry.getKey().getPath();
                 if (path.startsWith("apricity/")) path = path.substring(9);
-                handler.accept(path, IOUtils.toString(stream, StandardCharsets.UTF_8));
+                handler.accept(path, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
             } catch (IOException exception) {
                 exception.printStackTrace();
             }

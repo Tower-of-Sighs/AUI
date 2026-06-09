@@ -1,4 +1,4 @@
-package com.sighs.apricityui.init;
+package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Img;
@@ -6,10 +6,19 @@ import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Option;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
+import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
 import java.lang.reflect.Method;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -542,6 +551,85 @@ class ElementBindingTest {
     }
 
     @Test
+    void hitTestPrefersTopmostOverlappingElementOnRealMousePath() {
+        Document document = createDocument();
+        Element bottom = new Element(document, "button");
+        Element top = new Element(document, "button");
+        document.appendChild(bottom);
+        document.appendChild(top);
+        setRelativeHitBox(document.body, 0, 0, 200, 200);
+        setRelativeHitBox(bottom, 10, 10, 50, 50);
+        setRelativeHitBox(top, 10, 10, 50, 50);
+        setPaintOrder(document, bottom, top);
+
+        AtomicInteger bottomClicks = new AtomicInteger();
+        AtomicInteger topClicks = new AtomicInteger();
+        bottom.addEventListener("click", event -> bottomClicks.incrementAndGet());
+        top.addEventListener("click", event -> topClicks.incrementAndGet());
+
+        MouseEvent.tiggerEvent(new MouseEvent("mousedown", new Position(20, 20), 0, false), document);
+        MouseEvent.tiggerEvent(new MouseEvent("mouseup", new Position(20, 20), 0, false), document);
+        assertEquals(0, bottomClicks.get());
+        assertEquals(1, topClicks.get());
+    }
+
+    @Test
+    void realMousePathResolvesFocusedTargetAndBubblesToAncestors() {
+        Document document = createDocument();
+        Element parent = new Element(document, "div");
+        Input input = new HeadlessInput(document);
+        document.appendChild(parent);
+        parent.appendChild(input);
+        setRelativeHitBox(document.body, 0, 0, 200, 200);
+        setRelativeHitBox(parent, 10, 10, 100, 40);
+        setRelativeHitBox(input, 5, 5, 80, 20);
+        setPaintOrder(document, parent, input);
+
+        AtomicInteger parentMouseDownCalls = new AtomicInteger();
+        AtomicInteger inputMouseDownCalls = new AtomicInteger();
+        parent.addEventListener("mousedown", event -> {
+            parentMouseDownCalls.incrementAndGet();
+            assertSame(input, event.target);
+            assertSame(parent, event.currentTarget);
+        });
+        input.addEventListener("mousedown", event -> {
+            inputMouseDownCalls.incrementAndGet();
+            assertSame(input, event.target);
+            assertSame(input, event.currentTarget);
+        });
+
+        assertTrue(MouseEvent.tiggerEvent(new MouseEvent("mousedown", new Position(20, 20), 0, false), document));
+        assertSame(input, document.getFocusedElement());
+        assertEquals(1, inputMouseDownCalls.get());
+        assertEquals(1, parentMouseDownCalls.get());
+    }
+
+    @Test
+    void realWheelPathScrollsNearestScrollableAncestor() {
+        Document document = createDocument();
+        Element scroller = new HeadlessScroller(document);
+        Element child = new Element(document, "div");
+        document.appendChild(scroller);
+        scroller.appendChild(child);
+        scroller.setAttribute("style", "overflow: auto;");
+        scroller.scrollHeight = 200;
+        scroller.scrollWidth = 100;
+        setRelativeHitBox(document.body, 0, 0, 240, 240);
+        setRelativeHitBox(scroller, 10, 10, 100, 60);
+        setRelativeHitBox(child, 5, 5, 80, 20);
+        setPaintOrder(document, scroller, child);
+
+        AtomicInteger scrollCalls = new AtomicInteger();
+        scroller.addEventListener("scroll", event -> scrollCalls.incrementAndGet());
+
+        MouseEvent wheel = new MouseEvent("wheel", new Position(20, 20), -1, false);
+        wheel.scrollDelta = 24;
+        assertTrue(MouseEvent.tiggerEvent(wheel, document));
+        assertEquals(24, scroller.getTargetScrollTop());
+        assertEquals(1, scrollCalls.get());
+    }
+
+    @Test
     void mouseRightButtonDispatchesContextMenuWithoutClick() {
         Document document = createDocument();
         Element target = new Element(document, "div");
@@ -768,6 +856,22 @@ class ElementBindingTest {
         @Override
         protected ImageHandle resolveCurrentHandle() {
             return testHandle;
+        }
+    }
+
+    private static void setRelativeHitBox(Element element, double x, double y, double width, double height) {
+        Box box = new Box();
+        box.element = element;
+        element.getRenderer().box.set(box);
+        element.getRenderer().size.set(new Size(width, height));
+        element.getRenderer().position.set(new Position(x, y));
+    }
+
+    private static void setPaintOrder(Document document, Element... elements) {
+        ArrayList<RenderNode> paintList = document.getPaintList();
+        paintList.clear();
+        for (Element element : elements) {
+            paintList.add(new RenderNode.ElementPhaseNode(element, Base.RenderPhase.BODY));
         }
     }
 
