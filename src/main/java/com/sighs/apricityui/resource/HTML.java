@@ -268,7 +268,9 @@ public class HTML {
 
     private static void attachChildFast(Element parent, Element child) {
         if (parent == null || child == null) return;
+        child.parentNode = parent;
         child.parentElement = parent;
+        parent.childNodes.add(child);
         parent.children.add(child);
     }
 }

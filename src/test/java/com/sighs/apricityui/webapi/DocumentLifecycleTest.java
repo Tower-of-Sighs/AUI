@@ -27,6 +27,8 @@ class DocumentLifecycleTest {
         assertEquals("alpha", root.getAttribute("data-page"));
         assertEquals("MAIN", root.getFirstElementChild().getNodeName());
         assertEquals("app", root.getFirstElementChild().getAttribute("id"));
+        assertSame(root.getFirstElementChild(), root.querySelector("#app"));
+        assertEquals("ok", root.querySelector("#app span").getTextContent());
     }
 
     @Test
