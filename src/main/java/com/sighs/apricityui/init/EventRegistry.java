@@ -4,10 +4,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 final class EventRegistry {
-    private final Element owner;
+    private final Node owner;
     private CopyOnWriteArrayList<Event> listeners = new CopyOnWriteArrayList<>();
 
-    EventRegistry(Element owner) {
+    EventRegistry(Node owner) {
         this.owner = owner;
     }
 

@@ -10,6 +10,8 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.init.CommentNode;
+import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
@@ -240,6 +242,55 @@ class ElementBindingTest {
         assertEquals("replacement", replacement.getClassName());
         assertEquals("next", replacement.getDataset().get("state"));
         assertFalse(secondParent.contains(child));
+    }
+
+    @Test
+    void textAndCommentNodesDispatchAsEventTargetsWithoutElementCoercion() {
+        Document document = createDocument();
+        Element parent = new Element(document, "div");
+        TextNode textNode = document.createTextNode("hello");
+        CommentNode commentNode = document.createComment("anchor");
+        document.appendChild(parent);
+        parent.appendChild(textNode);
+        parent.appendChild(commentNode);
+
+        AtomicInteger parentTextEvents = new AtomicInteger();
+        AtomicInteger parentCommentEvents = new AtomicInteger();
+        AtomicInteger textEvents = new AtomicInteger();
+        AtomicInteger commentEvents = new AtomicInteger();
+
+        parent.addEventListener("custom", event -> {
+            assertSame(parent, event.currentTarget);
+            if (event.target == textNode) {
+                parentTextEvents.incrementAndGet();
+                return;
+            }
+            if (event.target == commentNode) {
+                parentCommentEvents.incrementAndGet();
+                return;
+            }
+            fail("unexpected target: " + event.target);
+        });
+        textNode.addEventListener("custom", event -> {
+            textEvents.incrementAndGet();
+            assertSame(textNode, event.target);
+            assertSame(textNode, event.currentTarget);
+        });
+        commentNode.addEventListener("custom", event -> {
+            commentEvents.incrementAndGet();
+            assertSame(commentNode, event.target);
+            assertSame(commentNode, event.currentTarget);
+        });
+
+        Event textEvent = new Event(textNode, "custom", null, false);
+        assertTrue(textNode.dispatchEvent(textEvent));
+        assertEquals(1, textEvents.get());
+        assertEquals(1, parentTextEvents.get());
+
+        Event commentEvent = new Event(commentNode, "custom", null, false);
+        assertTrue(commentNode.dispatchEvent(commentEvent));
+        assertEquals(1, commentEvents.get());
+        assertEquals(1, parentCommentEvents.get());
     }
 
     @Test

@@ -242,8 +242,8 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     private static Element resolveScrollTarget(MouseEvent event) {
-        if (event == null || event.target == null) return null;
-        ArrayList<Element> route = event.target.getRoute();
+        if (event == null || !(event.target instanceof Element targetElement)) return null;
+        ArrayList<Element> route = targetElement.getRoute();
         if (event.shiftKey) {
             Element verticalFallback = null;
             for (Element element : route) {

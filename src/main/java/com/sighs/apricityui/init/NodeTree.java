@@ -16,10 +16,12 @@ final class NodeTree {
 
     ArrayList<Element> getRoute() {
         ArrayList<Element> result = new ArrayList<>();
-        Element parent = owner;
-        while (parent != null) {
-            result.add(parent);
-            parent = parent.parentElement;
+        Node current = owner;
+        while (current != null) {
+            if (current instanceof Element element) {
+                result.add(element);
+            }
+            current = current.parentNode;
         }
         return result;
     }
@@ -29,16 +31,19 @@ final class NodeTree {
         if (cache != null) return cache;
 
         int count = 0;
-        Element cur = owner;
+        Node cur = owner;
         while (cur != null) {
-            count++;
-            cur = cur.parentElement;
+            if (cur instanceof Element) count++;
+            cur = cur.parentNode;
         }
         Element[] route = new Element[count];
         cur = owner;
-        for (int i = 0; i < count; i++) {
-            route[i] = cur;
-            cur = cur.parentElement;
+        int index = 0;
+        while (cur != null) {
+            if (cur instanceof Element element) {
+                route[index++] = element;
+            }
+            cur = cur.parentNode;
         }
         owner.getRenderer().route.set(route);
         return route;
@@ -46,10 +51,12 @@ final class NodeTree {
 
     void forEachRoute(Consumer<Element> consumer) {
         if (consumer == null) return;
-        Element cur = owner;
+        Node cur = owner;
         while (cur != null) {
-            consumer.accept(cur);
-            cur = cur.parentElement;
+            if (cur instanceof Element element) {
+                consumer.accept(element);
+            }
+            cur = cur.parentNode;
         }
     }
 
@@ -101,7 +108,7 @@ final class NodeTree {
     }
 
     Element removeChild(Element element) {
-        if (element == null || element.parentElement != owner) return null;
+        if (element == null || element.parentNode != owner) return null;
         owner.document.removeElement(element);
         return element;
     }
@@ -113,7 +120,7 @@ final class NodeTree {
     }
 
     Element replaceChild(Element newElement, Element oldElement) {
-        if (oldElement == null || oldElement.parentElement != owner) return null;
+        if (oldElement == null || oldElement.parentNode != owner) return null;
         Element child = Element.init(newElement);
         owner.document.getTree().replaceChild(owner, child, oldElement);
         return oldElement;
@@ -124,10 +131,10 @@ final class NodeTree {
     }
 
     Element getParentStackContext() {
-        Element parent = owner.parentElement;
-        while (parent != null) {
-            if (parent.isStackContext()) return parent;
-            parent = parent.parentElement;
+        Node current = owner.parentNode;
+        while (current != null) {
+            if (current instanceof Element parent && parent.isStackContext()) return parent;
+            current = current.parentNode;
         }
         return owner.document.body;
     }

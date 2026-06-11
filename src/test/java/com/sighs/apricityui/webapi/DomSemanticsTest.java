@@ -4,8 +4,11 @@ import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.init.CommentNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.init.Window;
 import org.junit.jupiter.api.Test;
 
@@ -30,11 +33,16 @@ class DomSemanticsTest {
         assertFalse(document.hasFocus());
 
         Element created = document.createElement("section");
-        Element textNode = document.createTextNode("hello");
+        TextNode textNode = document.createTextNode("hello");
+        CommentNode commentNode = document.createComment("anchor");
         assertEquals("SECTION", created.getNodeName());
         assertEquals(Element.ELEMENT_NODE, created.getNodeType());
-        assertEquals("SPAN", textNode.getNodeName());
+        assertEquals("#text", textNode.getNodeName());
+        assertEquals(Node.TEXT_NODE, textNode.getNodeType());
         assertEquals("hello", textNode.getTextContent());
+        assertEquals("#comment", commentNode.getNodeName());
+        assertEquals(Node.COMMENT_NODE, commentNode.getNodeType());
+        assertEquals("anchor", commentNode.getTextContent());
 
         Element appended = new Element(document, "div");
         Element prepended = new Element(document, "header");
@@ -119,6 +127,8 @@ class DomSemanticsTest {
         Element first = new Element(document, "button");
         Element second = new Element(document, "input");
         Element third = new Element(document, "span");
+        TextNode text = document.createTextNode("tail-text");
+        CommentNode comment = document.createComment("tail-comment");
 
         first.setAttribute("id", "first");
         first.setAttribute("class", "chip primary");
@@ -130,13 +140,23 @@ class DomSemanticsTest {
         parent.appendChild(first);
         parent.appendChild(second);
         parent.appendChild(third);
+        parent.appendChild(text);
+        parent.appendChild(comment);
 
         assertSame(first, document.getElementById("first"));
         assertEquals(List.of(first, second), document.getElementsByClassName("chip"));
         assertEquals(List.of(parent), document.getElementsByTagName("div"));
         assertEquals(List.of(second), document.getElementsByName("username"));
         assertEquals(List.of(first, second, third), parent.getChildren());
-        assertEquals(List.of(first, second, third), parent.getChildNodes());
+        assertEquals(List.of(first, second, third, text, comment), parent.getChildNodes());
+        assertSame(first, parent.getFirstChild());
+        assertSame(comment, parent.getLastChild());
+        assertSame(parent, text.getParentNode());
+        assertSame(comment, text.getNextSibling());
+        assertSame(text, comment.getPreviousSibling());
+        assertTrue(text.isConnected());
+        assertTrue(comment.isConnected());
+        assertSame(document, text.getOwnerDocument());
         assertSame(first, parent.getFirstElementChild());
         assertSame(third, parent.getLastElementChild());
         assertSame(second, first.getNextElementSibling());
@@ -180,6 +200,8 @@ class DomSemanticsTest {
         Element select = new Element(document, "select");
         Element firstOption = new Element(document, "option");
         Element secondOption = new Element(document, "option");
+        TextNode textNode = document.createTextNode("text-child");
+        CommentNode commentNode = document.createComment("comment-child");
 
         host.setTextContent("<raw&text>");
         assertEquals("&lt;raw&amp;text&gt;", host.getInnerHTML());
@@ -189,6 +211,15 @@ class DomSemanticsTest {
         child.setTextContent("ok");
         host.appendChild(child);
         assertEquals("<span title=\"&quot;quoted&quot;\">ok</span>", host.getInnerHTML());
+
+        host.removeChild(child);
+        host.appendChild(textNode);
+        host.appendChild(commentNode);
+        assertEquals("text-childcomment-child", host.getTextContent());
+        assertEquals(List.of(textNode, commentNode), host.getChildNodes());
+        assertTrue(host.hasChildNodes());
+        assertSame(textNode, host.getFirstChild());
+        assertSame(commentNode, host.getLastChild());
 
         firstOption.setAttribute("value", "a");
         secondOption.setAttribute("value", "b");
@@ -201,9 +232,15 @@ class DomSemanticsTest {
         assertEquals(1, select.getSelectedIndex());
 
         document.appendChild(host);
-        child.remove();
-        assertTrue(host.getChildren().isEmpty());
-        assertNull(child.getParentNode());
+        textNode.remove();
+        assertEquals(List.of(commentNode), host.getChildNodes());
+        assertNull(textNode.getParentNode());
+        assertFalse(textNode.isConnected());
+
+        commentNode.remove();
+        assertTrue(host.getChildNodes().isEmpty());
+        assertNull(commentNode.getParentNode());
+        assertFalse(commentNode.isConnected());
     }
 
     @Test
@@ -233,6 +270,8 @@ class DomSemanticsTest {
         Document document = TestDocumentFactory.createDocument();
         Element parent = new Element(document, "div");
         Element child = new Element(document, "span");
+        TextNode textNode = document.createTextNode("seed");
+        CommentNode commentNode = document.createComment("marker");
         document.appendChild(parent);
 
         AtomicInteger callbackCalls = new AtomicInteger();
@@ -240,28 +279,46 @@ class DomSemanticsTest {
         observer.observe(parent, true, true, true, true, true, true, "class,data-state");
 
         parent.appendChild(child);
+        parent.appendChild(textNode);
+        parent.appendChild(commentNode);
         child.setAttribute("class", "chip");
         child.setAttribute("title", "ignored");
         child.setTextContent("alpha");
+        textNode.setTextContent("updated");
 
         List<Document.MutationRecord> records = observer.takeRecords();
-        assertEquals(3, records.size());
+        assertEquals(6, records.size());
 
         Document.MutationRecord childList = records.get(0);
         assertEquals("childList", childList.type);
         assertSame(parent, childList.target);
         assertEquals(List.of(child), childList.addedNodes);
 
-        Document.MutationRecord attribute = records.get(1);
+        Document.MutationRecord textAppend = records.get(1);
+        assertEquals("childList", textAppend.type);
+        assertSame(parent, textAppend.target);
+        assertEquals(List.of(textNode), textAppend.addedNodes);
+
+        Document.MutationRecord commentAppend = records.get(2);
+        assertEquals("childList", commentAppend.type);
+        assertSame(parent, commentAppend.target);
+        assertEquals(List.of(commentNode), commentAppend.addedNodes);
+
+        Document.MutationRecord attribute = records.get(3);
         assertEquals("attributes", attribute.type);
         assertSame(child, attribute.target);
         assertEquals("class", attribute.attributeName);
         assertNull(attribute.oldValue);
 
-        Document.MutationRecord characterData = records.get(2);
+        Document.MutationRecord characterData = records.get(4);
         assertEquals("characterData", characterData.type);
         assertSame(child, characterData.target);
         assertEquals("", characterData.oldValue);
+
+        Document.MutationRecord textMutation = records.get(5);
+        assertEquals("characterData", textMutation.type);
+        assertSame(textNode, textMutation.target);
+        assertEquals("seed", textMutation.oldValue);
 
         child.setAttribute("data-state", "ready");
         document.flushMutationObservers();
@@ -269,7 +326,31 @@ class DomSemanticsTest {
 
         observer.disconnect();
         child.setAttribute("class", "done");
+        textNode.setTextContent("ignored");
         assertTrue(observer.takeRecords().isEmpty());
+    }
+
+    @Test
+    void setTextContentReplacesExistingChildNodesWithPlainText() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+        Element nested = new Element(document, "span");
+        TextNode textNode = document.createTextNode("before");
+        CommentNode commentNode = document.createComment("marker");
+
+        host.appendChild(nested);
+        host.appendChild(textNode);
+        host.appendChild(commentNode);
+        assertEquals("beforemarker", host.getTextContent());
+
+        host.setTextContent("reset");
+        assertEquals("reset", host.getTextContent());
+        assertTrue(host.getChildNodes().isEmpty());
+        assertNull(nested.getParentNode());
+        assertNull(textNode.getParentNode());
+        assertNull(commentNode.getParentNode());
+        assertFalse(textNode.isConnected());
+        assertFalse(commentNode.isConnected());
     }
 
     @Test

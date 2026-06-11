@@ -6,8 +6,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class Event {
-    public Element target;
-    public Element currentTarget;
+    public Node target;
+    public Node currentTarget;
     public String type;
     public boolean bubbles = true;
     public boolean cancelable = false;
@@ -18,11 +18,11 @@ public class Event {
     public boolean internal;
     public boolean stoppedPropagation = false;
 
-    public Event(Element currentTarget, String type, Consumer<Event> listener, boolean useCapture) {
+    public Event(Node currentTarget, String type, Consumer<Event> listener, boolean useCapture) {
         this(currentTarget, type, listener, useCapture, false);
     }
 
-    public Event(Element currentTarget, String type, Consumer<Event> listener, boolean useCapture, boolean internal) {
+    public Event(Node currentTarget, String type, Consumer<Event> listener, boolean useCapture, boolean internal) {
         this.target = currentTarget;
         this.currentTarget = currentTarget;
         this.type = type;
@@ -41,31 +41,31 @@ public class Event {
         }
     }
 
-    public static ArrayList<Element> getRoute(Element element) {
-        ArrayList<Element> result = new ArrayList<>();
-        Element parent = element.parentElement;
+    public static ArrayList<Node> getRoute(Node element) {
+        ArrayList<Node> result = new ArrayList<>();
+        Node parent = element.parentNode;
         while (parent != null) {
             result.add(parent);
-            parent = parent.parentElement;
+            parent = parent.parentNode;
         }
         return result;
     }
 
     public static boolean tiggerEvent(Event targetEvent) {
-        Element target = targetEvent.target;
+        Node target = targetEvent.target;
         if (target == null) return false;
 
         String type = targetEvent.type;
-        ArrayList<Element> route = target.getRoute();
+        ArrayList<Node> route = target.getRouteNodes();
         route.remove(target);
         AtomicBoolean consumed = new AtomicBoolean(false);
 
         // 捕获阶段，从body一直传递到目标元素的父元素。
         Collections.reverse(route);
-        for (Element element : route) {
-            element.triggerEvent(event -> {
+        for (Node node : route) {
+            node.triggerEvent(event -> {
                 if (event.type.equals(type) && event.useCapture) {
-                    targetEvent.currentTarget = element;
+                    targetEvent.currentTarget = node;
                     targetEvent.listener = event.listener;
                     if (!event.internal) consumed.set(true);
                     event.listener.accept(targetEvent);
@@ -87,11 +87,11 @@ public class Event {
 
         if (targetEvent.bubbles) {
             Collections.reverse(route);
-            for (Element element : route) {
+            for (Node node : route) {
                 AtomicBoolean stoppedPropagation = new AtomicBoolean(false);
-                element.triggerEvent(event -> {
+                node.triggerEvent(event -> {
                     if (event.type.equals(type) && !event.useCapture) {
-                        targetEvent.currentTarget = element;
+                        targetEvent.currentTarget = node;
                         targetEvent.listener = event.listener;
                         if (!event.internal) consumed.set(true);
                         event.listener.accept(targetEvent);
@@ -106,7 +106,7 @@ public class Event {
     }
 
     public static boolean triggerSingle(Event targetEvent) {
-        Element target = targetEvent.target;
+        Node target = targetEvent.target;
         if (target == null) return false;
 
         String type = targetEvent.type;

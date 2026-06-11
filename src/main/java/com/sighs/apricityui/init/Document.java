@@ -320,13 +320,15 @@ public class Document {
         return new Element(this, tagName);
     }
 
-    public Element createTextNode(String text) {
-        Element node = new Element(this, "SPAN");
-        node.setTextContent(text);
-        return node;
+    public TextNode createTextNode(String text) {
+        return new TextNode(this, text);
     }
 
-    public void createRelation(Element child, Element parent, boolean head) {
+    public CommentNode createComment(String text) {
+        return new CommentNode(this, text);
+    }
+
+    public void createRelation(Node child, Node parent, boolean head) {
         tree.createRelation(child, parent, head);
     }
 
@@ -382,7 +384,7 @@ public class Document {
         clearFocus();
     }
 
-    public Element appendChild(Element element) {
+    public Node appendChild(Node element) {
         if (body == null) return null;
         return body.appendChild(element);
     }
@@ -397,9 +399,9 @@ public class Document {
         body.scrollBy(x, y);
     }
 
-    public Element prepend(Element element) {
+    public Node prepend(Node element) {
         if (body == null || element == null) return null;
-        body.prepend(element);
+        body.insertBefore(element, body.getFirstChild());
         return element;
     }
 
@@ -499,6 +501,10 @@ public class Document {
         return tree.getElements();
     }
 
+    public ArrayList<Node> getNodes() {
+        return tree.getNodes();
+    }
+
     public static void remove(String path) {
         documents.removeIf(document -> {
             if (!document.is(path)) return false;
@@ -519,9 +525,15 @@ public class Document {
         Document.remove(uuid);
     }
 
+    public void removeNode(Node node) {
+        tree.removeNode(node);
+        if (node instanceof Element element) {
+            motion.removeElement(element);
+        }
+    }
+
     public void removeElement(Element element) {
-        tree.removeElement(element);
-        motion.removeElement(element);
+        removeNode(element);
     }
 
     public MutationObserver createMutationObserver(Consumer<Object> callback) {
@@ -657,7 +669,7 @@ public class Document {
             this.ownerGeneration = owner == null ? -1L : owner.getRefreshGeneration();
         }
 
-        public void observe(Element target, boolean childList, boolean attributes, boolean characterData, boolean subtree,
+        public void observe(Node target, boolean childList, boolean attributes, boolean characterData, boolean subtree,
                             boolean attributeOldValue, boolean characterDataOldValue, String attributeFilterCsv) {
             if (target == null || disconnected) return;
             observed.removeIf(entry -> entry.target == target);
@@ -747,7 +759,7 @@ public class Document {
     }
 
     private record ObservedTarget(
-            Element target,
+            Node target,
             boolean childList,
             boolean attributes,
             boolean characterData,
@@ -770,16 +782,16 @@ public class Document {
 
     public static final class MutationRecord {
         public final String type;
-        public final Element target;
-        public final List<Element> addedNodes;
-        public final List<Element> removedNodes;
-        public final Element previousSibling;
-        public final Element nextSibling;
+        public final Node target;
+        public final List<Node> addedNodes;
+        public final List<Node> removedNodes;
+        public final Node previousSibling;
+        public final Node nextSibling;
         public final String attributeName;
         public final String oldValue;
 
-        private MutationRecord(String type, Element target, List<Element> addedNodes, List<Element> removedNodes,
-                               Element previousSibling, Element nextSibling, String attributeName, String oldValue) {
+        private MutationRecord(String type, Node target, List<Node> addedNodes, List<Node> removedNodes,
+                               Node previousSibling, Node nextSibling, String attributeName, String oldValue) {
             this.type = type == null ? "" : type;
             this.target = target;
             this.addedNodes = addedNodes == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(addedNodes));
@@ -790,16 +802,16 @@ public class Document {
             this.oldValue = oldValue;
         }
 
-        public static MutationRecord childList(Element target, List<Element> addedNodes, List<Element> removedNodes,
-                                               Element previousSibling, Element nextSibling) {
+        public static MutationRecord childList(Node target, List<Node> addedNodes, List<Node> removedNodes,
+                                               Node previousSibling, Node nextSibling) {
             return new MutationRecord("childList", target, addedNodes, removedNodes, previousSibling, nextSibling, null, null);
         }
 
-        public static MutationRecord attributes(Element target, String attributeName, String oldValue) {
+        public static MutationRecord attributes(Node target, String attributeName, String oldValue) {
             return new MutationRecord("attributes", target, List.of(), List.of(), null, null, attributeName, oldValue);
         }
 
-        public static MutationRecord characterData(Element target, String oldValue) {
+        public static MutationRecord characterData(Node target, String oldValue) {
             return new MutationRecord("characterData", target, List.of(), List.of(), null, null, null, oldValue);
         }
     }

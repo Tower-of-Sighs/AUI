@@ -4,6 +4,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
@@ -407,12 +408,16 @@ public class ResourceManager {
         return safe(entry.sourceRoot());
     }
 
-    private static boolean isInsideContextMenu(Element target) {
-        Element cursor = target;
+    private static boolean isInsideContextMenu(Node target) {
+        Node cursor = target;
         while (cursor != null) {
-            String cls = safe(cursor.getAttribute("class"));
+            if (!(cursor instanceof Element element)) {
+                cursor = cursor.getParentNode();
+                continue;
+            }
+            String cls = safe(element.getAttribute("class"));
             if (hasClass(cls, "context-menu")) return true;
-            cursor = cursor.parentElement;
+            cursor = cursor.getParentNode();
         }
         return false;
     }

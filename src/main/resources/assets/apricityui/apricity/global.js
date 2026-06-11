@@ -404,9 +404,9 @@ function __auiDecorateDataset(dataset) {
 function __auiToNode(value) {
   if (value == null) return null;
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return __auiDecorateElement(document.createTextNode(String(value)));
+    return __auiDecorateNode(document.createTextNode(String(value)));
   }
-  return __auiDecorateElement(value);
+  return __auiDecorateNode(value);
 }
 
 function __auiAppendMany(target, args, mode) {
@@ -422,61 +422,39 @@ function __auiAppendMany(target, args, mode) {
     else last = target.appendChild(node);
     if (mode !== 'append') last = node;
   }
-  return __auiDecorateElement(last);
+  return __auiDecorateNode(last);
 }
 
-function __auiDecorateElement(el) {
+function __auiDecorateNode(el) {
   if (!el || el.__auiDecoratedElement) return el;
   try {
     Object.defineProperty(el, '__auiDecoratedElement', { value: true });
+    __auiInstallValueBridge(el, 'nodeType', () => el.getNodeType());
+    __auiInstallValueBridge(el, 'nodeName', () => el.getNodeName());
+    __auiInstallValueBridge(el, 'nodeValue', () => el.getNodeValue ? el.getNodeValue() : null, (v) => {
+      if (typeof el.setTextContent === 'function') el.setTextContent(v == null ? '' : String(v));
+    });
     __auiInstallValueBridge(el, 'textContent', () => el.getTextContent(), (v) => el.setTextContent(v == null ? '' : String(v)));
-    __auiInstallValueBridge(el, 'innerHTML', () => el.getInnerHTML(), (v) => el.setInnerHTML(v == null ? '' : String(v)));
-    __auiInstallValueBridge(el, 'outerHTML', () => el.getOuterHTML(), (v) => el.setOuterHTML(v == null ? '' : String(v)));
-    __auiInstallValueBridge(el, 'className', () => el.getClassName(), (v) => el.setClassName(v == null ? '' : String(v)));
-    __auiInstallValueBridge(el, 'classList', () => __auiDecorateTokenList(el.getClassList()));
-    __auiInstallValueBridge(el, 'dataset', () => __auiDecorateDataset(el.getDataset()));
-    __auiInstallValueBridge(el, 'name', () => el.getAttribute('name'), (v) => el.setAttribute('name', v == null ? '' : String(v)));
-    __auiInstallValueBridge(el, 'type', () => el.getAttribute('type'), (v) => el.setAttribute('type', v == null ? '' : String(v)));
-    __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
-    __auiInstallValueBridge(el, 'multiple', () => !!el.hasAttribute('multiple'), (v) => el.toggleAttribute('multiple', !!v));
-    __auiInstallValueBridge(el, 'value', () => el.getValue(), (v) => el.setValue(v == null ? '' : String(v)));
-    __auiInstallValueBridge(el, 'checked', () => el.isChecked(), (v) => el.setChecked(!!v));
-    __auiInstallValueBridge(el, 'selected', () => el.isSelected(), (v) => el.setSelected(!!v));
-    __auiInstallValueBridge(el, 'selectedIndex', () => el.getSelectedIndex(), (v) => el.setSelectedIndex(v == null ? -1 : Number(v)));
-    __auiInstallValueBridge(el, 'scrollTop', () => el.getScrollTop(), (v) => el.setScrollTop(Number(v) || 0));
-    __auiInstallValueBridge(el, 'scrollLeft', () => el.getScrollLeft(), (v) => el.setScrollLeft(Number(v) || 0));
-    __auiInstallValueBridge(el, 'currentSrc', () => el.getCurrentSrc ? el.getCurrentSrc() : '');
-    __auiInstallValueBridge(el, 'naturalWidth', () => el.getNaturalWidth ? el.getNaturalWidth() : 0);
-    __auiInstallValueBridge(el, 'naturalHeight', () => el.getNaturalHeight ? el.getNaturalHeight() : 0);
-    __auiInstallValueBridge(el, 'complete', () => el.isComplete ? !!el.isComplete() : false);
-    __auiInstallValueBridge(el, 'children', () => __auiDecorateList(el.getChildren()));
     __auiInstallValueBridge(el, 'childNodes', () => __auiDecorateList(el.getChildNodes()));
-    __auiInstallValueBridge(el, 'options', () => __auiDecorateList(el.getOptions()));
-    __auiInstallValueBridge(el, 'selectedOptions', () => __auiDecorateList(el.getSelectedOptions()));
-    __auiInstallValueBridge(el, 'firstElementChild', () => __auiDecorateElement(el.getFirstElementChild()));
-    __auiInstallValueBridge(el, 'lastElementChild', () => __auiDecorateElement(el.getLastElementChild()));
-    __auiInstallValueBridge(el, 'nextElementSibling', () => __auiDecorateElement(el.getNextElementSibling()));
-    __auiInstallValueBridge(el, 'previousElementSibling', () => __auiDecorateElement(el.getPreviousElementSibling()));
-    __auiInstallValueBridge(el, 'parentElement', () => __auiDecorateElement(el.getParentNode()));
-    let qs = el.querySelector;
-    el.querySelector = function(sel) { return __auiDecorateElement(qs.call(el, sel)); };
-    let qsa = el.querySelectorAll;
-    el.querySelectorAll = function(sel) { return __auiDecorateList(qsa.call(el, sel)); };
-    let gec = el.getElementsByClassName;
-    el.getElementsByClassName = function(sel) { return __auiDecorateList(gec.call(el, sel)); };
-    let get = el.getElementsByTagName;
-    el.getElementsByTagName = function(sel) { return __auiDecorateList(get.call(el, sel)); };
-    let gen = el.getElementsByName;
-    el.getElementsByName = function(sel) { return __auiDecorateList(gen.call(el, sel)); };
+    __auiInstallValueBridge(el, 'firstChild', () => __auiDecorateNode(el.getFirstChild ? el.getFirstChild() : null));
+    __auiInstallValueBridge(el, 'lastChild', () => __auiDecorateNode(el.getLastChild ? el.getLastChild() : null));
+    __auiInstallValueBridge(el, 'nextSibling', () => __auiDecorateNode(el.getNextSibling ? el.getNextSibling() : null));
+    __auiInstallValueBridge(el, 'previousSibling', () => __auiDecorateNode(el.getPreviousSibling ? el.getPreviousSibling() : null));
+    __auiInstallValueBridge(el, 'parentNode', () => __auiDecorateNode(el.getParentNode ? el.getParentNode() : null));
+    __auiInstallValueBridge(el, 'ownerDocument', () => el.getOwnerDocument ? el.getOwnerDocument() : null);
+    __auiInstallValueBridge(el, 'isConnected', () => el.isConnected ? !!el.isConnected() : false);
+    __auiInstallValueBridge(el, 'data', () => el.getNodeValue ? el.getNodeValue() : null, (v) => {
+      if (typeof el.setTextContent === 'function') el.setTextContent(v == null ? '' : String(v));
+    });
     let ac = el.appendChild;
-    el.appendChild = function(child) { return __auiDecorateElement(ac.call(el, child)); };
+    el.appendChild = function(child) { return __auiDecorateNode(ac.call(el, child)); };
     el.__auiNativePrepend = el.prepend;
     el.append = function() { return __auiAppendMany(el, arguments, 'append'); };
     el.prepend = function() { return __auiAppendMany(el, arguments, 'prepend'); };
     let ic = el.insertBefore;
-    el.insertBefore = function(child, ref) { return __auiDecorateElement(ic.call(el, child, ref)); };
+    el.insertBefore = function(child, ref) { return __auiDecorateNode(ic.call(el, child, ref)); };
     let rc = el.removeChild;
-    el.removeChild = function(child) { return __auiDecorateElement(rc.call(el, child)); };
+    el.removeChild = function(child) { return __auiDecorateNode(rc.call(el, child)); };
     let rm = el.remove;
     el.remove = function() { return rm.call(el); };
     el.__auiNativeBefore = el.before;
@@ -485,34 +463,77 @@ function __auiDecorateElement(el) {
     el.after = function() { return __auiAppendMany(el, arguments, 'after'); };
     el.__auiNativeReplaceWith = el.replaceWith;
     el.replaceWith = function() { return __auiAppendMany(el, arguments, 'replaceWith'); };
-    let cc = el.closest;
-    el.closest = function(sel) { return __auiDecorateElement(cc.call(el, sel)); };
-    let gbcr = el.getBoundingClientRect;
-    el.getBoundingClientRect = function() { return gbcr.call(el); };
     let contains = el.contains;
     el.contains = function(node) { return contains.call(el, node); };
-    let matches = el.matches;
-    el.matches = function(sel) { return matches.call(el, sel); };
-    let focus = el.focus;
-    el.focus = function() { return focus.call(el); };
-    let blur = el.blur;
-    el.blur = function() { return blur.call(el); };
-    let click = el.click;
-    el.click = function() { return click.call(el); };
-    let submit = el.submit;
-    if (typeof submit === 'function') el.submit = function() { return submit.call(el); };
-    let scrollTo = el.scrollTo;
-    el.scrollTo = function(x, y) {
-      if (typeof x === 'object' && x) return scrollTo.call(el, Number(x.left || 0), Number(x.top || 0));
-      return scrollTo.call(el, Number(x) || 0, Number(y) || 0);
-    };
-    let scrollBy = el.scrollBy;
-    el.scrollBy = function(x, y) {
-      if (typeof x === 'object' && x) return scrollBy.call(el, Number(x.left || 0), Number(x.top || 0));
-      return scrollBy.call(el, Number(x) || 0, Number(y) || 0);
-    };
+    if (typeof el.getClassName === 'function') {
+      __auiInstallValueBridge(el, 'innerHTML', () => el.getInnerHTML(), (v) => el.setInnerHTML(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'outerHTML', () => el.getOuterHTML(), (v) => el.setOuterHTML(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'className', () => el.getClassName(), (v) => el.setClassName(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'classList', () => __auiDecorateTokenList(el.getClassList()));
+      __auiInstallValueBridge(el, 'dataset', () => __auiDecorateDataset(el.getDataset()));
+      __auiInstallValueBridge(el, 'name', () => el.getAttribute('name'), (v) => el.setAttribute('name', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'type', () => el.getAttribute('type'), (v) => el.setAttribute('type', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
+      __auiInstallValueBridge(el, 'multiple', () => !!el.hasAttribute('multiple'), (v) => el.toggleAttribute('multiple', !!v));
+      __auiInstallValueBridge(el, 'value', () => el.getValue(), (v) => el.setValue(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'checked', () => el.isChecked(), (v) => el.setChecked(!!v));
+      __auiInstallValueBridge(el, 'selected', () => el.isSelected(), (v) => el.setSelected(!!v));
+      __auiInstallValueBridge(el, 'selectedIndex', () => el.getSelectedIndex(), (v) => el.setSelectedIndex(v == null ? -1 : Number(v)));
+      __auiInstallValueBridge(el, 'scrollTop', () => el.getScrollTop(), (v) => el.setScrollTop(Number(v) || 0));
+      __auiInstallValueBridge(el, 'scrollLeft', () => el.getScrollLeft(), (v) => el.setScrollLeft(Number(v) || 0));
+      __auiInstallValueBridge(el, 'currentSrc', () => el.getCurrentSrc ? el.getCurrentSrc() : '');
+      __auiInstallValueBridge(el, 'naturalWidth', () => el.getNaturalWidth ? el.getNaturalWidth() : 0);
+      __auiInstallValueBridge(el, 'naturalHeight', () => el.getNaturalHeight ? el.getNaturalHeight() : 0);
+      __auiInstallValueBridge(el, 'complete', () => el.isComplete ? !!el.isComplete() : false);
+      __auiInstallValueBridge(el, 'children', () => __auiDecorateList(el.getChildren()));
+      __auiInstallValueBridge(el, 'options', () => __auiDecorateList(el.getOptions()));
+      __auiInstallValueBridge(el, 'selectedOptions', () => __auiDecorateList(el.getSelectedOptions()));
+      __auiInstallValueBridge(el, 'firstElementChild', () => __auiDecorateNode(el.getFirstElementChild()));
+      __auiInstallValueBridge(el, 'lastElementChild', () => __auiDecorateNode(el.getLastElementChild()));
+      __auiInstallValueBridge(el, 'nextElementSibling', () => __auiDecorateNode(el.getNextElementSibling()));
+      __auiInstallValueBridge(el, 'previousElementSibling', () => __auiDecorateNode(el.getPreviousElementSibling()));
+      __auiInstallValueBridge(el, 'parentElement', () => __auiDecorateNode(el.getParentNode()));
+      let qs = el.querySelector;
+      el.querySelector = function(sel) { return __auiDecorateNode(qs.call(el, sel)); };
+      let qsa = el.querySelectorAll;
+      el.querySelectorAll = function(sel) { return __auiDecorateList(qsa.call(el, sel)); };
+      let gec = el.getElementsByClassName;
+      el.getElementsByClassName = function(sel) { return __auiDecorateList(gec.call(el, sel)); };
+      let get = el.getElementsByTagName;
+      el.getElementsByTagName = function(sel) { return __auiDecorateList(get.call(el, sel)); };
+      let gen = el.getElementsByName;
+      el.getElementsByName = function(sel) { return __auiDecorateList(gen.call(el, sel)); };
+      let cc = el.closest;
+      el.closest = function(sel) { return __auiDecorateNode(cc.call(el, sel)); };
+      let gbcr = el.getBoundingClientRect;
+      el.getBoundingClientRect = function() { return gbcr.call(el); };
+      let matches = el.matches;
+      el.matches = function(sel) { return matches.call(el, sel); };
+      let focus = el.focus;
+      el.focus = function() { return focus.call(el); };
+      let blur = el.blur;
+      el.blur = function() { return blur.call(el); };
+      let click = el.click;
+      el.click = function() { return click.call(el); };
+      let submit = el.submit;
+      if (typeof submit === 'function') el.submit = function() { return submit.call(el); };
+      let scrollTo = el.scrollTo;
+      el.scrollTo = function(x, y) {
+        if (typeof x === 'object' && x) return scrollTo.call(el, Number(x.left || 0), Number(x.top || 0));
+        return scrollTo.call(el, Number(x) || 0, Number(y) || 0);
+      };
+      let scrollBy = el.scrollBy;
+      el.scrollBy = function(x, y) {
+        if (typeof x === 'object' && x) return scrollBy.call(el, Number(x.left || 0), Number(x.top || 0));
+        return scrollBy.call(el, Number(x) || 0, Number(y) || 0);
+      };
+    }
   } catch (e) {}
   return el;
+}
+
+function __auiDecorateElement(el) {
+  return __auiDecorateNode(el);
 }
 
 function ResizeObserver(callback) {
@@ -561,6 +582,10 @@ try {
   document.createElement = function(tag) { return __auiDecorateElement(__auiCreateElement.call(document, tag)); };
   let __auiCreateTextNode = document.createTextNode;
   document.createTextNode = function(text) { return __auiDecorateElement(__auiCreateTextNode.call(document, text)); };
+  let __auiCreateComment = document.createComment;
+  if (typeof __auiCreateComment === 'function') {
+    document.createComment = function(text) { return __auiDecorateElement(__auiCreateComment.call(document, text)); };
+  }
   let __auiCreatePath2D = document.createPath2D;
   document.createPath2D = function(path) { return __auiCreatePath2D.call(document, path); };
   function Path2D(path) { return document.createPath2D(path); }

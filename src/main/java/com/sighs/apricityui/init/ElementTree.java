@@ -4,10 +4,11 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.UUID;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 final class ElementTree {
     private final Document owner;
+    private final ArrayList<Node> nodes = new ArrayList<>();
     private final ArrayList<Element> elements = new ArrayList<>();
     private final HashMap<String, Element> idMap = new HashMap<>();
 
@@ -19,37 +20,50 @@ final class ElementTree {
         return elements;
     }
 
+    ArrayList<Node> getNodes() {
+        return nodes;
+    }
+
     void clear() {
+        nodes.clear();
         elements.clear();
         idMap.clear();
     }
 
     void rebuildFromBody() {
+        nodes.clear();
         elements.clear();
         idMap.clear();
         if (owner.body == null) return;
 
+        owner.body.parentNode = null;
         owner.body.parentElement = null;
         owner.body.depth = 0;
 
-        ArrayDeque<Element> stack = new ArrayDeque<>();
+        ArrayDeque<Node> stack = new ArrayDeque<>();
         stack.push(owner.body);
 
         while (!stack.isEmpty()) {
-            Element current = stack.pop();
-            elements.add(current);
-
-            current.runInitFromDomOnce(current);
-            if (current.id != null && !current.id.isBlank()) {
-                idMap.put(current.id, current);
+            Node current = stack.pop();
+            nodes.add(current);
+            if (current instanceof Element element) {
+                syncElementChildView(element);
+                elements.add(element);
+                element.runInitFromDomOnce(element);
+                if (element.id != null && !element.id.isBlank()) {
+                    idMap.put(element.id, element);
+                }
             }
 
-            List<Element> children = current.children;
+            List<Node> children = current.childNodes;
             for (int i = children.size() - 1; i >= 0; i--) {
-                Element child = children.get(i);
+                Node child = children.get(i);
                 if (child == null) continue;
-                child.parentElement = current;
+                child.parentNode = current;
                 child.depth = current.depth + 1;
+                if (child instanceof Element childElement) {
+                    childElement.parentElement = current instanceof Element parentElement ? parentElement : null;
+                }
                 stack.push(child);
             }
         }
@@ -64,29 +78,29 @@ final class ElementTree {
         elements.set(index, element);
     }
 
-    void createRelation(Element child, Element parent, boolean head) {
+    void createRelation(Node child, Node parent, boolean head) {
         if (child == null || parent == null) return;
-        moveSubtree(child, parent, head ? 0 : parent.children.size());
+        moveSubtree(child, parent, head ? 0 : parent.childNodes.size());
     }
 
-    void insertBefore(Element newChild, Element parent, Element referenceChild) {
+    void insertBefore(Node newChild, Node parent, Node referenceChild) {
         if (newChild == null || parent == null) return;
-        int index = referenceChild == null ? parent.children.size() : parent.children.indexOf(referenceChild);
-        if (index < 0) index = parent.children.size();
+        int index = referenceChild == null ? parent.childNodes.size() : parent.childNodes.indexOf(referenceChild);
+        if (index < 0) index = parent.childNodes.size();
         moveSubtree(newChild, parent, index);
     }
 
-    void replaceChild(Element parent, Element newChild, Element oldChild) {
+    void replaceChild(Node parent, Node newChild, Node oldChild) {
         if (parent == null || newChild == null || oldChild == null) return;
-        int index = parent.children.indexOf(oldChild);
+        int index = parent.childNodes.indexOf(oldChild);
         if (index < 0) return;
-        removeElement(oldChild);
-        moveSubtree(newChild, parent, Math.min(index, parent.children.size()));
+        removeNode(oldChild);
+        moveSubtree(newChild, parent, Math.min(index, parent.childNodes.size()));
     }
 
-    void removeElement(Element element) {
-        if (element == null) return;
-        detachSubtree(element);
+    void removeNode(Node node) {
+        if (node == null) return;
+        detachSubtree(node);
     }
 
     void removeId(String id, Element element) {
@@ -106,84 +120,104 @@ final class ElementTree {
         return idMap.get(id);
     }
 
-    private void moveSubtree(Element child, Element parent, int childIndex) {
+    private void moveSubtree(Node child, Node parent, int childIndex) {
         detachSubtree(child);
 
-        int safeIndex = Math.max(0, Math.min(childIndex, parent.children.size()));
-        parent.children.add(safeIndex, child);
-        Element previousSibling = safeIndex > 0 ? parent.children.get(safeIndex - 1) : null;
-        Element nextSibling = safeIndex + 1 < parent.children.size() ? parent.children.get(safeIndex + 1) : null;
+        int safeIndex = Math.max(0, Math.min(childIndex, parent.childNodes.size()));
+        parent.childNodes.add(safeIndex, child);
+        syncElementChildView(parent);
+        Node previousSibling = safeIndex > 0 ? parent.childNodes.get(safeIndex - 1) : null;
+        Node nextSibling = safeIndex + 1 < parent.childNodes.size() ? parent.childNodes.get(safeIndex + 1) : null;
 
-        updateSubtree(child, parent, parent.getDepth() + 1, owner);
-        child.syncDomStateAfterAttach();
+        updateSubtree(child, parent, parent.depth + 1, owner);
+        if (child instanceof Element childElement) {
+            childElement.syncDomStateAfterAttach();
+        }
 
-        int insertIndex = safeIndex == 0 ? elements.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.children.get(safeIndex - 1));
-        List<Element> subtree = flattenSubtree(child);
-        elements.addAll(insertIndex, subtree);
+        int insertIndex = safeIndex == 0 ? nodes.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.childNodes.get(safeIndex - 1));
+        List<Node> subtreeNodes = flattenSubtree(child);
+        nodes.addAll(insertIndex, subtreeNodes);
+        elements.addAll(resolveInsertIndexForElements(insertIndex), flattenElements(subtreeNodes));
 
-        child.invalidateStyle();
-        child.getRenderer().size.clear();
-        owner.markDirty(parent, Drawer.RELAYOUT | Drawer.REORDER);
+        if (child instanceof Element childElement) {
+            childElement.invalidateStyle();
+            childElement.getRenderer().size.clear();
+        }
+        if (parent instanceof Element parentElement) {
+            owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
+        }
         owner.queueMutation(Document.MutationRecord.childList(parent, List.of(child), List.of(), previousSibling, nextSibling));
     }
 
-    private void detachSubtree(Element element) {
-        Element oldParent = element.parentElement;
+    private void detachSubtree(Node node) {
+        Node oldParent = node.parentNode;
         if (oldParent != null) {
-            int index = oldParent.children.indexOf(element);
-            Element previousSibling = index > 0 ? oldParent.children.get(index - 1) : null;
-            Element nextSibling = index >= 0 && index + 1 < oldParent.children.size() ? oldParent.children.get(index + 1) : null;
-            oldParent.children.removeIf(e -> element.uuid.equals(e.uuid));
-            owner.markDirty(oldParent, Drawer.RELAYOUT | Drawer.REORDER);
-            owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(element), previousSibling, nextSibling));
+            int index = oldParent.childNodes.indexOf(node);
+            Node previousSibling = index > 0 ? oldParent.childNodes.get(index - 1) : null;
+            Node nextSibling = index >= 0 && index + 1 < oldParent.childNodes.size() ? oldParent.childNodes.get(index + 1) : null;
+            oldParent.childNodes.removeIf(candidate -> node.uuid.equals(candidate.uuid));
+            syncElementChildView(oldParent);
+            if (oldParent instanceof Element oldParentElement) {
+                owner.markDirty(oldParentElement, Drawer.RELAYOUT | Drawer.REORDER);
+            }
+            owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(node), previousSibling, nextSibling));
         }
 
-        List<Element> subtree = flattenSubtree(element);
-        elements.removeAll(subtree);
-        for (Element node : subtree) {
-            if (node.id != null && !node.id.isBlank()) {
-                removeId(node.id, node);
+        List<Node> subtree = flattenSubtree(node);
+        nodes.removeAll(subtree);
+        List<Element> subtreeElements = flattenElements(subtree);
+        elements.removeAll(subtreeElements);
+        for (Element element : subtreeElements) {
+            if (element.id != null && !element.id.isBlank()) {
+                removeId(element.id, element);
             }
-            node.getRenderer().route.clear();
+            element.getRenderer().route.clear();
         }
-        clearRemovedFocusState(subtree);
-        element.parentElement = null;
+        clearRemovedFocusState(subtreeElements);
+        node.parentNode = null;
+        if (node instanceof Element element) {
+            element.parentElement = null;
+        }
     }
 
-    private void updateSubtree(Element root, Element parent, int depth, Document document) {
-        root.parentElement = parent;
+    private void updateSubtree(Node root, Node parent, int depth, Document document) {
+        root.parentNode = parent;
         root.depth = depth;
         root.document = document;
-        root.getRenderer().route.clear();
-        if (root.id != null && !root.id.isBlank()) {
-            idMap.put(root.id, root);
+        if (root instanceof Element element) {
+            element.parentElement = parent instanceof Element parentElement ? parentElement : null;
+            syncElementChildView(element);
+            element.getRenderer().route.clear();
+            if (element.id != null && !element.id.isBlank()) {
+                idMap.put(element.id, element);
+            }
         }
-        for (Element child : root.children) {
+        for (Node child : root.childNodes) {
             updateSubtree(child, root, depth + 1, document);
         }
     }
 
-    private List<Element> flattenSubtree(Element root) {
-        ArrayList<Element> subtree = new ArrayList<>();
-        ArrayDeque<Element> stack = new ArrayDeque<>();
+    private List<Node> flattenSubtree(Node root) {
+        ArrayList<Node> subtree = new ArrayList<>();
+        ArrayDeque<Node> stack = new ArrayDeque<>();
         stack.push(root);
         while (!stack.isEmpty()) {
-            Element current = stack.pop();
+            Node current = stack.pop();
             subtree.add(current);
-            List<Element> children = current.children;
+            List<Node> children = current.childNodes;
             for (int i = children.size() - 1; i >= 0; i--) {
-                Element child = children.get(i);
+                Node child = children.get(i);
                 if (child != null) stack.push(child);
             }
         }
         return subtree;
     }
 
-    private int findSubtreeEndExclusive(Element element) {
-        int start = elements.indexOf(element);
-        if (start < 0) return elements.size();
+    private int findSubtreeEndExclusive(Node node) {
+        int start = nodes.indexOf(node);
+        if (start < 0) return nodes.size();
         int end = start + 1;
-        while (end < elements.size() && elements.get(end).depth > element.depth) {
+        while (end < nodes.size() && nodes.get(end).depth > node.depth) {
             end++;
         }
         return end;
@@ -202,5 +236,33 @@ final class ElementTree {
         if (previousCursor != null && subtree.contains(previousCursor)) {
             owner.setPreviousCursorElement(null);
         }
+    }
+
+    private void syncElementChildView(Node node) {
+        if (!(node instanceof Element element)) return;
+        CopyOnWriteArrayList<Element> elementChildren = new CopyOnWriteArrayList<>();
+        for (Node child : element.childNodes) {
+            if (child instanceof Element childElement) {
+                childElement.parentElement = element;
+                elementChildren.add(childElement);
+            }
+        }
+        element.children = elementChildren;
+    }
+
+    private List<Element> flattenElements(List<Node> source) {
+        ArrayList<Element> out = new ArrayList<>();
+        for (Node node : source) {
+            if (node instanceof Element element) out.add(element);
+        }
+        return out;
+    }
+
+    private int resolveInsertIndexForElements(int nodeInsertIndex) {
+        int elementIndex = 0;
+        for (int i = 0; i < Math.min(nodeInsertIndex, nodes.size()); i++) {
+            if (nodes.get(i) instanceof Element) elementIndex++;
+        }
+        return elementIndex;
     }
 }

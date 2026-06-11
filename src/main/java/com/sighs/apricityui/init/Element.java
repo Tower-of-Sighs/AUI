@@ -11,11 +11,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
-public class Element {
-    public static final short ELEMENT_NODE = 1;
-    public UUID uuid = UUID.randomUUID();
+public class Element extends Node {
     private HashMap<String, String> attributes = new HashMap<>();
-    public Document document;
     public String tagName;
     public String innerText = "";
     private String lastInnerText = "";
@@ -25,7 +22,6 @@ public class Element {
     // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
     public boolean isLoaded = false;
     public HashMap<String, String> cssCache = new HashMap<>();
-    public int depth = 0;
     public Element parentElement = null;
     public CopyOnWriteArrayList<Element> children = new CopyOnWriteArrayList<>();
     public boolean isPointerEnabled = true;
@@ -49,19 +45,17 @@ public class Element {
     public Set<String> classNames = Collections.emptySet();
     private RenderElement renderElement = new RenderElement(this);
     private final DirtyFlags dirty = new DirtyFlags();
-    private final EventRegistry events = new EventRegistry(this);
     private final NodeTree node = new NodeTree(this);
     private final ScrollModel scroll = new ScrollModel(this);
     private final TextSelection textSelection = new TextSelection(this);
     private final DOMTokenList classList = new DOMTokenList(this);
     private final DOMStringMap dataset = new DOMStringMap(this);
-    public CopyOnWriteArrayList<Event> EventListener = events.listeners();
     private boolean domInitHookInvoked = false;
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
 
     public Element(Document document, String tagName) {
-        this.document = document;
+        super(document);
         this.tagName = tagName.toUpperCase();
         textSelection.addEventListeners();
     }
@@ -648,9 +642,16 @@ public class Element {
             element.uuid = origin.uuid;
             element.innerText = origin.innerText.replace("\n", "");
             element.attributes = origin.attributes;
+            element.parentNode = origin.parentNode;
             element.parentElement = origin.parentElement;
             element.value = origin.value;
-            origin.children.forEach(e -> e.parentElement = element);
+            origin.childNodes.forEach(node -> {
+                node.parentNode = element;
+                if (node instanceof Element childElement) {
+                    childElement.parentElement = element;
+                }
+            });
+            element.childNodes.addAll(origin.childNodes);
             element.children = new CopyOnWriteArrayList<>(origin.children);
             element.updateInlineStyle();
             for (Event eventListener : origin.EventListener) {
@@ -722,16 +723,18 @@ public class Element {
         return children.size();
     }
 
+    @Override
     public boolean hasChildNodes() {
-        return !children.isEmpty();
+        return !childNodes.isEmpty();
     }
 
     public List<Element> getChildren() {
         return Collections.unmodifiableList(children);
     }
 
-    public List<Element> getChildNodes() {
-        return getChildren();
+    @Override
+    public List<Node> getChildNodes() {
+        return super.getChildNodes();
     }
 
     public List<Element> getOptions() {
@@ -770,26 +773,45 @@ public class Element {
         return parentElement.children.get(index - 1);
     }
 
+    @Override
     public Element getParentNode() {
         return parentElement;
     }
 
+    @Override
     public short getNodeType() {
         return ELEMENT_NODE;
     }
 
+    @Override
     public String getNodeName() {
         return tagName;
     }
 
+    @Override
     public String getTextContent() {
-        return innerText;
+        if (childNodes.isEmpty()) return innerText;
+        StringBuilder builder = new StringBuilder();
+        for (Node child : childNodes) {
+            if (child == null) continue;
+            String text = child.getTextContent();
+            if (text != null) builder.append(text);
+        }
+        return builder.toString();
     }
 
+    @Override
     public void setTextContent(String value) {
-        String oldValue = innerText;
-        innerText = value == null ? "" : value;
-        if (document != null && !Objects.equals(oldValue, innerText)) {
+        String oldValue = getTextContent();
+        String normalized = value == null ? "" : value;
+        if (!childNodes.isEmpty()) {
+            ArrayList<Node> snapshot = new ArrayList<>(childNodes);
+            for (Node child : snapshot) {
+                removeChild(child);
+            }
+        }
+        innerText = normalized;
+        if (document != null && !Objects.equals(oldValue, normalized)) {
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }
     }
@@ -1053,33 +1075,37 @@ public class Element {
 
     // 事件部分
 
+    @Override
     public void addEventListener(String type, Consumer<Event> listener) {
-        events.addEventListener(type, listener);
+        super.addEventListener(type, listener);
     }
 
+    @Override
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        events.addEventListener(type, listener, useCapture);
+        super.addEventListener(type, listener, useCapture);
     }
 
     public void addInternalEventListener(String type, Consumer<Event> listener) {
-        events.addInternalEventListener(type, listener);
+        super.addInternalEventListener(type, listener);
     }
 
     public void addInternalEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        events.addInternalEventListener(type, listener, useCapture);
+        super.addInternalEventListener(type, listener, useCapture);
     }
 
+    @Override
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
-        events.removeEventListener(type, listener, useCapture);
+        super.removeEventListener(type, listener, useCapture);
     }
 
+    @Override
     public void triggerEvent(Consumer<Event> handler) {
-        events.triggerEvent(handler);
+        super.triggerEvent(handler);
     }
 
+    @Override
     public void setEventListeners(CopyOnWriteArrayList<Event> listeners) {
-        events.setListeners(listeners);
-        EventListener = events.listeners();
+        super.setEventListeners(listeners);
     }
 
     public RenderElement getRenderer() {
