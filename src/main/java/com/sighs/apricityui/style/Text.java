@@ -232,7 +232,7 @@ public class Text {
         Text cache = element.getRenderer().text.get();
         if (cache != null) return cache;
         Text text = new Text();
-        text.content = element.innerText;
+        text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
         String lineHeight = null;
@@ -350,6 +350,21 @@ public class Text {
 
         element.getRenderer().text.set(text);
         return text;
+    }
+
+    private static String resolveElementTextContent(Element element) {
+        if (element == null) return "";
+        if (element.childNodes.isEmpty()) return element.innerText == null ? "" : element.innerText;
+        StringBuilder builder = new StringBuilder();
+        for (com.sighs.apricityui.init.Node child : element.childNodes) {
+            if (child instanceof com.sighs.apricityui.init.TextNode textNode) {
+                builder.append(textNode.getTextContent());
+            }
+        }
+        if (builder.isEmpty()) {
+            return element.innerText == null ? "" : element.innerText;
+        }
+        return builder.toString();
     }
 
     public static double calculateLineHeight(double fontSize, String lh) {

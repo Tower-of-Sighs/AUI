@@ -2,10 +2,12 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.NormalFlow;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.init.CommentNode;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.DocumentFragment;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.TextNode;
@@ -29,6 +31,10 @@ class DomSemanticsTest {
         assertEquals("test://doc", document.getLocation().getHref());
         assertEquals("test:", document.getLocation().getProtocol());
         assertEquals("loading", document.getReadyState());
+        assertSame(document.documentElement, document.getDocumentElement());
+        assertSame(document.head, document.getHead());
+        assertSame(document.documentElement, document.body.getParentNode());
+        assertSame(document.documentElement, document.head.getParentNode());
         assertSame(document.body, document.getActiveElement());
         assertFalse(document.hasFocus());
 
@@ -216,6 +222,8 @@ class DomSemanticsTest {
         host.appendChild(textNode);
         host.appendChild(commentNode);
         assertEquals("text-childcomment-child", host.getTextContent());
+        assertEquals("text-child<!--comment-child-->", host.getInnerHTML());
+        assertEquals("<div>text-child<!--comment-child--></div>", host.getOuterHTML());
         assertEquals(List.of(textNode, commentNode), host.getChildNodes());
         assertTrue(host.hasChildNodes());
         assertSame(textNode, host.getFirstChild());
@@ -241,6 +249,31 @@ class DomSemanticsTest {
         assertTrue(host.getChildNodes().isEmpty());
         assertNull(commentNode.getParentNode());
         assertFalse(commentNode.isConnected());
+    }
+
+    @Test
+    void documentFragmentAppendsAndInsertsChildrenWithoutBecomingParentNode() {
+        Document document = TestDocumentFactory.createDocument();
+        Element parent = new Element(document, "div");
+        Element anchor = new Element(document, "span");
+        Element first = new Element(document, "b");
+        TextNode text = document.createTextNode("txt");
+        CommentNode comment = document.createComment("marker");
+        DocumentFragment fragment = document.createDocumentFragment();
+
+        document.body.appendChild(parent);
+        parent.appendChild(anchor);
+        fragment.appendChild(first);
+        fragment.appendChild(text);
+        fragment.appendChild(comment);
+
+        parent.insertBefore(fragment, anchor);
+
+        assertEquals(List.of(first, text, comment, anchor), parent.getChildNodes());
+        assertSame(parent, first.getParentNode());
+        assertSame(parent, text.getParentNode());
+        assertSame(parent, comment.getParentNode());
+        assertTrue(fragment.getChildNodes().isEmpty());
     }
 
     @Test
@@ -354,6 +387,110 @@ class DomSemanticsTest {
     }
 
     @Test
+    void innerAndOuterHtmlPreserveTextAndCommentNodesFromParsedMarkup() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+        Element wrapper = new Element(document, "section");
+
+        host.setInnerHTML("hello<span>mid</span><!--tail-->");
+        assertEquals(3, host.getChildNodes().size());
+        assertTrue(host.getChildNodes().get(0) instanceof TextNode);
+        assertTrue(host.getChildNodes().get(1) instanceof Element);
+        assertTrue(host.getChildNodes().get(2) instanceof CommentNode);
+        assertEquals("hello<span>mid</span><!--tail-->", host.getInnerHTML());
+
+        document.body.appendChild(wrapper);
+        wrapper.appendChild(host);
+        host.setOuterHTML("before<strong>swap</strong><!--after-->");
+
+        assertEquals(3, wrapper.getChildNodes().size());
+        assertTrue(wrapper.getChildNodes().get(0) instanceof TextNode);
+        assertTrue(wrapper.getChildNodes().get(1) instanceof Element);
+        assertTrue(wrapper.getChildNodes().get(2) instanceof CommentNode);
+        assertEquals("before<strong>swap</strong><!--after-->", wrapper.getInnerHTML());
+    }
+
+    @Test
+    void cloneNodeSupportsShallowAndDeepCopiesAcrossNodeTypes() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+        Element child = new Element(document, "span");
+        TextNode textNode = document.createTextNode("hello");
+        CommentNode commentNode = document.createComment("marker");
+
+        child.setAttribute("data-role", "value");
+        child.appendChild(document.createTextNode("nested"));
+        host.appendChild(textNode);
+        host.appendChild(child);
+        host.appendChild(commentNode);
+
+        Element shallow = host.cloneNode(false);
+        Element deep = host.cloneNode(true);
+        DocumentFragment fragment = document.createDocumentFragment();
+        fragment.appendChild(host.cloneNode(true));
+        DocumentFragment fragmentClone = (DocumentFragment) fragment.cloneNode(true);
+
+        assertTrue(shallow.getChildNodes().isEmpty());
+        assertEquals(host.getAttributes(), shallow.getAttributes());
+
+        assertEquals(3, deep.getChildNodes().size());
+        assertTrue(deep.getFirstChild() instanceof TextNode);
+        assertTrue(deep.getChildNodes().get(1) instanceof Element);
+        assertTrue(deep.getLastChild() instanceof CommentNode);
+        assertEquals("hello", deep.getFirstChild().getTextContent());
+        assertEquals("nested", deep.getChildNodes().get(1).getTextContent());
+        assertEquals("marker", deep.getLastChild().getTextContent());
+
+        assertEquals(1, fragmentClone.getChildNodes().size());
+        assertNotSame(fragment.getFirstChild(), fragmentClone.getFirstChild());
+    }
+
+    @Test
+    void textNodesParticipateInContentModelAlongsideInlineElements() {
+        Document document = TestDocumentFactory.createDocument();
+        Element paragraph = new Element(document, "p");
+        TextNode prefix = document.createTextNode("点击");
+        Element link = new Element(document, "a");
+        TextNode suffix = document.createTextNode("继续");
+
+        link.setTextContent("这里");
+        paragraph.appendChild(prefix);
+        paragraph.appendChild(link);
+        paragraph.appendChild(suffix);
+
+        assertEquals(List.of(prefix, link, suffix), paragraph.getChildNodes());
+        assertEquals("点击这里继续", paragraph.getTextContent());
+        assertEquals("点击<a>这里</a>继续", paragraph.getInnerHTML());
+        prefix.setTextContent("请点击");
+        assertEquals("请点击这里继续", paragraph.getTextContent());
+    }
+
+    @Test
+    void textNodeRunsPreserveWhitespaceAroundInlineElements() {
+        assertEquals("Hello ", normalizeInlineFragment("Hello ", "normal"));
+        assertEquals(" !", normalizeInlineFragment(" !", "normal"));
+        assertEquals("line \n next", normalizeInlineFragment("line  \n  next", "pre-line"));
+    }
+
+    @Test
+    void textNodeOnlyElementsRemainSelectableAndOptionFallbackUsesTextNodes() {
+        Document document = TestDocumentFactory.createDocument();
+        Element label = new Element(document, "div");
+        Element select = new Element(document, "select");
+        Element option = new Element(document, "option");
+
+        label.appendChild(document.createTextNode("alpha "));
+        label.appendChild(document.createTextNode("beta"));
+
+        assertTrue(label.canSelectInnerText());
+
+        option.appendChild(document.createTextNode("visible"));
+        select.appendChild(option);
+        option.setSelected(true);
+        assertEquals("visible", select.getValue());
+    }
+
+    @Test
     void windowComputedStyleExposesInlineComputedValues() {
         Document document = TestDocumentFactory.createDocument();
         Element element = new Element(document, "div");
@@ -364,6 +501,16 @@ class DomSemanticsTest {
         assertEquals("20px", style.get("height"));
         assertEquals("block", style.getPropertyValue("display"));
         assertEquals("", style.getPropertyValue("missing-prop"));
+    }
+
+    private static String normalizeInlineFragment(String content, String whiteSpace) {
+        try {
+            java.lang.reflect.Method method = NormalFlow.class.getDeclaredMethod("normalizeInlineTextFragment", String.class, String.class);
+            method.setAccessible(true);
+            return (String) method.invoke(null, content, whiteSpace);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static final class TestBody extends Body {

@@ -112,7 +112,8 @@ public record Size(double width, double height) {
         boolean unsetWidth = parseNumber(style.width) == null;
         boolean unsetHeight = parseNumber(style.height) == null;
 
-        boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
+        boolean isText = element instanceof AbstractText
+                || ((!element.innerText.isEmpty() || hasDirectTextNodeChildren(element)) && element.children.isEmpty());
         Size contentSize;
         if (element instanceof com.sighs.apricityui.element.Canvas canvas) {
             contentSize = canvas.getIntrinsicSize();
@@ -199,6 +200,16 @@ public record Size(double width, double height) {
 
     public static Size getTextSize(Element element) {
         return Text.of(element).size;
+    }
+
+    private static boolean hasDirectTextNodeChildren(Element element) {
+        if (element == null) return false;
+        for (com.sighs.apricityui.init.Node child : element.childNodes) {
+            if (child instanceof com.sighs.apricityui.init.TextNode textNode && !textNode.getTextContent().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static Size getContentSize(Element element) {

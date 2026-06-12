@@ -10,6 +10,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.CommentNode;
 import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.render.Base;
@@ -291,6 +292,19 @@ class ElementBindingTest {
         assertTrue(commentNode.dispatchEvent(commentEvent));
         assertEquals(1, commentEvents.get());
         assertEquals(1, parentCommentEvents.get());
+    }
+
+    @Test
+    void nodeLevelInsertionStillUsesRegisteredElementFactory() {
+        Document document = createDocument();
+        Element parent = new Element(document, "div");
+        document.appendChild(parent);
+        Element.register("INPUT", (doc, tag) -> new Input(doc));
+
+        Node inserted = ((Node) parent).appendChild(new Element(document, "input"));
+
+        assertInstanceOf(Input.class, inserted);
+        assertInstanceOf(Input.class, parent.getFirstChild());
     }
 
     @Test

@@ -571,6 +571,7 @@ public class Element extends Node {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
+                drawChildTextRuns(poseStack, rectRenderer);
                 textSelection.drawInnerTextSelection(poseStack, rectRenderer);
                 textSelection.drawInnerText(poseStack, rectRenderer);
                 scroll.drawScrollbar(poseStack, rectRenderer);
@@ -628,7 +629,8 @@ public class Element extends Node {
     private static final Map<String, BiFunction<Document, String, ? extends Element>> REGISTRY = new HashMap<>();
 
     public static void register(String tagName, BiFunction<Document, String, ? extends Element> creator) {
-        REGISTRY.put(tagName, creator);
+        if (tagName == null || creator == null) return;
+        REGISTRY.put(tagName.toUpperCase(Locale.ROOT), creator);
     }
 
     // 只发生在解析html的时候，元素创建的时候，将基础元素用对应类的元素替代
@@ -645,6 +647,7 @@ public class Element extends Node {
             element.parentNode = origin.parentNode;
             element.parentElement = origin.parentElement;
             element.value = origin.value;
+            element.classNames = origin.classNames;
             origin.childNodes.forEach(node -> {
                 node.parentNode = element;
                 if (node instanceof Element childElement) {
@@ -663,13 +666,6 @@ public class Element extends Node {
                 }
             }
             origin.document.updateElement(element);
-
-            if (!element.innerText.isEmpty() && element.tagName.equals("DIV")) {
-                Element textNode = new Element(element.document, "SPAN");
-                textNode.innerText = element.innerText;
-                element.innerText = "";
-                element.prepend(textNode);
-            }
 
             element.runInitFromDomOnce(origin);
 
@@ -774,8 +770,8 @@ public class Element extends Node {
     }
 
     @Override
-    public Element getParentNode() {
-        return parentElement;
+    public Node getParentNode() {
+        return parentNode;
     }
 
     @Override
@@ -811,27 +807,52 @@ public class Element extends Node {
             }
         }
         innerText = normalized;
+        getRenderer().text.clear();
+        getRenderer().wrappedText.clear();
+        getRenderer().size.clear();
         if (document != null && !Objects.equals(oldValue, normalized)) {
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }
     }
 
+    @Override
+    public Element cloneNode(boolean deep) {
+        Element cloned = Element.init(new Element(document, tagName));
+        cloned.innerText = innerText;
+        cloned.id = id;
+        cloned.value = value;
+        cloned.checkedState = checkedState;
+        cloned.checkedDirty = checkedDirty;
+        cloned.selectedState = selectedState;
+        cloned.selectedDirty = selectedDirty;
+        cloned.valueDirty = valueDirty;
+        cloned.attributes.putAll(attributes);
+        cloned.classNames = classNames == null ? Collections.emptySet() : classNames;
+        if (deep) {
+            for (Node child : childNodes) {
+                Node copy = child.cloneNode(true);
+                if (copy != null) cloned.appendChild(copy);
+            }
+        }
+        return cloned;
+    }
+
     public String getInnerHTML() {
-        if (children.isEmpty()) {
+        if (childNodes.isEmpty()) {
             return escapeHtml(innerText);
         }
         StringBuilder builder = new StringBuilder();
-        for (Element child : children) {
+        for (Node child : childNodes) {
             if (child != null) {
-                builder.append(serializeHtml(child));
+                builder.append(serializeNode(child));
             }
         }
         return builder.toString();
     }
 
     public void setInnerHTML(String html) {
-        ArrayList<Element> snapshot = new ArrayList<>(children);
-        for (Element child : snapshot) {
+        ArrayList<Node> snapshot = new ArrayList<>(childNodes);
+        for (Node child : snapshot) {
             removeChild(child);
         }
         innerText = "";
@@ -841,14 +862,14 @@ public class Element extends Node {
         Element wrapper = document.createHTML("<div>" + html + "</div>");
         if (wrapper == null) return;
 
-        ArrayList<Element> newChildren = new ArrayList<>(wrapper.children);
-        for (Element child : newChildren) {
+        ArrayList<Node> newChildren = new ArrayList<>(wrapper.childNodes);
+        for (Node child : newChildren) {
             appendChild(child);
         }
     }
 
     public String getOuterHTML() {
-        return serializeHtml(this);
+        return serializeNode(this);
     }
 
     public void setOuterHTML(String html) {
@@ -864,10 +885,10 @@ public class Element extends Node {
             return;
         }
 
-        ArrayList<Element> replacements = new ArrayList<>(wrapper.children);
+        ArrayList<Node> replacements = new ArrayList<>(wrapper.childNodes);
         Element insertionParent = parentElement;
         Element anchor = this;
-        for (Element replacement : replacements) {
+        for (Node replacement : replacements) {
             insertionParent.insertBefore(replacement, anchor);
         }
         remove();
@@ -1177,7 +1198,7 @@ public class Element extends Node {
 
     private String getOptionValue() {
         String optionValue = getAttribute("value");
-        if (optionValue == null || optionValue.isBlank()) return innerText == null ? "" : innerText;
+        if (optionValue == null || optionValue.isBlank()) return getTextContent();
         return optionValue;
     }
 
@@ -1458,6 +1479,20 @@ public class Element extends Node {
         }
     }
 
+    private static String serializeNode(Node node) {
+        if (node == null) return "";
+        if (node instanceof TextNode textNode) {
+            return escapeHtml(textNode.getTextContent());
+        }
+        if (node instanceof CommentNode commentNode) {
+            return "<!--" + escapeHtml(commentNode.getTextContent()) + "-->";
+        }
+        if (!(node instanceof Element element)) {
+            return "";
+        }
+        return serializeHtml(element);
+    }
+
     private static String serializeHtml(Element element) {
         if (element == null) return "";
         StringBuilder builder = new StringBuilder();
@@ -1472,9 +1507,9 @@ public class Element extends Node {
             }
         }
         builder.append('>');
-        if (!element.children.isEmpty()) {
-            for (Element child : element.children) {
-                builder.append(serializeHtml(child));
+        if (!element.childNodes.isEmpty()) {
+            for (Node child : element.childNodes) {
+                builder.append(serializeNode(child));
             }
         } else if (!element.innerText.isEmpty()) {
             builder.append(escapeHtml(element.innerText));
@@ -1534,6 +1569,31 @@ public class Element extends Node {
             double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, i == 0);
             Text lineText = cloneTextForSegment(text, line, Color.BLACK);
             FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, drawY + lineTop));
+        }
+    }
+
+    private void drawChildTextRuns(PoseStack poseStack, Rect rectRenderer) {
+        if (childNodes.isEmpty()) return;
+        if (this instanceof com.sighs.apricityui.element.AbstractText) return;
+        if (children.isEmpty()) {
+            for (Node child : childNodes) {
+                if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
+                    return;
+                }
+            }
+        }
+        Position contentPos = rectRenderer.getContentPosition();
+        for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(this)) {
+            if (run == null || run.text() == null || run.lines() == null) continue;
+            Position drawPos = new Position(0, 0);
+            for (int i = 0; i < run.lines().size(); i++) {
+                String line = run.lines().get(i);
+                if (line == null || line.isEmpty()) continue;
+                drawPos.x = contentPos.x + (i == 0 ? run.x() : 0) - scrollLeft;
+                drawPos.y = contentPos.y + run.y() + i * run.text().lineHeight;
+                Text lineText = cloneTextForSegment(run.text(), line, Color.BLACK);
+                FontDrawer.drawFont(poseStack, lineText, drawPos);
+            }
         }
     }
 
@@ -1607,7 +1667,7 @@ public class Element extends Node {
         return copy;
     }
 
-    static void copyTextForRun(Text base, Text out) {
+    public static void copyTextForRun(Text base, Text out) {
         out.fontSize = base.fontSize;
         out.fontWeight = base.fontWeight;
         out.oblique = base.oblique;

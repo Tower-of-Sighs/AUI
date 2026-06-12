@@ -11,6 +11,7 @@ public abstract class Node {
     public static final short ELEMENT_NODE = 1;
     public static final short TEXT_NODE = 3;
     public static final short COMMENT_NODE = 8;
+    public static final short DOCUMENT_FRAGMENT_NODE = 11;
 
     public UUID uuid = UUID.randomUUID();
     public Document document;
@@ -87,7 +88,8 @@ public abstract class Node {
         Node current = this;
         while (current != null) {
             if (current.parentNode == null) {
-                return current instanceof Element root && root.document != null && root.document.body == root;
+                if (!(current instanceof Element root) || root.document == null) return false;
+                return root.document.documentElement == root || root.document.body == root;
             }
             current = current.parentNode;
         }
@@ -96,8 +98,17 @@ public abstract class Node {
 
     public Node appendChild(Node node) {
         if (document == null || node == null) return null;
-        document.createRelation(node, this, false);
-        return node;
+        if (node instanceof DocumentFragment fragment) {
+            Node last = null;
+            ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
+            for (Node child : snapshot) {
+                last = document.createRelationAndReturn(prepareForInsertion(child), this, false);
+            }
+            return last;
+        }
+        Node inserted = prepareForInsertion(node);
+        document.createRelation(inserted, this, false);
+        return inserted;
     }
 
     public Node removeChild(Node node) {
@@ -108,14 +119,65 @@ public abstract class Node {
 
     public Node insertBefore(Node newNode, Node referenceNode) {
         if (document == null || newNode == null) return null;
-        document.getTree().insertBefore(newNode, this, referenceNode);
-        return newNode;
+        if (newNode instanceof DocumentFragment fragment) {
+            Node last = null;
+            ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
+            for (Node child : snapshot) {
+                last = document.getTree().insertBeforeAndReturn(prepareForInsertion(child), this, referenceNode);
+            }
+            return last;
+        }
+        Node inserted = prepareForInsertion(newNode);
+        document.getTree().insertBefore(inserted, this, referenceNode);
+        return inserted;
     }
 
     public Node replaceChild(Node newNode, Node oldNode) {
         if (document == null || newNode == null || oldNode == null || oldNode.parentNode != this) return null;
-        document.getTree().replaceChild(this, newNode, oldNode);
+        if (newNode instanceof DocumentFragment fragment) {
+            Node nextSibling = oldNode.getNextSibling();
+            document.removeNode(oldNode);
+            ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
+            for (Node child : snapshot) {
+                document.getTree().insertBefore(prepareForInsertion(child), this, nextSibling);
+            }
+            return oldNode;
+        }
+        document.getTree().replaceChild(this, prepareForInsertion(newNode), oldNode);
         return oldNode;
+    }
+
+    private Node prepareForInsertion(Node node) {
+        if (node instanceof Element element) {
+            return Element.init(element);
+        }
+        return node;
+    }
+
+    public Node cloneNode() {
+        return cloneNode(false);
+    }
+
+    public Node cloneNode(boolean deep) {
+        if (this instanceof TextNode textNode) {
+            return new TextNode(document, textNode.getTextContent());
+        }
+        if (this instanceof CommentNode commentNode) {
+            return new CommentNode(document, commentNode.getTextContent());
+        }
+        if (this instanceof DocumentFragment fragment) {
+            DocumentFragment copy = new DocumentFragment(document);
+            if (deep) {
+                for (Node child : fragment.childNodes) {
+                    copy.appendChild(child.cloneNode(true));
+                }
+            }
+            return copy;
+        }
+        if (this instanceof Element element) {
+            return element.cloneNode(deep);
+        }
+        return null;
     }
 
     public void before(Node node) {

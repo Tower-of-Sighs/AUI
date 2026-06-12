@@ -104,8 +104,8 @@ final class TextSelection {
 
     boolean canSelectInnerText() {
         if (owner instanceof com.sighs.apricityui.element.AbstractText) return false;
-        if (owner.innerText == null || owner.innerText.isEmpty()) return false;
         if (!owner.children.isEmpty()) return false;
+        if (getRawSelectableTextSource().isEmpty()) return false;
         return Interaction.isUserSelectable(owner);
     }
 
@@ -265,7 +265,7 @@ final class TextSelection {
 
     private String getSelectableInnerText() {
         Text text = Text.of(owner);
-        String raw = owner.innerText == null ? "" : owner.innerText;
+        String raw = getRawSelectableTextSource();
         String whiteSpace = text.whiteSpace;
 
         boolean sameSource = normalizedSource == raw;
@@ -280,6 +280,22 @@ final class TextSelection {
         normalizedSource = raw;
         normalizedWhiteSpace = whiteSpace;
         return normalizedCache;
+    }
+
+    private String getRawSelectableTextSource() {
+        if (owner == null) return "";
+        if (!owner.childNodes.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+            for (Node child : owner.childNodes) {
+                if (child instanceof TextNode textNode) {
+                    builder.append(textNode.getTextContent());
+                }
+            }
+            if (!builder.isEmpty()) {
+                return builder.toString();
+            }
+        }
+        return owner.innerText == null ? "" : owner.innerText;
     }
 
     private double measureTextSegmentWidth(String segment) {

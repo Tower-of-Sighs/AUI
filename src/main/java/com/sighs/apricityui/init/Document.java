@@ -1,6 +1,8 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.element.Body;
+import com.sighs.apricityui.element.Head;
+import com.sighs.apricityui.element.Html;
 import com.sighs.apricityui.canvas.CanvasPath2D;
 import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.instance.Loader;
@@ -36,6 +38,8 @@ public class Document {
     public final Map<String, Map<String, String>> CSSCache = new LinkedHashMap<>();
     public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
     public final List<String> JSCache = new ArrayList<>();
+    public Html documentElement;
+    public Head head;
     public Body body;
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
@@ -70,19 +74,21 @@ public class Document {
         render.reset();
         motion.clear();
         invalidateSelectorIndex();
-        Element bodyElement = HTML.create(this, path);
+        HTML.DocumentRoot root = HTML.create(this, path);
         try {
-            if (bodyElement == null) return;
-            if (body != null) bodyElement.setEventListeners(body.EventListener);
-            body = (Body) Element.init(bodyElement);
+            if (root == null || root.body() == null) return;
+            if (body != null) root.body().setEventListeners(body.EventListener);
+            documentElement = root.documentElement();
+            head = root.head();
+            body = root.body();
             rebuildElementIndexFromBody();
 
             // First pass: ensure computed styles exist for DOM expanders.
-            style.recomputeSubtree(body);
+            style.recomputeSubtree(documentElement);
             DocumentExpander.apply(this);
 
             // Final pass: apply styles once after expansion.
-            style.recomputeSubtree(body);
+            style.recomputeSubtree(documentElement);
             tree.getElements().forEach(Element::clearDirtyFlags);
             render.reset();
             render.rebuildPaintList();
@@ -142,7 +148,7 @@ public class Document {
     }
 
     private void rebuildElementIndexFromBody() {
-        tree.rebuildFromBody();
+        tree.rebuildFromRoot(documentElement);
     }
 
 
@@ -328,16 +334,25 @@ public class Document {
         return new CommentNode(this, text);
     }
 
+    public DocumentFragment createDocumentFragment() {
+        return new DocumentFragment(this);
+    }
+
     public void createRelation(Node child, Node parent, boolean head) {
         tree.createRelation(child, parent, head);
     }
 
+    public Node createRelationAndReturn(Node child, Node parent, boolean head) {
+        tree.createRelation(child, parent, head);
+        return child;
+    }
+
     public List<Element> querySelectorAll(String selector) {
-        return Selector.querySelectorAll(body, selector);
+        return Selector.querySelectorAll(documentElement, selector);
     }
 
     public Element querySelector(String selector) {
-        return Selector.querySelector(body, selector);
+        return Selector.querySelector(documentElement, selector);
     }
 
     public void recordID(Element element) {
@@ -353,7 +368,11 @@ public class Document {
     }
 
     public Element getDocumentElement() {
-        return body;
+        return documentElement;
+    }
+
+    public Element getHead() {
+        return head;
     }
 
     public String getURL() {

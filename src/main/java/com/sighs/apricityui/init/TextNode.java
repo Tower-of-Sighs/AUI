@@ -43,6 +43,14 @@ public class TextNode extends Node {
         String normalized = value == null ? "" : value;
         String oldValue = data;
         data = normalized;
+        if (parentNode instanceof Element parentElement) {
+            parentElement.getRenderer().text.clear();
+            parentElement.getRenderer().wrappedText.clear();
+            parentElement.getRenderer().size.clear();
+            if (document != null) {
+                document.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REPAINT);
+            }
+        }
         if (document != null && !Objects.equals(oldValue, normalized)) {
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }

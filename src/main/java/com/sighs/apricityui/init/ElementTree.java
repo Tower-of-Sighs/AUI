@@ -30,18 +30,18 @@ final class ElementTree {
         idMap.clear();
     }
 
-    void rebuildFromBody() {
+    void rebuildFromRoot(Element root) {
         nodes.clear();
         elements.clear();
         idMap.clear();
-        if (owner.body == null) return;
+        if (root == null) return;
 
-        owner.body.parentNode = null;
-        owner.body.parentElement = null;
-        owner.body.depth = 0;
+        root.parentNode = null;
+        root.parentElement = null;
+        root.depth = 0;
 
         ArrayDeque<Node> stack = new ArrayDeque<>();
-        stack.push(owner.body);
+        stack.push(root);
 
         while (!stack.isEmpty()) {
             Node current = stack.pop();
@@ -88,6 +88,11 @@ final class ElementTree {
         int index = referenceChild == null ? parent.childNodes.size() : parent.childNodes.indexOf(referenceChild);
         if (index < 0) index = parent.childNodes.size();
         moveSubtree(newChild, parent, index);
+    }
+
+    Node insertBeforeAndReturn(Node newChild, Node parent, Node referenceChild) {
+        insertBefore(newChild, parent, referenceChild);
+        return newChild;
     }
 
     void replaceChild(Node parent, Node newChild, Node oldChild) {
@@ -144,6 +149,7 @@ final class ElementTree {
             childElement.getRenderer().size.clear();
         }
         if (parent instanceof Element parentElement) {
+            clearTextCaches(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         owner.queueMutation(Document.MutationRecord.childList(parent, List.of(child), List.of(), previousSibling, nextSibling));
@@ -158,6 +164,7 @@ final class ElementTree {
             oldParent.childNodes.removeIf(candidate -> node.uuid.equals(candidate.uuid));
             syncElementChildView(oldParent);
             if (oldParent instanceof Element oldParentElement) {
+                clearTextCaches(oldParentElement);
                 owner.markDirty(oldParentElement, Drawer.RELAYOUT | Drawer.REORDER);
             }
             owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(node), previousSibling, nextSibling));
@@ -178,6 +185,13 @@ final class ElementTree {
         if (node instanceof Element element) {
             element.parentElement = null;
         }
+    }
+
+    private static void clearTextCaches(Element element) {
+        if (element == null) return;
+        element.getRenderer().text.clear();
+        element.getRenderer().wrappedText.clear();
+        element.getRenderer().size.clear();
     }
 
     private void updateSubtree(Node root, Node parent, int depth, Document document) {

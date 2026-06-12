@@ -8,7 +8,6 @@ import java.util.function.Consumer;
 
 final class NodeTree {
     private final Element owner;
-    private boolean domInitHookInvoked = false;
 
     NodeTree(Element owner) {
         this.owner = owner;
@@ -58,31 +57,6 @@ final class NodeTree {
             }
             cur = cur.parentNode;
         }
-    }
-
-    void runInitFromDomOnce(Element origin) {
-        if (domInitHookInvoked) return;
-        domInitHookInvoked = true;
-
-        String attrId = owner.getAttributes().getOrDefault("id", null);
-        if ((owner.id == null || owner.id.isEmpty()) && attrId != null && !attrId.isEmpty()) {
-            owner.id = attrId;
-        }
-        if (owner.document != null && owner.id != null && !owner.id.isBlank()) {
-            owner.document.recordID(owner);
-        }
-
-        String attrValue = owner.getAttributes().getOrDefault("value", null);
-        if (owner.value == null && attrValue != null) {
-            owner.value = attrValue;
-        }
-
-        String attrClass = owner.getAttributes().getOrDefault("class", null);
-        if ((owner.classNames == null || owner.classNames.isEmpty()) && attrClass != null && !attrClass.isEmpty()) {
-            owner.classNames = Element.parseClassNames(attrClass);
-        }
-
-        owner.onInitFromDom(origin);
     }
 
     List<Element> querySelectorAll(String selector) {

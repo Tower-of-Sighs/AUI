@@ -20,15 +20,19 @@ class DocumentLifecycleTest {
                 """);
 
         Document document = new Document("test://doc-template", false);
-        Element root = HTML.create(document, "test://doc-template");
+        HTML.DocumentRoot root = HTML.create(document, "test://doc-template");
 
         assertNotNull(root);
-        assertEquals("BODY", root.getNodeName());
-        assertEquals("alpha", root.getAttribute("data-page"));
-        assertEquals("MAIN", root.getFirstElementChild().getNodeName());
-        assertEquals("app", root.getFirstElementChild().getAttribute("id"));
-        assertSame(root.getFirstElementChild(), root.querySelector("#app"));
-        assertEquals("ok", root.querySelector("#app span").getTextContent());
+        assertEquals("HTML", root.documentElement().getNodeName());
+        assertEquals("HEAD", root.head().getNodeName());
+        assertEquals("BODY", root.body().getNodeName());
+        assertSame(root.documentElement(), root.head().getParentNode());
+        assertSame(root.documentElement(), root.body().getParentNode());
+        assertEquals("alpha", root.body().getAttribute("data-page"));
+        assertEquals("MAIN", root.body().getFirstElementChild().getNodeName());
+        assertEquals("app", root.body().getFirstElementChild().getAttribute("id"));
+        assertSame(root.body().getFirstElementChild(), root.body().querySelector("#app"));
+        assertEquals("ok", root.body().querySelector("#app span").getTextContent());
     }
 
     @Test
