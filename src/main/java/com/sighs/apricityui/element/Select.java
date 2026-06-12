@@ -49,12 +49,12 @@ public class Select extends Element {
         String currentValue = getValue();
         if (java.util.Objects.equals(previousValue, currentValue)) return;
 
-        Event inputEvent = new Event(this, "input", null, false);
-        inputEvent.bubbles = true;
+        Event inputEvent = new Event(this, "input", true);
+        Event.markTrustedFromCurrentDispatch(inputEvent);
         Event.tiggerEvent(inputEvent);
 
-        Event changeEvent = new Event(this, "change", null, false);
-        changeEvent.bubbles = true;
+        Event changeEvent = new Event(this, "change", true);
+        Event.markTrustedFromCurrentDispatch(changeEvent);
         Event.tiggerEvent(changeEvent);
     }
 }

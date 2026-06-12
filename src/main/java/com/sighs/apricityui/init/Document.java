@@ -144,6 +144,7 @@ public class Document {
         if (body == null || type == null || type.isBlank() || !isActive()) return;
         Event event = new Event(body, type, null, false);
         event.bubbles = bubbles;
+        event.setTrusted(true);
         Event.triggerSingle(event);
     }
 
@@ -434,6 +435,11 @@ public class Document {
         body.addEventListener(type, listener, useCapture);
     }
 
+    public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture, boolean once) {
+        if (body == null) return;
+        body.addEventListener(type, listener, useCapture, once);
+    }
+
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
@@ -448,7 +454,8 @@ public class Document {
         if (body == null) return false;
         if (targetEvent.target == null) targetEvent.target = body;
         if (targetEvent.currentTarget == null) targetEvent.currentTarget = body;
-        return Event.tiggerEvent(targetEvent);
+        Event.tiggerEvent(targetEvent);
+        return !targetEvent.defaultPrevented;
     }
 
     public List<Element> getElementsByClassName(String className) {

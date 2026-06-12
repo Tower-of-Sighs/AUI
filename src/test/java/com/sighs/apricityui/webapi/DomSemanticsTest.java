@@ -12,6 +12,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.init.Window;
+import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashSet;
@@ -150,11 +151,11 @@ class DomSemanticsTest {
         parent.appendChild(comment);
 
         assertSame(first, document.getElementById("first"));
-        assertEquals(List.of(first, second), document.getElementsByClassName("chip"));
-        assertEquals(List.of(parent), document.getElementsByTagName("div"));
-        assertEquals(List.of(second), document.getElementsByName("username"));
-        assertEquals(List.of(first, second, third), parent.getChildren());
-        assertEquals(List.of(first, second, third, text, comment), parent.getChildNodes());
+        assertIterableEquals(List.of(first, second), document.getElementsByClassName("chip"));
+        assertIterableEquals(List.of(parent), document.getElementsByTagName("div"));
+        assertIterableEquals(List.of(second), document.getElementsByName("username"));
+        assertIterableEquals(List.of(first, second, third), parent.getChildren());
+        assertIterableEquals(List.of(first, second, third, text, comment), parent.getChildNodes());
         assertSame(first, parent.getFirstChild());
         assertSame(comment, parent.getLastChild());
         assertSame(parent, text.getParentNode());
@@ -274,6 +275,24 @@ class DomSemanticsTest {
         assertSame(parent, text.getParentNode());
         assertSame(parent, comment.getParentNode());
         assertTrue(fragment.getChildNodes().isEmpty());
+    }
+
+    @Test
+    void documentFragmentSetTextContentReplacesChildrenWithSingleTextNode() {
+        Document document = TestDocumentFactory.createDocument();
+        DocumentFragment fragment = document.createDocumentFragment();
+        Element element = new Element(document, "span");
+        TextNode textNode = document.createTextNode("before");
+
+        fragment.appendChild(element);
+        fragment.appendChild(textNode);
+        fragment.setTextContent("after");
+
+        assertEquals(1, fragment.getChildNodes().size());
+        assertTrue(fragment.getFirstChild() instanceof TextNode);
+        assertEquals("after", fragment.getTextContent());
+        assertNull(element.getParentNode());
+        assertNull(textNode.getParentNode());
     }
 
     @Test
@@ -488,6 +507,55 @@ class DomSemanticsTest {
         select.appendChild(option);
         option.setSelected(true);
         assertEquals("visible", select.getValue());
+    }
+
+    @Test
+    void textSelectionSelectabilityFallsBackToInnerTextWithoutChildNodes() {
+        Document document = TestDocumentFactory.createDocument();
+        Element label = new Element(document, "div");
+        document.body.appendChild(label);
+
+        label.innerText = "alpha beta";
+        assertTrue(label.canSelectInnerText());
+        label.appendChild(new Element(document, "span"));
+        assertFalse(label.canSelectInnerText());
+    }
+
+    @Test
+    void textNodeMutationInvalidatesParentSizeCaches() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+        TextNode textNode = document.createTextNode("a");
+        host.appendChild(textNode);
+        document.body.appendChild(host);
+
+        host.getRenderer().text.set(new Text());
+        host.getRenderer().wrappedText.set(new Text.WrappedTextCache(1, 2, 3, 4L, new Text.WrappedText(List.of("a"), new int[]{0}, 1)));
+        host.getRenderer().size.set(new Size(10, 10));
+
+        textNode.setTextContent("alphabet");
+
+        assertNull(host.getRenderer().size.get());
+        assertNull(host.getRenderer().text.get());
+        assertNull(host.getRenderer().wrappedText.get());
+        assertTrue(document.getDirtyElements().contains(host));
+    }
+
+    @Test
+    void commentNodeCharacterDataMutationQueuesMutationRecord() {
+        Document document = TestDocumentFactory.createDocument();
+        var comment = document.createComment("before");
+        var observer = document.createMutationObserver(ignored -> {
+        });
+        observer.observe(comment, false, false, true, false, false, true, null);
+
+        comment.setTextContent("after");
+
+        assertEquals("after", comment.getTextContent());
+        assertEquals("#comment", comment.getNodeName());
+        assertEquals(Node.COMMENT_NODE, comment.getNodeType());
+        assertEquals("<!--after-->", comment.toString());
+        assertEquals(1, observer.takeRecords().size());
     }
 
     @Test

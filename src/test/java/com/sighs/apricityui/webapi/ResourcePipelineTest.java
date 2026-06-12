@@ -2,6 +2,7 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.JS;
 import org.junit.jupiter.api.Test;
@@ -124,6 +125,66 @@ class ResourcePipelineTest {
         assertNull(root);
     }
 
+    @Test
+    void htmlCreateElementSkipsLeadingTextAndReturnsFirstElementChild() {
+        Document document = TestDocumentFactory.createDocument();
+
+        Element root = HTML.createElement(document, """
+                leading text
+                <!--comment-->
+                <section id="first">alpha</section>
+                <section id="second">beta</section>
+                """);
+
+        assertNotNull(root);
+        assertEquals("SECTION", root.getNodeName());
+        assertEquals("first", root.getAttribute("id"));
+        assertEquals("alpha", root.getTextContent());
+    }
+
+    @Test
+    void htmlCreatePreservesLooseTextAndCommentsInsideBody() {
+        HTML.putTemple("test://loose-body", """
+                <!DOCTYPE html>
+                <html>
+                  <body>
+                    hello
+                    <!--marker-->
+                    <main>content</main>
+                  </body>
+                </html>
+                """);
+        Document document = new Document("test://loose-body", false);
+
+        HTML.DocumentRoot root = HTML.create(document, "test://loose-body");
+
+        assertNotNull(root);
+        assertEquals(3, root.body().getChildNodes().size());
+        assertEquals("#text", root.body().getChildNodes().get(0).getNodeName());
+        assertEquals("hello", root.body().getChildNodes().get(0).getTextContent().trim());
+        assertEquals("#comment", root.body().getChildNodes().get(1).getNodeName());
+        assertEquals("MAIN", root.body().getChildNodes().get(2).getNodeName());
+    }
+
+    @Test
+    void commitRenderStateSkipsDisplayNoneSubtreesWhenRebuildingPaintList() {
+        Document document = TestDocumentFactory.createDocument();
+        Element visible = new Element(document, "div");
+        Element hidden = new Element(document, "div");
+        Element hiddenChild = new Element(document, "span");
+        document.body.appendChild(visible);
+        document.body.appendChild(hidden);
+        hidden.appendChild(hiddenChild);
+        hidden.setAttribute("style", "display: none;");
+
+        document.markDirty(document.body, com.sighs.apricityui.init.Drawer.REORDER);
+        document.commitRenderState();
+
+        assertFalse(containsPaintTarget(document.getPaintList(), hidden));
+        assertFalse(containsPaintTarget(document.getPaintList(), hiddenChild));
+        assertTrue(containsPaintTarget(document.getPaintList(), visible));
+    }
+
     @SuppressWarnings("unchecked")
     private static List<String> readCachedScriptContents(JS.Extractor extractor) {
         try {
@@ -143,5 +204,14 @@ class ResourcePipelineTest {
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }
+    }
+
+    private static boolean containsPaintTarget(List<RenderNode> nodes, Element target) {
+        for (RenderNode node : nodes) {
+            if (node instanceof RenderNode.ElementPhaseNode phase && phase.target() == target) {
+                return true;
+            }
+        }
+        return false;
     }
 }

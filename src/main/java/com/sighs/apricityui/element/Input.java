@@ -80,8 +80,13 @@ public class Input extends AbstractText {
     }
 
     private void triggerChangeEvent() {
-        Event.tiggerEvent(new Event(this, "input", null, true));
-        Event.tiggerEvent(new Event(this, "change", null, true));
+        Event inputEvent = new Event(this, "input", true);
+        Event.markTrustedFromCurrentDispatch(inputEvent);
+        Event.tiggerEvent(inputEvent);
+
+        Event changeEvent = new Event(this, "change", true);
+        Event.markTrustedFromCurrentDispatch(changeEvent);
+        Event.tiggerEvent(changeEvent);
     }
 
     public boolean handleSpaceKey() {

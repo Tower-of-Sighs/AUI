@@ -326,6 +326,7 @@ public class Element extends Node {
             // 先缓存当前构建中的 Style，避免 var() 解析阶段再次回到本元素时重复创建并递归进入。
             renderElement.computedStyle.set(computedStyle);
             computedStyle.resolveVarReferences(this);
+            computedStyle.finalizeComputedValues(this);
             isPointerEnabled = computedStyle.pointerEvents.equals("auto");
             isVisible = Interaction.isVisible(this);
         }
@@ -657,11 +658,11 @@ public class Element extends Node {
             element.childNodes.addAll(origin.childNodes);
             element.children = new CopyOnWriteArrayList<>(origin.children);
             element.updateInlineStyle();
-            for (Event eventListener : origin.EventListener) {
+            for (Event.ListenerRecord eventListener : origin.EventListener) {
                 // origin 在替换前是通用 Element，它构造时注册的 internal 监听器会闭包捕获旧实例。
                 // 如果直接整包复制，点击/聚焦会落到脱离 DOM 的旧对象上，导致输入链失效。
                 // 因此这里只保留外部注册的监听器；内建监听器由新实例自己的构造过程重新注册。
-                if (!eventListener.internal) {
+                if (!eventListener.internal()) {
                     element.EventListener.add(eventListener);
                 }
             }
@@ -1018,7 +1019,8 @@ public class Element extends Node {
         if (!(event instanceof Event targetEvent)) return false;
         if (targetEvent.target == null) targetEvent.target = this;
         if (targetEvent.currentTarget == null) targetEvent.currentTarget = this;
-        return Event.tiggerEvent(targetEvent);
+        Event.tiggerEvent(targetEvent);
+        return !targetEvent.defaultPrevented;
     }
 
     public void click() {
@@ -1046,6 +1048,7 @@ public class Element extends Node {
         }
         Event event = new Event(this, "scroll", null, false);
         event.bubbles = false;
+        Event.markTrustedFromCurrentDispatch(event);
         return Event.tiggerEvent(event);
     }
 
@@ -1106,6 +1109,10 @@ public class Element extends Node {
         super.addEventListener(type, listener, useCapture);
     }
 
+    public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
+        super.addEventListener(type, listener, useCapture, once);
+    }
+
     public void addInternalEventListener(String type, Consumer<Event> listener) {
         super.addInternalEventListener(type, listener);
     }
@@ -1120,12 +1127,12 @@ public class Element extends Node {
     }
 
     @Override
-    public void triggerEvent(Consumer<Event> handler) {
+    public void triggerEvent(Consumer<Event.ListenerRecord> handler) {
         super.triggerEvent(handler);
     }
 
     @Override
-    public void setEventListeners(CopyOnWriteArrayList<Event> listeners) {
+    public void setEventListeners(CopyOnWriteArrayList<Event.ListenerRecord> listeners) {
         super.setEventListeners(listeners);
     }
 
@@ -1572,9 +1579,24 @@ public class Element extends Node {
         }
     }
 
+    Position getFlexTextOffset() {
+        Text text = Text.of(this);
+        String content = text == null ? "" : text.content;
+        if (content == null || content.isEmpty()) return Position.ZERO;
+        java.util.List<String> lines = Text.splitLines(content);
+        String firstLine = lines.isEmpty() ? "" : lines.get(0);
+        double contentWidth = Box.of(this).innerSize().width();
+        double contentHeight = Box.of(this).innerSize().height();
+        double lineWidth = Text.measureLine(text, firstLine);
+        double x = computeFlexTextAlignedX(this, text, contentWidth, lineWidth);
+        double y = computeFlexTextAlignedY(this, text, contentHeight);
+        return new Position(x, y);
+    }
+
     private void drawChildTextRuns(PoseStack poseStack, Rect rectRenderer) {
         if (childNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
+        if (Layout.isFlexDisplay(getComputedStyle().display) || Layout.isGridDisplay(getComputedStyle().display)) return;
         if (children.isEmpty()) {
             for (Node child : childNodes) {
                 if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
@@ -1711,6 +1733,42 @@ public class Element extends Node {
             case "bottom", "text-bottom" -> contentHeight - textHeight;
             default -> 0;
         };
+    }
+
+    protected static double computeFlexTextAlignedX(Element element, Text text, double contentWidth, double lineWidth) {
+        if (element != null && Layout.isFlexDisplay(element.getComputedStyle().display)) {
+            Flex flex = Flex.of(element);
+            if (flex.flexDirection.isColumn()) {
+                String align = flex.alignItems.value();
+                if ("center".equals(align)) return (contentWidth - lineWidth) / 2.0;
+                if ("flex-end".equals(align) || "end".equals(align)) return contentWidth - lineWidth;
+            } else {
+                String justify = flex.justifyContent.value();
+                if ("center".equals(justify)) return (contentWidth - lineWidth) / 2.0;
+                if ("flex-end".equals(justify) || "end".equals(justify)) return contentWidth - lineWidth;
+            }
+        }
+        String align = text == null || text.textAlign == null ? "start" : resolveLogicalTextAlign(text);
+        if ("center".equals(align)) return (contentWidth - lineWidth) / 2.0;
+        if ("right".equals(align)) return contentWidth - lineWidth;
+        return 0;
+    }
+
+    protected static double computeFlexTextAlignedY(Element element, Text text, double contentHeight) {
+        if (element == null || text == null) return 0;
+        if (Layout.isFlexDisplay(element.getComputedStyle().display)) {
+            Flex flex = Flex.of(element);
+            if (flex.flexDirection.isColumn()) {
+                String justify = flex.justifyContent.value();
+                if ("center".equals(justify)) return (contentHeight - text.lineHeight) / 2.0;
+                if ("flex-end".equals(justify) || "end".equals(justify)) return contentHeight - text.lineHeight;
+            } else {
+                String align = flex.alignItems.value();
+                if ("center".equals(align)) return (contentHeight - text.lineHeight) / 2.0;
+                if ("flex-end".equals(align) || "end".equals(align)) return contentHeight - text.lineHeight;
+            }
+        }
+        return 0;
     }
 
     @Override

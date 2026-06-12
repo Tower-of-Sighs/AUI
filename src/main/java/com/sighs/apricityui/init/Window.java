@@ -29,7 +29,7 @@ public class Window {
     public static final Window window = new Window();
     public final LocalStorage localStorage = new LocalStorage();
     public final SessionStorage sessionStorage = new SessionStorage();
-    private final Map<String, List<WindowListener>> listeners = new ConcurrentHashMap<>();
+    private final Map<String, CopyOnWriteArrayList<Event.ListenerRecord>> listeners = new ConcurrentHashMap<>();
     private final Map<Integer, ClientScheduler.Cancellable> animationFrames = new ConcurrentHashMap<>();
     private final AtomicInteger nextAnimationFrameId = new AtomicInteger(1);
     private final Performance performance = new Performance();
@@ -126,8 +126,14 @@ public class Window {
     }
 
     public void addEventListener(String type, Consumer<Object> listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addEventListener(String type, Consumer<Object> listener, boolean useCapture, boolean once) {
         if (type == null || listener == null) return;
-        listeners.computeIfAbsent(type, key -> new ArrayList<>()).add(new WindowListener(listener, useCapture));
+        Consumer<Event> wrapped = wrapWindowListener(listener);
+        listeners.computeIfAbsent(type, key -> new CopyOnWriteArrayList<>())
+                .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
     }
 
     public void removeEventListener(String type, Consumer<Object> listener) {
@@ -136,21 +142,40 @@ public class Window {
 
     public void removeEventListener(String type, Consumer<Object> listener, boolean useCapture) {
         if (type == null || listener == null) return;
-        List<WindowListener> typeListeners = listeners.get(type);
+        CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
         if (typeListeners == null) return;
-        typeListeners.removeIf(candidate -> candidate.listener.equals(listener) && candidate.useCapture == useCapture);
+        typeListeners.removeIf(candidate ->
+                candidate.useCapture() == useCapture && listener.equals(unwrapWindowListener(candidate.listener())));
     }
 
     public boolean dispatchEvent(Object event) {
-        String type = resolveEventType(event);
+        if (!(event instanceof Event windowEvent)) return false;
+        String type = windowEvent.type;
         if (type == null || type.isEmpty()) return false;
-        List<WindowListener> typeListeners = listeners.get(type);
-        if (typeListeners == null || typeListeners.isEmpty()) return false;
-        List<WindowListener> snapshot = new ArrayList<>(typeListeners);
-        for (WindowListener listener : snapshot) {
-            listener.listener.accept(event);
+        CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
+        if (typeListeners == null || typeListeners.isEmpty()) return true;
+        windowEvent.resetForDispatch(this);
+        boolean consumed = false;
+
+        for (Event.ListenerRecord listener : typeListeners) {
+            if (windowEvent.isImmediatePropagationStopped()) break;
+            if (listener.useCapture()) {
+                consumed |= invokeWindowListener(type, listener, windowEvent, Event.AT_TARGET);
+            }
         }
-        return true;
+
+        if (!windowEvent.isImmediatePropagationStopped()) {
+            for (Event.ListenerRecord listener : typeListeners) {
+                if (windowEvent.isImmediatePropagationStopped()) break;
+                if (!listener.useCapture()) {
+                    consumed |= invokeWindowListener(type, listener, windowEvent, Event.AT_TARGET);
+                }
+            }
+        }
+
+        windowEvent.eventPhase = Event.NONE;
+        windowEvent.currentTarget = null;
+        return !windowEvent.defaultPrevented;
     }
 
     public int requestAnimationFrame(Consumer<Double> callback) {
@@ -172,25 +197,26 @@ public class Window {
     }
 
     public WindowMouseEvent createMouseEvent(String type, double clientX, double clientY, int button) {
-        return new WindowMouseEvent(type, clientX, clientY, button);
+        return new WindowMouseEvent(this, type, clientX, clientY, button);
     }
 
     public WindowWheelEvent createWheelEvent(String type, double clientX, double clientY, double deltaX, double deltaY, int deltaMode) {
-        return new WindowWheelEvent(type, clientX, clientY, deltaX, deltaY, deltaMode);
+        return new WindowWheelEvent(this, type, clientX, clientY, deltaX, deltaY, deltaMode);
     }
 
     public WindowPointerEvent createPointerEvent(String type, double clientX, double clientY, int button, int pointerId, String pointerType, boolean isPrimary) {
-        return new WindowPointerEvent(type, clientX, clientY, button, pointerId, pointerType, isPrimary);
+        return new WindowPointerEvent(this, type, clientX, clientY, button, pointerId, pointerType, isPrimary);
     }
 
     public Event createEvent(String type, boolean bubbles) {
-        Event event = new Event(null, type, null, false);
-        event.bubbles = bubbles;
-        return event;
+        return new Event(this, type, bubbles);
     }
 
     public Event.CustomEvent createCustomEvent(String type, Object detail, boolean bubbles) {
-        return new Event.CustomEvent(type, detail, bubbles);
+        Event.CustomEvent event = new Event.CustomEvent(type, detail, bubbles);
+        event.target = this;
+        event.currentTarget = this;
+        return event;
     }
 
     public CSSStyleDeclaration getComputedStyle(Element element) {
@@ -208,18 +234,9 @@ public class Window {
     }
 
     public void fireResizeEvent() {
-        dispatchEvent(new WindowEvent("resize"));
-    }
-
-    private static String resolveEventType(Object event) {
-        if (event instanceof WindowEvent windowEvent) return windowEvent.type;
-        try {
-            java.lang.reflect.Field field = event.getClass().getField("type");
-            Object value = field.get(event);
-            return value == null ? null : value.toString();
-        } catch (Exception ignored) {
-            return null;
-        }
+        Event event = createEvent("resize", false);
+        event.setTrusted(true);
+        dispatchEvent(event);
     }
 
     private void cancelScheduled(Object handle) {
@@ -238,7 +255,42 @@ public class Window {
         }
     }
 
-    private record WindowListener(Consumer<Object> listener, boolean useCapture) {
+    private static boolean invokeWindowListener(String type, Event.ListenerRecord listener, Event event, short phase) {
+        if (listener == null || event == null) return false;
+        event.currentTarget = event.target;
+        event.eventPhase = phase;
+        listener.listener().accept(event);
+        if (listener.once() && event.target instanceof Window window) {
+            Consumer<Object> original = unwrapWindowListener(listener.listener());
+            if (original != null) {
+                window.removeEventListener(type, original, listener.useCapture());
+            }
+        }
+        return !listener.internal();
+    }
+
+    private static Consumer<Event> wrapWindowListener(Consumer<Object> listener) {
+        return new WindowListenerAdapter(listener);
+    }
+
+    private static Consumer<Object> unwrapWindowListener(Consumer<Event> listener) {
+        if (listener instanceof WindowListenerAdapter adapter) {
+            return adapter.delegate;
+        }
+        return null;
+    }
+
+    private static final class WindowListenerAdapter implements Consumer<Event> {
+        private final Consumer<Object> delegate;
+
+        private WindowListenerAdapter(Consumer<Object> delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void accept(Event event) {
+            delegate.accept(event);
+        }
     }
 
     public static class Performance {
@@ -247,29 +299,19 @@ public class Window {
         }
     }
 
-    public static class WindowEvent {
-        public final String type;
-
-        public WindowEvent(String type) {
-            this.type = type;
-        }
-    }
-
-    public static class WindowMouseEvent extends WindowEvent {
+    public static class WindowMouseEvent extends Event {
         public final double clientX;
         public final double clientY;
         public final double pageX;
         public final double pageY;
-        public final boolean bubbles;
         public final int button;
 
-        public WindowMouseEvent(String type, double clientX, double clientY, int button) {
-            super(type);
+        public WindowMouseEvent(Window target, String type, double clientX, double clientY, int button) {
+            super(target, type, true);
             this.clientX = clientX;
             this.clientY = clientY;
             this.pageX = clientX;
             this.pageY = clientY;
-            this.bubbles = true;
             this.button = button;
         }
     }
@@ -279,8 +321,8 @@ public class Window {
         public final double deltaY;
         public final int deltaMode;
 
-        public WindowWheelEvent(String type, double clientX, double clientY, double deltaX, double deltaY, int deltaMode) {
-            super(type, clientX, clientY, -1);
+        public WindowWheelEvent(Window target, String type, double clientX, double clientY, double deltaX, double deltaY, int deltaMode) {
+            super(target, type, clientX, clientY, -1);
             this.deltaX = deltaX;
             this.deltaY = deltaY;
             this.deltaMode = deltaMode;
@@ -292,8 +334,8 @@ public class Window {
         public final String pointerType;
         public final boolean isPrimary;
 
-        public WindowPointerEvent(String type, double clientX, double clientY, int button, int pointerId, String pointerType, boolean isPrimary) {
-            super(type, clientX, clientY, button);
+        public WindowPointerEvent(Window target, String type, double clientX, double clientY, int button, int pointerId, String pointerType, boolean isPrimary) {
+            super(target, type, clientX, clientY, button);
             this.pointerId = pointerId;
             this.pointerType = pointerType == null || pointerType.isBlank() ? "mouse" : pointerType;
             this.isPrimary = isPrimary;

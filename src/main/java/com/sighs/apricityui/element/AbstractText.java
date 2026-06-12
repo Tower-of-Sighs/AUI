@@ -190,17 +190,27 @@ public abstract class AbstractText extends Element {
     }
 
     public void replaceSelection(String str) {
-        insertText(str);
+        if (!canEditText()) return;
+        String normalized = str == null ? "" : normalizeInsertedText(str);
+        if (normalized.isEmpty()) {
+            if (!hasSelection()) return;
+            if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return;
+            pushUndoState();
+            sliceText(selMin(), selMax(), "deleteContentBackward", false);
+            return;
+        }
+        insertText(normalized);
     }
 
     public void insertText(String str) {
         if (!canEditText()) return;
         if (str == null || str.isEmpty()) return;
-        pushUndoState();
 
         ensureValue();
         str = normalizeInsertedText(str);
         if (str.isEmpty()) return;
+        if (!dispatchBeforeInputEvent("insertText", str)) return;
+        pushUndoState();
 
         if (hasSelection()) {
             int min = selMin();
@@ -228,7 +238,7 @@ public abstract class AbstractText extends Element {
         clearSelection();
         clampScroll();
         getRenderer().text.clear();
-        dispatchInputEvent();
+        dispatchInputEvent("insertText", str);
     }
 
     private String normalizeInsertedText(String str) {
@@ -264,30 +274,38 @@ public abstract class AbstractText extends Element {
     public boolean deleteBackward() {
         ensureValue();
         if (hasSelection()) {
+            if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return false;
             pushUndoState();
-            sliceText(selMin(), selMax());
+            sliceText(selMin(), selMax(), "deleteContentBackward", false);
             return true;
         }
         if (cursor <= 0) return false;
+        if (!dispatchBeforeInputEvent("deleteContentBackward", null)) return false;
         pushUndoState();
-        sliceText(cursor - 1, cursor);
+        sliceText(cursor - 1, cursor, "deleteContentBackward", false);
         return true;
     }
 
     public boolean deleteForward() {
         ensureValue();
         if (hasSelection()) {
+            if (!dispatchBeforeInputEvent("deleteContentForward", null)) return false;
             pushUndoState();
-            sliceText(selMin(), selMax());
+            sliceText(selMin(), selMax(), "deleteContentForward", false);
             return true;
         }
         if (cursor >= value.length()) return false;
+        if (!dispatchBeforeInputEvent("deleteContentForward", null)) return false;
         pushUndoState();
-        sliceText(cursor, cursor + 1);
+        sliceText(cursor, cursor + 1, "deleteContentForward", false);
         return true;
     }
 
     public void sliceText(int start, int end) {
+        sliceText(start, end, "deleteContentBackward", true);
+    }
+
+    private void sliceText(int start, int end, String inputType, boolean dispatchInputEvent) {
         ensureValue();
         if (start < 0) start = 0;
         if (end > value.length()) end = value.length();
@@ -301,12 +319,15 @@ public abstract class AbstractText extends Element {
         clearSelection();
         clampScroll();
         getRenderer().text.clear();
-        dispatchInputEvent();
+        if (dispatchInputEvent) {
+            dispatchInputEvent(inputType, null);
+        }
     }
 
     public boolean undo() {
         if (!canEditText()) return false;
         if (undoStack.isEmpty()) return false;
+        if (!dispatchBeforeInputEvent("historyUndo", null)) return false;
         TextState state = undoStack.pop();
         restoringUndo = true;
         try {
@@ -317,22 +338,30 @@ public abstract class AbstractText extends Element {
             selectionAnchor = clamp(state.selectionAnchor, 0, value.length());
             clampScroll();
             getRenderer().text.clear();
-            dispatchInputEvent();
+            dispatchInputEvent("historyUndo", null);
         } finally {
             restoringUndo = false;
         }
         return true;
     }
 
-    protected void dispatchInputEvent() {
-        Event event = new Event(this, "input", null, false);
-        event.bubbles = true;
+    protected void dispatchInputEvent(String inputType, String data) {
+        Event.InputEvent event = new Event.InputEvent(this, "input", true, inputType, data);
+        Event.markTrustedFromCurrentDispatch(event);
         Event.tiggerEvent(event);
     }
 
+    protected boolean dispatchBeforeInputEvent(String inputType, String data) {
+        Event.InputEvent event = new Event.InputEvent(this, "beforeinput", true, inputType, data);
+        event.cancelable = true;
+        Event.markTrustedFromCurrentDispatch(event);
+        Event.tiggerEvent(event);
+        return !event.defaultPrevented;
+    }
+
     protected void dispatchChangeEvent() {
-        Event event = new Event(this, "change", null, false);
-        event.bubbles = true;
+        Event event = new Event(this, "change", true);
+        Event.markTrustedFromCurrentDispatch(event);
         Event.tiggerEvent(event);
     }
 

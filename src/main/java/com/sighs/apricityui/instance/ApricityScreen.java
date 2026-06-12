@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.client.Minecraft;
@@ -53,14 +54,7 @@ public class ApricityScreen extends Screen {
     public void onClose() {
         if (linkedDocument != null) {
             if (linkedDocument.body != null) {
-                linkedDocument.body.triggerEvent(currentEvent -> {
-                    if ("unload".equals(currentEvent.type) && currentEvent.listener != null) {
-                        try {
-                            currentEvent.listener.accept(currentEvent);
-                        } catch (Exception ignored) {
-                        }
-                    }
-                });
+                Event.triggerSingle(new Event(linkedDocument.body, "unload", false));
             }
             linkedDocument.remove();
         }

@@ -18,20 +18,20 @@
             <span class="title">Resource Manager</span>
             <div class="header-actions">
                 <span class="count">0</span>
-                <div class="close-btn">X</div>
+                <div class="close-btn"><span class="btn-label">X</span></div>
             </div>
         </div>
         <div class="preview-status hidden">
             <span class="preview-status-path"></span>
-            <div class="preview-close-btn">Close</div>
+            <div class="preview-close-btn"><span class="btn-label">Close</span></div>
         </div>
         <div class="toolbar">
             <div class="mode-wrap">
-                <div class="mode-btn mode-all active">All</div>
-                <div class="mode-btn mode-folder">Folder</div>
+                <div class="mode-btn mode-all active"><span class="btn-label">All</span></div>
+                <div class="mode-btn mode-folder"><span class="btn-label">Folder</span></div>
             </div>
             <input class="filter-input" type="text" value="" placeholder="filter path/ext/layer" />
-            <div class="refresh-btn">Refresh</div>
+            <div class="refresh-btn"><span class="btn-label">Refresh</span></div>
         </div>
         <div class="table-header">
             <span class="cell c-index">#</span>
@@ -279,6 +279,28 @@
         justify-content: center;
         line-height: 7px;
         font-size: 7px;
+    }
+
+    .btn-label {
+        color: #93c5fd;
+        line-height: 7px;
+        font-size: 7px;
+    }
+
+    .close-btn .btn-label {
+        color: #d6e4ff;
+    }
+
+    .mode-btn .btn-label {
+        color: #9ca3af;
+    }
+
+    .mode-btn.active .btn-label {
+        color: #93c5fd;
+    }
+
+    .preview-close-btn .btn-label {
+        color: #93c5fd;
     }
 
     .table-header {

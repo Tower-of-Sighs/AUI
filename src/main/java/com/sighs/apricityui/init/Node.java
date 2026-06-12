@@ -20,7 +20,7 @@ public abstract class Node {
     public int depth = 0;
 
     private final EventRegistry events = new EventRegistry(this);
-    public CopyOnWriteArrayList<Event> EventListener = events.listeners();
+    public CopyOnWriteArrayList<Event.ListenerRecord> EventListener = events.listeners();
 
     protected Node(Document document) {
         this.document = document;
@@ -204,7 +204,8 @@ public abstract class Node {
         if (!(event instanceof Event targetEvent)) return false;
         if (targetEvent.target == null) targetEvent.target = this;
         if (targetEvent.currentTarget == null) targetEvent.currentTarget = this;
-        return Event.tiggerEvent(targetEvent);
+        Event.tiggerEvent(targetEvent);
+        return !targetEvent.defaultPrevented;
     }
 
     public void addEventListener(String type, Consumer<Event> listener) {
@@ -213,6 +214,10 @@ public abstract class Node {
 
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         events.addEventListener(type, listener, useCapture);
+    }
+
+    public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
+        events.addEventListener(type, listener, useCapture, once);
     }
 
     protected void addInternalEventListener(String type, Consumer<Event> listener) {
@@ -231,11 +236,11 @@ public abstract class Node {
         events.removeEventListener(type, listener, useCapture);
     }
 
-    public void triggerEvent(Consumer<Event> handler) {
+    public void triggerEvent(Consumer<Event.ListenerRecord> handler) {
         events.triggerEvent(handler);
     }
 
-    public void setEventListeners(CopyOnWriteArrayList<Event> listeners) {
+    public void setEventListeners(CopyOnWriteArrayList<Event.ListenerRecord> listeners) {
         events.setListeners(listeners);
         EventListener = events.listeners();
     }

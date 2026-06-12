@@ -84,6 +84,7 @@ final class FocusRing {
         if (element == null || type == null || type.isBlank()) return;
         Event event = new Event(element, type, null, false);
         event.bubbles = false;
+        Event.markTrustedFromCurrentDispatch(event);
         Event.triggerSingle(event);
     }
 

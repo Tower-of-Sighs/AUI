@@ -33,9 +33,12 @@ class WindowApiTest {
         window.addEventListener("resize", resizeListener);
         window.addEventListener("custom", customListener, true);
 
-        assertTrue(window.dispatchEvent(new Window.WindowEvent("resize")));
+        Event resizeEvent = window.createEvent("resize", false);
+        assertTrue(window.dispatchEvent(resizeEvent));
         assertEquals(1, resizeCalls.get());
         assertEquals(0, customCalls.get());
+        assertSame(window, resizeEvent.target);
+        assertNull(resizeEvent.currentTarget);
 
         Event custom = window.createEvent("custom", true);
         assertTrue(window.dispatchEvent(custom));
@@ -44,8 +47,8 @@ class WindowApiTest {
         window.removeEventListener("resize", resizeListener);
         window.removeEventListener("custom", customListener, true);
 
-        assertFalse(window.dispatchEvent(new Window.WindowEvent("resize")));
-        assertFalse(window.dispatchEvent(window.createEvent("custom", false)));
+        assertTrue(window.dispatchEvent(window.createEvent("resize", false)));
+        assertTrue(window.dispatchEvent(window.createEvent("custom", false)));
     }
 
     @Test
@@ -56,11 +59,14 @@ class WindowApiTest {
         assertEquals("submit", event.type);
         assertTrue(event.bubbles);
         assertFalse(event.cancelable);
+        assertFalse(event.isTrusted);
+        assertTrue(event.timeStamp > 0);
 
         Event.CustomEvent custom = window.createCustomEvent("ready", List.of("ok"), false);
         assertEquals("ready", custom.type);
         assertEquals(List.of("ok"), custom.detail);
         assertFalse(custom.bubbles);
+        assertFalse(custom.isTrusted);
 
         Window.WindowMouseEvent mouse = window.createMouseEvent("click", 10, 20, 0);
         assertEquals(10, mouse.clientX);
@@ -69,6 +75,8 @@ class WindowApiTest {
         assertEquals(20, mouse.pageY);
         assertEquals(0, mouse.button);
         assertTrue(mouse.bubbles);
+        assertSame(window, mouse.target);
+        assertFalse(mouse.isTrusted);
 
         Window.WindowWheelEvent wheel = window.createWheelEvent("wheel", 1, 2, 3, 4, 0);
         assertEquals(3, wheel.deltaX);
@@ -82,6 +90,75 @@ class WindowApiTest {
     }
 
     @Test
+    void windowEventSystemSupportsPhaseOnceAndImmediateStop() {
+        Window window = new Window();
+        AtomicInteger calls = new AtomicInteger();
+        AtomicInteger onceCalls = new AtomicInteger();
+        AtomicReference<Event> seen = new AtomicReference<>();
+
+        window.addEventListener("custom", event -> {
+            Event typed = (Event) event;
+            seen.set(typed);
+            calls.incrementAndGet();
+            assertSame(window, typed.target);
+            assertSame(window, typed.currentTarget);
+            assertEquals(Event.AT_TARGET, typed.eventPhase);
+            typed.stopImmediatePropagation();
+        }, true);
+        window.addEventListener("custom", event -> calls.incrementAndGet());
+        window.addEventListener("custom", event -> onceCalls.incrementAndGet(), false, true);
+
+        Event first = window.createEvent("custom", true);
+        assertTrue(window.dispatchEvent(first));
+        assertEquals(1, calls.get());
+        assertEquals(0, onceCalls.get());
+        assertNotNull(seen.get());
+        assertEquals(Event.NONE, first.eventPhase);
+        assertNull(first.currentTarget);
+
+        Event second = window.createEvent("custom", true);
+        assertTrue(window.dispatchEvent(second));
+        assertEquals(2, calls.get());
+        assertEquals(0, onceCalls.get());
+    }
+
+    @Test
+    void windowEventReflectsReturnValueAndCancelBubble() {
+        Window window = new Window();
+        AtomicInteger calls = new AtomicInteger();
+
+        window.addEventListener("custom", event -> {
+            Event typed = (Event) event;
+            calls.incrementAndGet();
+            assertTrue(typed.returnValue);
+            assertFalse(typed.cancelBubble);
+            typed.preventDefault();
+            typed.stopPropagation();
+            assertFalse(typed.returnValue);
+            assertTrue(typed.cancelBubble);
+        });
+
+        Event event = window.createEvent("custom", true);
+        event.cancelable = true;
+        assertFalse(window.dispatchEvent(event));
+        assertEquals(1, calls.get());
+        assertFalse(event.returnValue);
+        assertTrue(event.cancelBubble);
+    }
+
+    @Test
+    void windowOnceListenerRunsOnlyOnceWhenNotStopped() {
+        Window window = new Window();
+        AtomicInteger onceCalls = new AtomicInteger();
+
+        window.addEventListener("custom", event -> onceCalls.incrementAndGet(), false, true);
+
+        assertTrue(window.dispatchEvent(window.createEvent("custom", true)));
+        assertTrue(window.dispatchEvent(window.createEvent("custom", true)));
+        assertEquals(1, onceCalls.get());
+    }
+
+    @Test
     void performanceAndResizeEventBehaveLikeWindowUtilities() {
         Window window = new Window();
         double start = window.getPerformance().now();
@@ -89,9 +166,30 @@ class WindowApiTest {
         assertTrue(end >= start);
 
         AtomicInteger resizeCalls = new AtomicInteger();
-        window.addEventListener("resize", event -> resizeCalls.incrementAndGet());
+        window.addEventListener("resize", event -> {
+            Event typed = (Event) event;
+            resizeCalls.incrementAndGet();
+            assertTrue(typed.isTrusted);
+        });
         window.fireResizeEvent();
         assertEquals(1, resizeCalls.get());
+    }
+
+    @Test
+    void windowDispatchEventReturnsFalseOnlyWhenPreventDefaultCancels() {
+        Window window = new Window();
+        Consumer<Object> listener = event -> ((Event) event).preventDefault();
+        window.addEventListener("submit", listener);
+
+        Event canceled = window.createEvent("submit", true);
+        canceled.cancelable = true;
+        assertFalse(window.dispatchEvent(canceled));
+
+        Event notCancelable = window.createEvent("submit", true);
+        assertTrue(window.dispatchEvent(notCancelable));
+
+        window.removeEventListener("submit", listener);
+        assertTrue(window.dispatchEvent(window.createEvent("missing", false)));
     }
 
     @Test

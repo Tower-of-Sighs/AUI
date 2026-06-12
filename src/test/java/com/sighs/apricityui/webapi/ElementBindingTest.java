@@ -5,6 +5,8 @@ import com.sighs.apricityui.element.Img;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Option;
 import com.sighs.apricityui.element.Select;
+import com.sighs.apricityui.element.TextArea;
+import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -13,12 +15,14 @@ import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.CommentNode;
 import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -191,7 +195,7 @@ class ElementBindingTest {
         assertTrue(document.dispatchEvent(seedEvent));
         assertEquals(1, customEvents.get());
         assertSame(document.body, seedEvent.target);
-        assertSame(document.body, seedEvent.currentTarget);
+        assertNull(seedEvent.currentTarget);
 
         document.removeEventListener("custom", event -> customEvents.incrementAndGet());
         Event secondEvent = new Event(null, "custom", null, false);
@@ -210,7 +214,7 @@ class ElementBindingTest {
         assertEquals(1, calls.get());
 
         document.removeEventListener("custom", listener);
-        assertFalse(document.dispatchEvent(new Event(null, "custom", null, false)));
+        assertTrue(document.dispatchEvent(new Event(null, "custom", null, false)));
         assertEquals(1, calls.get());
     }
 
@@ -374,6 +378,71 @@ class ElementBindingTest {
     }
 
     @Test
+    void tickElementsUsesSnapshotWhenElementMutatesDocumentStructure() {
+        Document document = createDocument();
+
+        class PassiveElement extends Element {
+            private PassiveElement(Document ownerDocument, String tagName) {
+                super(ownerDocument, tagName);
+            }
+
+            @Override
+            public void tick() {
+            }
+        }
+
+        class MutatingElement extends PassiveElement {
+            private boolean appended;
+
+            private MutatingElement(Document ownerDocument) {
+                super(ownerDocument, "div");
+            }
+
+            @Override
+            public void tick() {
+                if (!appended) {
+                    appended = true;
+                    document.getElements().add(new PassiveElement(document, "span"));
+                }
+            }
+        }
+
+        MutatingElement first = new MutatingElement(document);
+        PassiveElement second = new PassiveElement(document, "div");
+        document.getElements().add(first);
+        document.getElements().add(second);
+
+        assertDoesNotThrow(document::tickElements);
+        assertEquals(3, document.getElements().size());
+    }
+
+    @Test
+    void documentMarkDirtyFlagsWholeSnapshotAndSpecificElement() {
+        Document document = createDocument();
+        Element first = new Element(document, "div");
+        Element second = new Element(document, "span");
+        document.getElements().add(first);
+        document.getElements().add(second);
+
+        document.markDirty(Drawer.RELAYOUT);
+
+        assertTrue(first.hasDirtyFlag(Drawer.RELAYOUT));
+        assertTrue(second.hasDirtyFlag(Drawer.RELAYOUT));
+        assertTrue(document.getDirtyElements().contains(first));
+        assertTrue(document.getDirtyElements().contains(second));
+
+        second.clearDirtyFlags();
+        document.getDirtyElements().clear();
+
+        document.markDirty(second, Drawer.REPAINT);
+
+        assertFalse(first.hasDirtyFlag(Drawer.REPAINT));
+        assertTrue(second.hasDirtyFlag(Drawer.REPAINT));
+        assertEquals(1, document.getDirtyElements().size());
+        assertTrue(document.getDirtyElements().contains(second));
+    }
+
+    @Test
     void removedDocumentLeavesActiveLookupSet() {
         Document document = createDocument();
         Document.getAll().add(document);
@@ -436,8 +505,10 @@ class ElementBindingTest {
         Input input = new HeadlessInput(document);
         document.appendChild(input);
 
+        AtomicInteger beforeInputEvents = new AtomicInteger();
         AtomicInteger inputEvents = new AtomicInteger();
         AtomicInteger changeEvents = new AtomicInteger();
+        input.addEventListener("beforeinput", event -> beforeInputEvents.incrementAndGet());
         input.addEventListener("input", event -> inputEvents.incrementAndGet());
         input.addEventListener("change", event -> changeEvents.incrementAndGet());
 
@@ -445,11 +516,42 @@ class ElementBindingTest {
         input.insertText("a");
         input.insertText("b");
         assertEquals("ab", input.getValue());
+        assertEquals(2, beforeInputEvents.get());
         assertEquals(2, inputEvents.get());
         assertEquals(0, changeEvents.get());
 
         input.blur();
         assertEquals(1, changeEvents.get());
+    }
+
+    @Test
+    void beforeInputCanCancelTextInsertionAndDeletion() {
+        Document document = createDocument();
+        Input input = new HeadlessInput(document);
+        document.appendChild(input);
+
+        AtomicInteger beforeInputCalls = new AtomicInteger();
+        AtomicInteger inputCalls = new AtomicInteger();
+        input.addEventListener("beforeinput", event -> {
+            beforeInputCalls.incrementAndGet();
+            Event.InputEvent inputEvent = (Event.InputEvent) event;
+            if ("x".equals(inputEvent.data) || "deleteContentBackward".equals(inputEvent.inputType)) {
+                event.preventDefault();
+            }
+        });
+        input.addEventListener("input", event -> inputCalls.incrementAndGet());
+
+        input.focus();
+        input.insertText("a");
+        input.insertText("x");
+        assertEquals("a", input.getValue());
+        assertEquals(2, beforeInputCalls.get());
+        assertEquals(1, inputCalls.get());
+
+        assertFalse(input.deleteBackward());
+        assertEquals("a", input.getValue());
+        assertEquals(3, beforeInputCalls.get());
+        assertEquals(1, inputCalls.get());
     }
 
     @Test
@@ -585,6 +687,146 @@ class ElementBindingTest {
         assertEquals(2, targetScrollCalls.get());
         assertEquals(0, parentBubbleCalls.get());
         assertEquals(2, parentCaptureCalls.get());
+    }
+
+    @Test
+    void stopImmediatePropagationBlocksLaterListenersOnSameNode() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        ArrayList<String> calls = new ArrayList<>();
+        target.addEventListener("custom", event -> {
+            calls.add("first");
+            event.stopImmediatePropagation();
+        });
+        target.addEventListener("custom", event -> calls.add("second"));
+
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertEquals(java.util.List.of("first"), calls);
+    }
+
+    @Test
+    void stopPropagationStillAllowsLaterListenersOnSameNode() {
+        Document document = createDocument();
+        Element parent = new Element(document, "div");
+        Element target = new Element(document, "div");
+        document.appendChild(parent);
+        parent.appendChild(target);
+
+        ArrayList<String> calls = new ArrayList<>();
+        parent.addEventListener("custom", event -> calls.add("parent"));
+        target.addEventListener("custom", event -> {
+            calls.add("first");
+            event.stopPropagation();
+        });
+        target.addEventListener("custom", event -> calls.add("second"));
+
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertEquals(java.util.List.of("first", "second"), calls);
+    }
+
+    @Test
+    void eventPhaseTracksCaptureTargetAndBubbleOrder() {
+        Document document = createDocument();
+        Element parent = new Element(document, "div");
+        Element target = new Element(document, "button");
+        document.appendChild(parent);
+        parent.appendChild(target);
+
+        ArrayList<String> phases = new ArrayList<>();
+        parent.addEventListener("custom", event -> {
+            phases.add("parent-capture");
+            assertEquals(Event.CAPTURING_PHASE, event.eventPhase);
+            assertSame(target, event.target);
+            assertSame(parent, event.currentTarget);
+        }, true);
+        target.addEventListener("custom", event -> {
+            phases.add("target-capture");
+            assertEquals(Event.AT_TARGET, event.eventPhase);
+            assertSame(target, event.target);
+            assertSame(target, event.currentTarget);
+        }, true);
+        target.addEventListener("custom", event -> {
+            phases.add("target-bubble");
+            assertEquals(Event.AT_TARGET, event.eventPhase);
+            assertSame(target, event.target);
+            assertSame(target, event.currentTarget);
+        });
+        parent.addEventListener("custom", event -> {
+            phases.add("parent-bubble");
+            assertEquals(Event.BUBBLING_PHASE, event.eventPhase);
+            assertSame(target, event.target);
+            assertSame(parent, event.currentTarget);
+        });
+
+        Event event = new Event(target, "custom", true);
+        assertTrue(target.dispatchEvent(event));
+        assertEquals(java.util.List.of("parent-capture", "target-capture", "target-bubble", "parent-bubble"), phases);
+        assertEquals(Event.NONE, event.eventPhase);
+        assertNull(event.currentTarget);
+    }
+
+    @Test
+    void composedPathAndCancelBubbleReflectPropagationState() {
+        Document document = createDocument();
+        Element parent = new Element(document, "div");
+        Element target = new Element(document, "button");
+        document.appendChild(parent);
+        parent.appendChild(target);
+
+        AtomicInteger targetCalls = new AtomicInteger();
+        AtomicInteger parentCalls = new AtomicInteger();
+        parent.addEventListener("custom", event -> {
+            parentCalls.incrementAndGet();
+            event.stopPropagation();
+            assertTrue(event.cancelBubble);
+            assertEquals(java.util.List.of(target, parent, document.body), event.composedPath());
+        });
+        target.addEventListener("custom", event -> {
+            targetCalls.incrementAndGet();
+            assertFalse(event.cancelBubble);
+            assertEquals(java.util.List.of(target, parent, document.body), event.composedPath());
+        });
+
+        Event event = new Event(target, "custom", true);
+        assertTrue(target.dispatchEvent(event));
+        assertEquals(1, targetCalls.get());
+        assertEquals(1, parentCalls.get());
+        assertTrue(event.cancelBubble);
+        assertEquals(java.util.List.of(target, parent, document.body), event.composedPath());
+    }
+
+    @Test
+    void returnValueTracksPreventDefault() {
+        Document document = createDocument();
+        Element form = new Element(document, "form");
+        document.appendChild(form);
+
+        AtomicInteger calls = new AtomicInteger();
+        form.addEventListener("submit", event -> {
+            calls.incrementAndGet();
+            assertTrue(event.returnValue);
+            event.preventDefault();
+            assertFalse(event.returnValue);
+        });
+
+        assertFalse(form.submit());
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void onceListenerRunsOnlyOnce() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        AtomicInteger calls = new AtomicInteger();
+        target.addEventListener("custom", event -> calls.incrementAndGet(), false, true);
+
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertEquals(1, calls.get());
     }
 
     @Test
@@ -753,6 +995,43 @@ class ElementBindingTest {
     }
 
     @Test
+    void mouseEventExposesResolvedPointerAndPositionFields() {
+        Document document = createDocument();
+        Element parent = new Element(document, "div");
+        Element target = new Element(document, "div");
+        document.appendChild(parent);
+        parent.appendChild(target);
+        setRelativeHitBox(document.body, 0, 0, 200, 200);
+        setRelativeHitBox(parent, 10, 10, 100, 100);
+        setRelativeHitBox(target, 5, 7, 40, 30);
+        setPaintOrder(document, parent, target);
+
+        AtomicInteger calls = new AtomicInteger();
+        target.addEventListener("mousedown", event -> {
+            calls.incrementAndGet();
+            MouseEvent mouseEvent = (MouseEvent) event;
+            assertEquals(20.0, mouseEvent.clientX);
+            assertEquals(25.0, mouseEvent.clientY);
+            assertEquals(20.0, mouseEvent.pageX);
+            assertEquals(25.0, mouseEvent.pageY);
+            assertEquals(5.0, mouseEvent.offsetX);
+            assertEquals(8.0, mouseEvent.offsetY);
+            assertEquals(0, mouseEvent.button);
+            assertEquals(Event.AT_TARGET, mouseEvent.eventPhase);
+        }, true);
+        target.addEventListener("mousedown", event -> {
+            MouseEvent mouseEvent = (MouseEvent) event;
+            assertEquals(5.0, mouseEvent.offsetX);
+            assertEquals(8.0, mouseEvent.offsetY);
+            assertEquals(0, mouseEvent.button);
+            assertEquals(Event.AT_TARGET, mouseEvent.eventPhase);
+        });
+
+        assertTrue(MouseEvent.tiggerEvent(new MouseEvent("mousedown", new Position(20, 25), 0, false), document));
+        assertEquals(1, calls.get());
+    }
+
+    @Test
     void pointerHoverCompatTracksEnterLeaveAndOverOut() {
         Document document = createDocument();
         Element parent = new Element(document, "div");
@@ -782,6 +1061,187 @@ class ElementBindingTest {
         assertEquals(1, parentEnterCalls.get());
         assertEquals(1, firstOverCalls.get());
         assertEquals(1, firstOutCalls.get());
+    }
+
+    @Test
+    void textInputDispatchesTypedInputEventPayload() {
+        Document document = createDocument();
+        Input input = new HeadlessInput(document);
+        document.appendChild(input);
+
+        AtomicInteger beforeInputCalls = new AtomicInteger();
+        AtomicInteger inputCalls = new AtomicInteger();
+        AtomicInteger changeCalls = new AtomicInteger();
+        input.addEventListener("beforeinput", event -> {
+            beforeInputCalls.incrementAndGet();
+            Event.InputEvent inputEvent = (Event.InputEvent) event;
+            assertEquals("insertText", inputEvent.inputType);
+            assertEquals(beforeInputCalls.get() == 1 ? "a" : "b", inputEvent.data);
+            assertSame(input, inputEvent.target);
+            assertEquals(Event.AT_TARGET, inputEvent.eventPhase);
+            assertTrue(inputEvent.cancelable);
+            assertFalse(inputEvent.isTrusted);
+            assertFalse(inputEvent.isComposing);
+        });
+        input.addEventListener("input", event -> {
+            inputCalls.incrementAndGet();
+            Event.InputEvent inputEvent = (Event.InputEvent) event;
+            assertEquals("insertText", inputEvent.inputType);
+            assertEquals(inputCalls.get() == 1 ? "a" : "b", inputEvent.data);
+            assertSame(input, inputEvent.target);
+            assertEquals(Event.AT_TARGET, inputEvent.eventPhase);
+            assertFalse(inputEvent.isTrusted);
+            assertFalse(inputEvent.isComposing);
+        });
+        input.addEventListener("change", event -> {
+            changeCalls.incrementAndGet();
+            assertFalse(event instanceof Event.InputEvent);
+            assertSame(input, event.target);
+            assertEquals(Event.AT_TARGET, event.eventPhase);
+            assertFalse(event.isTrusted);
+        });
+
+        input.focus();
+        input.insertText("a");
+        input.insertText("b");
+        input.blur();
+
+        assertEquals(2, beforeInputCalls.get());
+        assertEquals(2, inputCalls.get());
+        assertEquals(1, changeCalls.get());
+    }
+
+    @Test
+    void checkboxDispatchesTypedReplacementInputEvents() {
+        Document document = createDocument();
+        Input checkbox = new Input(document);
+        checkbox.setAttribute("type", "checkbox");
+        document.appendChild(checkbox);
+
+        ArrayList<String> payloads = new ArrayList<>();
+        checkbox.addEventListener("input", event -> {
+            assertFalse(event.isTrusted);
+            payloads.add(event.type + ":" + event.getClass().getSimpleName());
+        });
+        checkbox.addEventListener("change", event -> {
+            assertFalse(event.isTrusted);
+            payloads.add(event.type + ":" + event.getClass().getSimpleName());
+        });
+
+        assertTrue(checkbox.handleSpaceKey());
+        assertEquals(java.util.List.of(
+                "input:Event",
+                "change:Event"
+        ), payloads);
+    }
+
+    @Test
+    void keyEventExposesDomStyleKeyMetadata() {
+        final int enterKeyCode = 257;
+        Document document = createDocument();
+        Input input = new HeadlessInput(document);
+        document.appendChild(input);
+        input.focus();
+
+        AtomicInteger calls = new AtomicInteger();
+        input.addEventListener("keydown", event -> {
+            calls.incrementAndGet();
+            KeyEvent keyEvent = (KeyEvent) event;
+            assertEquals(enterKeyCode, keyEvent.keyCode);
+            assertEquals("Enter", keyEvent.key);
+            assertEquals("Enter", keyEvent.code);
+            assertTrue(keyEvent.repeat);
+            assertFalse(keyEvent.altKey);
+            assertFalse(keyEvent.shiftKey);
+            assertFalse(keyEvent.controlKey);
+            assertFalse(keyEvent.metaKey);
+            assertEquals(Event.AT_TARGET, keyEvent.eventPhase);
+            assertTrue(keyEvent.isTrusted);
+            assertTrue(keyEvent.timeStamp > 0);
+        });
+
+        KeyEvent.triggerEvent(document, "keydown", enterKeyCode, 0, 0, true, KeyEvent.Source.INPUT_EVENT);
+        assertEquals(1, calls.get());
+    }
+
+    @Test
+    void dispatchEventReturnsFalseOnlyWhenCancelableEventIsPrevented() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        java.util.function.Consumer<Event> listener = Event::preventDefault;
+        target.addEventListener("custom", listener);
+
+        Event prevented = new Event(target, "custom", true);
+        prevented.cancelable = true;
+        assertFalse(target.dispatchEvent(prevented));
+
+        Event notCancelable = new Event(target, "custom", true);
+        assertTrue(target.dispatchEvent(notCancelable));
+
+        target.removeEventListener("custom", listener);
+        assertTrue(target.dispatchEvent(new Event(target, "missing", true)));
+    }
+
+    @Test
+    void scriptDispatchedEventsRemainUntrustedAndKeepTimestamp() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        Event event = new Event(target, "custom", true);
+        double timestamp = event.timeStamp;
+        AtomicInteger calls = new AtomicInteger();
+        target.addEventListener("custom", seen -> {
+            calls.incrementAndGet();
+            assertFalse(seen.isTrusted);
+            assertEquals(timestamp, seen.timeStamp);
+        });
+
+        assertTrue(target.dispatchEvent(event));
+        assertEquals(1, calls.get());
+        assertEquals(timestamp, event.timeStamp);
+        assertFalse(event.isTrusted);
+    }
+
+    @Test
+    void trustedMouseDispatchCarriesIntoDerivedFocusAndScrollEvents() {
+        Document document = createDocument();
+        Input input = new HeadlessInput(document);
+        Element scroller = new HeadlessScroller(document);
+        document.appendChild(scroller);
+        scroller.appendChild(input);
+        scroller.setAttribute("style", "overflow: auto;");
+        scroller.scrollHeight = 200;
+        scroller.scrollWidth = 100;
+        setRelativeHitBox(document.body, 0, 0, 240, 240);
+        setRelativeHitBox(scroller, 10, 10, 120, 80);
+        setRelativeHitBox(input, 5, 5, 80, 20);
+        setPaintOrder(document, scroller, input);
+
+        AtomicInteger focusCalls = new AtomicInteger();
+        AtomicInteger scrollCalls = new AtomicInteger();
+        input.addEventListener("focus", event -> {
+            focusCalls.incrementAndGet();
+            assertTrue(event.isTrusted);
+        });
+        scroller.addEventListener("scroll", event -> {
+            scrollCalls.incrementAndGet();
+            assertTrue(event.isTrusted);
+        });
+
+        MouseEvent mouseDown = new MouseEvent("mousedown", new Position(20, 20), 0, false);
+        mouseDown.setTrusted(true);
+        assertTrue(MouseEvent.tiggerEvent(mouseDown, document));
+
+        MouseEvent wheel = new MouseEvent("wheel", new Position(20, 20), -1, false);
+        wheel.scrollDelta = 16;
+        wheel.setTrusted(true);
+        assertTrue(MouseEvent.tiggerEvent(wheel, document));
+
+        assertEquals(1, focusCalls.get());
+        assertEquals(1, scrollCalls.get());
     }
 
     @Test
@@ -863,6 +1323,39 @@ class ElementBindingTest {
         assertTrue(img.isComplete());
         assertEquals(0, img.getNaturalWidth());
         assertEquals(0, img.getNaturalHeight());
+    }
+
+    @Test
+    void slotDisplayExpressionsCanComeFromDirectTextNodes() {
+        assumeMinecraftItemRuntime();
+        Document document = createDocument();
+
+        Slot literalSlot = new Slot(document);
+        literalSlot.appendChild(new TextNode(document, "minecraft:diamond"));
+        document.body.appendChild(literalSlot);
+        literalSlot.tick();
+        assertFalse(invokeResolveDisplayStack(literalSlot).toString().isBlank());
+
+        Slot jsonSlot = new Slot(document);
+        jsonSlot.setAttribute("cycle", "0");
+        jsonSlot.appendChild(new TextNode(document, "[{\"item\":\"minecraft:oak_log\"},{\"item\":\"minecraft:birch_log\"}]"));
+        document.body.appendChild(jsonSlot);
+        jsonSlot.tick();
+        assertFalse(invokeResolveDisplayStack(jsonSlot).toString().isBlank());
+    }
+
+    @Test
+    void slotShorthandExpressionsCanAlsoComeFromDirectTextNodes() {
+        assumeMinecraftItemRuntime();
+        Document document = createDocument();
+        Slot slot = new Slot(document);
+        slot.setAttribute("cycle", "0");
+        slot.appendChild(new TextNode(document, "minecraft:diamond|minecraft:emerald"));
+        document.body.appendChild(slot);
+
+        slot.tick();
+
+        assertFalse(invokeResolveDisplayStack(slot).toString().isBlank());
     }
 
     private static Document createDocument() {
@@ -952,5 +1445,28 @@ class ElementBindingTest {
 
     private static void invokeImgReset(Img img) {
         img.testResetResourceObservation();
+    }
+
+    private static Object invokeResolveDisplayStack(Slot slot) {
+        try {
+            Method method = Slot.class.getDeclaredMethod("resolveDisplayStack");
+            method.setAccessible(true);
+            return method.invoke(slot);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static void assumeMinecraftItemRuntime() {
+        Assumptions.assumeTrue(isClassPresent("net.minecraft.world.item.ItemStack"));
+    }
+
+    private static boolean isClassPresent(String name) {
+        try {
+            Class.forName(name);
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 }

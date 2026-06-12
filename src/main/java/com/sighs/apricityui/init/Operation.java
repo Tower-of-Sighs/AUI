@@ -29,7 +29,9 @@ public class Operation {
 
     public static boolean onMouseDown(int button) {
         mouseButtons |= buttonMask(button);
-        return MouseEvent.tiggerEvent(new MouseEvent("mousedown", getMousePosition(), button));
+        MouseEvent event = new MouseEvent("mousedown", getMousePosition(), button);
+        event.setTrusted(true);
+        return MouseEvent.tiggerEvent(event);
     }
 
     public static boolean onMouseUp() {
@@ -38,7 +40,9 @@ public class Operation {
 
     public static boolean onMouseUp(int button) {
         mouseButtons &= ~buttonMask(button);
-        return MouseEvent.tiggerEvent(new MouseEvent("mouseup", getMousePosition(), button));
+        MouseEvent event = new MouseEvent("mouseup", getMousePosition(), button);
+        event.setTrusted(true);
+        return MouseEvent.tiggerEvent(event);
     }
 
     public static void onMouseMove(Position currentMousePosition) {
@@ -46,6 +50,7 @@ public class Operation {
             MouseEvent mouseEvent = new MouseEvent("mousemove", getMousePosition());
             mouseEvent.movementX = currentMousePosition.x - cachedMousePosition.x;
             mouseEvent.movementY = currentMousePosition.y - cachedMousePosition.y;
+            mouseEvent.setTrusted(true);
             MouseEvent.tiggerEvent(mouseEvent);
         }
         cachedMousePosition = currentMousePosition;
@@ -56,6 +61,7 @@ public class Operation {
         mouseEvent.deltaY = -delta * 50;
         mouseEvent.scrollDelta = mouseEvent.deltaY;
         mouseEvent.cancelable = true;
+        mouseEvent.setTrusted(true);
         return MouseEvent.tiggerEvent(mouseEvent);
     }
 
@@ -78,7 +84,7 @@ public class Operation {
         boolean shouldCancel = false;
         for (Document document : Document.getAll()) {
             if (document.getFocusedElement() instanceof AbstractText textElement && textElement.canEditText()) {
-                textElement.insertText(Character.toString(code));
+                Event.runTrustedAction(() -> textElement.insertText(Character.toString(code)));
                 shouldCancel = true;
             }
         }
@@ -96,100 +102,104 @@ public class Operation {
     public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, KeyEvent.Source source) {
         boolean cancel = false;
         for (Document document : Document.getAll()) {
-            KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
-            Element focusedElement = document.getFocusedElement();
-            String selectedText = resolveSelectedText(document, focusedElement);
+            final boolean[] documentCanceled = {false};
+            Event.runTrustedAction(() -> {
+                KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
+                Element focusedElement = document.getFocusedElement();
+                String selectedText = resolveSelectedText(document, focusedElement);
 
-            if (focusedElement instanceof AbstractText textElement) {
-                if (isCtrlDown()) {
-                    if (key == GLFW.GLFW_KEY_A) {
-                        if (textElement.canSelectText()) {
-                            textElement.selectAll();
-                            cancel = true;
-                            continue;
+                if (focusedElement instanceof AbstractText textElement) {
+                    if (isCtrlDown()) {
+                        if (key == GLFW.GLFW_KEY_A) {
+                            if (textElement.canSelectText()) {
+                                textElement.selectAll();
+                                documentCanceled[0] = true;
+                                return;
+                            }
+                        }
+                        if (key == GLFW.GLFW_KEY_C) {
+                            if (textElement.canSelectText() && !selectedText.isEmpty()) {
+                                setClipboardText(selectedText);
+                                documentCanceled[0] = true;
+                                return;
+                            }
+                        }
+                        if (key == GLFW.GLFW_KEY_X) {
+                            if (textElement.canEditText() && textElement.hasSelection()) {
+                                if (!selectedText.isEmpty()) setClipboardText(selectedText);
+                                textElement.replaceSelection("");
+                                documentCanceled[0] = true;
+                                return;
+                            }
+                        }
+                        if (key == GLFW.GLFW_KEY_V) {
+                            if (textElement.canEditText()) {
+                                textElement.insertText(getClipboardText());
+                                documentCanceled[0] = true;
+                                return;
+                            }
+                        }
+                        if (key == GLFW.GLFW_KEY_Z) {
+                            if (textElement.canEditText() && textElement.undo()) {
+                                documentCanceled[0] = true;
+                                return;
+                            }
                         }
                     }
-                    if (key == GLFW.GLFW_KEY_C) {
-                        if (textElement.canSelectText() && !selectedText.isEmpty()) {
+
+                    if (focusedElement instanceof Input input && key == GLFW.GLFW_KEY_SPACE && input.handleSpaceKey()) {
+                        documentCanceled[0] = true;
+                        return;
+                    }
+
+                    if (!textElement.canEditText()) return;
+
+                    if (key == GLFW.GLFW_KEY_BACKSPACE) {
+                        textElement.deleteBackward();
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_DELETE) {
+                        textElement.deleteForward();
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_LEFT) {
+                        textElement.moveCursor(-1, isShiftDown() && textElement.canSelectText());
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_RIGHT) {
+                        textElement.moveCursor(1, isShiftDown() && textElement.canSelectText());
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_ENTER) {
+                        if (focusedElement instanceof TextArea) {
+                            textElement.insertText("\n");
+                        } else {
+                            if (!focusedElement.submitEnclosingForm()) {
+                                document.clearFocus();
+                            }
+                        }
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_ESCAPE) {
+                        document.clearFocus();
+                        documentCanceled[0] = true;
+                    }
+                } else if (focusedElement != null) {
+                    if (isCtrlDown()) {
+                        if (key == GLFW.GLFW_KEY_A && focusedElement.canSelectInnerText()) {
+                            focusedElement.selectAllInnerText();
+                            documentCanceled[0] = true;
+                            return;
+                        }
+                        if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText() && !selectedText.isEmpty()) {
                             setClipboardText(selectedText);
-                            cancel = true;
-                            continue;
+                            documentCanceled[0] = true;
+                            return;
                         }
                     }
-                    if (key == GLFW.GLFW_KEY_X) {
-                        if (textElement.canEditText() && textElement.hasSelection()) {
-                            if (!selectedText.isEmpty()) setClipboardText(selectedText);
-                            textElement.replaceSelection("");
-                            cancel = true;
-                            continue;
-                        }
-                    }
-                    if (key == GLFW.GLFW_KEY_V) {
-                        if (textElement.canEditText()) {
-                            textElement.insertText(getClipboardText());
-                            cancel = true;
-                            continue;
-                        }
-                    }
-                    if (key == GLFW.GLFW_KEY_Z) {
-                        if (textElement.canEditText() && textElement.undo()) {
-                            cancel = true;
-                            continue;
-                        }
+                    if (key == GLFW.GLFW_KEY_ESCAPE && focusedElement.canSelectInnerText()) {
+                        focusedElement.clearTextSelection();
+                        document.clearFocus();
+                        documentCanceled[0] = true;
                     }
                 }
-
-                if (focusedElement instanceof Input input && key == GLFW.GLFW_KEY_SPACE && input.handleSpaceKey()) {
-                    cancel = true;
-                    continue;
-                }
-
-                if (!textElement.canEditText()) continue;
-
-                if (key == GLFW.GLFW_KEY_BACKSPACE) {
-                    textElement.deleteBackward();
-                    cancel = true;
-                } else if (key == GLFW.GLFW_KEY_DELETE) {
-                    textElement.deleteForward();
-                    cancel = true;
-                } else if (key == GLFW.GLFW_KEY_LEFT) {
-                    textElement.moveCursor(-1, isShiftDown() && textElement.canSelectText());
-                    cancel = true;
-                } else if (key == GLFW.GLFW_KEY_RIGHT) {
-                    textElement.moveCursor(1, isShiftDown() && textElement.canSelectText());
-                    cancel = true;
-                } else if (key == GLFW.GLFW_KEY_ENTER) {
-                    if (focusedElement instanceof TextArea) {
-                        textElement.insertText("\n");
-                    } else {
-                        if (!focusedElement.submitEnclosingForm()) {
-                            document.clearFocus();
-                        }
-                    }
-                    cancel = true;
-                } else if (key == GLFW.GLFW_KEY_ESCAPE) {
-                    document.clearFocus();
-                    cancel = true;
-                }
-            } else if (focusedElement != null) {
-                if (isCtrlDown()) {
-                    if (key == GLFW.GLFW_KEY_A && focusedElement.canSelectInnerText()) {
-                        focusedElement.selectAllInnerText();
-                        cancel = true;
-                        continue;
-                    }
-                    if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText() && !selectedText.isEmpty()) {
-                        setClipboardText(selectedText);
-                        cancel = true;
-                        continue;
-                    }
-                }
-                if (key == GLFW.GLFW_KEY_ESCAPE && focusedElement.canSelectInnerText()) {
-                    focusedElement.clearTextSelection();
-                    document.clearFocus();
-                    cancel = true;
-                }
-            }
+            });
+            cancel |= documentCanceled[0];
         }
         if (!repeat && key == GLFW.GLFW_KEY_F12) {
             DevTools.toggle();

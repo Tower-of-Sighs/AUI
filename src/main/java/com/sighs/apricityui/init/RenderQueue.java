@@ -37,7 +37,7 @@ final class RenderQueue {
     }
 
     void tickElements() {
-        for (Element element : owner.getElements()) {
+        for (Element element : new ArrayList<>(owner.getElements())) {
             element.tick();
         }
     }
@@ -47,8 +47,9 @@ final class RenderQueue {
     }
 
     void markDirty(int mask) {
-        owner.getElements().forEach(element -> element.addDirtyFlags(mask));
-        dirtyElements.addAll(owner.getElements());
+        ArrayList<Element> snapshot = new ArrayList<>(owner.getElements());
+        snapshot.forEach(element -> element.addDirtyFlags(mask));
+        dirtyElements.addAll(snapshot);
     }
 
     void markDirty(Element element, int mask) {

@@ -27,13 +27,17 @@ public class Flex {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Box parentBox = Box.of(parent);
-        Size parentContentSize = parentBox.innerSize();
         Flex flex = Flex.of(parent);
         List<Element> flowItems = getFlowItems(siblings);
         int index = flowItems.indexOf(element);
         if (index < 0) {
             return new Position(parentBox.offset("left"), parentBox.offset("top"));
         }
+        if (flex.flexWrap.canWrap() && flex.flexDirection.isRow()) {
+            return computeWrappedRowChildPosition(element, parent, flowItems, index);
+        }
+
+        Size parentContentSize = parentBox.innerSize();
 
         double offsetX = parentBox.offset("left"), offsetY = parentBox.offset("top");
         double gap = resolveMainAxisGap(parent);
@@ -103,9 +107,13 @@ public class Flex {
     }
 
     public static Size computeContentSize(Element element) {
-        boolean flexColumn = Flex.of(element).flexDirection.isColumn();
+        Flex flex = Flex.of(element);
+        boolean flexColumn = flex.flexDirection.isColumn();
         List<Element> flowItems = getFlowItems(element.children);
         double gap = resolveMainAxisGap(element);
+        if (flex.flexWrap.canWrap() && !flexColumn) {
+            return computeWrappedRowContentSize(element, flowItems);
+        }
         double totalWidth = 0;
         double totalHeight = 0;
 
@@ -150,8 +158,8 @@ public class Flex {
         if (child == null || parent == null) return false;
         Flex flex = Flex.of(parent);
         Style childStyle = child.getComputedStyle();
-        String alignSelf = childStyle.alignSelf == null ? "unset" : childStyle.alignSelf.trim().toLowerCase();
-        String effective = "unset".equals(alignSelf) ? flex.alignItems.value : alignSelf;
+        String alignSelf = childStyle.alignSelf == null ? "auto" : childStyle.alignSelf.trim().toLowerCase();
+        String effective = ("unset".equals(alignSelf) || "auto".equals(alignSelf)) ? flex.alignItems.value : alignSelf;
         if (!"stretch".equals(effective)) return false;
         return flex.flexDirection.isColumn()
                 ? Size.parseNumber(childStyle.width) == null
@@ -257,6 +265,139 @@ public class Flex {
 
         total += columnMainAxis ? box.getMarginVertical() : box.getMarginHorizontal();
         return Math.max(0, total);
+    }
+
+    private static Position computeWrappedRowChildPosition(Element element, Element parent, List<Element> items, int targetIndex) {
+        Box parentBox = Box.of(parent);
+        double cursorY = 0;
+        double rowGap = resolveRowGap(parent);
+        for (WrappedRowLine line : buildWrappedRowLines(parent, items)) {
+            double cursorX = 0;
+            for (Element item : line.items()) {
+                Size itemSize = Size.box(item);
+                if (item == element) {
+                    double offsetY = resolveWrappedRowCrossAxisOffset(item, line.lineHeight(), itemSize.height(), parent);
+                    return new Position(parentBox.offset("left") + cursorX, parentBox.offset("top") + cursorY + offsetY);
+                }
+                cursorX += itemSize.width() + line.columnGap();
+            }
+            cursorY += line.lineHeight() + rowGap;
+        }
+
+        return new Position(parentBox.offset("left"), parentBox.offset("top"));
+    }
+
+    private static Size computeWrappedRowContentSize(Element element, List<Element> items) {
+        double rowGap = resolveRowGap(element);
+        double totalHeight = 0;
+        double maxWidth = 0;
+        List<WrappedRowLine> lines = buildWrappedRowLines(element, items);
+        for (int i = 0; i < lines.size(); i++) {
+            WrappedRowLine line = lines.get(i);
+            maxWidth = Math.max(maxWidth, line.lineWidth());
+            totalHeight += line.lineHeight();
+            if (i + 1 < lines.size()) {
+                totalHeight += rowGap;
+            }
+        }
+
+        return new Size(maxWidth, totalHeight);
+    }
+
+    private static List<WrappedRowLine> buildWrappedRowLines(Element parent, List<Element> items) {
+        ArrayList<WrappedRowLine> lines = new ArrayList<>();
+        if (parent == null || items == null || items.isEmpty()) return lines;
+
+        double availableWidth = resolveWrappedRowAvailableWidth(parent);
+        double columnGap = resolveColumnGap(parent);
+        ArrayList<Element> currentItems = new ArrayList<>();
+        double lineWidth = 0;
+        double lineHeight = 0;
+
+        for (Element item : items) {
+            Size itemSize = Size.box(item);
+            double itemWidth = itemSize.width();
+            double itemHeight = itemSize.height();
+            double nextWidth = currentItems.isEmpty() ? itemWidth : lineWidth + columnGap + itemWidth;
+
+            if (!currentItems.isEmpty() && availableWidth > 0 && nextWidth > availableWidth) {
+                lines.add(new WrappedRowLine(List.copyOf(currentItems), lineWidth, lineHeight, columnGap));
+                currentItems.clear();
+                lineWidth = 0;
+                lineHeight = 0;
+                nextWidth = itemWidth;
+            }
+
+            currentItems.add(item);
+            lineWidth = nextWidth;
+            lineHeight = Math.max(lineHeight, itemHeight);
+        }
+
+        if (!currentItems.isEmpty()) {
+            lines.add(new WrappedRowLine(List.copyOf(currentItems), lineWidth, lineHeight, columnGap));
+        }
+        return lines;
+    }
+
+    private static double resolveWrappedRowAvailableWidth(Element parent) {
+        if (parent == null) return 0;
+
+        Style style = parent.getComputedStyle();
+        Box box = Box.of(parent);
+        Double declaredWidth = Size.parseNumber(style.width);
+        if (declaredWidth != null) {
+            double resolvedWidth = Size.resolveLength(style.width, Size.getScaleWidth(parent), declaredWidth);
+            if (box.isBorderBox()) {
+                resolvedWidth -= box.getBorderHorizontal() + box.getPaddingHorizontal();
+            }
+            return Math.max(0, resolvedWidth);
+        }
+
+        if ("inline-flex".equalsIgnoreCase(style.display)) {
+            return 0;
+        }
+
+        double containingBlockWidth = Size.getScaleWidth(parent);
+        double autoContentWidth = containingBlockWidth
+                - box.getMarginHorizontal()
+                - box.getBorderHorizontal()
+                - box.getPaddingHorizontal();
+        return Math.max(0, autoContentWidth);
+    }
+
+    private static double resolveWrappedRowCrossAxisOffset(Element child, double lineHeight, double itemHeight, Element parent) {
+        if (child == null || parent == null) return 0;
+        String effective = resolveCrossAxisAlignValue(child, parent);
+        if ("center".equals(effective)) return Math.max(0, (lineHeight - itemHeight) / 2.0);
+        if ("flex-end".equals(effective) || "end".equals(effective)) return Math.max(0, lineHeight - itemHeight);
+        return 0;
+    }
+
+    public static String resolveCrossAxisAlignValue(Element child, Element parent) {
+        if (parent == null) return "stretch";
+        Flex flex = Flex.of(parent);
+        if (child == null) return flex.alignItems.value;
+        Style childStyle = child.getComputedStyle();
+        String alignSelf = childStyle.alignSelf == null ? "auto" : childStyle.alignSelf.trim().toLowerCase();
+        return ("unset".equals(alignSelf) || "auto".equals(alignSelf)) ? flex.alignItems.value : alignSelf;
+    }
+
+    private static double resolveColumnGap(Element parent) {
+        return resolveGap(parent, false);
+    }
+
+    private static double resolveRowGap(Element parent) {
+        return resolveGap(parent, true);
+    }
+
+    private static double resolveGap(Element parent, boolean rowAxis) {
+        if (parent == null) return 0;
+        Style style = parent.getComputedStyle();
+        String raw = rowAxis
+                ? ("unset".equals(style.rowGap) ? style.gap : style.rowGap)
+                : ("unset".equals(style.columnGap) ? style.gap : style.columnGap);
+        double basis = rowAxis ? Size.getScaleHeight(parent) : Size.getScaleWidth(parent);
+        return Math.max(0, Size.resolveLength(raw, basis, 0));
     }
 
     private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,
@@ -376,5 +517,8 @@ public class Flex {
         public boolean isBaseline() {
             return value.equals("baseline");
         }
+    }
+
+    private record WrappedRowLine(List<Element> items, double lineWidth, double lineHeight, double columnGap) {
     }
 }

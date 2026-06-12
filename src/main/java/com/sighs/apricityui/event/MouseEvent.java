@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Stack;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 // 鼠标事件，现在还没有做得很完善
 public class MouseEvent extends Event implements Cloneable {
@@ -45,7 +46,7 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     public MouseEvent(String type, Position mousePosition, int button, boolean readEnvironmentState) {
-        super(null, type, null, true);
+        super(null, type, true);
         clientX = mousePosition.x;
         clientY = mousePosition.y;
         pageX = clientX;
@@ -284,15 +285,17 @@ public class MouseEvent extends Event implements Cloneable {
         if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
         if (event.type.equals("mousedown")) {
             clearGlobalSelectionsOnMouseDown(document, target);
-            if (target != null) {
-                document.setPressedElement(target);
-                if (target.canFocus()) {
-                    clearGlobalFocusExcept(document);
-                    document.setFocusedElement(target);
-                } else {
-                    document.setFocusedElement(null);
+            Event.runWithEventTrust(event, () -> {
+                if (target != null) {
+                    document.setPressedElement(target);
+                    if (target.canFocus()) {
+                        clearGlobalFocusExcept(document);
+                        document.setFocusedElement(target);
+                    } else {
+                        document.setFocusedElement(null);
+                    }
                 }
-            }
+            });
         }
 
         if (target != null) {
@@ -301,7 +304,9 @@ public class MouseEvent extends Event implements Cloneable {
         }
 
         if (target != null && event.type.equals("wheel") && !event.defaultPrevented) {
-            consumed |= applyScrollDefault(event);
+            AtomicBoolean scrollConsumed = new AtomicBoolean(false);
+            Event.runWithEventTrust(event, () -> scrollConsumed.set(applyScrollDefault(event)));
+            consumed |= scrollConsumed.get();
         }
 
         if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
@@ -316,8 +321,12 @@ public class MouseEvent extends Event implements Cloneable {
         }
 
         if (event.type.equals("mouseup")) {
-            consumed |= dispatchMouseUpFollowupEvents(document, event, target, activeElement);
-            document.setPressedElement(null);
+            AtomicBoolean followupConsumed = new AtomicBoolean(false);
+            Event.runWithEventTrust(event, () -> {
+                followupConsumed.set(dispatchMouseUpFollowupEvents(document, event, target, activeElement));
+                document.setPressedElement(null);
+            });
+            consumed |= followupConsumed.get();
         }
 
         return consumed;
@@ -448,11 +457,29 @@ public class MouseEvent extends Event implements Cloneable {
 
     @Override
     public MouseEvent clone() {
-        try {
-            return (MouseEvent) super.clone();
-        } catch (CloneNotSupportedException e) {
-            throw new RuntimeException(e);
-        }
+        MouseEvent copy = new MouseEvent(type, new Position(clientX, clientY), button, false);
+        copyTo(copy);
+        copy.clientX = clientX;
+        copy.clientY = clientY;
+        copy.pageX = pageX;
+        copy.pageY = pageY;
+        copy.offsetX = offsetX;
+        copy.offsetY = offsetY;
+        copy.movementX = movementX;
+        copy.movementY = movementY;
+        copy.altKey = altKey;
+        copy.shiftKey = shiftKey;
+        copy.controlKey = controlKey;
+        copy.deltaX = deltaX;
+        copy.deltaY = deltaY;
+        copy.deltaMode = deltaMode;
+        copy.scrollDelta = scrollDelta;
+        copy.button = button;
+        copy.buttons = buttons;
+        copy.pointerId = pointerId;
+        copy.pointerType = pointerType;
+        copy.isPrimary = isPrimary;
+        return copy;
     }
 
     private static boolean isModifierPressed(String key) {

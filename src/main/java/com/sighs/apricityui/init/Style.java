@@ -5,13 +5,128 @@ import com.sighs.apricityui.style.Size;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 public class Style implements Cloneable {
     public static final Style DEFAULT = new Style();
+    private static final Pattern TIME_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)(?:ms|s)");
+    private static final Pattern NUMBER_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)");
+    private static final Set<String> ANIMATION_DIRECTIONS = Set.of("normal", "reverse", "alternate", "alternate-reverse");
+    private static final Set<String> ANIMATION_FILL_MODES = Set.of("none", "forwards", "backwards", "both");
+    private static final Set<String> ANIMATION_TIMING_FUNCTIONS = Set.of(
+            "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
+    );
+    private static final Set<String> INHERITED_PROPERTIES = Set.of(
+            "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
+            "line-height", "direction", "letter-spacing", "text-align", "text-indent",
+            "white-space", "cursor", "visibility"
+    );
+    private static final Map<String, String> INITIAL_VALUES = Map.ofEntries(
+            Map.entry("width", "auto"),
+            Map.entry("height", "auto"),
+            Map.entry("min-width", "unset"),
+            Map.entry("min-height", "unset"),
+            Map.entry("max-width", "unset"),
+            Map.entry("max-height", "unset"),
+            Map.entry("box-sizing", "content-box"),
+            Map.entry("overflow", "visible"),
+            Map.entry("overflow-x", "visible"),
+            Map.entry("overflow-y", "visible"),
+            Map.entry("opacity", "1.0"),
+            Map.entry("box-shadow", "none"),
+            Map.entry("z-index", "auto"),
+            Map.entry("display", "block"),
+            Map.entry("grid-template-columns", "unset"),
+            Map.entry("grid-template-rows", "unset"),
+            Map.entry("gap", "0px"),
+            Map.entry("row-gap", "0px"),
+            Map.entry("column-gap", "0px"),
+            Map.entry("justify-items", "stretch"),
+            Map.entry("justify-self", "auto"),
+            Map.entry("align-self", "auto"),
+            Map.entry("grid-row", "auto"),
+            Map.entry("grid-column", "auto"),
+            Map.entry("background-color", "unset"),
+            Map.entry("background-image", "none"),
+            Map.entry("background-repeat", "repeat"),
+            Map.entry("background-size", "auto"),
+            Map.entry("background-position", "0 0"),
+            Map.entry("margin", "0px"),
+            Map.entry("margin-top", "0px"),
+            Map.entry("margin-bottom", "0px"),
+            Map.entry("margin-left", "0px"),
+            Map.entry("margin-right", "0px"),
+            Map.entry("padding", "0px"),
+            Map.entry("padding-top", "0px"),
+            Map.entry("padding-bottom", "0px"),
+            Map.entry("padding-left", "0px"),
+            Map.entry("padding-right", "0px"),
+            Map.entry("border", "0px solid #000000"),
+            Map.entry("border-top", "0px solid #000000"),
+            Map.entry("border-bottom", "0px solid #000000"),
+            Map.entry("border-left", "0px solid #000000"),
+            Map.entry("border-right", "0px solid #000000"),
+            Map.entry("border-radius", "0px"),
+            Map.entry("border-image", "none"),
+            Map.entry("border-image-source", "unset"),
+            Map.entry("border-image-slice", "unset"),
+            Map.entry("border-image-width", "unset"),
+            Map.entry("border-image-outset", "unset"),
+            Map.entry("border-image-repeat", "stretch"),
+            Map.entry("color", "#000000"),
+            Map.entry("selection-color", "#0078D7"),
+            Map.entry("font-size", "16px"),
+            Map.entry("font-family", "unset"),
+            Map.entry("font-weight", "400"),
+            Map.entry("font-style", "normal"),
+            Map.entry("text-stroke", "none"),
+            Map.entry("line-height", "normal"),
+            Map.entry("direction", "ltr"),
+            Map.entry("letter-spacing", "normal"),
+            Map.entry("text-align", "start"),
+            Map.entry("vertical-align", "top"),
+            Map.entry("text-indent", "0px"),
+            Map.entry("white-space", "normal"),
+            Map.entry("text-overflow", "clip"),
+            Map.entry("flex-direction", "row"),
+            Map.entry("flex-wrap", "nowrap"),
+            Map.entry("align-content", "stretch"),
+            Map.entry("justify-content", "flex-start"),
+            Map.entry("align-items", "stretch"),
+            Map.entry("flex", "0 1 auto"),
+            Map.entry("flex-grow", "0"),
+            Map.entry("flex-shrink", "1"),
+            Map.entry("flex-basis", "auto"),
+            Map.entry("top", "auto"),
+            Map.entry("bottom", "auto"),
+            Map.entry("left", "auto"),
+            Map.entry("right", "auto"),
+            Map.entry("position", "static"),
+            Map.entry("cursor", "auto"),
+            Map.entry("user-select", "auto"),
+            Map.entry("pointer-events", "auto"),
+            Map.entry("visibility", "visible"),
+            Map.entry("transition", "none"),
+            Map.entry("transform", "none"),
+            Map.entry("clip-path", "none"),
+            Map.entry("filter", "none"),
+            Map.entry("backdrop-filter", "none"),
+            Map.entry("animation", "none"),
+            Map.entry("animation-name", "none"),
+            Map.entry("animation-duration", "0s"),
+            Map.entry("animation-delay", "0s"),
+            Map.entry("animation-iteration-count", "1"),
+            Map.entry("animation-direction", "normal"),
+            Map.entry("animation-fill-mode", "none"),
+            Map.entry("animation-timing-function", "ease"),
+            Map.entry("animation-play-state", "running")
+    );
 
     public String width = "unset";
     public String height = "unset";
@@ -192,6 +307,26 @@ public class Style implements Cloneable {
             applyFlexShorthand(value);
             return;
         }
+        if ("gap".equals(styleName)) {
+            applyGapShorthand(value);
+            return;
+        }
+        if ("margin".equals(styleName)) {
+            applyBoxShorthand("margin", value);
+            return;
+        }
+        if ("padding".equals(styleName)) {
+            applyBoxShorthand("padding", value);
+            return;
+        }
+        if ("border".equals(styleName)) {
+            applyBorderShorthand(value);
+            return;
+        }
+        if ("animation".equals(styleName)) {
+            applyAnimationShorthand(value);
+            return;
+        }
         if ("overflow".equals(styleName)) {
             value = Interaction.normalizeOverflow(value);
             overflow = value;
@@ -214,6 +349,43 @@ public class Style implements Cloneable {
             field.set(this, value);
         } catch (NoSuchFieldException | IllegalAccessException ignored) {
         }
+    }
+
+    private void applyBoxShorthand(String baseName, String raw) {
+        String value = raw == null ? "" : raw.trim();
+        setFieldValue(baseName, value.isEmpty() ? "unset" : value);
+
+        String topValue;
+        String rightValue;
+        String bottomValue;
+        String leftValue;
+        if (isCssWideKeyword(value)) {
+            topValue = value;
+            rightValue = value;
+            bottomValue = value;
+            leftValue = value;
+        } else {
+            String[] expanded = expandFourSideTokens(value);
+            topValue = expanded[0];
+            rightValue = expanded[1];
+            bottomValue = expanded[2];
+            leftValue = expanded[3];
+        }
+
+        setFieldValue(baseName + "Top", topValue);
+        setFieldValue(baseName + "Right", rightValue);
+        setFieldValue(baseName + "Bottom", bottomValue);
+        setFieldValue(baseName + "Left", leftValue);
+    }
+
+    private void applyBorderShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        border = value.isEmpty() ? "unset" : value;
+        String resolved = value.isEmpty() ? "unset" : value;
+        borderTop = resolved;
+        borderRight = resolved;
+        borderBottom = resolved;
+        borderLeft = resolved;
     }
 
     private void applyBackgroundShorthand(String raw) {
@@ -316,6 +488,89 @@ public class Style implements Cloneable {
         flexBasis = basis;
     }
 
+    private void applyGapShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        gap = value.isEmpty() ? "0px" : value;
+
+        if (value.isEmpty()) {
+            rowGap = "0px";
+            columnGap = "0px";
+            return;
+        }
+
+        if (isCssWideKeyword(value)) {
+            rowGap = value;
+            columnGap = value;
+            return;
+        }
+
+        String[] parts = value.split("\\s+");
+        String rowValue = parts.length > 0 ? parts[0] : "0px";
+        String columnValue = parts.length > 1 ? parts[1] : rowValue;
+        rowGap = rowValue;
+        columnGap = columnValue;
+    }
+
+    private void applyAnimationShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        animation = value.isEmpty() ? "unset" : value;
+
+        animationName = "unset";
+        animationDuration = "unset";
+        animationDelay = "unset";
+        animationIterationCount = "unset";
+        animationDirection = "unset";
+        animationFillMode = "unset";
+        animationTimingFunction = "unset";
+        animationPlayState = "unset";
+
+        if (value.isEmpty() || isCssWideKeyword(value) || "none".equalsIgnoreCase(value)) {
+            animation = value.isEmpty() ? "unset" : value;
+            if ("none".equalsIgnoreCase(value)) {
+                animationName = "none";
+                animationDuration = "0s";
+                animationDelay = "0s";
+                animationIterationCount = "1";
+                animationDirection = "normal";
+                animationFillMode = "none";
+                animationTimingFunction = "ease";
+                animationPlayState = "running";
+            }
+            return;
+        }
+
+        List<String> tokens = splitAnimationTokens(value);
+        for (String token : tokens) {
+            if (isTimeToken(token)) {
+                if ("unset".equals(animationDuration)) animationDuration = token;
+                else animationDelay = token;
+                continue;
+            }
+            String normalized = token.toLowerCase(Locale.ROOT);
+            if ("infinite".equals(normalized) || isNumberToken(normalized)) {
+                animationIterationCount = token;
+                continue;
+            }
+            if (ANIMATION_DIRECTIONS.contains(normalized)) {
+                animationDirection = normalized;
+                continue;
+            }
+            if (ANIMATION_FILL_MODES.contains(normalized)) {
+                animationFillMode = normalized;
+                continue;
+            }
+            if ("running".equals(normalized) || "paused".equals(normalized)) {
+                animationPlayState = normalized;
+                continue;
+            }
+            if (isTimingFunctionToken(normalized)) {
+                animationTimingFunction = token;
+                continue;
+            }
+            animationName = token;
+        }
+    }
+
     private static String trimNumber(Double value) {
         if (value == null) return "0";
         if (Math.abs(value - Math.rint(value)) < 1e-6) {
@@ -330,6 +585,37 @@ public class Style implements Cloneable {
         if ("transparent".equals(value)) return true;
         if (value.startsWith("#")) return true;
         return value.startsWith("rgb(") || value.startsWith("rgba(") || value.startsWith("hsl(") || value.startsWith("hsla(");
+    }
+
+    private static boolean isCssWideKeyword(String value) {
+        if (value == null) return false;
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.equals("inherit")
+                || normalized.equals("initial")
+                || normalized.equals("unset")
+                || normalized.equals("revert");
+    }
+
+    private static String[] expandFourSideTokens(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return new String[]{"unset", "unset", "unset", "unset"};
+        }
+        String[] parts = raw.trim().split("\\s+");
+        return switch (parts.length) {
+            case 1 -> new String[]{parts[0], parts[0], parts[0], parts[0]};
+            case 2 -> new String[]{parts[0], parts[1], parts[0], parts[1]};
+            case 3 -> new String[]{parts[0], parts[1], parts[2], parts[1]};
+            default -> new String[]{parts[0], parts[1], parts[2], parts[3]};
+        };
+    }
+
+    private void setFieldValue(String styleName, String value) {
+        Field field = FIELD_CACHE.get(styleName);
+        if (field == null) return;
+        try {
+            field.set(this, value);
+        } catch (IllegalAccessException ignored) {
+        }
     }
 
 
@@ -493,6 +779,155 @@ public class Style implements Cloneable {
             current = current.parentElement;
         }
         return null;
+    }
+
+    public void finalizeComputedValues(Element context) {
+        Style parentStyle = context == null || context.parentElement == null ? null : context.parentElement.getComputedStyle();
+        for (Field field : STYLE_FIELDS) {
+            try {
+                String current = (String) field.get(this);
+                String cssName = camelToKebab(field.getName());
+                String resolved = resolveCssWideKeyword(cssName, current, parentStyle);
+                if ("display".equals(cssName)) {
+                    resolved = normalizeDisplay(resolved);
+                }
+                field.set(this, resolved);
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+        finalizeAnimationValues();
+    }
+
+    private String resolveCssWideKeyword(String cssName, String current, Style parentStyle) {
+        if (current == null || current.isBlank()) {
+            return initialValue(cssName);
+        }
+        String normalized = current.trim().toLowerCase(Locale.ROOT);
+        if (!isCssWideKeyword(normalized)) {
+            return current;
+        }
+        if ("inherit".equals(normalized)) {
+            return inheritOrInitial(cssName, parentStyle);
+        }
+        if ("initial".equals(normalized)) {
+            return initialValue(cssName);
+        }
+        if ("revert".equals(normalized)) {
+            // The engine currently only models a single author origin, so revert degrades to unset semantics.
+            return isInheritedProperty(cssName) ? inheritOrInitial(cssName, parentStyle) : initialValue(cssName);
+        }
+        return isInheritedProperty(cssName) ? inheritOrInitial(cssName, parentStyle) : initialValue(cssName);
+    }
+
+    private static boolean isInheritedProperty(String cssName) {
+        return INHERITED_PROPERTIES.contains(cssName);
+    }
+
+    private static String inheritOrInitial(String cssName, Style parentStyle) {
+        if (parentStyle != null) {
+            String inherited = parentStyle.get(cssName);
+            if (inherited != null && !inherited.isBlank() && !"inherit".equalsIgnoreCase(inherited)) {
+                return inherited;
+            }
+        }
+        return initialValue(cssName);
+    }
+
+    private static String initialValue(String cssName) {
+        return INITIAL_VALUES.getOrDefault(cssName, "unset");
+    }
+
+    private static String normalizeDisplay(String raw) {
+        if (raw == null || raw.isBlank()) return "block";
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "block", "inline", "inline-block", "flex", "inline-flex", "grid", "inline-grid", "none" -> value;
+            case "table", "list-item", "flow-root" -> "block";
+            case "inline-table" -> "inline-block";
+            default -> "block";
+        };
+    }
+
+    private void finalizeAnimationValues() {
+        if (animation == null || animation.isBlank() || "unset".equalsIgnoreCase(animation)) {
+            if (animationName != null && !animationName.isBlank() && !"unset".equalsIgnoreCase(animationName)) {
+                animation = buildAnimationShorthand();
+            } else {
+                animation = initialValue("animation");
+            }
+        }
+        if (animationName == null || animationName.isBlank() || "unset".equalsIgnoreCase(animationName)) {
+            if (animation != null && !animation.isBlank() && !"none".equalsIgnoreCase(animation) && !"unset".equalsIgnoreCase(animation)) {
+                applyAnimationShorthand(animation);
+            }
+        }
+
+        animationName = defaultIfUnset(animationName, initialValue("animation-name"));
+        animationDuration = defaultIfUnset(animationDuration, initialValue("animation-duration"));
+        animationDelay = defaultIfUnset(animationDelay, initialValue("animation-delay"));
+        animationIterationCount = defaultIfUnset(animationIterationCount, initialValue("animation-iteration-count"));
+        animationDirection = defaultIfUnset(animationDirection, initialValue("animation-direction"));
+        animationFillMode = defaultIfUnset(animationFillMode, initialValue("animation-fill-mode"));
+        animationTimingFunction = defaultIfUnset(animationTimingFunction, initialValue("animation-timing-function"));
+        animationPlayState = defaultIfUnset(animationPlayState, initialValue("animation-play-state"));
+    }
+
+    private String buildAnimationShorthand() {
+        String name = defaultIfUnset(animationName, initialValue("animation-name"));
+        if ("none".equalsIgnoreCase(name)) return "none";
+        return String.join(" ",
+                name,
+                defaultIfUnset(animationDuration, initialValue("animation-duration")),
+                defaultIfUnset(animationTimingFunction, initialValue("animation-timing-function")),
+                defaultIfUnset(animationDelay, initialValue("animation-delay")),
+                defaultIfUnset(animationIterationCount, initialValue("animation-iteration-count")),
+                defaultIfUnset(animationDirection, initialValue("animation-direction")),
+                defaultIfUnset(animationFillMode, initialValue("animation-fill-mode")),
+                defaultIfUnset(animationPlayState, initialValue("animation-play-state"))
+        ).trim();
+    }
+
+    private static String defaultIfUnset(String value, String fallback) {
+        if (value == null || value.isBlank()) return fallback;
+        if ("unset".equalsIgnoreCase(value) || "initial".equalsIgnoreCase(value) || "inherit".equalsIgnoreCase(value)) {
+            return fallback;
+        }
+        return value;
+    }
+
+    private static List<String> splitAnimationTokens(String value) {
+        ArrayList<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (Character.isWhitespace(ch) && depth == 0) {
+                if (!current.isEmpty()) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            if (ch == '(') depth++;
+            else if (ch == ')' && depth > 0) depth--;
+            current.append(ch);
+        }
+        if (!current.isEmpty()) tokens.add(current.toString());
+        return tokens;
+    }
+
+    private static boolean isTimeToken(String token) {
+        return token != null && TIME_TOKEN_PATTERN.matcher(token.trim().toLowerCase(Locale.ROOT)).matches();
+    }
+
+    private static boolean isNumberToken(String token) {
+        return token != null && NUMBER_TOKEN_PATTERN.matcher(token.trim()).matches();
+    }
+
+    private static boolean isTimingFunctionToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        if (ANIMATION_TIMING_FUNCTIONS.contains(token)) return true;
+        return token.startsWith("steps(") || token.startsWith("cubic-bezier(");
     }
 
     // font-size转为fontSize这样的

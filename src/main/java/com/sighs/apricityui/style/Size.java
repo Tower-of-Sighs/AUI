@@ -139,7 +139,7 @@ public record Size(double width, double height) {
         }
 
         if (allowFlexAdjustments && element.parentElement != null && Layout.isInFlow(style)
-                && "flex".equals(element.parentElement.getComputedStyle().display)) {
+                && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)) {
             Element parent = element.parentElement;
             Flex parentFlex = Flex.of(parent);
             Size parentContentSize = Box.of(parent).innerSize();

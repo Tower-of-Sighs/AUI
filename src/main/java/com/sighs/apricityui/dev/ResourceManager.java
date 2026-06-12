@@ -408,8 +408,9 @@ public class ResourceManager {
         return safe(entry.sourceRoot());
     }
 
-    private static boolean isInsideContextMenu(Node target) {
-        Node cursor = target;
+    private static boolean isInsideContextMenu(Object target) {
+        if (!(target instanceof Node node)) return false;
+        Node cursor = node;
         while (cursor != null) {
             if (!(cursor instanceof Element element)) {
                 cursor = cursor.getParentNode();
