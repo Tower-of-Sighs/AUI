@@ -8,11 +8,19 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Font {
     private static final float BASE_FONT_SIZE = 48.0f;
     private static final Map<String, java.awt.Font> FONTS = Collections.synchronizedMap(new HashMap<>());
     private static final String DEFAULT_KEY = "default";
+    private static final int SINGLE_FAMILY_CACHE_LIMIT = 128;
+    private static final int BASE_FONT_CHAIN_CACHE_LIMIT = 64;
+    private static final int RUN_PLAN_CACHE_LIMIT = 512;
+    private static final Map<String, Optional<java.awt.Font>> SINGLE_FAMILY_CACHE = createLruCache(SINGLE_FAMILY_CACHE_LIMIT);
+    private static final Map<String, List<java.awt.Font>> BASE_FONT_CHAIN_CACHE = createLruCache(BASE_FONT_CHAIN_CACHE_LIMIT);
+    private static final Map<DerivedFontKey, java.awt.Font> DERIVED_FONT_CACHE = new ConcurrentHashMap<>();
+    private static final Map<RunPlanKey, List<FontRun>> RUN_PLAN_CACHE = createLruCache(RUN_PLAN_CACHE_LIMIT);
     private static final Map<String, String> GENERIC_FAMILY_MAPPING = Map.ofEntries(
             Map.entry("serif", java.awt.Font.SERIF),
             Map.entry("sans-serif", java.awt.Font.SANS_SERIF),
@@ -84,6 +92,10 @@ public class Font {
     }
 
     public static List<java.awt.Font> resolveBaseFontChain(String rawFamilyChain) {
+        String cacheKey = normalizeFamilyChain(rawFamilyChain);
+        List<java.awt.Font> cached = BASE_FONT_CHAIN_CACHE.get(cacheKey);
+        if (cached != null) return cached;
+
         ArrayList<java.awt.Font> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (String family : parseFontFamilies(rawFamilyChain)) {
@@ -102,27 +114,33 @@ public class Font {
                 result.add(fallback);
             }
         }
-        return result;
+        List<java.awt.Font> immutable = List.copyOf(result);
+        BASE_FONT_CHAIN_CACHE.put(cacheKey, immutable);
+        return immutable;
     }
 
     public static List<FontRun> planFontRuns(String rawFamilyChain, int fontStyle, float size, String content) {
         if (content == null || content.isEmpty()) return List.of();
+        RunPlanKey cacheKey = new RunPlanKey(normalizeFamilyChain(rawFamilyChain), fontStyle, Float.floatToIntBits(size), content);
+        List<FontRun> cached = RUN_PLAN_CACHE.get(cacheKey);
+        if (cached != null) return cached;
 
         List<java.awt.Font> baseFonts = resolveBaseFontChain(rawFamilyChain);
         if (baseFonts.isEmpty()) return List.of();
 
         ArrayList<java.awt.Font> fonts = new ArrayList<>(baseFonts.size());
         for (java.awt.Font font : baseFonts) {
-            fonts.add(font.deriveFont(fontStyle, size));
+            fonts.add(deriveCachedFont(font, fontStyle, size));
         }
 
         ArrayList<FontRun> runs = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         java.awt.Font currentFont = null;
+        Map<Integer, java.awt.Font> codePointFontCache = new HashMap<>();
 
         for (int i = 0; i < content.length(); ) {
             int cp = content.codePointAt(i);
-            java.awt.Font font = pickDisplayFont(fonts, cp);
+            java.awt.Font font = codePointFontCache.computeIfAbsent(cp, key -> pickDisplayFont(fonts, key));
             String glyph = new String(Character.toChars(cp));
 
             if (currentFont != null && currentFont.equals(font)) {
@@ -141,7 +159,9 @@ public class Font {
         if (currentFont != null && current.length() > 0) {
             runs.add(new FontRun(currentFont, current.toString()));
         }
-        return runs;
+        List<FontRun> immutable = List.copyOf(runs);
+        RUN_PLAN_CACHE.put(cacheKey, immutable);
+        return immutable;
     }
 
     public static List<String> parseFontFamilies(String raw) {
@@ -182,6 +202,7 @@ public class Font {
 
     public static void clear() {
         FONTS.clear();
+        clearResolutionCaches();
         FONTS.put(DEFAULT_KEY, new java.awt.Font("Microsoft YaHei", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
     }
 
@@ -189,22 +210,32 @@ public class Font {
         if (family == null || family.isBlank()) return null;
 
         String cleanFamily = cleanFamilyName(family);
+        Optional<java.awt.Font> cached = SINGLE_FAMILY_CACHE.get(cleanFamily);
+        if (cached != null) return cached.orElse(null);
+
         java.awt.Font registered = FONTS.get(cleanFamily);
         if (registered == null) {
             registered = FONTS.get(toLookupKey(cleanFamily));
         }
-        if (registered != null) return registered;
+        if (registered != null) {
+            SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.of(registered));
+            return registered;
+        }
 
         String genericMapped = GENERIC_FAMILY_MAPPING.get(cleanFamily.toLowerCase(Locale.ROOT));
         if (genericMapped != null) {
-            return new java.awt.Font(genericMapped, java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
+            java.awt.Font resolved = new java.awt.Font(genericMapped, java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
+            SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.of(resolved));
+            return resolved;
         }
 
         java.awt.Font systemFont = new java.awt.Font(cleanFamily, java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
         if (!java.awt.Font.DIALOG.equalsIgnoreCase(systemFont.getFamily(Locale.ROOT))
                 || isDialogFamily(cleanFamily)) {
+            SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.of(systemFont));
             return systemFont;
         }
+        SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.empty());
         return null;
     }
 
@@ -226,6 +257,7 @@ public class Font {
         if (cleanKey.isEmpty() || derived == null) return;
         FONTS.put(cleanKey, derived);
         FONTS.put(toLookupKey(cleanKey), derived);
+        clearResolutionCaches();
     }
 
     private static boolean isDialogFamily(String family) {
@@ -255,6 +287,44 @@ public class Font {
         return cleanFamilyName(family).toLowerCase(Locale.ROOT);
     }
 
+    private static java.awt.Font deriveCachedFont(java.awt.Font font, int fontStyle, float size) {
+        if (font == null) return null;
+        DerivedFontKey key = new DerivedFontKey(
+                font.getFontName(Locale.ROOT),
+                font.getFamily(Locale.ROOT),
+                fontStyle,
+                Float.floatToIntBits(size)
+        );
+        return DERIVED_FONT_CACHE.computeIfAbsent(key, unused -> font.deriveFont(fontStyle, size));
+    }
+
+    private static void clearResolutionCaches() {
+        SINGLE_FAMILY_CACHE.clear();
+        BASE_FONT_CHAIN_CACHE.clear();
+        DERIVED_FONT_CACHE.clear();
+        RUN_PLAN_CACHE.clear();
+    }
+
+    private static String normalizeFamilyChain(String rawFamilyChain) {
+        List<String> families = parseFontFamilies(rawFamilyChain);
+        return families.isEmpty() ? "" : String.join(",", families);
+    }
+
+    private static <K, V> Map<K, V> createLruCache(int maxSize) {
+        return Collections.synchronizedMap(new LinkedHashMap<>(16, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                return size() > maxSize;
+            }
+        });
+    }
+
     public record FontRun(java.awt.Font font, String text) {
+    }
+
+    private record DerivedFontKey(String fontName, String family, int style, int sizeBits) {
+    }
+
+    private record RunPlanKey(String familyChain, int style, int sizeBits, String content) {
     }
 }
