@@ -1,5 +1,4 @@
 package com.sighs.apricityui.event;
-
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
@@ -246,20 +245,29 @@ public class MouseEvent extends Event implements Cloneable {
         if (event == null || !(event.target instanceof Element targetElement)) return null;
         ArrayList<Element> route = targetElement.getRoute();
         if (event.shiftKey) {
+            Element horizontalEligible = null;
             Element verticalFallback = null;
             for (Element element : route) {
-                if (element.canScrollHorizontally()) return element;
-                if (verticalFallback == null && element.canScrollVertically()) {
+                if (element.hasHorizontalScrollRange()) return element;
+                if (horizontalEligible == null && element.canScrollHorizontally()) {
+                    horizontalEligible = element;
+                }
+                if (verticalFallback == null && element.hasVerticalScrollRange()) {
                     verticalFallback = element;
                 }
             }
+            if (horizontalEligible != null) return horizontalEligible;
             return verticalFallback;
         }
 
+        Element eligible = null;
         for (Element element : route) {
-            if (element.canScrollVertically()) return element;
+            if (element.hasVerticalScrollRange()) return element;
+            if (eligible == null && element.canScrollVertically()) {
+                eligible = element;
+            }
         }
-        return null;
+        return eligible;
     }
 
     private static boolean applyScrollDefault(MouseEvent event) {

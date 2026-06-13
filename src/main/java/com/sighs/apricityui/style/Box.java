@@ -179,7 +179,7 @@ public class Box {
 
     private double resolveBoxLength(String value) {
         if (element == null) return Math.max(0, Size.resolveLength(value, 0, 0));
-        double basis = Size.getScaleWidth(element);
+        double basis = Size.isPercent(value) ? Size.getScaleWidth(element) : 0;
         return Math.max(0, Size.resolveLength(value, basis, 0));
     }
 

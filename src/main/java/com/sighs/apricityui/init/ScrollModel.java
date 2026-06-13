@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Box;
@@ -57,6 +58,16 @@ final class ScrollModel {
         return Interaction.allowsUserScrollX(owner.getComputedStyle());
     }
 
+    boolean hasVerticalScrollRange() {
+        refreshScrollMetrics();
+        return Interaction.allowsUserScrollY(owner.getComputedStyle()) && getVerticalScrollLimit() > 0.5;
+    }
+
+    boolean hasHorizontalScrollRange() {
+        refreshScrollMetrics();
+        return Interaction.allowsUserScrollX(owner.getComputedStyle()) && getHorizontalScrollLimit() > 0.5;
+    }
+
     boolean tick() {
         lastTickTime = System.currentTimeMillis();
         boolean scrollingX = stepHorizontalScroll();
@@ -65,7 +76,7 @@ final class ScrollModel {
     }
 
     void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
-        if (!canScrollVertically()) return;
+        if (!hasVerticalScrollRange()) return;
         double innerHeight = Box.of(owner).innerSize().height();
         double innerWidth = Box.of(owner).innerSize().width();
         if (owner.scrollHeight <= innerHeight + 0.5 || innerHeight <= 0 || innerWidth <= 0) return;
@@ -142,11 +153,20 @@ final class ScrollModel {
     }
 
     private double getHorizontalScrollLimit() {
+        refreshScrollMetrics();
         return Math.max(0, owner.scrollWidth - Box.of(owner).innerSize().width());
     }
 
     private double getVerticalScrollLimit() {
+        refreshScrollMetrics();
         return Math.max(0, owner.scrollHeight - Box.of(owner).innerSize().height());
+    }
+
+    private void refreshScrollMetrics() {
+        if (owner instanceof AbstractText) return;
+        Size contentSize = Size.getContentSize(owner);
+        owner.scrollWidth = contentSize.width();
+        owner.scrollHeight = contentSize.height();
     }
 
     private boolean isScrollSettled(double current, double target) {

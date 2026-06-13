@@ -404,6 +404,14 @@ public class Element extends Node {
         return scroll.canScrollHorizontally();
     }
 
+    public boolean hasVerticalScrollRange() {
+        return scroll.hasVerticalScrollRange();
+    }
+
+    public boolean hasHorizontalScrollRange() {
+        return scroll.hasHorizontalScrollRange();
+    }
+
     public String getDefaultValue() {
         return attributes.getOrDefault("value", "");
     }
@@ -573,8 +581,10 @@ public class Element extends Node {
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
                 drawChildTextRuns(poseStack, rectRenderer);
-                textSelection.drawInnerTextSelection(poseStack, rectRenderer);
-                textSelection.drawInnerText(poseStack, rectRenderer);
+                if (!NormalFlow.isInlineTextPaintedByAncestor(this)) {
+                    textSelection.drawInnerTextSelection(poseStack, rectRenderer);
+                    textSelection.drawInnerText(poseStack, rectRenderer);
+                }
                 scroll.drawScrollbar(poseStack, rectRenderer);
             }
             case BORDER -> {

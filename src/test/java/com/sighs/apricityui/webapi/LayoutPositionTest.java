@@ -63,6 +63,25 @@ class LayoutPositionTest {
     }
 
     @Test
+    void fixedOffsetsResolveAgainstViewportInsteadOfParentContentBox() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "position: relative; width: 120px; height: 90px; padding: 10px; box-sizing: border-box;");
+        document.body.appendChild(parent);
+
+        Element fixedChild = new Element(document, "div");
+        fixedChild.setAttribute("style", "position: fixed; right: 12px; bottom: 8px; width: 20px; height: 15px;");
+        parent.appendChild(fixedChild);
+
+        Size window = Size.getWindowSize();
+        assertEquals(window.width() - 20 - 12, Position.getOffset(fixedChild).x);
+        assertEquals(window.height() - 15 - 8, Position.getOffset(fixedChild).y);
+    }
+
+    @Test
     void flexColumnChildrenStretchAcrossCrossAxisWhenAlignSelfIsAuto() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
@@ -99,6 +118,27 @@ class LayoutPositionTest {
 
         assertEquals(Box.of(parent).offset("left"), Position.getOffset(child).x);
         assertTrue(childWidth < parentInnerWidth);
+    }
+
+    @Test
+    void relativeOffsetsDoNotAffectFollowingSiblingFlowPlacement() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 120px;");
+        document.body.appendChild(parent);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "position: relative; left: 7px; top: 5px; width: 20px; height: 10px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width: 20px; height: 10px;");
+        parent.appendChild(first);
+        parent.appendChild(second);
+
+        assertEquals(7, Position.getOffset(first).x);
+        assertEquals(5, Position.getOffset(first).y);
+        assertEquals(10, Position.getOffset(second).y);
     }
 
     @Test
@@ -294,6 +334,171 @@ class LayoutPositionTest {
         assertEquals(35, Size.of(child).height());
     }
 
+    @Test
+    void siblingBlockVerticalMarginsCollapseToLargestMargin() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 100px;");
+        document.body.appendChild(parent);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "width: 20px; height: 10px; margin-bottom: 12px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width: 20px; height: 10px; margin-top: 8px;");
+        parent.appendChild(first);
+        parent.appendChild(second);
+
+        assertEquals(14, Position.getOffset(second).y);
+        assertEquals(32, Layout.computeContentSize(parent).height());
+    }
+
+    @Test
+    void percentHeightFallsBackToAutoWhenParentHeightIsNotExplicit() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 100px;");
+        document.body.appendChild(parent);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: 20px; height: 50%;");
+        parent.appendChild(child);
+
+        assertEquals(0, Size.of(child).height());
+    }
+
+    @Test
+    void percentHeightResolvesThroughExplicitPercentageParentChain() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element grandParent = new Element(document, "div");
+        grandParent.setAttribute("style", "width: 100px; height: 120px;");
+        document.body.appendChild(grandParent);
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 100px; height: 50%;");
+        grandParent.appendChild(parent);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: 20px; height: 50%;");
+        parent.appendChild(child);
+
+        assertEquals(60, Size.of(parent).height());
+        assertEquals(30, Size.of(child).height());
+    }
+
+    @Test
+    void gridFrTracksConsumeRemainingSpace() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; width: 120px; grid-template-columns: 20px 1fr 2fr;");
+        document.body.appendChild(grid);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "width: 5px; height: 10px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width: 5px; height: 10px;");
+        Element third = new Element(document, "div");
+        third.setAttribute("style", "width: 5px; height: 10px;");
+        grid.appendChild(first);
+        grid.appendChild(second);
+        grid.appendChild(third);
+
+        assertEquals(20, Position.getOffset(second).x);
+        assertEquals(55, Position.getOffset(third).x);
+        assertEquals(120, Layout.computeContentSize(grid).width());
+    }
+
+    @Test
+    void gridRepeatAndMinmaxExpandTracks() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; width: 100px; grid-template-columns: repeat(2, minmax(10px, 1fr));");
+        document.body.appendChild(grid);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "width: 5px; height: 10px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width: 5px; height: 10px;");
+        grid.appendChild(first);
+        grid.appendChild(second);
+
+        assertEquals(50, Position.getOffset(second).x);
+        assertEquals(100, Layout.computeContentSize(grid).width());
+    }
+
+    @Test
+    void gridAutoFillRepeatsFixedTracksWithinAvailableWidth() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; width: 95px; column-gap: 5px; grid-template-columns: repeat(auto-fill, 20px);");
+        document.body.appendChild(grid);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "width: 10px; height: 10px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width: 10px; height: 10px;");
+        Element third = new Element(document, "div");
+        third.setAttribute("style", "width: 10px; height: 10px;");
+        Element fourth = new Element(document, "div");
+        fourth.setAttribute("style", "width: 10px; height: 10px;");
+        grid.appendChild(first);
+        grid.appendChild(second);
+        grid.appendChild(third);
+        grid.appendChild(fourth);
+
+        assertEquals(25, Position.getOffset(second).x);
+        assertEquals(50, Position.getOffset(third).x);
+        assertEquals(75, Position.getOffset(fourth).x);
+        assertEquals(95, Layout.computeContentSize(grid).width());
+    }
+
+    @Test
+    void gridItemSelfAlignmentOffsetsWithinExplicitCell() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; grid-template-columns: 40px; grid-template-rows: 30px;");
+        document.body.appendChild(grid);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: 10px; height: 10px; justify-self: center; align-self: end;");
+        grid.appendChild(child);
+
+        assertEquals(15, Position.getOffset(child).x);
+        assertEquals(20, Position.getOffset(child).y);
+    }
+
+    @Test
+    void outOfFlowChildrenDoNotContributeToParentContentHeight() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 100px;");
+        document.body.appendChild(parent);
+
+        Element inFlow = new Element(document, "div");
+        inFlow.setAttribute("style", "width: 20px; height: 10px;");
+        Element absoluteChild = new Element(document, "div");
+        absoluteChild.setAttribute("style", "position: absolute; width: 20px; height: 50px;");
+        parent.appendChild(inFlow);
+        parent.appendChild(absoluteChild);
+
+        assertEquals(10, Layout.computeContentSize(parent).height());
+    }
+
     private static Position readFlexTextOffset(Element element) {
         try {
             java.lang.reflect.Method method = Element.class.getDeclaredMethod("getFlexTextOffset");
@@ -316,4 +521,5 @@ class LayoutPositionTest {
             return false;
         }
     }
+
 }

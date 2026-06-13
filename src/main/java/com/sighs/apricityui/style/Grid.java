@@ -12,28 +12,38 @@ import java.util.Locale;
  * <p>
  * Supported:
  * - display: grid
- * - grid-template-columns / grid-template-rows: number | (px|auto)+
+ * - grid-template-columns / grid-template-rows: number | px | auto | fr | minmax() | repeat()
+ * - repeat(auto-fill/auto-fit, Npx) for a basic auto-repeat variant
  * - gap / row-gap / column-gap
  * - justify-items / align-items (align-items reuses Style.alignItems)
  * - justify-self / align-self (per-item override)
  * - grid-row / grid-column with span (basic)
- * <p>
- * Placement notes:
- * - Auto flow is row-major.
- * - If grid-row/grid-column specifies an explicit start (e.g. "2" or "2 / span 3"),
- * the algorithm will try to place at/after that coordinate.
- * - Conflicts (overlaps) are allowed; this implementation is fail-soft.
- * <p>
- * Indexing:
- * - grid-row/grid-column use 1-based grid lines (CSS-like); internally converted to 0-based track index.
  */
 public final class Grid {
     private Grid() {
     }
 
-    private enum TrackType {FIXED, AUTO}
+    private enum TrackType {FIXED, AUTO, FR, MINMAX}
 
-    private record Track(TrackType type, int px) {
+    private record Track(TrackType type, int px, double fr, Track minTrack, Track maxTrack) {
+        static Track fixed(int px) {
+            return new Track(TrackType.FIXED, Math.max(0, px), 0, null, null);
+        }
+
+        static Track auto() {
+            return new Track(TrackType.AUTO, 0, 0, null, null);
+        }
+
+        static Track fr(double fr) {
+            return new Track(TrackType.FR, 0, Math.max(0, fr), null, null);
+        }
+
+        static Track minmax(Track minTrack, Track maxTrack) {
+            return new Track(TrackType.MINMAX, 0, 0, minTrack, maxTrack);
+        }
+    }
+
+    private record ParsedTracks(List<Track> tracks) {
     }
 
     private record Gaps(int rowGap, int colGap) {
@@ -42,7 +52,6 @@ public final class Grid {
     private enum Align {START, CENTER, END, STRETCH}
 
     private record SpanSpec(int start, int span) {
-        // start: 0-based track index, -1 means auto
         static SpanSpec auto() {
             return new SpanSpec(-1, 1);
         }
@@ -65,17 +74,14 @@ public final class Grid {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Box parentBox = Box.of(parent);
-
         Layout layout = computeLayout(parent, siblings);
 
         int idx = layout.flow.indexOf(element);
         if (idx < 0) {
-            // Not in normal flow (absolute/fixed/none), fallback to parent's content origin.
             return new Position(parentBox.offset("left"), parentBox.offset("top"));
         }
 
         Placement p = layout.placements.get(idx);
-
         double baseX = parentBox.offset("left") + prefixSum(layout.colW, p.col) + (double) p.col * layout.gaps.colGap;
         double baseY = parentBox.offset("top") + prefixSum(layout.rowH, p.row) + (double) p.row * layout.gaps.rowGap;
 
@@ -85,67 +91,50 @@ public final class Grid {
         Size itemSize = Size.box(element);
         double dx = computeJustifyOffset(element, parent, cellW, itemSize.width());
         double dy = computeAlignOffset(element, parent, cellH, itemSize.height());
-
         return new Position(baseX + dx, baseY + dy);
     }
 
     public static Size computeContentSize(Element gridContainer) {
         Layout layout = computeLayout(gridContainer, gridContainer.children);
-
-        if (layout.flow.isEmpty()) {
-            return Size.ZERO;
-        }
+        if (layout.flow.isEmpty()) return Size.ZERO;
 
         double gridW = sum(layout.colW) + (double) layout.gaps.colGap * Math.max(0, layout.colW.length - 1);
         double gridH = sum(layout.rowH) + (double) layout.gaps.rowGap * Math.max(0, layout.rowH.length - 1);
-
         return new Size(gridW, gridH);
     }
 
-    // ---------------- layout core ----------------
-
     private static Layout computeLayout(Element gridContainer, List<Element> siblings) {
         Style ps = gridContainer.getComputedStyle();
-
         Gaps gaps = parseGaps(ps);
-
         List<Element> flow = collectFlowChildren(siblings);
+
+        Size availableSize = resolveAvailableTrackSpace(gridContainer);
+        ParsedTracks parsedCols = parseTracks(ps.gridTemplateColumns, 1, availableSize.width(), gaps.colGap);
+        ParsedTracks parsedRows = parseTracks(ps.gridTemplateRows, 0, availableSize.height(), gaps.rowGap);
+
         if (flow.isEmpty()) {
-            List<Track> cols0 = parseTracks(ps.gridTemplateColumns, 1);
-            List<Track> rows0 = parseTracks(ps.gridTemplateRows, 1);
+            List<Track> cols0 = parsedCols.tracks().isEmpty() ? makeAutoTracks(1) : parsedCols.tracks();
+            List<Track> rows0 = parsedRows.tracks().isEmpty() ? makeAutoTracks(1) : parsedRows.tracks();
             return new Layout(flow, List.of(), cols0, rows0, new int[]{0}, new int[]{0}, gaps);
         }
 
-        // 1) parse base tracks
-        List<Track> cols = parseTracks(ps.gridTemplateColumns, 1);
-        List<Track> rows = parseTracks(ps.gridTemplateRows, 0); // may be empty -> auto grow
+        List<Track> cols = new ArrayList<>(parsedCols.tracks());
+        List<Track> rows = new ArrayList<>(parsedRows.tracks());
 
-        // 2) parse item specs
         List<ItemSpec> items = new ArrayList<>();
         int requiredCols = Math.max(1, cols.size());
         for (Element e : flow) {
             Style es = e.getComputedStyle();
-
             SpanSpec col = parseSpanSpec(es.gridColumn);
             SpanSpec row = parseSpanSpec(es.gridRow);
-
-            // Ensure at least span columns exist even if start is auto
             requiredCols = Math.max(requiredCols, spanRequirement(col));
-
-            // If explicit start, ensure enough columns
             if (col.start >= 0) requiredCols = Math.max(requiredCols, col.start + col.span);
-
             items.add(new ItemSpec(col, row, e));
         }
 
-        // expand columns as needed
-        while (cols.size() < requiredCols) cols.add(new Track(TrackType.AUTO, 0));
-
+        while (cols.size() < requiredCols) cols.add(Track.auto());
         int colCount = cols.size();
-
-        // 3) auto placement with occupancy
         Occupancy occ = new Occupancy(colCount);
-
         List<Placement> placements = new ArrayList<>(items.size());
         int cursorRow = 0;
         int cursorCol = 0;
@@ -153,21 +142,18 @@ public final class Grid {
         for (ItemSpec it : items) {
             SpanSpec c = it.col;
             SpanSpec r = it.row;
-
             int colSpan = Math.max(1, c.span);
             int rowSpan = Math.max(1, r.span);
 
-            // if span exceeds columns, extend columns (fail-soft)
             if (colSpan > colCount) {
                 int add = colSpan - colCount;
-                for (int i = 0; i < add; i++) cols.add(new Track(TrackType.AUTO, 0));
+                for (int i = 0; i < add; i++) cols.add(Track.auto());
                 colCount = cols.size();
-                occ = occ.resize(colCount); // rebuild occupancy to new width
+                occ = occ.resize(colCount);
             }
 
             int placedCol;
             int placedRow;
-
             boolean hasCol = c.start >= 0;
             boolean hasRow = r.start >= 0;
 
@@ -175,28 +161,22 @@ public final class Grid {
                 placedCol = c.start;
                 placedRow = r.start;
                 occ.ensureRows(placedRow + rowSpan);
-                // allow overlap (fail-soft)
                 occ.mark(placedRow, placedCol, rowSpan, colSpan);
             } else if (hasRow) {
-                // fixed row, find first fit in that row (or later rows)
                 int[] rc = findFirstFit(occ, r.start, 0, rowSpan, colSpan);
                 placedRow = rc[0];
                 placedCol = rc[1];
                 occ.mark(placedRow, placedCol, rowSpan, colSpan);
             } else if (hasCol) {
-                // fixed col, find first fit in that column scanning rows
                 int[] rc = findFirstFitAtCol(occ, 0, c.start, rowSpan, colSpan);
                 placedRow = rc[0];
                 placedCol = rc[1];
                 occ.mark(placedRow, placedCol, rowSpan, colSpan);
             } else {
-                // both auto: row-major from cursor
                 int[] rc = findFirstFit(occ, cursorRow, cursorCol, rowSpan, colSpan);
                 placedRow = rc[0];
                 placedCol = rc[1];
                 occ.mark(placedRow, placedCol, rowSpan, colSpan);
-
-                // advance cursor
                 cursorRow = placedRow;
                 cursorCol = placedCol + colSpan;
                 if (cursorCol >= colCount) {
@@ -208,43 +188,25 @@ public final class Grid {
             placements.add(new Placement(placedCol, placedRow, colSpan, rowSpan));
         }
 
-        // 4) resolve required row count
         int requiredRows = 1;
         for (Placement p : placements) {
             requiredRows = Math.max(requiredRows, p.row + p.rowSpan);
         }
-
         if (rows.isEmpty()) {
             rows = makeAutoTracks(requiredRows);
         } else {
-            while (rows.size() < requiredRows) rows.add(new Track(TrackType.AUTO, 0));
+            while (rows.size() < requiredRows) rows.add(Track.auto());
         }
 
-        // 5) compute track sizes (fixed + auto sizing)
-        int[] colW = computeColWidths(cols, placements, flow, gaps.colGap);
-        int[] rowH = computeRowHeights(rows, placements, flow, gaps.rowGap);
-
+        int[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true);
+        int[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false);
         return new Layout(flow, placements, cols, rows, colW, rowH, gaps);
     }
 
-    // ---------------- placement parsing ----------------
-
     private static int spanRequirement(SpanSpec spec) {
-        // If start is auto, ensure we have at least span columns; otherwise start+span handled elsewhere.
         return spec.start < 0 ? spec.span : 0;
     }
 
-    /**
-     * Parse a CSS-like grid-row/grid-column value into (start, span).
-     * <p>
-     * Supported patterns:
-     * - "auto" / "unset" / null -> auto, span 1
-     * - "N" -> start line N, span 1
-     * - "span S" -> auto start, span S
-     * - "N / M" -> start line N, end line M => span = max(1, M - N)
-     * - "N / span S" -> start line N, span S
-     * - "auto / span S" -> auto start, span S
-     */
     private static SpanSpec parseSpanSpec(String raw) {
         if (raw == null) return SpanSpec.auto();
         raw = raw.trim().toLowerCase(Locale.ROOT);
@@ -252,7 +214,6 @@ public final class Grid {
 
         String[] parts = raw.split("/");
         String a = parts[0].trim();
-
         Integer start = null;
         Integer span = null;
 
@@ -261,9 +222,8 @@ public final class Grid {
         } else if ("auto".equals(a)) {
             start = -1;
         } else if (a.matches("^\\d+$")) {
-            start = Math.max(1, Integer.parseInt(a)) - 1; // 1-based line -> 0-based track index
+            start = Math.max(1, Integer.parseInt(a)) - 1;
         } else {
-            // unknown token -> auto
             start = -1;
         }
 
@@ -273,10 +233,8 @@ public final class Grid {
                 span = parsePositiveInt(b.substring(4).trim(), 1);
             } else if (b.matches("^\\d+$") && start != null && start >= 0) {
                 int endLine = Integer.parseInt(b);
-                int startLine = start + 1; // back to 1-based line
+                int startLine = start + 1;
                 span = Math.max(1, endLine - startLine);
-            } else {
-                // unsupported / auto
             }
         }
 
@@ -303,105 +261,135 @@ public final class Grid {
         }
     }
 
-    // ---------------- track sizing ----------------
+    private static int[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
+                                           int gap, double availableSpace, boolean columnAxis) {
+        int count = tracks.size();
+        int[] resolved = new int[count];
+        boolean[] growable = new boolean[count];
+        double totalFr = 0;
 
-    private static int[] computeColWidths(List<Track> cols, List<Placement> placements, List<Element> flow, int colGap) {
-        int colCount = cols.size();
-        int[] w = new int[colCount];
-
-        // fixed tracks first
-        for (int i = 0; i < colCount; i++) {
-            Track t = cols.get(i);
-            if (t.type == TrackType.FIXED) w[i] = t.px;
+        for (int i = 0; i < count; i++) {
+            Track track = tracks.get(i);
+            resolved[i] = minimumTrackSize(track);
+            if (canGrow(track)) growable[i] = true;
+            totalFr += frWeight(track);
         }
 
-        // auto sizing based on items (including spanning)
         for (int idx = 0; idx < flow.size(); idx++) {
             Element el = flow.get(idx);
             Placement p = placements.get(idx);
+            int start = columnAxis ? p.col : p.row;
+            int span = Math.max(1, columnAxis ? p.colSpan : p.rowSpan);
+            int internalGaps = Math.max(0, span - 1) * gap;
+            int desired = (int) Math.ceil(Math.max(0, (columnAxis ? Size.box(el).width() : Size.box(el).height()) - internalGaps));
 
-            int span = Math.max(1, p.colSpan);
-            int internalGaps = Math.max(0, span - 1) * colGap;
+            int current = 0;
+            int growableCount = 0;
+            for (int i = start; i < start + span && i < count; i++) {
+                current += resolved[i];
+                if (growable[i]) growableCount++;
+            }
+            if (desired <= current || growableCount <= 0) continue;
 
-            int desired = (int) Math.ceil(Math.max(0, Size.box(el).width() - internalGaps));
-
-            int fixedSum = 0;
-            int autoCount = 0;
-            for (int c = p.col; c < p.col + span && c < colCount; c++) {
-                Track t = cols.get(c);
-                if (t.type == TrackType.FIXED) fixedSum += t.px;
-                else autoCount++;
+            int extra = desired - current;
+            double spanFr = 0;
+            for (int i = start; i < start + span && i < count; i++) {
+                spanFr += frWeight(tracks.get(i));
             }
 
-            if (autoCount <= 0) continue;
-
-            int remain = Math.max(0, desired - fixedSum);
-            int per = (int) Math.ceil(remain / (double) autoCount);
-
-            for (int c = p.col; c < p.col + span && c < colCount; c++) {
-                Track t = cols.get(c);
-                if (t.type == TrackType.AUTO) {
-                    w[c] = Math.max(w[c], per);
+            for (int i = start; i < start + span && i < count; i++) {
+                if (!growable[i]) continue;
+                int add;
+                double weight = frWeight(tracks.get(i));
+                if (spanFr > 0 && weight > 0) {
+                    add = (int) Math.ceil(extra * (weight / spanFr));
+                } else {
+                    add = (int) Math.ceil(extra / (double) growableCount);
                 }
+                resolved[i] = applyGrowthCap(tracks.get(i), resolved[i] + Math.max(0, add));
             }
         }
 
-        return w;
+        double base = sum(resolved);
+        double availableTracks = Math.max(0, availableSpace - (double) gap * Math.max(0, count - 1));
+        if (availableTracks > base && totalFr > 0) {
+            int remaining = (int) Math.floor(availableTracks - base);
+            distributeWeightedGrowth(tracks, resolved, remaining, totalFr);
+        }
+
+        return resolved;
     }
 
-    private static int[] computeRowHeights(List<Track> rows, List<Placement> placements, List<Element> flow, int rowGap) {
-        int rowCount = rows.size();
-        int[] h = new int[rowCount];
-
-        // fixed tracks first
-        for (int i = 0; i < rowCount; i++) {
-            Track t = rows.get(i);
-            if (t.type == TrackType.FIXED) h[i] = t.px;
+    private static void distributeWeightedGrowth(List<Track> tracks, int[] resolved, int remaining, double totalFr) {
+        if (remaining <= 0 || totalFr <= 0) return;
+        int assigned = 0;
+        int lastFlexible = -1;
+        for (int i = 0; i < tracks.size(); i++) {
+            double weight = frWeight(tracks.get(i));
+            if (weight <= 0) continue;
+            lastFlexible = i;
+            int add = (int) Math.floor(remaining * (weight / totalFr));
+            resolved[i] = applyGrowthCap(tracks.get(i), resolved[i] + Math.max(0, add));
+            assigned += Math.max(0, add);
         }
-
-        // auto sizing based on items (including spanning)
-        for (int idx = 0; idx < flow.size(); idx++) {
-            Element el = flow.get(idx);
-            Placement p = placements.get(idx);
-
-            int span = Math.max(1, p.rowSpan);
-            int internalGaps = Math.max(0, span - 1) * rowGap;
-
-            int desired = (int) Math.ceil(Math.max(0, Size.box(el).height() - internalGaps));
-
-            int fixedSum = 0;
-            int autoCount = 0;
-            for (int r = p.row; r < p.row + span && r < rowCount; r++) {
-                Track t = rows.get(r);
-                if (t.type == TrackType.FIXED) fixedSum += t.px;
-                else autoCount++;
-            }
-
-            if (autoCount <= 0) continue;
-
-            int remain = Math.max(0, desired - fixedSum);
-            int per = (int) Math.ceil(remain / (double) autoCount);
-
-            for (int r = p.row; r < p.row + span && r < rowCount; r++) {
-                Track t = rows.get(r);
-                if (t.type == TrackType.AUTO) {
-                    h[r] = Math.max(h[r], per);
-                }
-            }
+        int leftover = remaining - assigned;
+        if (leftover > 0 && lastFlexible >= 0) {
+            resolved[lastFlexible] = applyGrowthCap(tracks.get(lastFlexible), resolved[lastFlexible] + leftover);
         }
-
-        return h;
     }
 
-    // ---------------- alignment ----------------
+    private static int minimumTrackSize(Track track) {
+        return switch (track.type) {
+            case FIXED -> track.px;
+            case AUTO, FR -> 0;
+            case MINMAX -> minimumTrackSize(track.minTrack);
+        };
+    }
+
+    private static boolean canGrow(Track track) {
+        return switch (track.type) {
+            case AUTO, FR -> true;
+            case FIXED -> false;
+            case MINMAX -> canGrowBeyondMinimum(track.maxTrack);
+        };
+    }
+
+    private static boolean canGrowBeyondMinimum(Track track) {
+        return switch (track.type) {
+            case AUTO, FR -> true;
+            case FIXED -> false;
+            case MINMAX -> canGrowBeyondMinimum(track.maxTrack);
+        };
+    }
+
+    private static double frWeight(Track track) {
+        return switch (track.type) {
+            case FR -> Math.max(0, track.fr);
+            case MINMAX -> frWeight(track.maxTrack);
+            default -> 0;
+        };
+    }
+
+    private static int applyGrowthCap(Track track, int candidate) {
+        return switch (track.type) {
+            case FIXED -> track.px;
+            case AUTO, FR -> Math.max(0, candidate);
+            case MINMAX -> {
+                int min = minimumTrackSize(track.minTrack);
+                int capped = Math.max(min, candidate);
+                if (track.maxTrack != null && track.maxTrack.type == TrackType.FIXED) {
+                    capped = Math.min(capped, track.maxTrack.px);
+                }
+                yield capped;
+            }
+        };
+    }
 
     private static double computeJustifyOffset(Element element, Element parent, double cellW, double itemW) {
         Style ps = parent.getComputedStyle();
         Style es = element.getComputedStyle();
-
         Align container = normalizeAlign(ps.justifyItems, Align.START);
         Align self = normalizeAlign(es.justifySelf, container);
-
         return switch (self) {
             case CENTER -> (cellW - itemW) / 2.0;
             case END -> (cellW - itemW);
@@ -412,10 +400,8 @@ public final class Grid {
     private static double computeAlignOffset(Element element, Element parent, double cellH, double itemH) {
         Style ps = parent.getComputedStyle();
         Style es = element.getComputedStyle();
-
         Align container = normalizeAlign(ps.alignItems, Align.START);
         Align self = normalizeAlign(es.alignSelf, container);
-
         return switch (self) {
             case CENTER -> (cellH - itemH) / 2.0;
             case END -> (cellH - itemH);
@@ -427,7 +413,6 @@ public final class Grid {
         if (raw == null) return fallback;
         raw = raw.trim().toLowerCase(Locale.ROOT);
         if (raw.isBlank() || "unset".equals(raw) || "auto".equals(raw)) return fallback;
-
         return switch (raw) {
             case "start", "flex-start", "left", "top" -> Align.START;
             case "center" -> Align.CENTER;
@@ -436,8 +421,6 @@ public final class Grid {
             default -> fallback;
         };
     }
-
-    // ---------------- gaps / tracks parsing ----------------
 
     private static List<Element> collectFlowChildren(List<Element> siblings) {
         List<Element> flow = new ArrayList<>();
@@ -464,52 +447,164 @@ public final class Grid {
         return new Gaps(row, col);
     }
 
-    /**
-     * Parse track list.
-     * Supported: number | (px|auto)+
-     * - pure number: creates N auto tracks
-     * - tokens: "18px auto 18px"
-     */
-    private static List<Track> parseTracks(String raw, int fallbackCount) {
+    private static ParsedTracks parseTracks(String raw, int fallbackCount, double availableSpace, int gap) {
         raw = raw == null ? "unset" : raw.trim().toLowerCase(Locale.ROOT);
         if (raw.isBlank() || "unset".equals(raw)) {
-            return makeAutoTracks(Math.max(1, fallbackCount));
+            return new ParsedTracks(makeAutoTracks(Math.max(1, fallbackCount)));
         }
-
-        // Pure number => track count
         if (raw.matches("^\\d+$")) {
             int n = Integer.parseInt(raw);
-            return makeAutoTracks(Math.max(1, n));
+            return new ParsedTracks(makeAutoTracks(Math.max(1, n)));
         }
 
-        String[] tokens = raw.split("\\s+");
+        List<String> tokens = splitTopLevelWhitespace(raw);
         List<Track> out = new ArrayList<>();
-        for (String t : tokens) {
-            if (t.isBlank()) continue;
-            if ("auto".equals(t)) {
-                out.add(new Track(TrackType.AUTO, 0));
-                continue;
-            }
+        for (String token : tokens) {
+            expandTrackToken(token, out, availableSpace, gap);
+        }
+        if (out.isEmpty()) return new ParsedTracks(makeAutoTracks(Math.max(1, fallbackCount)));
+        return new ParsedTracks(out);
+    }
 
-            int px = Size.parse(t);
-            if (px >= 0) {
-                out.add(new Track(TrackType.FIXED, px));
-            } else {
-                // Unknown token => treat as auto (fail-soft)
-                out.add(new Track(TrackType.AUTO, 0));
+    private static void expandTrackToken(String token, List<Track> out, double availableSpace, int gap) {
+        if (token == null) return;
+        String value = token.trim();
+        if (value.isEmpty()) return;
+
+        if (value.startsWith("repeat(") && value.endsWith(")")) {
+            String inner = value.substring(7, value.length() - 1).trim();
+            List<String> args = Background.splitTopLevelComma(inner);
+            if (args.size() == 2) {
+                String repeatCount = args.get(0).trim();
+                List<String> repeated = splitTopLevelWhitespace(args.get(1));
+                if ("auto-fill".equals(repeatCount) || "auto-fit".equals(repeatCount)) {
+                    int resolved = resolveAutoRepeatCount(repeated, availableSpace, gap);
+                    for (int i = 0; i < resolved; i++) {
+                        for (String repeatedToken : repeated) {
+                            expandTrackToken(repeatedToken, out, availableSpace, gap);
+                        }
+                    }
+                    return;
+                }
+
+                Integer count = parsePositiveIntObject(repeatCount);
+                if (count != null) {
+                    for (int i = 0; i < count; i++) {
+                        for (String repeatedToken : repeated) {
+                            expandTrackToken(repeatedToken, out, availableSpace, gap);
+                        }
+                    }
+                    return;
+                }
             }
         }
-        if (out.isEmpty()) return makeAutoTracks(Math.max(1, fallbackCount));
-        return out;
+
+        out.add(parseSingleTrack(value));
+    }
+
+    private static Track parseSingleTrack(String token) {
+        if ("auto".equals(token)) return Track.auto();
+
+        if (token.startsWith("minmax(") && token.endsWith(")")) {
+            String inner = token.substring(7, token.length() - 1).trim();
+            List<String> args = Background.splitTopLevelComma(inner);
+            if (args.size() == 2) {
+                Track minTrack = parseSingleTrack(args.get(0).trim());
+                Track maxTrack = parseSingleTrack(args.get(1).trim());
+                return Track.minmax(minTrack, maxTrack);
+            }
+            return Track.auto();
+        }
+
+        if (token.endsWith("fr")) {
+            Double number = Size.parseNumber(token);
+            return Track.fr(number == null ? 1d : number);
+        }
+
+        int px = Size.parse(token);
+        if (px >= 0) return Track.fixed(px);
+        return Track.auto();
+    }
+
+    private static int resolveAutoRepeatCount(List<String> repeated, double availableSpace, int gap) {
+        if (repeated == null || repeated.isEmpty()) return 1;
+        int baseSize = 0;
+        for (String token : repeated) {
+            Track track = parseSingleTrack(token);
+            baseSize += switch (track.type) {
+                case FIXED -> track.px;
+                case MINMAX -> minimumTrackSize(track);
+                default -> 0;
+            };
+        }
+        if (baseSize <= 0 || availableSpace <= 0) return 1;
+        return Math.max(1, (int) Math.floor((availableSpace + gap) / (baseSize + gap)));
+    }
+
+    private static Integer parsePositiveIntObject(String raw) {
+        if (raw == null) return null;
+        raw = raw.trim();
+        if (!raw.matches("^\\d+$")) return null;
+        try {
+            int value = Integer.parseInt(raw);
+            return value > 0 ? value : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     private static List<Track> makeAutoTracks(int n) {
         List<Track> out = new ArrayList<>();
-        for (int i = 0; i < n; i++) out.add(new Track(TrackType.AUTO, 0));
+        for (int i = 0; i < n; i++) out.add(Track.auto());
         return out;
     }
 
-    // ---------------- occupancy + search ----------------
+    private static Size resolveAvailableTrackSpace(Element gridContainer) {
+        Style style = gridContainer.getComputedStyle();
+        Box box = Box.of(gridContainer);
+        boolean borderBox = box.isBorderBox();
+        double width = resolveAvailableAxisSize(style.width, Size.getScaleWidth(gridContainer), box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
+        Double explicitParentHeight = Size.getExplicitContainingBlockHeight(gridContainer);
+        double heightBasis = explicitParentHeight != null ? explicitParentHeight : 0;
+        double height = resolveAvailableAxisSize(style.height, heightBasis, box.getBorderVertical() + box.getPaddingVertical(), borderBox);
+        return new Size(width, height);
+    }
+
+    private static double resolveAvailableAxisSize(String raw, double percentBasis, double boxExtent, boolean borderBox) {
+        Double parsed = Size.parseNumber(raw);
+        if (parsed == null) {
+            return Math.max(0, percentBasis);
+        }
+        if (Size.isPercent(raw) && percentBasis <= 0) {
+            return 0;
+        }
+        double resolved = Size.resolveLength(raw, percentBasis, parsed);
+        return Math.max(0, borderBox ? resolved - boxExtent : resolved);
+    }
+
+    private static List<String> splitTopLevelWhitespace(String value) {
+        List<String> parts = new ArrayList<>();
+        if (value == null || value.isBlank()) return parts;
+
+        int depth = 0;
+        StringBuilder current = new StringBuilder();
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')' && depth > 0) depth--;
+
+            if (Character.isWhitespace(c) && depth == 0) {
+                if (!current.isEmpty()) {
+                    parts.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            current.append(c);
+        }
+        if (!current.isEmpty()) parts.add(current.toString());
+        return parts;
+    }
 
     private static final class Occupancy {
         private final int cols;
@@ -520,7 +615,6 @@ public final class Grid {
         }
 
         Occupancy resize(int newCols) {
-            // Rebuild occupancy with new width, preserving existing marks where possible.
             Occupancy n = new Occupancy(newCols);
             for (boolean[] r : rows) {
                 boolean[] nr = new boolean[newCols];
@@ -532,9 +626,7 @@ public final class Grid {
         }
 
         void ensureRows(int count) {
-            while (rows.size() < count) {
-                rows.add(new boolean[cols]);
-            }
+            while (rows.size() < count) rows.add(new boolean[cols]);
         }
 
         boolean fits(int row, int col, int rowSpan, int colSpan) {
@@ -561,40 +653,27 @@ public final class Grid {
         }
     }
 
-    // find fit scanning row-major from (startRow, startCol)
     private static int[] findFirstFit(Occupancy occ, int startRow, int startCol, int rowSpan, int colSpan) {
         int row = Math.max(0, startRow);
         int col0 = Math.max(0, startCol);
-
         while (true) {
             occ.ensureRows(row + rowSpan);
-
             for (int col = col0; col <= occ.cols - colSpan; col++) {
-                if (occ.fits(row, col, rowSpan, colSpan)) {
-                    return new int[]{row, col};
-                }
+                if (occ.fits(row, col, rowSpan, colSpan)) return new int[]{row, col};
             }
-
-            // next row
             row += 1;
             col0 = 0;
         }
     }
 
-    // find fit at a fixed column scanning rows
     private static int[] findFirstFitAtCol(Occupancy occ, int startRow, int fixedCol, int rowSpan, int colSpan) {
         int row = Math.max(0, startRow);
         int col = Math.max(0, fixedCol);
-
         while (true) {
-            if (occ.fits(row, col, rowSpan, colSpan)) {
-                return new int[]{row, col};
-            }
+            if (occ.fits(row, col, rowSpan, colSpan)) return new int[]{row, col};
             row += 1;
         }
     }
-
-    // ---------------- math helpers ----------------
 
     private static double sum(int[] arr) {
         double s = 0;
