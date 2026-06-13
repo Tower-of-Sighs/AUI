@@ -928,7 +928,11 @@
         }
     }
 
-    document.body.addEventListener("load", function () {
+    let initialized = false;
+
+    function initializePage() {
+        if (initialized) return;
+        initialized = true;
         setupCaseClicks();
         setupToolbar();
         setAnimationRunning(true);
@@ -936,5 +940,11 @@
         window.setInterval(function () {
             stepAuto();
         }, 650);
-    });
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializePage);
+    } else {
+        initializePage();
+    }
 </script>

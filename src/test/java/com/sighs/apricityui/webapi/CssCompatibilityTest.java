@@ -3,12 +3,18 @@ package com.sighs.apricityui.webapi;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.init.StyleFrameCache;
 import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.style.Animation;
 import org.junit.jupiter.api.Test;
 
 import java.util.HashMap;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CssCompatibilityTest {
     @Test
@@ -203,6 +209,26 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void animationLonghandsAlsoBuildComputedAnimationShorthand() {
+        Style style = new Style();
+        style.merge("""
+                animation-name: pulse;
+                animation-duration: 2s;
+                animation-delay: 100ms;
+                animation-iteration-count: infinite;
+                animation-direction: alternate;
+                animation-fill-mode: both;
+                animation-timing-function: ease-in;
+                animation-play-state: running;
+                """);
+        style.finalizeComputedValues(null);
+
+        assertEquals("pulse", style.animationName);
+        assertEquals("running", style.animationPlayState);
+        assertTrue(style.animation.startsWith("pulse 2s ease-in 100ms infinite alternate both running"));
+    }
+
+    @Test
     void animationNoneResetsLonghandsToInitialValues() {
         Style style = new Style();
         style.merge("animation: none;");
@@ -218,6 +244,31 @@ class CssCompatibilityTest {
         assertEquals("ease", style.animationTimingFunction);
         assertEquals("running", style.animationPlayState);
     }
+
+    @Test
+    void animationPlayStateTokenDoesNotOverrideAnimationName() {
+        String animationName = "css-compat-play-state-" + UUID.randomUUID();
+        Animation.registerKeyframe(animationName, 0.0, java.util.Map.of("opacity", "0.25"));
+        Animation.registerKeyframe(animationName, 100.0, java.util.Map.of("opacity", "1"));
+
+        Style style = new Style();
+        style.merge("animation: " + animationName + " 1s linear 0s infinite alternate both running;");
+        style.finalizeComputedValues(null);
+
+        assertEquals(animationName, style.animationName);
+        assertEquals("running", style.animationPlayState);
+
+        Document document = TestDocumentFactory.createDocument();
+        Element element = new Element(document, "div");
+        document.body.appendChild(element);
+        element.setAttribute("style", "animation: " + animationName + " 1s linear 0s infinite alternate both running;");
+
+        Style computed = element.getComputedStyle().clone();
+        Animation.updateStyle(element, computed);
+
+        assertTrue(Double.parseDouble(computed.opacity) >= 0.25);
+    }
+
 
     private static void withViewport(double width, double height, ThrowingRunnable runnable) throws Exception {
         String oldWidth = System.getProperty("aui.test.viewport.width");

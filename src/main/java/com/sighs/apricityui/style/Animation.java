@@ -19,19 +19,22 @@ public class Animation {
     private static final Set<String> TIMING_SET = Set.of(
             "linear", "ease", "ease-in", "ease-out", "ease-in-out", "step-start", "step-end"
     );
+    private static final Set<String> PLAY_STATE_SET = Set.of("running", "paused");
 
     private static class AnimationConfig {
-        String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "linear";
+        String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "linear", playState = "running";
     }
 
     private static class AnimationState {
         final Map<String, Long> starts = new HashMap<>();
+        final Map<String, Long> pausedAt = new HashMap<>();
         String lastSpec = null;
         List<AnimationConfig> cachedConfigs = List.of();
         final Set<String> live = new HashSet<>();
 
         void forgetExcept(Set<String> names) {
             starts.keySet().retainAll(names);
+            pausedAt.keySet().retainAll(names);
         }
     }
 
@@ -98,10 +101,22 @@ public class Animation {
         live.add(config.name);
 
         long start = state.starts.computeIfAbsent(config.name, k -> now);
+        boolean paused = "paused".equals(config.playState);
+        if (paused) {
+            state.pausedAt.putIfAbsent(config.name, now);
+        } else {
+            Long pausedSince = state.pausedAt.remove(config.name);
+            if (pausedSince != null) {
+                start += now - pausedSince;
+                state.starts.put(config.name, start);
+            }
+        }
+
         double dur = Transition.parseTime(config.duration), delay = Transition.parseTime(config.delay);
         if (dur <= 0) return;
 
-        long elapsed = now - start;
+        long sampleTime = paused ? state.pausedAt.getOrDefault(config.name, now) : now;
+        long elapsed = sampleTime - start;
         double activeTime = elapsed - delay;
         if (activeTime < 0) {
             if (config.fill.equals("backwards") || config.fill.equals("both"))
@@ -228,14 +243,16 @@ public class Animation {
         AnimationConfig c = new AnimationConfig();
         for (String t : splitAnimationTokens(spec, start, end)) {
             if (t.isEmpty()) continue;
+            String normalized = t.toLowerCase(Locale.ROOT);
 
             if (isTimeToken(t)) {
                 if (c.duration.equals("0s")) c.duration = t;
                 else c.delay = t;
-            } else if (t.equals("infinite") || isNumberToken(t)) c.count = t;
-            else if (DIRECTION_SET.contains(t)) c.direction = t;
-            else if (FILL_SET.contains(t)) c.fill = t;
-            else if (isTimingFunctionToken(t)) c.timing = t;
+            } else if ("infinite".equals(normalized) || isNumberToken(t)) c.count = t;
+            else if (DIRECTION_SET.contains(normalized)) c.direction = normalized;
+            else if (FILL_SET.contains(normalized)) c.fill = normalized;
+            else if (PLAY_STATE_SET.contains(normalized)) c.playState = normalized;
+            else if (isTimingFunctionToken(normalized)) c.timing = normalized;
             else c.name = t;
         }
         configs.add(c);

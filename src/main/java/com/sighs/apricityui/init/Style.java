@@ -849,19 +849,6 @@ public class Style implements Cloneable {
     }
 
     private void finalizeAnimationValues() {
-        if (animation == null || animation.isBlank() || "unset".equalsIgnoreCase(animation)) {
-            if (animationName != null && !animationName.isBlank() && !"unset".equalsIgnoreCase(animationName)) {
-                animation = buildAnimationShorthand();
-            } else {
-                animation = initialValue("animation");
-            }
-        }
-        if (animationName == null || animationName.isBlank() || "unset".equalsIgnoreCase(animationName)) {
-            if (animation != null && !animation.isBlank() && !"none".equalsIgnoreCase(animation) && !"unset".equalsIgnoreCase(animation)) {
-                applyAnimationShorthand(animation);
-            }
-        }
-
         animationName = defaultIfUnset(animationName, initialValue("animation-name"));
         animationDuration = defaultIfUnset(animationDuration, initialValue("animation-duration"));
         animationDelay = defaultIfUnset(animationDelay, initialValue("animation-delay"));
@@ -870,6 +857,35 @@ public class Style implements Cloneable {
         animationFillMode = defaultIfUnset(animationFillMode, initialValue("animation-fill-mode"));
         animationTimingFunction = defaultIfUnset(animationTimingFunction, initialValue("animation-timing-function"));
         animationPlayState = defaultIfUnset(animationPlayState, initialValue("animation-play-state"));
+
+        boolean hasNamedAnimation = animationName != null
+                && !animationName.isBlank()
+                && !"unset".equalsIgnoreCase(animationName)
+                && !"none".equalsIgnoreCase(animationName);
+
+        if (animation == null || animation.isBlank() || "unset".equalsIgnoreCase(animation)) {
+            animation = hasNamedAnimation ? buildAnimationShorthand() : initialValue("animation");
+            return;
+        }
+
+        if ("none".equalsIgnoreCase(animation)) {
+            if (hasNamedAnimation) {
+                animation = buildAnimationShorthand();
+            }
+            return;
+        }
+
+        if (animationName == null || animationName.isBlank() || "unset".equalsIgnoreCase(animationName)) {
+            applyAnimationShorthand(animation);
+            animationName = defaultIfUnset(animationName, initialValue("animation-name"));
+            animationDuration = defaultIfUnset(animationDuration, initialValue("animation-duration"));
+            animationDelay = defaultIfUnset(animationDelay, initialValue("animation-delay"));
+            animationIterationCount = defaultIfUnset(animationIterationCount, initialValue("animation-iteration-count"));
+            animationDirection = defaultIfUnset(animationDirection, initialValue("animation-direction"));
+            animationFillMode = defaultIfUnset(animationFillMode, initialValue("animation-fill-mode"));
+            animationTimingFunction = defaultIfUnset(animationTimingFunction, initialValue("animation-timing-function"));
+            animationPlayState = defaultIfUnset(animationPlayState, initialValue("animation-play-state"));
+        }
     }
 
     private String buildAnimationShorthand() {
