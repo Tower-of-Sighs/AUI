@@ -431,7 +431,7 @@ public class Client {
         poseStack.pushPose();
         poseStack.translate(position.x, position.y, 0);
         // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
-        poseStack.scale((float) (text.fontSize / 9f), (float) (text.fontSize / 9f), 1f);
+        poseStack.scale((float) (text.fontSize / 16f), (float) (text.fontSize / 16f), 1f);
         MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);

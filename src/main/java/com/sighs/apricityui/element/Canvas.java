@@ -2,7 +2,6 @@ package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.canvas.CanvasRenderingContext2D;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -196,7 +195,7 @@ public class Canvas extends Element {
         }
     }
 
-    private void drawCanvas(PoseStack poseStack, Rect rectRenderer) {
+    protected void drawCanvas(PoseStack poseStack, Rect rectRenderer) {
         syncTexture();
         if (textureLocation == null) return;
 
@@ -224,7 +223,7 @@ public class Canvas extends Element {
         }
     }
 
-    private void resizeSurface(int width, int height, boolean resetState) {
+    protected void resizeSurface(int width, int height, boolean resetState) {
         int safeWidth = Math.max(1, width);
         int safeHeight = Math.max(1, height);
         if (surface != null && bitmapWidth == safeWidth && bitmapHeight == safeHeight) return;
@@ -299,5 +298,51 @@ public class Canvas extends Element {
         int g = (argb >>> 8) & 0xFF;
         int b = argb & 0xFF;
         return (a << 24) | (b << 16) | (g << 8) | r;
+    }
+
+    /**
+     * Binary compatibility for addons compiled against the previous nested context type.
+     *
+     * @deprecated Use {@link com.sighs.apricityui.canvas.CanvasRenderingContext2D}.
+     */
+    @Deprecated
+    public static class CanvasRenderingContext2D extends com.sighs.apricityui.canvas.CanvasRenderingContext2D {
+        public CanvasRenderingContext2D(Canvas canvas) {
+            super(canvas);
+        }
+
+        @Override
+        public CanvasLinearGradient createLinearGradient(double x0, double y0, double x1, double y1) {
+            return new CanvasLinearGradient((float) x0, (float) y0, (float) x1, (float) y1);
+        }
+
+        @Override
+        public CanvasRadialGradient createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1) {
+            return new CanvasRadialGradient((float) x0, (float) y0, (float) r0, (float) x1, (float) y1, (float) r1);
+        }
+    }
+
+    /**
+     * Binary compatibility for addons compiled against the previous nested gradient type.
+     *
+     * @deprecated Use {@link com.sighs.apricityui.canvas.CanvasLinearGradient}.
+     */
+    @Deprecated
+    public static class CanvasLinearGradient extends com.sighs.apricityui.canvas.CanvasLinearGradient {
+        public CanvasLinearGradient(float x0, float y0, float x1, float y1) {
+            super(x0, y0, x1, y1);
+        }
+    }
+
+    /**
+     * Binary compatibility for addons compiled against the previous nested gradient type.
+     *
+     * @deprecated Use {@link com.sighs.apricityui.canvas.CanvasRadialGradient}.
+     */
+    @Deprecated
+    public static class CanvasRadialGradient extends com.sighs.apricityui.canvas.CanvasRadialGradient {
+        public CanvasRadialGradient(float x0, float y0, float r0, float x1, float y1, float r1) {
+            super(x0, y0, r0, x1, y1, r1);
+        }
     }
 }

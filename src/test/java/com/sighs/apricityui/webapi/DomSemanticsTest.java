@@ -430,6 +430,41 @@ class DomSemanticsTest {
     }
 
     @Test
+    void innerHtmlParsedElementsInitializeDerivedAttributeState() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+
+        host.setInnerHTML("<div id=\"slot\" class=\"slot-card flex\" style=\"display:flex;background:white;border:2px solid #123456\"></div>");
+
+        Element slot = host.querySelector("#slot");
+        assertNotNull(slot);
+        assertTrue(slot.getClassNames().contains("slot-card"));
+        assertTrue(slot.getClassNames().contains("flex"));
+        assertEquals("flex", slot.getComputedStyle().display);
+        assertEquals("white", slot.getComputedStyle().backgroundColor);
+        assertEquals("2px solid #123456", slot.getComputedStyle().border);
+    }
+
+    @Test
+    void disconnectedInnerHtmlBuildsLocalSubtreeUntilHostIsMounted() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+
+        host.setInnerHTML("<div class=\"card\"><span>alpha</span></div>");
+
+        assertEquals(1, host.getChildNodes().size());
+        assertSame(host, host.getFirstChild().getParentNode());
+        assertFalse(host.getFirstChild().isConnected());
+
+        document.body.appendChild(host);
+
+        Element card = host.querySelector(".card");
+        assertNotNull(card);
+        assertTrue(card.isConnected());
+        assertEquals("alpha", card.getTextContent());
+    }
+
+    @Test
     void cloneNodeSupportsShallowAndDeepCopiesAcrossNodeTypes() {
         Document document = TestDocumentFactory.createDocument();
         Element host = new Element(document, "div");

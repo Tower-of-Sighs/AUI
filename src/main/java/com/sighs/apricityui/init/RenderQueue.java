@@ -29,11 +29,11 @@ final class RenderQueue {
     }
 
     void rebuildPaintList() {
-        if (owner.body == null) {
+        if (owner.documentElement == null) {
             paintList = new ArrayList<>();
             return;
         }
-        paintList = Drawer.createPaintList(owner.body);
+        paintList = Drawer.createPaintList(owner.documentElement);
     }
 
     void tickElements() {

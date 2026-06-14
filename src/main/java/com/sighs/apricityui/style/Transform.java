@@ -30,12 +30,9 @@ public interface Transform {
             return List.of();
         }
 
-        Pattern funcPattern = Pattern.compile("([a-zA-Z0-9]+)\\(([^)]*)\\)");
-        Matcher m = funcPattern.matcher(transform);
-
-        while (m.find()) {
-            String func = m.group(1).toLowerCase(Locale.ENGLISH);
-            String argText = m.group(2).trim();
+        for (FunctionCall call : extractFunctionCalls(transform)) {
+            String func = call.name().toLowerCase(Locale.ENGLISH);
+            String argText = call.arguments().trim();
             List<String> args = splitArgs(argText);
 
             switch (func) {
@@ -119,16 +116,67 @@ public interface Transform {
     private static List<String> splitArgs(String argText) {
         List<String> out = new ArrayList<>();
         if (argText == null || argText.isBlank()) return out;
-        String[] byComma = argText.split(",");
-        for (String part : byComma) {
-            String trimmed = part.trim();
-            if (trimmed.isEmpty()) continue;
-            String[] bySpace = trimmed.split("\\s+");
-            for (String s : bySpace) {
-                if (!s.isEmpty()) out.add(s.trim());
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < argText.length(); i++) {
+            char c = argText.charAt(i);
+            if (c == '(') {
+                depth++;
+                current.append(c);
+                continue;
             }
+            if (c == ')') {
+                depth = Math.max(0, depth - 1);
+                current.append(c);
+                continue;
+            }
+            if ((c == ',' || Character.isWhitespace(c)) && depth == 0) {
+                String token = current.toString().trim();
+                if (!token.isEmpty()) out.add(token);
+                current.setLength(0);
+                continue;
+            }
+            current.append(c);
+        }
+        String token = current.toString().trim();
+        if (!token.isEmpty()) {
+            out.add(token);
         }
         return out;
+    }
+
+    private static List<FunctionCall> extractFunctionCalls(String transform) {
+        List<FunctionCall> calls = new ArrayList<>();
+        if (transform == null || transform.isBlank()) return calls;
+
+        int length = transform.length();
+        int index = 0;
+        while (index < length) {
+            while (index < length && Character.isWhitespace(transform.charAt(index))) index++;
+            if (index >= length) break;
+
+            int nameStart = index;
+            while (index < length && Character.isLetterOrDigit(transform.charAt(index))) index++;
+            if (index <= nameStart || index >= length || transform.charAt(index) != '(') {
+                index++;
+                continue;
+            }
+
+            String name = transform.substring(nameStart, index);
+            int argsStart = ++index;
+            int depth = 1;
+            while (index < length && depth > 0) {
+                char c = transform.charAt(index);
+                if (c == '(') depth++;
+                else if (c == ')') depth--;
+                index++;
+            }
+            if (depth != 0) break;
+
+            String arguments = transform.substring(argsStart, index - 1);
+            calls.add(new FunctionCall(name, arguments));
+        }
+        return calls;
     }
 
     private static double parseScale(String token) {
@@ -147,7 +195,9 @@ public interface Transform {
 
     private static double parseLength(List<String> args, int index) {
         if (args == null || index < 0 || index >= args.size()) return 0;
-        Double parsed = Size.parseNumber(args.get(index));
+        String raw = args.get(index);
+        double percentBasis = index == 1 ? Size.getWindowSize().height() : Size.getWindowSize().width();
+        Double parsed = Size.tryResolveLength(raw, percentBasis);
         return parsed == null ? 0 : parsed;
     }
 
@@ -273,5 +323,8 @@ public interface Transform {
         if (t instanceof Transform.Rotate) return Transform.Rotate.DEFAULT;
         if (t instanceof Transform.Scale) return Transform.Scale.DEFAULT;
         return t;
+    }
+
+    record FunctionCall(String name, String arguments) {
     }
 }

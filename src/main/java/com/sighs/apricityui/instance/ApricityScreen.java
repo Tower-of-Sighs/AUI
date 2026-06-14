@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -17,6 +18,8 @@ import javax.annotation.Nonnull;
 public class ApricityScreen extends Screen {
     private final String templatePath;
     private Document linkedDocument;
+    private boolean loggedInitState = false;
+    private boolean loggedRenderState = false;
 
     public ApricityScreen(String templatePath) {
         super(Component.empty());
@@ -30,6 +33,7 @@ public class ApricityScreen extends Screen {
     @Override
     protected void init() {
         super.init();
+        Size.setViewportOverride(width, height);
 
         // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
         if (linkedDocument != null) {
@@ -38,11 +42,34 @@ public class ApricityScreen extends Screen {
         }
 
         linkedDocument = Document.create(templatePath);
+        if (!loggedInitState) {
+            loggedInitState = true;
+            com.sighs.apricityui.ApricityUI.LOGGER.info(
+                    "[AUI Screen] init path={} viewport={}x{} doc={} body={} paintList={}",
+                    templatePath,
+                    width,
+                    height,
+                    linkedDocument == null ? "<null>" : linkedDocument.getUuid(),
+                    linkedDocument == null || linkedDocument.body == null ? "<null>" : linkedDocument.body.tagName,
+                    linkedDocument == null ? -1 : linkedDocument.getPaintList().size()
+            );
+        }
     }
 
     @Override
     public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         if (linkedDocument != null) {
+            if (!loggedRenderState) {
+                loggedRenderState = true;
+                com.sighs.apricityui.ApricityUI.LOGGER.info(
+                        "[AUI Screen] render path={} doc={} body={} paintList={} dirty={}",
+                        templatePath,
+                        linkedDocument.getUuid(),
+                        linkedDocument.body == null ? "<null>" : linkedDocument.body.tagName,
+                        linkedDocument.getPaintList().size(),
+                        linkedDocument.getDirtyElements().size()
+                );
+            }
             Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
             // 默认字体使用 Minecraft 的 BufferSource，文档绘制结束后立即提交，避免文本延迟到后续阶段才显示。
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
@@ -58,6 +85,7 @@ public class ApricityScreen extends Screen {
             }
             linkedDocument.remove();
         }
+        Size.clearViewportOverride();
         Cursor.resetToDefault();
         super.onClose();
     }
@@ -67,6 +95,7 @@ public class ApricityScreen extends Screen {
         if (linkedDocument != null) {
             linkedDocument.remove();
         }
+        Size.clearViewportOverride();
         super.removed();
     }
 

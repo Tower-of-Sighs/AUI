@@ -105,11 +105,11 @@ public class Element extends Node {
         node.forEachRoute(consumer);
     }
 
-    public Style style = null;
+    private Style inlineStyle = null;
 
     public Style getStyle() {
-        if (style == null) updateInlineStyle();
-        return style;
+        if (inlineStyle == null) updateInlineStyle();
+        return inlineStyle;
     }
 
     public String getCustomProperty(String name) {
@@ -320,6 +320,7 @@ public class Element extends Node {
         if (cache != null) {
             computedStyle = cache;
         } else {
+            ensureCssCacheReady();
             computedStyle = new Style();
             cssCache.forEach(computedStyle::update);
             computedStyle.merge(getAttribute("style"));
@@ -333,11 +334,17 @@ public class Element extends Node {
         return computedStyle;
     }
 
+    private void ensureCssCacheReady() {
+        if (document == null || !cssCache.isEmpty()) return;
+        if (getClassNames().isEmpty() && (id == null || id.isBlank()) && getAttributes().isEmpty()) return;
+        cssCache = Selector.matchCSS(this);
+    }
+
     public void updateInlineStyle() {
         Style newStyle = new Style();
         newStyle.merge(attributes.getOrDefault("style", ""));
-        if (style != null) RenderElement.observeStyle(this, style, newStyle);
-        style = newStyle;
+        if (inlineStyle != null) RenderElement.observeStyle(this, inlineStyle, newStyle);
+        inlineStyle = newStyle;
     }
 
     public void setHover(boolean hover) {
@@ -582,8 +589,10 @@ public class Element extends Node {
                 rectRenderer.drawBody(poseStack);
                 drawChildTextRuns(poseStack, rectRenderer);
                 if (!NormalFlow.isInlineTextPaintedByAncestor(this)) {
-                    textSelection.drawInnerTextSelection(poseStack, rectRenderer);
-                    textSelection.drawInnerText(poseStack, rectRenderer);
+                    if (!hasMixedDirectTextAndElementChildren()) {
+                        textSelection.drawInnerTextSelection(poseStack, rectRenderer);
+                        textSelection.drawInnerText(poseStack, rectRenderer);
+                    }
                 }
                 scroll.drawScrollbar(poseStack, rectRenderer);
             }
@@ -646,7 +655,10 @@ public class Element extends Node {
 
     // 只发生在解析html的时候，元素创建的时候，将基础元素用对应类的元素替代
     public static Element init(Element origin) {
-        if (!origin.getClass().equals(Element.class)) return origin;
+        if (!origin.getClass().equals(Element.class)) {
+            origin.runInitFromDomOnce(origin);
+            return origin;
+        }
 
         BiFunction<Document, String, ? extends Element> creator = REGISTRY.get(origin.tagName);
         if (creator != null) {
@@ -683,6 +695,7 @@ public class Element extends Node {
             return element;
         }
 
+        origin.runInitFromDomOnce(origin);
         return origin;
     }
 
@@ -1342,6 +1355,39 @@ public class Element extends Node {
         }
     }
 
+    void invalidateSubtreeAfterAttach() {
+        invalidateStyleCaches();
+        renderElement.route.clear();
+        renderElement.transform.clear();
+        renderElement.opacity.clear();
+        renderElement.text.clear();
+        renderElement.wrappedText.clear();
+        renderElement.size.clear();
+        renderElement.box.clear();
+        renderElement.position.clear();
+        renderElement.background.clear();
+        renderElement.cursor.clear();
+        renderElement.filter.clear();
+        renderElement.backdropFilter.clear();
+
+        for (Element child : children) {
+            if (child != null) {
+                child.invalidateSubtreeAfterAttach();
+            }
+        }
+    }
+
+    void refreshElementChildrenFromChildNodes() {
+        CopyOnWriteArrayList<Element> elementChildren = new CopyOnWriteArrayList<>();
+        for (Node child : childNodes) {
+            if (child instanceof Element childElement) {
+                childElement.parentElement = this;
+                elementChildren.add(childElement);
+            }
+        }
+        children = elementChildren;
+    }
+
     private void enforceRadioGroupChecked() {
         if (document == null) return;
         String group = getAttribute("name");
@@ -1606,7 +1652,11 @@ public class Element extends Node {
     private void drawChildTextRuns(PoseStack poseStack, Rect rectRenderer) {
         if (childNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
-        if (Layout.isFlexDisplay(getComputedStyle().display) || Layout.isGridDisplay(getComputedStyle().display)) return;
+        if (Layout.isFlexDisplay(getComputedStyle().display)) {
+            drawFlexDirectTextRuns(poseStack);
+            return;
+        }
+        if (Layout.isGridDisplay(getComputedStyle().display)) return;
         if (children.isEmpty()) {
             for (Node child : childNodes) {
                 if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
@@ -1627,6 +1677,29 @@ public class Element extends Node {
                 FontDrawer.drawFont(poseStack, lineText, drawPos);
             }
         }
+    }
+
+    private void drawFlexDirectTextRuns(PoseStack poseStack) {
+        for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(this)) {
+            if (layout == null || layout.text() == null || layout.position() == null) continue;
+            Text text = layout.text();
+            if (text.content == null || text.content.isEmpty()) continue;
+            FontDrawer.drawFont(
+                    poseStack,
+                    cloneTextForSegment(text, text.content, Color.BLACK),
+                    new Position(layout.position().x - scrollLeft, layout.position().y - scrollTop)
+            );
+        }
+    }
+
+    private boolean hasMixedDirectTextAndElementChildren() {
+        if (children.isEmpty() || childNodes.isEmpty()) return false;
+        for (Node child : childNodes) {
+            if (child instanceof TextNode textNode && !textNode.getTextContent().isBlank()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private List<String> resolveRenderedLines(Text text, double contentWidth, double contentHeight) {

@@ -213,34 +213,56 @@ public class HTML {
                         } else if (parsedRoot == null) {
                             parsedRoot = finalized;
                         } else {
-                            return toDocumentRoot(document, parsedRoot);
+                            attachChildFast(parsedRoot, finalized);
                         }
                     } else {
                         stack.push(el);
                     }
                 }
                 case END_TAG -> {
-                    if (stack.isEmpty()) return null;
-                    Element finished = Element.init(stack.pop());
-                    if (!stack.isEmpty()) {
-                        attachChildFast(stack.peek(), finished);
-                    } else if (parsedRoot == null) {
-                        parsedRoot = finished;
-                    } else {
-                        return toDocumentRoot(document, parsedRoot);
+                    if (stack.isEmpty()) continue;
+                    if (!containsTag(stack, token.tagName)) continue;
+                    while (!stack.isEmpty()) {
+                        Element finished = Element.init(stack.pop());
+                        if (!stack.isEmpty()) {
+                            attachChildFast(stack.peek(), finished);
+                        } else if (parsedRoot == null) {
+                            parsedRoot = finished;
+                        } else {
+                            attachChildFast(parsedRoot, finished);
+                        }
+                        if (isTag(finished, token.tagName)) break;
                     }
                 }
                 case TEXT -> {
-                    if (stack.isEmpty()) return null;
+                    if (stack.isEmpty()) continue;
                     if (!token.content.isBlank()) attachChildFast(stack.peek(), document.createTextNode(token.content));
                 }
                 case COMMENT -> {
-                    if (stack.isEmpty()) return null;
+                    if (stack.isEmpty()) continue;
                     attachChildFast(stack.peek(), document.createComment(token.content == null ? "" : token.content));
                 }
             }
         }
-        return stack.isEmpty() ? toDocumentRoot(document, parsedRoot) : null;
+        while (!stack.isEmpty()) {
+            Element finished = Element.init(stack.pop());
+            if (!stack.isEmpty()) {
+                attachChildFast(stack.peek(), finished);
+            } else if (parsedRoot == null) {
+                parsedRoot = finished;
+            } else {
+                attachChildFast(parsedRoot, finished);
+            }
+        }
+        return toDocumentRoot(document, parsedRoot);
+    }
+
+    private static boolean containsTag(Deque<Element> stack, String tagName) {
+        if (stack == null || stack.isEmpty() || tagName == null || tagName.isBlank()) return false;
+        for (Element element : stack) {
+            if (isTag(element, tagName)) return true;
+        }
+        return false;
     }
 
     private static String normalizeDocumentMarkup(String html) {

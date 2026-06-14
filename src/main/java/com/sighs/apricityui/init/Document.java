@@ -1,5 +1,6 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Head;
 import com.sighs.apricityui.element.Html;
@@ -12,6 +13,7 @@ import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.style.Size;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -67,6 +69,7 @@ public class Document {
 
     public void refresh() {
         beginRefreshLifecycle();
+        Size.clearRootFontOverride();
         CSSCache.clear();
         CSSDebugRules.clear();
         JSCache.clear();
@@ -85,9 +88,16 @@ public class Document {
 
             // First pass: ensure computed styles exist for DOM expanders.
             style.recomputeSubtree(documentElement);
+            if (documentElement != null) {
+                Double rootFont = Size.tryResolveLength(documentElement.getComputedStyle().fontSize, 16, 16);
+                Size.setRootFontOverride(rootFont);
+                clearRenderCaches(documentElement);
+                style.recomputeSubtree(documentElement);
+            }
             DocumentExpander.apply(this);
 
             // Final pass: apply styles once after expansion.
+            clearRenderCaches(documentElement);
             style.recomputeSubtree(documentElement);
             tree.getElements().forEach(Element::clearDirtyFlags);
             render.reset();
@@ -105,7 +115,31 @@ public class Document {
             fireLifecycleEvent("DOMContentLoaded", false);
             enterComplete();
             fireLifecycleEvent("load", false);
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.error("[AUI JS] document refresh failed for {}", path, exception);
+        }
+    }
+
+    private void clearRenderCaches(Element root) {
+        if (root == null) return;
+        ArrayDeque<Element> stack = new ArrayDeque<>();
+        stack.push(root);
+        while (!stack.isEmpty()) {
+            Element current = stack.pop();
+            if (current == null) continue;
+            RenderElement renderer = current.getRenderer();
+            renderer.text.clear();
+            renderer.wrappedText.clear();
+            renderer.size.clear();
+            renderer.box.clear();
+            renderer.position.clear();
+            List<Element> children = current.children;
+            for (int i = children.size() - 1; i >= 0; i--) {
+                Element child = children.get(i);
+                if (child != null) {
+                    stack.push(child);
+                }
+            }
         }
     }
 

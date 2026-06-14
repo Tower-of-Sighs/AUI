@@ -29,6 +29,10 @@ public class CanvasPath2D {
         return path;
     }
 
+    public Shape asShape() {
+        return new Path2D.Double(path);
+    }
+
     public void closePath() {
         path.closePath();
     }

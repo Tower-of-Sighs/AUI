@@ -102,13 +102,11 @@ public abstract class Node {
             Node last = null;
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
-                last = document.createRelationAndReturn(prepareForInsertion(child), this, false);
+                last = appendSingleChild(prepareForInsertion(child));
             }
             return last;
         }
-        Node inserted = prepareForInsertion(node);
-        document.createRelation(inserted, this, false);
-        return inserted;
+        return appendSingleChild(prepareForInsertion(node));
     }
 
     public Node removeChild(Node node) {
@@ -123,13 +121,11 @@ public abstract class Node {
             Node last = null;
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
-                last = document.getTree().insertBeforeAndReturn(prepareForInsertion(child), this, referenceNode);
+                last = insertSingleChildBefore(prepareForInsertion(child), referenceNode);
             }
             return last;
         }
-        Node inserted = prepareForInsertion(newNode);
-        document.getTree().insertBefore(inserted, this, referenceNode);
-        return inserted;
+        return insertSingleChildBefore(prepareForInsertion(newNode), referenceNode);
     }
 
     public Node replaceChild(Node newNode, Node oldNode) {
@@ -139,12 +135,76 @@ public abstract class Node {
             document.removeNode(oldNode);
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
-                document.getTree().insertBefore(prepareForInsertion(child), this, nextSibling);
+                insertSingleChildBefore(prepareForInsertion(child), nextSibling);
             }
             return oldNode;
         }
-        document.getTree().replaceChild(this, prepareForInsertion(newNode), oldNode);
+        Node inserted = prepareForInsertion(newNode);
+        if (isConnected()) {
+            document.getTree().replaceChild(this, inserted, oldNode);
+        } else {
+            int index = childNodes.indexOf(oldNode);
+            if (index < 0) return null;
+            detachLocalChild(oldNode);
+            attachLocalChild(inserted, index);
+        }
         return oldNode;
+    }
+
+    private Node appendSingleChild(Node node) {
+        if (node == null) return null;
+        if (isConnected()) {
+            document.createRelation(node, this, false);
+        } else {
+            attachLocalChild(node, childNodes.size());
+        }
+        return node;
+    }
+
+    private Node insertSingleChildBefore(Node node, Node referenceNode) {
+        if (node == null) return null;
+        if (isConnected()) {
+            document.getTree().insertBefore(node, this, referenceNode);
+        } else {
+            int index = referenceNode == null ? childNodes.size() : childNodes.indexOf(referenceNode);
+            if (index < 0) index = childNodes.size();
+            attachLocalChild(node, index);
+        }
+        return node;
+    }
+
+    private void attachLocalChild(Node node, int index) {
+        if (node == null) return;
+        detachLocalChild(node);
+        int safeIndex = Math.max(0, Math.min(index, childNodes.size()));
+        childNodes.add(safeIndex, node);
+        node.parentNode = this;
+        node.document = document;
+        node.depth = depth + 1;
+        if (this instanceof Element parentElement) {
+            if (node instanceof Element childElement) {
+                childElement.parentElement = parentElement;
+                childElement.syncDomStateAfterAttach();
+            }
+            parentElement.refreshElementChildrenFromChildNodes();
+        } else if (node instanceof Element childElement) {
+            childElement.parentElement = null;
+            childElement.syncDomStateAfterAttach();
+        }
+    }
+
+    private static void detachLocalChild(Node node) {
+        if (node == null) return;
+        Node oldParent = node.parentNode;
+        if (oldParent == null) return;
+        oldParent.childNodes.remove(node);
+        if (oldParent instanceof Element oldParentElement) {
+            oldParentElement.refreshElementChildrenFromChildNodes();
+        }
+        node.parentNode = null;
+        if (node instanceof Element childElement) {
+            childElement.parentElement = null;
+        }
     }
 
     private Node prepareForInsertion(Node node) {

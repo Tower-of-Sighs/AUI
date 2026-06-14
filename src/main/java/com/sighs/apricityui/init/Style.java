@@ -1,5 +1,6 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Size;
 
@@ -30,6 +31,7 @@ public class Style implements Cloneable {
     private static final Map<String, String> INITIAL_VALUES = Map.ofEntries(
             Map.entry("width", "auto"),
             Map.entry("height", "auto"),
+            Map.entry("aspect-ratio", "auto"),
             Map.entry("min-width", "unset"),
             Map.entry("min-height", "unset"),
             Map.entry("max-width", "unset"),
@@ -57,6 +59,8 @@ public class Style implements Cloneable {
             Map.entry("background-repeat", "repeat"),
             Map.entry("background-size", "auto"),
             Map.entry("background-position", "0 0"),
+            Map.entry("object-fit", "fill"),
+            Map.entry("object-position", "50% 50%"),
             Map.entry("margin", "0px"),
             Map.entry("margin-top", "0px"),
             Map.entry("margin-bottom", "0px"),
@@ -114,6 +118,7 @@ public class Style implements Cloneable {
             Map.entry("visibility", "visible"),
             Map.entry("transition", "none"),
             Map.entry("transform", "none"),
+            Map.entry("rotate", "none"),
             Map.entry("clip-path", "none"),
             Map.entry("filter", "none"),
             Map.entry("backdrop-filter", "none"),
@@ -130,6 +135,7 @@ public class Style implements Cloneable {
 
     public String width = "unset";
     public String height = "unset";
+    public String aspectRatio = "auto";
     public String minWidth = "unset";
     public String minHeight = "unset";
     public String maxWidth = "unset";
@@ -163,6 +169,8 @@ public class Style implements Cloneable {
     public String backgroundRepeat = "unset";
     public String backgroundSize = "unset";
     public String backgroundPosition = "unset";
+    public String objectFit = "fill";
+    public String objectPosition = "50% 50%";
 
     public String margin = "unset";
     public String marginTop = "unset";
@@ -235,6 +243,7 @@ public class Style implements Cloneable {
     public String visibility = "unset";
     public String transition = "none";
     public String transform = "none";
+    public String rotate = "none";
     public String clipPath = "none";
     public String filter = "none";
     public String backdropFilter = "none";
@@ -327,6 +336,10 @@ public class Style implements Cloneable {
             applyAnimationShorthand(value);
             return;
         }
+        if ("rotate".equals(styleName)) {
+            applyRotateProperty(value);
+            return;
+        }
         if ("overflow".equals(styleName)) {
             value = Interaction.normalizeOverflow(value);
             overflow = value;
@@ -403,22 +416,43 @@ public class Style implements Cloneable {
             return;
         }
 
-        String lower = value.toLowerCase(Locale.ROOT);
-        if (lower.contains("url(") || lower.contains("gradient(")) {
-            backgroundImage = value;
-        }
+        StringBuilder image = new StringBuilder();
+        StringBuilder position = new StringBuilder();
+        StringBuilder size = new StringBuilder();
+        boolean afterSlash = false;
 
-        if (isColorToken(value)) {
-            backgroundColor = value;
-            return;
-        }
-
-        String[] tokens = value.split("\\s+");
-        for (String token : tokens) {
-            if (isColorToken(token)) {
-                backgroundColor = token;
-                break;
+        for (String token : splitCssValueTokens(value)) {
+            String lowerToken = token.toLowerCase(Locale.ROOT);
+            if ("/".equals(token)) {
+                afterSlash = true;
+                continue;
             }
+            if (isColorToken(token) || isVarToken(token)) {
+                backgroundColor = token;
+                continue;
+            }
+            if (isBackgroundRepeatToken(lowerToken)) {
+                backgroundRepeat = token;
+                continue;
+            }
+            if (isBackgroundImageToken(lowerToken)) {
+                if (!image.isEmpty()) image.append(' ');
+                image.append(token);
+                continue;
+            }
+            StringBuilder target = afterSlash ? size : position;
+            if (!target.isEmpty()) target.append(' ');
+            target.append(token);
+        }
+
+        if (!image.isEmpty()) {
+            backgroundImage = image.toString();
+        }
+        if (!position.isEmpty()) {
+            backgroundPosition = position.toString();
+        }
+        if (!size.isEmpty()) {
+            backgroundSize = size.toString();
         }
     }
 
@@ -571,6 +605,23 @@ public class Style implements Cloneable {
         }
     }
 
+    private void applyRotateProperty(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        rotate = value.isEmpty() ? "none" : value;
+
+        if (rotate.isBlank() || "none".equalsIgnoreCase(rotate)) {
+            return;
+        }
+
+        String rotateFn = "rotate(" + rotate + ")";
+        String currentTransform = transform == null ? "" : transform.trim();
+        if (currentTransform.isEmpty() || "none".equalsIgnoreCase(currentTransform)) {
+            transform = rotateFn;
+            return;
+        }
+        transform = currentTransform + " " + rotateFn;
+    }
+
     private static String trimNumber(Double value) {
         if (value == null) return "0";
         if (Math.abs(value - Math.rint(value)) < 1e-6) {
@@ -582,9 +633,63 @@ public class Style implements Cloneable {
     private static boolean isColorToken(String token) {
         if (token == null || token.isBlank()) return false;
         String value = token.trim().toLowerCase(Locale.ROOT);
-        if ("transparent".equals(value)) return true;
+        if (Color.isColorKeyword(value)) return true;
         if (value.startsWith("#")) return true;
         return value.startsWith("rgb(") || value.startsWith("rgba(") || value.startsWith("hsl(") || value.startsWith("hsla(");
+    }
+
+    private static boolean isVarToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        String value = token.trim().toLowerCase(Locale.ROOT);
+        return value.startsWith("var(") && value.endsWith(")");
+    }
+
+    private static boolean isBackgroundImageToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        return token.contains("url(") || token.contains("gradient(");
+    }
+
+    private static boolean isBackgroundRepeatToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        return switch (token) {
+            case "repeat", "repeat-x", "repeat-y", "no-repeat", "space", "round" -> true;
+            default -> false;
+        };
+    }
+
+    private static List<String> splitCssValueTokens(String raw) {
+        ArrayList<String> tokens = new ArrayList<>();
+        if (raw == null || raw.isBlank()) return tokens;
+
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (Character.isWhitespace(ch) && depth == 0) {
+                if (!current.isEmpty()) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            if (ch == '(') depth++;
+            else if (ch == ')' && depth > 0) depth--;
+
+            if (ch == '/' && depth == 0) {
+                if (!current.isEmpty()) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                tokens.add("/");
+                continue;
+            }
+            current.append(ch);
+        }
+
+        if (!current.isEmpty()) {
+            tokens.add(current.toString());
+        }
+        return tokens;
     }
 
     private static boolean isCssWideKeyword(String value) {
