@@ -2,11 +2,14 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.StyleFrameCache;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Gradient;
 import com.sighs.apricityui.style.Transform;
 import org.junit.jupiter.api.Test;
 
@@ -151,6 +154,45 @@ class CssCompatibilityTest {
         varColor.merge("background: var(--blue-panel);");
         assertEquals("var(--blue-panel)", varColor.backgroundColor);
         assertEquals("unset", varColor.backgroundImage);
+    }
+
+    @Test
+    void linearGradientPixelStopsScaleAgainstRenderedTileSize() {
+        Gradient gradient = Gradient.parse("linear-gradient(rgba(37, 99, 235, 0.07) 0.35px, transparent 0.35px)")
+                .scaledTo(9.8f, 9.8f);
+
+        int beforeStop = gradient.getColorAt(1f, 0.1f, 0f, 0f, 9.8f, 9.8f);
+        int afterStop = gradient.getColorAt(1f, 1f, 0f, 0f, 9.8f, 9.8f);
+
+        assertTrue(((beforeStop >>> 24) & 0xFF) > 0);
+        assertEquals(0, (afterStop >>> 24) & 0xFF);
+    }
+
+    @Test
+    void rajdhaniFallbackUsesCondensedLatinFontWhenAvailable() {
+        java.awt.Font resolved = Font.resolveBaseFont("Rajdhani, sans-serif");
+
+        assertNotNull(resolved);
+        assertNotEquals("Dialog", resolved.getFamily(java.util.Locale.ROOT));
+    }
+
+    @Test
+    void adjacentSiblingSelectorMatchesOnlyImmediatelyFollowingElement() {
+        Document document = TestDocumentFactory.createDocument();
+        Element container = new Element(document, "div");
+        Element first = new Element(document, "div");
+        Element second = new Element(document, "div");
+        Element third = new Element(document, "span");
+        document.body.appendChild(container);
+        container.appendChild(first);
+        container.appendChild(second);
+        container.appendChild(third);
+        container.setAttribute("class", "space-y-3");
+
+        assertFalse(Selector.matches(first, ".space-y-3 > * + *"));
+        assertTrue(Selector.matches(second, ".space-y-3 > * + *"));
+        assertTrue(Selector.matches(third, ".space-y-3 > * + *"));
+        assertFalse(Selector.matches(third, ".space-y-3 > span + *"));
     }
 
     @Test

@@ -29,7 +29,7 @@ public class ImageDrawer {
     private static final Map<RenderKey, RenderType> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
     private static final int PLACEHOLDER_COLOR = 0x33404040;
     // Empty radii array for rectangular mask clipping.
-    private static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
+    public static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
     private static RenderType batchRenderType = null;
     private static MultiBufferSource.BufferSource batchBufferSource = null;
 
@@ -278,6 +278,23 @@ public class ImageDrawer {
             }
         }
         Mask.popMask(poseStack, x, y, width, height, NO_RADIUS);
+    }
+
+    public static GradientTile resolveGradientTile(Background.Layer layer, float width, float height) {
+        if (layer == null) {
+            return new GradientTile(0, 0, width, height, 0, 0, width, height, false);
+        }
+        float[] renderSize = resolveRenderSize(layer.size, width, height, Math.max(1, Math.round(width)), Math.max(1, Math.round(height)));
+        float renderW = Math.max(0.001f, renderSize[0]);
+        float renderH = Math.max(0.001f, renderSize[1]);
+        float[] offset = parseBackgroundPosition(layer.position, width, height, renderW, renderH);
+        RepeatMode repeatMode = parseRepeatMode(layer.repeat);
+        float startX = repeatMode.repeatX ? normalizeRepeatStart(offset[0], renderW) : offset[0];
+        float startY = repeatMode.repeatY ? normalizeRepeatStart(offset[1], renderH) : offset[1];
+        float endX = repeatMode.repeatX ? width : startX + 1;
+        float endY = repeatMode.repeatY ? height : startY + 1;
+        return new GradientTile(offset[0], offset[1], renderW, renderH, startX, startY, endX, endY,
+                repeatMode.repeatX || repeatMode.repeatY);
     }
 
     private static float[] resolveRenderSize(String backgroundSize, float boxW, float boxH, int texW, int texH) {
@@ -599,5 +616,10 @@ public class ImageDrawer {
     }
 
     private record RepeatMode(boolean repeatX, boolean repeatY) {
+    }
+
+    public record GradientTile(float x, float y, float width, float height,
+                               float startX, float startY, float endX, float endY,
+                               boolean repeats) {
     }
 }

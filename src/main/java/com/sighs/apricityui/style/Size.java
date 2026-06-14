@@ -19,6 +19,8 @@ public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
     public static final Size ZERO = new Size(0, 0);
     private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(HashSet::new);
+    private static final ThreadLocal<Integer> NATURAL_MEASURE_DEPTH = ThreadLocal.withInitial(() -> 0);
+    private static final ThreadLocal<Set<Element>> NATURAL_NO_CACHE = ThreadLocal.withInitial(HashSet::new);
     private static volatile Size viewportOverride;
     private static volatile Double rootFontOverride;
 
@@ -159,11 +161,33 @@ public record Size(double width, double height) {
 
     public static Size natural(Element element) {
         if (element == null) return ZERO;
-        return computeSize(element, false);
+        int depth = NATURAL_MEASURE_DEPTH.get();
+        NATURAL_MEASURE_DEPTH.set(depth + 1);
+        NATURAL_NO_CACHE.get().add(element);
+        try {
+            return computeSize(element, false);
+        } finally {
+            Set<Element> noCache = NATURAL_NO_CACHE.get();
+            noCache.remove(element);
+            if (noCache.isEmpty()) {
+                NATURAL_NO_CACHE.remove();
+            }
+            int next = NATURAL_MEASURE_DEPTH.get() - 1;
+            if (next <= 0) {
+                NATURAL_MEASURE_DEPTH.remove();
+            } else {
+                NATURAL_MEASURE_DEPTH.set(next);
+            }
+        }
+    }
+
+    public static boolean isNaturalMeasurementContext() {
+        return NATURAL_MEASURE_DEPTH.get() > 0;
     }
 
     private static Size computeSize(Element element, boolean allowFlexAdjustments) {
-        Size cache = element.getRenderer().size.get();
+        boolean noCacheForElement = NATURAL_NO_CACHE.get().contains(element);
+        Size cache = noCacheForElement ? null : element.getRenderer().size.get();
         if (cache != null) return cache;
 
         Style style = element.getComputedStyle();
@@ -194,7 +218,9 @@ public record Size(double width, double height) {
         double parentHeight = explicitParentHeight != null ? explicitParentHeight : 0;
         boolean borderBox = box.isBorderBox();
 
-        if (unsetWidth && shouldFillAvailableBlockWidth(element, style)) {
+        if (unsetWidth && shouldFillAvailableBlockWidth(element, style)
+                && !shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(element, allowFlexAdjustments)
+                && !shouldUseContentBasedAutoWidthForWrappedFlex(element)) {
             double availableOuterWidth = Math.max(0, parentWidth - box.getMarginHorizontal());
             contentWidth = Math.max(0, availableOuterWidth - horizontalBox);
         }
@@ -248,15 +274,28 @@ public record Size(double width, double height) {
                 double usableOuterHeight = Math.max(0, assignedOuterHeight - box.getMarginVertical());
                 contentHeight = Math.max(0, usableOuterHeight - verticalBox);
             }
-            if (parentFlex.flexDirection.isRow() && unsetWidth) {
-                double assignedOuterWidth = Flex.resolveAssignedMainSize(element, parent, totalWidth + box.getMarginHorizontal());
-                double usableOuterWidth = Math.max(0, assignedOuterWidth - box.getMarginHorizontal());
-                contentWidth = Math.max(0, usableOuterWidth - horizontalBox);
+            if (parentFlex.flexDirection.isRow()) {
+                if (hasDefiniteAutoResolvedWidth(parent)) {
+                    double assignedOuterWidth = Flex.resolveAssignedMainSize(element, parent, totalWidth + box.getMarginHorizontal());
+                    double usableOuterWidth = Math.max(0, assignedOuterWidth - box.getMarginHorizontal());
+                    contentWidth = Math.max(0, usableOuterWidth - horizontalBox);
+                }
             }
         }
 
-        contentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
-        contentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, explicitParentHeight != null);
+        double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
+        double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, explicitParentHeight != null);
+        if (aspectRatio != null && aspectRatio > 0) {
+            if (!unsetWidth && unsetHeight) {
+                constrainedContentHeight = constrainedContentWidth / aspectRatio;
+                constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, explicitParentHeight != null);
+            } else if (unsetWidth && !unsetHeight) {
+                constrainedContentWidth = constrainedContentHeight * aspectRatio;
+                constrainedContentWidth = clampContentExtent(constrainedContentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
+            }
+        }
+        contentWidth = constrainedContentWidth;
+        contentHeight = constrainedContentHeight;
 
         double totalWidth = contentWidth + horizontalBox;
         double totalHeight = contentHeight + verticalBox;
@@ -281,7 +320,7 @@ public record Size(double width, double height) {
                     style.flexBasis
             );
         }
-        if (!shouldDeferSizeCache(element, style, unsetWidth, unsetHeight)) {
+        if (!noCacheForElement && !shouldDeferSizeCache(element, style, unsetWidth, unsetHeight)) {
             element.getRenderer().size.set(resultSize);
         }
         return resultSize;
@@ -379,17 +418,10 @@ public record Size(double width, double height) {
     public static Double getExplicitContainingBlockHeight(Element element) {
         Element parent = element.parentElement;
         if (parent == null) return Math.max(0, getWindowSize().height());
-        Style parentStyle = parent.getRawComputedStyle();
 
         Double parentOwnHeight = resolveOwnExplicitContentHeight(parent);
         if (parentOwnHeight == null) return null;
-        double resolvedHeight = parentOwnHeight;
-
-        if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
-            Box parentBox = Box.of(parent);
-            resolvedHeight -= parentBox.getBorderVertical() + parentBox.getPaddingVertical();
-        }
-        return Math.max(0, resolvedHeight);
+        return Math.max(0, parentOwnHeight);
     }
 
     private static Double resolveOwnExplicitContentHeight(Element element) {
@@ -404,7 +436,14 @@ public record Size(double width, double height) {
         Double resolvedHeight = tryResolveLength(style.height, containingBlockHeight == null ? 0 : containingBlockHeight);
         if (resolvedHeight != null) {
             if (!isPercent(style.height) || containingBlockHeight != null) {
-                return resolvedHeight;
+                double contentHeight = resolvedHeight;
+                Box box = Box.of(element);
+                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
+                    contentHeight -= box.getBorderVertical() + box.getPaddingVertical();
+                }
+                double parentHeight = containingBlockHeight == null ? 0 : containingBlockHeight;
+                return clampContentExtent(contentHeight, box.getBorderVertical() + box.getPaddingVertical(),
+                        style.minHeight, style.maxHeight, parentHeight, containingBlockHeight != null);
             }
         }
 
@@ -425,7 +464,11 @@ public record Size(double width, double height) {
         Double resolvedWidth = tryResolveLength(style.width, containingBlockWidth == null ? 0 : containingBlockWidth);
         if (resolvedWidth != null) {
             if (!isPercent(style.width) || containingBlockWidth != null) {
-                return resolvedWidth;
+                Box box = Box.of(element);
+                double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
+                double parentWidth = element.parentElement == null ? getWindowSize().width() : getScaleWidth(element);
+                double contentWidth = box.isBorderBox() ? Math.max(0, resolvedWidth - horizontalBox) : resolvedWidth;
+                return clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
             }
         }
         return null;
@@ -458,6 +501,55 @@ public record Size(double width, double height) {
         return !Layout.isFlexDisplay(element.parentElement.getComputedStyle().display);
     }
 
+    public static boolean hasDefiniteAutoResolvedWidth(Element element) {
+        return hasDefiniteAutoResolvedWidthInternal(element);
+    }
+
+    private static boolean shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(Element element, boolean allowFlexAdjustments) {
+        if (element == null || allowFlexAdjustments || !isNaturalMeasurementContext()) return false;
+        Element current = element;
+        while (current != null) {
+            Element parent = current.parentElement;
+            if (parent == null) {
+                return false;
+            }
+            if (Layout.isFlexDisplay(parent.getComputedStyle().display) && Flex.of(parent).flexDirection.isRow()) {
+                return true;
+            }
+            current = parent;
+        }
+        return false;
+    }
+
+    private static boolean shouldUseContentBasedAutoWidthForWrappedFlex(Element element) {
+        if (element == null) return false;
+        Style style = element.getComputedStyle();
+        return Layout.isFlexDisplay(style.display) && Flex.of(element).flexDirection.isRow()
+                && Flex.of(element).flexWrap.canWrap()
+                && parseNumber(style.width) == null;
+    }
+
+    private static boolean hasDefiniteAutoResolvedWidthInternal(Element element) {
+        if (element == null) return false;
+        if (resolveOwnExplicitContentWidth(element) != null) return true;
+        if (element.parentElement == null) return true;
+
+        Element parent = element.parentElement;
+        if (!Layout.isFlexDisplay(parent.getComputedStyle().display)
+                && shouldFillAvailableBlockWidth(element, element.getComputedStyle())) {
+            return true;
+        }
+
+        if (Layout.isFlexDisplay(parent.getComputedStyle().display)) {
+            Flex parentFlex = Flex.of(parent);
+            if (parentFlex.flexDirection.isColumn() && Flex.shouldStretchCrossAxis(element, parent)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static boolean shouldDeferSizeCache(Element element, Style style, boolean unsetWidth, boolean unsetHeight) {
         if (element == null || style == null) return false;
         Element parent = element.parentElement;
@@ -465,6 +557,10 @@ public record Size(double width, double height) {
 
         Set<Element> resolving = RESOLVING.get();
         if (!resolving.contains(parent)) return false;
+
+        if (isPercent(style.width) || isPercent(style.height)) {
+            return true;
+        }
 
         if (!Layout.isFlexDisplay(parent.getComputedStyle().display)) {
             return false;
@@ -474,7 +570,7 @@ public record Size(double width, double height) {
         if (parentFlex.flexDirection.isColumn() && unsetHeight) {
             return true;
         }
-        if (parentFlex.flexDirection.isRow() && unsetWidth) {
+        if (parentFlex.flexDirection.isRow()) {
             return true;
         }
         if (parentFlex.flexDirection.isColumn() && unsetWidth && Flex.shouldStretchCrossAxis(element, parent)) {
@@ -567,7 +663,7 @@ public record Size(double width, double height) {
         return 16d;
     }
 
-    private static Double parseAspectRatio(String raw) {
+    static Double parseAspectRatio(String raw) {
         if (raw == null) return null;
         String value = raw.trim();
         if (value.isEmpty() || "auto".equalsIgnoreCase(value) || "none".equalsIgnoreCase(value) || "unset".equalsIgnoreCase(value)) {

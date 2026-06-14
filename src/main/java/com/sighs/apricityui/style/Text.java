@@ -239,7 +239,8 @@ public class Text {
     }
 
     public static Text of(Element element) {
-        Text cache = element.getRenderer().text.get();
+        boolean naturalMeasurement = Size.isNaturalMeasurementContext();
+        Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
         if (cache != null) return cache;
         Text text = new Text();
         text.content = resolveElementTextContent(element);
@@ -357,7 +358,9 @@ public class Text {
         WrappedText wrapped = wrap(element, text);
         text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
 
-        element.getRenderer().text.set(text);
+        if (!naturalMeasurement) {
+            element.getRenderer().text.set(text);
+        }
         return text;
     }
 
@@ -543,6 +546,9 @@ public class Text {
     }
 
     private static WrappedText wrapCachedInternal(Element element, Text text, double wrapWidth) {
+        if (Size.isNaturalMeasurementContext()) {
+            return wrap(text, wrapWidth);
+        }
         long wrapWidthBits = Double.doubleToLongBits(wrapWidth);
         int metricsHash = wrapMetricsHash(text);
         String content = text.content == null ? "" : text.content;
@@ -694,6 +700,12 @@ public class Text {
         if (element == null || text == null || !allowsSoftWrap(text.whiteSpace)) return 0;
         Style style = element.getRawComputedStyle();
         Double explicitWidth = Size.parseNumber(style.width);
+        if (explicitWidth == null && Size.isNaturalMeasurementContext()) {
+            String display = style.display == null ? "block" : style.display.trim().toLowerCase(Locale.ROOT);
+            if (!"inline".equals(display) && !"inline-block".equals(display)) {
+                return 0;
+            }
+        }
         Box box = Box.of(element);
         double resolved;
         if (explicitWidth != null) {

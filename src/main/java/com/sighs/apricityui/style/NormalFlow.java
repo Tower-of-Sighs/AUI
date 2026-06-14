@@ -49,6 +49,9 @@ public final class NormalFlow {
 
     private static double resolveLineLimit(Element element) {
         Style style = element.getComputedStyle();
+        if (Size.isNaturalMeasurementContext() && Size.parseNumber(style.width) == null) {
+            return 0;
+        }
         Double explicitWidth = Size.parseNumber(style.width);
         if (explicitWidth != null) {
             double percentBasis = Size.isPercent(style.width) ? Size.getScaleWidth(element) : 0;
@@ -162,7 +165,16 @@ public final class NormalFlow {
         }
 
         Box childBox = Box.of(childElement);
-        Size blockSize = childBox.size();
+        Size blockSize;
+        if (Size.isNaturalMeasurementContext()) {
+            Size naturalSize = Size.natural(childElement);
+            blockSize = new Size(
+                    naturalSize.width() + childBox.getMarginHorizontal(),
+                    naturalSize.height() + childBox.getMarginVertical()
+            );
+        } else {
+            blockSize = childBox.size();
+        }
         double blockY = state.cursorY;
         if (state.previousFlowWasBlock) {
             double collapsedMargin = collapseAdjacentMargins(state.previousBlockMarginBottom, childBox.getMarginTop());

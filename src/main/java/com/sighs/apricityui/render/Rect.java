@@ -44,7 +44,7 @@ public class Rect {
         double maxExtendX = 0;
         double maxExtendY = 0;
         for (Box.Shadow shadow : box.shadows) {
-            if (shadow.size() <= 0) continue;
+            if ((shadow.color().getValue() >>> 24) == 0) continue;
             minExtendX = Math.min(minExtendX, shadow.x() - shadow.size());
             minExtendY = Math.min(minExtendY, shadow.y() - shadow.size());
             maxExtendX = Math.max(maxExtendX, shadow.x() + shadow.size());
@@ -140,9 +140,7 @@ public class Rect {
                 Background.Layer layer = background.getLayers().get(i);
                 if (layer == null) continue;
                 if (layer.gradient != null) {
-                    Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
-                            (float) p.x, (float) p.y, (float) s.width(), (float) s.height(),
-                            radii, layer.gradient);
+                    drawGradientLayer(poseStack, p, s, radii, layer);
                 }
                 if (!"unset".equals(layer.imagePath)) {
                     Graph.endBatch();
@@ -157,9 +155,12 @@ public class Rect {
 
         // 兼容旧单层字段
         if (background.gradient != null) {
-            Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
-                    (float) p.x, (float) p.y, (float) s.width(), (float) s.height(),
-                    radii, background.gradient);
+            Background.Layer legacyLayer = new Background.Layer();
+            legacyLayer.gradient = background.gradient;
+            legacyLayer.repeat = background.repeat;
+            legacyLayer.size = background.size;
+            legacyLayer.position = background.position;
+            drawGradientLayer(poseStack, p, s, radii, legacyLayer);
         }
         if (!background.imagePath.equals("unset")) {
             Graph.endBatch();
@@ -168,6 +169,34 @@ public class Rect {
         }
         Graph.endBatch();
         ImageDrawer.flushBatch();
+    }
+
+    private void drawGradientLayer(PoseStack poseStack, Position p, Size s, float[] radii, Background.Layer layer) {
+        if (layer == null || layer.gradient == null) return;
+        ImageDrawer.GradientTile tile = ImageDrawer.resolveGradientTile(layer, (float) s.width(), (float) s.height());
+        if (!tile.repeats()) {
+            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) p.x + tile.x(), (float) p.y + tile.y(),
+                    tile.width(), tile.height(), radii, layer.gradient.scaledTo(tile.width(), tile.height()));
+            return;
+        }
+
+        Graph.endBatch();
+        Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
+        Graph.beginBatch();
+        for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
+            for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
+                Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
+                boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                        tile.width(), tile.height(), scaled);
+                if (!drawn) {
+                    Graph.drawSampledGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                            tile.width(), tile.height(), scaled, 1f);
+                }
+            }
+        }
+        Graph.endBatch();
+        Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
+        Graph.beginBatch();
     }
 
     public Position getShadowPosition() {
@@ -188,10 +217,14 @@ public class Rect {
         float[] radii = box.getCalculatedRadii((float) s.width(), (float) s.height(), 0);
         Graph.beginBatch();
         for (Box.Shadow shadow : box.shadows) {
-            if (shadow.size() == 0) continue;
+            if ((shadow.color().getValue() >>> 24) == 0) continue;
             double x = position.x + box.getMarginLeft() + shadow.x();
             double y = position.y + box.getMarginTop() + shadow.y();
-            Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
+            if (shadow.size() <= 0) {
+                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, shadow.color().getValue());
+            } else {
+                Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
+            }
         }
         Graph.endBatch();
     }

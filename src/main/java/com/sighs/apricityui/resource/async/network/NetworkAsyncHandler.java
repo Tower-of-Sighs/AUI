@@ -10,6 +10,10 @@ import java.io.InputStream;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -193,6 +197,13 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             SUCCESS_CACHE.remove(url, cached);
         }
 
+        byte[] diskCached = readDiskCache(url, now);
+        if (diskCached != null) {
+            SUCCESS_CACHE.put(url, new CacheEntry(diskCached, now + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            handle.markReady();
+            return diskCached;
+        }
+
         InFlightRequest own = new InFlightRequest();
         InFlightRequest existing = IN_FLIGHT.putIfAbsent(url, own);
         if (existing != null) {
@@ -205,6 +216,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         try {
             byte[] bytes = downloadWithRetry(url);
             SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            writeDiskCache(url, bytes);
             own.complete(bytes, null);
             handle.markReady();
             return bytes;
@@ -215,6 +227,49 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         } finally {
             IN_FLIGHT.remove(url, own);
         }
+    }
+
+    private static byte[] readDiskCache(String url, long nowMs) {
+        try {
+            Path file = diskCachePath(url);
+            if (!Files.exists(file) || !Files.isRegularFile(file)) return null;
+            long ageMs = nowMs - Files.getLastModifiedTime(file).toMillis();
+            if (ageMs < 0 || ageMs > NetworkPolicy.DISK_CACHE_TTL_MS) return null;
+            long size = Files.size(file);
+            if (size <= 0 || size > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) return null;
+            return Files.readAllBytes(file);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private static void writeDiskCache(String url, byte[] bytes) {
+        if (bytes == null || bytes.length == 0 || bytes.length > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) return;
+        try {
+            Path file = diskCachePath(url);
+            Files.createDirectories(file.getParent());
+            Files.write(file, bytes);
+        } catch (Exception ignored) {
+        }
+    }
+
+    private static Path diskCachePath(String url) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        String hash = HexFormat.of().formatHex(digest.digest(url.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        return resolveGameDir().resolve("apricity/.cache/network/" + hash + ".bin");
+    }
+
+    private static Path resolveGameDir() {
+        try {
+            Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
+            Object gameDirHolder = fmlPathsClass.getField("GAMEDIR").get(null);
+            Object path = gameDirHolder.getClass().getMethod("get").invoke(gameDirHolder);
+            if (path instanceof Path resolved) {
+                return resolved.toAbsolutePath().normalize();
+            }
+        } catch (Throwable ignored) {
+        }
+        return Path.of("").toAbsolutePath().normalize();
     }
 
     @Override

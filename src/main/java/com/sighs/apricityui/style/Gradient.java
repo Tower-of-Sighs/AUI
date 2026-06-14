@@ -12,13 +12,27 @@ public class Gradient {
         this.angle = angle;
     }
 
+    public float angle() {
+        return angle;
+    }
+
+    public List<Stop> stops() {
+        return Collections.unmodifiableList(stops);
+    }
+
     public static class Stop implements Comparable<Stop> {
         public float position; // 0.0 ~ 1.0
         public int color;
+        public boolean absolutePx;
 
         public Stop(float position, int color) {
+            this(position, color, false);
+        }
+
+        public Stop(float position, int color, boolean absolutePx) {
             this.position = position;
             this.color = color;
+            this.absolutePx = absolutePx;
         }
 
         @Override
@@ -46,6 +60,27 @@ public class Gradient {
         // 归一化到 0~1
         float t = 0.5f + (projection / (maxDist * 2));
         return getInterpolatedColor(Math.max(0f, Math.min(1f, t)));
+    }
+
+    public Gradient scaledTo(float width, float height) {
+        float axisLength = Math.max(1f, projectedAxisLength(width, height));
+        Gradient scaled = new Gradient(angle);
+        for (Stop stop : stops) {
+            float position = stop.position;
+            if (stop.absolutePx) {
+                position = Math.max(0f, Math.min(1f, position / axisLength));
+            }
+            scaled.stops.add(new Stop(position, stop.color));
+        }
+        scaled.fixStops();
+        return scaled;
+    }
+
+    private float projectedAxisLength(float bw, float bh) {
+        double angleRad = Math.toRadians(90 - angle);
+        double cos = Math.cos((float) angleRad);
+        double sin = Math.sin((float) angleRad);
+        return (float) (Math.abs(bw * cos) + Math.abs(bh * sin));
     }
 
     private int getInterpolatedColor(float t) {
@@ -103,13 +138,20 @@ public class Gradient {
             StopTokens stop = splitStop(part);
             int color = Color.parse(stop.colorToken());
             float pos = -1;
+            boolean absolutePx = false;
             if (stop.positionToken() != null && stop.positionToken().endsWith("%")) {
                 try {
                     pos = Float.parseFloat(stop.positionToken().replace("%", "")) / 100f;
                 } catch (NumberFormatException ignored) {
                 }
+            } else if (stop.positionToken() != null && stop.positionToken().endsWith("px")) {
+                try {
+                    pos = Float.parseFloat(stop.positionToken().replace("px", ""));
+                    absolutePx = true;
+                } catch (NumberFormatException ignored) {
+                }
             }
-            gradient.stops.add(new Stop(pos, color));
+            gradient.stops.add(new Stop(pos, color, absolutePx));
         }
 
         gradient.fixStops();
@@ -118,13 +160,16 @@ public class Gradient {
 
     private void fixStops() {
         if (stops.isEmpty()) return;
-        if (stops.get(0).position < 0) stops.get(0).position = 0f;
-        if (stops.get(stops.size() - 1).position < 0) stops.get(stops.size() - 1).position = 1f;
+        if (stops.get(0).position < 0 && !stops.get(0).absolutePx) stops.get(0).position = 0f;
+        if (stops.get(stops.size() - 1).position < 0 && !stops.get(stops.size() - 1).absolutePx) stops.get(stops.size() - 1).position = 1f;
 
         for (int i = 0; i < stops.size(); i++) {
-            if (stops.get(i).position < 0) {
+            if (stops.get(i).position < 0 && !stops.get(i).absolutePx) {
                 int nextKnown = i + 1;
-                while (nextKnown < stops.size() && stops.get(nextKnown).position < 0) nextKnown++;
+                while (nextKnown < stops.size()
+                        && stops.get(nextKnown).position < 0
+                        && !stops.get(nextKnown).absolutePx) nextKnown++;
+                if (nextKnown >= stops.size()) break;
 
                 float startPos = stops.get(i - 1).position;
                 float endPos = stops.get(nextKnown).position;

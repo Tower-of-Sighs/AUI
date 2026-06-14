@@ -76,6 +76,8 @@ public class Style implements Cloneable {
             Map.entry("border-bottom", "0px solid #000000"),
             Map.entry("border-left", "0px solid #000000"),
             Map.entry("border-right", "0px solid #000000"),
+            Map.entry("border-width", "0px"),
+            Map.entry("border-color", "#000000"),
             Map.entry("border-radius", "0px"),
             Map.entry("border-image", "none"),
             Map.entry("border-image-source", "unset"),
@@ -189,6 +191,8 @@ public class Style implements Cloneable {
     public String borderBottom = "unset";
     public String borderLeft = "unset";
     public String borderRight = "unset";
+    public String borderWidth = "unset";
+    public String borderColor = "unset";
     public String borderRadius = "unset";
 
     public String borderImage = "unset";
@@ -332,6 +336,22 @@ public class Style implements Cloneable {
             applyBorderShorthand(value);
             return;
         }
+        if ("borderWidth".equals(styleName)) {
+            applyBorderWidthShorthand(value);
+            return;
+        }
+        if ("borderColor".equals(styleName)) {
+            applyBorderColorShorthand(value);
+            return;
+        }
+        if (styleName.startsWith("border") && styleName.endsWith("Width")) {
+            applyBorderSidePart(styleName, value, true);
+            return;
+        }
+        if (styleName.startsWith("border") && styleName.endsWith("Color")) {
+            applyBorderSidePart(styleName, value, false);
+            return;
+        }
         if ("animation".equals(styleName)) {
             applyAnimationShorthand(value);
             return;
@@ -399,6 +419,116 @@ public class Style implements Cloneable {
         borderRight = resolved;
         borderBottom = resolved;
         borderLeft = resolved;
+    }
+
+    private void applyBorderWidthShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) return;
+        borderWidth = value;
+        String[] widths = isCssWideKeyword(value)
+                ? new String[]{value, value, value, value}
+                : expandFourSideTokens(value);
+        borderTop = replaceBorderWidth(borderTop, widths[0]);
+        borderRight = replaceBorderWidth(borderRight, widths[1]);
+        borderBottom = replaceBorderWidth(borderBottom, widths[2]);
+        borderLeft = replaceBorderWidth(borderLeft, widths[3]);
+    }
+
+    private void applyBorderColorShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) return;
+        borderColor = value;
+        String[] colors = isCssWideKeyword(value)
+                ? new String[]{value, value, value, value}
+                : expandFourSideTokens(value);
+        borderTop = replaceBorderColor(borderTop, colors[0]);
+        borderRight = replaceBorderColor(borderRight, colors[1]);
+        borderBottom = replaceBorderColor(borderBottom, colors[2]);
+        borderLeft = replaceBorderColor(borderLeft, colors[3]);
+    }
+
+    private void applyBorderSidePart(String styleName, String raw, boolean width) {
+        String side = styleName.substring("border".length(), styleName.length() - (width ? "Width".length() : "Color".length()));
+        String sideField = "border" + side;
+        String current = getFieldValue(sideField);
+        String value = raw == null ? "" : raw.trim();
+        String updated = width ? replaceBorderWidth(current, value) : replaceBorderColor(current, value);
+        setFieldValue(sideField, updated);
+    }
+
+    private String replaceBorderWidth(String current, String width) {
+        String normalizedWidth = width == null || width.isBlank() ? "unset" : width.trim();
+        if (isCssWideKeyword(normalizedWidth)) return normalizedWidth;
+
+        String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
+                ? "0px solid #000000"
+                : current.trim();
+        String[] tokens = splitCssValueTokens(base).toArray(String[]::new);
+        if (tokens.length == 0) return normalizedWidth + " solid #000000";
+
+        boolean replaced = false;
+        for (int i = 0; i < tokens.length; i++) {
+            if (looksLikeCssLength(tokens[i])) {
+                tokens[i] = normalizedWidth;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) return normalizedWidth + " " + base;
+        return String.join(" ", tokens);
+    }
+
+    private String replaceBorderColor(String current, String color) {
+        String normalizedColor = color == null || color.isBlank() ? "unset" : color.trim();
+        if (isCssWideKeyword(normalizedColor)) return normalizedColor;
+
+        String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
+                ? "0px solid #000000"
+                : current.trim();
+        List<String> tokens = new ArrayList<>(splitCssValueTokens(base));
+        if (tokens.isEmpty()) return "0px solid " + normalizedColor;
+
+        boolean replaced = false;
+        for (int i = 0; i < tokens.size(); i++) {
+            if (looksLikeColorToken(tokens.get(i))) {
+                tokens.set(i, normalizedColor);
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) tokens.add(normalizedColor);
+        return String.join(" ", tokens);
+    }
+
+    private boolean looksLikeCssLength(String token) {
+        if (token == null || token.isBlank()) return false;
+        String lower = token.trim().toLowerCase(Locale.ROOT);
+        return lower.equals("0")
+                || lower.matches("-?\\d+(?:\\.\\d+)?(?:px|rem|em|vw|vh|%)?");
+    }
+
+    private boolean looksLikeColorToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        String lower = token.trim().toLowerCase(Locale.ROOT);
+        return lower.startsWith("#")
+                || lower.startsWith("rgb")
+                || lower.startsWith("hsl(")
+                || lower.startsWith("var(")
+                || Color.isColorKeyword(lower);
+    }
+
+    private String getFieldValue(String styleName) {
+        try {
+            Field field = FIELD_CACHE.get(styleName);
+            if (field == null) {
+                field = this.getClass().getDeclaredField(styleName);
+                FIELD_CACHE.put(styleName, field);
+            }
+            Object value = field.get(this);
+            return value == null ? "unset" : value.toString();
+        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+            return "unset";
+        }
     }
 
     private void applyBackgroundShorthand(String raw) {

@@ -24,6 +24,11 @@ import java.util.Locale;
 @ElementRegister(Svg.TAG_NAME)
 public class Svg extends Canvas {
     public static final String TAG_NAME = "SVG";
+    private static final int RASTER_SCALE = 4;
+    private double rasterLayoutWidth = -1;
+    private double rasterLayoutHeight = -1;
+    private int intrinsicViewportWidth = 1;
+    private int intrinsicViewportHeight = 1;
 
     public Svg(Document document) {
         super(document);
@@ -70,16 +75,25 @@ public class Svg extends Canvas {
         double[] viewBox = parseViewBox();
         int width = parseDimension(getAttribute("width"), (int) Math.round(Math.max(1d, viewBox[2])));
         int height = parseDimension(getAttribute("height"), (int) Math.round(Math.max(1d, viewBox[3])));
+        intrinsicViewportWidth = width;
+        intrinsicViewportHeight = height;
         resizeSurface(width, height, false);
     }
 
+    @Override
+    public Size getIntrinsicSize() {
+        return new Size(intrinsicViewportWidth, intrinsicViewportHeight);
+    }
+
     private void renderVectorSurface() {
+        syncSurfaceToLayoutSize();
         renderOperation(graphics -> {
             graphics.setComposite(java.awt.AlphaComposite.Clear);
             graphics.fill(new Rectangle2D.Double(0, 0, getWidth(), getHeight()));
             graphics.setComposite(java.awt.AlphaComposite.SrcOver);
-            Size intrinsic = getIntrinsicSize();
-            if (intrinsic.width() <= 0 || intrinsic.height() <= 0) {
+            double surfaceWidth = getWidth();
+            double surfaceHeight = getHeight();
+            if (surfaceWidth <= 0 || surfaceHeight <= 0) {
                 return;
             }
             double[] viewBox = parseViewBox();
@@ -87,55 +101,86 @@ public class Svg extends Canvas {
             double vbHeight = Math.max(1d, viewBox[3]);
             AffineTransform original = graphics.getTransform();
             graphics.translate(-viewBox[0], -viewBox[1]);
-            graphics.scale(intrinsic.width() / vbWidth, intrinsic.height() / vbHeight);
-            drawSvgSubtree(graphics, this, currentColorArgb());
+            graphics.scale(surfaceWidth / vbWidth, surfaceHeight / vbHeight);
+            SvgPaint inheritedPaint = SvgPaint.fromElement(this, currentColorArgb(), "black", "none", 1.0, "butt", "miter");
+            drawSvgSubtree(graphics, this, inheritedPaint);
             graphics.setTransform(original);
         });
     }
 
-    private void drawSvgSubtree(Graphics2D graphics, Element parent, int inheritedColor) {
+    private void syncSurfaceToLayoutSize() {
+        Size contentSize = Box.of(this).innerSize();
+        if (contentSize.width() <= 0 || contentSize.height() <= 0) return;
+        rasterLayoutWidth = contentSize.width();
+        rasterLayoutHeight = contentSize.height();
+        int surfaceWidth = Math.max(1, (int) Math.ceil(contentSize.width() * RASTER_SCALE));
+        int surfaceHeight = Math.max(1, (int) Math.ceil(contentSize.height() * RASTER_SCALE));
+        if (surfaceWidth == getWidth() && surfaceHeight == getHeight()) return;
+        resizeSurface(surfaceWidth, surfaceHeight, false);
+    }
+
+    @Override
+    protected void drawCanvas(PoseStack poseStack, Rect rectRenderer) {
+        syncTexture();
+        if (textureLocation == null) return;
+
+        Position contentPos = rectRenderer.getContentPosition();
+        Size contentSize = Box.of(this).innerSize();
+        double drawWidth = rasterLayoutWidth > 0 ? rasterLayoutWidth : contentSize.width();
+        double drawHeight = rasterLayoutHeight > 0 ? rasterLayoutHeight : contentSize.height();
+        if (drawWidth <= 0 || drawHeight <= 0) return;
+
+        ImageDrawer.draw(
+                poseStack,
+                textureLocation,
+                (float) contentPos.x,
+                (float) contentPos.y,
+                (float) drawWidth,
+                (float) drawHeight,
+                true
+        );
+    }
+
+    private void drawSvgSubtree(Graphics2D graphics, Element parent, SvgPaint inheritedPaint) {
         if (parent == null) return;
-        int currentColor = resolveCurrentColor(parent, inheritedColor);
+        SvgPaint currentPaint = SvgPaint.fromElement(parent, inheritedPaint.currentColor, inheritedPaint.fill,
+                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin);
         for (Node child : parent.getChildNodes()) {
             if (!(child instanceof Element childElement)) continue;
             String tag = childElement.tagName == null ? "" : childElement.tagName.toUpperCase(Locale.ROOT);
             if (Path.TAG_NAME.equals(tag)) {
-                drawPath(graphics, childElement, currentColor);
+                drawPath(graphics, childElement, currentPaint);
                 continue;
             }
-            drawSvgSubtree(graphics, childElement, currentColor);
+            drawSvgSubtree(graphics, childElement, currentPaint);
         }
     }
 
-    private void drawPath(Graphics2D graphics, Element pathElement, int inheritedColor) {
+    private void drawPath(Graphics2D graphics, Element pathElement, SvgPaint inheritedPaint) {
         String d = pathElement.getAttribute("d");
         if (d == null || d.isBlank()) return;
         CanvasPath2D canvasPath = new CanvasPath2D(d);
         Shape shape = canvasPath.asShape();
         if (shape == null || shape.getBounds2D().isEmpty()) return;
 
-        int currentColor = resolveCurrentColor(pathElement, inheritedColor);
-        String fillValue = firstNonBlank(pathElement.getAttribute("fill"), pathElement.getComputedStyle().backgroundColor, "currentColor");
-        String strokeValue = firstNonBlank(pathElement.getAttribute("stroke"), "none");
-        double strokeWidth = parseSvgNumber(pathElement.getAttribute("stroke-width"), 1.0);
-        String lineCap = firstNonBlank(pathElement.getAttribute("stroke-linecap"), "butt").toLowerCase(Locale.ROOT);
-        String lineJoin = firstNonBlank(pathElement.getAttribute("stroke-linejoin"), "miter").toLowerCase(Locale.ROOT);
+        SvgPaint paint = SvgPaint.fromElement(pathElement, inheritedPaint.currentColor, inheritedPaint.fill,
+                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin);
 
-        if (!"none".equalsIgnoreCase(fillValue)) {
-            graphics.setColor(toAwtColor(resolveSvgColor(fillValue, currentColor)));
+        if (!"none".equalsIgnoreCase(paint.fill)) {
+            graphics.setColor(toAwtColor(resolveSvgColor(paint.fill, paint.currentColor)));
             graphics.fill(shape);
         }
 
-        if (!"none".equalsIgnoreCase(strokeValue)) {
-            graphics.setColor(toAwtColor(resolveSvgColor(strokeValue, currentColor)));
+        if (!"none".equalsIgnoreCase(paint.stroke)) {
+            graphics.setColor(toAwtColor(resolveSvgColor(paint.stroke, paint.currentColor)));
             graphics.setStroke(new BasicStroke(
-                    (float) Math.max(0.1d, strokeWidth),
-                    switch (lineCap) {
+                    (float) Math.max(0.1d, paint.strokeWidth),
+                    switch (paint.lineCap) {
                         case "round" -> BasicStroke.CAP_ROUND;
                         case "square" -> BasicStroke.CAP_SQUARE;
                         default -> BasicStroke.CAP_BUTT;
                     },
-                    switch (lineJoin) {
+                    switch (paint.lineJoin) {
                         case "round" -> BasicStroke.JOIN_ROUND;
                         case "bevel" -> BasicStroke.JOIN_BEVEL;
                         default -> BasicStroke.JOIN_MITER;
@@ -156,7 +201,7 @@ public class Svg extends Canvas {
         return Color.parse(computedColor);
     }
 
-    private int resolveCurrentColor(Element element, int fallback) {
+    private static int resolveCurrentColor(Element element, int fallback) {
         if (element == null) return fallback;
         String color = firstNonBlank(element.getAttribute("color"), element.getComputedStyle() == null ? null : element.getComputedStyle().color);
         if (color == null || color.isBlank() || "unset".equalsIgnoreCase(color)) return fallback;
@@ -178,7 +223,7 @@ public class Svg extends Canvas {
     }
 
     private double[] parseViewBox() {
-        String raw = getAttribute("viewBox");
+        String raw = firstNonBlank(getAttribute("viewBox"), getAttribute("viewbox"));
         if (raw == null || raw.isBlank()) {
             return new double[]{0, 0, Math.max(1, getWidth()), Math.max(1, getHeight())};
         }
@@ -217,5 +262,22 @@ public class Svg extends Canvas {
         if (raw == null || raw.isBlank()) return Math.max(1, fallback);
         Double parsed = Size.parseNumber(raw);
         return parsed == null ? Math.max(1, fallback) : Math.max(1, (int) Math.round(parsed));
+    }
+
+    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap, String lineJoin) {
+        private static SvgPaint fromElement(Element element, int inheritedColor, String inheritedFill, String inheritedStroke,
+                                            double inheritedStrokeWidth, String inheritedLineCap, String inheritedLineJoin) {
+            int color = resolveCurrentColor(element, inheritedColor);
+            String fill = firstNonBlank(attribute(element, "fill"), inheritedFill, "black");
+            String stroke = firstNonBlank(attribute(element, "stroke"), inheritedStroke, "none");
+            double strokeWidth = parseSvgNumber(attribute(element, "stroke-width"), inheritedStrokeWidth);
+            String lineCap = firstNonBlank(attribute(element, "stroke-linecap"), inheritedLineCap, "butt").toLowerCase(Locale.ROOT);
+            String lineJoin = firstNonBlank(attribute(element, "stroke-linejoin"), inheritedLineJoin, "miter").toLowerCase(Locale.ROOT);
+            return new SvgPaint(color, fill, stroke, strokeWidth, lineCap, lineJoin);
+        }
+
+        private static String attribute(Element element, String name) {
+            return element == null ? null : element.getAttribute(name);
+        }
     }
 }

@@ -271,7 +271,7 @@ public final class Grid {
         for (int i = 0; i < count; i++) {
             Track track = tracks.get(i);
             resolved[i] = minimumTrackSize(track);
-            if (canGrow(track)) growable[i] = true;
+            if (canGrowForItemContribution(track)) growable[i] = true;
             totalFr += frWeight(track);
         }
 
@@ -351,6 +351,16 @@ public final class Grid {
             case AUTO, FR -> true;
             case FIXED -> false;
             case MINMAX -> canGrowBeyondMinimum(track.maxTrack);
+        };
+    }
+
+    private static boolean canGrowForItemContribution(Track track) {
+        return switch (track.type) {
+            case AUTO, FR -> true;
+            case FIXED -> false;
+            case MINMAX -> track.minTrack != null
+                    && !(track.minTrack.type == TrackType.FIXED && track.minTrack.px == 0)
+                    && canGrow(track.minTrack);
         };
     }
 
@@ -563,7 +573,8 @@ public final class Grid {
         Style style = gridContainer.getComputedStyle();
         Box box = Box.of(gridContainer);
         boolean borderBox = box.isBorderBox();
-        double width = resolveAvailableAxisSize(style.width, Size.getScaleWidth(gridContainer), box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
+        double widthBasis = Size.getScaleWidth(gridContainer);
+        double width = resolveAvailableAxisSize(style.width, widthBasis, box.getBorderHorizontal() + box.getPaddingHorizontal(), borderBox);
         Double explicitParentHeight = Size.getExplicitContainingBlockHeight(gridContainer);
         double heightBasis = explicitParentHeight != null ? explicitParentHeight : 0;
         double height = resolveAvailableAxisSize(style.height, heightBasis, box.getBorderVertical() + box.getPaddingVertical(), borderBox);

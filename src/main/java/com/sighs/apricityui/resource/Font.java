@@ -213,6 +213,12 @@ public class Font {
         Optional<java.awt.Font> cached = SINGLE_FAMILY_CACHE.get(cleanFamily);
         if (cached != null) return cached.orElse(null);
 
+        java.awt.Font alias = resolveKnownWebFontAlias(cleanFamily);
+        if (alias != null) {
+            SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.of(alias));
+            return alias;
+        }
+
         java.awt.Font registered = FONTS.get(cleanFamily);
         if (registered == null) {
             registered = FONTS.get(toLookupKey(cleanFamily));
@@ -236,6 +242,20 @@ public class Font {
             return systemFont;
         }
         SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.empty());
+        return null;
+    }
+
+    private static java.awt.Font resolveKnownWebFontAlias(String family) {
+        String normalized = cleanFamilyName(family).toLowerCase(Locale.ROOT);
+        if (!"rajdhani".equals(normalized)) return null;
+        java.awt.Font bahnschrift = new java.awt.Font("Bahnschrift", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
+        if (!java.awt.Font.DIALOG.equalsIgnoreCase(bahnschrift.getFamily(Locale.ROOT))) {
+            return bahnschrift;
+        }
+        java.awt.Font agency = new java.awt.Font("Agency FB", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
+        if (!java.awt.Font.DIALOG.equalsIgnoreCase(agency.getFamily(Locale.ROOT))) {
+            return agency;
+        }
         return null;
     }
 
