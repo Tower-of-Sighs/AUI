@@ -117,12 +117,16 @@ class ResourcePipelineTest {
     }
 
     @Test
-    void htmlCreateElementReturnsNullForMalformedMarkupThatCannotBeBalanced() {
+    void htmlCreateElementRecoversMismatchedEndTagsLikeBrowsers() {
         Document document = TestDocumentFactory.createDocument();
 
         Element root = HTML.createElement(document, "<div><span>broken</div>");
 
-        assertNull(root);
+        assertNotNull(root);
+        assertEquals("DIV", root.getNodeName());
+        assertEquals(1, root.getChildren().size());
+        assertEquals("SPAN", root.getFirstElementChild().getNodeName());
+        assertEquals("broken", root.getTextContent());
     }
 
     @Test

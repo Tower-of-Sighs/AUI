@@ -22,7 +22,7 @@ public class Selector {
     public record DebugStyleBlock(String sourcePath, String selector, Map<String, String> styles) {
     }
 
-    private enum Combinator {DESCENDANT, CHILD}
+    private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING}
 
     private record Pseudo(String name, String expression) {
         boolean matches(Element e) {
@@ -315,6 +315,9 @@ public class Selector {
             if (comb == Combinator.CHILD) {
                 current = current.parentElement;
                 if (!target.matches(current)) return false;
+            } else if (comb == Combinator.ADJACENT_SIBLING) {
+                current = previousElementSibling(current);
+                if (!target.matches(current)) return false;
             } else if (comb == Combinator.DESCENDANT) {
                 boolean found = false;
                 while ((current = current.parentElement) != null) {
@@ -329,6 +332,13 @@ public class Selector {
         return true;
     }
 
+    private static Element previousElementSibling(Element element) {
+        if (element == null || element.parentElement == null) return null;
+        List<Element> siblings = element.parentElement.children;
+        int index = siblings.indexOf(element);
+        if (index <= 0) return null;
+        return siblings.get(index - 1);
+    }
 
     private static List<CompiledSelector> parseGroup(String fullSelector) {
         String[] parts = fullSelector.split(",");
@@ -340,7 +350,7 @@ public class Selector {
     }
 
     private static CompiledSelector parseSelector(String selector) {
-        String[] tokens = selector.split("(?<=[> ])|(?=[> ])");
+        String[] tokens = selector.split("(?<=[>+ ])|(?=[>+ ])");
         List<Component> components = new ArrayList<>();
         List<Combinator> combinators = new ArrayList<>();
 
@@ -352,6 +362,7 @@ public class Selector {
                 case "" -> {
                 }
                 case ">" -> combinators.add(Combinator.CHILD);
+                case "+" -> combinators.add(Combinator.ADJACENT_SIBLING);
                 case " " -> combinators.add(Combinator.DESCENDANT);
                 default -> {
                     if (components.size() > combinators.size()) {

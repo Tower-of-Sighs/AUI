@@ -40,7 +40,7 @@ public class Canvas extends Element {
     private BufferedImage surface;
     private NativeImage nativeImage;
     private DynamicTexture texture;
-    private ResourceLocation textureLocation;
+    protected ResourceLocation textureLocation;
     private boolean surfaceDirty = true;
     private int bitmapWidth = DEFAULT_WIDTH;
     private int bitmapHeight = DEFAULT_HEIGHT;
@@ -238,7 +238,7 @@ public class Canvas extends Element {
         }
     }
 
-    private void syncTexture() {
+    protected void syncTexture() {
         ensureSurface();
         if (!surfaceDirty && textureLocation != null && texture != null && nativeImage != null) return;
 

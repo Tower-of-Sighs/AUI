@@ -123,6 +123,87 @@ class LayoutPositionTest {
     }
 
     @Test
+    void percentHeightUsesAspectRatioParentContentHeightWithoutDoubleSubtractingBox() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "box-sizing: border-box; width: 200px; aspect-ratio: 4 / 3; padding: 10px; border: 2px solid #000;");
+        document.body.appendChild(parent);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "height: 100%; width: 100%;");
+        parent.appendChild(child);
+
+        assertEquals(Math.round(Box.of(parent).innerSize().height()), Math.round(Size.of(child).height()));
+    }
+
+    @Test
+    void flexRowGrowItemKeepsPositiveShareWhenFixedSiblingsOverflow() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element row = new Element(document, "div");
+        row.setAttribute("style", "display: flex; width: 160px; gap: 16px;");
+        document.body.appendChild(row);
+
+        Element flexible = new Element(document, "button");
+        flexible.setAttribute("style", "flex: 1 1 0%; width: 100px; padding: 16px;");
+        row.appendChild(flexible);
+
+        Element reset = new Element(document, "button");
+        reset.setAttribute("style", "width: 80px; padding: 16px 32px;");
+        row.appendChild(reset);
+
+        Element exit = new Element(document, "button");
+        exit.setAttribute("style", "width: 80px; padding: 16px 32px;");
+        row.appendChild(exit);
+
+        assertTrue(Size.of(flexible).width() > 0);
+        assertTrue(Size.of(flexible).width() < 100);
+    }
+
+    @Test
+    void flexRowChildrenShrinkInsideAutoWidthBlockContainer() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 220px; height: 200px;");
+
+        Element column = new Element(document, "div");
+        column.setAttribute("style", "width: 180px;");
+        document.body.appendChild(column);
+
+        Element card = new Element(document, "div");
+        card.setAttribute("style", "display: flex; justify-content: space-between; padding: 8px; box-sizing: border-box;");
+        column.appendChild(card);
+
+        Element left = new Element(document, "div");
+        left.setAttribute("style", "display: flex; gap: 8px;");
+        Element icon = new Element(document, "div");
+        icon.setAttribute("style", "width: 24px; height: 24px; flex-shrink: 0;");
+        Element label = new Element(document, "div");
+        label.setAttribute("style", "width: 140px; height: 20px;");
+        left.appendChild(icon);
+        left.appendChild(label);
+        card.appendChild(left);
+
+        Element right = new Element(document, "div");
+        right.setAttribute("style", "display: flex; gap: 8px;");
+        Element defaultLabel = new Element(document, "div");
+        defaultLabel.setAttribute("style", "width: 50px; height: 20px;");
+        Element toggle = new Element(document, "div");
+        toggle.setAttribute("style", "width: 20px; height: 20px; flex-shrink: 0;");
+        right.appendChild(defaultLabel);
+        right.appendChild(toggle);
+        card.appendChild(right);
+
+        double cardRight = Position.getOffset(card).x + Size.of(card).width();
+        double rightEdge = Position.getOffset(right).x + Size.of(right).width();
+
+        assertEquals(180, Math.round(Size.of(card).width()));
+        assertTrue(rightEdge <= cardRight, "right-side controls should remain inside the auto-width flex card");
+    }
+
+    @Test
     void flexColumnChildrenRespectExplicitAlignSelfOverride() {
         assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
@@ -385,6 +466,53 @@ class LayoutPositionTest {
     }
 
     @Test
+    void aspectRatioHeightUsesWidthAfterMaxWidthClamp() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: 100%; max-width: 120px; aspect-ratio: 4 / 3;");
+        document.body.appendChild(child);
+
+        assertEquals(120, Size.of(child).width());
+        assertEquals(90, Size.of(child).height());
+    }
+
+    @Test
+    void rowFlexStretchDoesNotOverrideAspectRatioHeightFromDefiniteWidth() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element row = new Element(document, "div");
+        row.setAttribute("style", "display: flex; align-items: stretch; width: 220px; height: 180px;");
+        document.body.appendChild(row);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: 100%; max-width: 120px; aspect-ratio: 4 / 3;");
+        row.appendChild(child);
+
+        assertEquals(120, Size.of(child).width());
+        assertEquals(90, Size.of(child).height());
+    }
+
+    @Test
+    void percentHeightChildRecomputesAfterAspectRatioParentClamp() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 100%; max-width: 120px; aspect-ratio: 4 / 3;");
+        document.body.appendChild(parent);
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: 100%; height: 100%;");
+        parent.appendChild(child);
+
+        assertEquals(90, Size.of(parent).height());
+        assertEquals(90, Size.of(child).height());
+    }
+
+    @Test
     void aspectRatioDerivesWidthFromExplicitHeight() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
@@ -476,6 +604,37 @@ class LayoutPositionTest {
         assertEquals(20, Position.getOffset(second).x);
         assertEquals(55, Position.getOffset(third).x);
         assertEquals(120, Layout.computeContentSize(grid).width());
+    }
+
+    @Test
+    void autoWidthGridInsideHalfWidthFlexColumnUsesColumnContentWidth() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "display: flex; width: 512px; height: 266px;");
+
+        Element section = new Element(document, "section");
+        section.setAttribute("style", "display: flex; flex-direction: column; width: 50%; padding-right: 8px; box-sizing: border-box;");
+        document.body.appendChild(section);
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 14px;");
+        section.appendChild(grid);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "height: 10px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "height: 10px;");
+        grid.appendChild(first);
+        grid.appendChild(second);
+
+        double secondX = Position.of(second).x;
+        assertTrue(secondX < 150, "second grid column should stay inside the left section, x=" + secondX
+                + " sectionWidth=" + section.getComputedStyle().width
+                + " sectionBox=" + section.getComputedStyle().boxSizing
+                + " gridWidth=" + grid.getComputedStyle().width
+                + " template=" + grid.getComputedStyle().gridTemplateColumns
+                + " gridContent=" + Layout.computeContentSize(grid).width()
+                + " gridScale=" + Size.getScaleWidth(grid)
+                + " sectionScale=" + Size.getScaleWidth(section));
     }
 
     @Test

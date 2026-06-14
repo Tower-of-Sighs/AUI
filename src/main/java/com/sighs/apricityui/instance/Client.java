@@ -180,12 +180,7 @@ public class Client {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
-            for (Document document : Document.getAll()) {
-                if (!document.inWorld) {
-                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
-                }
-            }
+            drawPersistentScreenDocuments(event.getGuiGraphics());
             Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
@@ -203,6 +198,16 @@ public class Client {
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
+        }
+    }
+
+    private static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics) {
+        for (Document document : Document.getAll()) {
+            if (document == null || document.inWorld || !document.isReloadPersistent()) {
+                continue;
+            }
+            Base.drawDocument(guiGraphics.pose(), document);
+            ItemRender.renderDocumentSlotItems(guiGraphics, document);
         }
     }
 

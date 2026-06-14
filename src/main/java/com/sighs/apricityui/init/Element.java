@@ -1680,6 +1680,7 @@ public class Element extends Node {
     }
 
     private void drawFlexDirectTextRuns(PoseStack poseStack) {
+        Position contentPos = Rect.of(this).getContentPosition();
         for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(this)) {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
@@ -1687,7 +1688,7 @@ public class Element extends Node {
             FontDrawer.drawFont(
                     poseStack,
                     cloneTextForSegment(text, text.content, Color.BLACK),
-                    new Position(layout.position().x - scrollLeft, layout.position().y - scrollTop)
+                    new Position(contentPos.x + layout.position().x - scrollLeft, contentPos.y + layout.position().y - scrollTop)
             );
         }
     }

@@ -44,10 +44,23 @@ legacyForge {
             if (project.hasProperty('auiLogStyles')) {
                 systemProperty 'apricityui.test.logStyles', project.property('auiLogStyles')
             }
+            if (project.hasProperty('auiVerboseLogs')) {
+                systemProperty 'apricityui.test.verboseLogs', project.property('auiVerboseLogs')
+            }
             if (project.hasProperty('auiLogRenderPhases')) {
                 systemProperty 'apricityui.test.logRenderPhases', project.property('auiLogRenderPhases')
             }
-            programArgument '--earlywindow.maximized'
+            if (project.hasProperty('auiWindowWidth')) {
+                programArgument '--width'
+                programArgument project.property('auiWindowWidth').toString()
+            }
+            if (project.hasProperty('auiWindowHeight')) {
+                programArgument '--height'
+                programArgument project.property('auiWindowHeight').toString()
+            }
+            if (!project.hasProperty('auiWindowWidth') && !project.hasProperty('auiWindowHeight')) {
+                programArgument '--earlywindow.maximized'
+            }
         }
 
         server {

@@ -258,6 +258,11 @@ public class Flex {
         String alignSelf = childStyle.alignSelf == null ? "auto" : childStyle.alignSelf.trim().toLowerCase();
         String effective = ("unset".equals(alignSelf) || "auto".equals(alignSelf)) ? flex.alignItems.value : alignSelf;
         if (!"stretch".equals(effective)) return false;
+        Double aspectRatio = Size.parseAspectRatio(childStyle.aspectRatio);
+        if (aspectRatio != null && aspectRatio > 0) {
+            if (flex.flexDirection.isColumn() && Size.parseNumber(childStyle.height) != null) return false;
+            if (!flex.flexDirection.isColumn() && Size.parseNumber(childStyle.width) != null) return false;
+        }
         return flex.flexDirection.isColumn()
                 ? Size.parseNumber(childStyle.width) == null
                 : Size.parseNumber(childStyle.height) == null;
@@ -389,19 +394,20 @@ public class Flex {
         Double parsedMin = Size.parseNumber(rawMin);
         if (parsedMin == null) {
             Box box = Box.of(item);
-            boolean shrinkable = resolveFlexShrink(item) > 0;
-            boolean flexible = resolveFlexGrow(item) > 0
-                    || shrinkable
+            Element parent = item.parentElement;
+            boolean definiteMain = parent == null || (columnMainAxis
+                    ? Size.parseNumber(parent.getComputedStyle().height) != null
+                    : Size.hasDefiniteAutoResolvedWidth(parent));
+            boolean parentWraps = parent != null && Flex.of(parent).flexWrap.canWrap();
+            boolean flexible = definiteMain && (resolveFlexShrink(item) > 0 || resolveFlexGrow(item) > 0
                     || (style.flexBasis != null && !style.flexBasis.isBlank()
                     && !"auto".equalsIgnoreCase(style.flexBasis)
-                    && !"unset".equalsIgnoreCase(style.flexBasis));
-            if (flexible) {
-                double outerChrome = columnMainAxis
+                    && !"unset".equalsIgnoreCase(style.flexBasis)));
+            if (flexible && !parentWraps) {
+                return Math.max(0, columnMainAxis
                         ? box.getBorderVertical() + box.getPaddingVertical() + box.getMarginVertical()
-                        : box.getBorderHorizontal() + box.getPaddingHorizontal() + box.getMarginHorizontal();
-                return Math.max(0, outerChrome);
+                        : box.getBorderHorizontal() + box.getPaddingHorizontal() + box.getMarginHorizontal());
             }
-            // Non-flexing items still keep their natural outer size until min-content sizing exists.
             return Math.max(0, naturalOuterMainSize);
         }
 
@@ -652,6 +658,12 @@ public class Flex {
     private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,
                                                                 double offsetTotal, int siblingsCount, int index) {
         double offsetStart = 0, offsetInterval = 0;
+        if (offsetTotal < 0
+                && (justifyContent.isSpaceAround()
+                || justifyContent.isSpaceEvenly()
+                || justifyContent.isSpaceBetween())) {
+            return new FlexLayoutOffset(0, 0);
+        }
 
         if (justifyContent.isCenter()) {
             offsetStart = offsetTotal / 2;

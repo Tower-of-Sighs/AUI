@@ -133,6 +133,96 @@ public class Graph {
         drawUnifiedRoundedRect(mat, x, y, w, h, radii, (px, py) -> gradient.getColorAt(px, py, x, y, w, h));
     }
 
+    public static void drawSampledGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient, float step) {
+        if (gradient == null || w <= 0 || h <= 0) return;
+        float cell = Math.max(0.5f, step);
+        ColorResolver colorRes = (px, py) -> gradient.getColorAt(px, py, x, y, w, h);
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+            addSampledGradientRectVertices(buf, mat, x, y, w, h, cell, colorRes);
+            return;
+        }
+        BufferBuilder buf = Base.getBuffer();
+        Base.beginRendering();
+        prepare(buf);
+        addSampledGradientRectVertices(buf, mat, x, y, w, h, cell, colorRes);
+        BufferUploader.drawWithShader(buf.end());
+        Base.finishRendering();
+    }
+
+    public static boolean drawAxisAlignedHardStopGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
+        if (gradient == null || w <= 0 || h <= 0 || gradient.stops().size() != 2) return false;
+        Gradient.Stop first = gradient.stops().get(0);
+        Gradient.Stop second = gradient.stops().get(1);
+        if (first.color == second.color) return false;
+
+        float angle = normalizeAngle(gradient.angle());
+        boolean vertical = Math.abs(angle - 180f) < 0.01f || Math.abs(angle) < 0.01f;
+        boolean horizontal = Math.abs(angle - 90f) < 0.01f || Math.abs(angle - 270f) < 0.01f;
+        if (!vertical && !horizontal) return false;
+
+        float axis = vertical ? h : w;
+        float firstPos = clamp01(first.position) * axis;
+        float secondPos = clamp01(second.position) * axis;
+        if (Math.abs(firstPos - secondPos) > 0.001f) return false;
+
+        float stop = Math.max(0f, Math.min(axis, firstPos));
+        int beforeColor = first.color;
+        int afterColor = second.color;
+        if (Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f) {
+            stop = axis - stop;
+            beforeColor = second.color;
+            afterColor = first.color;
+        }
+
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+            addAxisAlignedHardStopVertices(buf, mat, x, y, w, h, vertical, stop, beforeColor, afterColor);
+            return true;
+        }
+        BufferBuilder buf = Base.getBuffer();
+        Base.beginRendering();
+        prepare(buf);
+        addAxisAlignedHardStopVertices(buf, mat, x, y, w, h, vertical, stop, beforeColor, afterColor);
+        BufferUploader.drawWithShader(buf.end());
+        Base.finishRendering();
+        return true;
+    }
+
+    private static void addAxisAlignedHardStopVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+                                                       boolean vertical, float stop, int beforeColor, int afterColor) {
+        if (vertical) {
+            if (stop > 0.001f) addRect(buf, mat, x, y, x + w, y + stop, beforeColor);
+            if (h - stop > 0.001f) addRect(buf, mat, x, y + stop, x + w, y + h, afterColor);
+        } else {
+            if (stop > 0.001f) addRect(buf, mat, x, y, x + stop, y + h, beforeColor);
+            if (w - stop > 0.001f) addRect(buf, mat, x + stop, y, x + w, y + h, afterColor);
+        }
+    }
+
+    private static float normalizeAngle(float angle) {
+        float normalized = angle % 360f;
+        return normalized < 0 ? normalized + 360f : normalized;
+    }
+
+    private static float clamp01(float value) {
+        return Math.max(0f, Math.min(1f, value));
+    }
+
+    private static void addSampledGradientRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+                                                       float step, ColorResolver colorRes) {
+        float maxX = x + w;
+        float maxY = y + h;
+        for (float yy = y; yy < maxY - 0.001f; yy += step) {
+            float y1 = Math.min(maxY, yy + step);
+            for (float xx = x; xx < maxX - 0.001f; xx += step) {
+                float x1 = Math.min(maxX, xx + step);
+                int color = colorRes.resolve((xx + x1) * 0.5f, (yy + y1) * 0.5f);
+                addRect(buf, mat, xx, yy, x1, y1, color);
+            }
+        }
+    }
+
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
         if (batchActive) {
             BufferBuilder buf = Base.getBuffer();
