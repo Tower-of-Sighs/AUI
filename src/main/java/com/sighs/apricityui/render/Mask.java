@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 
+import java.util.ArrayDeque;
 import java.util.Stack;
 
 public class Mask {
@@ -16,6 +17,7 @@ public class Mask {
     private static final Stack<AABB> clipStack = new Stack<>();
     private static final Stack<AABB> scissorStack = new Stack<>();
     private static final Stack<Boolean> maskScissorStack = new Stack<>();
+    private static final ThreadLocal<ArrayDeque<Double>> scissorScaleStack = ThreadLocal.withInitial(ArrayDeque::new);
     private static AABB currentScissor = null;
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
 
@@ -42,6 +44,21 @@ public class Mask {
     public static void restoreScissor(AABB rect) {
         currentScissor = rect;
         applyScissor(currentScissor);
+    }
+
+    public static void pushScissorScale(double scale) {
+        double safeScale = scale > 0 && Double.isFinite(scale) ? scale : -1.0d;
+        scissorScaleStack.get().push(safeScale);
+    }
+
+    public static void popScissorScale() {
+        ArrayDeque<Double> stack = scissorScaleStack.get();
+        if (!stack.isEmpty()) {
+            stack.pop();
+        }
+        if (stack.isEmpty()) {
+            scissorScaleStack.remove();
+        }
     }
 
     public static boolean isActive() {
@@ -201,7 +218,7 @@ public class Mask {
 
     public static void enableScissor(double x, double y, double width, double height) {
         Window window = Minecraft.getInstance().getWindow();
-        double scale = window.getGuiScale();
+        double scale = getScissorScale(window);
         int windowHeight = window.getHeight();
 
         // Use floor/ceil on edges to avoid 1px flicker when scrolling with fractional offsets.
@@ -234,6 +251,17 @@ public class Mask {
             return;
         }
         enableScissor(rect.x(), rect.y(), rect.width(), rect.height());
+    }
+
+    private static double getScissorScale(Window window) {
+        ArrayDeque<Double> stack = scissorScaleStack.get();
+        if (!stack.isEmpty()) {
+            double scale = stack.peek();
+            if (scale > 0 && Double.isFinite(scale)) {
+                return scale;
+            }
+        }
+        return Math.max(1.0d, window.getGuiScale());
     }
 
     private static boolean isRectMask(float[] radii) {

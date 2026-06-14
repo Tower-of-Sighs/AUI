@@ -7,7 +7,9 @@ import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.instance.screen.SlotDataBinder;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.style.Size;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -26,12 +28,15 @@ import java.util.Set;
  * 带容器交互的 Screen，绑定/同步逻辑委托给 SlotDataBinder。
  */
 public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> {
+    private static final double MAX_DOCUMENT_GUI_SCALE = 5.0d;
     private static final String DEVTOOLS_PATH = "devtools/index.html";
     private static final int QUICK_CRAFT_GHOST_COLOR = -2130706433;
     private static final float ICON_SCALE_EPSILON = 0.0001F;
 
     private Document linkedDocument;
     private SlotDataBinder slotBinder;
+    private float documentRenderScale = 1.0f;
+    private double documentGuiScale = 1.0d;
 
     public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -61,6 +66,13 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     @Override
     protected void init() {
+        var window = Minecraft.getInstance().getWindow();
+        double actualGuiScale = Math.max(1.0d, window.getGuiScale());
+        documentGuiScale = Math.min(actualGuiScale, MAX_DOCUMENT_GUI_SCALE);
+        documentRenderScale = (float) (documentGuiScale / actualGuiScale);
+        int layoutWidth = Math.max(1, (int) Math.round(window.getScreenWidth() / documentGuiScale));
+        int layoutHeight = Math.max(1, (int) Math.round(window.getScreenHeight() / documentGuiScale));
+        Size.setViewportOverride(layoutWidth, layoutHeight);
         imageWidth = width;
         imageHeight = height;
         super.init();
@@ -87,7 +99,15 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     protected void renderBg(@Nonnull GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         if (linkedDocument == null) return;
 
-        Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+        guiGraphics.pose().pushPose();
+        Mask.pushScissorScale(documentGuiScale);
+        try {
+            guiGraphics.pose().scale(documentRenderScale, documentRenderScale, 1.0f);
+            Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+        } finally {
+            Mask.popScissorScale();
+            guiGraphics.pose().popPose();
+        }
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         drawMenuSlotItems(guiGraphics);
         drawDisplaySlotItems(guiGraphics);
@@ -243,6 +263,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     @Override
     public void onClose() {
         if (linkedDocument == null) {
+            Size.clearViewportOverride();
             super.onClose();
             return;
         }
@@ -252,6 +273,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
 
         linkedDocument.remove();
+        Size.clearViewportOverride();
         Cursor.resetToDefault();
         super.onClose();
     }
@@ -264,6 +286,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (slotBinder != null) {
             slotBinder.clear();
         }
+        Size.clearViewportOverride();
         super.removed();
     }
 

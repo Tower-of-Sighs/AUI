@@ -8,7 +8,7 @@ import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
-import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.task.ClientScheduler;
 import com.sighs.apricityui.style.Box;
 
@@ -83,11 +83,11 @@ public class Window {
     }
 
     public double getInnerWidth() {
-        return Client.getWindowSize().width();
+        return Size.getWindowSize().width();
     }
 
     public double getInnerHeight() {
-        return Client.getWindowSize().height();
+        return Size.getWindowSize().height();
     }
 
     public double getDevicePixelRatio() {
