@@ -316,6 +316,14 @@ public class CSS {
                 if (parsed != null) return (int) Math.round(parsed);
             }
             try {
+                net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
+                if (minecraft != null && minecraft.getWindow() != null) {
+                    return width ? minecraft.getWindow().getGuiScaledWidth() : minecraft.getWindow().getGuiScaledHeight();
+                }
+            } catch (Throwable ignored) {
+                // Non-client contexts, such as unit tests, fall back to the logical AUI viewport.
+            }
+            try {
                 return (int) Math.round(width ? Size.getWindowSize().width() : Size.getWindowSize().height());
             } catch (Throwable ignored) {
                 return fallback;
