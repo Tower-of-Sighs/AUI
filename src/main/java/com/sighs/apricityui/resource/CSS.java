@@ -124,7 +124,7 @@ public class CSS {
 
             int offset = 0;
             while (matcher.find(offset)) {
-                String animName = matcher.group(1);
+                String animName = normalizeKeyframeName(matcher.group(1));
                 int blockStart = matcher.end();
                 int braceCount = 1;
                 int blockEnd = -1;
@@ -146,13 +146,12 @@ public class CSS {
                     while (frameMatcher.find()) {
                         String percentStr = frameMatcher.group(1);
                         String rules = frameMatcher.group(2);
-
-                        double percent = 0;
-                        if (percentStr.equalsIgnoreCase("from")) percent = 0;
-                        else if (percentStr.equalsIgnoreCase("to")) percent = 100;
-                        else percent = Double.parseDouble(percentStr.replace("%", ""));
-
-                        Animation.registerKeyframe(animName, percent, parseProperties(rules, contextPath));
+                        Map<String, String> properties = parseProperties(rules, contextPath);
+                        for (String token : percentStr.split(",")) {
+                            Double percent = parseKeyframePercent(token.trim());
+                            if (percent == null) continue;
+                            Animation.registerKeyframe(animName, percent, properties);
+                        }
                     }
 
                     // 移除已处理的@keyframes

@@ -1,6 +1,8 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
@@ -8,6 +10,7 @@ import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -16,13 +19,50 @@ public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
     public static final Size ZERO = new Size(0, 0);
     private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(HashSet::new);
+    private static volatile Size viewportOverride;
+    private static volatile Double rootFontOverride;
 
     public Size add(Size size) {
         return new Size(width + size.width, height + size.height);
     }
 
     public static Size getWindowSize() {
-        return Client.getWindowSize();
+        Size override = viewportOverride;
+        if (override != null) {
+            return override;
+        }
+        String widthOverride = System.getProperty("aui.test.viewport.width");
+        String heightOverride = System.getProperty("aui.test.viewport.height");
+        if (widthOverride != null || heightOverride != null) {
+            double width = parseNumber(widthOverride) == null ? 1920 : parseNumber(widthOverride);
+            double height = parseNumber(heightOverride) == null ? 1080 : parseNumber(heightOverride);
+            return new Size(width, height);
+        }
+        try {
+            return Client.getWindowSize();
+        } catch (NoClassDefFoundError | Exception ignored) {
+            return new Size(1920, 1080);
+        }
+    }
+
+    public static void setViewportOverride(double width, double height) {
+        viewportOverride = new Size(Math.max(0, width), Math.max(0, height));
+    }
+
+    public static void clearViewportOverride() {
+        viewportOverride = null;
+    }
+
+    public static void setRootFontOverride(Double rootFontSize) {
+        if (rootFontSize == null || rootFontSize <= 0) {
+            rootFontOverride = null;
+            return;
+        }
+        rootFontOverride = rootFontSize;
+    }
+
+    public static void clearRootFontOverride() {
+        rootFontOverride = null;
     }
 
     public static int parse(String str) {
@@ -75,10 +115,28 @@ public record Size(double width, double height) {
 
     public static double resolveLength(String value, double percentBasis, double fallback) {
         if (value == null || value.isBlank() || value.equals("unset")) return fallback;
-        Double number = parseNumber(value);
-        if (number == null) return fallback;
-        if (isPercent(value)) return percentBasis * (number / 100d);
-        return number;
+        Double resolved = tryResolveLength(value, percentBasis);
+        return resolved == null ? fallback : resolved;
+    }
+
+    public static Double tryResolveLength(String value, double percentBasis) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        if (trimmed.isEmpty() || "unset".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) return null;
+        if (trimmed.regionMatches(true, 0, "calc(", 0, 5) && trimmed.endsWith(")")) {
+            return resolveCalc(trimmed.substring(5, trimmed.length() - 1), percentBasis, getRootFontSize());
+        }
+        return resolveSingleLength(trimmed, percentBasis, getRootFontSize());
+    }
+
+    public static Double tryResolveLength(String value, double percentBasis, double emBasis) {
+        if (value == null) return null;
+        String trimmed = value.trim();
+        if (trimmed.isEmpty() || "unset".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) return null;
+        if (trimmed.regionMatches(true, 0, "calc(", 0, 5) && trimmed.endsWith(")")) {
+            return resolveCalc(trimmed.substring(5, trimmed.length() - 1), percentBasis, emBasis);
+        }
+        return resolveSingleLength(trimmed, percentBasis, emBasis);
     }
 
     public static Size of(Element element) {
@@ -97,6 +155,11 @@ public record Size(double width, double height) {
                 }
             }
         }
+    }
+
+    public static Size natural(Element element) {
+        if (element == null) return ZERO;
+        return computeSize(element, false);
     }
 
     private static Size computeSize(Element element, boolean allowFlexAdjustments) {
@@ -131,6 +194,11 @@ public record Size(double width, double height) {
         double parentHeight = explicitParentHeight != null ? explicitParentHeight : 0;
         boolean borderBox = box.isBorderBox();
 
+        if (unsetWidth && shouldFillAvailableBlockWidth(element, style)) {
+            double availableOuterWidth = Math.max(0, parentWidth - box.getMarginHorizontal());
+            contentWidth = Math.max(0, availableOuterWidth - horizontalBox);
+        }
+
         if (!unsetWidth) {
             double resolved = resolveLength(style.width, parentWidth, contentWidth);
             contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
@@ -138,6 +206,15 @@ public record Size(double width, double height) {
         if (!unsetHeight && (!isPercent(style.height) || explicitParentHeight != null)) {
             double resolved = resolveLength(style.height, parentHeight, contentHeight);
             contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
+        }
+
+        Double aspectRatio = parseAspectRatio(style.aspectRatio);
+        if (aspectRatio != null && aspectRatio > 0) {
+            if (!unsetWidth && unsetHeight) {
+                contentHeight = contentWidth / aspectRatio;
+            } else if (unsetWidth && !unsetHeight) {
+                contentWidth = contentHeight * aspectRatio;
+            }
         }
 
         if (allowFlexAdjustments && element.parentElement != null && Layout.isInFlow(style)
@@ -148,24 +225,30 @@ public record Size(double width, double height) {
 
             if (parentFlex.flexDirection.isColumn()) {
                 if (unsetWidth && Flex.shouldStretchCrossAxis(element, parent)) {
-                    double stretchedOuterWidth = Math.max(0, parentContentSize.width() - box.getMarginHorizontal());
+                    double parentCrossWidth = parentContentSize.width() > 0
+                            ? parentContentSize.width()
+                            : getScaleWidth(element);
+                    double stretchedOuterWidth = Math.max(0, parentCrossWidth - box.getMarginHorizontal());
                     contentWidth = Math.max(0, stretchedOuterWidth - horizontalBox);
                 }
             } else {
                 if (unsetHeight && Flex.shouldStretchCrossAxis(element, parent)) {
-                    double stretchedOuterHeight = Math.max(0, parentContentSize.height() - box.getMarginVertical());
+                    double parentCrossHeight = parentContentSize.height() > 0
+                            ? parentContentSize.height()
+                            : getScaleHeight(element);
+                    double stretchedOuterHeight = Math.max(0, parentCrossHeight - box.getMarginVertical());
                     contentHeight = Math.max(0, stretchedOuterHeight - verticalBox);
                 }
             }
 
             double totalWidth = contentWidth + horizontalBox;
             double totalHeight = contentHeight + verticalBox;
-            if (parentFlex.flexDirection.isColumn() && unsetHeight && Flex.resolveFlexGrow(element) > 0) {
+            if (parentFlex.flexDirection.isColumn() && unsetHeight) {
                 double assignedOuterHeight = Flex.resolveAssignedMainSize(element, parent, totalHeight + box.getMarginVertical());
                 double usableOuterHeight = Math.max(0, assignedOuterHeight - box.getMarginVertical());
                 contentHeight = Math.max(0, usableOuterHeight - verticalBox);
             }
-            if (parentFlex.flexDirection.isRow() && unsetWidth && Flex.resolveFlexGrow(element) > 0) {
+            if (parentFlex.flexDirection.isRow() && unsetWidth) {
                 double assignedOuterWidth = Flex.resolveAssignedMainSize(element, parent, totalWidth + box.getMarginHorizontal());
                 double usableOuterWidth = Math.max(0, assignedOuterWidth - box.getMarginHorizontal());
                 contentWidth = Math.max(0, usableOuterWidth - horizontalBox);
@@ -179,8 +262,28 @@ public record Size(double width, double height) {
         double totalHeight = contentHeight + verticalBox;
 
         Size resultSize = new Size(totalWidth, totalHeight);
-
-        element.getRenderer().size.set(resultSize);
+        if (Boolean.getBoolean("apricityui.test.logStyles")
+                && element.parentElement != null
+                && element.parentElement.getClassNames().contains("compact-actions")) {
+            ApricityUI.LOGGER.info(
+                    "[AUI Size] tag={} class={} total={}x{} content={}x{} unsetWidth={} unsetHeight={} flex={} grow={} shrink={} basis={}",
+                    element.tagName,
+                    element.getClassNames(),
+                    totalWidth,
+                    totalHeight,
+                    contentWidth,
+                    contentHeight,
+                    unsetWidth,
+                    unsetHeight,
+                    style.flex,
+                    style.flexGrow,
+                    style.flexShrink,
+                    style.flexBasis
+            );
+        }
+        if (!shouldDeferSizeCache(element, style, unsetWidth, unsetHeight)) {
+            element.getRenderer().size.set(resultSize);
+        }
         return resultSize;
     }
 
@@ -230,14 +333,16 @@ public record Size(double width, double height) {
     public static double getScaleWidth(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
-            Style parentStyle = parent.getRawComputedStyle();
-            if (parseNumber(parentStyle.width) != null) {
-                double resolvedWidth;
-                if (isPercent(parentStyle.width)) {
-                    resolvedWidth = getScaleWidth(parent) * parseNumber(parentStyle.width) / 100d;
-                } else {
-                    resolvedWidth = parseNumber(parentStyle.width);
+            Size cachedParentSize = parent.getRenderer().size.get();
+            if (cachedParentSize != null) {
+                double innerWidth = Box.of(parent).innerSize().width();
+                if (innerWidth > 0) {
+                    return innerWidth;
                 }
+            }
+            Style parentStyle = parent.getRawComputedStyle();
+            if (tryResolveLength(parentStyle.width, getScaleWidth(parent)) != null) {
+                double resolvedWidth = resolveLength(parentStyle.width, getScaleWidth(parent), 0);
                 if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
                     Box parentBox = Box.of(parent);
                     resolvedWidth -= parentBox.getBorderHorizontal() + parentBox.getPaddingHorizontal();
@@ -251,14 +356,16 @@ public record Size(double width, double height) {
     public static double getScaleHeight(Element element) {
         Element parent = element.parentElement;
         if (parent != null) {
-            Style parentStyle = parent.getRawComputedStyle();
-            if (parseNumber(parentStyle.height) != null) {
-                double resolvedHeight;
-                if (isPercent(parentStyle.height)) {
-                    resolvedHeight = getScaleHeight(parent) * parseNumber(parentStyle.height) / 100d;
-                } else {
-                    resolvedHeight = parseNumber(parentStyle.height);
+            Size cachedParentSize = parent.getRenderer().size.get();
+            if (cachedParentSize != null) {
+                double innerHeight = Box.of(parent).innerSize().height();
+                if (innerHeight > 0) {
+                    return innerHeight;
                 }
+            }
+            Style parentStyle = parent.getRawComputedStyle();
+            if (tryResolveLength(parentStyle.height, getScaleHeight(parent)) != null) {
+                double resolvedHeight = resolveLength(parentStyle.height, getScaleHeight(parent), 0);
                 if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
                     Box parentBox = Box.of(parent);
                     resolvedHeight -= parentBox.getBorderVertical() + parentBox.getPaddingVertical();
@@ -273,16 +380,10 @@ public record Size(double width, double height) {
         Element parent = element.parentElement;
         if (parent == null) return Math.max(0, getWindowSize().height());
         Style parentStyle = parent.getRawComputedStyle();
-        if (parseNumber(parentStyle.height) == null) return null;
 
-        double resolvedHeight;
-        if (isPercent(parentStyle.height)) {
-            Double ancestorHeight = getExplicitContainingBlockHeight(parent);
-            if (ancestorHeight == null) return null;
-            resolvedHeight = ancestorHeight * parseNumber(parentStyle.height) / 100d;
-        } else {
-            resolvedHeight = parseNumber(parentStyle.height);
-        }
+        Double parentOwnHeight = resolveOwnExplicitContentHeight(parent);
+        if (parentOwnHeight == null) return null;
+        double resolvedHeight = parentOwnHeight;
 
         if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
             Box parentBox = Box.of(parent);
@@ -291,8 +392,199 @@ public record Size(double width, double height) {
         return Math.max(0, resolvedHeight);
     }
 
+    private static Double resolveOwnExplicitContentHeight(Element element) {
+        if (element == null) return null;
+        Style style = element.getRawComputedStyle();
+
+        Double containingBlockHeight = null;
+        if (element.parentElement != null) {
+            containingBlockHeight = getExplicitContainingBlockHeight(element);
+        }
+
+        Double resolvedHeight = tryResolveLength(style.height, containingBlockHeight == null ? 0 : containingBlockHeight);
+        if (resolvedHeight != null) {
+            if (!isPercent(style.height) || containingBlockHeight != null) {
+                return resolvedHeight;
+            }
+        }
+
+        Double aspectRatio = parseAspectRatio(style.aspectRatio);
+        if (aspectRatio != null && aspectRatio > 0) {
+            Double widthBasis = resolveOwnExplicitContentWidth(element);
+            if (widthBasis != null) {
+                return Math.max(0, widthBasis / aspectRatio);
+            }
+        }
+        return null;
+    }
+
+    private static Double resolveOwnExplicitContentWidth(Element element) {
+        if (element == null) return null;
+        Style style = element.getRawComputedStyle();
+        Double containingBlockWidth = element.parentElement == null ? getWindowSize().width() : getScaleWidth(element);
+        Double resolvedWidth = tryResolveLength(style.width, containingBlockWidth == null ? 0 : containingBlockWidth);
+        if (resolvedWidth != null) {
+            if (!isPercent(style.width) || containingBlockWidth != null) {
+                return resolvedWidth;
+            }
+        }
+        return null;
+    }
+
+    private static boolean shouldFillAvailableBlockWidth(Element element, Style style) {
+        if (element == null || style == null) return false;
+        if (element.parentElement == null) return true;
+        if (!Layout.isInFlow(style)) return false;
+        String position = style.position == null ? "static" : style.position.trim().toLowerCase(Locale.ROOT);
+        if ("absolute".equals(position) || "fixed".equals(position)) {
+            return false;
+        }
+        Element parent = element.parentElement;
+        if (parent != null) {
+            Style parentStyle = parent.getRawComputedStyle();
+            String parentPosition = parentStyle.position == null ? "static" : parentStyle.position.trim().toLowerCase(Locale.ROOT);
+            boolean parentAutoWidth = tryResolveLength(parentStyle.width, getScaleWidth(parent)) == null;
+            if (parentAutoWidth && ("absolute".equals(parentPosition) || "fixed".equals(parentPosition))) {
+                return false;
+            }
+        }
+        String display = style.display == null ? "" : style.display.trim().toLowerCase(Locale.ROOT);
+        if ("inline".equals(display)
+                || "inline-block".equals(display)
+                || "inline-flex".equals(display)
+                || "inline-grid".equals(display)) {
+            return false;
+        }
+        return !Layout.isFlexDisplay(element.parentElement.getComputedStyle().display);
+    }
+
+    private static boolean shouldDeferSizeCache(Element element, Style style, boolean unsetWidth, boolean unsetHeight) {
+        if (element == null || style == null) return false;
+        Element parent = element.parentElement;
+        if (parent == null) return false;
+
+        Set<Element> resolving = RESOLVING.get();
+        if (!resolving.contains(parent)) return false;
+
+        if (!Layout.isFlexDisplay(parent.getComputedStyle().display)) {
+            return false;
+        }
+
+        Flex parentFlex = Flex.of(parent);
+        if (parentFlex.flexDirection.isColumn() && unsetHeight) {
+            return true;
+        }
+        if (parentFlex.flexDirection.isRow() && unsetWidth) {
+            return true;
+        }
+        if (parentFlex.flexDirection.isColumn() && unsetWidth && Flex.shouldStretchCrossAxis(element, parent)) {
+            return true;
+        }
+        if (parentFlex.flexDirection.isRow() && unsetHeight && Flex.shouldStretchCrossAxis(element, parent)) {
+            return true;
+        }
+        return false;
+    }
+
     public static double lerp(double current, double target) {
         return current + (target - current) * 0.2;
+    }
+
+    private static Double resolveCalc(String expression, double percentBasis) {
+        return resolveCalc(expression, percentBasis, getRootFontSize());
+    }
+
+    private static Double resolveCalc(String expression, double percentBasis, double emBasis) {
+        String expr = expression == null ? "" : expression.trim();
+        if (expr.isEmpty()) return null;
+
+        double result = 0;
+        int sign = 1;
+        int start = 0;
+        for (int i = 0; i <= expr.length(); i++) {
+            boolean boundary = i == expr.length();
+            if (!boundary) {
+                char c = expr.charAt(i);
+                if ((c == '+' || c == '-') && i > start) {
+                    boundary = true;
+                }
+            }
+            if (!boundary) continue;
+
+            String term = expr.substring(start, i).trim();
+            if (!term.isEmpty()) {
+                if (term.charAt(0) == '+') {
+                    term = term.substring(1).trim();
+                } else if (term.charAt(0) == '-') {
+                    sign *= -1;
+                    term = term.substring(1).trim();
+                }
+                Double resolved = resolveSingleLength(term, percentBasis, emBasis);
+                if (resolved == null) return null;
+                result += sign * resolved;
+            }
+
+            if (i < expr.length()) {
+                sign = expr.charAt(i) == '-' ? -1 : 1;
+            }
+            start = i + 1;
+        }
+        return result;
+    }
+
+    private static Double resolveSingleLength(String token, double percentBasis) {
+        return resolveSingleLength(token, percentBasis, getRootFontSize());
+    }
+
+    private static Double resolveSingleLength(String token, double percentBasis, double emBasis) {
+        if (token == null) return null;
+        String value = token.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty()) return null;
+
+        Double number = parseNumber(value);
+        if (number == null) return null;
+        if (value.endsWith("%")) return percentBasis * (number / 100d);
+        if (value.endsWith("rem")) return number * getRootFontSize();
+        if (value.endsWith("em")) return number * emBasis;
+        if (value.endsWith("vw")) return getWindowSize().width() * (number / 100d);
+        if (value.endsWith("vh")) return getWindowSize().height() * (number / 100d);
+        return number;
+    }
+
+    public static double getRootFontSize() {
+        Double override = rootFontOverride;
+        if (override != null && override > 0) {
+            return override;
+        }
+        for (Document document : Document.getAll()) {
+            if (document == null || !document.isActive() || document.documentElement == null) continue;
+            String fontSize = document.documentElement.getComputedStyle().fontSize;
+            Double parsed = tryResolveLength(fontSize, 16, 16);
+            if (parsed != null && parsed > 0) {
+                return parsed;
+            }
+        }
+        return 16d;
+    }
+
+    private static Double parseAspectRatio(String raw) {
+        if (raw == null) return null;
+        String value = raw.trim();
+        if (value.isEmpty() || "auto".equalsIgnoreCase(value) || "none".equalsIgnoreCase(value) || "unset".equalsIgnoreCase(value)) {
+            return null;
+        }
+
+        int slash = value.indexOf('/');
+        if (slash >= 0) {
+            Double numerator = parseNumber(value.substring(0, slash).trim());
+            Double denominator = parseNumber(value.substring(slash + 1).trim());
+            if (numerator == null || denominator == null || denominator == 0) return null;
+            return numerator / denominator;
+        }
+
+        Double direct = parseNumber(value);
+        if (direct == null || direct <= 0) return null;
+        return direct;
     }
 
     private static final Canvas METRICS_CANVAS = new Canvas();

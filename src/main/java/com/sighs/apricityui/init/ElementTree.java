@@ -137,6 +137,9 @@ final class ElementTree {
         updateSubtree(child, parent, parent.depth + 1, owner);
         if (child instanceof Element childElement) {
             childElement.syncDomStateAfterAttach();
+            childElement.invalidateSubtreeAfterAttach();
+            childElement.invalidateStyle();
+            owner.markDirty(childElement, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
         }
 
         int insertIndex = safeIndex == 0 ? nodes.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.childNodes.get(safeIndex - 1));
@@ -144,12 +147,9 @@ final class ElementTree {
         nodes.addAll(insertIndex, subtreeNodes);
         elements.addAll(resolveInsertIndexForElements(insertIndex), flattenElements(subtreeNodes));
 
-        if (child instanceof Element childElement) {
-            childElement.invalidateStyle();
-            childElement.getRenderer().size.clear();
-        }
         if (parent instanceof Element parentElement) {
             clearTextCaches(parentElement);
+            clearLayoutChain(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         owner.queueMutation(Document.MutationRecord.childList(parent, List.of(child), List.of(), previousSibling, nextSibling));
@@ -165,6 +165,7 @@ final class ElementTree {
             syncElementChildView(oldParent);
             if (oldParent instanceof Element oldParentElement) {
                 clearTextCaches(oldParentElement);
+                clearLayoutChain(oldParentElement);
                 owner.markDirty(oldParentElement, Drawer.RELAYOUT | Drawer.REORDER);
             }
             owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(node), previousSibling, nextSibling));
@@ -192,6 +193,16 @@ final class ElementTree {
         element.getRenderer().text.clear();
         element.getRenderer().wrappedText.clear();
         element.getRenderer().size.clear();
+    }
+
+    private static void clearLayoutChain(Element element) {
+        Element current = element;
+        while (current != null) {
+            current.getRenderer().size.clear();
+            current.getRenderer().box.clear();
+            current.getRenderer().position.clear();
+            current = current.parentElement;
+        }
     }
 
     private void updateSubtree(Node root, Node parent, int depth, Document document) {

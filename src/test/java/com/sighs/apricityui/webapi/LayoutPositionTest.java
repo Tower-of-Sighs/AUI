@@ -99,6 +99,30 @@ class LayoutPositionTest {
     }
 
     @Test
+    void flexColumnGrowItemCanShrinkWithinExplicitParentHeight() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display: flex; flex-direction: column; width: 120px; height: 100px;");
+        document.body.appendChild(parent);
+
+        Element header = new Element(document, "div");
+        header.setAttribute("style", "height: 40px;");
+        parent.appendChild(header);
+
+        Element main = new Element(document, "div");
+        main.setAttribute("style", "flex: 1 1 0%;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "height: 90px;");
+        main.appendChild(content);
+        parent.appendChild(main);
+
+        assertEquals(60, Math.round(Size.of(main).height()));
+        assertEquals(100, Math.round(Size.of(parent).height()));
+    }
+
+    @Test
     void flexColumnChildrenRespectExplicitAlignSelfOverride() {
         assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
@@ -162,6 +186,19 @@ class LayoutPositionTest {
         Position flexTextOffset = readFlexTextOffset(button);
         assertEquals(expectedTextX, flexTextOffset.x);
         assertEquals(expectedTextY, flexTextOffset.y);
+    }
+
+    @Test
+    void cssFontSizeRemainsInCssPixelUnits() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        Element label = new Element(document, "span");
+        label.innerText = "HUD";
+        label.setAttribute("style", "font-size: 16px;");
+        document.body.appendChild(label);
+
+        assertEquals(16.0, Text.of(label).fontSize);
+        assertEquals(16.0, Text.getFontSize(label));
     }
 
     @Test
@@ -332,6 +369,32 @@ class LayoutPositionTest {
 
         assertEquals(85, Size.of(child).width());
         assertEquals(35, Size.of(child).height());
+    }
+
+    @Test
+    void aspectRatioDerivesHeightFromExplicitWidth() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "width: 120px; aspect-ratio: 4 / 3;");
+        document.body.appendChild(child);
+
+        assertEquals(120, Size.of(child).width());
+        assertEquals(90, Size.of(child).height());
+    }
+
+    @Test
+    void aspectRatioDerivesWidthFromExplicitHeight() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "height: 90px; aspect-ratio: 4 / 3;");
+        document.body.appendChild(child);
+
+        assertEquals(120, Size.of(child).width());
+        assertEquals(90, Size.of(child).height());
     }
 
     @Test

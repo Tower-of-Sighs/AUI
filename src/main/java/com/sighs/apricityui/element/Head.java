@@ -10,5 +10,6 @@ public class Head extends Div {
     public Head(Document document) {
         super(document);
         tagName = TAG_NAME;
+        setAttribute("style", "display:none;");
     }
 }

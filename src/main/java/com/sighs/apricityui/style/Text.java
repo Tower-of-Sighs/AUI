@@ -47,12 +47,12 @@ public class Text {
         for (Element e : element.getRoute()) {
             String f = e.getComputedStyle().fontSize;
             if (!f.equals("unset")) {
-                Double parsed = Size.parseNumber(f);
+                Double parsed = Size.tryResolveLength(f, 16, Size.getRootFontSize());
                 if (parsed != null) fontSize = parsed;
                 break;
             }
         }
-        return fontSize / 16d * 9;
+        return fontSize;
     }
 
     public static String getFontFamily(Element element) {
@@ -180,7 +180,7 @@ public class Text {
         for (Element e : element.getRoute()) {
             String value = e.getComputedStyle().textIndent;
             if (!value.equals("unset")) {
-                Double indent = Size.parseNumber(value);
+                Double indent = Size.tryResolveLength(value, Size.getScaleWidth(element));
                 return indent == null ? 0 : indent;
             }
         }
@@ -193,7 +193,7 @@ public class Text {
             if (!value.equals("unset")) {
                 String normalized = value.trim().toLowerCase(Locale.ROOT);
                 if (normalized.equals("normal")) return 0;
-                Double spacing = Size.parseNumber(value);
+                Double spacing = Size.tryResolveLength(value, getFontSize(element));
                 return spacing == null ? 0 : spacing;
             }
         }
@@ -264,7 +264,7 @@ public class Text {
             if (text.fontSize == -1) {
                 shouldBreak = false;
                 if (!style.fontSize.equals("unset")) {
-                    Double parsed = Size.parseNumber(style.fontSize);
+                    Double parsed = Size.tryResolveLength(style.fontSize, 16, Size.getRootFontSize());
                     if (parsed != null) text.fontSize = parsed;
                 }
             }
@@ -327,7 +327,7 @@ public class Text {
             if (!resolvedTextIndent) {
                 shouldBreak = false;
                 if (!style.textIndent.equals("unset")) {
-                    Double indent = Size.parseNumber(style.textIndent);
+                    Double indent = Size.tryResolveLength(style.textIndent, Size.getScaleWidth(element));
                     text.textIndent = indent == null ? 0 : indent;
                     resolvedTextIndent = true;
                 }
@@ -342,7 +342,6 @@ public class Text {
             if (shouldBreak) break;
         }
         if (text.fontSize == -1) text.fontSize = 16;
-        text.fontSize = text.fontSize / 16d * 9;
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
@@ -382,10 +381,7 @@ public class Text {
             return fontSize + 2;
         }
 
-        if (lh.endsWith("px")) {
-            Double parsed = Size.parseNumber(lh);
-            return parsed != null ? parsed : fontSize + 2;
-        } else if (lh.endsWith("%")) {
+        if (lh.endsWith("%")) {
             Double percent = Size.parseNumber(lh);
             if (percent == null) return fontSize + 2;
             return fontSize * (percent / 100.0);
@@ -394,7 +390,7 @@ public class Text {
                 double multiplier = Double.parseDouble(lh);
                 return fontSize * multiplier;
             } catch (NumberFormatException e) {
-                Double val = Size.parseNumber(lh);
+                Double val = Size.tryResolveLength(lh, fontSize);
                 return val != null ? val : fontSize + 2;
             }
         }
@@ -443,7 +439,7 @@ public class Text {
         double letterSpacingWidth = glyphCount > 1 ? text.letterSpacing * (glyphCount - 1) : 0;
 
         if (text.fontFamily.equals("unset")) {
-            return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * (text.fontSize / 9.0) + text.strokeWidth * 2.0 + letterSpacingWidth;
+            return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * (text.fontSize / 16.0) + text.strokeWidth * 2.0 + letterSpacingWidth;
         }
 
         int fontStyle = java.awt.Font.PLAIN;
@@ -749,7 +745,7 @@ public class Text {
         if (raw == null || raw.isBlank()) return 0;
         String value = raw.trim().toLowerCase(Locale.ROOT);
         if (value.equals("normal") || value.equals("unset")) return 0;
-        Double parsed = Size.parseNumber(raw);
+        Double parsed = Size.tryResolveLength(raw, 16, Size.getRootFontSize());
         return parsed == null ? 0 : parsed;
     }
 

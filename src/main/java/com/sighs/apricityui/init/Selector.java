@@ -29,6 +29,7 @@ public class Selector {
             if (e == null) return false;
 
             return switch (name) {
+                case "root" -> e.parentElement == null;
                 case "first-child" -> isSiblingIndex(e, 0);
                 case "last-child" -> isSiblingIndex(e, -1);
                 case "nth-child" -> matchNth(e, expression);
@@ -230,6 +231,7 @@ public class Selector {
             if (element.isActive) addCandidates(byPseudo.get("active"));
             if (element.isFocus) addCandidates(byPseudo.get("focus"));
             if (element.children.isEmpty()) addCandidates(byPseudo.get("empty"));
+            if (element.parentElement == null) addCandidates(byPseudo.get("root"));
             if (element.parentElement != null) {
                 addCandidates(byPseudo.get("first-child"));
                 addCandidates(byPseudo.get("last-child"));
@@ -397,8 +399,8 @@ public class Selector {
         // (\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?]) - 属性选择器 - [attr] / [attr=value]
         // :(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))? - 伪类 / 伪元素选择器 - :pseudo / :pseudo(expr)
         Pattern token = Pattern.compile(
-                "(#(?<id>[\\w-]+))" +
-                        "|(\\.(?<cls>[\\w-]+))" +
+                "(#(?<id>(?:\\\\.|[\\w-])+))" +
+                        "|(\\.(?<cls>(?:\\\\.|[\\w-])+))" +
                         "|(\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
                         "|:(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
         );
@@ -407,12 +409,12 @@ public class Selector {
         while (m.find()) {
             String gid = m.group("id");
             if (gid != null) {
-                id = gid;
+                id = unescapeCssIdentifier(gid);
                 continue;
             }
             String gcls = m.group("cls");
             if (gcls != null) {
-                classes.add(gcls);
+                classes.add(unescapeCssIdentifier(gcls));
                 continue;
             }
             String attrName = m.group("attrName");
@@ -438,6 +440,29 @@ public class Selector {
                 classes.isEmpty() ? null : classes,
                 attrs.isEmpty() ? null : attrs,
                 pseudos.isEmpty() ? null : pseudos);
+    }
+
+    private static String unescapeCssIdentifier(String value) {
+        if (value == null || value.indexOf('\\') < 0) return value;
+        StringBuilder builder = new StringBuilder(value.length());
+        boolean escape = false;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (escape) {
+                builder.append(ch);
+                escape = false;
+                continue;
+            }
+            if (ch == '\\') {
+                escape = true;
+                continue;
+            }
+            builder.append(ch);
+        }
+        if (escape) {
+            builder.append('\\');
+        }
+        return builder.toString();
     }
 
 

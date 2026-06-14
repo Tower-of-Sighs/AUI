@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.style.Filter;
@@ -32,6 +33,18 @@ public interface RenderNode {
             applyWithTransform(poseStack, target, rect -> {
                 Position p = rect.getBodyRectPosition();
                 Size s = rect.getBodyRectSize();
+                if (Boolean.getBoolean("apricityui.test.logRenderPhases") && ElementPhaseNode.shouldLogTarget(target)) {
+                    ApricityUI.LOGGER.info(
+                            "[AUI Mask] push tag={} class={} bodyPos={} size={}x{} radius={} clipBefore={}",
+                            target.tagName,
+                            target.getClassNames(),
+                            p,
+                            s.width(),
+                            s.height(),
+                            java.util.Arrays.toString(rect.getBodyRadius()),
+                            Mask.getCurrentClip()
+                    );
+                }
                 Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
             });
         }
@@ -43,6 +56,17 @@ public interface RenderNode {
             applyWithTransform(poseStack, target, rect -> {
                 Position p = rect.getBodyRectPosition();
                 Size s = rect.getBodyRectSize();
+                if (Boolean.getBoolean("apricityui.test.logRenderPhases") && ElementPhaseNode.shouldLogTarget(target)) {
+                    ApricityUI.LOGGER.info(
+                            "[AUI Mask] pop tag={} class={} bodyPos={} size={}x{} clipBefore={}",
+                            target.tagName,
+                            target.getClassNames(),
+                            p,
+                            s.width(),
+                            s.height(),
+                            Mask.getCurrentClip()
+                    );
+                }
                 Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
             });
         }
@@ -53,7 +77,8 @@ public interface RenderNode {
         public void render(PoseStack poseStack) {
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
-            if (!currentClip.isValid() || !Rect.of(target).getVisualBounds().intersects(currentClip)) return;
+            Rect rect = Rect.of(target);
+            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
 
             poseStack.pushPose();
             Base.applyTransform(poseStack, target);
@@ -65,8 +90,32 @@ public interface RenderNode {
                 target.resetRenderer();
                 target.isLoaded = true;
             }
+            if (Boolean.getBoolean("apricityui.test.logRenderPhases") && shouldLogTarget(target)) {
+                Position bodyPos = rect.getBodyRectPosition();
+                Size bodySize = rect.getBodyRectSize();
+                ApricityUI.LOGGER.info(
+                        "[AUI Render] phase={} tag={} class={} pos={} body={}x{} visualBounds={} clip={}",
+                        phase,
+                        target.tagName,
+                        target.getClassNames(),
+                        rect.position,
+                        bodySize.width(),
+                        bodySize.height(),
+                        rect.getVisualBounds(),
+                        currentClip
+                );
+            }
             target.drawPhase(poseStack, phase);
             poseStack.popPose();
+        }
+
+        static boolean shouldLogTarget(Element target) {
+            if (target == null) return false;
+            if ("BODY".equalsIgnoreCase(target.tagName)) return true;
+            if (target.getClassNames().contains("slot-card")) return true;
+            if (target.getClassNames().contains("btn-apply")) return true;
+            if ("slots-container".equals(target.id)) return true;
+            return "MAIN".equalsIgnoreCase(target.tagName);
         }
     }
 

@@ -99,9 +99,6 @@ public class Base {
 
     public static void applyTransform(PoseStack poseStack, Element element) {
         Element[] route = element.getRouteArray();
-        double lastAbsX = 0;
-        double lastAbsY = 0;
-
         int routeSize = route.length;
         Scratch scratch = SCRATCH.get();
         if (scratch.absX.length < routeSize) {
@@ -136,7 +133,6 @@ public class Base {
 
             double currentAbsX = posX + box.getMarginLeft();
             double currentAbsY = posY + box.getMarginTop();
-            poseStack.translate(currentAbsX - lastAbsX, currentAbsY - lastAbsY, 0);
 
             List<Transform> functions = e.getRenderer().transform.get();
             if (functions == null) {
@@ -156,21 +152,18 @@ public class Base {
                     if (transform instanceof Transform.Translate t) {
                         poseStack.translate(t.x(), t.y(), t.z());
                     } else if (transform instanceof Transform.Rotate r) {
-                        poseStack.translate(originX, originY, 0);
+                        poseStack.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
                         if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
                         if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
                         if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
-                        poseStack.translate(-originX, -originY, 0);
+                        poseStack.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     } else if (transform instanceof Transform.Scale s) {
-                        poseStack.translate(originX, originY, 0);
+                        poseStack.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
                         poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
-                        poseStack.translate(-originX, -originY, 0);
+                        poseStack.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     }
                 }
             }
-
-            lastAbsX = currentAbsX;
-            lastAbsY = currentAbsY;
         }
     }
 
