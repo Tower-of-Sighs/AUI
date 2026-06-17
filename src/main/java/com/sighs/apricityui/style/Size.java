@@ -9,11 +9,12 @@ import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
@@ -21,6 +22,13 @@ public record Size(double width, double height) {
     private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(HashSet::new);
     private static final ThreadLocal<Integer> NATURAL_MEASURE_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Set<Element>> NATURAL_NO_CACHE = ThreadLocal.withInitial(HashSet::new);
+    private static final int NUMBER_CACHE_LIMIT = 4096;
+    private static final Map<String, Double> NUMBER_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Double> eldest) {
+            return size() > NUMBER_CACHE_LIMIT;
+        }
+    });
     private static volatile Size viewportOverride;
     private static volatile Double rootFontOverride;
 
@@ -36,8 +44,10 @@ public record Size(double width, double height) {
         String widthOverride = System.getProperty("aui.test.viewport.width");
         String heightOverride = System.getProperty("aui.test.viewport.height");
         if (widthOverride != null || heightOverride != null) {
-            double width = parseNumber(widthOverride) == null ? 1920 : parseNumber(widthOverride);
-            double height = parseNumber(heightOverride) == null ? 1080 : parseNumber(heightOverride);
+            Double parsedWidth = parseNumber(widthOverride);
+            Double parsedHeight = parseNumber(heightOverride);
+            double width = parsedWidth == null ? 1920 : parsedWidth;
+            double height = parsedHeight == null ? 1080 : parsedHeight;
             return new Size(width, height);
         }
         try {
@@ -76,6 +86,8 @@ public record Size(double width, double height) {
 
     public static Double parseNumber(String str) {
         if (str == null) return null;
+        Double cached = NUMBER_CACHE.get(str);
+        if (cached != null) return cached;
         int len = str.length();
         int i = 0;
         while (i < len && Character.isWhitespace(str.charAt(i))) i++;
@@ -104,7 +116,9 @@ public record Size(double width, double height) {
         if (!hasDigit) return null;
 
         try {
-            return Double.parseDouble(str.substring(start, i));
+            Double parsed = Double.parseDouble(str.substring(start, i));
+            NUMBER_CACHE.put(str, parsed);
+            return parsed;
         } catch (NumberFormatException ignored) {
             return null;
         }
@@ -185,6 +199,10 @@ public record Size(double width, double height) {
         return NATURAL_MEASURE_DEPTH.get() > 0;
     }
 
+    public static boolean isResolving(Element element) {
+        return element != null && RESOLVING.get().contains(element);
+    }
+
     private static Size computeSize(Element element, boolean allowFlexAdjustments) {
         boolean noCacheForElement = NATURAL_NO_CACHE.get().contains(element);
         Size cache = noCacheForElement ? null : element.getRenderer().size.get();
@@ -247,7 +265,8 @@ public record Size(double width, double height) {
                 && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)) {
             Element parent = element.parentElement;
             Flex parentFlex = Flex.of(parent);
-            Size parentContentSize = Box.of(parent).innerSize();
+            boolean parentResolving = isResolving(parent);
+            Size parentContentSize = parentResolving ? ZERO : Box.of(parent).innerSize();
 
             if (parentFlex.flexDirection.isColumn()) {
                 if (unsetWidth && Flex.shouldStretchCrossAxis(element, parent)) {
@@ -269,12 +288,12 @@ public record Size(double width, double height) {
 
             double totalWidth = contentWidth + horizontalBox;
             double totalHeight = contentHeight + verticalBox;
-            if (parentFlex.flexDirection.isColumn() && unsetHeight) {
+            if (!parentResolving && parentFlex.flexDirection.isColumn() && unsetHeight) {
                 double assignedOuterHeight = Flex.resolveAssignedMainSize(element, parent, totalHeight + box.getMarginVertical());
                 double usableOuterHeight = Math.max(0, assignedOuterHeight - box.getMarginVertical());
                 contentHeight = Math.max(0, usableOuterHeight - verticalBox);
             }
-            if (parentFlex.flexDirection.isRow()) {
+            if (!parentResolving && parentFlex.flexDirection.isRow()) {
                 if (hasDefiniteAutoResolvedWidth(parent)) {
                     double assignedOuterWidth = Flex.resolveAssignedMainSize(element, parent, totalWidth + box.getMarginHorizontal());
                     double usableOuterWidth = Math.max(0, assignedOuterWidth - box.getMarginHorizontal());

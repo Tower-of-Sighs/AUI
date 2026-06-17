@@ -23,7 +23,7 @@ public class Element extends Node {
     public boolean isLoaded = false;
     public HashMap<String, String> cssCache = new HashMap<>();
     public Element parentElement = null;
-    public CopyOnWriteArrayList<Element> children = new CopyOnWriteArrayList<>();
+    public ArrayList<Element> children = new ArrayList<>();
     public boolean isPointerEnabled = true;
     public boolean isVisible = true;
     public String id = null;
@@ -84,7 +84,9 @@ public class Element extends Node {
      */
     public final void invalidateStyle() {
         invalidateStyleCaches();
-        requestStyleRecalc();
+        if (isConnected()) {
+            requestStyleRecalc();
+        }
     }
 
     // 从自己开始，最后是body
@@ -291,12 +293,6 @@ public class Element extends Node {
         }
 
         RenderElement.observeStyle(this, originStyle, currentStyle);
-        if (parentElement != null) {
-            Size parentContentSize = Size.getContentSize(parentElement);
-            parentElement.scrollWidth = parentContentSize.width();
-            parentElement.scrollHeight = parentContentSize.height();
-        }
-
         Transition.create(this, originStyle, currentStyle);
     }
 
@@ -343,7 +339,7 @@ public class Element extends Node {
     public void updateInlineStyle() {
         Style newStyle = new Style();
         newStyle.merge(attributes.getOrDefault("style", ""));
-        if (inlineStyle != null) RenderElement.observeStyle(this, inlineStyle, newStyle);
+        if (inlineStyle != null && isConnected()) RenderElement.observeStyle(this, inlineStyle, newStyle);
         inlineStyle = newStyle;
     }
 
@@ -678,7 +674,7 @@ public class Element extends Node {
                 }
             });
             element.childNodes.addAll(origin.childNodes);
-            element.children = new CopyOnWriteArrayList<>(origin.children);
+            element.children = new ArrayList<>(origin.children);
             element.updateInlineStyle();
             for (Event.ListenerRecord eventListener : origin.EventListener) {
                 // origin 在替换前是通用 Element，它构造时注册的 internal 监听器会闭包捕获旧实例。
@@ -1378,7 +1374,7 @@ public class Element extends Node {
     }
 
     void refreshElementChildrenFromChildNodes() {
-        CopyOnWriteArrayList<Element> elementChildren = new CopyOnWriteArrayList<>();
+        ArrayList<Element> elementChildren = new ArrayList<>();
         for (Node child : childNodes) {
             if (child instanceof Element childElement) {
                 childElement.parentElement = this;

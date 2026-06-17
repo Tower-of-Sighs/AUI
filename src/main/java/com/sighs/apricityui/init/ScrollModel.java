@@ -69,6 +69,10 @@ final class ScrollModel {
     }
 
     boolean tick() {
+        if (isScrollSettled(owner.scrollLeft, owner.targetScrollLeft)
+                && isScrollSettled(owner.scrollTop, owner.targetScrollTop)) {
+            return false;
+        }
         lastTickTime = System.currentTimeMillis();
         boolean scrollingX = stepHorizontalScroll();
         boolean scrollingY = stepVerticalScroll();

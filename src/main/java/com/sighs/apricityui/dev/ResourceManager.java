@@ -45,6 +45,9 @@ public class ResourceManager {
     public static void toggle() {
         if (Document.get(PATH).isEmpty()) {
             toolDocument = Document.create(PATH);
+            if (toolDocument != null) {
+                toolDocument.setReloadPersistent(true);
+            }
             refresh();
             return;
         }
@@ -516,8 +519,7 @@ public class ResourceManager {
     }
 
     private static void clearChildren(Element parent) {
-        ArrayList<Element> snapshot = new ArrayList<>(parent.children);
-        snapshot.forEach(Element::remove);
+        if (parent != null) parent.clearChildren();
     }
 
     private static String normalizeFilter(String value) {

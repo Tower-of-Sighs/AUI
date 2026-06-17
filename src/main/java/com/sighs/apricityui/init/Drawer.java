@@ -298,4 +298,5 @@ public class Drawer {
         if (Transition.affectsFilter(element)) return true;
         return Animation.affectsFilter(style);
     }
+
 }

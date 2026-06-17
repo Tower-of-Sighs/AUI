@@ -20,6 +20,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class Document {
+
     private enum LifecycleState {
         LOADING("loading"),
         INTERACTIVE("interactive"),
@@ -282,6 +283,14 @@ public class Document {
     public void commitRenderState() {
         if (!isActive()) return;
         render.commit();
+    }
+
+    public boolean hasPendingRenderState() {
+        return render.hasPendingWork();
+    }
+
+    public int getGlobalDirtyMask() {
+        return render.getGlobalDirtyMask();
     }
 
     public void markDirty(int mask) {

@@ -16,7 +16,7 @@ public abstract class Node {
     public UUID uuid = UUID.randomUUID();
     public Document document;
     public Node parentNode = null;
-    public final CopyOnWriteArrayList<Node> childNodes = new CopyOnWriteArrayList<>();
+    public final ArrayList<Node> childNodes = new ArrayList<>();
     public int depth = 0;
 
     private final EventRegistry events = new EventRegistry(this);
@@ -99,6 +99,9 @@ public abstract class Node {
     public Node appendChild(Node node) {
         if (document == null || node == null) return null;
         if (node instanceof DocumentFragment fragment) {
+            if (isConnected()) {
+                return document.getTree().insertFragment(fragment, this, null);
+            }
             Node last = null;
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
@@ -115,9 +118,24 @@ public abstract class Node {
         return node;
     }
 
+    public void clearChildren() {
+        if (document == null || childNodes.isEmpty()) return;
+        if (isConnected()) {
+            document.getTree().clearChildren(this);
+            return;
+        }
+        ArrayList<Node> snapshot = new ArrayList<>(childNodes);
+        for (Node child : snapshot) {
+            detachLocalChild(child);
+        }
+    }
+
     public Node insertBefore(Node newNode, Node referenceNode) {
         if (document == null || newNode == null) return null;
         if (newNode instanceof DocumentFragment fragment) {
+            if (isConnected()) {
+                return document.getTree().insertFragment(fragment, this, referenceNode);
+            }
             Node last = null;
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
@@ -133,6 +151,10 @@ public abstract class Node {
         if (newNode instanceof DocumentFragment fragment) {
             Node nextSibling = oldNode.getNextSibling();
             document.removeNode(oldNode);
+            if (isConnected()) {
+                document.getTree().insertFragment(fragment, this, nextSibling);
+                return oldNode;
+            }
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
                 insertSingleChildBefore(prepareForInsertion(child), nextSibling);

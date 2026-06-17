@@ -627,7 +627,7 @@ public class Flex {
         for (Node child : parent.childNodes) {
             if (child instanceof Element childElement) {
                 if (!flowItems.contains(childElement)) continue;
-                participants.add(new FlexParticipant(childElement, null, Size.box(childElement)));
+                participants.add(new FlexParticipant(childElement, null, participantSize(parent, childElement)));
                 continue;
             }
             if (child instanceof TextNode textNode) {
@@ -644,6 +644,17 @@ public class Flex {
             }
         }
         return participants;
+    }
+
+    private static Size participantSize(Element parent, Element child) {
+        if (child == null) return Size.ZERO;
+        if (!Size.isResolving(parent)) return Size.box(child);
+        Box box = Box.of(child);
+        Size naturalSize = Size.natural(child);
+        return new Size(
+                naturalSize.width() + box.getMarginHorizontal(),
+                naturalSize.height() + box.getMarginVertical()
+        );
     }
 
     private record FlexParticipant(Element element, Text text, Size size) {
