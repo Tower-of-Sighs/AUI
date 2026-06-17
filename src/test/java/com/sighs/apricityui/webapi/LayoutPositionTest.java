@@ -11,7 +11,10 @@ import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayoutPositionTest {
@@ -120,6 +123,33 @@ class LayoutPositionTest {
 
         assertEquals(60, Math.round(Size.of(main).height()));
         assertEquals(100, Math.round(Size.of(parent).height()));
+    }
+
+    @Test
+    void autoHeightFlexParentDoesNotReenterThroughFlexibleChildSizing() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display: flex; flex-direction: column;");
+        document.body.appendChild(parent);
+
+        Element flexible = new Element(document, "div");
+        flexible.setAttribute("style", "display: flex; flex-direction: row; flex: 1 1 0%; gap: 4px;");
+        parent.appendChild(flexible);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "width: 20px; height: 10px;");
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "width: 30px; height: 10px;");
+        flexible.appendChild(first);
+        flexible.appendChild(second);
+
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> {
+            Size parentSize = Size.of(parent);
+            assertTrue(parentSize.width() >= 0);
+            assertTrue(parentSize.height() >= 0);
+        });
     }
 
     @Test

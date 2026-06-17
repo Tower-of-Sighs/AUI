@@ -29,7 +29,7 @@ public class Operation {
 
     public static boolean onMouseDown(int button) {
         mouseButtons |= buttonMask(button);
-        MouseEvent event = new MouseEvent("mousedown", getMousePosition(), button);
+        MouseEvent event = new MouseEvent("mousedown", getMousePositionDirectly(), button);
         event.setTrusted(true);
         return MouseEvent.tiggerEvent(event);
     }
@@ -40,14 +40,17 @@ public class Operation {
 
     public static boolean onMouseUp(int button) {
         mouseButtons &= ~buttonMask(button);
-        MouseEvent event = new MouseEvent("mouseup", getMousePosition(), button);
+        MouseEvent event = new MouseEvent("mouseup", getMousePositionDirectly(), button);
         event.setTrusted(true);
         return MouseEvent.tiggerEvent(event);
     }
 
     public static void onMouseMove(Position currentMousePosition) {
+        if (currentMousePosition == null) {
+            currentMousePosition = getMousePositionDirectly();
+        }
         if (cachedMousePosition != null) {
-            MouseEvent mouseEvent = new MouseEvent("mousemove", getMousePosition());
+            MouseEvent mouseEvent = new MouseEvent("mousemove", currentMousePosition);
             mouseEvent.movementX = currentMousePosition.x - cachedMousePosition.x;
             mouseEvent.movementY = currentMousePosition.y - cachedMousePosition.y;
             mouseEvent.setTrusted(true);
@@ -57,7 +60,7 @@ public class Operation {
     }
 
     public static boolean scroll(double delta) {
-        MouseEvent mouseEvent = new MouseEvent("wheel", getMousePosition());
+        MouseEvent mouseEvent = new MouseEvent("wheel", getMousePositionDirectly());
         mouseEvent.deltaY = -delta * 50;
         mouseEvent.scrollDelta = mouseEvent.deltaY;
         mouseEvent.cancelable = true;
@@ -107,9 +110,10 @@ public class Operation {
                 KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
                 Element focusedElement = document.getFocusedElement();
                 String selectedText = resolveSelectedText(document, focusedElement);
+                boolean ctrlDown = isCtrlDown();
 
                 if (focusedElement instanceof AbstractText textElement) {
-                    if (isCtrlDown()) {
+                    if (ctrlDown) {
                         if (key == GLFW.GLFW_KEY_A) {
                             if (textElement.canSelectText()) {
                                 textElement.selectAll();
@@ -180,16 +184,18 @@ public class Operation {
                         documentCanceled[0] = true;
                     }
                 } else if (focusedElement != null) {
-                    if (isCtrlDown()) {
+                    if (ctrlDown) {
                         if (key == GLFW.GLFW_KEY_A && focusedElement.canSelectInnerText()) {
                             focusedElement.selectAllInnerText();
                             documentCanceled[0] = true;
                             return;
                         }
-                        if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText() && !selectedText.isEmpty()) {
-                            setClipboardText(selectedText);
-                            documentCanceled[0] = true;
-                            return;
+                        if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText()) {
+                            if (!selectedText.isEmpty()) {
+                                setClipboardText(selectedText);
+                                documentCanceled[0] = true;
+                                return;
+                            }
                         }
                     }
                     if (key == GLFW.GLFW_KEY_ESCAPE && focusedElement.canSelectInnerText()) {
@@ -201,16 +207,26 @@ public class Operation {
             });
             cancel |= documentCanceled[0];
         }
-        if (!repeat && key == GLFW.GLFW_KEY_F12) {
-            DevTools.toggle();
-        }
-        if (!repeat && key == GLFW.GLFW_KEY_F10) {
-            ResourceManager.toggle();
-        }
-        if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
-            ClientLoader.reload();
+        if (!repeat && handleFrameworkShortcut(key)) {
+            return true;
         }
         return cancel;
+    }
+
+    private static boolean handleFrameworkShortcut(int key) {
+        if (key == GLFW.GLFW_KEY_F12) {
+            DevTools.toggle();
+            return true;
+        }
+        if (key == GLFW.GLFW_KEY_F10) {
+            ResourceManager.toggle();
+            return true;
+        }
+        if (key == Keybindings.RELOAD.getKey().getValue()) {
+            ClientLoader.reload();
+            return true;
+        }
+        return false;
     }
 
     public static void onKeyReleased(int key) {

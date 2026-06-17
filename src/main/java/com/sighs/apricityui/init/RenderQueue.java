@@ -10,6 +10,7 @@ final class RenderQueue {
     private final Document owner;
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
     private ArrayList<RenderNode> paintList = new ArrayList<>();
+    private int globalDirtyMask = 0;
 
     RenderQueue(Document owner) {
         this.owner = owner;
@@ -25,6 +26,7 @@ final class RenderQueue {
 
     void reset() {
         dirtyElements.clear();
+        globalDirtyMask = 0;
         paintList = new ArrayList<>();
     }
 
@@ -43,18 +45,39 @@ final class RenderQueue {
     }
 
     void commit() {
+        applyGlobalDirty();
         Drawer.flushUpdates(owner);
     }
 
     void markDirty(int mask) {
-        ArrayList<Element> snapshot = new ArrayList<>(owner.getElements());
-        snapshot.forEach(element -> element.addDirtyFlags(mask));
-        dirtyElements.addAll(snapshot);
+        if (mask == 0) return;
+        globalDirtyMask |= mask;
     }
 
     void markDirty(Element element, int mask) {
         if (element == null) return;
+        if (!element.isConnected()) return;
         element.addDirtyFlags(mask);
         dirtyElements.add(element);
+    }
+
+    boolean hasPendingWork() {
+        return globalDirtyMask != 0 || !dirtyElements.isEmpty();
+    }
+
+    int getGlobalDirtyMask() {
+        return globalDirtyMask;
+    }
+
+    private void applyGlobalDirty() {
+        int mask = globalDirtyMask;
+        if (mask == 0) return;
+        globalDirtyMask = 0;
+        ArrayList<Element> snapshot = new ArrayList<>(owner.getElements());
+        for (Element element : snapshot) {
+            if (element == null || !element.isConnected()) continue;
+            element.addDirtyFlags(mask);
+            dirtyElements.add(element);
+        }
     }
 }

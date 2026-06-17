@@ -421,15 +421,25 @@ class ElementBindingTest {
         Document document = createDocument();
         Element first = new Element(document, "div");
         Element second = new Element(document, "span");
-        document.getElements().add(first);
-        document.getElements().add(second);
+        document.body.appendChild(first);
+        document.body.appendChild(second);
+        document.getDirtyElements().clear();
+        first.clearDirtyFlags();
+        second.clearDirtyFlags();
 
         document.markDirty(Drawer.RELAYOUT);
 
-        assertTrue(first.hasDirtyFlag(Drawer.RELAYOUT));
-        assertTrue(second.hasDirtyFlag(Drawer.RELAYOUT));
-        assertTrue(document.getDirtyElements().contains(first));
-        assertTrue(document.getDirtyElements().contains(second));
+        assertEquals(Drawer.RELAYOUT, document.getGlobalDirtyMask());
+        assertFalse(first.hasDirtyFlag(Drawer.RELAYOUT));
+        assertFalse(second.hasDirtyFlag(Drawer.RELAYOUT));
+        assertTrue(document.getDirtyElements().isEmpty());
+
+        document.commitRenderState();
+
+        assertEquals(0, document.getGlobalDirtyMask());
+        assertTrue(document.getDirtyElements().isEmpty());
+        assertFalse(first.hasDirtyFlag(Drawer.RELAYOUT));
+        assertFalse(second.hasDirtyFlag(Drawer.RELAYOUT));
 
         second.clearDirtyFlags();
         document.getDirtyElements().clear();

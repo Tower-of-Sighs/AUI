@@ -46,6 +46,9 @@ public class MouseEvent extends Event implements Cloneable {
 
     public MouseEvent(String type, Position mousePosition, int button, boolean readEnvironmentState) {
         super(null, type, true);
+        if (mousePosition == null) {
+            mousePosition = Position.ZERO;
+        }
         clientX = mousePosition.x;
         clientY = mousePosition.y;
         pageX = clientX;

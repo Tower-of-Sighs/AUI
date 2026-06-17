@@ -31,6 +31,9 @@ import java.util.function.BiConsumer;
 @OnlyIn(Dist.CLIENT)
 @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class ClientLoader extends Loader {
+    private static final Object STATIC_RESOURCE_CACHE_LOCK = new Object();
+    private static List<StaticResourceEntry> cachedFinalStaticResources = null;
+
     public ClientLoader(String extension) {
         super(extension);
     }
@@ -53,6 +56,7 @@ public class ClientLoader extends Loader {
     }
 
     private static void reloadResourcesInternal(long beginNs) {
+        invalidateStaticResourceCache();
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
@@ -99,12 +103,26 @@ public class ClientLoader extends Loader {
     }
 
     public static List<StaticResourceEntry> listFinalStaticResources() {
+        synchronized (STATIC_RESOURCE_CACHE_LOCK) {
+            if (cachedFinalStaticResources != null) return cachedFinalStaticResources;
+        }
+
         LinkedHashMap<String, StaticResourceEntry> merged = new LinkedHashMap<>();
         loadResourcePackEntries(merged);
         loadFilesystemStaticResources(merged);
-        return merged.values().stream()
+        List<StaticResourceEntry> entries = merged.values().stream()
                 .sorted(Comparator.comparing(StaticResourceEntry::path))
                 .toList();
+        synchronized (STATIC_RESOURCE_CACHE_LOCK) {
+            cachedFinalStaticResources = entries;
+        }
+        return entries;
+    }
+
+    public static void invalidateStaticResourceCache() {
+        synchronized (STATIC_RESOURCE_CACHE_LOCK) {
+            cachedFinalStaticResources = null;
+        }
     }
 
     public static String readGlobalCSS() {
