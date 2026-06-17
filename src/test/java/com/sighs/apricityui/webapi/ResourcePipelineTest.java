@@ -5,6 +5,8 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.JS;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -168,6 +170,30 @@ class ResourcePipelineTest {
         assertEquals("hello", root.body().getChildNodes().get(0).getTextContent().trim());
         assertEquals("#comment", root.body().getChildNodes().get(1).getNodeName());
         assertEquals("MAIN", root.body().getChildNodes().get(2).getNodeName());
+    }
+
+    @Test
+    void htmlMetaFontModePresetAppliesDuringDocumentRefresh() {
+        HTML.putTemple("test://font-mode", """
+                <html>
+                  <head>
+                    <meta name="aui-font-mode" content="mc">
+                  </head>
+                  <body>
+                    <span style="font-family: sans-serif;">font</span>
+                  </body>
+                </html>
+                """);
+        Document document = new Document("test://font-mode", false);
+
+        try {
+            document.refresh();
+
+            assertEquals(Document.FontMode.MC, document.getFontMode());
+            assertEquals(9.0, Text.of(document.body.getFirstElementChild()).fontSize);
+        } finally {
+            Size.clearRootFontOverride();
+        }
     }
 
     @Test

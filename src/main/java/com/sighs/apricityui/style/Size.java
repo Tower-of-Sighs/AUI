@@ -667,19 +667,43 @@ public record Size(double width, double height) {
     }
 
     public static double getRootFontSize() {
+        return getRootFontSize(null);
+    }
+
+    public static double getRootFontSize(Document preferredDocument) {
         Double override = rootFontOverride;
         if (override != null && override > 0) {
             return override;
         }
+        if (preferredDocument != null) {
+            Double parsed = resolveDocumentRootFontSize(preferredDocument);
+            if (parsed != null && parsed > 0) {
+                return parsed;
+            }
+            return preferredDocument.getFontMode().defaultFontSize();
+        }
         for (Document document : Document.getAll()) {
-            if (document == null || !document.isActive() || document.documentElement == null) continue;
-            String fontSize = document.documentElement.getComputedStyle().fontSize;
-            Double parsed = tryResolveLength(fontSize, 16, 16);
+            if (document == null || !document.isActive()) continue;
+            Double parsed = resolveDocumentRootFontSize(document);
             if (parsed != null && parsed > 0) {
                 return parsed;
             }
         }
         return 16d;
+    }
+
+    private static Double resolveDocumentRootFontSize(Document document) {
+        if (document == null || document.documentElement == null) return null;
+        double defaultFontSize = document.getFontMode().defaultFontSize();
+        document.documentElement.getComputedStyle();
+        String fontSize = document.documentElement.getStyle().fontSize;
+        if (fontSize == null || fontSize.equals("unset")) {
+            fontSize = document.documentElement.cssCache.get("font-size");
+        }
+        if (fontSize == null || fontSize.equals("unset")) {
+            fontSize = document.documentElement.cssCache.get("fontSize");
+        }
+        return tryResolveLength(fontSize, defaultFontSize, defaultFontSize);
     }
 
     static Double parseAspectRatio(String raw) {
@@ -720,6 +744,7 @@ public record Size(double width, double height) {
         measuring.textAlign = base.textAlign;
         measuring.verticalAlign = base.verticalAlign;
         measuring.whiteSpace = base.whiteSpace;
+        measuring.fontMode = base.fontMode;
         measuring.textIndent = 0;
         measuring.letterSpacing = base.letterSpacing;
         measuring.content = text;
