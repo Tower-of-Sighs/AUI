@@ -1763,6 +1763,7 @@ public class Element extends Node {
         copy.textAlign = base.textAlign;
         copy.verticalAlign = base.verticalAlign;
         copy.whiteSpace = base.whiteSpace;
+        copy.fontMode = base.fontMode;
         copy.textIndent = 0;
         copy.letterSpacing = base.letterSpacing;
         copy.content = content == null ? "" : content;
@@ -1782,6 +1783,7 @@ public class Element extends Node {
         out.textAlign = base.textAlign;
         out.verticalAlign = base.verticalAlign;
         out.whiteSpace = base.whiteSpace;
+        out.fontMode = base.fontMode;
         out.textIndent = 0;
         out.letterSpacing = base.letterSpacing;
         out.size = null;

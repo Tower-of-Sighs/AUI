@@ -19,6 +19,7 @@ public class HTML {
     private static final Pattern XML_DECL_PATTERN = Pattern.compile("(?is)^\\s*<\\?xml[^>]*\\?>\\s*");
     private static final Pattern BODY_BLOCK_PATTERN = Pattern.compile("(?is)<body\\b[^>]*>.*?</body\\s*>");
     private static final Pattern HEAD_BLOCK_PATTERN = Pattern.compile("(?is)<head\\b[^>]*>.*?</head\\s*>");
+    private static final Pattern META_TAG_PATTERN = Pattern.compile("(?is)<meta\\b([^>]*)>");
     private static final Pattern HTML_OPEN_PATTERN = Pattern.compile("(?is)<html\\b[^>]*>");
     private static final Pattern HTML_CLOSE_PATTERN = Pattern.compile("(?is)</html\\s*>");
 
@@ -30,6 +31,10 @@ public class HTML {
 
     public static String getTemple(String path) {
         return temples.get(path);
+    }
+
+    public static String findMetaContent(String path, String name) {
+        return findMetaContentInMarkup(getTemple(path), name);
     }
 
     public static void scan() {
@@ -56,6 +61,33 @@ public class HTML {
         if (root == null || root.body() == null) return null;
         for (Node child : root.body().getChildNodes()) {
             if (child instanceof Element element) return element;
+        }
+        return null;
+    }
+
+    private static String findMetaContentInMarkup(String html, String name) {
+        if (html == null || html.isBlank() || name == null || name.isBlank()) return null;
+        Matcher matcher = META_TAG_PATTERN.matcher(html);
+        while (matcher.find()) {
+            String attrText = matcher.group(1);
+            String metaName = findAttrValue(attrText, "name");
+            if (name.equalsIgnoreCase(metaName)) {
+                return findAttrValue(attrText, "content");
+            }
+        }
+        return null;
+    }
+
+    private static String findAttrValue(String attrText, String attrName) {
+        if (attrText == null || attrText.isBlank() || attrName == null || attrName.isBlank()) return null;
+        Pattern attrPattern = Pattern.compile(
+                "(?i)\\b" + Pattern.quote(attrName) + "\\s*=\\s*(\"([^\"]*)\"|'([^']*)'|([^\\s\"'>]+))"
+        );
+        Matcher matcher = attrPattern.matcher(attrText);
+        if (!matcher.find()) return null;
+        for (int i = 2; i <= 4; i++) {
+            String value = matcher.group(i);
+            if (value != null) return value.trim();
         }
         return null;
     }

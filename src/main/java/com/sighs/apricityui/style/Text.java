@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
@@ -40,14 +41,17 @@ public class Text {
     public String whiteSpace = "normal";
     public double textIndent = 0;
     public double letterSpacing = 0;
+    public Document.FontMode fontMode = Document.FontMode.WEB_SCALED;
     public Size size = null;
 
     public static double getFontSize(Element element) {
-        double fontSize = 16;
+        Document.FontMode fontMode = getFontMode(element);
+        double fontSize = fontMode.defaultFontSize();
         for (Element e : element.getRoute()) {
-            String f = e.getComputedStyle().fontSize;
+            e.getComputedStyle();
+            String f = getDeclaredFontSize(e);
             if (!f.equals("unset")) {
-                Double parsed = Size.tryResolveLength(f, 16, Size.getRootFontSize());
+                Double parsed = Size.tryResolveLength(f, fontSize, Size.getRootFontSize(element == null ? null : element.document));
                 if (parsed != null) fontSize = parsed;
                 break;
             }
@@ -243,6 +247,7 @@ public class Text {
         Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
         if (cache != null) return cache;
         Text text = new Text();
+        text.fontMode = getFontMode(element);
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
@@ -264,8 +269,9 @@ public class Text {
             }
             if (text.fontSize == -1) {
                 shouldBreak = false;
-                if (!style.fontSize.equals("unset")) {
-                    Double parsed = Size.tryResolveLength(style.fontSize, 16, Size.getRootFontSize());
+                String declaredFontSize = getDeclaredFontSize(e);
+                if (!declaredFontSize.equals("unset")) {
+                    Double parsed = Size.tryResolveLength(declaredFontSize, text.fontMode.defaultFontSize(), Size.getRootFontSize(element.document));
                     if (parsed != null) text.fontSize = parsed;
                 }
             }
@@ -342,7 +348,7 @@ public class Text {
             }
             if (shouldBreak) break;
         }
-        if (text.fontSize == -1) text.fontSize = 16;
+        if (text.fontSize == -1) text.fontSize = text.fontMode.defaultFontSize();
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
@@ -424,6 +430,7 @@ public class Text {
                 text.oblique,
                 text.strokeWidth,
                 text.letterSpacing,
+                text.fontMode,
                 text.fontFamily,
                 line
         );
@@ -442,7 +449,7 @@ public class Text {
         double letterSpacingWidth = glyphCount > 1 ? text.letterSpacing * (glyphCount - 1) : 0;
 
         if (text.fontFamily.equals("unset")) {
-            return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * (text.fontSize / 16.0) + text.strokeWidth * 2.0 + letterSpacingWidth;
+            return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * text.defaultFontScale() + text.strokeWidth * 2.0 + letterSpacingWidth;
         }
 
         int fontStyle = java.awt.Font.PLAIN;
@@ -479,6 +486,7 @@ public class Text {
         h = 31 * h + (whiteSpace == null ? 0 : whiteSpace.hashCode());
         h = 31 * h + (int) Math.round(textIndent * 1000);
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
+        h = 31 * h + (fontMode == null ? 0 : fontMode.hashCode());
         if (cachedKey != null && cachedKeyHash == h) return cachedKey;
 
         StringBuilder sb = new StringBuilder(64);
@@ -495,7 +503,8 @@ public class Text {
                 .append(verticalAlign == null ? "" : verticalAlign).append('/')
                 .append(whiteSpace == null ? "" : whiteSpace).append('/')
                 .append(textIndent).append('/')
-                .append(letterSpacing);
+                .append(letterSpacing).append('/')
+                .append(fontMode == null ? "" : fontMode.value());
         cachedKey = sb.toString();
         cachedKeyHash = h;
         return cachedKey;
@@ -515,6 +524,30 @@ public class Text {
 
     public boolean isRtl() {
         return "rtl".equals(direction);
+    }
+
+    public double defaultFontScale() {
+        Document.FontMode mode = fontMode == null ? Document.FontMode.WEB_SCALED : fontMode;
+        return fontSize / mode.defaultFontScaleBase();
+    }
+
+    private static Document.FontMode getFontMode(Element element) {
+        if (element == null || element.document == null) return Document.FontMode.WEB_SCALED;
+        return element.document.getFontMode();
+    }
+
+    private static String getDeclaredFontSize(Element element) {
+        if (element == null) return "unset";
+        Style inline = element.getStyle();
+        if (inline != null && inline.fontSize != null && !inline.fontSize.equals("unset")) {
+            return inline.fontSize;
+        }
+        String cssFontSize = element.cssCache.get("font-size");
+        if (cssFontSize == null) cssFontSize = element.cssCache.get("fontSize");
+        if (cssFontSize != null && !cssFontSize.isBlank()) {
+            return cssFontSize;
+        }
+        return "unset";
     }
 
     public static List<String> splitLines(String content) {
@@ -582,6 +615,7 @@ public class Text {
         h = 31 * h + (int) Math.round(text.textIndent * 1000);
         h = 31 * h + (int) Math.round(text.letterSpacing * 1000);
         h = 31 * h + (int) Math.round(text.lineHeight * 1000);
+        h = 31 * h + (text.fontMode == null ? 0 : text.fontMode.hashCode());
         return h;
     }
 
@@ -790,7 +824,7 @@ public class Text {
     }
 
     private record LineMeasureKey(double fontSize, int fontWeight, boolean oblique, double strokeWidth,
-                                  double letterSpacing, String fontFamily, String line) {
+                                  double letterSpacing, Document.FontMode fontMode, String fontFamily, String line) {
     }
 
     public record WrappedText(List<String> lines, int[] starts, double width) {

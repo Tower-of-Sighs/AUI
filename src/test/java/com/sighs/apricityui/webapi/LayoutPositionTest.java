@@ -313,6 +313,34 @@ class LayoutPositionTest {
     }
 
     @Test
+    void documentFontModePresetsControlDefaultFontSizeAndMinecraftScale() {
+        Document document = TestDocumentFactory.createDocument();
+        Element label = new Element(document, "span");
+        label.innerText = "HUD";
+        label.setAttribute("style", "font-family: sans-serif;");
+        document.body.appendChild(label);
+
+        Text webScaled = Text.of(label);
+        assertEquals(Document.FontMode.WEB_SCALED, webScaled.fontMode);
+        assertEquals(16.0, webScaled.fontSize);
+        assertEquals(1.0, webScaled.defaultFontScale());
+
+        label.getRenderer().text.clear();
+        label.getRenderer().wrappedText.clear();
+        document.setFontMode(Document.FontMode.MC);
+        Text mc = Text.of(label);
+        assertEquals(9.0, mc.fontSize);
+        assertEquals(1.0, mc.defaultFontScale());
+
+        label.getRenderer().text.clear();
+        label.getRenderer().wrappedText.clear();
+        document.setFontMode(Document.FontMode.WEB);
+        Text web = Text.of(label);
+        assertEquals(16.0, web.fontSize);
+        assertEquals(16.0 / 9.0, web.defaultFontScale());
+    }
+
+    @Test
     void flexWrapMovesOverflowingItemsOntoNextLine() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
