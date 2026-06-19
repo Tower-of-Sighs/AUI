@@ -279,7 +279,10 @@ public class MouseEvent extends Event implements Cloneable {
         double beforeLeft = target.getTargetScrollLeft();
         double beforeTop = target.getTargetScrollTop();
         scroll(event);
-        return target.dispatchScrollEventIfChanged(beforeLeft, beforeTop);
+        boolean changed = Double.compare(beforeLeft, target.getTargetScrollLeft()) != 0
+                || Double.compare(beforeTop, target.getTargetScrollTop()) != 0;
+        target.dispatchScrollEventIfChanged(beforeLeft, beforeTop);
+        return changed;
     }
 
     private static boolean triggerResolvedEvent(MouseEvent event, Document document, Element target, Element activeElement, boolean resolveGeometry) {

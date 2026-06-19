@@ -229,13 +229,17 @@ public class ImageDrawer {
     }
 
     public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background bg) {
+        drawComplexBackground(poseStack, x, y, width, height, bg, null);
+    }
+
+    public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background bg, Element requester) {
         if (bg == null) return;
         Background.Layer layer = new Background.Layer();
         layer.imagePath = bg.imagePath;
         layer.repeat = bg.repeat;
         layer.size = bg.size;
         layer.position = bg.position;
-        drawComplexBackground(poseStack, x, y, width, height, layer);
+        drawComplexBackground(poseStack, x, y, width, height, layer, requester);
     }
 
     public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background.Layer layer) {
@@ -243,9 +247,13 @@ public class ImageDrawer {
     }
 
     public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background.Layer layer) {
+        drawComplexBackground(poseStack, x, y, width, height, layer, null);
+    }
+
+    public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background.Layer layer, Element requester) {
         if (layer == null) return;
         String path = layer.imagePath;
-        ReadyTexture readyTexture = requestReadyTexture(path, poseStack, x, y, width, height);
+        ReadyTexture readyTexture = requestReadyTexture(path, poseStack, x, y, width, height, requester);
         if (readyTexture == null) return;
         int tw = readyTexture.width();
         int th = readyTexture.height();
@@ -533,8 +541,12 @@ public class ImageDrawer {
     }
 
     private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, float x, float y, float width, float height) {
+        return requestReadyTexture(path, poseStack, x, y, width, height, null);
+    }
+
+    private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, float x, float y, float width, float height, Element requester) {
         if (path == null || path.isEmpty() || "unset".equals(path)) return null;
-        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path);
+        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, false);
         if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
             drawPlaceholder(poseStack, x, y, width, height);
             return null;

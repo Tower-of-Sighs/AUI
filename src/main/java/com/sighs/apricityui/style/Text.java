@@ -464,7 +464,7 @@ public class Text {
             baseWidth += fm.stringWidth(run.text());
         }
 
-        float currentSize = (float) text.fontSize;
+        float currentSize = (float) text.renderedFontSize();
         float scale = currentSize / Font.getBaseFontSize();
 
         return baseWidth * scale + text.strokeWidth * 2.0 + letterSpacingWidth;
@@ -529,6 +529,11 @@ public class Text {
     public double defaultFontScale() {
         Document.FontMode mode = fontMode == null ? Document.FontMode.WEB_SCALED : fontMode;
         return fontSize / mode.defaultFontScaleBase();
+    }
+
+    public double renderedFontSize() {
+        Document.FontMode mode = fontMode == null ? Document.FontMode.WEB_SCALED : fontMode;
+        return fontSize * 9.0 / mode.defaultFontScaleBase();
     }
 
     private static Document.FontMode getFontMode(Element element) {

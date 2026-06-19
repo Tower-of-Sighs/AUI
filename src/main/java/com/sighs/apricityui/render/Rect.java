@@ -6,12 +6,14 @@ import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.style.*;
 
 public class Rect {
+    public Element element;
     public Position position;
     public Box box;
     public String documentPath;
     public Background background;
 
     public Rect(Element element) {
+        this.element = element;
         position = Position.of(element);
         box = Box.of(element);
         background = Background.of(element);
@@ -144,7 +146,7 @@ public class Rect {
                 }
                 if (!"unset".equals(layer.imagePath)) {
                     Graph.endBatch();
-                    ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), layer);
+                    ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), layer, element);
                     Graph.beginBatch();
                 }
             }
@@ -164,7 +166,7 @@ public class Rect {
         }
         if (!background.imagePath.equals("unset")) {
             Graph.endBatch();
-            ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), background);
+            ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), background, element);
             return;
         }
         Graph.endBatch();
