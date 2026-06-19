@@ -1,0 +1,653 @@
+<style>
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background:
+            radial-gradient(circle at top, rgba(74, 118, 158, 0.14), rgba(74, 118, 158, 0) 36%),
+            linear-gradient(180deg, #101821 0%, #172432 56%, #223141 100%);
+        color: #e7eff6;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+        box-sizing: border-box;
+    }
+
+    .app {
+        width: 388px;
+        height: 228px;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        border-radius: 10px;
+        box-sizing: border-box;
+        background: rgba(8, 14, 20, 0.76);
+        border: 1px solid rgba(173, 201, 221, 0.1);
+    }
+
+    .topbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        align-items: center;
+        align-content: flex-start;
+    }
+
+    .group {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        min-height: 18px;
+        padding: 2px 3px;
+        border-radius: 7px;
+        box-sizing: border-box;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(170, 200, 220, 0.06);
+    }
+
+    .size-group { width: 80px; }
+    .color-group { width: 90px; }
+    .shape-group { width: 70px; }
+
+    .text-group {
+        width: 84px;
+        min-width: 84px;
+    }
+
+    .shape-group .seg {
+        width: 24px;
+    }
+
+    .label {
+        color: #72879a;
+        font-size: 9px;
+        line-height: 1;
+    }
+
+    .seg, .action {
+        min-width: 12px;
+        height: 12px;
+        padding: 2px 2px 0 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 7px;
+        box-sizing: border-box;
+        background: rgba(28, 50, 69, 0.84);
+        border: 1px solid rgba(178, 209, 229, 0.16);
+        color: #eef7fd;
+        line-height: 12;
+    }
+
+    .action {
+        background: rgba(24, 42, 58, 0.72);
+        border-color: rgba(146, 182, 207, 0.12);
+    }
+
+    .seg.active, .action.active {
+        background: rgba(34, 163, 127, 0.96);
+        border-color: rgba(199, 255, 236, 0.72);
+        color: #092116;
+    }
+
+    .swatch {
+        width: 12px;
+        min-width: 12px;
+        height: 12px;
+        border-radius: 999px;
+        border: 0.5px solid rgba(255, 255, 255, 0.7);
+        box-sizing: border-box;
+    }
+
+    .swatch.active {
+        border-color: #ffffff;
+        transform: scale(1.14);
+    }
+
+    .main {
+        flex: 1;
+        display: flex;
+        gap: 7px;
+        min-height: 0;
+    }
+
+    .toolbox {
+        width: 46px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        flex-shrink: 0;
+    }
+
+    .tool {
+        height: 15px;
+        padding: 0 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 6px;
+        box-sizing: border-box;
+        background: rgba(31, 55, 75, 0.82);
+        border: 1px solid rgba(178, 209, 229, 0.16);
+        color: #eef7fd;
+        font-size: 8px;
+    }
+
+    .tool.active {
+        background: rgba(34, 163, 127, 0.9);
+        border-color: rgba(199, 255, 236, 0.56);
+        color: #092116;
+    }
+
+    .stage {
+        width: 323px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .canvas-shell {
+        width: 323px;
+        height: 177px;
+        padding: 3px;
+        border-radius: 8px;
+        box-sizing: border-box;
+        background:
+            linear-gradient(45deg, rgba(17, 24, 31, 0.92) 25%, rgba(28, 36, 46, 0.92) 25%, rgba(28, 36, 46, 0.92) 50%, rgba(17, 24, 31, 0.92) 50%, rgba(17, 24, 31, 0.92) 75%, rgba(28, 36, 46, 0.92) 75%),
+            linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01));
+        background-size: 12px 12px, 100% 100%;
+        border: 1px solid rgba(181, 211, 231, 0.16);
+    }
+
+    canvas {
+        width: 315px;
+        height: 169px;
+        background: #ffffff;
+        border-radius: 5px;
+        border: 1px solid rgba(19, 42, 57, 0.24);
+    }
+
+    .footer {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        justify-content: flex-end;
+        min-height: 18px;
+        flex-shrink: 0;
+    }
+
+    .footer-actions {
+        display: flex;
+        gap: 2px;
+        padding: 2px;
+        border-radius: 7px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(170, 200, 220, 0.06);
+        flex-shrink: 0;
+    }
+
+    .text-input {
+        width: 58px;
+        max-width: 58px;
+        height: 15px;
+        padding: 0 4px;
+        border-radius: 7px;
+        border: 1px solid rgba(129, 154, 175, 0.34);
+        background: rgba(10, 16, 24, 0.7);
+        color: #f4f9ff;
+        box-sizing: border-box;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+
+    .overlay {
+        position: absolute;
+        inset: 0;
+        display: none;
+        align-items: center;
+        justify-content: center;
+        background: rgba(3, 8, 13, 0.58);
+    }
+
+    .overlay.show {
+        display: flex;
+    }
+
+    .dialog {
+        width: 250px;
+        height: 124px;
+        padding: 7px;
+        border-radius: 10px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        background: rgba(10, 18, 26, 0.96);
+        border: 1px solid rgba(187, 216, 235, 0.18);
+    }
+
+    .dialog-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 6px;
+    }
+
+    .dialog-title {
+        color: #f0cf8a;
+        font-size: 10px;
+    }
+
+    .export-box {
+        flex: 1;
+        width: 100%;
+        padding: 5px;
+        resize: none;
+        border-radius: 8px;
+        box-sizing: border-box;
+        border: 1px solid rgba(128, 154, 176, 0.52);
+        background: rgba(7, 13, 20, 0.82);
+        color: #f4f9ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 9px;
+    }
+</style>
+
+<body>
+<div class="app">
+    <div class="topbar">
+        <div class="group size-group">
+            <div class="label">Size</div>
+            <div class="seg active" data-width="2">2</div>
+            <div class="seg" data-width="4">4</div>
+            <div class="seg" data-width="8">8</div>
+            <div class="seg" data-width="14">14</div>
+        </div>
+
+        <div class="group color-group">
+            <div class="label">Color</div>
+            <div class="swatch active" data-color="#13191f" style="background:#13191f;"></div>
+            <div class="swatch" data-color="#1c74c8" style="background:#1c74c8;"></div>
+            <div class="swatch" data-color="#17a56f" style="background:#17a56f;"></div>
+            <div class="swatch" data-color="#d68025" style="background:#d68025;"></div>
+            <div class="swatch" data-color="#cf496d" style="background:#cf496d;"></div>
+        </div>
+
+        <div class="group shape-group">
+            <div class="label">Shape</div>
+            <div class="seg active" data-fill="stroke">Stroke</div>
+            <div class="seg" data-fill="fill">Fill</div>
+        </div>
+
+        <div class="group text-group">
+            <div class="label">Text</div>
+            <input class="text-input" id="textInput" value="ApricityUI" />
+        </div>
+
+    </div>
+
+    <div class="main">
+        <div class="toolbox">
+            <div class="tool active" data-tool="pen">Pen</div>
+            <div class="tool" data-tool="marker">Mark</div>
+            <div class="tool" data-tool="eraser">Erase</div>
+            <div class="tool" data-tool="line">Line</div>
+            <div class="tool" data-tool="rect">Rect</div>
+            <div class="tool" data-tool="ellipse">Oval</div>
+            <div class="tool" data-tool="text">Text</div>
+        </div>
+
+        <div class="stage">
+            <div class="canvas-shell">
+                <canvas id="board" width="315" height="169"></canvas>
+            </div>
+
+            <div class="footer">
+                <div class="footer-actions">
+                    <div class="action" id="undoBtn">Undo</div>
+                    <div class="action" id="redoBtn">Redo</div>
+                    <div class="action" id="clearBtn">Clear</div>
+                    <div class="action" id="exportBtn">Export</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="overlay" id="exportOverlay">
+    <div class="dialog">
+        <div class="dialog-bar">
+            <div class="dialog-title">Export PNG Data URL</div>
+            <div class="action" id="closeExportBtn">Close</div>
+        </div>
+        <textarea class="export-box" id="exportBox">PNG data URL will appear here.</textarea>
+    </div>
+</div>
+</body>
+
+<script>
+    let board = document.getElementById("board");
+    let ctx = board ? board.getContext("2d") : null;
+
+    let tool = "pen";
+    let strokeWidth = 2;
+    let strokeColor = "#13191f";
+    let fillMode = "stroke";
+    let drawing = false;
+    let startX = 0;
+    let startY = 0;
+    let lastX = 0;
+    let lastY = 0;
+    let previewBase = null;
+    let undoStack = [];
+    let redoStack = [];
+    let maxSnapshots = 32;
+
+    function byId(id) {
+        return document.getElementById(id);
+    }
+
+    function canvasWidth() {
+        return board ? board.getWidth() : 0;
+    }
+
+    function canvasHeight() {
+        return board ? board.getHeight() : 0;
+    }
+
+    function snapshot() {
+        if (!ctx) return null;
+        return ctx.getImageData(0, 0, canvasWidth(), canvasHeight());
+    }
+
+    function restoreSnapshot(imageData) {
+        if (!ctx || !imageData) return;
+        ctx.clearRect(0, 0, canvasWidth(), canvasHeight());
+        ctx.putImageData(imageData, 0, 0);
+    }
+
+    function pushUndoState() {
+        let shot = snapshot();
+        if (!shot) return;
+        undoStack.push(shot);
+        if (undoStack.length > maxSnapshots) undoStack.shift();
+        redoStack = [];
+    }
+
+    function setTool(next) {
+        tool = next;
+        let items = document.querySelectorAll("[data-tool]");
+        for (let i = 0; i < items.length; i++) {
+            let item = items[i];
+            item.setAttribute("class", item.getAttribute("data-tool") == next ? "tool active" : "tool");
+        }
+    }
+
+    function setWidth(next) {
+        strokeWidth = next;
+        let items = document.querySelectorAll("[data-width]");
+        for (let i = 0; i < items.length; i++) {
+            let item = items[i];
+            item.setAttribute("class", String(item.getAttribute("data-width")) == String(next) ? "seg active" : "seg");
+        }
+    }
+
+    function setColor(next) {
+        strokeColor = next;
+        let items = document.querySelectorAll("[data-color]");
+        for (let i = 0; i < items.length; i++) {
+            let item = items[i];
+            item.setAttribute("class", item.getAttribute("data-color") == next ? "swatch active" : "swatch");
+        }
+    }
+
+    function setFillMode(next) {
+        fillMode = next;
+        let items = document.querySelectorAll("[data-fill]");
+        for (let i = 0; i < items.length; i++) {
+            let item = items[i];
+            item.setAttribute("class", item.getAttribute("data-fill") == next ? "seg active" : "seg");
+        }
+    }
+
+    function configureStrokeContext() {
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = strokeWidth;
+        if (tool == "eraser") {
+            ctx.globalCompositeOperation = "destination-out";
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = "#000000";
+        } else if (tool == "marker") {
+            ctx.globalCompositeOperation = "source-over";
+            ctx.globalAlpha = 0.28;
+            ctx.strokeStyle = strokeColor;
+        } else {
+            ctx.globalCompositeOperation = "source-over";
+            ctx.globalAlpha = 1;
+            ctx.strokeStyle = strokeColor;
+        }
+    }
+
+    function resetPaintState() {
+        ctx.globalCompositeOperation = "source-over";
+        ctx.globalAlpha = 1;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = strokeWidth;
+        ctx.strokeStyle = strokeColor;
+        ctx.fillStyle = strokeColor;
+    }
+
+    function drawShape(kind, x0, y0, x1, y1) {
+        resetPaintState();
+        let left = Math.min(x0, x1);
+        let top = Math.min(y0, y1);
+        let width = Math.abs(x1 - x0);
+        let height = Math.abs(y1 - y0);
+        if (kind == "line") {
+            ctx.beginPath();
+            ctx.moveTo(x0, y0);
+            ctx.lineTo(x1, y1);
+            ctx.stroke();
+            return;
+        }
+        if (kind == "rect") {
+            if (fillMode == "fill") ctx.fillRect(left, top, width, height);
+            else ctx.strokeRect(left, top, width, height);
+            return;
+        }
+        if (kind == "ellipse") {
+            ctx.beginPath();
+            ctx.ellipse(left + width / 2, top + height / 2, Math.max(0.5, width / 2), Math.max(0.5, height / 2), 0, 0, Math.PI * 2, false);
+            if (fillMode == "fill") ctx.fill();
+            else ctx.stroke();
+        }
+    }
+
+    function beginStroke(x, y) {
+        if (!ctx) return;
+        pushUndoState();
+        drawing = true;
+        startX = x;
+        startY = y;
+        lastX = x;
+        lastY = y;
+        previewBase = snapshot();
+
+        if (tool == "pen" || tool == "marker" || tool == "eraser") {
+            configureStrokeContext();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+            ctx.lineTo(x + 0.001, y + 0.001);
+            ctx.stroke();
+        }
+    }
+
+    function continueStroke(x, y) {
+        if (!ctx || !drawing) return;
+
+        if (tool == "pen" || tool == "marker" || tool == "eraser") {
+            configureStrokeContext();
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            lastX = x;
+            lastY = y;
+            return;
+        }
+
+        if (tool == "line" || tool == "rect" || tool == "ellipse") {
+            restoreSnapshot(previewBase);
+            drawShape(tool, startX, startY, x, y);
+        }
+    }
+
+    function endStroke() {
+        if (!drawing) return;
+        drawing = false;
+        previewBase = null;
+    }
+
+    function placeText(x, y) {
+        if (!ctx) return;
+        let textInput = byId("textInput");
+        let text = textInput ? String(textInput.value || "") : "";
+        if (!text) return;
+        pushUndoState();
+        resetPaintState();
+        let fontSize = Math.max(10, 8 + strokeWidth * 2);
+        ctx.font = "bold " + fontSize + "px SansSerif";
+        ctx.fillText(text, x, y);
+    }
+
+    function clearBoard() {
+        if (!ctx) return;
+        pushUndoState();
+        ctx.clearRect(0, 0, canvasWidth(), canvasHeight());
+    }
+
+    function undo() {
+        if (!ctx || undoStack.length == 0) return;
+        let current = snapshot();
+        if (current) redoStack.push(current);
+        restoreSnapshot(undoStack.pop());
+    }
+
+    function redo() {
+        if (!ctx || redoStack.length == 0) return;
+        let current = snapshot();
+        if (current) undoStack.push(current);
+        restoreSnapshot(redoStack.pop());
+    }
+
+    function openExport() {
+        if (!board) return;
+        let result = board.toDataURL("image/png");
+        let box = byId("exportBox");
+        let overlay = byId("exportOverlay");
+        if (box) box.value = result;
+        if (overlay) overlay.setAttribute("class", "overlay show");
+    }
+
+    function closeExport() {
+        let overlay = byId("exportOverlay");
+        if (overlay) overlay.setAttribute("class", "overlay");
+    }
+
+    function bindToolbar() {
+        let toolItems = document.querySelectorAll("[data-tool]");
+        for (let i = 0; i < toolItems.length; i++) {
+            let item = toolItems[i];
+            item.addEventListener("mousedown", function () {
+                setTool(item.getAttribute("data-tool"));
+            });
+        }
+
+        let widthItems = document.querySelectorAll("[data-width]");
+        for (let i = 0; i < widthItems.length; i++) {
+            let item = widthItems[i];
+            item.addEventListener("mousedown", function () {
+                setWidth(Number(item.getAttribute("data-width")));
+            });
+        }
+
+        let colorItems = document.querySelectorAll("[data-color]");
+        for (let i = 0; i < colorItems.length; i++) {
+            let item = colorItems[i];
+            item.addEventListener("mousedown", function () {
+                setColor(item.getAttribute("data-color"));
+            });
+        }
+
+        let fillItems = document.querySelectorAll("[data-fill]");
+        for (let i = 0; i < fillItems.length; i++) {
+            let item = fillItems[i];
+            item.addEventListener("mousedown", function () {
+                setFillMode(item.getAttribute("data-fill"));
+            });
+        }
+
+        let undoBtn = byId("undoBtn");
+        let redoBtn = byId("redoBtn");
+        let clearBtn = byId("clearBtn");
+        let exportBtn = byId("exportBtn");
+        let closeExportBtn = byId("closeExportBtn");
+        let overlay = byId("exportOverlay");
+
+        if (undoBtn) undoBtn.addEventListener("mousedown", undo);
+        if (redoBtn) redoBtn.addEventListener("mousedown", redo);
+        if (clearBtn) clearBtn.addEventListener("mousedown", clearBoard);
+        if (exportBtn) exportBtn.addEventListener("mousedown", openExport);
+        if (closeExportBtn) closeExportBtn.addEventListener("mousedown", closeExport);
+        if (overlay) {
+            overlay.addEventListener("mousedown", function (event) {
+                if (event.target == overlay) closeExport();
+            });
+        }
+    }
+
+    function bindCanvas() {
+        if (!board || !ctx) return;
+
+        board.addEventListener("mousedown", function (event) {
+            if (tool == "text") {
+                placeText(event.offsetX, event.offsetY);
+                return;
+            }
+            beginStroke(event.offsetX, event.offsetY);
+        });
+
+        board.addEventListener("mousemove", function (event) {
+            if (!drawing || event.buttons == 0) {
+                if (drawing && event.buttons == 0) endStroke();
+                return;
+            }
+            continueStroke(event.offsetX, event.offsetY);
+        });
+
+        board.addEventListener("mouseup", function () {
+            endStroke();
+        });
+
+        board.addEventListener("mouseleave", function (event) {
+            if (drawing && event.buttons == 0) {
+                endStroke();
+            }
+        });
+    }
+
+    document.body.addEventListener("load", function () {
+        bindToolbar();
+        bindCanvas();
+        if (ctx) ctx.clearRect(0, 0, canvasWidth(), canvasHeight());
+        setTool("pen");
+        setWidth(2);
+        setColor("#13191f");
+        setFillMode("stroke");
+    });
+</script>

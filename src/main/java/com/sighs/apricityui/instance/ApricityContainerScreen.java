@@ -3,6 +3,7 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.instance.element.Recipe;
@@ -486,14 +487,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
 
         if (linkedDocument.body != null) {
-            linkedDocument.body.triggerEvent(currentEvent -> {
-                if ("unload".equals(currentEvent.type) && currentEvent.listener != null) {
-                    try {
-                        currentEvent.listener.accept(currentEvent);
-                    } catch (Exception ignored) {
-                    }
-                }
-            });
+            Event.triggerSingle(new Event(linkedDocument.body, "unload", false));
         }
 
         linkedDocument.remove();

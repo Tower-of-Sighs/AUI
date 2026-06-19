@@ -3,6 +3,7 @@ package com.sighs.apricityui.element;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
@@ -25,12 +26,11 @@ public class Select extends Element {
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
                 Text text = Text.of(this);
-                if (!children.isEmpty()) text.content = children.get(0).innerText;
-                for (Element child : children) {
-                    if (getAttribute("value").equals(child.getAttribute("value"))) {
-                        text.content = child.innerText;
-                        break;
-                    }
+                int selectedIndex = getSelectedIndex();
+                if (selectedIndex >= 0 && selectedIndex < children.size()) {
+                    text.content = children.get(selectedIndex).innerText;
+                } else if (!children.isEmpty()) {
+                    text.content = children.get(0).innerText;
                 }
                 FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
             }
@@ -43,5 +43,18 @@ public class Select extends Element {
     @Override
     public boolean canFocus() {
         return true;
+    }
+
+    void dispatchUserValueChangeEvents(String previousValue) {
+        String currentValue = getValue();
+        if (java.util.Objects.equals(previousValue, currentValue)) return;
+
+        Event inputEvent = new Event(this, "input", true);
+        Event.markTrustedFromCurrentDispatch(inputEvent);
+        Event.tiggerEvent(inputEvent);
+
+        Event changeEvent = new Event(this, "change", true);
+        Event.markTrustedFromCurrentDispatch(changeEvent);
+        Event.tiggerEvent(changeEvent);
     }
 }

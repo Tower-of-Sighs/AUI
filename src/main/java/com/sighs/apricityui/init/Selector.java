@@ -286,6 +286,15 @@ public class Selector {
         return element.document.getSelectorIndex().match(element);
     }
 
+    public static boolean matches(Element element, String selectorStr) {
+        if (element == null || selectorStr == null || selectorStr.isBlank()) return false;
+        List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
+        for (CompiledSelector selector : groups) {
+            if (isMatch(element, selector)) return true;
+        }
+        return false;
+    }
+
     private static boolean isMatch(Element element, CompiledSelector selector) {
         List<Component> comps = selector.components;
         List<Combinator> combs = selector.combinators;

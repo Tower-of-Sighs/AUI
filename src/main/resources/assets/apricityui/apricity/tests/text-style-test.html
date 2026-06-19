@@ -145,6 +145,12 @@
 </div>
 
 <style>
+    html {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
     body {
         width: 100%;
         height: 100%;
@@ -159,7 +165,7 @@
         font-family: "Consolas", "Courier New", monospace;
         font-size: 11px;
         line-height: 1.35;
-        transform: translateZ(-20px);
+        transform: translateZ(20px);
     }
 
     .title {
@@ -176,6 +182,7 @@
     .layout {
         width: 100%;
         flex: 1;
+        min-height: 0;
         display: flex;
         flex-direction: row;
         gap: 10px;

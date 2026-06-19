@@ -1,7 +1,13 @@
 package com.sighs.apricityui.resource;
 
+import com.sighs.apricityui.element.Body;
+import com.sighs.apricityui.element.Head;
+import com.sighs.apricityui.element.Html;
+import com.sighs.apricityui.init.CommentNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.instance.ClientLoader;
 
 import java.util.*;
@@ -30,7 +36,7 @@ public class HTML {
         new ClientLoader("html").loadResources(HTML::putTemple);
     }
 
-    public static Element create(Document document, String path) {
+    public static DocumentRoot create(Document document, String path) {
         String rawHtml = getTemple(path);
         if (rawHtml == null || rawHtml.isBlank()) return null;
 
@@ -42,11 +48,16 @@ public class HTML {
         String cleanHtml = normalizeDocumentMarkup(jsExtractor.handle(htmlAfterCss));
         jsExtractor.pushToDocument(document);
 
-        return buildDOM(document, cleanHtml);
+        return buildDocument(document, cleanHtml);
     }
 
     public static Element createElement(Document document, String html) {
-        return buildDOM(document, html);
+        DocumentRoot root = buildDocument(document, "<body>" + (html == null ? "" : html) + "</body>");
+        if (root == null || root.body() == null) return null;
+        for (Node child : root.body().getChildNodes()) {
+            if (child instanceof Element element) return element;
+        }
+        return null;
     }
 
     enum TokenType {
@@ -85,14 +96,19 @@ public class HTML {
             return t;
         }
 
-        static Token comment() {
+        static Token comment(String text) {
             Token t = new Token();
             t.type = TokenType.COMMENT;
+            t.content = text;
             return t;
         }
     }
 
     static class HtmlTokenizer {
+        private static final Set<String> VOID_TAGS = Set.of(
+                "area", "base", "br", "col", "embed", "hr", "img", "input",
+                "link", "meta", "param", "source", "track", "wbr"
+        );
 
         private static final Pattern TOKEN_PATTERN =
                 Pattern.compile("<!--.*?-->|</?[^>]+>|[^<]+", Pattern.DOTALL);
@@ -111,7 +127,7 @@ public class HTML {
 
                 // 注释
                 if (part.startsWith("<!--")) {
-                    tokens.add(Token.comment());
+                    tokens.add(Token.comment(part.length() >= 7 ? part.substring(4, part.length() - 3) : ""));
                     continue;
                 }
 
@@ -124,12 +140,13 @@ public class HTML {
 
                 // 开始 / 自闭合
                 if (part.startsWith("<")) {
-                    boolean selfClosing = part.endsWith("/>");
-                    String body = part.substring(1, part.length() - (selfClosing ? 2 : 1)).trim();
+                    boolean explicitSelfClosing = part.endsWith("/>");
+                    String body = part.substring(1, part.length() - (explicitSelfClosing ? 2 : 1)).trim();
 
                     Matcher nameMatcher = TAG_NAME_PATTERN.matcher(body);
                     if (nameMatcher.find()) {
                         String tagName = nameMatcher.group(1);
+                        boolean selfClosing = explicitSelfClosing || isVoidTag(tagName);
                         Token token = Token.start(tagName, selfClosing);
 
                         String attrSection = body.substring(nameMatcher.end()).trim();
@@ -148,6 +165,11 @@ public class HTML {
             }
 
             return tokens;
+        }
+
+        private static boolean isVoidTag(String tagName) {
+            if (tagName == null || tagName.isBlank()) return false;
+            return VOID_TAGS.contains(tagName.toLowerCase(Locale.ROOT));
         }
 
         private static void parseAttributes(String src, Map<String, String> out) {
@@ -171,12 +193,12 @@ public class HTML {
         }
     }
 
-    private static Element buildDOM(Document document, String html) {
+    private static DocumentRoot buildDocument(Document document, String html) {
         List<Token> tokens = HtmlTokenizer.tokenize(html);
         if (tokens.isEmpty()) return null;
 
         Deque<Element> stack = new ArrayDeque<>();
-        Element root = null;
+        Element parsedRoot = null;
 
         for (Token token : tokens) {
             switch (token.type) {
@@ -188,10 +210,10 @@ public class HTML {
                         Element finalized = Element.init(el);
                         if (!stack.isEmpty()) {
                             attachChildFast(stack.peek(), finalized);
-                        } else if (root == null) {
-                            root = finalized;
+                        } else if (parsedRoot == null) {
+                            parsedRoot = finalized;
                         } else {
-                            return root;
+                            return toDocumentRoot(document, parsedRoot);
                         }
                     } else {
                         stack.push(el);
@@ -202,21 +224,23 @@ public class HTML {
                     Element finished = Element.init(stack.pop());
                     if (!stack.isEmpty()) {
                         attachChildFast(stack.peek(), finished);
-                    } else if (root == null) {
-                        root = finished;
+                    } else if (parsedRoot == null) {
+                        parsedRoot = finished;
                     } else {
-                        return root;
+                        return toDocumentRoot(document, parsedRoot);
                     }
                 }
                 case TEXT -> {
                     if (stack.isEmpty()) return null;
-                    if (!token.content.isBlank()) stack.peek().innerText += token.content;
+                    if (!token.content.isBlank()) attachChildFast(stack.peek(), document.createTextNode(token.content));
                 }
                 case COMMENT -> {
+                    if (stack.isEmpty()) return null;
+                    attachChildFast(stack.peek(), document.createComment(token.content == null ? "" : token.content));
                 }
             }
         }
-        return stack.isEmpty() ? root : null;
+        return stack.isEmpty() ? toDocumentRoot(document, parsedRoot) : null;
     }
 
     private static String normalizeDocumentMarkup(String html) {
@@ -258,7 +282,91 @@ public class HTML {
 
     private static void attachChildFast(Element parent, Element child) {
         if (parent == null || child == null) return;
+        child.parentNode = parent;
         child.parentElement = parent;
+        parent.childNodes.add(child);
         parent.children.add(child);
+    }
+
+    private static void attachChildFast(Element parent, Node child) {
+        if (parent == null || child == null) return;
+        child.parentNode = parent;
+        if (child instanceof Element childElement) {
+            childElement.parentElement = parent;
+            parent.children.add(childElement);
+        }
+        parent.childNodes.add(child);
+    }
+
+    private static DocumentRoot toDocumentRoot(Document document, Element parsedRoot) {
+        if (parsedRoot == null) return null;
+
+        Html html = new Html(document);
+        Head head = new Head(document);
+        Body body = new Body(document);
+
+        if (isTag(parsedRoot, "html")) {
+            copyAttributes(parsedRoot, html);
+            for (Node child : new ArrayList<>(parsedRoot.childNodes)) {
+                detachFast(child);
+                if (child instanceof Element element && isTag(element, "head") && head.getChildNodes().isEmpty()) {
+                    copyAttributes(element, head);
+                    moveChildren(element, head);
+                    continue;
+                }
+                if (child instanceof Element element && isTag(element, "body") && body.getChildNodes().isEmpty()) {
+                    copyAttributes(element, body);
+                    moveChildren(element, body);
+                    continue;
+                }
+                attachChildFast(body, child);
+            }
+        } else if (isTag(parsedRoot, "body")) {
+            copyAttributes(parsedRoot, body);
+            moveChildren(parsedRoot, body);
+        } else {
+            attachChildFast(body, parsedRoot);
+        }
+
+        attachChildFast(html, head);
+        attachChildFast(html, body);
+
+        Element.init(head);
+        Element.init(body);
+        Element.init(html);
+        return new DocumentRoot(html, head, body);
+    }
+
+    private static void copyAttributes(Element source, Element target) {
+        if (source == null || target == null) return;
+        target.getAttributes().putAll(source.getAttributes());
+    }
+
+    private static void moveChildren(Element source, Element target) {
+        if (source == null || target == null) return;
+        for (Node child : new ArrayList<>(source.childNodes)) {
+            detachFast(child);
+            attachChildFast(target, child);
+        }
+    }
+
+    private static void detachFast(Node child) {
+        if (child == null || child.parentNode == null) return;
+        Node parent = child.parentNode;
+        parent.childNodes.remove(child);
+        if (parent instanceof Element parentElement && child instanceof Element childElement) {
+            parentElement.children.remove(childElement);
+            childElement.parentElement = null;
+        }
+        child.parentNode = null;
+    }
+
+    private static boolean isTag(Element element, String tagName) {
+        return element != null && tagName.equalsIgnoreCase(element.tagName);
+    }
+
+    public record DocumentRoot(com.sighs.apricityui.element.Html documentElement,
+                               com.sighs.apricityui.element.Head head,
+                               com.sighs.apricityui.element.Body body) {
     }
 }

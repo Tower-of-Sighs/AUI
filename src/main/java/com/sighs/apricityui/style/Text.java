@@ -8,11 +8,21 @@ import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
+    private static final int LINE_WIDTH_CACHE_LIMIT = 2048;
+    private static final Map<LineMeasureKey, Double> LINE_WIDTH_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<LineMeasureKey, Double> eldest) {
+            return size() > LINE_WIDTH_CACHE_LIMIT;
+        }
+    });
     private String cachedKey = null;
     private int cachedKeyHash = 0;
     public double fontSize = -1;
@@ -232,7 +242,7 @@ public class Text {
         Text cache = element.getRenderer().text.get();
         if (cache != null) return cache;
         Text text = new Text();
-        text.content = element.innerText;
+        text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
         String lineHeight = null;
@@ -352,6 +362,21 @@ public class Text {
         return text;
     }
 
+    private static String resolveElementTextContent(Element element) {
+        if (element == null) return "";
+        if (element.childNodes.isEmpty()) return element.innerText == null ? "" : element.innerText;
+        StringBuilder builder = new StringBuilder();
+        for (com.sighs.apricityui.init.Node child : element.childNodes) {
+            if (child instanceof com.sighs.apricityui.init.TextNode textNode) {
+                builder.append(textNode.getTextContent());
+            }
+        }
+        if (builder.isEmpty()) {
+            return element.innerText == null ? "" : element.innerText;
+        }
+        return builder.toString();
+    }
+
     public static double calculateLineHeight(double fontSize, String lh) {
         if (lh == null || lh.isEmpty() || lh.equals("normal") || lh.equals("unset")) {
             return fontSize + 2;
@@ -392,6 +417,26 @@ public class Text {
     }
 
     public static double measureLine(Text text, String line) {
+        if (text == null) return 0;
+        if (line == null || line.isEmpty()) return 0;
+        LineMeasureKey cacheKey = new LineMeasureKey(
+                text.fontSize,
+                text.fontWeight,
+                text.oblique,
+                text.strokeWidth,
+                text.letterSpacing,
+                text.fontFamily,
+                line
+        );
+        Double cached = LINE_WIDTH_CACHE.get(cacheKey);
+        if (cached != null) return cached;
+
+        double measured = measureLineUncached(text, line);
+        LINE_WIDTH_CACHE.put(cacheKey, measured);
+        return measured;
+    }
+
+    private static double measureLineUncached(Text text, String line) {
         if (text == null) return 0;
         if (line == null || line.isEmpty()) return 0;
         int glyphCount = line.codePointCount(0, line.length());
@@ -482,7 +527,8 @@ public class Text {
     }
 
     public static WrappedText wrap(Element element, Text text) {
-        return wrap(text, resolveWrapWidth(element, text));
+        if (element == null || text == null) return wrap(text, 0);
+        return wrapCachedInternal(element, text, resolveWrapWidth(element, text));
     }
 
     public record WrappedTextCache(int metricsHash, int contentHash, int contentLen, long wrapWidthBits, WrappedText wrapped) {
@@ -582,21 +628,25 @@ public class Text {
         }
 
         int lineStart = 0;
+        Map<Integer, Double> codePointWidthCache = new java.util.HashMap<>();
         while (lineStart < hardLine.length()) {
             double width = 0;
             int lineEnd = lineStart;
             int lastBreak = -1;
+            boolean firstGlyph = true;
 
             while (lineEnd < hardLine.length()) {
+                int codePoint = hardLine.codePointAt(lineEnd);
+                int charCount = Character.charCount(codePoint);
                 char c = hardLine.charAt(lineEnd);
-                double charWidth = measureLine(text, String.valueOf(c));
-                if (lineEnd > lineStart && width + charWidth > wrapWidth) break;
+                double charWidth = codePointWidthCache.computeIfAbsent(codePoint, key -> measureLine(text, new String(Character.toChars(key))));
+                if (!firstGlyph && width + charWidth > wrapWidth) break;
                 width += charWidth;
                 if (isPreferredBreakChar(text == null ? null : text.whiteSpace, c)) {
                     lastBreak = lineEnd;
                 }
-                lineEnd++;
-                if (lineEnd == lineStart && width > wrapWidth) break;
+                lineEnd += charCount;
+                firstGlyph = false;
             }
 
             if (lineEnd >= hardLine.length()) {
@@ -605,7 +655,9 @@ public class Text {
                 return;
             }
 
-            if (lineEnd == lineStart) lineEnd++;
+            if (lineEnd == lineStart) {
+                lineEnd += Character.charCount(hardLine.codePointAt(lineStart));
+            }
 
             if (lastBreak >= lineStart && consumesBreakChar(text == null ? null : text.whiteSpace, hardLine.charAt(lastBreak))) {
                 lines.add(hardLine.substring(lineStart, lastBreak));
@@ -727,6 +779,10 @@ public class Text {
             sb.append(lines[i].replaceAll("[\\t\\x0B\\f ]+", " ").trim());
         }
         return sb.toString();
+    }
+
+    private record LineMeasureKey(double fontSize, int fontWeight, boolean oblique, double strokeWidth,
+                                  double letterSpacing, String fontFamily, String line) {
     }
 
     public record WrappedText(List<String> lines, int[] starts, double width) {

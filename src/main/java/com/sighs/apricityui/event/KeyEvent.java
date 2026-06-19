@@ -25,7 +25,7 @@ public class KeyEvent extends Event {
     public boolean metaKey;
 
     public KeyEvent(Element target, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
-        super(target, type, null, true);
+        super(target, type, true);
         this.keyCode = keyCode;
         this.scanCode = scanCode;
         this.modifiers = modifiers;
@@ -34,26 +34,28 @@ public class KeyEvent extends Event {
         this.code = resolveCode(keyCode);
         this.source = source == null ? Source.INPUT_EVENT : source;
         this.altKey = ((modifiers & GLFW.GLFW_MOD_ALT) != 0)
-                || Operation.isKeyPressed("key.keyboard.left.alt")
-                || Operation.isKeyPressed("key.keyboard.right.alt");
+                || isModifierPressed("key.keyboard.left.alt")
+                || isModifierPressed("key.keyboard.right.alt");
         this.shiftKey = ((modifiers & GLFW.GLFW_MOD_SHIFT) != 0)
-                || Operation.isKeyPressed("key.keyboard.left.shift")
-                || Operation.isKeyPressed("key.keyboard.right.shift");
+                || isModifierPressed("key.keyboard.left.shift")
+                || isModifierPressed("key.keyboard.right.shift");
         this.controlKey = ((modifiers & GLFW.GLFW_MOD_CONTROL) != 0)
-                || Operation.isKeyPressed("key.keyboard.left.control")
-                || Operation.isKeyPressed("key.keyboard.right.control");
+                || isModifierPressed("key.keyboard.left.control")
+                || isModifierPressed("key.keyboard.right.control");
         this.metaKey = ((modifiers & GLFW.GLFW_MOD_SUPER) != 0)
-                || Operation.isKeyPressed("key.keyboard.left.win")
-                || Operation.isKeyPressed("key.keyboard.right.win");
+                || isModifierPressed("key.keyboard.left.win")
+                || isModifierPressed("key.keyboard.right.win");
     }
 
     public static void triggerEvent(Document document, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
         if (document == null) return;
         Element target = document.getFocusedElement();
-        if (target == null) target = document.getActiveElement();
+        if (target == null) target = document.getPressedElement();
         if (target == null) target = document.body;
         if (target == null) return;
-        Event.tiggerEvent(new KeyEvent(target, type, keyCode, scanCode, modifiers, repeat, source));
+        KeyEvent event = new KeyEvent(target, type, keyCode, scanCode, modifiers, repeat, source);
+        event.setTrusted(true);
+        Event.tiggerEvent(event);
     }
 
     public static void triggerEvent(Document document, String type, int keyCode, boolean repeat) {
@@ -146,5 +148,24 @@ public class KeyEvent extends Event {
             case GLFW.GLFW_KEY_RIGHT_SUPER -> "MetaRight";
             default -> "Unidentified";
         };
+    }
+
+    private static boolean isModifierPressed(String key) {
+        try {
+            return Operation.isKeyPressed(key);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    @Override
+    public KeyEvent clone() {
+        KeyEvent copy = new KeyEvent(target instanceof Element element ? element : null, type, keyCode, scanCode, modifiers, repeat, source);
+        copyTo(copy);
+        copy.altKey = altKey;
+        copy.shiftKey = shiftKey;
+        copy.controlKey = controlKey;
+        copy.metaKey = metaKey;
+        return copy;
     }
 }

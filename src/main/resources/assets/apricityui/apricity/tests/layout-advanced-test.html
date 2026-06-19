@@ -1,0 +1,539 @@
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">ApricityUI Layout Test</div>
+        <div class="title">Advanced Layout Regression</div>
+        <div class="summary">用于集中回归 relative / absolute / fixed、margin collapse、inline 递归换行、百分比高度链、flex-wrap、grid 高级 track。</div>
+    </div>
+
+    <div class="columns">
+        <div class="rail">
+            <div class="card">
+                <div class="card-title">Coverage</div>
+                <div class="token">relative offset</div>
+                <div class="token">absolute / fixed</div>
+                <div class="token">margin collapse</div>
+                <div class="token">nested inline wrap</div>
+                <div class="token">percentage height chain</div>
+                <div class="token">flex-wrap + gap</div>
+                <div class="token">fr / minmax / repeat()</div>
+                <div class="token">auto-fill</div>
+                <div class="token">justify-self / align-self</div>
+            </div>
+
+            <div class="card notes">
+                <div class="card-title">Notes</div>
+                <div class="note">每个案例尽量只观察一组布局特性，便于肉眼判断回归。</div>
+                <div class="note">固定定位角标用于确认 fixed 是否相对视口，而不是相对容器。</div>
+                <div class="note">百分比高度左侧应成立，右侧无显式父高时应退回 auto。</div>
+            </div>
+        </div>
+
+        <div class="main">
+            <div class="section">
+                <div class="section-title">1. Nested Inline Fragmentation</div>
+                <div class="section-desc">预期：窄容器里嵌套 inline 文本可以跨行断开；最后的 tail 标签会被推到后续行。</div>
+                <div class="demo box inline-fragment-demo">
+                    <div class="inline-host">
+                        <span class="inline-pill warm">prefix</span>
+                        <span class="inline-outer">outer
+                            <span class="inline-inner">nested-inline-fragment-should-wrap-across-lines</span>
+                        </span>
+                        <span class="inline-pill cool">tail</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">2. Margin Collapse + Relative + Absolute</div>
+                <div class="section-desc">预期：左侧两块纵向 margin 折叠，不是简单相加；中间 relative 盒子视觉偏移，但右侧 sibling 仍按原流位置接续；ABS 锚定在容器右上。</div>
+                <div class="demo tri-demo">
+                    <div class="box collapse-demo">
+                        <div class="collapse-a">mb 12</div>
+                        <div class="collapse-b">mt 8</div>
+                    </div>
+                    <div class="box relative-demo">
+                        <div class="relative-a">relative +7 / +5</div>
+                        <div class="relative-b">flow sibling</div>
+                    </div>
+                    <div class="box abs-demo">
+                        <div class="abs-flow">flow</div>
+                        <div class="abs-flow second">flow 2</div>
+                        <div class="abs-corner">ABS</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">3. Percentage Height Chain</div>
+                <div class="section-desc">预期：左侧 120 → 50% → 50% 最终子块高度成立；右侧父元素无显式高度时，50% 子块不应拉伸出生效高度。</div>
+                <div class="demo split-demo">
+                    <div class="box percent-demo">
+                        <div class="percent-label">explicit chain</div>
+                        <div class="percent-grand">
+                            <div class="percent-parent">
+                                <div class="percent-child">50%</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="box percent-demo fallback">
+                        <div class="percent-label">auto parent</div>
+                        <div class="percent-auto-parent">
+                            <div class="percent-auto-child">50%</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">4. Flex Wrap / Gap / Cross-axis</div>
+                <div class="section-desc">预期：两项第一行放满后换到第二行；短项在更高的行盒内做 cross-axis 居中；row-gap / column-gap 都可见。</div>
+                <div class="demo box flex-wrap-demo">
+                    <div class="flex-wrap-host">
+                        <div class="wrap-chip tall">70×20</div>
+                        <div class="wrap-chip short">20×10</div>
+                        <div class="wrap-chip next">20×10</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">5. Grid Advanced Tracks</div>
+                <div class="section-desc">预期：上排演示 20px + 1fr + 2fr；中排演示 repeat(2, minmax(24px, 1fr))；下排演示 repeat(auto-fill, 20px) 和 self alignment。</div>
+                <div class="demo grid-stack">
+                    <div class="box grid-fr-host">
+                        <div class="grid-mini a">20px</div>
+                        <div class="grid-mini b">1fr</div>
+                        <div class="grid-mini c">2fr</div>
+                    </div>
+                    <div class="box grid-minmax-host">
+                        <div class="grid-mini d">M1</div>
+                        <div class="grid-mini e">M2</div>
+                    </div>
+                    <div class="box grid-autofill-host">
+                        <div class="grid-mini f">A1</div>
+                        <div class="grid-mini g">A2</div>
+                        <div class="grid-mini h">A3</div>
+                        <div class="grid-mini i">A4</div>
+                        <div class="grid-mini self">self</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="fixed-probe">FIXED</div>
+</div>
+</body>
+
+<style>
+    html {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-image: linear-gradient(160deg, #081724 0%, #113047 56%, #24516a 100%);
+        color: #eef8ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .hero {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .eyebrow {
+        color: #90ddd4;
+    }
+
+    .title {
+        font-size: 16px;
+        font-weight: bold;
+        color: #f7fcff;
+    }
+
+    .summary {
+        color: #bfd8e5;
+    }
+
+    .columns {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        gap: 8px;
+        overflow: hidden;
+    }
+
+    .rail {
+        width: 124px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .main {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: auto;
+    }
+
+    .card,
+    .section {
+        border: 1px solid rgba(160, 204, 225, 0.56);
+        border-radius: 8px;
+        background-color: rgba(6, 15, 22, 0.55);
+        box-shadow: 0 0 0 1px rgba(5, 14, 20, 0.2);
+    }
+
+    .card {
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .card-title,
+    .section-title {
+        color: #ffe4a6;
+        font-size: 11px;
+    }
+
+    .token {
+        padding: 1px 4px;
+        border-radius: 99px;
+        background-color: rgba(52, 103, 132, 0.55);
+        color: #ebf8ff;
+    }
+
+    .note {
+        color: #c4dcea;
+    }
+
+    .section {
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .section-desc {
+        color: #abcede;
+    }
+
+    .demo,
+    .box {
+        border-radius: 6px;
+    }
+
+    .box {
+        border: 1px solid rgba(139, 186, 210, 0.72);
+        background-color: rgba(6, 12, 18, 0.76);
+        box-sizing: border-box;
+        padding: 4px;
+    }
+
+    .inline-fragment-demo {
+        min-height: 44px;
+    }
+
+    .inline-host {
+        width: 132px;
+        line-height: 1.35;
+        border: 1px dashed rgba(138, 188, 216, 0.45);
+        padding: 3px;
+        box-sizing: border-box;
+    }
+
+    .inline-pill,
+    .inline-outer,
+    .inline-inner {
+        display: inline;
+    }
+
+    .inline-pill {
+        padding: 0 2px;
+        margin-right: 2px;
+        color: #fff8df;
+    }
+
+    .warm {
+        background-color: rgba(132, 83, 24, 0.72);
+    }
+
+    .cool {
+        background-color: rgba(33, 93, 125, 0.76);
+    }
+
+    .inline-outer {
+        color: #ffdca5;
+    }
+
+    .inline-inner {
+        color: #a8e7ff;
+        background-color: rgba(26, 76, 105, 0.52);
+    }
+
+    .tri-demo {
+        display: flex;
+        gap: 6px;
+    }
+
+    .collapse-demo,
+    .relative-demo,
+    .abs-demo {
+        width: 62px;
+        min-height: 54px;
+    }
+
+    .collapse-a,
+    .collapse-b,
+    .relative-a,
+    .relative-b,
+    .abs-flow {
+        border: 1px solid #8cc9e5;
+        background-color: rgba(37, 87, 115, 0.72);
+        padding: 1px 3px;
+    }
+
+    .collapse-a {
+        margin-bottom: 12px;
+    }
+
+    .collapse-b {
+        margin-top: 8px;
+        background-color: rgba(45, 101, 77, 0.74);
+        border-color: #98d8be;
+    }
+
+    .relative-a {
+        position: relative;
+        left: 7px;
+        top: 5px;
+    }
+
+    .relative-b {
+        margin-top: 2px;
+        background-color: rgba(87, 76, 33, 0.74);
+        border-color: #e1c481;
+    }
+
+    .abs-demo {
+        position: relative;
+    }
+
+    .abs-flow {
+        margin-bottom: 3px;
+    }
+
+    .abs-flow.second {
+        width: 42px;
+        background-color: rgba(29, 99, 81, 0.72);
+        border-color: #8ad8bf;
+    }
+
+    .abs-corner {
+        position: absolute;
+        right: 4px;
+        top: 4px;
+        width: 24px;
+        text-align: center;
+        background-color: rgba(145, 84, 20, 0.84);
+        border: 1px solid #ffd493;
+    }
+
+    .split-demo {
+        display: flex;
+        gap: 6px;
+    }
+
+    .percent-demo {
+        width: 96px;
+        min-height: 80px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .percent-label {
+        color: #9cdaf1;
+    }
+
+    .percent-grand {
+        width: 54px;
+        height: 120px;
+        padding: 3px;
+        box-sizing: border-box;
+        border: 1px solid #8dc8e5;
+        background-color: rgba(28, 78, 102, 0.66);
+    }
+
+    .percent-parent {
+        width: 100%;
+        height: 50%;
+        border: 1px solid #f4c981;
+        background-color: rgba(113, 76, 27, 0.76);
+        box-sizing: border-box;
+        padding: 3px;
+    }
+
+    .percent-child {
+        width: 100%;
+        height: 50%;
+        border: 1px solid #90d9ba;
+        background-color: rgba(30, 103, 77, 0.78);
+        box-sizing: border-box;
+        text-align: center;
+    }
+
+    .percent-auto-parent {
+        width: 54px;
+        border: 1px solid #8dc8e5;
+        background-color: rgba(28, 78, 102, 0.66);
+        box-sizing: border-box;
+        padding: 3px;
+    }
+
+    .percent-auto-child {
+        width: 100%;
+        height: 50%;
+        border: 1px solid #e7a6bb;
+        background-color: rgba(120, 51, 72, 0.78);
+        box-sizing: border-box;
+        text-align: center;
+    }
+
+    .flex-wrap-demo {
+        min-height: 54px;
+    }
+
+    .flex-wrap-host {
+        width: 108px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        row-gap: 5px;
+        column-gap: 4px;
+    }
+
+    .wrap-chip {
+        border: 1px solid #9bc8ff;
+        background-color: rgba(45, 76, 127, 0.74);
+        text-align: center;
+        box-sizing: border-box;
+    }
+
+    .tall {
+        width: 70px;
+        height: 20px;
+        line-height: 20px;
+    }
+
+    .short,
+    .next {
+        width: 20px;
+        height: 10px;
+        line-height: 10px;
+        background-color: rgba(33, 101, 86, 0.74);
+        border-color: #8fd6bf;
+    }
+
+    .grid-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .grid-fr-host,
+    .grid-minmax-host,
+    .grid-autofill-host {
+        min-height: 22px;
+        display: grid;
+        align-items: center;
+    }
+
+    .grid-fr-host {
+        width: 144px;
+        grid-template-columns: 20px 1fr 2fr;
+        gap: 2px;
+    }
+
+    .grid-minmax-host {
+        width: 144px;
+        grid-template-columns: repeat(2, minmax(24px, 1fr));
+        gap: 3px;
+    }
+
+    .grid-autofill-host {
+        width: 95px;
+        grid-template-columns: repeat(auto-fill, 20px);
+        column-gap: 5px;
+        row-gap: 3px;
+        justify-items: stretch;
+        align-items: center;
+    }
+
+    .grid-mini {
+        min-height: 12px;
+        text-align: center;
+        border: 1px solid #91d7bd;
+        background-color: rgba(22, 87, 69, 0.74);
+        padding: 1px 2px;
+    }
+
+    .a {
+        background-color: rgba(96, 73, 27, 0.78);
+        border-color: #f2cd87;
+    }
+
+    .b,
+    .c,
+    .d,
+    .e,
+    .f,
+    .g,
+    .h,
+    .i {
+        background-color: rgba(35, 83, 118, 0.74);
+        border-color: #95caec;
+    }
+
+    .self {
+        justify-self: center;
+        align-self: end;
+        width: 14px;
+        background-color: rgba(120, 49, 71, 0.8);
+        border-color: #eca3b8;
+    }
+
+    .fixed-probe {
+        position: fixed;
+        right: 6px;
+        bottom: 6px;
+        z-index: 3;
+        padding: 1px 4px;
+        border: 1px solid #ffe39f;
+        background-color: rgba(150, 98, 24, 0.9);
+        color: #fff7e3;
+    }
+</style>

@@ -112,7 +112,8 @@ public record Size(double width, double height) {
         boolean unsetWidth = parseNumber(style.width) == null;
         boolean unsetHeight = parseNumber(style.height) == null;
 
-        boolean isText = (!element.innerText.isEmpty() && element.children.isEmpty()) || (element instanceof AbstractText);
+        boolean isText = element instanceof AbstractText
+                || ((!element.innerText.isEmpty() || hasDirectTextNodeChildren(element)) && element.children.isEmpty());
         Size contentSize;
         if (element instanceof com.sighs.apricityui.element.Canvas canvas) {
             contentSize = canvas.getIntrinsicSize();
@@ -125,20 +126,22 @@ public record Size(double width, double height) {
 
         double contentWidth = contentSize.width;
         double contentHeight = contentSize.height;
-        double parentWidth = getScaleWidth(element), parentHeight = getScaleHeight(element);
+        double parentWidth = getScaleWidth(element);
+        Double explicitParentHeight = getExplicitContainingBlockHeight(element);
+        double parentHeight = explicitParentHeight != null ? explicitParentHeight : 0;
         boolean borderBox = box.isBorderBox();
 
         if (!unsetWidth) {
             double resolved = resolveLength(style.width, parentWidth, contentWidth);
             contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
         }
-        if (!unsetHeight) {
+        if (!unsetHeight && (!isPercent(style.height) || explicitParentHeight != null)) {
             double resolved = resolveLength(style.height, parentHeight, contentHeight);
             contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
         }
 
         if (allowFlexAdjustments && element.parentElement != null && Layout.isInFlow(style)
-                && "flex".equals(element.parentElement.getComputedStyle().display)) {
+                && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)) {
             Element parent = element.parentElement;
             Flex parentFlex = Flex.of(parent);
             Size parentContentSize = Box.of(parent).innerSize();
@@ -169,8 +172,8 @@ public record Size(double width, double height) {
             }
         }
 
-        contentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth);
-        contentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight);
+        contentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
+        contentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, explicitParentHeight != null);
 
         double totalWidth = contentWidth + horizontalBox;
         double totalHeight = contentHeight + verticalBox;
@@ -182,23 +185,38 @@ public record Size(double width, double height) {
     }
 
     private static double clampContentExtent(double contentExtent, double boxExtent,
-                                             String minValue, String maxValue, double percentBasis) {
+                                             String minValue, String maxValue, double percentBasis,
+                                             boolean allowPercentResolution) {
         double result = contentExtent;
         Double minParsed = parseNumber(minValue);
         if (minParsed != null) {
-            double minTotal = resolveLength(minValue, percentBasis, minParsed);
-            result = Math.max(result, Math.max(0, minTotal - boxExtent));
+            if (!isPercent(minValue) || allowPercentResolution) {
+                double minTotal = resolveLength(minValue, percentBasis, minParsed);
+                result = Math.max(result, Math.max(0, minTotal - boxExtent));
+            }
         }
         Double maxParsed = parseNumber(maxValue);
         if (maxParsed != null) {
-            double maxTotal = resolveLength(maxValue, percentBasis, maxParsed);
-            result = Math.min(result, Math.max(0, maxTotal - boxExtent));
+            if (!isPercent(maxValue) || allowPercentResolution) {
+                double maxTotal = resolveLength(maxValue, percentBasis, maxParsed);
+                result = Math.min(result, Math.max(0, maxTotal - boxExtent));
+            }
         }
         return Math.max(0, result);
     }
 
     public static Size getTextSize(Element element) {
         return Text.of(element).size;
+    }
+
+    private static boolean hasDirectTextNodeChildren(Element element) {
+        if (element == null) return false;
+        for (com.sighs.apricityui.init.Node child : element.childNodes) {
+            if (child instanceof com.sighs.apricityui.init.TextNode textNode && !textNode.getTextContent().isEmpty()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static Size getContentSize(Element element) {
@@ -249,6 +267,28 @@ public record Size(double width, double height) {
             }
             return getScaleHeight(parent);
         } else return getWindowSize().height;
+    }
+
+    public static Double getExplicitContainingBlockHeight(Element element) {
+        Element parent = element.parentElement;
+        if (parent == null) return Math.max(0, getWindowSize().height());
+        Style parentStyle = parent.getRawComputedStyle();
+        if (parseNumber(parentStyle.height) == null) return null;
+
+        double resolvedHeight;
+        if (isPercent(parentStyle.height)) {
+            Double ancestorHeight = getExplicitContainingBlockHeight(parent);
+            if (ancestorHeight == null) return null;
+            resolvedHeight = ancestorHeight * parseNumber(parentStyle.height) / 100d;
+        } else {
+            resolvedHeight = parseNumber(parentStyle.height);
+        }
+
+        if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
+            Box parentBox = Box.of(parent);
+            resolvedHeight -= parentBox.getBorderVertical() + parentBox.getPaddingVertical();
+        }
+        return Math.max(0, resolvedHeight);
     }
 
     public static double lerp(double current, double target) {

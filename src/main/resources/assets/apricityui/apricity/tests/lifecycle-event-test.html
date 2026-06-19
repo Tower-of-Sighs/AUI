@@ -1,0 +1,196 @@
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">ApricityUI Lifecycle Regression</div>
+        <div class="title">Lifecycle Event Test</div>
+        <div class="summary">
+            Verifies `readyState`, `DOMContentLoaded`, `load`, and the current rule that late
+            listeners do not receive historical lifecycle dispatches.
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <div class="section-title">Expected Order</div>
+            <div class="note">1. initial script snapshot</div>
+            <div class="note">2. DOMContentLoaded</div>
+            <div class="note">3. load</div>
+            <div class="note">4. late registration after load should not replay either event</div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Snapshot</div>
+            <div id="snapshot" class="status">waiting...</div>
+        </div>
+
+        <div class="section section-fill">
+            <div class="section-title">Event Log</div>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var sequence = 0;
+        var body = document.body;
+        var snapshot = document.querySelector("#snapshot");
+        var log = document.querySelector("#log");
+
+        body.setAttribute("data-late-listener-result", "pending");
+
+        function pushLog(message) {
+            sequence += 1;
+            var line = document.createElement("div");
+            line.setAttribute("class", "log-line");
+            line.innerText = sequence + ". " + message;
+            log.append(line);
+        }
+
+        function updateSnapshot(tag) {
+            snapshot.innerText = tag + " | readyState=" + document.readyState;
+        }
+
+        updateSnapshot("initial script");
+        pushLog("initial script readyState=" + document.readyState);
+
+        document.addEventListener("DOMContentLoaded", function () {
+            updateSnapshot("DOMContentLoaded");
+            pushLog("DOMContentLoaded readyState=" + document.readyState);
+        });
+
+        document.addEventListener("load", function () {
+            updateSnapshot("load");
+            pushLog("load readyState=" + document.readyState);
+
+            window.setTimeout(function () {
+                var lateTriggered = false;
+
+                document.addEventListener("DOMContentLoaded", function () {
+                    lateTriggered = true;
+                    body.setAttribute("data-late-listener-result", "replayed");
+                    pushLog("late DOMContentLoaded listener fired");
+                });
+
+                document.addEventListener("load", function () {
+                    lateTriggered = true;
+                    body.setAttribute("data-late-listener-result", "replayed");
+                    pushLog("late load listener fired");
+                });
+
+                pushLog("late listeners registered after load");
+
+                window.setTimeout(function () {
+                    if (!lateTriggered) {
+                        body.setAttribute("data-late-listener-result", "no");
+                        pushLog("late listeners received no historical replay");
+                    }
+                }, 10);
+            }, 10);
+        });
+    })();
+</script>
+</body>
+
+<style>
+    html {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-image: linear-gradient(160deg, #08121d 0%, #102636 52%, #1b425d 100%);
+        color: #edf6ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .hero {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .eyebrow {
+        color: #7dd3fc;
+    }
+
+    .title {
+        font-size: 16px;
+        font-weight: bold;
+        color: #f8fbff;
+    }
+
+    .summary {
+        color: #b9d7ea;
+    }
+
+    .content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .section {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 6px;
+        border: 1px solid rgba(156, 204, 228, 0.52);
+        border-radius: 8px;
+        background-color: rgba(5, 12, 18, 0.55);
+        box-shadow: 0 0 0 1px rgba(6, 16, 24, 0.2);
+    }
+
+    .section-fill {
+        flex: 1;
+        min-height: 0;
+    }
+
+    .section-title {
+        color: #ffd78f;
+    }
+
+    .note,
+    .status {
+        color: #b9d7ea;
+    }
+
+    .log {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding-right: 2px;
+    }
+
+    .log-line {
+        padding: 4px 5px;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 6px;
+        background-color: rgba(4, 10, 16, 0.42);
+        color: #edf6ff;
+    }
+</style>

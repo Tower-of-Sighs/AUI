@@ -4,11 +4,13 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Size;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -166,7 +168,7 @@ public class CSS {
         public static int parse(String css, Map<String, Map<String, String>> targetCache,
                                 List<DebugRule> debugRules, String contextPath, int orderStart) {
             if (css == null || css.isBlank()) return orderStart;
-            String normalizedCss = parseAndRegisterAnimations(css, contextPath);
+            String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath));
 
             Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
             int order = orderStart;
@@ -197,6 +199,128 @@ public class CSS {
                 }
             }
             return order;
+        }
+
+        private static String evaluateMediaRules(String css) {
+            if (css == null || css.isBlank()) return "";
+            StringBuilder output = new StringBuilder();
+            int index = 0;
+            while (index < css.length()) {
+                int mediaIndex = indexOfIgnoreCase(css, "@media", index);
+                if (mediaIndex < 0) {
+                    output.append(css, index, css.length());
+                    break;
+                }
+                output.append(css, index, mediaIndex);
+                int headerStart = mediaIndex + 6;
+                int openBrace = css.indexOf('{', headerStart);
+                if (openBrace < 0) {
+                    output.append(css.substring(mediaIndex));
+                    break;
+                }
+                int closeBrace = findMatchingBrace(css, openBrace);
+                if (closeBrace < 0) {
+                    output.append(css.substring(mediaIndex));
+                    break;
+                }
+                String query = css.substring(headerStart, openBrace).trim();
+                String body = css.substring(openBrace + 1, closeBrace);
+                if (matchesMediaQuery(query)) {
+                    output.append(body);
+                }
+                index = closeBrace + 1;
+            }
+            return output.toString();
+        }
+
+        private static int indexOfIgnoreCase(String source, String target, int fromIndex) {
+            return source.toLowerCase(Locale.ROOT).indexOf(target.toLowerCase(Locale.ROOT), fromIndex);
+        }
+
+        private static int findMatchingBrace(String text, int openBrace) {
+            int depth = 0;
+            for (int i = openBrace; i < text.length(); i++) {
+                char c = text.charAt(i);
+                if (c == '{') depth++;
+                else if (c == '}') {
+                    depth--;
+                    if (depth == 0) return i;
+                }
+            }
+            return -1;
+        }
+
+        private static boolean matchesMediaQuery(String query) {
+            if (query == null || query.isBlank()) return true;
+            String normalized = query.trim().toLowerCase(Locale.ROOT);
+            if ("all".equals(normalized)) return true;
+            if ("screen".equals(normalized) || "only screen".equals(normalized)) return true;
+
+            int width = resolveViewportLength("aui.test.viewport.width", 1024, true);
+            int height = resolveViewportLength("aui.test.viewport.height", 768, false);
+
+            String[] andParts = normalized.split("\\band\\b");
+            for (String rawPart : andParts) {
+                String part = rawPart.trim();
+                if (part.isEmpty() || "screen".equals(part) || "only screen".equals(part) || "all".equals(part)) {
+                    continue;
+                }
+                if (part.startsWith("(") && part.endsWith(")")) {
+                    part = part.substring(1, part.length() - 1).trim();
+                }
+                if (part.startsWith("min-width")) {
+                    if (width < parseMediaLength(part.substring(part.indexOf(':') + 1))) return false;
+                    continue;
+                }
+                if (part.startsWith("max-width")) {
+                    if (width > parseMediaLength(part.substring(part.indexOf(':') + 1))) return false;
+                    continue;
+                }
+                if (part.startsWith("min-height")) {
+                    if (height < parseMediaLength(part.substring(part.indexOf(':') + 1))) return false;
+                    continue;
+                }
+                if (part.startsWith("max-height")) {
+                    if (height > parseMediaLength(part.substring(part.indexOf(':') + 1))) return false;
+                    continue;
+                }
+                if (part.startsWith("width")) {
+                    if (width != parseMediaLength(part.substring(part.indexOf(':') + 1))) return false;
+                    continue;
+                }
+                if (part.startsWith("height")) {
+                    if (height != parseMediaLength(part.substring(part.indexOf(':') + 1))) return false;
+                    continue;
+                }
+                if (part.startsWith("orientation")) {
+                    String orientation = part.substring(part.indexOf(':') + 1).trim();
+                    boolean landscape = width >= height;
+                    if ("landscape".equals(orientation) && !landscape) return false;
+                    if ("portrait".equals(orientation) && landscape) return false;
+                    continue;
+                }
+                return false;
+            }
+            return true;
+        }
+
+        private static int parseMediaLength(String raw) {
+            if (raw == null || raw.isBlank()) return 0;
+            Double parsed = Size.parseNumber(raw);
+            return parsed == null ? 0 : (int) Math.round(parsed);
+        }
+
+        private static int resolveViewportLength(String systemProperty, int fallback, boolean width) {
+            String override = System.getProperty(systemProperty);
+            if (override != null && !override.isBlank()) {
+                Double parsed = Size.parseNumber(override);
+                if (parsed != null) return (int) Math.round(parsed);
+            }
+            try {
+                return (int) Math.round(width ? Size.getWindowSize().width() : Size.getWindowSize().height());
+            } catch (Throwable ignored) {
+                return fallback;
+            }
         }
 
         private static String normalizeKeyframeName(String keyframeName) {

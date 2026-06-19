@@ -1,0 +1,302 @@
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">ApricityUI Event Regression</div>
+        <div class="title">Wheel / Scroll Event Test</div>
+        <div class="summary">
+            Verifies `wheel` input delivery, `preventDefault()` behavior, and `scroll` result events.
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="case-grid">
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">W1. Default Wheel Behavior</div>
+                    <div class="case-hint">Wheel inside the panel. Expected order: `wheel` first, then `scroll` when the position changes.</div>
+                </div>
+                <div class="viewport" id="defaultViewport">
+                    <div class="track">
+                        <div class="item">Default 01</div>
+                        <div class="item">Default 02</div>
+                        <div class="item">Default 03</div>
+                        <div class="item">Default 04</div>
+                        <div class="item">Default 05</div>
+                        <div class="item">Default 06</div>
+                        <div class="item">Default 07</div>
+                        <div class="item">Default 08</div>
+                        <div class="item">Default 09</div>
+                        <div class="item">Default 10</div>
+                        <div class="item">Default 11</div>
+                        <div class="item">Default 12</div>
+                    </div>
+                </div>
+                <div class="meta" id="defaultMeta">idle</div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">W2. preventDefault</div>
+                    <div class="case-hint">Wheel inside the panel. Expected result: `wheel` fires, but `scroll` does not.</div>
+                </div>
+                <div class="viewport" id="blockedViewport">
+                    <div class="track">
+                        <div class="item">Blocked 01</div>
+                        <div class="item">Blocked 02</div>
+                        <div class="item">Blocked 03</div>
+                        <div class="item">Blocked 04</div>
+                        <div class="item">Blocked 05</div>
+                        <div class="item">Blocked 06</div>
+                        <div class="item">Blocked 07</div>
+                        <div class="item">Blocked 08</div>
+                        <div class="item">Blocked 09</div>
+                        <div class="item">Blocked 10</div>
+                        <div class="item">Blocked 11</div>
+                        <div class="item">Blocked 12</div>
+                    </div>
+                </div>
+                <div class="meta" id="blockedMeta">idle</div>
+            </div>
+        </div>
+
+        <div class="log-shell">
+            <div class="log-head">
+                <div class="case-title">Event Log</div>
+                <input class="clear-button" id="clearButton" type="button" value="Clear">
+            </div>
+            <div class="log" id="log"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var logRoot = document.getElementById("log");
+        var clearButton = document.getElementById("clearButton");
+        var defaultViewport = document.getElementById("defaultViewport");
+        var blockedViewport = document.getElementById("blockedViewport");
+        var defaultMeta = document.getElementById("defaultMeta");
+        var blockedMeta = document.getElementById("blockedMeta");
+
+        function pushLog(line) {
+            if (!logRoot) return;
+            var row = document.createElement("div");
+            row.className = "log-line";
+            row.textContent = line;
+            logRoot.appendChild(row);
+        }
+
+        function syncMeta(target, meta, label) {
+            if (!target || !meta) return;
+            meta.textContent = label + " scrollTop=" + target.scrollTop + " scrollLeft=" + target.scrollLeft;
+        }
+
+        function bindViewport(target, meta, name, blockDefault) {
+            if (!target) return;
+
+            target.addEventListener("wheel", function (event) {
+                pushLog(
+                    name +
+                        " wheel deltaX=" +
+                        event.deltaX +
+                        " deltaY=" +
+                        event.deltaY +
+                        " defaultPrevented=" +
+                        event.defaultPrevented
+                );
+                if (blockDefault) {
+                    event.preventDefault();
+                    pushLog(name + " wheel preventDefault");
+                }
+                syncMeta(target, meta, name);
+            });
+
+            target.addEventListener("scroll", function () {
+                pushLog(name + " scroll");
+                syncMeta(target, meta, name);
+            });
+
+            syncMeta(target, meta, name);
+        }
+
+        bindViewport(defaultViewport, defaultMeta, "default", false);
+        bindViewport(blockedViewport, blockedMeta, "blocked", true);
+
+        if (clearButton) {
+            clearButton.addEventListener("click", function () {
+                if (logRoot) logRoot.innerHTML = "";
+            });
+        }
+
+        document.body.addEventListener("load", function () {
+            pushLog("body load");
+        });
+    })();
+</script>
+</body>
+
+<style>
+    html {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-image: linear-gradient(160deg, #08131d 0%, #102636 48%, #16384f 100%);
+        color: #edf6ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .hero {
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .eyebrow {
+        color: #7dd3fc;
+    }
+
+    .title {
+        font-size: 16px;
+        font-weight: bold;
+        color: #f8fbff;
+    }
+
+    .summary,
+    .case-hint,
+    .meta {
+        color: #b9d7ea;
+    }
+
+    .content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .case-grid {
+        flex: 0 0 auto;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .case,
+    .log-shell {
+        min-height: 0;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        border: 1px solid rgba(156, 204, 228, 0.52);
+        border-radius: 8px;
+        background-color: rgba(5, 12, 18, 0.55);
+        box-shadow: 0 0 0 1px rgba(6, 16, 24, 0.2);
+    }
+
+    .case-head,
+    .log-head {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .log-head {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .case-title {
+        color: #ffd78f;
+    }
+
+    .viewport {
+        height: 94px;
+        min-height: 94px;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 6px;
+        box-sizing: border-box;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 7px;
+        background-color: rgba(4, 10, 16, 0.42);
+    }
+
+    .track {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .item {
+        min-height: 18px;
+        padding: 4px 6px;
+        box-sizing: border-box;
+        border: 1px solid rgba(113, 164, 193, 0.34);
+        border-radius: 6px;
+        background-color: rgba(15, 33, 48, 0.78);
+        color: #eef7ff;
+    }
+
+    .meta {
+        min-height: 12px;
+    }
+
+    .log-shell {
+        flex: 1;
+    }
+
+    .log {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 6px;
+        box-sizing: border-box;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 7px;
+        background-color: rgba(4, 10, 16, 0.42);
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .log-line {
+        color: #d9efff;
+        word-break: break-word;
+    }
+
+    .clear-button {
+        min-width: 54px;
+        min-height: 22px;
+        padding: 4px 8px;
+        box-sizing: border-box;
+        border: 1px solid rgba(132, 182, 210, 0.72);
+        border-radius: 6px;
+        background-color: rgba(31, 78, 106, 0.94);
+        color: #eef8ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+</style>

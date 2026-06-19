@@ -1,6 +1,7 @@
 plugins {
     id 'java-library'
     id 'maven-publish'
+    id 'jacoco'
     id 'idea'
     id 'net.neoforged.moddev' version '2.0.82'
     id 'io.freefair.lombok' version '8.6'
@@ -150,6 +151,9 @@ dependencies {
     implementation "dev.latvian.mods:rhino:${rhino_version}"
     implementation "dev.latvian.mods:kubejs-neoforge:${kubejs_version}"
 
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+
     //must
     implementation "maven.modrinth:sodium:${sodium_version}"
     implementation "maven.modrinth:iris:${iris_version}"
@@ -244,5 +248,26 @@ idea {
     module {
         downloadSources = true
         downloadJavadoc = true
+    }
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+jacoco {
+    toolVersion = '0.8.12'
+}
+
+tasks.named('test', Test).configure {
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('jacocoTestReport', JacocoReport).configure {
+    dependsOn tasks.named('test')
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
     }
 }

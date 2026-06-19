@@ -3,15 +3,11 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.LocalStorage;
 import com.sighs.apricityui.init.Window;
-import net.minecraft.nbt.NbtAccounter;
-import net.minecraft.nbt.NbtIo;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
-
-import java.io.IOException;
 
 @EventBusSubscriber(modid = ApricityUI.MOD_ID, value = Dist.CLIENT)
 public class InitEvent {
@@ -19,12 +15,7 @@ public class InitEvent {
 
     @SubscribeEvent
     public static void localStorageInit(FMLClientSetupEvent event) {
-        try {
-            Window.window.localStorage.localStorage = NbtIo.readCompressed(LocalStorage.LOCAL_STORAGE_FILE_PATH.toPath(), NbtAccounter.unlimitedHeap());
-        } catch (IOException e) {
-            //文件不存在
-            Window.window.localStorage.save();
-        }
+        Window.window.localStorage.load();
     }
 
     @SubscribeEvent

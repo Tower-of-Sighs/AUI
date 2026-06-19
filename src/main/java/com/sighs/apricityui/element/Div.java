@@ -5,7 +5,6 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.Rect;
 
 @ElementRegister(Div.TAG_NAME)
 public class Div extends Element {
@@ -17,16 +16,7 @@ public class Div extends Element {
 
     @Override
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
-        Rect rectRenderer = Rect.of(this);
-        switch (phase) {
-            case SHADOW -> rectRenderer.drawShadow(poseStack);
-            case BODY -> {
-                rectRenderer.drawBody(poseStack);
-            }
-            case BORDER -> {
-                rectRenderer.drawBorder(poseStack);
-            }
-        }
+        super.drawPhase(poseStack, phase);
     }
 
     @Override

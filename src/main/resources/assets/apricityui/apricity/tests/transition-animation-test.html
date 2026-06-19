@@ -1,0 +1,950 @@
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">ApricityUI Motion Regression</div>
+        <div class="title">Transition + Animation Test Matrix</div>
+        <div class="summary">
+            用途: 单页集中回归 transition / animation。页面本身是滚动列表，覆盖 class 切换、样式重算、布局变更、滤镜、透明度、延迟、方向、填充模式、暂停恢复和滚动中持续动画。
+        </div>
+        <div class="toolbar">
+            <div class="action" id="toggleAuto">Auto: ON</div>
+            <div class="action" id="togglePlay">Animations: RUN</div>
+            <div class="action" id="resetAll">Reset</div>
+            <div class="status" id="statusText">Tick 0 | auto running</div>
+        </div>
+    </div>
+
+    <div class="layout">
+        <div class="rail">
+            <div class="card">
+                <div class="card-title">Transition Coverage</div>
+                <div class="token">opacity</div>
+                <div class="token">transform</div>
+                <div class="token">background-color</div>
+                <div class="token">border-color</div>
+                <div class="token">width / height</div>
+                <div class="token">margin / padding</div>
+                <div class="token">filter</div>
+                <div class="token">translateZ</div>
+                <div class="token">delay</div>
+                <div class="token">multi-property</div>
+                <div class="token">rapid interrupt</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Animation Coverage</div>
+                <div class="token">name</div>
+                <div class="token">duration</div>
+                <div class="token">delay</div>
+                <div class="token">iteration-count</div>
+                <div class="token">direction</div>
+                <div class="token">fill-mode</div>
+                <div class="token">timing-function</div>
+                <div class="token">play-state</div>
+                <div class="token">finite / infinite</div>
+                <div class="token">transform + opacity</div>
+                <div class="token">filter pulse</div>
+            </div>
+
+            <div class="card notes">
+                <div class="card-title">Expected Checks</div>
+                <div class="note">1. 自动切换时，过渡应平滑，不能残留幽灵帧。</div>
+                <div class="note">2. Reset 后应回到初始状态，不应卡在中间样式。</div>
+                <div class="note">3. 暂停动画时，transition 仍应继续工作。</div>
+                <div class="note">4. 滚动到页面底部后，离屏动画回到视野时应继续正常。</div>
+                <div class="note">5. delay / fill-mode 场景应能看出等待期和首尾帧差异。</div>
+            </div>
+        </div>
+
+        <div class="main" id="mainScroll">
+            <div class="section">
+                <div class="section-title">Transition Cases</div>
+                <div class="section-desc">点击单个案例可手动切换；自动模式下脚本会轮流翻转这些案例。</div>
+            </div>
+
+            <div class="case case-transition" data-group="transition" data-target="t-basic">
+                <div class="case-head">
+                    <div class="case-title">T1. Basic opacity + scale + color</div>
+                    <div class="case-hint">覆盖最常见的视觉过渡，检查 class 切换和回退。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile t-basic" id="t-basic">basic</div>
+                    <div class="meta">transition: opacity, transform, background-color, border-color</div>
+                </div>
+            </div>
+
+            <div class="case case-transition" data-group="transition" data-target="t-size">
+                <div class="case-head">
+                    <div class="case-title">T2. Width + height + border-radius</div>
+                    <div class="case-hint">覆盖布局型属性变化，观察 relayout 是否平滑且兄弟元素位置同步更新。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="stage">
+                        <div class="size-lane">
+                            <div class="tile t-size" id="t-size">size</div>
+                            <div class="tile sibling">sibling</div>
+                        </div>
+                    </div>
+                    <div class="meta">transition: width, height, border-radius, background-color</div>
+                </div>
+            </div>
+
+            <div class="case case-transition" data-group="transition" data-target="t-spacing">
+                <div class="case-head">
+                    <div class="case-title">T3. Margin + padding + text indentation</div>
+                    <div class="case-hint">覆盖盒模型变化，观察内容和兄弟项是否都按预期位移。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="stage">
+                        <div class="spacing-lane">
+                            <div class="tile t-spacing" id="t-spacing">spacing</div>
+                            <div class="chip">A</div>
+                            <div class="chip">B</div>
+                        </div>
+                    </div>
+                    <div class="meta">transition: margin-left, margin-right, padding-left, padding-right</div>
+                </div>
+            </div>
+
+            <div class="case case-transition" data-group="transition" data-target="t-delay">
+                <div class="case-head">
+                    <div class="case-title">T4. Delay and staggered properties</div>
+                    <div class="case-hint">覆盖 delay，不同属性分开开始和结束。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile t-delay" id="t-delay">delay</div>
+                    <div class="meta">transition includes opacity / transform / background-color with different delays</div>
+                </div>
+            </div>
+
+            <div class="case case-transition" data-group="transition" data-target="t-filter">
+                <div class="case-head">
+                    <div class="case-title">T5. Filter + opacity</div>
+                    <div class="case-hint">覆盖过滤效果，检查 filter 缓存和透明度联动。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile t-filter" id="t-filter">filter</div>
+                    <div class="meta">transition: filter, opacity, transform</div>
+                </div>
+            </div>
+
+            <div class="case case-transition" data-group="transition" data-target="t-z">
+                <div class="case-head">
+                    <div class="case-title">T6. translateZ + overlay ordering</div>
+                    <div class="case-hint">覆盖层叠上下文和位移深度；激活后金色块应压住底板。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="stage">
+                        <div class="z-stage">
+                            <div class="tile t-z" id="t-z">z-lift</div>
+                            <div class="z-back">base</div>
+                        </div>
+                    </div>
+                    <div class="meta">transition: transform with translateZ</div>
+                </div>
+            </div>
+
+            <div class="case case-transition" data-group="transition" data-target="t-rapid">
+                <div class="case-head">
+                    <div class="case-title">T7. Rapid interrupt / reverse</div>
+                    <div class="case-hint">脚本会快速反复切换，检查中断中的反向过渡是否平滑。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile t-rapid" id="t-rapid">rapid</div>
+                    <div class="meta">transition: transform, opacity, background-color | toggled at high frequency</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Animation Cases</div>
+                <div class="section-desc">这些案例持续运行或由工具栏统一暂停/恢复，用于观察 animation 的时间轴行为。</div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A1. Infinite alternate bounce</div>
+                    <div class="case-hint">覆盖 animation-iteration-count: infinite, direction: alternate。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile anim-bounce anim-controlled">bounce</div>
+                    <div class="meta">name bounce | duration 1200ms | ease-in-out | alternate | infinite</div>
+                </div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A2. Linear spin</div>
+                    <div class="case-hint">覆盖恒定速率旋转，检查长时间播放稳定性。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile anim-spin anim-controlled">spin</div>
+                    <div class="meta">name spin | duration 1800ms | linear | infinite</div>
+                </div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A3. Finite pulse with forwards fill</div>
+                    <div class="case-hint">结束后应停在最终帧，Reset 时重新开始。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile anim-finite anim-controlled" id="a-finite">finite</div>
+                    <div class="meta">iteration-count 3 | fill-mode forwards | transform + opacity</div>
+                </div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A4. Delayed reveal with backwards fill</div>
+                    <div class="case-hint">延迟期应先显示起始帧样式，然后再进入动画。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile anim-delay anim-controlled" id="a-delay">delay</div>
+                    <div class="meta">delay 900ms | fill-mode backwards | single run</div>
+                </div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A5. Reverse direction</div>
+                    <div class="case-hint">覆盖 animation-direction: reverse。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile anim-reverse anim-controlled">reverse</div>
+                    <div class="meta">reverse | infinite | transform + hue style change</div>
+                </div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A6. Alternate-reverse finite</div>
+                    <div class="case-hint">覆盖 alternate-reverse 与有限次数组合。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile anim-alt-rev anim-controlled" id="a-alt-rev">alt-rev</div>
+                    <div class="meta">alternate-reverse | 4 iterations | ease-in-out | both</div>
+                </div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A7. Filter pulse</div>
+                    <div class="case-hint">覆盖 animation 驱动的 filter / opacity 变化。</div>
+                </div>
+                <div class="demo-row">
+                    <div class="tile anim-filter anim-controlled">glow</div>
+                    <div class="meta">brightness / opacity pulse</div>
+                </div>
+            </div>
+
+            <div class="case">
+                <div class="case-head">
+                    <div class="case-title">A8. Scroll persistence band</div>
+                    <div class="case-hint">离屏后再回来应继续运行，不应冻结或重置到错误帧。</div>
+                </div>
+                <div class="demo-column">
+                    <div class="scroll-band">
+                        <div class="band-item anim-bounce anim-controlled">1</div>
+                        <div class="band-item anim-spin anim-controlled">2</div>
+                        <div class="band-item anim-filter anim-controlled">3</div>
+                        <div class="band-item anim-reverse anim-controlled">4</div>
+                        <div class="band-item anim-bounce anim-controlled">5</div>
+                        <div class="band-item anim-spin anim-controlled">6</div>
+                        <div class="band-item anim-filter anim-controlled">7</div>
+                        <div class="band-item anim-reverse anim-controlled">8</div>
+                    </div>
+                    <div class="meta">longer list for scroll + repeated animation instances</div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">Manual Notes</div>
+                <div class="section-desc">
+                    建议实际检查: 先观察自动轮播一轮，再关闭 Auto 手动点每个 transition 案例，然后暂停/恢复动画并滚到最底部再回来。
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+
+<style>
+    @keyframes motion-bounce {
+        0% {
+            transform: translateY(0px) scale(1);
+            opacity: 0.8;
+        }
+        50% {
+            transform: translateY(-5px) scale(1.08);
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(0px) scale(1);
+            opacity: 0.8;
+        }
+    }
+
+    @keyframes motion-spin {
+        0% {
+            transform: rotate(0deg);
+        }
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+
+    @keyframes motion-finite {
+        0% {
+            transform: scale(0.92);
+            opacity: 0.45;
+        }
+        50% {
+            transform: scale(1.08);
+            opacity: 1;
+        }
+        100% {
+            transform: scale(1.18);
+            opacity: 1;
+            background-color: #f59e0b;
+        }
+    }
+
+    @keyframes motion-reveal {
+        0% {
+            transform: translateX(-16px);
+            opacity: 0.2;
+            background-color: #334155;
+        }
+        100% {
+            transform: translateX(0px);
+            opacity: 1;
+            background-color: #14b8a6;
+        }
+    }
+
+    @keyframes motion-sweep {
+        0% {
+            transform: translateX(8px);
+            opacity: 1;
+        }
+        100% {
+            transform: translateX(-8px);
+            opacity: 0.65;
+        }
+    }
+
+    @keyframes motion-glow {
+        0% {
+            filter: brightness(0.9);
+            opacity: 0.75;
+        }
+        50% {
+            filter: brightness(1.5);
+            opacity: 1;
+        }
+        100% {
+            filter: brightness(0.9);
+            opacity: 0.75;
+        }
+    }
+
+    html {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-image: linear-gradient(160deg, #08131d 0%, #102636 48%, #16384f 100%);
+        color: #edf6ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        box-sizing: border-box;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .hero {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .eyebrow {
+        color: #7dd3fc;
+    }
+
+    .title {
+        font-size: 16px;
+        font-weight: bold;
+        color: #f8fbff;
+    }
+
+    .summary {
+        color: #b9d7ea;
+    }
+
+    .toolbar {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .action,
+    .status {
+        min-height: 16px;
+        padding: 2px 6px;
+        border-radius: 999px;
+        border: 1px solid rgba(150, 206, 231, 0.62);
+        background-color: rgba(6, 13, 19, 0.72);
+        color: #e9f8ff;
+    }
+
+    .action {
+        background-color: rgba(16, 53, 74, 0.86);
+    }
+
+    .status {
+        color: #ffe8a8;
+    }
+
+    .layout {
+        flex: 1;
+        height: 212px;
+        min-height: 0;
+        display: flex;
+        gap: 8px;
+        overflow: hidden;
+    }
+
+    .rail {
+        width: 122px;
+        height: 212px;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: auto;
+    }
+
+    .main {
+        flex: 1;
+        height: 212px;
+        width: 300px;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        overflow: auto;
+        padding-right: 2px;
+    }
+
+    .card,
+    .case,
+    .section {
+        border: 1px solid rgba(156, 204, 228, 0.52);
+        border-radius: 8px;
+        background-color: rgba(5, 12, 18, 0.55);
+        box-shadow: 0 0 0 1px rgba(6, 16, 24, 0.2);
+    }
+
+    .card {
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+    }
+
+    .card-title,
+    .section-title,
+    .case-title {
+        color: #ffd78f;
+    }
+
+    .token {
+        padding: 1px 4px;
+        border-radius: 999px;
+        background-color: rgba(39, 86, 116, 0.6);
+        color: #ebfaff;
+    }
+
+    .note,
+    .section-desc,
+    .case-hint,
+    .meta {
+        color: #b8d4e6;
+    }
+
+    .section,
+    .case {
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .case-head {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .demo-row,
+    .demo-column {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .stage {
+        height: 48px;
+        padding: 4px;
+        box-sizing: border-box;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 7px;
+        background-color: rgba(4, 10, 16, 0.42);
+        overflow: hidden;
+    }
+
+    .tile,
+    .chip,
+    .band-item,
+    .z-back {
+        box-sizing: border-box;
+        border-radius: 7px;
+        border: 1px solid #90c9ea;
+        background-color: rgba(32, 91, 125, 0.84);
+        color: #f8fcff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .tile {
+        width: 68px;
+        min-height: 24px;
+        padding: 4px 8px;
+    }
+
+    .sibling,
+    .chip {
+        min-width: 44px;
+        min-height: 20px;
+        padding: 2px 5px;
+        background-color: rgba(35, 63, 84, 0.76);
+        border-color: rgba(129, 175, 202, 0.8);
+    }
+
+    .size-lane,
+    .spacing-lane {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 38px;
+        height: 38px;
+    }
+
+    .z-stage {
+        display: flex;
+        align-items: center;
+        min-height: 40px;
+        height: 40px;
+    }
+
+    .z-back {
+        width: 78px;
+        min-height: 22px;
+        margin-left: -28px;
+        position: relative;
+        transform: translateZ(4px);
+        background-color: rgba(204, 225, 237, 0.78);
+        color: #173041;
+        border-color: rgba(230, 241, 248, 0.8);
+    }
+
+    .t-z {
+        position: relative;
+        background-color: rgba(186, 126, 38, 0.88);
+        border-color: #ffe0a6;
+        color: #2a1c08;
+    }
+
+    .t-basic {
+        opacity: 0.7;
+        transform: scale(1);
+        background-color: rgba(38, 112, 155, 0.84);
+        transition: opacity 180ms, transform 180ms, background-color 180ms, border-color 180ms;
+    }
+
+    .t-basic.on {
+        opacity: 1;
+        transform: scale(1.12);
+        background-color: rgba(25, 177, 130, 0.9);
+        border-color: #b8ffe2;
+    }
+
+    .t-size {
+        width: 62px;
+        min-height: 22px;
+        transition: width 260ms, height 260ms, border-radius 260ms, background-color 260ms;
+    }
+
+    .t-size.on {
+        width: 110px;
+        min-height: 34px;
+        border-radius: 14px;
+        background-color: rgba(14, 162, 126, 0.92);
+    }
+
+    .t-spacing {
+        margin-left: 0px;
+        margin-right: 0px;
+        padding-left: 6px;
+        padding-right: 6px;
+        transition: margin-left 220ms, margin-right 220ms, padding-left 220ms, padding-right 220ms, background-color 220ms;
+    }
+
+    .t-spacing.on {
+        margin-left: 18px;
+        margin-right: 10px;
+        padding-left: 16px;
+        padding-right: 16px;
+        background-color: rgba(139, 92, 246, 0.9);
+    }
+
+    .t-delay {
+        opacity: 0.55;
+        transform: translateX(0px);
+        background-color: rgba(49, 96, 133, 0.84);
+        transition:
+            opacity 180ms 0ms,
+            transform 240ms 120ms,
+            background-color 180ms 240ms;
+    }
+
+    .t-delay.on {
+        opacity: 1;
+        transform: translateX(18px);
+        background-color: rgba(225, 126, 62, 0.9);
+    }
+
+    .t-filter {
+        opacity: 0.78;
+        filter: brightness(1.0);
+        transform: scale(1);
+        transition: filter 220ms, opacity 220ms, transform 220ms;
+    }
+
+    .t-filter.on {
+        opacity: 1;
+        filter: brightness(1.45);
+        transform: scale(1.08);
+    }
+
+    .t-z {
+        transform: translateZ(0px) translateX(0px);
+        transition: transform 240ms, background-color 240ms;
+    }
+
+    .t-z.on {
+        transform: translateZ(12px) translateX(10px);
+        background-color: rgba(245, 158, 11, 0.95);
+    }
+
+    .t-rapid {
+        opacity: 0.75;
+        transform: scale(1) translateX(0px);
+        background-color: rgba(39, 100, 138, 0.88);
+        transition: transform 140ms, opacity 140ms, background-color 140ms;
+    }
+
+    .t-rapid.on {
+        opacity: 1;
+        transform: scale(1.1) translateX(12px);
+        background-color: rgba(233, 83, 106, 0.92);
+    }
+
+    .anim-bounce {
+        animation-name: motion-bounce;
+        animation-duration: 1200ms;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+        animation-direction: alternate;
+        animation-fill-mode: both;
+    }
+
+    .anim-spin {
+        animation-name: motion-spin;
+        animation-duration: 1800ms;
+        animation-timing-function: linear;
+        animation-iteration-count: infinite;
+        animation-direction: normal;
+        animation-fill-mode: both;
+    }
+
+    .anim-finite {
+        animation-name: motion-finite;
+        animation-duration: 700ms;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: 3;
+        animation-direction: normal;
+        animation-fill-mode: forwards;
+    }
+
+    .anim-delay {
+        animation-name: motion-reveal;
+        animation-duration: 900ms;
+        animation-delay: 900ms;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: 1;
+        animation-direction: normal;
+        animation-fill-mode: backwards;
+    }
+
+    .anim-reverse {
+        animation-name: motion-sweep;
+        animation-duration: 900ms;
+        animation-timing-function: linear;
+        animation-iteration-count: infinite;
+        animation-direction: reverse;
+        animation-fill-mode: both;
+    }
+
+    .anim-alt-rev {
+        animation-name: motion-bounce;
+        animation-duration: 800ms;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: 4;
+        animation-direction: alternate-reverse;
+        animation-fill-mode: both;
+    }
+
+    .anim-filter {
+        animation-name: motion-glow;
+        animation-duration: 1200ms;
+        animation-timing-function: ease-in-out;
+        animation-iteration-count: infinite;
+        animation-direction: normal;
+        animation-fill-mode: both;
+    }
+
+    .paused {
+        animation-play-state: paused;
+    }
+
+    .reboot {
+        animation-name: none;
+    }
+
+    .scroll-band {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 7px;
+        background-color: rgba(4, 10, 16, 0.42);
+    }
+
+    .band-item {
+        width: 46px;
+        min-height: 20px;
+    }
+
+</style>
+
+<script>
+    let autoMode = true;
+    let animationsRunning = true;
+    let tick = 0;
+    let currentIndex = 0;
+    let rapidFlip = false;
+
+    let transitionTargets = [
+        "t-basic",
+        "t-size",
+        "t-spacing",
+        "t-delay",
+        "t-filter",
+        "t-z"
+    ];
+
+    function byId(id) {
+        return document.querySelector("#" + id);
+    }
+
+    function listCount(list) {
+        if (!list) return 0;
+        if (list.size) return list.size();
+        if (list.length != null) return list.length;
+        return 0;
+    }
+
+    function listGet(list, index) {
+        if (!list) return null;
+        if (list.get) return list.get(index);
+        return list[index];
+    }
+
+    function hasOnClass(element) {
+        if (!element) return false;
+        return element.getAttribute("class").indexOf(" on") >= 0;
+    }
+
+    function setOnClass(element, enabled) {
+        if (!element) return;
+        let className = element.getAttribute("class");
+        let base = className.replace(" on", "").replace("on", "").trim();
+        element.setAttribute("class", enabled ? (base + " on") : base);
+    }
+
+    function toggleTarget(id) {
+        let element = byId(id);
+        if (!element) return;
+        setOnClass(element, !hasOnClass(element));
+    }
+
+    function resetTransitionTargets() {
+        for (let i = 0; i < transitionTargets.length; i++) {
+            let element = byId(transitionTargets[i]);
+            setOnClass(element, false);
+        }
+        let rapid = byId("t-rapid");
+        setOnClass(rapid, false);
+    }
+
+    function rearmAnimation(id) {
+        let element = byId(id);
+        if (!element) return;
+        let className = element.getAttribute("class");
+        element.setAttribute("class", className.indexOf(" reboot") >= 0 ? className : className + " reboot");
+        window.setTimeout(function () {
+            let now = element.getAttribute("class");
+            element.setAttribute("class", now.replace(" reboot", ""));
+        }, 30);
+    }
+
+    function setAnimationRunning(running) {
+        animationsRunning = running;
+        let list = document.querySelectorAll(".anim-controlled");
+        for (let i = 0; i < listCount(list); i++) {
+            let element = listGet(list, i);
+            let className = element.getAttribute("class").replace(" paused", "");
+            if (!running) className += " paused";
+            element.setAttribute("class", className);
+        }
+        let togglePlay = byId("togglePlay");
+        if (togglePlay) togglePlay.innerText = running ? "Animations: RUN" : "Animations: PAUSE";
+    }
+
+    function refreshStatus() {
+        let status = byId("statusText");
+        if (!status) return;
+        status.innerText = "Tick " + tick + " | auto " + (autoMode ? "running" : "stopped") + " | anim " + (animationsRunning ? "running" : "paused");
+    }
+
+    function stepAuto() {
+        tick++;
+        let rapid = byId("t-rapid");
+        if (rapid) {
+            rapidFlip = !rapidFlip;
+            setOnClass(rapid, rapidFlip);
+        }
+
+        if (autoMode) {
+            let id = transitionTargets[currentIndex];
+            toggleTarget(id);
+            currentIndex = (currentIndex + 1) % transitionTargets.length;
+        }
+
+        if (tick % 8 == 0) {
+            rearmAnimation("a-finite");
+        }
+        if (tick % 10 == 0) {
+            rearmAnimation("a-delay");
+        }
+        if (tick % 12 == 0) {
+            rearmAnimation("a-alt-rev");
+        }
+
+        refreshStatus();
+    }
+
+    function resetAll() {
+        resetTransitionTargets();
+        rearmAnimation("a-finite");
+        rearmAnimation("a-delay");
+        rearmAnimation("a-alt-rev");
+        tick = 0;
+        currentIndex = 0;
+        refreshStatus();
+    }
+
+    function setupCaseClicks() {
+        let cases = document.querySelectorAll(".case-transition");
+        for (let i = 0; i < listCount(cases); i++) {
+            let item = listGet(cases, i);
+            item.addEventListener("mousedown", function () {
+                let targetId = item.getAttribute("data-target");
+                toggleTarget(targetId);
+            });
+        }
+    }
+
+    function setupToolbar() {
+        let auto = byId("toggleAuto");
+        let play = byId("togglePlay");
+        let reset = byId("resetAll");
+        if (auto) {
+            auto.addEventListener("mousedown", function () {
+                autoMode = !autoMode;
+                auto.innerText = autoMode ? "Auto: ON" : "Auto: OFF";
+                refreshStatus();
+            });
+        }
+        if (play) {
+            play.addEventListener("mousedown", function () {
+                setAnimationRunning(!animationsRunning);
+                refreshStatus();
+            });
+        }
+        if (reset) {
+            reset.addEventListener("mousedown", function () {
+                resetAll();
+            });
+        }
+    }
+
+    let initialized = false;
+
+    function initializePage() {
+        if (initialized) return;
+        initialized = true;
+        setupCaseClicks();
+        setupToolbar();
+        setAnimationRunning(true);
+        refreshStatus();
+        window.setInterval(function () {
+            stepAuto();
+        }, 650);
+    }
+
+    if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", initializePage);
+    } else {
+        initializePage();
+    }
+</script>

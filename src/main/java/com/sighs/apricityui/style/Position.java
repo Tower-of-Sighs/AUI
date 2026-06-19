@@ -105,7 +105,9 @@ public class Position {
     }
 
     private static boolean isSet(String value) {
-        return value != null && !value.isBlank() && !"unset".equals(value);
+        if (value == null || value.isBlank()) return false;
+        String normalized = value.trim().toLowerCase();
+        return !"unset".equals(normalized) && !"auto".equals(normalized);
     }
 
     private static Position resolveRelativeShift(Element element) {

@@ -1,47 +1,60 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Body;
+import com.sighs.apricityui.element.Head;
+import com.sighs.apricityui.element.Html;
+import com.sighs.apricityui.canvas.CanvasPath2D;
+import com.sighs.apricityui.canvas.DOMMatrix;
+import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 
 public class Document {
-    private static final int MOTION_FLAG_TRANSITION = 1;
-    private static final int MOTION_FLAG_ANIMATION_SPEC = 1 << 1;
+    private enum LifecycleState {
+        LOADING("loading"),
+        INTERACTIVE("interactive"),
+        COMPLETE("complete"),
+        DISPOSED("complete");
+
+        private final String readyStateValue;
+
+        LifecycleState(String readyStateValue) {
+            this.readyStateValue = readyStateValue;
+        }
+    }
 
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
-    private final ArrayList<Element> elements = new ArrayList<>();
-    private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
-    private final Set<Element> pendingStyleRoots = Collections.newSetFromMap(new IdentityHashMap<>());
-    private final ConcurrentHashMap<Element, Integer> motionFlags = new ConcurrentHashMap<>();
-    private ArrayList<RenderNode> paintList = new ArrayList<>();
-    private final HashMap<String, Element> IDMap = new HashMap<>();
-
-    private Element previousCursorElement = null;
-    private Element activeElement = null;
-    private Element focusedElement = null;
-
+    private final ElementTree tree = new ElementTree(this);
+    private final RenderQueue render = new RenderQueue(this);
     private final String path;
     public final Map<String, Map<String, String>> CSSCache = new LinkedHashMap<>();
     public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
     public final List<String> JSCache = new ArrayList<>();
+    public Html documentElement;
+    public Head head;
     public Body body;
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
     private volatile long refreshGeneration = 0L;
+    private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
+    private volatile String readyState = LifecycleState.LOADING.readyStateValue;
+    private volatile Element lastClickTarget = null;
+    private volatile int lastClickButton = -1;
+    private volatile long lastClickTimeNs = 0L;
+    private final CopyOnWriteArrayList<MutationObserver> mutationObservers = new CopyOnWriteArrayList<>();
 
-    private volatile Selector.Index selectorIndex = null;
+    private final StyleScope style = new StyleScope(this);
+    private final MotionTrack motion = new MotionTrack(this);
+    private final FocusRing focus = new FocusRing(this);
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -53,109 +66,111 @@ public class Document {
     }
 
     public void refresh() {
-        refreshGeneration++;
+        beginRefreshLifecycle();
         CSSCache.clear();
         CSSDebugRules.clear();
         JSCache.clear();
-        IDMap.clear();
-        elements.clear();
-        motionFlags.clear();
+        tree.clear();
+        render.reset();
+        motion.clear();
         invalidateSelectorIndex();
-        Element bodyElement = HTML.create(this, path);
+        HTML.DocumentRoot root = HTML.create(this, path);
         try {
-            if (bodyElement == null) return;
-            if (body != null) bodyElement.EventListener = body.EventListener;
-            body = (Body) Element.init(bodyElement);
+            if (root == null || root.body() == null) return;
+            if (body != null) root.body().setEventListeners(body.EventListener);
+            documentElement = root.documentElement();
+            head = root.head();
+            body = root.body();
             rebuildElementIndexFromBody();
 
             // First pass: ensure computed styles exist for DOM expanders.
-            recomputeStyleSubtree(body);
+            style.recomputeSubtree(documentElement);
             DocumentExpander.apply(this);
 
             // Final pass: apply styles once after expansion.
-            recomputeStyleSubtree(body);
-            elements.forEach(Element::clearDirtyFlags);
-            dirtyElements.clear();
-            paintList = Drawer.createPaintList(body);
+            style.recomputeSubtree(documentElement);
+            tree.getElements().forEach(Element::clearDirtyFlags);
+            render.reset();
+            render.rebuildPaintList();
             ImageAsyncHandler.prefetchImages(this);
+            enterInteractive();
 
             for (String js : JSCache) {
-                String head = "let document = ApricityUI.getDocumentByUUID(\"" + uuid + "\");\n";
-                head += "let window = ApricityUI.getWindow();\n";
-                head += "let performance = window.getPerformance();\n";
-                head += "let requestAnimationFrame = (callback) => window.requestAnimationFrame(callback);\n";
-                head += "let cancelAnimationFrame = (id) => window.cancelAnimationFrame(id);\n";
-                head += "function MouseEvent(type, init) {\n";
-                head += "  init = init || {};\n";
-                head += "  let x = init.clientX || 0;\n";
-                head += "  let y = init.clientY || 0;\n";
-                head += "  let button = init.button == null ? -1 : init.button;\n";
-                head += "  return window.createMouseEvent(type, x, y, button);\n";
-                head += "}\n";
+                String head = Loader.readGlobalJS();
+                if (head == null) head = "";
+                else head = head.replace("__AUI_DOCUMENT_UUID__", uuid.toString());
+                if (!head.isEmpty() && !head.endsWith("\n")) head += "\n";
                 ApricityJS.eval(head + js);
             }
-            for (Event eventListener : body.EventListener) {
-                if (eventListener.type.equals("load")) body.triggerEvent(eventListener.listener);
-            }
+            fireLifecycleEvent("DOMContentLoaded", false);
+            enterComplete();
+            fireLifecycleEvent("load", false);
         } catch (Exception ignored) {
         }
     }
 
+    private void beginRefreshLifecycle() {
+        refreshGeneration++;
+        lifecycleState = LifecycleState.LOADING;
+        readyState = lifecycleState.readyStateValue;
+        clearMutationObservers();
+    }
+
+    private void enterInteractive() {
+        if (lifecycleState == LifecycleState.DISPOSED) return;
+        lifecycleState = LifecycleState.INTERACTIVE;
+        readyState = lifecycleState.readyStateValue;
+    }
+
+    private void enterComplete() {
+        if (lifecycleState == LifecycleState.DISPOSED) return;
+        lifecycleState = LifecycleState.COMPLETE;
+        readyState = lifecycleState.readyStateValue;
+    }
+
+    private void disposeLifecycle() {
+        if (lifecycleState == LifecycleState.DISPOSED) return;
+        lifecycleState = LifecycleState.DISPOSED;
+        clearMutationObservers();
+        focus.clearFocus();
+        focus.setPressedElement(null);
+        focus.setPreviousCursorElement(null);
+        lastClickTarget = null;
+        lastClickButton = -1;
+        lastClickTimeNs = 0L;
+    }
+
+    private void fireLifecycleEvent(String type, boolean bubbles) {
+        if (body == null || type == null || type.isBlank() || !isActive()) return;
+        Event event = new Event(body, type, null, false);
+        event.bubbles = bubbles;
+        event.setTrusted(true);
+        Event.triggerSingle(event);
+    }
+
     private void rebuildElementIndexFromBody() {
-        elements.clear();
-        IDMap.clear();
-        if (body == null) return;
-
-        body.parentElement = null;
-        body.depth = 0;
-
-        Deque<Element> stack = new ArrayDeque<>();
-        stack.push(body);
-
-        while (!stack.isEmpty()) {
-            Element current = stack.pop();
-            elements.add(current);
-
-            current.runInitFromDomOnce(current);
-            if (current.id != null && !current.id.isBlank()) {
-                IDMap.put(current.id, current);
-            }
-
-            List<Element> children = current.children;
-            for (int i = children.size() - 1; i >= 0; i--) {
-                Element child = children.get(i);
-                if (child == null) continue;
-                child.parentElement = current;
-                child.depth = current.depth + 1;
-                stack.push(child);
-            }
-        }
+        tree.rebuildFromRoot(documentElement);
     }
 
 
     // 绘制队列，详见Drawer类
     public ArrayList<RenderNode> getPaintList() {
-        return paintList;
+        return render.getPaintList();
     }
 
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
     public void updateElement(Element element) {
-        int index = -1;
-        for (Element e : elements) {
-            if (e.uuid.equals(element.uuid)) index = elements.indexOf(e);
-        }
-        if (index == -1) return;
-        elements.set(index, element);
+        tree.updateElement(element);
     }
 
     public Set<Element> getDirtyElements() {
-        return dirtyElements;
+        return render.getDirtyElements();
     }
 
     public void requestStyleRecalc(Element element) {
         if (element == null) return;
         if (element.document != this) return;
-        pendingStyleRoots.add(element);
+        style.requestRecalc(element);
     }
 
     /**
@@ -164,25 +179,7 @@ public class Document {
      * 当前策略较保守：当某个元素的交互态（hover/active/focus）变化时，刷新该元素及其子树。
      */
     public void flushPendingStyleUpdates() {
-        if (pendingStyleRoots.isEmpty()) return;
-
-        ArrayList<Element> candidates = new ArrayList<>(pendingStyleRoots);
-        pendingStyleRoots.clear();
-        candidates.sort(Comparator.comparingInt(Element::getDepth));
-
-        Set<Element> selected = Collections.newSetFromMap(new IdentityHashMap<>());
-        ArrayList<Element> roots = new ArrayList<>();
-
-        for (Element candidate : candidates) {
-            if (candidate == null || candidate.document != this) continue;
-            if (isCoveredByAncestor(candidate, selected)) continue;
-            selected.add(candidate);
-            roots.add(candidate);
-        }
-
-        for (Element root : roots) {
-            recomputeStyleSubtree(root);
-        }
+        style.flushPendingUpdates();
     }
 
     /**
@@ -190,27 +187,6 @@ public class Document {
      * <p>
      * Element 只负责 recompute 自己（无递归），避免任何零散路径随手 children.forEach(...) 扩散计算量。
      */
-    private void recomputeStyleSubtree(Element root) {
-        if (root == null || root.document != this) return;
-
-        Deque<Element> stack = new ArrayDeque<>();
-        stack.push(root);
-
-        while (!stack.isEmpty()) {
-            Element current = stack.pop();
-            if (current == null || current.document != this) continue;
-
-            current.recomputeStyleSelf();
-
-            List<Element> children = current.children;
-            for (int i = children.size() - 1; i >= 0; i--) {
-                Element child = children.get(i);
-                if (child == null) continue;
-                stack.push(child);
-            }
-        }
-    }
-
     /**
      * 单 Document 的 tick 生命周期入口。
      * <p>
@@ -218,12 +194,14 @@ public class Document {
      * 因此这里负责统一执行样式刷新、元素 tick、以及 dirty flags 的 flushUpdates。
      */
     public void tickFrame() {
+        if (!isActive()) return;
         commitStyleRecalc();
         stepMotion();
         tickElements();
         // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
         commitStyleRecalc();
         stepMotion();
+        flushMutationObservers();
         commitRenderState();
     }
 
@@ -231,7 +209,8 @@ public class Document {
      * Style Recalc 阶段：统一在 tick 中重算样式。
      */
     public void commitStyleRecalc() {
-        flushPendingStyleUpdates();
+        if (!isActive()) return;
+        style.flushPendingUpdates();
     }
 
     /**
@@ -251,95 +230,32 @@ public class Document {
      * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
      */
     public void stepMotionRender() {
-        if (!StyleFrameCache.isActive()) return;
-        if (motionFlags.isEmpty()) return;
-
-        for (Map.Entry<Element, Integer> entry : motionFlags.entrySet()) {
-            Element element = entry.getKey();
-            if (element == null || element.document != this) {
-                motionFlags.remove(element);
-                continue;
-            }
-
-            int flags = entry.getValue() == null ? 0 : entry.getValue();
-            boolean hasTransition = (flags & MOTION_FLAG_TRANSITION) != 0;
-            boolean hasAnimationSpec = (flags & MOTION_FLAG_ANIMATION_SPEC) != 0;
-            if (!hasTransition && !hasAnimationSpec) {
-                motionFlags.remove(element);
-                continue;
-            }
-
-            Style base = element.getRawComputedStyle();
-
-            // 避免 tick 还没来得及同步 animation spec 时，render 侧重复做无意义工作。
-            if (hasAnimationSpec && !Animation.hasAnimationSpec(base)) {
-                setHasAnimationSpec(element, false);
-                hasAnimationSpec = false;
-            }
-
-            if (!hasTransition && !hasAnimationSpec) continue;
-
-            Style animated = base.clone();
-            if (hasTransition) {
-                boolean stillActive = Transition.updateStyle(element, animated);
-                if (!stillActive) {
-                    setTransitionActive(element, false);
-                }
-            }
-            if (hasAnimationSpec) {
-                Animation.updateStyle(element, animated);
-            }
-
-            // 为当帧提供“带 motion 的 computed style”
-            StyleFrameCache.put(element, animated);
-
-            // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
-            if (!Objects.equals(animated.transform, base.transform)) {
-                element.getRenderer().transform.clear();
-            }
-            if (!Objects.equals(animated.filter, base.filter) || !Objects.equals(animated.opacity, base.opacity)) {
-                element.getRenderer().filter.clear();
-            }
-            if (!Objects.equals(animated.backdropFilter, base.backdropFilter)) {
-                element.getRenderer().backdropFilter.clear();
-            }
-        }
+        if (!isActive()) return;
+        motion.stepRender();
     }
 
     /**
      * Element Tick 阶段：滚动、输入态、逐帧逻辑。
      */
     public void tickElements() {
-        for (Element element : getElements()) {
-            element.tick();
-        }
+        if (!isActive()) return;
+        render.tickElements();
     }
 
     /**
-     * Commit RenderState：将 dirty flags 提交为 layout/paintList 的更新。
+     * Commit Render：将 dirty flags 提交为 layout/paintList 的更新。
      */
     public void commitRenderState() {
-        Drawer.flushUpdates(this);
-    }
-
-    private static boolean isCoveredByAncestor(Element element, Set<Element> selected) {
-        Element current = element.parentElement;
-        while (current != null) {
-            if (selected.contains(current)) return true;
-            current = current.parentElement;
-        }
-        return false;
+        if (!isActive()) return;
+        render.commit();
     }
 
     public void markDirty(int mask) {
-        elements.forEach(element -> element.addDirtyFlags(mask));
-        dirtyElements.addAll(elements);
+        render.markDirty(mask);
     }
 
     public void markDirty(Element element, int mask) {
-        if (element == null) return;
-        element.addDirtyFlags(mask);
-        dirtyElements.add(element);
+        render.markDirty(element, mask);
     }
 
     public void reapplyStylesFromCache() {
@@ -349,19 +265,19 @@ public class Document {
     }
 
     public void invalidateSelectorIndex() {
-        selectorIndex = null;
+        style.invalidateSelectorIndex();
     }
 
     public void rebuildSelectorIndex() {
-        selectorIndex = Selector.Index.build(CSSCache);
+        style.rebuildSelectorIndex();
     }
 
     Selector.Index getSelectorIndex() {
-        Selector.Index index = selectorIndex;
-        if (index != null) return index;
-        index = Selector.Index.build(CSSCache);
-        selectorIndex = index;
-        return index;
+        return style.getSelectorIndex();
+    }
+
+    ElementTree getTree() {
+        return tree;
     }
 
     public boolean is(String path) {
@@ -391,6 +307,18 @@ public class Document {
         return refreshGeneration;
     }
 
+    public boolean isDisposed() {
+        return lifecycleState == LifecycleState.DISPOSED;
+    }
+
+    public boolean isActive() {
+        return lifecycleState != LifecycleState.DISPOSED;
+    }
+
+    public boolean isCurrentGeneration(long generation) {
+        return isActive() && refreshGeneration == generation;
+    }
+
     public Element createHTML(String html) {
         return HTML.createElement(this, html);
     }
@@ -399,51 +327,162 @@ public class Document {
         return new Element(this, tagName);
     }
 
-    public void createRelation(Element child, Element parent, boolean head) {
-        if (child.parentElement != null) child.parentElement.children.remove(child);
-        child.parentElement = parent;
-        child.getRenderer().route.clear();
-        if (parent.children.isEmpty() || !head) {
-            elements.add(child);
-            parent.children.add(child);
-        } else {
-            int maxIndex = elements.size() - 1;
-            for (int i = 0; i <= maxIndex; i++) {
-                Element parentElement = elements.get(i).parentElement;
-                if (parentElement != null && parentElement.uuid.equals(parent.uuid)) {
-                    elements.add(i, child);
-                    break;
-                }
-            }
-            parent.children.add(0, child);
-        }
-        child.depth = parent.getDepth() + 1;
-        child.invalidateStyle();
-        child.getRenderer().size.clear();
+    public TextNode createTextNode(String text) {
+        return new TextNode(this, text);
+    }
 
-        // 需要判断一下是否为影响布局的属性，待补充
-        markDirty(parent, Drawer.RELAYOUT);
+    public CommentNode createComment(String text) {
+        return new CommentNode(this, text);
+    }
+
+    public DocumentFragment createDocumentFragment() {
+        return new DocumentFragment(this);
+    }
+
+    public void createRelation(Node child, Node parent, boolean head) {
+        tree.createRelation(child, parent, head);
+    }
+
+    public Node createRelationAndReturn(Node child, Node parent, boolean head) {
+        tree.createRelation(child, parent, head);
+        return child;
     }
 
     public List<Element> querySelectorAll(String selector) {
-        return Selector.querySelectorAll(body, selector);
+        return Selector.querySelectorAll(documentElement, selector);
     }
 
     public Element querySelector(String selector) {
-        return Selector.querySelector(body, selector);
+        return Selector.querySelector(documentElement, selector);
     }
 
     public void recordID(Element element) {
-        IDMap.put(element.id, element);
+        tree.recordId(element);
+    }
+
+    public void removeID(String id, Element element) {
+        tree.removeId(id, element);
     }
 
     public Element getElementById(String id) {
-        return IDMap.get(id);
+        return tree.getElementById(id);
+    }
+
+    public Element getDocumentElement() {
+        return documentElement;
+    }
+
+    public Element getHead() {
+        return head;
+    }
+
+    public String getURL() {
+        return path;
+    }
+
+    public String getDocumentURI() {
+        return path;
+    }
+
+    public String getBaseURI() {
+        return path;
+    }
+
+    public BrowserLocation getLocation() {
+        return new BrowserLocation(path);
+    }
+
+    public String getReadyState() {
+        return readyState;
+    }
+
+    public boolean hasFocus() {
+        return getFocusedElement() != null;
+    }
+
+    public void blur() {
+        clearFocus();
+    }
+
+    public Node appendChild(Node element) {
+        if (body == null) return null;
+        return body.appendChild(element);
+    }
+
+    public void scrollTo(double x, double y) {
+        if (body == null) return;
+        body.scrollTo(x, y);
+    }
+
+    public void scrollBy(double x, double y) {
+        if (body == null) return;
+        body.scrollBy(x, y);
+    }
+
+    public Node prepend(Node element) {
+        if (body == null || element == null) return null;
+        body.insertBefore(element, body.getFirstChild());
+        return element;
+    }
+
+    public void addEventListener(String type, java.util.function.Consumer<Event> listener) {
+        if (body == null) return;
+        body.addEventListener(type, listener);
+    }
+
+    public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
+        if (body == null) return;
+        body.addEventListener(type, listener, useCapture);
+    }
+
+    public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture, boolean once) {
+        if (body == null) return;
+        body.addEventListener(type, listener, useCapture, once);
+    }
+
+    public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
+        if (body == null) return;
+        body.removeEventListener(type, listener, useCapture);
+    }
+
+    public boolean dispatchEvent(Object event) {
+        if (!(event instanceof Event targetEvent)) return false;
+        if (body == null) return false;
+        if (targetEvent.target == null) targetEvent.target = body;
+        if (targetEvent.currentTarget == null) targetEvent.currentTarget = body;
+        Event.tiggerEvent(targetEvent);
+        return !targetEvent.defaultPrevented;
+    }
+
+    public List<Element> getElementsByClassName(String className) {
+        if (body == null) return List.of();
+        String normalized = className == null ? "" : className.trim();
+        if (normalized.isEmpty()) return List.of();
+        String selector = "." + String.join(".", normalized.split("\\s+"));
+        return Selector.querySelectorAll(body, selector);
+    }
+
+    public List<Element> getElementsByTagName(String tagName) {
+        if (body == null) return List.of();
+        String normalized = tagName == null ? "" : tagName.trim();
+        if (normalized.isEmpty()) return List.of();
+        return Selector.querySelectorAll(body, normalized);
+    }
+
+    public List<Element> getElementsByName(String name) {
+        if (body == null) return List.of();
+        String normalized = name == null ? "" : name.trim();
+        if (normalized.isEmpty()) return List.of();
+        return Selector.querySelectorAll(body, "[name=\"" + normalized + "\"]");
     }
 
     public static void refreshAll() {
         for (Document document : documents) {
-            if (document == null || document.isReloadPersistent()) continue;
+            if (document == null || document.isReloadPersistent() || document.isDisposed()) continue;
             document.refresh();
         }
     }
@@ -468,14 +507,14 @@ public class Document {
     public static ArrayList<Document> get(String path) {
         ArrayList<Document> result = new ArrayList<>();
         for (Document document : documents) {
-            if (document.getPath().equals(path)) result.add(document);
+            if (!document.isDisposed() && document.getPath().equals(path)) result.add(document);
         }
         return result;
     }
 
     public static Document getByUUID(String uuid) {
         for (Document document : documents) {
-            if (document.uuid.toString().equals(uuid)) return document;
+            if (!document.isDisposed() && document.uuid.toString().equals(uuid)) return document;
         }
         return null;
     }
@@ -485,146 +524,321 @@ public class Document {
     }
 
     public ArrayList<Element> getElements() {
-        return elements;
+        return tree.getElements();
+    }
+
+    public ArrayList<Node> getNodes() {
+        return tree.getNodes();
     }
 
     public static void remove(String path) {
-        documents.removeIf(document -> document.is(path));
+        documents.removeIf(document -> {
+            if (!document.is(path)) return false;
+            document.disposeLifecycle();
+            return true;
+        });
     }
 
     public static void remove(UUID uuid) {
-        documents.removeIf(document -> document.is(uuid));
+        documents.removeIf(document -> {
+            if (!document.is(uuid)) return false;
+            document.disposeLifecycle();
+            return true;
+        });
     }
 
     public void remove() {
         Document.remove(uuid);
     }
 
+    public void removeNode(Node node) {
+        tree.removeNode(node);
+        if (node instanceof Element element) {
+            motion.removeElement(element);
+        }
+    }
+
     public void removeElement(Element element) {
-        element.parentElement.children.removeIf(e -> element.uuid.equals(e.uuid));
-        element.document.markDirty(element.parentElement, Drawer.REORDER);
-        elements.removeIf(e -> element.uuid.equals(e.uuid));
-        motionFlags.keySet().removeIf(e -> element.uuid.equals(e.uuid));
-        element.getRenderer().route.clear();
+        removeNode(element);
+    }
+
+    public MutationObserver createMutationObserver(Consumer<Object> callback) {
+        MutationObserver observer = new MutationObserver(this, callback);
+        if (isActive()) {
+            mutationObservers.add(observer);
+        } else {
+            observer.disconnect();
+        }
+        return observer;
+    }
+
+    public CanvasPath2D createPath2D() {
+        return new CanvasPath2D();
+    }
+
+    public CanvasPath2D createPath2D(Object source) {
+        if (source instanceof CanvasPath2D path) return new CanvasPath2D(path);
+        if (source instanceof String text) return new CanvasPath2D(text);
+        return new CanvasPath2D();
+    }
+
+    public DOMMatrix createDOMMatrix() {
+        return new DOMMatrix();
+    }
+
+    public DOMMatrix createDOMMatrix(Object source) {
+        return new DOMMatrix(source);
+    }
+
+    public void queueMutation(MutationRecord record) {
+        if (record == null || !isActive()) return;
+        for (MutationObserver observer : mutationObservers) {
+            if (observer != null) observer.enqueue(record);
+        }
+    }
+
+    public void flushMutationObservers() {
+        if (!isActive()) return;
+        for (MutationObserver observer : mutationObservers) {
+            if (observer == null) continue;
+            observer.flush();
+            if (observer.disconnected) {
+                mutationObservers.remove(observer);
+            }
+        }
     }
 
     public void setTransitionActive(Element element, boolean active) {
-        setMotionFlag(element, MOTION_FLAG_TRANSITION, active);
+        motion.setTransitionActive(element, active);
     }
 
     public void setHasAnimationSpec(Element element, boolean hasSpec) {
-        setMotionFlag(element, MOTION_FLAG_ANIMATION_SPEC, hasSpec);
-    }
-
-    private void setMotionFlag(Element element, int flag, boolean enabled) {
-        if (element == null || element.document != this) return;
-        motionFlags.compute(element, (e, old) -> {
-            int v = old == null ? 0 : old;
-            if (enabled) v |= flag;
-            else v &= ~flag;
-            return v == 0 ? null : v;
-        });
+        motion.setHasAnimationSpec(element, hasSpec);
     }
 
     public Element getPreviousCursorElement() {
-        return previousCursorElement;
+        return focus.getPreviousCursorElement();
     }
 
     public void setPreviousCursorElement(Element element) {
-        this.previousCursorElement = element;
+        focus.setPreviousCursorElement(element);
+    }
+
+    public Element getPressedElement() {
+        return focus.getPressedElement();
+    }
+
+    public void setPressedElement(Element element) {
+        focus.setPressedElement(element);
+    }
+
+    public boolean registerClickAndCheckDoubleClick(Element target, int button, long nowNs, long thresholdNs) {
+        boolean isDoubleClick = target != null
+                && lastClickTarget == target
+                && lastClickButton == button
+                && (nowNs - lastClickTimeNs) <= thresholdNs;
+        lastClickTarget = target;
+        lastClickButton = button;
+        lastClickTimeNs = nowNs;
+        return isDoubleClick;
     }
 
     public Element getActiveElement() {
-        return activeElement;
-    }
-
-    public void setActiveElement(Element element) {
-        if (activeElement == element) return;
-
-        List<Element> oldChain = activeElement != null ? activeElement.getRoute() : Collections.emptyList();
-        List<Element> newChain = element != null ? element.getRoute() : Collections.emptyList();
-
-        Set<Element> oldSet = Collections.newSetFromMap(new IdentityHashMap<>());
-        oldSet.addAll(oldChain);
-
-        Set<Element> newSet = Collections.newSetFromMap(new IdentityHashMap<>());
-        newSet.addAll(newChain);
-
-        // 退出 active 链
-        for (Element e : oldChain) {
-            if (!newSet.contains(e)) {
-                e.setActive(false);
-            }
-        }
-
-        // 进入 active 链
-        for (Element e : newChain) {
-            if (!oldSet.contains(e)) {
-                e.setActive(true);
-            }
-        }
-
-        this.activeElement = element;
+        Element focused = focus.getFocusedElement();
+        if (focused != null) return focused;
+        return body;
     }
 
     public Element getFocusedElement() {
-        return focusedElement;
+        return focus.getFocusedElement();
     }
 
     public void setFocusedElement(Element element) {
-        if (focusedElement != null && focusedElement != element) {
-            if (focusedElement instanceof AbstractText textElement) {
-                textElement.clearSelection();
-            } else {
-                focusedElement.clearTextSelection();
-            }
-            focusedElement.setFocus(false);
-            for (Event event : focusedElement.EventListener) {
-                if (!"blur".equals(event.type) || event.listener == null) continue;
-                event.listener.accept(event);
-            }
-        }
-
-        focusedElement = element;
-
-        if (element != null) {
-            element.setFocus(true);
-            for (Event event : element.EventListener) {
-                if (!"focus".equals(event.type) || event.listener == null) continue;
-                event.listener.accept(event);
-            }
-        }
+        focus.setFocusedElement(element);
     }
 
 
     public boolean hasAnyTextSelection() {
-        for (Element element : elements) {
-            if (element instanceof AbstractText textElement) {
-                if (textElement.hasSelection()) return true;
-                continue;
-            }
-            if (element.hasInnerTextSelection()) return true;
-        }
-        return false;
+        return focus.hasAnyTextSelection();
     }
 
     public void clearAllTextSelections() {
-        clearAllTextSelectionsExcept(null);
+        focus.clearAllTextSelections();
     }
 
     public void clearAllTextSelectionsExcept(Element keep) {
-        for (Element element : elements) {
-            if (element == keep) continue;
-            if (element instanceof AbstractText textElement) {
-                if (textElement.hasSelection()) textElement.clearSelection();
-                continue;
-            }
-            if (element.hasInnerTextSelection()) element.clearTextSelection();
-        }
+        focus.clearAllTextSelectionsExcept(keep);
     }
     // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
     public void clearFocus() {
-        setFocusedElement(null);
+        focus.clearFocus();
+    }
+
+    private void clearMutationObservers() {
+        for (MutationObserver observer : mutationObservers) {
+            if (observer != null) observer.disconnect();
+        }
+        mutationObservers.clear();
+    }
+
+    public static final class MutationObserver {
+        private final Document owner;
+        private final Consumer<Object> callback;
+        private final long ownerGeneration;
+        private final CopyOnWriteArrayList<ObservedTarget> observed = new CopyOnWriteArrayList<>();
+        private final ArrayList<MutationRecord> pending = new ArrayList<>();
+        private volatile boolean disconnected = false;
+
+        public MutationObserver(Document owner, Consumer<Object> callback) {
+            this.owner = owner;
+            this.callback = callback;
+            this.ownerGeneration = owner == null ? -1L : owner.getRefreshGeneration();
+        }
+
+        public void observe(Node target, boolean childList, boolean attributes, boolean characterData, boolean subtree,
+                            boolean attributeOldValue, boolean characterDataOldValue, String attributeFilterCsv) {
+            if (target == null || disconnected) return;
+            observed.removeIf(entry -> entry.target == target);
+            observed.add(new ObservedTarget(
+                    target,
+                    childList,
+                    attributes,
+                    characterData,
+                    subtree,
+                    attributeOldValue,
+                    characterDataOldValue,
+                    parseAttributeFilter(attributeFilterCsv)
+            ));
+        }
+
+        public void disconnect() {
+            disconnected = true;
+            observed.clear();
+            synchronized (pending) {
+                pending.clear();
+            }
+            owner.mutationObservers.remove(this);
+        }
+
+        public List<MutationRecord> takeRecords() {
+            synchronized (pending) {
+                ArrayList<MutationRecord> snapshot = new ArrayList<>(pending);
+                pending.clear();
+                return snapshot;
+            }
+        }
+
+        void enqueue(MutationRecord record) {
+            if (disconnected || record == null || owner == null || !owner.isCurrentGeneration(ownerGeneration) || !matches(record)) return;
+            synchronized (pending) {
+                pending.add(adapt(record));
+            }
+        }
+
+        void flush() {
+            if (disconnected || callback == null || owner == null || !owner.isCurrentGeneration(ownerGeneration)) return;
+            List<MutationRecord> snapshot = takeRecords();
+            if (snapshot.isEmpty()) return;
+            callback.accept(snapshot);
+        }
+
+        private boolean matches(MutationRecord record) {
+            for (ObservedTarget entry : observed) {
+                if (entry == null || entry.target == null || !entry.accepts(record)) continue;
+                if (record.target == entry.target) return true;
+                if (entry.subtree && entry.target.contains(record.target)) return true;
+            }
+            return false;
+        }
+
+        private MutationRecord adapt(MutationRecord record) {
+            if ("attributes".equals(record.type) && !record.attributeName.isBlank()) {
+                for (ObservedTarget entry : observed) {
+                    if (entry == null || entry.target == null || !entry.accepts(record)) continue;
+                    boolean targetMatch = record.target == entry.target || (entry.subtree && entry.target.contains(record.target));
+                    if (!targetMatch) continue;
+                    String oldValue = entry.attributeOldValue ? record.oldValue : null;
+                    return MutationRecord.attributes(record.target, record.attributeName, oldValue);
+                }
+            }
+            if ("characterData".equals(record.type)) {
+                for (ObservedTarget entry : observed) {
+                    if (entry == null || entry.target == null || !entry.accepts(record)) continue;
+                    boolean targetMatch = record.target == entry.target || (entry.subtree && entry.target.contains(record.target));
+                    if (!targetMatch) continue;
+                    return MutationRecord.characterData(record.target, entry.characterDataOldValue ? record.oldValue : null);
+                }
+            }
+            return record;
+        }
+
+        private static Set<String> parseAttributeFilter(String csv) {
+            if (csv == null || csv.isBlank()) return Collections.emptySet();
+            LinkedHashSet<String> values = new LinkedHashSet<>();
+            for (String part : csv.split(",")) {
+                if (part == null) continue;
+                String normalized = part.trim();
+                if (!normalized.isEmpty()) values.add(normalized);
+            }
+            return values.isEmpty() ? Collections.emptySet() : Collections.unmodifiableSet(values);
+        }
+    }
+
+    private record ObservedTarget(
+            Node target,
+            boolean childList,
+            boolean attributes,
+            boolean characterData,
+            boolean subtree,
+            boolean attributeOldValue,
+            boolean characterDataOldValue,
+            Set<String> attributeFilter
+    ) {
+        private boolean accepts(MutationRecord record) {
+            if (record == null) return false;
+            if ("childList".equals(record.type)) return childList;
+            if ("attributes".equals(record.type)) {
+                if (!attributes) return false;
+                return attributeFilter == null || attributeFilter.isEmpty() || attributeFilter.contains(record.attributeName);
+            }
+            if ("characterData".equals(record.type)) return characterData;
+            return false;
+        }
+    }
+
+    public static final class MutationRecord {
+        public final String type;
+        public final Node target;
+        public final List<Node> addedNodes;
+        public final List<Node> removedNodes;
+        public final Node previousSibling;
+        public final Node nextSibling;
+        public final String attributeName;
+        public final String oldValue;
+
+        private MutationRecord(String type, Node target, List<Node> addedNodes, List<Node> removedNodes,
+                               Node previousSibling, Node nextSibling, String attributeName, String oldValue) {
+            this.type = type == null ? "" : type;
+            this.target = target;
+            this.addedNodes = addedNodes == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(addedNodes));
+            this.removedNodes = removedNodes == null ? List.of() : Collections.unmodifiableList(new ArrayList<>(removedNodes));
+            this.previousSibling = previousSibling;
+            this.nextSibling = nextSibling;
+            this.attributeName = attributeName == null ? "" : attributeName;
+            this.oldValue = oldValue;
+        }
+
+        public static MutationRecord childList(Node target, List<Node> addedNodes, List<Node> removedNodes,
+                                               Node previousSibling, Node nextSibling) {
+            return new MutationRecord("childList", target, addedNodes, removedNodes, previousSibling, nextSibling, null, null);
+        }
+
+        public static MutationRecord attributes(Node target, String attributeName, String oldValue) {
+            return new MutationRecord("attributes", target, List.of(), List.of(), null, null, attributeName, oldValue);
+        }
+
+        public static MutationRecord characterData(Node target, String oldValue) {
+            return new MutationRecord("characterData", target, List.of(), List.of(), null, null, null, oldValue);
+        }
     }
 }
-

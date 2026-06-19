@@ -295,9 +295,9 @@ public class Container extends MinecraftElement {
         if (rawHtml == null || rawHtml.isBlank()) return null;
 
         Document document = new Document(templatePath, false);
-        Element root = HTML.create(document, templatePath);
-        if (root == null) return null;
-        return Element.init(root);
+        HTML.DocumentRoot root = HTML.create(document, templatePath);
+        if (root == null || root.body() == null) return null;
+        return root.body();
     }
 
     private static List<ContainerDraft> parseContainerDrafts(Element root) {

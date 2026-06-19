@@ -211,8 +211,10 @@ public class Client {
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
-                MouseEvent mouseEvent = new MouseEvent("scroll", realPos);
-                mouseEvent.scrollDelta = -event.getScrollDeltaY() * 50;
+                MouseEvent mouseEvent = new MouseEvent("wheel", realPos);
+                mouseEvent.deltaY = -event.getScrollDeltaY() * 50;
+                mouseEvent.scrollDelta = mouseEvent.deltaY;
+                mouseEvent.cancelable = true;
                 consumed |= MouseEvent.tiggerEvent(mouseEvent, window.document);
             }
         }

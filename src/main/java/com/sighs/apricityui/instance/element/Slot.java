@@ -2,6 +2,8 @@ package com.sighs.apricityui.instance.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.slot.SlotDisplaySpec;
 import com.sighs.apricityui.instance.slot.SlotExpressionCompiler;
@@ -257,13 +259,30 @@ public class Slot extends MinecraftElement {
     private void refreshDisplaySpecIfNeeded() {
         boolean cycleEnabled = resolveCycleEnabled();
         long cycleInterval = resolveCycleIntervalMs();
-        String signature = (innerText == null ? "" : innerText) + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
+        String expressionSource = resolveDisplayExpressionSource();
+        String signature = expressionSource + "|cycle=" + cycleEnabled + "|interval=" + cycleInterval;
         if (signature.equals(compiledSignature)) return;
 
         compiledSignature = signature;
-        displaySpec = SlotExpressionCompiler.compile(innerText, cycleEnabled, cycleInterval);
+        displaySpec = SlotExpressionCompiler.compile(expressionSource, cycleEnabled, cycleInterval);
         candidateIndex = 0;
         nextRotateAtMillis = 0L;
+    }
+
+    private String resolveDisplayExpressionSource() {
+        if (!childNodes.isEmpty()) {
+            StringBuilder builder = new StringBuilder();
+            for (Node child : childNodes) {
+                if (child instanceof TextNode textNode) {
+                    builder.append(textNode.getTextContent());
+                }
+            }
+            String fromNodes = builder.toString();
+            if (!fromNodes.isBlank()) {
+                return fromNodes;
+            }
+        }
+        return innerText == null ? "" : innerText;
     }
 
     private boolean resolveInteractive() {

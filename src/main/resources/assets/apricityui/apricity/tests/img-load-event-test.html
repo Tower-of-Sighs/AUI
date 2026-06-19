@@ -1,0 +1,158 @@
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">ApricityUI Resource Regression</div>
+        <div class="title">Img Load / Error Test</div>
+        <div class="summary">
+            Verifies `img` resource events. One image points at a valid local asset, the other points at a missing path.
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <div class="section-title">Images</div>
+            <div class="row">
+                <div class="tile">
+                    <div class="tile-label">valid image</div>
+                    <img id="ok" src="../devtools/bear.png">
+                </div>
+                <div class="tile">
+                    <div class="tile-label">missing image</div>
+                    <img id="bad" src="./missing-image-does-not-exist.png">
+                </div>
+            </div>
+        </div>
+
+        <div class="section section-fill">
+            <div class="section-title">Event Log</div>
+            <div id="log" class="log"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var sequence = 0;
+        var log = document.querySelector("#log");
+
+        function pushLog(message) {
+            sequence += 1;
+            var line = document.createElement("div");
+            line.setAttribute("class", "log-line");
+            line.innerText = sequence + ". " + message;
+            log.append(line);
+        }
+
+        function bind(id, label) {
+            var img = document.querySelector(id);
+            img.addEventListener("load", function () {
+                pushLog(label + " load");
+            });
+            img.addEventListener("error", function () {
+                pushLog(label + " error");
+            });
+        }
+
+        bind("#ok", "ok");
+        bind("#bad", "bad");
+    })();
+</script>
+</body>
+
+<style>
+    html {
+        width: 100%;
+        height: 100%;
+        display: block;
+    }
+
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        background-image: linear-gradient(160deg, #08121d 0%, #102636 52%, #24415d 100%);
+        color: #edf6ff;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 10px;
+    }
+
+    .page {
+        width: 100%;
+        height: 100%;
+        box-sizing: border-box;
+        padding: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .hero,
+    .section {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .eyebrow { color: #7dd3fc; }
+    .title { font-size: 16px; font-weight: bold; color: #f8fbff; }
+    .summary, .tile-label { color: #b9d7ea; }
+
+    .content {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .section {
+        flex: 0 0 auto;
+        padding: 6px;
+        border: 1px solid rgba(156, 204, 228, 0.52);
+        border-radius: 8px;
+        background-color: rgba(5, 12, 18, 0.55);
+    }
+
+    .section-fill { flex: 1; min-height: 0; }
+    .section-title { color: #ffd78f; }
+
+    .row {
+        display: flex;
+        gap: 8px;
+    }
+
+    .tile {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 6px;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 7px;
+        background-color: rgba(4, 10, 16, 0.42);
+    }
+
+    img {
+        width: 48px;
+        height: 48px;
+    }
+
+    .log {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding-right: 2px;
+    }
+
+    .log-line {
+        padding: 4px 5px;
+        border: 1px solid rgba(121, 167, 194, 0.38);
+        border-radius: 6px;
+        background-color: rgba(4, 10, 16, 0.42);
+        color: #edf6ff;
+    }
+</style>
