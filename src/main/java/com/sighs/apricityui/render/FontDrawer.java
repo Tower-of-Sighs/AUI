@@ -34,7 +34,7 @@ public class FontDrawer {
 
         // 避免每次都走 split("\n") 的 regex 路径（会产生大量分配）。
         double baseX = position.x;
-        double baseY = position.y + (text.lineHeight - text.fontSize) / 2.0;
+        double baseY = position.y + (text.lineHeight - text.renderedFontSize()) / 2.0;
         Position linePos = new Position(baseX, baseY);
 
         int firstNl = content.indexOf('\n');
@@ -103,7 +103,7 @@ public class FontDrawer {
             return;
         }
 
-        float scale = (float) (text.fontSize / Font.getBaseFontSize());
+        float scale = (float) (text.renderedFontSize() / Font.getBaseFontSize());
         float drawW = entry.width() * scale;
         float drawH = entry.height() * scale;
 
@@ -142,7 +142,7 @@ public class FontDrawer {
             LineMetrics metrics = measureRuns(g2d, runs);
             g2d.dispose();
 
-            float scale = (float) (text.fontSize / Font.getBaseFontSize());
+            float scale = (float) (text.renderedFontSize() / Font.getBaseFontSize());
             if (scale <= 1e-6f) scale = 1.0f;
             double baseLetterSpacing = text.letterSpacing / scale;
             int textW = Math.max(1, measureRunsWidth(runs, baseLetterSpacing));

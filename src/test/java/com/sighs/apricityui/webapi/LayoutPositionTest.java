@@ -324,6 +324,7 @@ class LayoutPositionTest {
         assertEquals(Document.FontMode.WEB_SCALED, webScaled.fontMode);
         assertEquals(16.0, webScaled.fontSize);
         assertEquals(1.0, webScaled.defaultFontScale());
+        assertEquals(9.0, webScaled.renderedFontSize());
 
         label.getRenderer().text.clear();
         label.getRenderer().wrappedText.clear();
@@ -331,6 +332,7 @@ class LayoutPositionTest {
         Text mc = Text.of(label);
         assertEquals(9.0, mc.fontSize);
         assertEquals(1.0, mc.defaultFontScale());
+        assertEquals(9.0, mc.renderedFontSize());
 
         label.getRenderer().text.clear();
         label.getRenderer().wrappedText.clear();
@@ -338,6 +340,7 @@ class LayoutPositionTest {
         Text web = Text.of(label);
         assertEquals(16.0, web.fontSize);
         assertEquals(16.0 / 9.0, web.defaultFontScale());
+        assertEquals(16.0, web.renderedFontSize());
     }
 
     @Test

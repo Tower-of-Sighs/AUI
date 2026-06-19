@@ -679,6 +679,7 @@ public class ResourceManager {
             ToastManager.show("HTML preview unavailable");
             return;
         }
+        created.setReloadPersistent(true);
         previewDocument = created;
         previewDocumentPath = path;
         previewEntry = entry;

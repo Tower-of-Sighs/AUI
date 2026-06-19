@@ -447,10 +447,9 @@ public record Size(double width, double height) {
         if (element == null) return null;
         Style style = element.getRawComputedStyle();
 
-        Double containingBlockHeight = null;
-        if (element.parentElement != null) {
-            containingBlockHeight = getExplicitContainingBlockHeight(element);
-        }
+        Double containingBlockHeight = element.parentElement == null
+                ? Double.valueOf(Math.max(0, getWindowSize().height()))
+                : getExplicitContainingBlockHeight(element);
 
         Double resolvedHeight = tryResolveLength(style.height, containingBlockHeight == null ? 0 : containingBlockHeight);
         if (resolvedHeight != null) {
