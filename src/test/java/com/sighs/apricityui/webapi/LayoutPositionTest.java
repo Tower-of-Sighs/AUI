@@ -126,6 +126,34 @@ class LayoutPositionTest {
     }
 
     @Test
+    void flexColumnVisibleOverflowItemsKeepContentBasedMinimumHeight() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display: flex; flex-direction: column; width: 120px; height: 60px; gap: 4px;");
+        document.body.appendChild(parent);
+
+        Element first = new Element(document, "div");
+        first.setAttribute("style", "display: flex; flex-direction: column;");
+        Element firstContent = new Element(document, "div");
+        firstContent.setAttribute("style", "height: 50px;");
+        first.appendChild(firstContent);
+        parent.appendChild(first);
+
+        Element second = new Element(document, "div");
+        second.setAttribute("style", "display: flex; flex-direction: column;");
+        Element secondContent = new Element(document, "div");
+        secondContent.setAttribute("style", "height: 50px;");
+        second.appendChild(secondContent);
+        parent.appendChild(second);
+
+        assertEquals(50, Math.round(Size.of(first).height()));
+        assertEquals(50, Math.round(Size.of(second).height()));
+        assertTrue(Position.getOffset(second).y >= Position.getOffset(first).y + Size.of(first).height());
+    }
+
+    @Test
     void autoHeightFlexParentDoesNotReenterThroughFlexibleChildSizing() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");

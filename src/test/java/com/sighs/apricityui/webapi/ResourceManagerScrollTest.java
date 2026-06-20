@@ -55,8 +55,8 @@ class ResourceManagerScrollTest {
                 assertTrue(rows.getTargetScrollTop() > 0, "wheel should move .rows target scrollTop consumed=" + consumed);
                 assertTrue(consumed, "wheel should be consumed by the scroller targetScrollTop=" + rows.getTargetScrollTop());
 
-                document.tickElements();
-                assertTrue(rows.getScrollTop() > 0, "tick should advance visible scrollTop");
+                document.stepScrollRender();
+                assertTrue(rows.getScrollTop() > 0, "render step should advance visible scrollTop");
             } finally {
                 document.remove();
             }

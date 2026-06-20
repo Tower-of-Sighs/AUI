@@ -56,7 +56,20 @@ public class Base {
         try {
             // 这个if是应对paintList更新没跟上节点树更新的情况，也就是渲染状态滞后，差不多这个意思。
             document.stepMotionRender();
+            document.stepScrollRender();
+            Element skippedSubtree = null;
             for (RenderNode node : document.getPaintList()) {
+                if (skippedSubtree != null) {
+                    Element target = getRenderNodeTarget(node);
+                    if (target != null && isSameOrDescendant(target, skippedSubtree)) {
+                        continue;
+                    }
+                    skippedSubtree = null;
+                }
+                if (shouldSkipSubtree(node)) {
+                    skippedSubtree = getRenderNodeTarget(node);
+                    continue;
+                }
                 poseStack.pushPose();
                 Base.resolveOffset(poseStack);
                 node.render(poseStack);
@@ -68,6 +81,40 @@ public class Base {
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
+    }
+
+    private static boolean shouldSkipSubtree(RenderNode node) {
+        if (!(node instanceof RenderNode.ElementPhaseNode phaseNode)) return false;
+        if (phaseNode.phase() != RenderPhase.SHADOW) return false;
+
+        Element target = phaseNode.target();
+        if (target == null || target.document == null || target == target.document.body) return false;
+        if (RenderNode.shouldSkip(target)) return true;
+
+        AABB currentClip = Mask.getCurrentClip();
+        if (!currentClip.isValid()) return false;
+        return !Rect.of(target).getVisualBounds().intersects(currentClip);
+    }
+
+    private static Element getRenderNodeTarget(RenderNode node) {
+        if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
+        if (node instanceof RenderNode.MaskPushNode n) return n.target();
+        if (node instanceof RenderNode.MaskPopNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
+        if (node instanceof RenderNode.FilterPushNode n) return n.target();
+        if (node instanceof RenderNode.FilterPopNode n) return n.target();
+        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
+        return null;
+    }
+
+    private static boolean isSameOrDescendant(Element element, Element ancestor) {
+        Element current = element;
+        while (current != null) {
+            if (current == ancestor) return true;
+            current = current.parentElement;
+        }
+        return false;
     }
 
     public static void beginRendering() {

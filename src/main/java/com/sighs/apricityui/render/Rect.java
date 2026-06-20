@@ -121,7 +121,7 @@ public class Rect {
     }
 
     public float[] getBodyRadius() {
-        Size s = box.elementSize();
+        Size s = getBodyRectSize();
         return box.getCalculatedRadii((float) s.width(), (float) s.height(), (float) getMinBorderSize());
     }
 

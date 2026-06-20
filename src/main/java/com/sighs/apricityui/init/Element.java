@@ -372,11 +372,19 @@ public class Element extends Node {
     }
 
     public void setScrollLeft(double value) {
+        double before = getTargetScrollLeft();
         scroll.setScrollLeft(value);
+        if (document != null && Double.compare(before, getTargetScrollLeft()) != 0) {
+            document.registerActiveScroll(this);
+        }
     }
 
     public void setScrollTop(double value) {
+        double before = getTargetScrollTop();
         scroll.setScrollTop(value);
+        if (document != null && Double.compare(before, getTargetScrollTop()) != 0) {
+            document.registerActiveScroll(this);
+        }
     }
 
     public double getScrollLeft() {
@@ -1096,11 +1104,6 @@ public class Element extends Node {
     }
 
     public void tick() {
-        if (scroll.tick()) {
-            // 滚动只影响视觉偏移与命中测试，不应触发绘制队列重建。
-            // TODO：这里保留 REPAINT 作为语义标记，便于未来在 flushUpdates 中做更细粒度处理。
-            document.markDirty(this, Drawer.REPAINT);
-        }
         if (!innerText.equals(lastInnerText)) {
             getRenderer().text.clear();
             getRenderer().wrappedText.clear();
@@ -1114,6 +1117,14 @@ public class Element extends Node {
                 }
             }
         }
+    }
+
+    boolean stepScrollRender() {
+        return scroll.stepRender();
+    }
+
+    boolean needsScrollRenderStep() {
+        return scroll.needsRenderStep();
     }
 
     // 事件部分
@@ -1648,11 +1659,6 @@ public class Element extends Node {
     private void drawChildTextRuns(PoseStack poseStack, Rect rectRenderer) {
         if (childNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
-        if (Layout.isFlexDisplay(getComputedStyle().display)) {
-            drawFlexDirectTextRuns(poseStack);
-            return;
-        }
-        if (Layout.isGridDisplay(getComputedStyle().display)) return;
         if (children.isEmpty()) {
             for (Node child : childNodes) {
                 if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
@@ -1660,6 +1666,11 @@ public class Element extends Node {
                 }
             }
         }
+        if (Layout.isFlexDisplay(getComputedStyle().display)) {
+            drawFlexDirectTextRuns(poseStack);
+            return;
+        }
+        if (Layout.isGridDisplay(getComputedStyle().display)) return;
         Position contentPos = rectRenderer.getContentPosition();
         for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(this)) {
             if (run == null || run.text() == null || run.lines() == null) continue;

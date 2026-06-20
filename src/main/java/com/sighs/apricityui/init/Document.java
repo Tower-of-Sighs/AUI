@@ -16,6 +16,7 @@ import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.Size;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
@@ -96,6 +97,7 @@ public class Document {
     private final StyleScope style = new StyleScope(this);
     private final MotionTrack motion = new MotionTrack(this);
     private final FocusRing focus = new FocusRing(this);
+    private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -350,6 +352,26 @@ public class Document {
     public void stepMotionRender() {
         if (!isActive()) return;
         motion.stepRender();
+    }
+
+    public void stepScrollRender() {
+        if (!isActive()) return;
+        if (activeScrollElements.isEmpty()) return;
+        for (Element element : new ArrayList<>(activeScrollElements)) {
+            if (element == null || !element.isConnected()) {
+                activeScrollElements.remove(element);
+                continue;
+            }
+            boolean moving = element.stepScrollRender();
+            if (!moving && !element.needsScrollRenderStep()) {
+                activeScrollElements.remove(element);
+            }
+        }
+    }
+
+    void registerActiveScroll(Element element) {
+        if (element == null || !element.isConnected()) return;
+        activeScrollElements.add(element);
     }
 
     /**
