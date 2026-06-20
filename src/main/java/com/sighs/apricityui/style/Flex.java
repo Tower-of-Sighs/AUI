@@ -56,7 +56,7 @@ public class Flex {
             FlexParticipant participant = participants.get(i);
             Size siblingSize = participant.size();
             double mainSize = participant.element() == null
-                    ? participant.mainSize()
+                    ? participant.mainSize(flex.flexDirection.isColumn())
                     : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
             if (flex.flexDirection.isColumn()) {
                 siblingsTotalWidth = Math.max(siblingsTotalWidth, siblingSize.width());
@@ -92,7 +92,7 @@ public class Flex {
             if (i < participantIndex) {
                 FlexParticipant participant = participants.get(i);
                 double mainSize = participant.element() == null
-                        ? participant.mainSize()
+                        ? participant.mainSize(flex.flexDirection.isColumn())
                         : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
                 if (flex.flexDirection.isColumn()) {
                     offsetY += mainSize + gap + offsetInterval;
@@ -178,7 +178,7 @@ public class Flex {
         double totalCross = 0;
         for (FlexParticipant participant : participants) {
             double mainSize = participant.element() == null
-                    ? participant.mainSize()
+                    ? participant.mainSize(flex.flexDirection.isColumn())
                     : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
             double crossSize = flex.flexDirection.isColumn() ? participant.size().width() : participant.size().height();
             totalMain += mainSize;
@@ -203,7 +203,7 @@ public class Flex {
         for (int i = 0; i < participants.size(); i++) {
             FlexParticipant participant = participants.get(i);
             double mainSize = participant.element() == null
-                    ? participant.mainSize()
+                    ? participant.mainSize(flex.flexDirection.isColumn())
                     : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
             if (participant.text() != null) {
                 double crossOffset = 0;
@@ -393,6 +393,9 @@ public class Flex {
         String rawMin = columnMainAxis ? style.minHeight : style.minWidth;
         Double parsedMin = Size.parseNumber(rawMin);
         if (parsedMin == null) {
+            if (columnMainAxis && isOverflowVisible(style.overflow)) {
+                return Math.max(0, naturalOuterMainSize);
+            }
             Box box = Box.of(item);
             Element parent = item.parentElement;
             boolean definiteMain = parent == null || (columnMainAxis
@@ -472,6 +475,12 @@ public class Flex {
             }
             remainingDeficit -= consumed;
         }
+    }
+
+    private static boolean isOverflowVisible(String overflow) {
+        return overflow == null || overflow.isBlank()
+                || "unset".equalsIgnoreCase(overflow)
+                || "visible".equalsIgnoreCase(overflow);
     }
 
     private static Position computeWrappedRowChildPosition(Element element, Element parent, List<Element> items, int targetIndex) {
@@ -639,7 +648,8 @@ public class Flex {
                 text.color = base.color == null ? Color.BLACK : base.color;
                 text.strokeColor = base.strokeColor == null ? Color.BLACK : base.strokeColor;
                 text.content = normalized;
-                text.size = new Size(Text.measureText(text), text.lineHeight);
+                Text.WrappedText wrapped = Text.wrap(text, 0);
+                text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
                 participants.add(new FlexParticipant(null, text, text.size));
             }
         }
@@ -658,8 +668,9 @@ public class Flex {
     }
 
     private record FlexParticipant(Element element, Text text, Size size) {
-        private double mainSize() {
-            return size == null ? 0 : size.width();
+        private double mainSize(boolean columnMainAxis) {
+            if (size == null) return 0;
+            return columnMainAxis ? size.height() : size.width();
         }
     }
 
