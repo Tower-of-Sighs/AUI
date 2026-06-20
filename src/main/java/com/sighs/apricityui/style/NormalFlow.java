@@ -41,6 +41,7 @@ public final class NormalFlow {
             if (!"inline".equals(normalizeDisplay(currentStyle.display))) return false;
             if (isReplacedLikeElement(current)) return false;
 
+            if (hasRenderableInlineText(current)) return true;
             if (shouldFragmentInlineElement(parent)) return true;
             current = parent;
         }
@@ -107,7 +108,7 @@ public final class NormalFlow {
                     state.foundTarget = true;
                     return;
                 }
-                layoutChildren(childElement, childElement.childNodes, state);
+                layoutInlineContent(childElement, state);
                 state.previousFlowWasBlock = false;
                 return;
             }
@@ -119,11 +120,20 @@ public final class NormalFlow {
     }
 
     private static void placeTextRun(Element owner, TextNode node, FlowState state) {
-        TextRunLayout run = layoutTextRun(owner, node, state.lineLimit, state.cursorX, state.cursorY);
+        TextRunLayout run = layoutTextRun(owner, node, node.getTextContent(), state.lineLimit, state.cursorX, state.cursorY);
+        placeTextRun(run, owner, node, node.getTextContent(), state);
+    }
+
+    private static void placeInlineText(Element owner, String content, FlowState state) {
+        TextRunLayout run = layoutTextRun(owner, null, content, state.lineLimit, state.cursorX, state.cursorY);
+        placeTextRun(run, owner, null, content, state);
+    }
+
+    private static void placeTextRun(TextRunLayout run, Element owner, TextNode node, String content, FlowState state) {
         if (run == null) return;
         if (run.startedOnNewLine() && (state.cursorX > 0 || state.lineHeight > 0)) {
             commitLineBreak(state);
-            run = layoutTextRun(owner, node, state.lineLimit, state.cursorX, state.cursorY);
+            run = layoutTextRun(owner, node, content, state.lineLimit, state.cursorX, state.cursorY);
             if (run == null) return;
         }
 
@@ -138,6 +148,15 @@ public final class NormalFlow {
             state.lineHeight = Math.max(state.lineHeight, run.text().lineHeight);
         }
         state.previousFlowWasBlock = false;
+    }
+
+    private static void layoutInlineContent(Element element, FlowState state) {
+        if (element == null) return;
+        if (element.childNodes.isEmpty()) {
+            placeInlineText(element, element.innerText, state);
+            return;
+        }
+        layoutChildren(element, element.childNodes, state);
     }
 
     private static void placeAtomicInline(Element childElement, FlowState state) {
@@ -211,14 +230,15 @@ public final class NormalFlow {
         return Math.max(previousBottom, currentTop) + Math.min(previousBottom, currentTop);
     }
 
-    private static TextRunLayout layoutTextRun(Element owner, TextNode node, double lineLimit, double cursorX, double cursorY) {
-        if (owner == null || node == null) return null;
-        Text base = Text.of(owner);
+    private static TextRunLayout layoutTextRun(Element owner, TextNode node, String content, double lineLimit, double cursorX, double cursorY) {
+        if (owner == null) return null;
+        Element textOwner = node != null && node.parentNode instanceof Element parent ? parent : owner;
+        Text base = Text.of(textOwner);
         Text text = new Text();
         Element.copyTextForRun(base, text);
         text.color = base.color;
         text.strokeColor = base.strokeColor;
-        text.content = normalizeInlineTextFragment(node.getTextContent(), text.whiteSpace);
+        text.content = normalizeInlineTextFragment(content, text.whiteSpace);
         if (text.content == null || text.content.isEmpty()) return null;
 
         boolean startOnNewLine = false;
@@ -231,7 +251,7 @@ public final class NormalFlow {
         List<String> lines = wrapped.lines();
         if (lines.isEmpty()) return null;
         double lastLineWidth = Text.measureLine(text, lines.get(lines.size() - 1));
-        return new TextRunLayout(node, text, cursorX, cursorY, List.copyOf(lines), wrapped.width(), lastLineWidth, startOnNewLine);
+        return new TextRunLayout(node, textOwner, text, cursorX, cursorY, List.copyOf(lines), wrapped.width(), lastLineWidth, startOnNewLine);
     }
 
     private static String normalizeInlineTextFragment(String content, String whiteSpace) {
@@ -272,7 +292,7 @@ public final class NormalFlow {
     }
 
     private static boolean shouldFragmentInlineElement(Element element) {
-        if (element == null || element.childNodes.isEmpty()) return false;
+        if (element == null) return false;
         Style style = element.getComputedStyle();
         String display = normalizeDisplay(style.display);
         if (!"inline".equals(display)) return false;
@@ -281,6 +301,9 @@ public final class NormalFlow {
     }
 
     private static boolean containsFragmentableInlineContent(Element element) {
+        if (hasRenderableInlineText(element)) {
+            return true;
+        }
         for (Node child : element.childNodes) {
             if (child instanceof TextNode textNode) {
                 if (!normalizeInlineTextFragment(textNode.getTextContent(), Text.getWhiteSpace(element)).isEmpty()) {
@@ -294,6 +317,20 @@ public final class NormalFlow {
             if (!isInlineLevel(childStyle.display)) return false;
             if (isAtomicInlineElement(childElement)) return false;
             if (containsFragmentableInlineContent(childElement)) return true;
+        }
+        return false;
+    }
+
+    private static boolean hasRenderableInlineText(Element element) {
+        if (element == null) return false;
+        if (element.innerText != null && !normalizeInlineTextFragment(element.innerText, Text.getWhiteSpace(element)).isEmpty()) {
+            return true;
+        }
+        for (Node child : element.childNodes) {
+            if (child instanceof TextNode textNode
+                    && !normalizeInlineTextFragment(textNode.getTextContent(), Text.getWhiteSpace(element)).isEmpty()) {
+                return true;
+            }
         }
         return false;
     }
@@ -324,7 +361,7 @@ public final class NormalFlow {
         };
     }
 
-    public record TextRunLayout(TextNode node, Text text, double x, double y, List<String> lines,
+    public record TextRunLayout(TextNode node, Element owner, Text text, double x, double y, List<String> lines,
                                 double maxWidth, double lastLineWidth, boolean startedOnNewLine) {
         public int lineCount() {
             return lines == null ? 0 : lines.size();

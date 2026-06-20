@@ -218,6 +218,48 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void userAgentDisplayDefaultsPreserveAuthorPrecedence() {
+        Document document = TestDocumentFactory.createDocument();
+        Element span = new Element(document, "span");
+        document.body.appendChild(span);
+
+        assertEquals("inline", span.getComputedStyle().display);
+
+        span.setAttribute("style", "display: block;");
+        assertEquals("block", span.getComputedStyle().display);
+    }
+
+    @Test
+    void commaGroupedClassSelectorsApplyToEachClass() throws Exception {
+        HashMap<String, java.util.Map<String, String>> cache = new HashMap<>();
+        String css = """
+                .inline-pill,
+                .inline-outer,
+                .inline-inner {
+                  display: inline;
+                }
+                """;
+
+        CSS.readCSS(css, cache, "test://grouped.css");
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        Element pill = new Element(document, "span");
+        Element outer = new Element(document, "span");
+        Element inner = new Element(document, "span");
+        pill.setAttribute("class", "inline-pill warm");
+        outer.setAttribute("class", "inline-outer");
+        inner.setAttribute("class", "inline-inner");
+        document.body.appendChild(pill);
+        document.body.appendChild(outer);
+        document.body.appendChild(inner);
+
+        assertEquals("inline", pill.getComputedStyle().display);
+        assertEquals("inline", outer.getComputedStyle().display);
+        assertEquals("inline", inner.getComputedStyle().display);
+    }
+
+    @Test
     void revertFallsBackToInheritedOrInitialSemantics() {
         Document document = TestDocumentFactory.createDocument();
         Element parent = new Element(document, "div");

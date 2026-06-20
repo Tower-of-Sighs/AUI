@@ -25,6 +25,7 @@ public class Base {
     }
 
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
+    private static final float GLOBAL_DOCUMENT_Z_OFFSET = 1.0f;
     private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
     private static float depthStep = DEFAULT_DEPTH_STEP;
     private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
@@ -34,7 +35,6 @@ public class Base {
 
     public static void drawAllDocument(PoseStack poseStack) {
         Mask.resetDepth();
-        poseStack.translate(0, 0, 1);
         for (Document document : Document.getAll()) {
             if (!document.inWorld) drawDocument(poseStack, document);
         }
@@ -53,7 +53,9 @@ public class Base {
         RectFrameCache.begin();
         StyleFrameCache.begin();
         FilterRenderer.beginFrame();
+        poseStack.pushPose();
         try {
+            poseStack.translate(0, 0, GLOBAL_DOCUMENT_Z_OFFSET);
             // 这个if是应对paintList更新没跟上节点树更新的情况，也就是渲染状态滞后，差不多这个意思。
             document.stepMotionRender();
             document.stepScrollRender();
@@ -76,6 +78,7 @@ public class Base {
                 poseStack.popPose();
             }
         } finally {
+            poseStack.popPose();
             StyleFrameCache.end();
             RectFrameCache.end();
             ImageDrawer.flushBatch();

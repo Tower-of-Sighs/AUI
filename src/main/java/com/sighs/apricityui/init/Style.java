@@ -384,6 +384,10 @@ public class Style implements Cloneable {
         }
     }
 
+    public void applyUserAgentDefaults(Element element) {
+        display = defaultDisplayFor(element);
+    }
+
     private void applyBoxShorthand(String baseName, String raw) {
         String value = raw == null ? "" : raw.trim();
         setFieldValue(baseName, value.isEmpty() ? "unset" : value);
@@ -1031,6 +1035,16 @@ public class Style implements Cloneable {
             }
         }
         finalizeAnimationValues();
+    }
+
+    private static String defaultDisplayFor(Element element) {
+        if (element == null || element.tagName == null) return "block";
+        String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
+        return switch (tag) {
+            case "A", "SPAN", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS", "SVG", "BUTTON", "LABEL" -> "inline";
+            case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK" -> "none";
+            default -> "block";
+        };
     }
 
     private String resolveCssWideKeyword(String cssName, String current, Style parentStyle) {
