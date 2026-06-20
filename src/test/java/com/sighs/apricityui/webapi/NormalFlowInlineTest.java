@@ -4,8 +4,10 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.style.Layout;
+import com.sighs.apricityui.style.NormalFlow;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -87,6 +89,83 @@ class NormalFlowInlineTest {
         parent.appendChild(tail);
 
         assertTrue(Position.getOffset(tail).y > 0);
+    }
+
+    @Test
+    void fragmentedInlineTextRunsUseOwningDescendantStyle() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 72px; color: #ffffff;");
+        document.body.appendChild(parent);
+
+        Element outer = new Element(document, "span");
+        outer.setAttribute("style", "display: inline; color: #ffdca5;");
+        outer.appendChild(new TextNode(document, "outer "));
+        Element inner = new Element(document, "span");
+        inner.setAttribute("style", "display: inline; color: #a8e7ff; background-color: rgba(26, 76, 105, 0.52);");
+        inner.appendChild(new TextNode(document, "nested-inline-fragment-should-wrap-across-lines"));
+        outer.appendChild(inner);
+        parent.appendChild(outer);
+
+        boolean sawOuter = false;
+        boolean sawInner = false;
+        for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(parent)) {
+            if (run.owner() == outer) {
+                sawOuter = true;
+                assertEquals(Text.getFontColor(outer), run.text().color.getValue());
+            }
+            if (run.owner() == inner) {
+                sawInner = true;
+                assertEquals(Text.getFontColor(inner), run.text().color.getValue());
+                assertTrue(run.lineCount() > 1);
+            }
+        }
+
+        assertTrue(sawOuter);
+        assertTrue(sawInner);
+        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(inner));
+    }
+
+    @Test
+    void inlineInnerTextElementsFragmentLikeTextNodeChildren() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 72px;");
+        document.body.appendChild(parent);
+
+        Element prefix = new Element(document, "span");
+        prefix.setAttribute("style", "display: inline; background-color: rgba(132, 83, 24, 0.72);");
+        prefix.innerText = "prefix";
+        Element outer = new Element(document, "span");
+        outer.setAttribute("style", "display: inline;");
+        outer.innerText = "outer";
+        Element inner = new Element(document, "span");
+        inner.setAttribute("style", "display: inline;");
+        inner.innerText = "nested-inline-fragment-should-wrap-across-lines";
+        outer.appendChild(inner);
+        Element tail = new Element(document, "span");
+        tail.setAttribute("style", "display: inline; background-color: rgba(33, 93, 125, 0.76);");
+        tail.innerText = "tail";
+        parent.appendChild(prefix);
+        parent.appendChild(outer);
+        parent.appendChild(tail);
+
+        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(prefix));
+        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(tail));
+        assertTrue(Position.getOffset(tail).y > 0);
+        assertTrue(Size.of(tail).width() < 72);
+        for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(parent)) {
+            if (run.owner() == prefix || run.owner() == tail) {
+                assertTrue(Text.measureLine(run.text(), run.lines().get(0)) < 72);
+                assertTrue(run.maxWidth() < 72);
+            }
+        }
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.sighs.apricityui.init;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
 
@@ -318,6 +319,7 @@ public class Element extends Node {
         } else {
             ensureCssCacheReady();
             computedStyle = new Style();
+            computedStyle.applyUserAgentDefaults(this);
             cssCache.forEach(computedStyle::update);
             computedStyle.merge(getAttribute("style"));
             // 先缓存当前构建中的 Style，避免 var() 解析阶段再次回到本元素时重复创建并递归进入。
@@ -586,6 +588,7 @@ public class Element extends Node {
     }
 
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
+        if (NormalFlow.isInlineTextPaintedByAncestor(this)) return;
         Rect rectRenderer = Rect.of(this);
         switch (phase) {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
@@ -1678,12 +1681,32 @@ public class Element extends Node {
             for (int i = 0; i < run.lines().size(); i++) {
                 String line = run.lines().get(i);
                 if (line == null || line.isEmpty()) continue;
+                double lineWidth = Text.measureLine(run.text(), line);
                 drawPos.x = contentPos.x + (i == 0 ? run.x() : 0) - scrollLeft;
                 drawPos.y = contentPos.y + run.y() + i * run.text().lineHeight;
+                drawInlineFragmentBackground(poseStack, run.owner(), drawPos, lineWidth, run.text().lineHeight);
                 Text lineText = cloneTextForSegment(run.text(), line, Color.BLACK);
                 FontDrawer.drawFont(poseStack, lineText, drawPos);
             }
         }
+    }
+
+    private void drawInlineFragmentBackground(PoseStack poseStack, Element owner, Position drawPos, double width, double height) {
+        if (owner == null || owner == this || width <= 0 || height <= 0) return;
+        Style style = owner.getComputedStyle();
+        if (!"inline".equalsIgnoreCase(style.display)) return;
+        Background background = Background.of(owner);
+        if (background == null || background.color == null || "unset".equals(background.color)) return;
+        int color = new Color(background.color).getValue();
+        if ((color >>> 24) == 0) return;
+        Graph.drawFillRect(
+                poseStack.last().pose(),
+                (float) drawPos.x,
+                (float) drawPos.y,
+                (float) (drawPos.x + width),
+                (float) (drawPos.y + height),
+                color
+        );
     }
 
     private void drawFlexDirectTextRuns(PoseStack poseStack) {
