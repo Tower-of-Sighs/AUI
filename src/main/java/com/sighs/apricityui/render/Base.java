@@ -183,7 +183,7 @@ public class Base {
             List<Transform> functions = e.getRenderer().transform.get();
             if (functions == null) {
                 String cssTransform = e.getComputedStyle().transform;
-                functions = Transform.parse(cssTransform);
+                functions = Transform.parse(cssTransform, size.width(), size.height());
                 e.getRenderer().transform.set(functions);
             }
 
@@ -191,8 +191,9 @@ public class Base {
                 double w = size.width();
                 double h = size.height();
                 // transform-origin 默认为中心 (50% 50%)
-                float originX = (float) (w / 2.0);
-                float originY = (float) (h / 2.0);
+                float[] origin = resolveTransformOrigin(e.getComputedStyle().transformOrigin, w, h);
+                float originX = origin[0];
+                float originY = origin[1];
 
                 for (Transform transform : functions) {
                     if (transform instanceof Transform.Translate t) {
@@ -211,6 +212,49 @@ public class Base {
                 }
             }
         }
+    }
+
+    private static float[] resolveTransformOrigin(String value, double width, double height) {
+        if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value)) {
+            return new float[]{(float) (width / 2.0), (float) (height / 2.0)};
+        }
+
+        String[] raw = value.trim().toLowerCase(java.util.Locale.ROOT).split("\\s+");
+        String xToken = "50%";
+        String yToken = "50%";
+        if (raw.length == 1) {
+            if (isVerticalOrigin(raw[0])) yToken = raw[0];
+            else xToken = raw[0];
+        } else {
+            xToken = raw[0];
+            yToken = raw[1];
+            if (isVerticalOrigin(xToken) && !isVerticalOrigin(yToken)) {
+                String tmp = xToken;
+                xToken = yToken;
+                yToken = tmp;
+            }
+        }
+
+        return new float[]{
+                (float) resolveOriginToken(xToken, width, true),
+                (float) resolveOriginToken(yToken, height, false)
+        };
+    }
+
+    private static boolean isVerticalOrigin(String token) {
+        return "top".equals(token) || "bottom".equals(token);
+    }
+
+    private static double resolveOriginToken(String token, double basis, boolean horizontal) {
+        if (token == null || token.isBlank()) return basis / 2.0;
+        return switch (token) {
+            case "left" -> horizontal ? 0 : basis / 2.0;
+            case "right" -> horizontal ? basis : basis / 2.0;
+            case "top" -> horizontal ? basis / 2.0 : 0;
+            case "bottom" -> horizontal ? basis / 2.0 : basis;
+            case "center" -> basis / 2.0;
+            default -> Size.resolveLength(token, basis, basis / 2.0);
+        };
     }
 
     private record Scratch(double[] absX, double[] absY) {

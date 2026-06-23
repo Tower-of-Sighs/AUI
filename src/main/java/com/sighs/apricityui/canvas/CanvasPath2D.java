@@ -25,6 +25,10 @@ public class CanvasPath2D {
         CanvasSvgPathParser.parseInto(source, this);
     }
 
+    public void setWindingRule(int rule) {
+        path.setWindingRule(rule);
+    }
+
     Path2D.Double raw() {
         return path;
     }

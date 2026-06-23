@@ -20,6 +20,11 @@ public interface Transform {
     }
 
     static List<Transform> parse(String transform) {
+        Size window = Size.getWindowSize();
+        return parse(transform, window.width(), window.height());
+    }
+
+    static List<Transform> parse(String transform, double percentBasisWidth, double percentBasisHeight) {
         List<Transform> result = new ArrayList<>();
 
         Translate translate = Translate.DEFAULT;
@@ -37,21 +42,21 @@ public interface Transform {
 
             switch (func) {
                 case "translate", "translate3d" -> {
-                    double x = parseLength(args, 0);
-                    double y = parseLength(args, 1);
-                    double z = parseLength(args, 2);
+                    double x = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
+                    double y = parseLength(args, 1, percentBasisWidth, percentBasisHeight);
+                    double z = parseLength(args, 2, percentBasisWidth, percentBasisHeight);
                     result.add(new Translate(x, y, z));
                 }
                 case "translatex" -> {
-                    double x = parseLength(args, 0);
+                    double x = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
                     result.add(new Translate(x, translate.y(), translate.z()));
                 }
                 case "translatey" -> {
-                    double y = parseLength(args, 0);
+                    double y = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
                     result.add(new Translate(translate.x(), y, translate.z()));
                 }
                 case "translatez" -> {
-                    double z = parseLength(args, 0);
+                    double z = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
                     result.add(new Translate(translate.x(), translate.y(), z));
                 }
                 case "rotate", "rotatez" -> {
@@ -193,10 +198,10 @@ public interface Transform {
         }
     }
 
-    private static double parseLength(List<String> args, int index) {
+    private static double parseLength(List<String> args, int index, double percentBasisWidth, double percentBasisHeight) {
         if (args == null || index < 0 || index >= args.size()) return 0;
         String raw = args.get(index);
-        double percentBasis = index == 1 ? Size.getWindowSize().height() : Size.getWindowSize().width();
+        double percentBasis = index == 1 ? percentBasisHeight : percentBasisWidth;
         Double parsed = Size.tryResolveLength(raw, percentBasis);
         return parsed == null ? 0 : parsed;
     }

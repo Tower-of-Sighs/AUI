@@ -193,15 +193,27 @@ final class CanvasSvgPathParser {
                     previousCommand = command;
                 }
                 case 'A', 'a' -> {
-                    List<Double> values = readNumberSequence();
-                    for (int i = 0; i + 6 < values.size(); i += 7) {
-                        double rx = values.get(i);
-                        double ry = values.get(i + 1);
-                        double angle = values.get(i + 2);
-                        boolean largeArc = values.get(i + 3) != 0;
-                        boolean sweep = values.get(i + 4) != 0;
-                        double x = values.get(i + 5);
-                        double y = values.get(i + 6);
+                    while (true) {
+                        skipSeparators();
+                        if (index >= source.length() || isCommand(source.charAt(index))) break;
+                        Double rxValue = readNumber();
+                        Double ryValue = readNumber();
+                        Double angleValue = readNumber();
+                        Integer largeArcFlag = readArcFlag();
+                        Integer sweepFlag = readArcFlag();
+                        Double xValue = readNumber();
+                        Double yValue = readNumber();
+                        if (rxValue == null || ryValue == null || angleValue == null
+                                || largeArcFlag == null || sweepFlag == null || xValue == null || yValue == null) {
+                            break;
+                        }
+                        double rx = rxValue;
+                        double ry = ryValue;
+                        double angle = angleValue;
+                        boolean largeArc = largeArcFlag != 0;
+                        boolean sweep = sweepFlag != 0;
+                        double x = xValue;
+                        double y = yValue;
                         if (command == 'a') {
                             x += currentX;
                             y += currentY;
@@ -266,6 +278,18 @@ final class CanvasSvgPathParser {
             if (!expDigits) index = expStart;
         }
         return Double.parseDouble(source.substring(start, index));
+    }
+
+    private Integer readArcFlag() {
+        skipSeparators();
+        if (index >= source.length()) return null;
+        char ch = source.charAt(index);
+        if (ch == '0' || ch == '1') {
+            index++;
+            return ch - '0';
+        }
+        Double value = readNumber();
+        return value == null ? null : (value == 0 ? 0 : 1);
     }
 
     private void skipSeparators() {
