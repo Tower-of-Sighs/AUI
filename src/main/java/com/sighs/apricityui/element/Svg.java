@@ -18,6 +18,9 @@ import java.awt.BasicStroke;
 import java.awt.Graphics2D;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Line2D;
+import java.awt.geom.Path2D;
 import java.awt.geom.Rectangle2D;
 import java.util.Locale;
 
@@ -152,6 +155,11 @@ public class Svg extends Canvas {
                 drawPath(graphics, childElement, currentPaint);
                 continue;
             }
+            Shape shape = shapeForElement(childElement, tag);
+            if (shape != null) {
+                drawShape(graphics, childElement, shape, currentPaint);
+                continue;
+            }
             drawSvgSubtree(graphics, childElement, currentPaint);
         }
     }
@@ -160,9 +168,75 @@ public class Svg extends Canvas {
         String d = pathElement.getAttribute("d");
         if (d == null || d.isBlank()) return;
         CanvasPath2D canvasPath = new CanvasPath2D(d);
+        if ("evenodd".equalsIgnoreCase(pathElement.getAttribute("fill-rule"))) {
+            canvasPath.setWindingRule(Path2D.WIND_EVEN_ODD);
+        }
         Shape shape = canvasPath.asShape();
         if (shape == null || shape.getBounds2D().isEmpty()) return;
+        drawShape(graphics, pathElement, shape, inheritedPaint);
+    }
 
+    private Shape shapeForElement(Element element, String tag) {
+        return switch (tag) {
+            case "CIRCLE" -> circleShape(element);
+            case "ELLIPSE" -> ellipseShape(element);
+            case "RECT" -> rectShape(element);
+            case "LINE" -> lineShape(element);
+            case "POLYLINE" -> pointsShape(element, false);
+            case "POLYGON" -> pointsShape(element, true);
+            default -> null;
+        };
+    }
+
+    private Shape circleShape(Element element) {
+        double r = parseSvgNumber(element.getAttribute("r"), 0);
+        if (r <= 0) return null;
+        double cx = parseSvgNumber(element.getAttribute("cx"), 0);
+        double cy = parseSvgNumber(element.getAttribute("cy"), 0);
+        return new Ellipse2D.Double(cx - r, cy - r, r * 2, r * 2);
+    }
+
+    private Shape ellipseShape(Element element) {
+        double rx = parseSvgNumber(element.getAttribute("rx"), 0);
+        double ry = parseSvgNumber(element.getAttribute("ry"), 0);
+        if (rx <= 0 || ry <= 0) return null;
+        double cx = parseSvgNumber(element.getAttribute("cx"), 0);
+        double cy = parseSvgNumber(element.getAttribute("cy"), 0);
+        return new Ellipse2D.Double(cx - rx, cy - ry, rx * 2, ry * 2);
+    }
+
+    private Shape rectShape(Element element) {
+        double width = parseSvgNumber(element.getAttribute("width"), 0);
+        double height = parseSvgNumber(element.getAttribute("height"), 0);
+        if (width <= 0 || height <= 0) return null;
+        double x = parseSvgNumber(element.getAttribute("x"), 0);
+        double y = parseSvgNumber(element.getAttribute("y"), 0);
+        return new Rectangle2D.Double(x, y, width, height);
+    }
+
+    private Shape lineShape(Element element) {
+        double x1 = parseSvgNumber(element.getAttribute("x1"), 0);
+        double y1 = parseSvgNumber(element.getAttribute("y1"), 0);
+        double x2 = parseSvgNumber(element.getAttribute("x2"), 0);
+        double y2 = parseSvgNumber(element.getAttribute("y2"), 0);
+        return new Line2D.Double(x1, y1, x2, y2);
+    }
+
+    private Shape pointsShape(Element element, boolean close) {
+        String raw = element.getAttribute("points");
+        if (raw == null || raw.isBlank()) return null;
+        String[] parts = raw.trim().split("[,\\s]+");
+        if (parts.length < 4) return null;
+        Path2D.Double path = new Path2D.Double();
+        path.moveTo(parseSvgNumber(parts[0], 0), parseSvgNumber(parts[1], 0));
+        for (int i = 2; i + 1 < parts.length; i += 2) {
+            path.lineTo(parseSvgNumber(parts[i], 0), parseSvgNumber(parts[i + 1], 0));
+        }
+        if (close) path.closePath();
+        return path;
+    }
+
+    private void drawShape(Graphics2D graphics, Element pathElement, Shape shape, SvgPaint inheritedPaint) {
         SvgPaint paint = SvgPaint.fromElement(pathElement, inheritedPaint.currentColor, inheritedPaint.fill,
                 inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin);
 

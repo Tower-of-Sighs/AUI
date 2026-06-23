@@ -359,7 +359,7 @@ public class CSS {
                 String[] kv = pair.split(":", 2);
                 if (kv.length == 2) {
                     String key = kv[0].trim();
-                    String value = kv[1].trim();
+                    String value = stripImportant(kv[1].trim());
                     if (value.contains("url(")) {
                         value = normalizeUrlValue(value, contextPath);
                     }
@@ -369,6 +369,15 @@ public class CSS {
                 }
             }
             return properties;
+        }
+
+        private static String stripImportant(String value) {
+            if (value == null || value.isBlank()) return value;
+            String normalized = value.trim();
+            if (normalized.toLowerCase(Locale.ROOT).endsWith("!important")) {
+                return normalized.substring(0, normalized.length() - "!important".length()).trim();
+            }
+            return normalized;
         }
 
         private static String normalizeUrlValue(String value, String contextPath) {

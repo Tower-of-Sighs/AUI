@@ -120,6 +120,7 @@ public class Style implements Cloneable {
             Map.entry("visibility", "visible"),
             Map.entry("transition", "none"),
             Map.entry("transform", "none"),
+            Map.entry("transform-origin", "50% 50%"),
             Map.entry("rotate", "none"),
             Map.entry("clip-path", "none"),
             Map.entry("filter", "none"),
@@ -247,6 +248,7 @@ public class Style implements Cloneable {
     public String visibility = "unset";
     public String transition = "none";
     public String transform = "none";
+    public String transformOrigin = "50% 50%";
     public String rotate = "none";
     public String clipPath = "none";
     public String filter = "none";

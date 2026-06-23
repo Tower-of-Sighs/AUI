@@ -41,6 +41,11 @@ public final class NormalFlow {
             if (!"inline".equals(normalizeDisplay(currentStyle.display))) return false;
             if (isReplacedLikeElement(current)) return false;
 
+            Style parentStyle = parent.getComputedStyle();
+            if (Layout.isFlexDisplay(parentStyle.display) || Layout.isGridDisplay(parentStyle.display)) {
+                return false;
+            }
+
             if (hasRenderableInlineText(current)) return true;
             if (shouldFragmentInlineElement(parent)) return true;
             current = parent;
