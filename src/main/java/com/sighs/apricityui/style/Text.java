@@ -43,6 +43,9 @@ public class Text {
     public double letterSpacing = 0;
     public Document.FontMode fontMode = Document.FontMode.WEB_SCALED;
     public Size size = null;
+    // 标记该 Text 是否由 flex 容器直接文本节点生成。直接文本节点已由 Flex 布局居中，
+    // 绘制时不应再在行框内部做二次居中，否则会把文本相对于图标基准线下移。
+    public boolean flexDirect = false;
 
     public static double getFontSize(Element element) {
         Document.FontMode fontMode = getFontMode(element);

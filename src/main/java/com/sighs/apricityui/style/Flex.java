@@ -648,6 +648,7 @@ public class Flex {
                 text.color = base.color == null ? Color.BLACK : base.color;
                 text.strokeColor = base.strokeColor == null ? Color.BLACK : base.strokeColor;
                 text.content = normalized;
+                text.flexDirect = true;
                 Text.WrappedText wrapped = Text.wrap(text, 0);
                 text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
                 participants.add(new FlexParticipant(null, text, text.size));

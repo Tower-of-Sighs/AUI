@@ -15,14 +15,20 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CSS {
-    public record DebugRule(String selector, Map<String, String> properties, String sourcePath, int order) {
+    /**
+     * 带 !important 标志的 CSS 声明。value 中不再包含 "!important" 后缀。
+     */
+    public record Declaration(String value, boolean important) {
     }
 
-    public static void readCSS(String css, Map<String, Map<String, String>> targetCache, String contextPath) {
+    public record DebugRule(String selector, Map<String, Declaration> properties, String sourcePath, int order) {
+    }
+
+    public static void readCSS(String css, Map<String, Map<String, Declaration>> targetCache, String contextPath) {
         Parser.parse(css, targetCache, null, contextPath, 0);
     }
 
-    public static int readCSS(String css, Map<String, Map<String, String>> targetCache,
+    public static int readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
                               List<DebugRule> debugRules, String contextPath, int orderStart) {
         return Parser.parse(css, targetCache, debugRules, contextPath, orderStart);
     }
@@ -146,11 +152,15 @@ public class CSS {
                     while (frameMatcher.find()) {
                         String percentStr = frameMatcher.group(1);
                         String rules = frameMatcher.group(2);
-                        Map<String, String> properties = parseProperties(rules, contextPath);
+                        Map<String, Declaration> properties = parseProperties(rules, contextPath);
+                        Map<String, String> valueMap = new HashMap<>();
+                        for (Map.Entry<String, Declaration> entry : properties.entrySet()) {
+                            valueMap.put(entry.getKey(), entry.getValue().value());
+                        }
                         for (String token : percentStr.split(",")) {
                             Double percent = parseKeyframePercent(token.trim());
                             if (percent == null) continue;
-                            Animation.registerKeyframe(animName, percent, properties);
+                            Animation.registerKeyframe(animName, percent, valueMap);
                         }
                     }
 
@@ -164,7 +174,7 @@ public class CSS {
             return cleanCss.toString();
         }
 
-        public static int parse(String css, Map<String, Map<String, String>> targetCache,
+        public static int parse(String css, Map<String, Map<String, Declaration>> targetCache,
                                 List<DebugRule> debugRules, String contextPath, int orderStart) {
             if (css == null || css.isBlank()) return orderStart;
             String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath));
@@ -179,7 +189,7 @@ public class CSS {
 
                 String rules = matcher.group(2).trim();
                 String[] selectors = selector.split("\\s*,\\s*");
-                HashMap<String, String> properties = parseProperties(rules, contextPath);
+                HashMap<String, Declaration> properties = parseProperties(rules, contextPath);
 
                 for (String sel : selectors) {
                     String normalizedSelector = sel.trim();
@@ -310,18 +320,12 @@ public class CSS {
         }
 
         private static int resolveViewportLength(String systemProperty, int fallback, boolean width) {
+            // 优先使用 ApricityScreen 设置的逻辑视口覆盖，而不是 Minecraft 物理窗口尺寸，
+            // 这样 @media 能根据当前 AUI 文档的实际渲染视口进行适配。
             String override = System.getProperty(systemProperty);
             if (override != null && !override.isBlank()) {
                 Double parsed = Size.parseNumber(override);
                 if (parsed != null) return (int) Math.round(parsed);
-            }
-            try {
-                net.minecraft.client.Minecraft minecraft = net.minecraft.client.Minecraft.getInstance();
-                if (minecraft != null && minecraft.getWindow() != null) {
-                    return width ? minecraft.getWindow().getGuiScaledWidth() : minecraft.getWindow().getGuiScaledHeight();
-                }
-            } catch (Throwable ignored) {
-                // Non-client contexts, such as unit tests, fall back to the logical AUI viewport.
             }
             try {
                 return (int) Math.round(width ? Size.getWindowSize().width() : Size.getWindowSize().height());
@@ -352,32 +356,37 @@ public class CSS {
             }
         }
 
-        private static HashMap<String, String> parseProperties(String rules, String contextPath) {
-            HashMap<String, String> properties = new HashMap<>();
+        private static HashMap<String, Declaration> parseProperties(String rules, String contextPath) {
+            HashMap<String, Declaration> properties = new HashMap<>();
             String[] pairs = rules.split(";");
             for (String pair : pairs) {
                 String[] kv = pair.split(":", 2);
                 if (kv.length == 2) {
                     String key = kv[0].trim();
-                    String value = stripImportant(kv[1].trim());
+                    String rawValue = kv[1].trim();
+                    Declaration declaration = stripImportant(rawValue);
+                    String value = declaration.value();
                     if (value.contains("url(")) {
                         value = normalizeUrlValue(value, contextPath);
                     }
                     if (!key.isEmpty() && !value.isEmpty()) {
-                        properties.put(key, value);
+                        properties.put(key, new Declaration(value, declaration.important()));
                     }
                 }
             }
             return properties;
         }
 
-        private static String stripImportant(String value) {
-            if (value == null || value.isBlank()) return value;
+        private static Declaration stripImportant(String value) {
+            if (value == null || value.isBlank()) return new Declaration(value, false);
             String normalized = value.trim();
             if (normalized.toLowerCase(Locale.ROOT).endsWith("!important")) {
-                return normalized.substring(0, normalized.length() - "!important".length()).trim();
+                return new Declaration(
+                        normalized.substring(0, normalized.length() - "!important".length()).trim(),
+                        true
+                );
             }
-            return normalized;
+            return new Declaration(normalized, false);
         }
 
         private static String normalizeUrlValue(String value, String contextPath) {

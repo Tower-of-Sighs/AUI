@@ -138,14 +138,14 @@ public class Selector {
         private Index() {
         }
 
-        public static Index build(Map<String, Map<String, String>> cssCache) {
+        public static Index build(Map<String, Map<String, CSS.Declaration>> cssCache) {
             Index index = new Index();
             if (cssCache == null || cssCache.isEmpty()) return index;
 
             int order = 0;
-            for (Map.Entry<String, Map<String, String>> entry : cssCache.entrySet()) {
+            for (Map.Entry<String, Map<String, CSS.Declaration>> entry : cssCache.entrySet()) {
                 String selectorStr = entry.getKey();
-                Map<String, String> styles = entry.getValue();
+                Map<String, CSS.Declaration> styles = entry.getValue();
                 if (selectorStr == null || selectorStr.isBlank() || styles == null) {
                     order++;
                     continue;
@@ -261,9 +261,33 @@ public class Selector {
 
             matched.sort(Comparator.comparing(m -> m.specificity));
 
+            // 先应用普通声明，再应用 !important 声明。
+            // 同一属性中 important 声明按 specificity 排序覆盖，符合 CSS 层叠规则。
             HashMap<String, String> finalStyles = new HashMap<>();
+            List<MatchedRule> importantRules = new ArrayList<>();
             for (MatchedRule rule : matched) {
-                finalStyles.putAll(rule.styles);
+                boolean hasImportant = false;
+                for (CSS.Declaration declaration : rule.styles.values()) {
+                    if (declaration.important()) {
+                        hasImportant = true;
+                        break;
+                    }
+                }
+                if (hasImportant) {
+                    importantRules.add(rule);
+                } else {
+                    for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
+                        finalStyles.put(e.getKey(), e.getValue().value());
+                    }
+                }
+            }
+            for (MatchedRule rule : importantRules) {
+                for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
+                    CSS.Declaration declaration = e.getValue();
+                    if (declaration.important()) {
+                        finalStyles.put(e.getKey(), declaration.value());
+                    }
+                }
             }
             return finalStyles;
         }
@@ -279,7 +303,7 @@ public class Selector {
         }
 
         private record IndexedRule(String selectorStr, CompiledSelector selector, Specificity specificity,
-                                   Map<String, String> styles) {
+                                   Map<String, CSS.Declaration> styles) {
         }
     }
 
@@ -515,7 +539,7 @@ public class Selector {
     }
 
     public static List<DebugStyleBlock> getDebugStyles(Element element) {
-        record DebugMatch(String sourcePath, String selector, Specificity specificity, Map<String, String> styles) {
+        record DebugMatch(String sourcePath, String selector, Specificity specificity, Map<String, CSS.Declaration> styles) {
         }
         List<DebugMatch> matches = new ArrayList<>();
 
@@ -534,11 +558,15 @@ public class Selector {
         matches.sort((a, b) -> b.specificity.compareTo(a.specificity));
         List<DebugStyleBlock> result = new ArrayList<>();
         for (DebugMatch match : matches) {
-            result.add(new DebugStyleBlock(match.sourcePath, match.selector, match.styles));
+            HashMap<String, String> valueMap = new HashMap<>();
+            for (Map.Entry<String, CSS.Declaration> e : match.styles.entrySet()) {
+                valueMap.put(e.getKey(), e.getValue().value());
+            }
+            result.add(new DebugStyleBlock(match.sourcePath, match.selector, valueMap));
         }
         return result;
     }
 
-    private record MatchedRule(Specificity specificity, Map<String, String> styles) {
+    private record MatchedRule(Specificity specificity, Map<String, CSS.Declaration> styles) {
     }
 }
