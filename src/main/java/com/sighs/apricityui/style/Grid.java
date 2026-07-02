@@ -91,7 +91,49 @@ public final class Grid {
         Size itemSize = Size.box(element);
         double dx = computeJustifyOffset(element, parent, cellW, itemSize.width());
         double dy = computeAlignOffset(element, parent, cellH, itemSize.height());
+        applyGridStretchSize(element, parent, cellW, cellH);
         return new Position(baseX + dx, baseY + dy);
+    }
+
+    /**
+     * 如果网格项在对应轴上为 stretch（grid 默认），把它的大小设为网格区域大小。
+     * 这样网格项不会溢出单元格，也符合浏览器默认行为。
+     */
+    private static void applyGridStretchSize(Element element, Element parent, double cellW, double cellH) {
+        Style parentStyle = parent.getComputedStyle();
+        Style selfStyle = element.getComputedStyle();
+        boolean stretchW = isGridStretch(parentStyle.justifyItems, selfStyle.justifySelf);
+        boolean stretchH = isGridStretch(parentStyle.alignItems, selfStyle.alignSelf);
+        if (!stretchW && !stretchH) return;
+
+        // 如果元素在对应轴上有明确尺寸，保持其显式大小，不做拉伸。
+        boolean hasExplicitWidth = Size.parseNumber(selfStyle.width) != null;
+        boolean hasExplicitHeight = Size.parseNumber(selfStyle.height) != null;
+        if (stretchW && hasExplicitWidth) stretchW = false;
+        if (stretchH && hasExplicitHeight) stretchH = false;
+        if (!stretchW && !stretchH) return;
+
+        Size current = Size.of(element);
+        Box box = Box.of(element);
+        double targetW = stretchW ? cellW : current.width();
+        double targetH = stretchH ? cellH : current.height();
+
+        // Size 缓存存储的是元素总大小（content + border + padding）。
+        // border-box 时总大小直接等于网格区域大小；content-box 时需要加上边框内边距。
+        if (!box.isBorderBox()) {
+            if (stretchW) targetW += box.getBorderHorizontal() + box.getPaddingHorizontal();
+            if (stretchH) targetH += box.getBorderVertical() + box.getPaddingVertical();
+        }
+
+        double finalW = stretchW ? Math.max(0, targetW) : current.width();
+        double finalH = stretchH ? Math.max(0, targetH) : current.height();
+        element.getRenderer().size.set(new Size(finalW, finalH));
+    }
+
+    private static boolean isGridStretch(String containerValue, String selfValue) {
+        Align container = normalizeAlign(containerValue, Align.STRETCH);
+        Align self = normalizeAlign(selfValue, container);
+        return self == Align.STRETCH;
     }
 
     public static Size computeContentSize(Element gridContainer) {

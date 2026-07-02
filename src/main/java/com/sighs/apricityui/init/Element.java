@@ -830,7 +830,7 @@ public class Element extends Node {
     @Override
     public void setTextContent(String value) {
         String oldValue = getTextContent();
-        String normalized = value == null ? "" : value;
+        String normalized = value == null ? "" : normalizeNumericText(value);
         if (!childNodes.isEmpty()) {
             ArrayList<Node> snapshot = new ArrayList<>(childNodes);
             for (Node child : snapshot) {
@@ -844,6 +844,32 @@ public class Element extends Node {
         if (document != null && !Objects.equals(oldValue, normalized)) {
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }
+    }
+
+    /**
+     * Rhino/KubeJS 在把 Java/JS 数值传给 Java 的 String 形参时，Double 对象会被格式化为 "18.0"。
+     * 这对页面里常见的 count/page 显示很不友好，因此把纯整数值的 "N.0" 归一化为 "N"。
+     */
+    private static String normalizeNumericText(String value) {
+        if (value == null || value.isEmpty()) return "";
+        int len = value.length();
+        int i = 0;
+        if (value.charAt(0) == '-') {
+            if (len == 1) return value;
+            i = 1;
+        }
+        boolean allDigits = true;
+        for (int j = i; j < len - 2; j++) {
+            char c = value.charAt(j);
+            if (c < '0' || c > '9') {
+                allDigits = false;
+                break;
+            }
+        }
+        if (allDigits && len >= i + 3 && value.charAt(len - 2) == '.' && value.charAt(len - 1) == '0') {
+            return value.substring(0, len - 2);
+        }
+        return value;
     }
 
     @Override
@@ -1801,6 +1827,7 @@ public class Element extends Node {
         copy.textIndent = 0;
         copy.letterSpacing = base.letterSpacing;
         copy.content = content == null ? "" : content;
+        copy.flexDirect = base.flexDirect;
         return copy;
     }
 

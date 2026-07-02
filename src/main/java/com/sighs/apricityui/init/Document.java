@@ -76,7 +76,7 @@ public class Document {
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
-    public final Map<String, Map<String, String>> CSSCache = new LinkedHashMap<>();
+    public final Map<String, Map<String, CSS.Declaration>> CSSCache = new LinkedHashMap<>();
     public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
     public final List<String> JSCache = new ArrayList<>();
     public Html documentElement;

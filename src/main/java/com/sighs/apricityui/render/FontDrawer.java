@@ -34,7 +34,11 @@ public class FontDrawer {
 
         // 避免每次都走 split("\n") 的 regex 路径（会产生大量分配）。
         double baseX = position.x;
-        double baseY = position.y + (text.lineHeight - text.renderedFontSize()) / 2.0;
+        // flex 容器中的直接文本节点已由 Flex 布局按行高居中，这里不再在行框内部二次居中；
+        // 否则实际字高大于 renderedFontSize 时会让文本相对于图标/按钮中心整体下移。
+        double baseY = text.flexDirect
+                ? position.y
+                : position.y + (text.lineHeight - text.renderedFontSize()) / 2.0;
         Position linePos = new Position(baseX, baseY);
 
         int firstNl = content.indexOf('\n');
