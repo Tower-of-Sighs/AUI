@@ -9,6 +9,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.FrameScheduler;
 import com.sighs.apricityui.init.StyleFrameCache;
+import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.style.*;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -36,7 +37,21 @@ public class Base {
     public static void drawAllDocument(PoseStack poseStack) {
         Mask.resetDepth();
         for (Document document : Document.getAll()) {
-            if (!document.inWorld) drawDocument(poseStack, document);
+            if (!document.inWorld) drawOverlayDocument(poseStack, document);
+        }
+    }
+
+    public static void drawOverlayDocument(PoseStack poseStack, Document document) {
+        if (document == null) return;
+        ApricityViewport viewport = document.getViewport();
+        poseStack.pushPose();
+        Mask.pushScissorScale(viewport.scissorScale());
+        try {
+            poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+            drawDocument(poseStack, document);
+        } finally {
+            Mask.popScissorScale();
+            poseStack.popPose();
         }
     }
 

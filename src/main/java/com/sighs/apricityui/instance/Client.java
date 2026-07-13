@@ -10,6 +10,7 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -18,6 +19,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -193,7 +195,7 @@ public class Client {
             // Shared item render pass for DOM <slot> (createDocument path).
             for (Document document : Document.getAll()) {
                 if (!document.inWorld) {
-                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
+                    renderOverlaySlotItems(event.getGuiGraphics(), document);
                 }
             }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
@@ -206,14 +208,32 @@ public class Client {
             if (document == null || document.inWorld || !document.isReloadPersistent()) {
                 continue;
             }
-            Base.drawDocument(guiGraphics.pose(), document);
+            Base.drawOverlayDocument(guiGraphics.pose(), document);
+            renderOverlaySlotItems(guiGraphics, document);
+        }
+    }
+
+    private static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphics guiGraphics, Document document) {
+        if (guiGraphics == null || document == null) return;
+        ApricityViewport viewport = document.getViewport();
+        guiGraphics.pose().pushPose();
+        Mask.pushScissorScale(viewport.scissorScale());
+        try {
+            guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
             ItemRender.renderDocumentSlotItems(guiGraphics, document);
+        } finally {
+            Mask.popScissorScale();
+            guiGraphics.pose().popPose();
         }
     }
 
     @SubscribeEvent
     public static void scroll(InputEvent.MouseScrollingEvent event) {
         if (Minecraft.getInstance().screen != null) return;
+        if (handleViewportZoomAtMouse(event.getScrollDelta() > 0)) {
+            event.setCanceled(true);
+            return;
+        }
         boolean consumed = Operation.scroll(event.getScrollDelta());
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
@@ -230,6 +250,10 @@ public class Client {
 
     @SubscribeEvent
     public static void scroll(ScreenEvent.MouseScrolled.Pre event) {
+        if (handleViewportZoomAtMouse(event.getScrollDelta() > 0)) {
+            event.setCanceled(true);
+            return;
+        }
         if (Operation.scroll(event.getScrollDelta())) {
             event.setCanceled(true);
         }
@@ -285,6 +309,9 @@ public class Client {
         }
         int action = event.getAction();
         if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        if (action == InputConstants.PRESS && handleViewportZoomKeyAtMouse(event.getKey(), event.getModifiers())) {
+            return;
+        }
         boolean canceled = Operation.handleKeyInput(
                 event.getKey(),
                 event.getScanCode(),
@@ -298,6 +325,10 @@ public class Client {
 
     @SubscribeEvent
     public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+        if (handleViewportZoomKeyAtMouse(event.getKeyCode(), event.getModifiers())) {
+            event.setCanceled(true);
+            return;
+        }
         int action = InputConstants.PRESS;
         boolean canceled = Operation.handleKeyInput(
                 event.getKeyCode(),
@@ -308,6 +339,62 @@ public class Client {
                 com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
         );
 //        if (canceled) event.setCanceled(true);
+    }
+
+    private static boolean handleViewportZoomAtMouse(boolean zoomIn) {
+        if (!isControlDown()) return false;
+        Document target = findViewportZoomTargetAtMouse();
+        if (target == null) return false;
+        ApricityUI.LOGGER.info("[AUI Viewport] wheel zoomIn={} target={}", zoomIn, target.getPath());
+        return target.handleViewportZoom(zoomIn);
+    }
+
+    private static boolean handleViewportZoomKeyAtMouse(int keyCode, int modifiers) {
+        if (!isControlModifier(modifiers)) return false;
+
+        boolean zoomIn = keyCode == GLFW.GLFW_KEY_EQUAL || keyCode == GLFW.GLFW_KEY_KP_ADD;
+        boolean zoomOut = keyCode == GLFW.GLFW_KEY_MINUS || keyCode == GLFW.GLFW_KEY_KP_SUBTRACT;
+        boolean reset = keyCode == GLFW.GLFW_KEY_0 || keyCode == GLFW.GLFW_KEY_KP_0;
+        if (!zoomIn && !zoomOut && !reset) return false;
+
+        Document target = findViewportZoomTargetAtMouse();
+        if (target == null) return false;
+        ApricityUI.LOGGER.info("[AUI Viewport] key zoomIn={} reset={} target={}", zoomIn, reset, target.getPath());
+        return reset ? target.resetViewportZoom() : target.handleViewportZoom(zoomIn);
+    }
+
+    private static Document findViewportZoomTargetAtMouse() {
+        Position mouse = Operation.getMousePositionDirectly();
+        if (mouse == null) return null;
+        ArrayList<Document> candidates = new ArrayList<>(Document.getAll());
+        for (int i = candidates.size() - 1; i >= 0; i--) {
+            Document document = candidates.get(i);
+            if (document == null || document.inWorld || !document.isActive()) continue;
+            if (com.sighs.apricityui.event.MouseEvent.hitTest(
+                    document.getPaintList(),
+                    document.screenToDocumentPosition(mouse)
+            ) != null) {
+                return document;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0 || isControlDown();
+    }
+
+    private static boolean isControlDown() {
+        if (Screen.hasControlDown()) return true;
+        try {
+            Window window = Minecraft.getInstance().getWindow();
+            long handle = window == null ? 0L : window.getWindow();
+            return handle != 0L
+                    && (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+                    || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     @SubscribeEvent

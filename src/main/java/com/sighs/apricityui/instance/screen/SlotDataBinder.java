@@ -20,6 +20,8 @@ public final class SlotDataBinder {
     private final ArrayList<Slot> displaySlots = new ArrayList<>();
     private int lastBindSlotCount = -1;
     private long lastBindGeneration = -1L;
+    private double viewportScaleX = 1.0d;
+    private double viewportScaleY = 1.0d;
 
     public SlotDataBinder(ApricityContainerMenu menu) {
         this.menu = Objects.requireNonNull(menu);
@@ -82,14 +84,18 @@ public final class SlotDataBinder {
      * 同步所有绑定槽位的屏幕坐标。
      */
     public void syncAllSlotPositions(Document document, int leftPos, int topPos, boolean force) {
+        if (document != null) {
+            viewportScaleX = document.getViewportScaleX();
+            viewportScaleY = document.getViewportScaleY();
+        }
         for (SlotBinding binding : bindingsByGlobalIndex.values()) {
             if (binding.globalIndex < 0 || binding.globalIndex >= menu.slots.size()) continue;
             net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(binding.globalIndex);
 
             Slot slotElement = binding.slotElement;
             Position pos = Position.of(slotElement);
-            int elementX = (int) Math.round(pos.x) - leftPos;
-            int elementY = (int) Math.round(pos.y) - topPos;
+            int elementX = (int) Math.round(pos.x * viewportScaleX) - leftPos;
+            int elementY = (int) Math.round(pos.y * viewportScaleY) - topPos;
 
             if (force || menuSlot.x != elementX || menuSlot.y != elementY) {
                 ((SlotAccessor) menuSlot).setX(elementX);
@@ -100,7 +106,7 @@ public final class SlotDataBinder {
             if (menuSlot instanceof ApricityContainerMenu.UiSlot uiSlot) {
                 uiSlot.setUiDisabled(slotElement.isDisabled());
                 uiSlot.setUiHidden(!slotElement.shouldRenderItem());
-                uiSlot.setUiSlotSize(slotElement.resolveSlotSizeHint(16));
+                uiSlot.setUiSlotSize(scaleSlotSize(slotElement.resolveSlotSizeHint(16)));
             }
         }
     }
@@ -123,9 +129,9 @@ public final class SlotDataBinder {
             if (!slotElement.shouldAcceptPointer()) continue;
 
             Position pos = Position.of(slotElement);
-            double ex = pos.x;
-            double ey = pos.y;
-            int size = slotElement.resolveSlotSizeHint(16);
+            double ex = pos.x * viewportScaleX;
+            double ey = pos.y * viewportScaleY;
+            int size = scaleSlotSize(slotElement.resolveSlotSizeHint(16));
 
             if (mouseX >= ex && mouseX < ex + size && mouseY >= ey && mouseY < ey + size) {
                 return binding.globalIndex;
@@ -163,8 +169,8 @@ public final class SlotDataBinder {
                 !slotElement.shouldRenderItem(),
                 slotElement.isDisabled(),
                 slotElement.shouldRenderItem(),
-                slotElement.resolveSlotSizeHint(16),
-                slotElement.resolveIconScale(1.0F),
+                scaleSlotSize(slotElement.resolveSlotSizeHint(16)),
+                (float) Math.max(0.01d, slotElement.resolveIconScale(1.0F) * viewportScaleX),
                 slotElement.resolveZIndex(0)
         );
     }
@@ -193,6 +199,10 @@ public final class SlotDataBinder {
         }
         bindingsByGlobalIndex.clear();
         displaySlots.clear();
+    }
+
+    private int scaleSlotSize(int logicalSize) {
+        return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
     }
 
     private static int countSlotElements(Document document) {

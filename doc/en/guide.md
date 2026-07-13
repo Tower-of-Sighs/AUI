@@ -283,6 +283,49 @@ This is useful for both Overlay and Screen.
 
 ---
 
+### Screen Viewport Meta
+
+Screen documents can choose their logical root viewport with an `aui-viewport` meta tag:
+
+```html
+<meta name="aui-viewport" content="mode=gui">
+```
+
+Supported modes:
+
+1. `mode=gui`: default Minecraft GUI-sized viewport, compatible with the old behavior.
+2. `mode=window`: use the raw window pixel size as the logical viewport and scale it down to the current GUI coordinate space.
+3. `mode=screen` or `mode=fullscreen`: use the current monitor video-mode size as the logical viewport and scale it into the window.
+4. `mode=fixed,width=427,height=249`: use an explicit fixed logical viewport.
+
+Fixed mode also accepts `scale=1`, `scale=gui`, `scale=window`, or `scale=fit`.
+
+All screen viewport modes accept browser-like zoom options:
+
+- `zoom=1`: initial zoom.
+- `min-zoom=0.5`: minimum user zoom.
+- `max-zoom=3`: maximum user zoom.
+- `zoom-step=0.1`: Ctrl zoom increment.
+- `user-scalable=true`: whether Ctrl zoom is allowed.
+
+When user scaling is enabled, Screen documents support:
+
+- `Ctrl + mouse wheel`: zoom in/out.
+- `Ctrl + =` or `Ctrl + +`: zoom in.
+- `Ctrl + -`: zoom out.
+- `Ctrl + 0`: reset to the meta `zoom` value.
+
+Examples:
+
+```html
+<meta name="aui-viewport" content="mode=window">
+<meta name="aui-viewport" content="mode=fixed,width=427,height=249">
+<meta name="aui-viewport" content="mode=fixed,width=1920,height=1080,scale=fit">
+<meta name="aui-viewport" content="mode=gui,zoom=1,min-zoom=0.75,max-zoom=2,zoom-step=0.1">
+```
+
+---
+
 ### Suggested Starting Order
 
 If you are not sure where to begin, this sequence is usually the smoothest:

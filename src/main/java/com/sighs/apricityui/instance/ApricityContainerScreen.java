@@ -18,25 +18,20 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-/**
- * 带容器交互的 Screen，绑定/同步逻辑委托给 SlotDataBinder。
- */
 public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> {
-    private static final double MAX_DOCUMENT_GUI_SCALE = 5.0d;
     private static final String DEVTOOLS_PATH = "devtools/index.html";
     private static final int QUICK_CRAFT_GHOST_COLOR = -2130706433;
     private static final float ICON_SCALE_EPSILON = 0.0001F;
 
     private Document linkedDocument;
     private SlotDataBinder slotBinder;
-    private float documentRenderScale = 1.0f;
-    private double documentGuiScale = 1.0d;
 
     public ApricityContainerScreen(ApricityContainerMenu menu, Inventory inventory, Component title) {
         super(menu, inventory, title);
@@ -66,18 +61,10 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     @Override
     protected void init() {
-        var window = Minecraft.getInstance().getWindow();
-        double actualGuiScale = Math.max(1.0d, window.getGuiScale());
-        documentGuiScale = Math.min(actualGuiScale, MAX_DOCUMENT_GUI_SCALE);
-        documentRenderScale = (float) (documentGuiScale / actualGuiScale);
-        int layoutWidth = Math.max(1, (int) Math.round(window.getScreenWidth() / documentGuiScale));
-        int layoutHeight = Math.max(1, (int) Math.round(window.getScreenHeight() / documentGuiScale));
-        Size.setViewportOverride(layoutWidth, layoutHeight);
         imageWidth = width;
         imageHeight = height;
         super.init();
 
-        // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
         if (linkedDocument != null) {
             linkedDocument.remove();
             linkedDocument = null;
@@ -89,6 +76,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         linkedDocument = Document.create(menu.getTemplatePath());
         if (linkedDocument == null) return;
+        linkedDocument.applyViewport(false);
 
         slotBinder = new SlotDataBinder(menu);
         slotBinder.bindSlotsFromDocument(linkedDocument);
@@ -99,23 +87,36 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     protected void renderBg(@Nonnull GuiGraphics guiGraphics, float partialTick, int mouseX, int mouseY) {
         if (linkedDocument == null) return;
 
+        ApricityViewport viewport = linkedDocument.getViewport();
         guiGraphics.pose().pushPose();
-        Mask.pushScissorScale(documentGuiScale);
+        Mask.pushScissorScale(viewport.scissorScale());
         try {
-            guiGraphics.pose().scale(documentRenderScale, documentRenderScale, 1.0f);
+            guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
             Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
         } finally {
             Mask.popScissorScale();
             guiGraphics.pose().popPose();
         }
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
-        drawMenuSlotItems(guiGraphics);
-        drawDisplaySlotItems(guiGraphics);
+        Mask.pushScissorScale(viewport.scissorScale());
+        try {
+            drawMenuSlotItems(guiGraphics);
+        } finally {
+            Mask.popScissorScale();
+        }
+        guiGraphics.pose().pushPose();
+        Mask.pushScissorScale(viewport.scissorScale());
+        try {
+            guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+            drawDisplaySlotItems(guiGraphics);
+        } finally {
+            Mask.popScissorScale();
+            guiGraphics.pose().popPose();
+        }
     }
 
     @Override
     protected void renderLabels(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        // 不绘制 Minecraft 默认标题；标题如有需要由模板普通 DOM 自行实现。
     }
 
     @Override
@@ -133,6 +134,30 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
         drawDevToolsOverlay(guiGraphics);
         Cursor.drawPseudoCursor(guiGraphics);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (hasControlDown() && handleViewportZoom(delta > 0)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (isControlModifier(modifiers)) {
+            if (keyCode == GLFW.GLFW_KEY_EQUAL || keyCode == GLFW.GLFW_KEY_KP_ADD) {
+                return handleViewportZoom(true);
+            }
+            if (keyCode == GLFW.GLFW_KEY_MINUS || keyCode == GLFW.GLFW_KEY_KP_SUBTRACT) {
+                return handleViewportZoom(false);
+            }
+            if (keyCode == GLFW.GLFW_KEY_0 || keyCode == GLFW.GLFW_KEY_KP_0) {
+                return resetViewportZoom();
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     private void drawMenuSlotItems(GuiGraphics guiGraphics) {
@@ -290,6 +315,22 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         super.removed();
     }
 
+    public boolean handleViewportZoom(boolean zoomIn) {
+        if (linkedDocument == null || !linkedDocument.handleViewportZoom(zoomIn)) return false;
+        if (slotBinder != null) {
+            slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+        }
+        return true;
+    }
+
+    public boolean resetViewportZoom() {
+        if (linkedDocument == null || !linkedDocument.resetViewportZoom()) return false;
+        if (slotBinder != null) {
+            slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+        }
+        return true;
+    }
+
     private static void applyItemScaleTransform(GuiGraphics guiGraphics, int drawX, int drawY, float iconScale) {
         if (Math.abs(iconScale - 1.0F) <= ICON_SCALE_EPSILON) return;
         float centerX = drawX + 8.0F;
@@ -297,5 +338,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         guiGraphics.pose().translate(centerX, centerY, 0.0D);
         guiGraphics.pose().scale(iconScale, iconScale, 1.0F);
         guiGraphics.pose().translate(-centerX, -centerY, 0.0D);
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
     }
 }
