@@ -13,7 +13,10 @@ import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.instance.ApricityViewport;
+import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import net.minecraft.client.Minecraft;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -92,6 +95,12 @@ public class Document {
     private volatile Element lastClickTarget = null;
     private volatile int lastClickButton = -1;
     private volatile long lastClickTimeNs = 0L;
+    private volatile double viewportScaleX = 1.0d;
+    private volatile double viewportScaleY = 1.0d;
+    private volatile double viewportOffsetX = 0.0d;
+    private volatile double viewportOffsetY = 0.0d;
+    private final ApricityViewport.State viewportState;
+    private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
     private final CopyOnWriteArrayList<MutationObserver> mutationObservers = new CopyOnWriteArrayList<>();
 
     private final StyleScope style = new StyleScope(this);
@@ -102,6 +111,7 @@ public class Document {
     public Document(String path, boolean inWorld) {
         this.path = path;
         this.inWorld = inWorld;
+        this.viewportState = ApricityViewport.spec(path).createState(path);
     }
 
     public UUID getUuid() {
@@ -114,6 +124,72 @@ public class Document {
 
     public void setFontMode(FontMode fontMode) {
         this.fontMode = fontMode == null ? FontMode.WEB_SCALED : fontMode;
+    }
+
+    public void setViewportTransform(double scaleX, double scaleY, double offsetX, double offsetY) {
+        viewportScaleX = scaleX > 0 && Double.isFinite(scaleX) ? scaleX : 1.0d;
+        viewportScaleY = scaleY > 0 && Double.isFinite(scaleY) ? scaleY : 1.0d;
+        viewportOffsetX = Double.isFinite(offsetX) ? offsetX : 0.0d;
+        viewportOffsetY = Double.isFinite(offsetY) ? offsetY : 0.0d;
+    }
+
+    public Position screenToDocumentPosition(Position screenPosition) {
+        if (screenPosition == null) return Position.ZERO;
+        return new Position(
+                (screenPosition.x - viewportOffsetX) / viewportScaleX,
+                (screenPosition.y - viewportOffsetY) / viewportScaleY
+        );
+    }
+
+    public double getViewportScaleX() {
+        return viewportScaleX;
+    }
+
+    public double getViewportScaleY() {
+        return viewportScaleY;
+    }
+
+    public ApricityViewport getViewport() {
+        return viewport;
+    }
+
+    public void applyViewport(boolean relayout) {
+        if (inWorld) return;
+        viewport = viewportState.resolve(Minecraft.getInstance().getWindow());
+        Size.setViewportOverride(viewport.layoutWidth(), viewport.layoutHeight());
+        setViewportTransform(viewport.renderScale(), viewport.renderScale(), 0.0d, 0.0d);
+        if (relayout) {
+            markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+        }
+    }
+
+    public boolean handleViewportZoom(boolean zoomIn) {
+        if (!viewportState.canUserScale()) return false;
+        boolean changed = zoomIn ? viewportState.zoomIn() : viewportState.zoomOut();
+        if (!changed) return false;
+        applyViewportForPath(path, true);
+        ApricityUI.LOGGER.info(
+                "[AUI Viewport] zoom path={} zoom={} viewport={}x{}",
+                path,
+                String.format(Locale.ROOT, "%.2f", viewport.zoom()),
+                viewport.layoutWidth(),
+                viewport.layoutHeight()
+        );
+        return true;
+    }
+
+    public boolean resetViewportZoom() {
+        if (!viewportState.canUserScale()) return false;
+        if (!viewportState.resetZoom()) return false;
+        applyViewportForPath(path, true);
+        return true;
+    }
+
+    private static void applyViewportForPath(String path, boolean relayout) {
+        for (Document document : documents) {
+            if (document == null || document.inWorld || document.isDisposed() || !document.is(path)) continue;
+            document.applyViewport(relayout);
+        }
     }
 
     public void refresh() {
@@ -641,6 +717,7 @@ public class Document {
         Document document = new Document(path, false);
         documents.add(document);
         document.refresh();
+        document.applyViewport(false);
         return document;
     }
 

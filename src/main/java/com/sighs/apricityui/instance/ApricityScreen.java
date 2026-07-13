@@ -10,20 +10,15 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nonnull;
 
-/**
- * 纯 UI Screen（不带容器交互）。
- */
 public class ApricityScreen extends Screen {
-    private static final double MAX_DOCUMENT_GUI_SCALE = 5.0d;
     private final String templatePath;
     private Document linkedDocument;
     private boolean loggedInitState = false;
     private boolean loggedRenderState = false;
-    private float documentRenderScale = 1.0f;
-    private double documentGuiScale = 1.0d;
 
     public ApricityScreen(String templatePath) {
         super(Component.empty());
@@ -37,28 +32,24 @@ public class ApricityScreen extends Screen {
     @Override
     protected void init() {
         super.init();
-        var window = Minecraft.getInstance().getWindow();
-        double actualGuiScale = Math.max(1.0d, window.getGuiScale());
-        documentGuiScale = Math.min(actualGuiScale, MAX_DOCUMENT_GUI_SCALE);
-        documentRenderScale = (float) (documentGuiScale / actualGuiScale);
-        int layoutWidth = Math.max(1, (int) Math.round(window.getScreenWidth() / documentGuiScale));
-        int layoutHeight = Math.max(1, (int) Math.round(window.getScreenHeight() / documentGuiScale));
-        Size.setViewportOverride(layoutWidth, layoutHeight);
 
-        // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
         if (linkedDocument != null) {
             linkedDocument.remove();
             linkedDocument = null;
         }
 
         linkedDocument = Document.create(templatePath);
+        if (linkedDocument != null) {
+            linkedDocument.applyViewport(false);
+        }
         if (!loggedInitState) {
             loggedInitState = true;
+            ApricityViewport viewport = currentViewport();
             com.sighs.apricityui.ApricityUI.LOGGER.info(
                     "[AUI Screen] init path={} viewport={}x{} doc={} body={} paintList={}",
                     templatePath,
-                    layoutWidth,
-                    layoutHeight,
+                    viewport.layoutWidth(),
+                    viewport.layoutHeight(),
                     linkedDocument == null ? "<null>" : linkedDocument.getUuid(),
                     linkedDocument == null || linkedDocument.body == null ? "<null>" : linkedDocument.body.tagName,
                     linkedDocument == null ? -1 : linkedDocument.getPaintList().size()
@@ -80,19 +71,43 @@ public class ApricityScreen extends Screen {
                         linkedDocument.getDirtyElements().size()
                 );
             }
+            ApricityViewport viewport = currentViewport();
             guiGraphics.pose().pushPose();
-            Mask.pushScissorScale(documentGuiScale);
+            Mask.pushScissorScale(viewport.scissorScale());
             try {
-                guiGraphics.pose().scale(documentRenderScale, documentRenderScale, 1.0f);
+                guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
                 Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
             } finally {
                 Mask.popScissorScale();
                 guiGraphics.pose().popPose();
             }
-            // 默认字体使用 Minecraft 的 BufferSource，文档绘制结束后立即提交，避免文本延迟到后续阶段才显示。
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
         }
         Cursor.drawPseudoCursor(guiGraphics);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (hasControlDown() && handleViewportZoom(delta > 0)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (isControlModifier(modifiers)) {
+            if (keyCode == GLFW.GLFW_KEY_EQUAL || keyCode == GLFW.GLFW_KEY_KP_ADD) {
+                return handleViewportZoom(true);
+            }
+            if (keyCode == GLFW.GLFW_KEY_MINUS || keyCode == GLFW.GLFW_KEY_KP_SUBTRACT) {
+                return handleViewportZoom(false);
+            }
+            if (keyCode == GLFW.GLFW_KEY_0 || keyCode == GLFW.GLFW_KEY_KP_0) {
+                return resetViewportZoom();
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 
     @Override
@@ -120,5 +135,21 @@ public class ApricityScreen extends Screen {
     @Override
     public boolean isPauseScreen() {
         return false;
+    }
+
+    public boolean handleViewportZoom(boolean zoomIn) {
+        return linkedDocument != null && linkedDocument.handleViewportZoom(zoomIn);
+    }
+
+    public boolean resetViewportZoom() {
+        return linkedDocument != null && linkedDocument.resetViewportZoom();
+    }
+
+    private ApricityViewport currentViewport() {
+        return linkedDocument == null ? new ApricityViewport(1, 1, 1.0f, 1.0d) : linkedDocument.getViewport();
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
     }
 }

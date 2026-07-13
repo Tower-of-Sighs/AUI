@@ -101,7 +101,7 @@ public class MouseEvent extends Event implements Cloneable {
             Document document = docs.get(i);
             if (document == null || document.inWorld) continue;
 
-            Element target = hitTest(document.getPaintList(), detectionPos);
+            Element target = hitTest(document.getPaintList(), document.screenToDocumentPosition(detectionPos));
             if (target == null) continue;
             if (target == document.body) continue;
 
@@ -138,6 +138,7 @@ public class MouseEvent extends Event implements Cloneable {
     public static boolean tiggerEvent(MouseEvent event, Document document) {
         StyleFrameCache.begin();
         try {
+            event = adaptToDocumentViewport(event, document);
             boolean consumed = false;
             List<RenderNode> paintList = document.getPaintList();
             Element activeElement = document.getPressedElement();
@@ -147,6 +148,27 @@ public class MouseEvent extends Event implements Cloneable {
         } finally {
             StyleFrameCache.end();
         }
+    }
+
+    private static MouseEvent adaptToDocumentViewport(MouseEvent event, Document document) {
+        if (event == null || document == null) return event;
+        if (Math.abs(document.getViewportScaleX() - 1.0d) < 0.000001d
+                && Math.abs(document.getViewportScaleY() - 1.0d) < 0.000001d) {
+            return event;
+        }
+
+        MouseEvent adapted = event.clone();
+        Position documentPosition = document.screenToDocumentPosition(new Position(event.clientX, event.clientY));
+        adapted.clientX = documentPosition.x;
+        adapted.clientY = documentPosition.y;
+        adapted.pageX = documentPosition.x;
+        adapted.pageY = documentPosition.y;
+        adapted.movementX = event.movementX / document.getViewportScaleX();
+        adapted.movementY = event.movementY / document.getViewportScaleY();
+        adapted.deltaX = event.deltaX / document.getViewportScaleX();
+        adapted.deltaY = event.deltaY / document.getViewportScaleY();
+        adapted.scrollDelta = event.scrollDelta / document.getViewportScaleY();
+        return adapted;
     }
 
     public static boolean dispatchToTarget(MouseEvent event, Document document, Element target) {
