@@ -22,7 +22,10 @@ public final class FrameScheduler {
         StyleAsyncHandler.INSTANCE.tickApplyQueue();
         ImageAsyncHandler.INSTANCE.tickApplyQueue();
 
-        // 2) Document commit / style flush / layout + paint-list updates
+        // 2) Frame-budgeted initialization and UI build tasks.
+        FrameTaskScheduler.tick();
+
+        // 3) Document commit / style flush / layout + paint-list updates
         for (Document document : Document.getAll()) {
             if (document == null) continue;
             document.tickFrame();

@@ -313,8 +313,10 @@ public class Box {
     }
 
     public record SideBorder(double size, String type, Color color) {
+        private static final SideBorder DEFAULT = new SideBorder(0, "solid", Color.BLACK);
+
         public static SideBorder getDefault() {
-            return new SideBorder(0, "solid", Color.BLACK);
+            return DEFAULT;
         }
 
         @Override
@@ -324,8 +326,10 @@ public class Box {
     }
 
     public record Shadow(double x, double y, double size, Color color) {
+        private static final Shadow DEFAULT = new Shadow(0, 0, 0, Color.BLACK);
+
         public static Shadow getDefault() {
-            return new Shadow(0, 0, 0, Color.BLACK);
+            return DEFAULT;
         }
 
         @Override

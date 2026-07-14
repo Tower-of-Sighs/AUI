@@ -354,6 +354,11 @@ public class Document {
         return render.getPaintList();
     }
 
+    public Element hitTest(Position documentPosition) {
+        if (!isActive()) return null;
+        return render.hitTest(documentPosition);
+    }
+
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
     public void updateElement(Element element) {
         tree.updateElement(element);
@@ -439,6 +444,9 @@ public class Document {
                 continue;
             }
             boolean moving = element.stepScrollRender();
+            if (moving) {
+                render.markHitTestDirty();
+            }
             if (!moving && !element.needsScrollRenderStep()) {
                 activeScrollElements.remove(element);
             }

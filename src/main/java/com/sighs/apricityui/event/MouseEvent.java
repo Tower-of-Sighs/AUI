@@ -101,7 +101,7 @@ public class MouseEvent extends Event implements Cloneable {
             Document document = docs.get(i);
             if (document == null || document.inWorld) continue;
 
-            Element target = hitTest(document.getPaintList(), document.screenToDocumentPosition(detectionPos));
+            Element target = document.hitTest(document.screenToDocumentPosition(detectionPos));
             if (target == null) continue;
             if (target == document.body) continue;
 
@@ -140,10 +140,9 @@ public class MouseEvent extends Event implements Cloneable {
         try {
             event = adaptToDocumentViewport(event, document);
             boolean consumed = false;
-            List<RenderNode> paintList = document.getPaintList();
             Element activeElement = document.getPressedElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
-            Element target = hitTest(paintList, detectionPos);
+            Element target = document.hitTest(detectionPos);
             return triggerResolvedEvent(event, document, target, activeElement, true);
         } finally {
             StyleFrameCache.end();

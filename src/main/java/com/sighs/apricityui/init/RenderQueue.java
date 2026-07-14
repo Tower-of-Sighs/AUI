@@ -9,11 +9,13 @@ import java.util.concurrent.ConcurrentHashMap;
 final class RenderQueue {
     private final Document owner;
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
+    private final HitTestCache hitTestCache;
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private int globalDirtyMask = 0;
 
     RenderQueue(Document owner) {
         this.owner = owner;
+        this.hitTestCache = new HitTestCache(owner);
     }
 
     ArrayList<RenderNode> getPaintList() {
@@ -28,14 +30,17 @@ final class RenderQueue {
         dirtyElements.clear();
         globalDirtyMask = 0;
         paintList = new ArrayList<>();
+        hitTestCache.clear();
     }
 
     void rebuildPaintList() {
         if (owner.documentElement == null) {
             paintList = new ArrayList<>();
+            hitTestCache.clear();
             return;
         }
         paintList = Drawer.createPaintList(owner.documentElement);
+        hitTestCache.rebuild(paintList);
     }
 
     void tickElements() {
@@ -45,8 +50,12 @@ final class RenderQueue {
     }
 
     void commit() {
+        boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty();
         applyGlobalDirty();
         Drawer.flushUpdates(owner);
+        if (hadWork) {
+            hitTestCache.rebuild(paintList);
+        }
     }
 
     void markDirty(int mask) {
@@ -67,6 +76,14 @@ final class RenderQueue {
 
     int getGlobalDirtyMask() {
         return globalDirtyMask;
+    }
+
+    Element hitTest(com.sighs.apricityui.style.Position position) {
+        return hitTestCache.hitTest(position, paintList);
+    }
+
+    void markHitTestDirty() {
+        hitTestCache.markDirty();
     }
 
     private void applyGlobalDirty() {

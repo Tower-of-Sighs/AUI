@@ -3,6 +3,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.ClientLoader;
@@ -32,6 +33,7 @@ public class ResourceManager {
     private static Document previewDocument = null;
     private static String previewDocumentPath = "";
     private static PendingRows pendingRows = null;
+    private static int pendingRowsGeneration = 0;
 
     private enum ViewMode {
         ALL,
@@ -60,28 +62,6 @@ public class ResourceManager {
         collapsedFolderPaths.clear();
         clearContextMenuState();
         Document.remove(PATH);
-    }
-
-    public static void tick() {
-        PendingRows pending = pendingRows;
-        if (pending == null) return;
-        if (toolDocument == null || toolDocument != pending.document || toolDocument.body == null) {
-            pendingRows = null;
-            return;
-        }
-        if (pending.rows.parentElement == null) {
-            pendingRows = null;
-            return;
-        }
-
-        appendPendingRows(pending, TICK_ROW_BATCH);
-        if (contextMenuVisible) {
-            updateRowSelection(contextMenuEntry);
-        }
-        markDirty(toolDocument);
-        if (pending.isComplete()) {
-            pendingRows = null;
-        }
     }
 
     public static void refresh() {
@@ -129,6 +109,7 @@ public class ResourceManager {
         modeFolderBtn.setAttribute("class", viewMode == ViewMode.FOLDER ? "mode-btn mode-folder active" : "mode-btn mode-folder");
 
         pendingRows = null;
+        pendingRowsGeneration++;
         clearChildren(rows);
         fileRowByKey.clear();
         selectedRowKey = "";
@@ -145,10 +126,12 @@ public class ResourceManager {
             rowSpecs = new ArrayList<>(displayEntries.size());
             collectFolderRows(rowSpecs, root, 0);
         }
-        PendingRows pending = new PendingRows(toolDocument, rows, manager, rowSpecs);
+        PendingRows pending = new PendingRows(toolDocument, rows, manager, rowSpecs, pendingRowsGeneration);
         appendPendingRows(pending, INITIAL_ROW_BATCH);
         if (!pending.isComplete()) {
             pendingRows = pending;
+            int generation = pending.generation;
+            FrameTaskScheduler.schedule(deadlineNs -> runPendingRowsUntil(generation, deadlineNs));
         }
         updateRowSelection(contextMenuVisible ? contextMenuEntry : null);
         clearContextMenus(manager);
@@ -157,6 +140,34 @@ public class ResourceManager {
         updatePreviewStatus(previewStatus, previewStatusPath);
 
         markDirty(toolDocument);
+    }
+
+    private static boolean runPendingRowsUntil(int generation, long deadlineNs) {
+        PendingRows pending = pendingRows;
+        if (pending == null) return true;
+        if (pending.generation != generation) return true;
+        if (toolDocument == null || toolDocument != pending.document || toolDocument.body == null) {
+            pendingRows = null;
+            return true;
+        }
+        if (pending.rows.parentElement == null) {
+            pendingRows = null;
+            return true;
+        }
+
+        do {
+            appendPendingRows(pending, Math.min(16, TICK_ROW_BATCH));
+            if (pending.isComplete()) {
+                pendingRows = null;
+                break;
+            }
+        } while (System.nanoTime() < deadlineNs);
+
+        if (contextMenuVisible) {
+            updateRowSelection(contextMenuEntry);
+        }
+        markDirty(toolDocument);
+        return pendingRows == null;
     }
 
     private static void appendPendingRows(PendingRows pending, int maxRows) {
@@ -760,13 +771,15 @@ public class ResourceManager {
         private final Element rows;
         private final Element manager;
         private final List<RowSpec> specs;
+        private final int generation;
         private int nextIndex = 0;
 
-        private PendingRows(Document document, Element rows, Element manager, List<RowSpec> specs) {
+        private PendingRows(Document document, Element rows, Element manager, List<RowSpec> specs, int generation) {
             this.document = document;
             this.rows = rows;
             this.manager = manager;
             this.specs = specs == null ? List.of() : specs;
+            this.generation = generation;
         }
 
         private boolean isComplete() {
