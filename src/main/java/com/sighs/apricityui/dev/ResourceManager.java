@@ -16,6 +16,8 @@ import java.util.*;
 
 public class ResourceManager {
     private static final String PATH = "devtools/resource-manager.html";
+    private static final int INITIAL_ROW_BATCH = 48;
+    private static final int TICK_ROW_BATCH = 96;
     private static Document toolDocument = null;
     private static String filterText = "";
     private static ViewMode viewMode = ViewMode.ALL;
@@ -29,6 +31,7 @@ public class ResourceManager {
     private static Loader.StaticResourceEntry previewEntry = null;
     private static Document previewDocument = null;
     private static String previewDocumentPath = "";
+    private static PendingRows pendingRows = null;
 
     private enum ViewMode {
         ALL,
@@ -52,10 +55,33 @@ public class ResourceManager {
             return;
         }
         toolDocument = null;
+        pendingRows = null;
         filterText = "";
         collapsedFolderPaths.clear();
         clearContextMenuState();
         Document.remove(PATH);
+    }
+
+    public static void tick() {
+        PendingRows pending = pendingRows;
+        if (pending == null) return;
+        if (toolDocument == null || toolDocument != pending.document || toolDocument.body == null) {
+            pendingRows = null;
+            return;
+        }
+        if (pending.rows.parentElement == null) {
+            pendingRows = null;
+            return;
+        }
+
+        appendPendingRows(pending, TICK_ROW_BATCH);
+        if (contextMenuVisible) {
+            updateRowSelection(contextMenuEntry);
+        }
+        markDirty(toolDocument);
+        if (pending.isComplete()) {
+            pendingRows = null;
+        }
     }
 
     public static void refresh() {
@@ -102,18 +128,27 @@ public class ResourceManager {
         modeAllBtn.setAttribute("class", viewMode == ViewMode.ALL ? "mode-btn mode-all active" : "mode-btn mode-all");
         modeFolderBtn.setAttribute("class", viewMode == ViewMode.FOLDER ? "mode-btn mode-folder active" : "mode-btn mode-folder");
 
+        pendingRows = null;
         clearChildren(rows);
         fileRowByKey.clear();
         selectedRowKey = "";
+        List<RowSpec> rowSpecs;
         if (viewMode == ViewMode.ALL) {
+            rowSpecs = new ArrayList<>(displayEntries.size());
             int index = 1;
             for (Loader.StaticResourceEntry entry : displayEntries) {
-                rows.append(buildFileRow(index, 0, entry, false, manager));
+                rowSpecs.add(RowSpec.file(index, 0, entry, false));
                 index++;
             }
         } else {
             FolderNode root = buildFolderTree(displayEntries);
-            appendFolderRows(rows, root, 0, manager);
+            rowSpecs = new ArrayList<>(displayEntries.size());
+            collectFolderRows(rowSpecs, root, 0);
+        }
+        PendingRows pending = new PendingRows(toolDocument, rows, manager, rowSpecs);
+        appendPendingRows(pending, INITIAL_ROW_BATCH);
+        if (!pending.isComplete()) {
+            pendingRows = pending;
         }
         updateRowSelection(contextMenuVisible ? contextMenuEntry : null);
         clearContextMenus(manager);
@@ -122,6 +157,19 @@ public class ResourceManager {
         updatePreviewStatus(previewStatus, previewStatusPath);
 
         markDirty(toolDocument);
+    }
+
+    private static void appendPendingRows(PendingRows pending, int maxRows) {
+        if (pending == null || pending.rows == null || pending.manager == null || pending.specs == null) return;
+        int limit = Math.min(pending.specs.size(), pending.nextIndex + Math.max(0, maxRows));
+        while (pending.nextIndex < limit) {
+            RowSpec spec = pending.specs.get(pending.nextIndex);
+            Element row = spec.folder
+                    ? buildFolderRow(spec.depth, spec.folderPath, spec.folderName, spec.collapsed)
+                    : buildFileRow(spec.index, spec.depth, spec.entry, spec.inFolderMode, pending.manager);
+            if (row != null) pending.rows.append(row);
+            pending.nextIndex++;
+        }
     }
 
     public static boolean devOpenContextMenuForFirstResource() {
@@ -229,21 +277,21 @@ public class ResourceManager {
         return root;
     }
 
-    private static void appendFolderRows(Element rows, FolderNode node, int depth, Element manager) {
+    private static void collectFolderRows(List<RowSpec> rows, FolderNode node, int depth) {
         if (node == null || rows == null) return;
 
         if (!node.path.isBlank()) {
             boolean collapsed = collapsedFolderPaths.contains(node.path);
-            rows.append(buildFolderRow(depth, node.path, node.name, collapsed));
+            rows.add(RowSpec.folder(depth, node.path, node.name, collapsed));
             if (collapsed) return;
         }
 
         for (FolderNode child : node.children.values()) {
-            appendFolderRows(rows, child, node.path.isBlank() ? depth : depth + 1, manager);
+            collectFolderRows(rows, child, node.path.isBlank() ? depth : depth + 1);
         }
         int fileDepth = node.path.isBlank() ? depth : depth + 1;
         for (Loader.StaticResourceEntry file : node.files) {
-            rows.append(buildFileRow(0, fileDepth, file, true, manager));
+            rows.add(RowSpec.file(0, fileDepth, file, true));
         }
     }
 
@@ -704,6 +752,64 @@ public class ResourceManager {
         private FolderNode(String name, String path) {
             this.name = safe(name);
             this.path = safe(path);
+        }
+    }
+
+    private static class PendingRows {
+        private final Document document;
+        private final Element rows;
+        private final Element manager;
+        private final List<RowSpec> specs;
+        private int nextIndex = 0;
+
+        private PendingRows(Document document, Element rows, Element manager, List<RowSpec> specs) {
+            this.document = document;
+            this.rows = rows;
+            this.manager = manager;
+            this.specs = specs == null ? List.of() : specs;
+        }
+
+        private boolean isComplete() {
+            return nextIndex >= specs.size();
+        }
+    }
+
+    private static class RowSpec {
+        private final boolean folder;
+        private final int index;
+        private final int depth;
+        private final Loader.StaticResourceEntry entry;
+        private final boolean inFolderMode;
+        private final String folderPath;
+        private final String folderName;
+        private final boolean collapsed;
+
+        private RowSpec(
+                boolean folder,
+                int index,
+                int depth,
+                Loader.StaticResourceEntry entry,
+                boolean inFolderMode,
+                String folderPath,
+                String folderName,
+                boolean collapsed
+        ) {
+            this.folder = folder;
+            this.index = index;
+            this.depth = depth;
+            this.entry = entry;
+            this.inFolderMode = inFolderMode;
+            this.folderPath = folderPath;
+            this.folderName = folderName;
+            this.collapsed = collapsed;
+        }
+
+        private static RowSpec file(int index, int depth, Loader.StaticResourceEntry entry, boolean inFolderMode) {
+            return new RowSpec(false, index, depth, entry, inFolderMode, "", "", false);
+        }
+
+        private static RowSpec folder(int depth, String path, String name, boolean collapsed) {
+            return new RowSpec(true, 0, depth, null, false, safe(path), safe(name), collapsed);
         }
     }
 }

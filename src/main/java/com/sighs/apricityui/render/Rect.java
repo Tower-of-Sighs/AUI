@@ -185,14 +185,14 @@ public class Rect {
         Graph.endBatch();
         Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
         Graph.beginBatch();
+        Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
         for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
             for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
-                Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
                 boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
                         tile.width(), tile.height(), scaled);
                 if (!drawn) {
-                    Graph.drawSampledGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
-                            tile.width(), tile.height(), scaled, 1f);
+                    Graph.drawGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                            tile.width(), tile.height(), scaled);
                 }
             }
         }

@@ -150,6 +150,22 @@ public class Graph {
         Base.finishRendering();
     }
 
+    public static void drawGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
+        if (gradient == null || w <= 0 || h <= 0) return;
+        ColorResolver colorRes = (px, py) -> gradient.getColorAt(px, py, x, y, w, h);
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+            addRect(buf, mat, x, y, x + w, y + h, colorRes);
+            return;
+        }
+        BufferBuilder buf = Base.getBuffer();
+        Base.beginRendering();
+        prepare(buf);
+        addRect(buf, mat, x, y, x + w, y + h, colorRes);
+        BufferUploader.drawWithShader(buf.end());
+        Base.finishRendering();
+    }
+
     public static boolean drawAxisAlignedHardStopGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
         if (gradient == null || w <= 0 || h <= 0 || gradient.stops().size() != 2) return false;
         Gradient.Stop first = gradient.stops().get(0);
