@@ -370,10 +370,7 @@ public class Client {
         for (int i = candidates.size() - 1; i >= 0; i--) {
             Document document = candidates.get(i);
             if (document == null || document.inWorld || !document.isActive()) continue;
-            if (com.sighs.apricityui.event.MouseEvent.hitTest(
-                    document.getPaintList(),
-                    document.screenToDocumentPosition(mouse)
-            ) != null) {
+            if (document.hitTest(document.screenToDocumentPosition(mouse)) != null) {
                 return document;
             }
         }
@@ -415,7 +412,6 @@ public class Client {
         if (event.phase == TickEvent.Phase.START) {
             Runtime.tick();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
-            com.sighs.apricityui.dev.ResourceManager.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();
             Size current = getWindowSize();
