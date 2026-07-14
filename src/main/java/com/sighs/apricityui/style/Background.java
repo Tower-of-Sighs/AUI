@@ -34,7 +34,6 @@ public class Background {
     public static Background of(Element element) {
         Background cache = element.getRenderer().background.get();
         if (cache != null) {
-            cache.syncAnimatedFields(element.getComputedStyle(), element.document.getPath());
             return cache;
         }
 
@@ -45,12 +44,6 @@ public class Background {
 
         element.getRenderer().background.set(bg);
         return bg;
-    }
-
-    private void syncAnimatedFields(Style style, String contextPath) {
-        if (style == null) return;
-        this.color = style.backgroundColor;
-        buildLayers(contextPath, style.backgroundImage, style.backgroundRepeat, style.backgroundSize, style.backgroundPosition);
     }
 
     private void buildLayers(String contextPath, String image, String repeat, String size, String position) {

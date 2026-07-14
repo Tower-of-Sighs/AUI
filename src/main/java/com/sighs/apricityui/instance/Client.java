@@ -415,6 +415,7 @@ public class Client {
         if (event.phase == TickEvent.Phase.START) {
             Runtime.tick();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
+            com.sighs.apricityui.dev.ResourceManager.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();
             Size current = getWindowSize();
