@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Resource Browser Font Source Raster</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            color: #111111;
+            font-family: Arial, sans-serif;
+        }
+
+        #metrics {
+            position: fixed;
+            left: -100000px;
+            top: 0;
+            white-space: pre;
+            font: 12px monospace;
+        }
+    </style>
+</head>
+<body>
+<pre id="metrics">BROWSER_FONT_SOURCE_RASTER_METRICS pending</pre>
+<script>
+    var samples = [
+        {
+            id: 'arial13White',
+            text: '5 ITEMS',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 13,
+            letterSpacing: 1,
+            backgroundColor: '#ffffff',
+            color: '#999999'
+        },
+        {
+            id: 'arial13Fafafa',
+            text: '5 ITEMS',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 13,
+            letterSpacing: 1,
+            backgroundColor: '#fafafa',
+            color: '#999999'
+        },
+        {
+            id: 'arial12White',
+            text: 'SELECT FILE TO VIEW DETAILS',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 12,
+            letterSpacing: 1,
+            backgroundColor: '#ffffff',
+            color: '#999999'
+        },
+        {
+            id: 'arial12Fafafa',
+            text: 'SELECT FILE TO VIEW DETAILS',
+            fontFamily: 'Arial, sans-serif',
+            fontSize: 12,
+            letterSpacing: 1,
+            backgroundColor: '#fafafa',
+            color: '#999999'
+        }
+    ];
+
+    function parseHexColor(value) {
+        var hex = value.charAt(0) === '#' ? value.slice(1) : value;
+        return {
+            r: parseInt(hex.slice(0, 2), 16),
+            g: parseInt(hex.slice(2, 4), 16),
+            b: parseInt(hex.slice(4, 6), 16)
+        };
+    }
+
+    function createContext(width, height) {
+        var canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        return {
+            canvas: canvas,
+            context: canvas.getContext('2d', { willReadFrequently: true })
+        };
+    }
+
+    function configureText(context, sample) {
+        context.font = sample.fontSize + 'px ' + sample.fontFamily;
+        context.textAlign = 'left';
+        context.textBaseline = 'alphabetic';
+        context.direction = 'ltr';
+        if ('letterSpacing' in context) {
+            context.letterSpacing = sample.letterSpacing + 'px';
+        }
+    }
+
+    function measure(sample) {
+        var surface = createContext(1, 1);
+        var context = surface.context;
+        configureText(context, sample);
+        var metrics = context.measureText(sample.text);
+        var ascent = Math.ceil(metrics.actualBoundingBoxAscent || sample.fontSize);
+        var descent = Math.ceil(metrics.actualBoundingBoxDescent || Math.ceil(sample.fontSize * 0.25));
+        var width = Math.ceil(metrics.actualBoundingBoxRight - metrics.actualBoundingBoxLeft);
+        if (!Number.isFinite(width) || width <= 0) {
+            width = Math.ceil(metrics.width);
+        }
+        var pad = 4;
+        return {
+            width: Math.max(1, width + pad * 2),
+            height: Math.max(1, ascent + descent + pad * 2),
+            pad: pad,
+            baseline: pad + ascent,
+            ascent: ascent,
+            descent: descent,
+            measuredWidth: metrics.width,
+            actualBoundingBoxLeft: metrics.actualBoundingBoxLeft || 0,
+            actualBoundingBoxRight: metrics.actualBoundingBoxRight || 0,
+            actualBoundingBoxAscent: metrics.actualBoundingBoxAscent || 0,
+            actualBoundingBoxDescent: metrics.actualBoundingBoxDescent || 0,
+            canvasLetterSpacingSupported: 'letterSpacing' in context,
+            resolvedLetterSpacing: context.letterSpacing || ''
+        };
+    }
+
+    function statsFromImageData(imageData, options) {
+        var data = imageData.data;
+        var width = imageData.width;
+        var height = imageData.height;
+        var binLabels = ['1-31', '32-63', '64-95', '96-127', '128-159', '160-191', '192-223', '224-255'];
+        var bins = {};
+        var cdf = {
+            le32: 0,
+            le64: 0,
+            le96: 0,
+            le128: 0,
+            le160: 0,
+            le192: 0,
+            le224: 0,
+            le240: 0
+        };
+        var ink = 0;
+        var sumR = 0;
+        var sumG = 0;
+        var sumB = 0;
+        var sumA = 0;
+        var minX = width;
+        var minY = height;
+        var maxX = -1;
+        var maxY = -1;
+        var coloredPixels = 0;
+        var background = options.background || null;
+        var rowInk = new Array(height).fill(0);
+        var rowAlpha = new Array(height).fill(0);
+        var columnInk = new Array(width).fill(0);
+        var columnAlpha = new Array(width).fill(0);
+
+        binLabels.forEach(function (label) {
+            bins[label] = 0;
+        });
+
+        for (var y = 0; y < height; y++) {
+            for (var x = 0; x < width; x++) {
+                var index = (y * width + x) * 4;
+                var r = data[index];
+                var g = data[index + 1];
+                var b = data[index + 2];
+                var a = data[index + 3];
+                var isInk = false;
+                if (background) {
+                    isInk = r !== background.r || g !== background.g || b !== background.b || a !== 255;
+                } else {
+                    isInk = a !== 0;
+                }
+                if (!isInk) continue;
+                ink++;
+                sumR += r;
+                sumG += g;
+                sumB += b;
+                sumA += a;
+                if (a <= 31) bins['1-31']++;
+                else if (a <= 63) bins['32-63']++;
+                else if (a <= 95) bins['64-95']++;
+                else if (a <= 127) bins['96-127']++;
+                else if (a <= 159) bins['128-159']++;
+                else if (a <= 191) bins['160-191']++;
+                else if (a <= 223) bins['192-223']++;
+                else bins['224-255']++;
+                if (a <= 32) cdf.le32++;
+                if (a <= 64) cdf.le64++;
+                if (a <= 96) cdf.le96++;
+                if (a <= 128) cdf.le128++;
+                if (a <= 160) cdf.le160++;
+                if (a <= 192) cdf.le192++;
+                if (a <= 224) cdf.le224++;
+                if (a <= 240) cdf.le240++;
+                if (Math.abs(r - g) > 1 || Math.abs(r - b) > 1 || Math.abs(g - b) > 1) {
+                    coloredPixels++;
+                }
+                if (x < minX) minX = x;
+                if (y < minY) minY = y;
+                if (x > maxX) maxX = x;
+                if (y > maxY) maxY = y;
+                rowInk[y]++;
+                rowAlpha[y] += a;
+                columnInk[x]++;
+                columnAlpha[x] += a;
+            }
+        }
+
+        var rowProfile = [];
+        for (var row = 0; row < height; row++) {
+            if (rowInk[row] <= 0) continue;
+            rowProfile.push({
+                y: row,
+                ink: rowInk[row],
+                avgA: rowAlpha[row] / rowInk[row]
+            });
+        }
+        var columnProfile = [];
+        for (var column = 0; column < width; column++) {
+            if (columnInk[column] <= 0) continue;
+            columnProfile.push({
+                x: column,
+                ink: columnInk[column],
+                avgA: columnAlpha[column] / columnInk[column]
+            });
+        }
+
+        return {
+            area: width * height,
+            ink: ink,
+            coverage: ink / (width * height),
+            avgR: ink ? sumR / ink : 0,
+            avgG: ink ? sumG / ink : 0,
+            avgB: ink ? sumB / ink : 0,
+            avgA: ink ? sumA / ink : 0,
+            coloredPixels: coloredPixels,
+            alphaBins: bins,
+            alphaCdf: {
+                le32: ink ? cdf.le32 / ink : 0,
+                le64: ink ? cdf.le64 / ink : 0,
+                le96: ink ? cdf.le96 / ink : 0,
+                le128: ink ? cdf.le128 / ink : 0,
+                le160: ink ? cdf.le160 / ink : 0,
+                le192: ink ? cdf.le192 / ink : 0,
+                le224: ink ? cdf.le224 / ink : 0,
+                le240: ink ? cdf.le240 / ink : 0
+            },
+            bounds: ink ? {
+                x: minX,
+                y: minY,
+                width: maxX - minX + 1,
+                height: maxY - minY + 1
+            } : null,
+            rowProfile: rowProfile,
+            columnProfile: columnProfile
+        };
+    }
+
+    function glyphGeometryAtScale(sample, scale, box) {
+        var glyphs = [];
+        var cursor = box.pad;
+        for (var offset = 0, glyphIndex = 0; offset < sample.text.length; glyphIndex++) {
+            var codePoint = sample.text.codePointAt(offset);
+            var glyph = String.fromCodePoint(codePoint);
+            var surface = createContext(Math.max(1, Math.ceil(box.width * scale)), Math.max(1, Math.ceil(box.height * scale)));
+            var context = surface.context;
+            configureText(context, sample);
+            context.scale(scale, scale);
+            context.clearRect(0, 0, box.width, box.height);
+            context.fillStyle = '#000000';
+            context.fillText(glyph, cursor, box.baseline);
+            var metrics = context.measureText(glyph);
+            var imageStats = statsFromImageData(
+                context.getImageData(0, 0, surface.canvas.width, surface.canvas.height),
+                {}
+            );
+            var advance = metrics.width;
+            glyphs.push({
+                index: glyphIndex,
+                codePoint: codePoint,
+                glyph: glyph,
+                cursor: cursor,
+                cursorPhysical: cursor * scale,
+                measureWidth: metrics.width,
+                advance: advance,
+                bounds: imageStats.bounds,
+                ink: imageStats.ink,
+                avgA: imageStats.avgA
+            });
+            cursor += advance;
+            offset += glyph.length;
+        }
+        return {
+            scale: scale,
+            glyphs: glyphs,
+            finalCursor: cursor,
+            finalCursorPhysical: cursor * scale
+        };
+    }
+
+    function renderSampleAtScale(sample, scale) {
+        var box = measure(sample);
+        var pixelWidth = Math.max(1, Math.ceil(box.width * scale));
+        var pixelHeight = Math.max(1, Math.ceil(box.height * scale));
+        var transparent = createContext(pixelWidth, pixelHeight);
+        configureText(transparent.context, sample);
+        transparent.context.scale(scale, scale);
+        transparent.context.clearRect(0, 0, box.width, box.height);
+        transparent.context.fillStyle = '#000000';
+        transparent.context.fillText(sample.text, box.pad, box.baseline);
+
+        var backgroundColor = parseHexColor(sample.backgroundColor);
+        var composite = createContext(pixelWidth, pixelHeight);
+        configureText(composite.context, sample);
+        composite.context.fillStyle = sample.backgroundColor;
+        composite.context.fillRect(0, 0, pixelWidth, pixelHeight);
+        composite.context.scale(scale, scale);
+        composite.context.fillStyle = sample.color;
+        composite.context.fillText(sample.text, box.pad, box.baseline);
+
+        return {
+            scale: scale,
+            pixelWidth: pixelWidth,
+            pixelHeight: pixelHeight,
+            cssBox: box,
+            glyphGeometry: glyphGeometryAtScale(sample, scale, box),
+            sourceAlpha: statsFromImageData(
+                transparent.context.getImageData(0, 0, pixelWidth, pixelHeight),
+                {}
+            ),
+            composited: statsFromImageData(
+                composite.context.getImageData(0, 0, pixelWidth, pixelHeight),
+                { background: backgroundColor }
+            )
+        };
+    }
+
+    function renderSample(sample) {
+        var box = measure(sample);
+        var dpr = window.devicePixelRatio || 1;
+        return {
+            id: sample.id,
+            text: sample.text,
+            fontFamily: sample.fontFamily,
+            fontSize: sample.fontSize,
+            letterSpacing: sample.letterSpacing,
+            color: sample.color,
+            backgroundColor: sample.backgroundColor,
+            box: box,
+            css1x: renderSampleAtScale(sample, 1),
+            physicalDpr: renderSampleAtScale(sample, dpr)
+        };
+    }
+
+    function collect() {
+        var result = {
+            viewport: {
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                devicePixelRatio: window.devicePixelRatio
+            },
+            userAgent: navigator.userAgent,
+            samples: samples.map(renderSample)
+        };
+        document.getElementById('metrics').textContent =
+            'BROWSER_FONT_SOURCE_RASTER_METRICS ' + JSON.stringify(result);
+    }
+
+    collect();
+</script>
+</body>
+</html>

@@ -16,7 +16,7 @@ public record Transition(String name, double start, double end, double duration,
         String transitionSpec = resolveTransitionSpec(startStyle, endStyle);
         if (transitionSpec.equals(Style.DEFAULT.transition)) return;
 
-        List<Transition> parsed = parseTransitions(startStyle, endStyle, transitionSpec);
+        List<Transition> parsed = parseTransitions(element, startStyle, endStyle, transitionSpec);
         // 避免同一轮中后续“无变化 updateCSS”覆盖掉刚创建的 transition
         if (parsed.isEmpty()) return;
         synchronized (LOCK) {
@@ -125,6 +125,52 @@ public record Transition(String name, double start, double end, double duration,
         return parsed == null ? 0 : parsed;
     }
 
+    private static double parseStyle(Element element, String name, String value) {
+        if (value == null || value.equals("unset") || value.isEmpty()) {
+            return 0;
+        }
+        if (name.contains("color") || name.equals("opacity")) {
+            return parseStyle(name, value);
+        }
+        Double resolved = Size.tryResolveLength(value, transitionPercentBasis(element, name));
+        if (resolved != null) return resolved;
+        return parseStyle(name, value);
+    }
+
+    private static double transitionPercentBasis(Element element, String name) {
+        Element containing = element == null ? null : element.parentElement;
+        if (containing == null) {
+            Size viewport = Size.getWindowSize();
+            return isVerticalLengthProperty(name) ? viewport.height() : viewport.width();
+        }
+        return isVerticalLengthProperty(name)
+                ? Size.getScaleHeight(containing)
+                : Size.getScaleWidth(containing);
+    }
+
+    private static boolean isVerticalLengthProperty(String name) {
+        if (name == null) return false;
+        return name.equals("top")
+                || name.equals("bottom")
+                || name.equals("height")
+                || name.equals("min-height")
+                || name.equals("max-height")
+                || name.equals("minHeight")
+                || name.equals("maxHeight")
+                || name.equals("margin-top")
+                || name.equals("margin-bottom")
+                || name.equals("marginTop")
+                || name.equals("marginBottom")
+                || name.equals("padding-top")
+                || name.equals("padding-bottom")
+                || name.equals("paddingTop")
+                || name.equals("paddingBottom")
+                || name.equals("border-top-width")
+                || name.equals("border-bottom-width")
+                || name.equals("borderTop")
+                || name.equals("borderBottom");
+    }
+
     public static void merge(Style style, String name, double value) {
         if (name.contains("color")) {
             style.update(name, new Color(value).toRgbaString());
@@ -143,7 +189,7 @@ public record Transition(String name, double start, double end, double duration,
         return startStyle.transition == null ? "none" : startStyle.transition;
     }
 
-    private static List<Transition> parseTransitions(Style startStyle, Style endStyle, String raw) {
+    private static List<Transition> parseTransitions(Element element, Style startStyle, Style endStyle, String raw) {
         List<Transition> result = new ArrayList<>();
         if (raw == null || raw.isBlank()) return result;
 
@@ -160,18 +206,18 @@ public record Transition(String name, double start, double end, double duration,
             if ("all".equals(prop)) {
                 double finalDur = dur;
                 double finalDel = del;
-                ANIMATABLE.forEach(name -> build(startStyle, endStyle, result, name, finalDur, finalDel));
-            } else build(startStyle, endStyle, result, prop, dur, del);
+                ANIMATABLE.forEach(name -> build(element, startStyle, endStyle, result, name, finalDur, finalDel));
+            } else build(element, startStyle, endStyle, result, prop, dur, del);
         }
         return result;
     }
 
-    private static void build(Style sS, Style eS, List<Transition> res, String name, double dur, double del) {
+    private static void build(Element element, Style sS, Style eS, List<Transition> res, String name, double dur, double del) {
         if (name.equals("transform")) Transform.createTransition(sS, eS, res, dur, del);
         else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
         else if (Box.matchStyleName(name)) Box.createTransition(sS, eS, res, name, dur, del);
         else {
-            double s = parseStyle(name, sS.get(name)), e = parseStyle(name, eS.get(name));
+            double s = parseStyle(element, name, sS.get(name)), e = parseStyle(element, name, eS.get(name));
             if (Math.abs(s - e) > 0.0001) res.add(new Transition(name, s, e, dur, del, System.currentTimeMillis()));
         }
     }

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>Resource Browser Header Scanline</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #fafafa;
+        }
+
+        .header {
+            height: 60px;
+            background: #ffffff;
+            border-bottom: 3px solid #8b5cf6;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .animated-sample {
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 90px;
+        }
+
+        .header::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(139,92,246,0.08), transparent);
+            animation: scanline 6s linear infinite;
+            pointer-events: none;
+        }
+
+        .header.frozen::after {
+            animation: none;
+            left: 0;
+        }
+
+        @keyframes scanline {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        #metrics {
+            position: fixed;
+            left: -100000px;
+            top: 0;
+            white-space: pre;
+            font: 12px monospace;
+            color: transparent;
+        }
+    </style>
+</head>
+<body>
+<div class="header frozen" id="frozenHeader"></div>
+<div class="header animated-sample" id="animatedHeader"></div>
+<pre id="metrics">BROWSER_HEADER_SCANLINE_METRICS pending</pre>
+<script>
+    function rectPayload(rect) {
+        return {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            right: rect.right,
+            bottom: rect.bottom
+        };
+    }
+
+    function collect() {
+        var frozenHeader = document.getElementById('frozenHeader');
+        var animatedHeader = document.getElementById('animatedHeader');
+        var frozenRect = frozenHeader.getBoundingClientRect();
+        var animatedRect = animatedHeader.getBoundingClientRect();
+        var frozenAfter = getComputedStyle(frozenHeader, '::after');
+        var animatedAfter = getComputedStyle(animatedHeader, '::after');
+        var animations = animatedHeader.getAnimations({ subtree: true }).map(function(animation) {
+            return {
+                currentTime: animation.currentTime,
+                playState: animation.playState,
+                effectTiming: animation.effect ? animation.effect.getComputedTiming() : null
+            };
+        });
+        var result = {
+            viewport: {
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                clientWidth: document.documentElement.clientWidth,
+                clientHeight: document.documentElement.clientHeight
+            },
+            frozenHeader: rectPayload(frozenRect),
+            frozenAfter: stylePayload(frozenAfter),
+            animatedHeader: rectPayload(animatedRect),
+            animatedAfter: stylePayload(animatedAfter),
+            animations: animations
+        };
+        document.getElementById('metrics').textContent = 'BROWSER_HEADER_SCANLINE_METRICS ' + JSON.stringify(result);
+    }
+
+    function stylePayload(after) {
+        return {
+            content: after.content,
+            position: after.position,
+            top: after.top,
+            left: after.left,
+            width: after.width,
+            height: after.height,
+            pointerEvents: after.pointerEvents,
+            backgroundImage: after.backgroundImage,
+            animationName: after.animationName,
+            animationDuration: after.animationDuration,
+            animationTimingFunction: after.animationTimingFunction,
+            animationIterationCount: after.animationIterationCount
+        };
+    }
+
+    requestAnimationFrame(function() {
+        requestAnimationFrame(collect);
+    });
+</script>
+</body>
+</html>

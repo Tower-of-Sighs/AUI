@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>Resource Browser Font Raster Classifier Sweep</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100vh;
+            overflow: hidden;
+            background: #fafafa;
+            color: #999999;
+            font-family: Arial, sans-serif;
+        }
+
+        .surface {
+            position: absolute;
+            left: 80px;
+            top: 80px;
+            width: 760px;
+            height: 650px;
+            background: #ffffff;
+            border: 2px solid #e0e0e0;
+        }
+
+        .sample {
+            position: absolute;
+            display: block;
+            width: 620px;
+            height: 28px;
+            color: #999999;
+            background: #ffffff;
+            white-space: nowrap;
+            font-family: Arial, sans-serif;
+        }
+
+        .long12 {
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .mid12 {
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .short13 {
+            font-size: 13px;
+            letter-spacing: 1px;
+        }
+
+        #long12X114000 { left: 114px; top: 114px; }
+        #long12X114125 { left: 114.125px; top: 152px; }
+        #long12X114250 { left: 114.25px; top: 190px; }
+        #long12X114375 { left: 114.375px; top: 228px; }
+        #long12X114500 { left: 114.5px; top: 266px; }
+        #long12X114625 { left: 114.625px; top: 304px; }
+        #long12X114750 { left: 114.75px; top: 342px; }
+        #mid12X114250 { left: 114.25px; top: 390px; }
+        #mid12X114500 { left: 114.5px; top: 428px; }
+        #short13X114375 { left: 114.375px; top: 486px; }
+        #short13X114500 { left: 114.5px; top: 524px; }
+        #short13X114625 { left: 114.625px; top: 562px; }
+
+        #metrics {
+            position: fixed;
+            left: -100000px;
+            top: 0;
+            white-space: pre;
+            font: 12px monospace;
+            color: transparent;
+        }
+    </style>
+</head>
+<body>
+<div class="surface" id="surface"></div>
+<div class="sample long12" id="long12X114000">SELECT FILE TO VIEW DETAILS</div>
+<div class="sample long12" id="long12X114125">SELECT FILE TO VIEW DETAILS</div>
+<div class="sample long12" id="long12X114250">SELECT FILE TO VIEW DETAILS</div>
+<div class="sample long12" id="long12X114375">SELECT FILE TO VIEW DETAILS</div>
+<div class="sample long12" id="long12X114500">SELECT FILE TO VIEW DETAILS</div>
+<div class="sample long12" id="long12X114625">SELECT FILE TO VIEW DETAILS</div>
+<div class="sample long12" id="long12X114750">SELECT FILE TO VIEW DETAILS</div>
+<div class="sample mid12" id="mid12X114250">SELECT FILE TO VIEW DETAIL</div>
+<div class="sample mid12" id="mid12X114500">SELECT FILE TO VIEW DETAIL</div>
+<div class="sample short13" id="short13X114375">5 ITEMS</div>
+<div class="sample short13" id="short13X114500">5 ITEMS</div>
+<div class="sample short13" id="short13X114625">5 ITEMS</div>
+<pre id="metrics">BROWSER_FONT_RASTER_METRICS pending</pre>
+<script>
+    function rectPayload(rect) {
+        return {
+            x: rect.x,
+            y: rect.y,
+            width: rect.width,
+            height: rect.height,
+            right: rect.right,
+            bottom: rect.bottom
+        };
+    }
+
+    function stylePayload(element) {
+        var style = getComputedStyle(element);
+        return {
+            color: style.color,
+            backgroundColor: style.backgroundColor,
+            fontFamily: style.fontFamily,
+            fontSize: style.fontSize,
+            fontWeight: style.fontWeight,
+            lineHeight: style.lineHeight,
+            letterSpacing: style.letterSpacing
+        };
+    }
+
+    function collect() {
+        var samples = {};
+        Array.prototype.slice.call(document.querySelectorAll('.sample')).forEach(function(element) {
+            samples[element.id] = {
+                text: element.textContent,
+                rect: rectPayload(element.getBoundingClientRect()),
+                style: stylePayload(element)
+            };
+        });
+        var result = {
+            viewport: {
+                innerWidth: window.innerWidth,
+                innerHeight: window.innerHeight,
+                clientWidth: document.documentElement.clientWidth,
+                clientHeight: document.documentElement.clientHeight,
+                devicePixelRatio: window.devicePixelRatio
+            },
+            samples: samples
+        };
+        document.getElementById('metrics').textContent = 'BROWSER_FONT_RASTER_METRICS ' + JSON.stringify(result);
+    }
+
+    collect();
+    requestAnimationFrame(function() {
+        requestAnimationFrame(collect);
+    });
+</script>
+</body>
+</html>

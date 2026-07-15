@@ -66,9 +66,69 @@ public class ApricityJS {
             })();
             """;
 
+    private static final String PROMPT_POLYFILL = """
+            (function() {
+              var root = (typeof globalThis !== 'undefined') ? globalThis : this;
+              if (typeof root.window === 'undefined') root.window = root;
+              function syncWindowPrompt() {
+                try {
+                  if (root.window && typeof root.window.prompt !== 'function') root.window.prompt = root.prompt;
+                } catch (e) {}
+              }
+              if (typeof root.prompt === 'function') {
+                syncWindowPrompt();
+                return;
+              }
+              function fmt(v) {
+                if (v == null) return '';
+                return String(v);
+              }
+              function testPromptResponse() {
+                try {
+                  if (root.window && typeof root.window.getTestPromptResponse === 'function') {
+                    var windowValue = root.window.getTestPromptResponse();
+                    if (windowValue != null) return String(windowValue);
+                  }
+                  var SystemClass = null;
+                  if (typeof Java !== 'undefined' && Java.type) {
+                    SystemClass = Java.type('java.lang.System');
+                  } else if (typeof Packages !== 'undefined') {
+                    SystemClass = Packages.java.lang.System;
+                  }
+                  if (SystemClass) {
+                    var propertyValue = SystemClass.getProperty('apricityui.test.promptResponse');
+                    if (propertyValue != null) return String(propertyValue);
+                    var envValue = SystemClass.getenv('APRICITYUI_TEST_PROMPT_RESPONSE');
+                    if (envValue != null) return String(envValue);
+                  }
+                } catch (e) {}
+                return null;
+              }
+              root.prompt = function(message, defaultValue) {
+                var fallback = (typeof defaultValue === 'undefined') ? '' : fmt(defaultValue);
+                var testValue = testPromptResponse();
+                if (testValue != null) return testValue;
+                try {
+                  var JOptionPane = null;
+                  if (typeof Java !== 'undefined' && Java.type) {
+                    JOptionPane = Java.type('javax.swing.JOptionPane');
+                  } else if (typeof Packages !== 'undefined') {
+                    JOptionPane = Packages.javax.swing.JOptionPane;
+                  }
+                  if (JOptionPane) {
+                    var result = JOptionPane.showInputDialog(null, fmt(message), fallback);
+                    return result == null ? null : String(result);
+                  }
+                } catch (e) {}
+                return fallback;
+              };
+              syncWindowPrompt();
+            })();
+            """;
+
     public static void eval(String code) {
         if (!ModList.get().isLoaded("kubejs")) return;
-        code = INNER_TEXT_POLYFILL + "\n" + code;
+        code = INNER_TEXT_POLYFILL + "\n" + PROMPT_POLYFILL + "\n" + code;
         code = ARRAY_SPREAD_PATTERN.matcher(code).replaceAll("$1.slice()");
         code = rewriteDefaultParameters(code);
         code = Pattern.compile("\\.innerText\\b").matcher(code).replaceAll(".textContent");

@@ -88,10 +88,10 @@ public final class Grid {
         double cellW = spanSum(layout.colW, p.col, p.colSpan) + (double) (p.colSpan - 1) * layout.gaps.colGap;
         double cellH = spanSum(layout.rowH, p.row, p.rowSpan) + (double) (p.rowSpan - 1) * layout.gaps.rowGap;
 
+        applyGridStretchSize(element, parent, cellW, cellH);
         Size itemSize = Size.box(element);
         double dx = computeJustifyOffset(element, parent, cellW, itemSize.width());
         double dy = computeAlignOffset(element, parent, cellH, itemSize.height());
-        applyGridStretchSize(element, parent, cellW, cellH);
         return new Position(baseX + dx, baseY + dy);
     }
 
@@ -127,7 +127,9 @@ public final class Grid {
 
         double finalW = stretchW ? Math.max(0, targetW) : current.width();
         double finalH = stretchH ? Math.max(0, targetH) : current.height();
-        element.getRenderer().size.set(new Size(finalW, finalH));
+        Size assigned = new Size(finalW, finalH);
+        element.getRenderer().gridAssignedSize.set(assigned);
+        element.getRenderer().size.set(assigned);
     }
 
     private static boolean isGridStretch(String containerValue, String selfValue) {
@@ -137,7 +139,7 @@ public final class Grid {
     }
 
     public static Size computeContentSize(Element gridContainer) {
-        Layout layout = computeLayout(gridContainer, gridContainer.children);
+        Layout layout = computeLayout(gridContainer, gridContainer.getRenderChildren());
         if (layout.flow.isEmpty()) return Size.ZERO;
 
         double gridW = sum(layout.colW) + (double) layout.gaps.colGap * Math.max(0, layout.colW.length - 1);

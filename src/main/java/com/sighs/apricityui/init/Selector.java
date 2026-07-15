@@ -22,6 +22,11 @@ public class Selector {
     public record DebugStyleBlock(String sourcePath, String selector, Map<String, String> styles) {
     }
 
+    public enum PseudoElement {
+        BEFORE,
+        AFTER
+    }
+
     private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING}
 
     private record Pseudo(String name, String expression) {
@@ -116,7 +121,7 @@ public class Selector {
         }
     }
 
-    private record CompiledSelector(List<Component> components, List<Combinator> combinators,
+    private record CompiledSelector(List<Component> components, List<Combinator> combinators, PseudoElement pseudoElement,
                                     int ids, int classesAndPseudos, int tags) {
         Specificity specificity(int order) {
             return new Specificity(ids, classesAndPseudos, tags, order);
@@ -254,6 +259,7 @@ public class Selector {
             List<MatchedRule> matched = new ArrayList<>();
             for (IndexedRule rule : scratchCandidates) {
                 if (rule == null) continue;
+                if (rule.selector.pseudoElement != null) continue;
                 if (isMatch(element, rule.selector)) {
                     matched.add(new MatchedRule(rule.specificity, rule.styles));
                 }
@@ -263,7 +269,72 @@ public class Selector {
 
             // 先应用普通声明，再应用 !important 声明。
             // 同一属性中 important 声明按 specificity 排序覆盖，符合 CSS 层叠规则。
-            HashMap<String, String> finalStyles = new HashMap<>();
+            LinkedHashMap<String, String> finalStyles = new LinkedHashMap<>();
+            List<MatchedRule> importantRules = new ArrayList<>();
+            for (MatchedRule rule : matched) {
+                boolean hasImportant = false;
+                for (CSS.Declaration declaration : rule.styles.values()) {
+                    if (declaration.important()) {
+                        hasImportant = true;
+                        break;
+                    }
+                }
+                if (hasImportant) {
+                    importantRules.add(rule);
+                } else {
+                    for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
+                        finalStyles.put(e.getKey(), e.getValue().value());
+                    }
+                }
+            }
+            for (MatchedRule rule : importantRules) {
+                for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
+                    CSS.Declaration declaration = e.getValue();
+                    if (declaration.important()) {
+                        finalStyles.put(e.getKey(), declaration.value());
+                    }
+                }
+            }
+            return finalStyles;
+        }
+
+        public HashMap<String, String> matchPseudoElement(Element element, PseudoElement pseudoElement) {
+            scratchCandidates.clear();
+            scratchSeen.clear();
+
+            if (element == null || element.document == null || pseudoElement == null) return new HashMap<>();
+
+            addCandidates(always);
+
+            String id = element.id;
+            if (id != null && !id.isBlank()) {
+                addCandidates(byId.get(id));
+            }
+
+            Set<String> classes = element.getClassNames();
+            if (classes != null && !classes.isEmpty()) {
+                for (String cls : classes) {
+                    addCandidates(byClass.get(cls));
+                }
+            }
+
+            String tag = element.tagName;
+            if (tag != null && !tag.isBlank()) {
+                addCandidates(byTag.get(tag.toLowerCase(Locale.ROOT)));
+            }
+
+            List<MatchedRule> matched = new ArrayList<>();
+            for (IndexedRule rule : scratchCandidates) {
+                if (rule == null) continue;
+                if (rule.selector.pseudoElement != pseudoElement) continue;
+                if (isMatch(element, rule.selector)) {
+                    matched.add(new MatchedRule(rule.specificity, rule.styles));
+                }
+            }
+
+            matched.sort(Comparator.comparing(m -> m.specificity));
+
+            LinkedHashMap<String, String> finalStyles = new LinkedHashMap<>();
             List<MatchedRule> importantRules = new ArrayList<>();
             for (MatchedRule rule : matched) {
                 boolean hasImportant = false;
@@ -313,10 +384,16 @@ public class Selector {
         return element.document.getSelectorIndex().match(element);
     }
 
+    public static HashMap<String, String> matchPseudoElementCSS(Element element, PseudoElement pseudoElement) {
+        if (element == null || element.document == null || pseudoElement == null) return new HashMap<>();
+        return element.document.getSelectorIndex().matchPseudoElement(element, pseudoElement);
+    }
+
     public static boolean matches(Element element, String selectorStr) {
         if (element == null || selectorStr == null || selectorStr.isBlank()) return false;
         List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
         for (CompiledSelector selector : groups) {
+            if (selector.pseudoElement != null) continue;
             if (isMatch(element, selector)) return true;
         }
         return false;
@@ -379,6 +456,7 @@ public class Selector {
         List<Combinator> combinators = new ArrayList<>();
 
         int ids = 0, classesAndPseudos = 0, tags = 0;
+        PseudoElement pseudoElement = null;
 
         for (String token : tokens) {
             token = token.trim();
@@ -392,7 +470,11 @@ public class Selector {
                     if (components.size() > combinators.size()) {
                         combinators.add(Combinator.DESCENDANT);
                     }
-                    Component comp = parseAtom(token);
+                    ParsedAtom parsedAtom = parseAtom(token);
+                    if (parsedAtom.pseudoElement() != null) {
+                        pseudoElement = parsedAtom.pseudoElement();
+                    }
+                    Component comp = parsedAtom.component();
                     components.add(comp);
 
                     if (comp.id != null) ids++;
@@ -402,15 +484,19 @@ public class Selector {
                 }
             }
         }
-        return new CompiledSelector(components, combinators, ids, classesAndPseudos, tags);
+        return new CompiledSelector(components, combinators, pseudoElement, ids, classesAndPseudos, tags);
     }
 
-    private static Component parseAtom(String atom) {
+    private record ParsedAtom(Component component, PseudoElement pseudoElement) {
+    }
+
+    private static ParsedAtom parseAtom(String atom) {
         String tag = null;
         String id = null;
         Set<String> classes = new HashSet<>();
         Map<String, String> attrs = new HashMap<>();
         List<Pseudo> pseudos = new ArrayList<>();
+        PseudoElement pseudoElement = null;
 
         // 先解析 tag（如果存在）：tag 只能出现在最前面，遇到 # . [ : 即结束
         int firstSpecial = -1;
@@ -437,7 +523,7 @@ public class Selector {
                 "(#(?<id>(?:\\\\.|[\\w-])+))" +
                         "|(\\.(?<cls>(?:\\\\.|[\\w-])+))" +
                         "|(\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
-                        "|:(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
+                        "|(?<pseudoColon>::?)(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
         );
 
         Matcher m = token.matcher(rest);
@@ -468,13 +554,18 @@ public class Selector {
             }
             String pseudoName = m.group("pseudoName");
             if (pseudoName != null) {
-                pseudos.add(new Pseudo(pseudoName, m.group("pseudoExpr")));
+                String normalized = pseudoName.toLowerCase(Locale.ROOT);
+                if ("before".equals(normalized) || "after".equals(normalized)) {
+                    pseudoElement = "before".equals(normalized) ? PseudoElement.BEFORE : PseudoElement.AFTER;
+                    continue;
+                }
+                pseudos.add(new Pseudo(normalized, m.group("pseudoExpr")));
             }
         }
-        return new Component(tag, id,
+        return new ParsedAtom(new Component(tag, id,
                 classes.isEmpty() ? null : classes,
                 attrs.isEmpty() ? null : attrs,
-                pseudos.isEmpty() ? null : pseudos);
+                pseudos.isEmpty() ? null : pseudos), pseudoElement);
     }
 
     private static String unescapeCssIdentifier(String value) {

@@ -7,6 +7,7 @@ import java.util.List;
 public class Gradient {
     private final float angle;
     private final List<Stop> stops = new ArrayList<>();
+    private boolean repeating = false;
 
     public Gradient(float angle) {
         this.angle = angle;
@@ -18,6 +19,19 @@ public class Gradient {
 
     public List<Stop> stops() {
         return Collections.unmodifiableList(stops);
+    }
+
+    public boolean repeating() {
+        return repeating;
+    }
+
+    public float repeatLengthPx() {
+        if (!repeating) return 0;
+        float max = 0;
+        for (Stop stop : stops) {
+            if (stop.absolutePx) max = Math.max(max, stop.position);
+        }
+        return max;
     }
 
     public static class Stop implements Comparable<Stop> {
@@ -65,6 +79,7 @@ public class Gradient {
     public Gradient scaledTo(float width, float height) {
         float axisLength = Math.max(1f, projectedAxisLength(width, height));
         Gradient scaled = new Gradient(angle);
+        scaled.repeating = repeating;
         for (Stop stop : stops) {
             float position = stop.position;
             if (stop.absolutePx) {
@@ -109,9 +124,12 @@ public class Gradient {
     }
 
     public static Gradient parse(String css) {
-        if (css == null || !css.startsWith("linear-gradient")) return null;
+        if (css == null) return null;
+        String trimmed = css.trim();
+        boolean repeating = trimmed.startsWith("repeating-linear-gradient");
+        if (!repeating && !trimmed.startsWith("linear-gradient")) return null;
 
-        String content = css.substring(css.indexOf('(') + 1, css.lastIndexOf(')'));
+        String content = trimmed.substring(trimmed.indexOf('(') + 1, trimmed.lastIndexOf(')'));
         String[] parts = splitByCommaNotInParens(content);
 
         if (parts.length < 2) return null;
@@ -132,6 +150,7 @@ public class Gradient {
         }
 
         Gradient gradient = new Gradient(angle);
+        gradient.repeating = repeating;
 
         for (int i = startIndex; i < parts.length; i++) {
             String part = parts[i].trim();
@@ -160,28 +179,43 @@ public class Gradient {
 
     private void fixStops() {
         if (stops.isEmpty()) return;
-        if (stops.get(0).position < 0 && !stops.get(0).absolutePx) stops.get(0).position = 0f;
-        if (stops.get(stops.size() - 1).position < 0 && !stops.get(stops.size() - 1).absolutePx) stops.get(stops.size() - 1).position = 1f;
+        boolean absoluteGradient = stops.stream().anyMatch(stop -> stop.absolutePx);
+        if (stops.get(0).position < 0) {
+            stops.get(0).position = 0f;
+            stops.get(0).absolutePx = absoluteGradient;
+        }
+        if (stops.get(stops.size() - 1).position < 0) {
+            stops.get(stops.size() - 1).position = absoluteGradient
+                    ? findPreviousKnownPosition(stops.size() - 2, 0f)
+                    : 1f;
+            stops.get(stops.size() - 1).absolutePx = absoluteGradient;
+        }
 
         for (int i = 0; i < stops.size(); i++) {
-            if (stops.get(i).position < 0 && !stops.get(i).absolutePx) {
+            if (stops.get(i).position < 0) {
                 int nextKnown = i + 1;
-                while (nextKnown < stops.size()
-                        && stops.get(nextKnown).position < 0
-                        && !stops.get(nextKnown).absolutePx) nextKnown++;
+                while (nextKnown < stops.size() && stops.get(nextKnown).position < 0) nextKnown++;
                 if (nextKnown >= stops.size()) break;
 
-                float startPos = stops.get(i - 1).position;
+                float startPos = i > 0 ? stops.get(i - 1).position : 0f;
                 float endPos = stops.get(nextKnown).position;
                 float step = (endPos - startPos) / (nextKnown - (i - 1));
 
                 for (int j = i; j < nextKnown; j++) {
                     stops.get(j).position = startPos + step * (j - (i - 1));
+                    stops.get(j).absolutePx = stops.get(nextKnown).absolutePx;
                 }
                 i = nextKnown - 1;
             }
         }
         Collections.sort(stops);
+    }
+
+    private float findPreviousKnownPosition(int start, float fallback) {
+        for (int i = Math.min(start, stops.size() - 1); i >= 0; i--) {
+            if (stops.get(i).position >= 0) return stops.get(i).position;
+        }
+        return fallback;
     }
 
     private static float parseDirection(String dir) {

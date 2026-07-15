@@ -118,7 +118,7 @@ public class Drawer {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }
 
-        List<Element> children = contextRoot.children;
+        List<Element> children = contextRoot.getRenderChildren();
         if (children.isEmpty()) {
             if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
             if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));

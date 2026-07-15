@@ -16,6 +16,7 @@ import com.sighs.apricityui.style.Size;
 
 import java.awt.BasicStroke;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.Shape;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Ellipse2D;
@@ -99,13 +100,17 @@ public class Svg extends Canvas {
             if (surfaceWidth <= 0 || surfaceHeight <= 0) {
                 return;
             }
+            graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+            graphics.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
             double[] viewBox = parseViewBox();
             double vbWidth = Math.max(1d, viewBox[2]);
             double vbHeight = Math.max(1d, viewBox[3]);
             AffineTransform original = graphics.getTransform();
             graphics.translate(-viewBox[0], -viewBox[1]);
             graphics.scale(surfaceWidth / vbWidth, surfaceHeight / vbHeight);
-            SvgPaint inheritedPaint = SvgPaint.fromElement(this, currentColorArgb(), "black", "none", 1.0, "butt", "miter");
+            SvgPaint inheritedPaint = SvgPaint.fromElement(this, currentColorArgb(), "black", "none", 1.0,
+                    "butt", "miter", 1.0, 1.0, 1.0);
             drawSvgSubtree(graphics, this, inheritedPaint);
             graphics.setTransform(original);
         });
@@ -147,7 +152,8 @@ public class Svg extends Canvas {
     private void drawSvgSubtree(Graphics2D graphics, Element parent, SvgPaint inheritedPaint) {
         if (parent == null) return;
         SvgPaint currentPaint = SvgPaint.fromElement(parent, inheritedPaint.currentColor, inheritedPaint.fill,
-                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin);
+                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin,
+                inheritedPaint.opacity, inheritedPaint.fillOpacity, inheritedPaint.strokeOpacity);
         for (Node child : parent.getChildNodes()) {
             if (!(child instanceof Element childElement)) continue;
             String tag = childElement.tagName == null ? "" : childElement.tagName.toUpperCase(Locale.ROOT);
@@ -238,15 +244,16 @@ public class Svg extends Canvas {
 
     private void drawShape(Graphics2D graphics, Element pathElement, Shape shape, SvgPaint inheritedPaint) {
         SvgPaint paint = SvgPaint.fromElement(pathElement, inheritedPaint.currentColor, inheritedPaint.fill,
-                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin);
+                inheritedPaint.stroke, inheritedPaint.strokeWidth, inheritedPaint.lineCap, inheritedPaint.lineJoin,
+                inheritedPaint.opacity, inheritedPaint.fillOpacity, inheritedPaint.strokeOpacity);
 
         if (!"none".equalsIgnoreCase(paint.fill)) {
-            graphics.setColor(toAwtColor(resolveSvgColor(paint.fill, paint.currentColor)));
+            graphics.setColor(toAwtColor(resolveSvgColor(paint.fill, paint.currentColor), paint.opacity * paint.fillOpacity));
             graphics.fill(shape);
         }
 
         if (!"none".equalsIgnoreCase(paint.stroke)) {
-            graphics.setColor(toAwtColor(resolveSvgColor(paint.stroke, paint.currentColor)));
+            graphics.setColor(toAwtColor(resolveSvgColor(paint.stroke, paint.currentColor), paint.opacity * paint.strokeOpacity));
             graphics.setStroke(new BasicStroke(
                     (float) Math.max(0.1d, paint.strokeWidth),
                     switch (paint.lineCap) {
@@ -288,11 +295,12 @@ public class Svg extends Canvas {
         return Color.parse(value);
     }
 
-    private java.awt.Color toAwtColor(int argb) {
+    private java.awt.Color toAwtColor(int argb, double opacityMultiplier) {
         int a = (argb >>> 24) & 0xFF;
         int r = (argb >>> 16) & 0xFF;
         int g = (argb >>> 8) & 0xFF;
         int b = argb & 0xFF;
+        a = (int) Math.round(a * clampOpacity(opacityMultiplier));
         return new java.awt.Color(r, g, b, a);
     }
 
@@ -338,16 +346,36 @@ public class Svg extends Canvas {
         return parsed == null ? Math.max(1, fallback) : Math.max(1, (int) Math.round(parsed));
     }
 
-    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap, String lineJoin) {
+    private static double parseOpacity(String raw, double fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+        try {
+            return clampOpacity(Double.parseDouble(raw.trim()));
+        } catch (NumberFormatException ignored) {
+            return fallback;
+        }
+    }
+
+    private static double clampOpacity(double value) {
+        if (!Double.isFinite(value)) return 1.0;
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
+    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap, String lineJoin,
+                            double opacity, double fillOpacity, double strokeOpacity) {
         private static SvgPaint fromElement(Element element, int inheritedColor, String inheritedFill, String inheritedStroke,
-                                            double inheritedStrokeWidth, String inheritedLineCap, String inheritedLineJoin) {
+                                            double inheritedStrokeWidth, String inheritedLineCap, String inheritedLineJoin,
+                                            double inheritedOpacity, double inheritedFillOpacity, double inheritedStrokeOpacity) {
             int color = resolveCurrentColor(element, inheritedColor);
             String fill = firstNonBlank(attribute(element, "fill"), inheritedFill, "black");
             String stroke = firstNonBlank(attribute(element, "stroke"), inheritedStroke, "none");
             double strokeWidth = parseSvgNumber(attribute(element, "stroke-width"), inheritedStrokeWidth);
             String lineCap = firstNonBlank(attribute(element, "stroke-linecap"), inheritedLineCap, "butt").toLowerCase(Locale.ROOT);
             String lineJoin = firstNonBlank(attribute(element, "stroke-linejoin"), inheritedLineJoin, "miter").toLowerCase(Locale.ROOT);
-            return new SvgPaint(color, fill, stroke, strokeWidth, lineCap, lineJoin);
+            double opacity = inheritedOpacity * parseOpacity(attribute(element, "opacity"), 1.0);
+            double fillOpacity = parseOpacity(attribute(element, "fill-opacity"), inheritedFillOpacity);
+            double strokeOpacity = parseOpacity(attribute(element, "stroke-opacity"), inheritedStrokeOpacity);
+            return new SvgPaint(color, fill, stroke, strokeWidth, lineCap, lineJoin,
+                    clampOpacity(opacity), fillOpacity, strokeOpacity);
         }
 
         private static String attribute(Element element, String name) {

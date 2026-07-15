@@ -294,9 +294,10 @@ Screen documents can choose their logical root viewport with an `aui-viewport` m
 Supported modes:
 
 1. `mode=gui`: default Minecraft GUI-sized viewport, compatible with the old behavior.
-2. `mode=window`: use the raw window pixel size as the logical viewport and scale it down to the current GUI coordinate space.
-3. `mode=screen` or `mode=fullscreen`: use the current monitor video-mode size as the logical viewport and scale it into the window.
-4. `mode=fixed,width=427,height=249`: use an explicit fixed logical viewport.
+2. `mode=browser`, `mode=css`, or `mode=web`: use a browser-like CSS viewport. The layout viewport is the window framebuffer converted through the OS/GLFW content scale, and rendering maps CSS px back into the current Minecraft GUI coordinate space. `100vw`, `100vh`, and CSS px resolve against this logical viewport.
+3. `mode=window` or `mode=native`: compatibility aliases for browser/CSS viewport mode. Prefer `mode=browser` in new pages when the intent is browser-like CSS sizing.
+4. `mode=screen` or `mode=fullscreen`: use the current monitor video-mode size as the logical viewport and scale it into the window.
+5. `mode=fixed,width=427,height=249`: use an explicit fixed logical viewport.
 
 Fixed mode also accepts `scale=1`, `scale=gui`, `scale=window`, or `scale=fit`.
 
@@ -319,10 +320,27 @@ Examples:
 
 ```html
 <meta name="aui-viewport" content="mode=window">
+<meta name="aui-viewport" content="mode=browser">
 <meta name="aui-viewport" content="mode=fixed,width=427,height=249">
 <meta name="aui-viewport" content="mode=fixed,width=1920,height=1080,scale=fit">
 <meta name="aui-viewport" content="mode=gui,zoom=1,min-zoom=0.75,max-zoom=2,zoom-step=0.1">
 ```
+
+---
+
+### Scrollbar Styling
+
+ApricityUI currently treats browser scrollbar pseudo-elements as unsupported CSS extensions:
+
+```css
+::-webkit-scrollbar {}
+::-webkit-scrollbar-track {}
+::-webkit-scrollbar-thumb {}
+```
+
+Documents can still scroll normally through `overflow`, `scrollTop`, `scrollLeft`, mouse wheel input, and the framework's native scroll handling. Styling the scrollbar thumb/track with `::-webkit-scrollbar*` is ignored for now.
+
+If a page needs a fully custom visual scrollbar, build it as ordinary DOM elements synchronized with scroll position instead of relying on WebKit scrollbar pseudo-elements.
 
 ---
 

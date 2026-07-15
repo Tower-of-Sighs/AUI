@@ -188,8 +188,12 @@ public class Rect {
         Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
         for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
             for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
-                boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                boolean drawn = Graph.drawAxisAlignedStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
                         tile.width(), tile.height(), scaled);
+                if (!drawn) {
+                    drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                            tile.width(), tile.height(), scaled);
+                }
                 if (!drawn) {
                     Graph.drawGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
                             tile.width(), tile.height(), scaled);
