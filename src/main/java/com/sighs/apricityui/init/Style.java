@@ -44,6 +44,7 @@ public class Style implements Cloneable {
             Map.entry("box-shadow", "none"),
             Map.entry("z-index", "auto"),
             Map.entry("display", "block"),
+            Map.entry("content", "normal"),
             Map.entry("grid-template-columns", "unset"),
             Map.entry("grid-template-rows", "unset"),
             Map.entry("gap", "0px"),
@@ -151,6 +152,7 @@ public class Style implements Cloneable {
     public String boxShadow = "unset";
     public String zIndex = "auto";
     public String display = "block";
+    public String content = "unset";
 
     public String gridTemplateColumns = "unset";
     public String gridTemplateRows = "unset";
@@ -324,6 +326,10 @@ public class Style implements Cloneable {
         }
         if ("gap".equals(styleName)) {
             applyGapShorthand(value);
+            return;
+        }
+        if ("inset".equals(styleName)) {
+            applyInsetShorthand(value);
             return;
         }
         if ("margin".equals(styleName)) {
@@ -679,6 +685,18 @@ public class Style implements Cloneable {
         String columnValue = parts.length > 1 ? parts[1] : rowValue;
         rowGap = rowValue;
         columnGap = columnValue;
+    }
+
+    private void applyInsetShorthand(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        if (value.isEmpty()) value = "unset";
+        String[] expanded = isCssWideKeyword(value)
+                ? new String[]{value, value, value, value}
+                : expandFourSideTokens(value);
+        top = expanded[0];
+        right = expanded[1];
+        bottom = expanded[2];
+        left = expanded[3];
     }
 
     private void applyAnimationShorthand(String raw) {
@@ -1040,6 +1058,7 @@ public class Style implements Cloneable {
     }
 
     private static String defaultDisplayFor(Element element) {
+        if (element != null && element.isPseudoElement()) return "inline";
         if (element == null || element.tagName == null) return "block";
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
         return switch (tag) {

@@ -33,7 +33,7 @@ public class Position {
 
         // 基础流式位置（absolute/fixed 不参与常规流布局）
         if (!"absolute".equals(positionType) && !"fixed".equals(positionType) && parent != null) {
-            resultPosition = computeNormalFlowChildPosition(element, parent, parent.children);
+            resultPosition = computeNormalFlowChildPosition(element, parent, parent.getRenderChildren());
         }
 
         // relative: 在原流位置上偏移
@@ -127,6 +127,8 @@ public class Position {
 
         double containerW;
         double containerH;
+        double originX = 0;
+        double originY = 0;
         if ("fixed".equals(positionType)) {
             Size window = Size.getWindowSize();
             containerW = window.width();
@@ -134,9 +136,12 @@ public class Position {
         } else {
             Element parent = element.parentElement;
             if (parent != null) {
-                Size parentContent = Box.of(parent).innerSize();
-                containerW = parentContent.width();
-                containerH = parentContent.height();
+                Box parentBox = Box.of(parent);
+                Size parentSize = Size.of(parent);
+                originX = parentBox.getBorderLeft();
+                originY = parentBox.getBorderTop();
+                containerW = Math.max(0, parentSize.width() - parentBox.getBorderHorizontal());
+                containerH = Math.max(0, parentSize.height() - parentBox.getBorderVertical());
             } else {
                 Size window = Size.getWindowSize();
                 containerW = window.width();
@@ -166,7 +171,7 @@ public class Position {
             y = containerH - selfSize.height() - bottom;
         }
 
-        return new Position(x, y);
+        return new Position(originX + x, originY + y);
     }
 
     @Override

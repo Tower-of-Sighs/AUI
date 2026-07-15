@@ -12,6 +12,7 @@ final class MotionTrack {
     private static final int FLAG_ANIMATION_SPEC = 1 << 1;
     private static final String[] LAYOUT_PROPS = {
             "width", "height", "minWidth", "minHeight", "maxWidth", "maxHeight", "boxSizing",
+            "position", "top", "right", "bottom", "left",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
             "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
             "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
@@ -112,6 +113,7 @@ final class MotionTrack {
         if (differsAny(base, animated, LAYOUT_PROPS)) {
             element.forEachRoute(e -> e.getRenderer().size.clear());
             element.forEachRoute(e -> e.getRenderer().box.clear());
+            renderer.position.clear();
             if (element.parentElement != null) {
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else {

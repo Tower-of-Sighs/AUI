@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>Auto Width Containing Block</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            margin: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+        }
+
+        .shell {
+            display: flex;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        .left {
+            width: 280px;
+            flex: 0 0 auto;
+            background: #f0f0f0;
+        }
+
+        .center {
+            flex: 1 1 0;
+            padding: 32px;
+            background: #fafafa;
+            overflow: auto;
+        }
+
+        .right {
+            width: 300px;
+            flex: 0 0 auto;
+            background: #f7f7f7;
+        }
+
+        .auto-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #111;
+        }
+
+        .label {
+            font-size: 24px;
+            line-height: 1.2;
+        }
+
+        .count {
+            font-size: 13px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+<div class="shell">
+    <aside class="left" id="left"></aside>
+    <main class="center" id="center">
+        <div class="auto-row" id="autoRow">
+            <div class="label" id="label">SURVIVAL</div>
+            <div class="count" id="count">5 ITEMS</div>
+        </div>
+    </main>
+    <aside class="right" id="right"></aside>
+</div>
+</body>
+</html>

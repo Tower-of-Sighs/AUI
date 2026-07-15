@@ -49,6 +49,29 @@ public class ImageDrawer {
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, true);
     }
 
+    public static void drawWithUvInset(PoseStack poseStack, ResourceLocation texture,
+                                       float x, float y, float width, float height, boolean blur,
+                                       int textureWidth, int textureHeight,
+                                       float rightTexelInset, float bottomTexelInset) {
+        if (texture == null || textureWidth <= 0 || textureHeight <= 0) return;
+        float sampleWidth = Math.max(0.0f, textureWidth - Math.max(0.0f, rightTexelInset));
+        float sampleHeight = Math.max(0.0f, textureHeight - Math.max(0.0f, bottomTexelInset));
+        innerBlit(poseStack, texture, x, y, width, height, 0, 0,
+                sampleWidth, sampleHeight, textureWidth, textureHeight, blur, true);
+    }
+
+    public static void drawWithUvWindow(PoseStack poseStack, ResourceLocation texture,
+                                        float x, float y, float width, float height, boolean blur,
+                                        int textureWidth, int textureHeight,
+                                        float uTexel, float vTexel,
+                                        float widthTexels, float heightTexels) {
+        if (texture == null || textureWidth <= 0 || textureHeight <= 0) return;
+        innerBlit(poseStack, texture, x, y, width, height,
+                uTexel, vTexel,
+                Math.max(0.0f, widthTexels), Math.max(0.0f, heightTexels),
+                textureWidth, textureHeight, blur, true);
+    }
+
     public static void drawOverlay(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, boolean blur) {
         if (texture == null) return;
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, false);
@@ -561,6 +584,11 @@ public class ImageDrawer {
     }
 
     private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
+        innerBlit(poseStack, texture, x, y, width, height, uTexture, vTexture,
+                (float) widthTexture, (float) heightTexture, textureWidth, textureHeight, blur, depthTest);
+    }
+
+    private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
         RenderType renderType = getRenderType(texture, blur, depthTest);
         if (Mask.isActive() || Mask.getCurrentScissor() != null) {
             flushBatch();
@@ -582,7 +610,7 @@ public class ImageDrawer {
 
     private static void emitQuad(VertexConsumer vertexConsumer, Matrix4f matrix,
                                  float x, float y, float width, float height,
-                                 float uTexture, float vTexture, int widthTexture, int heightTexture,
+                                 float uTexture, float vTexture, float widthTexture, float heightTexture,
                                  int textureWidth, int textureHeight) {
         float minU = uTexture / (float) textureWidth;
         float maxU = (uTexture + widthTexture) / (float) textureWidth;

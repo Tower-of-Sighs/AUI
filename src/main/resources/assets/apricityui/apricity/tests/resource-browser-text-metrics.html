@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>AUI Resource Browser Text Metrics</title>
+    <style>
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 32px;
+            background: #fafafa;
+            color: #1a1a1a;
+            font-family: "Chakra Petch", sans-serif;
+        }
+
+        .metric-sample {
+            white-space: nowrap;
+        }
+
+        .sample {
+            display: inline-block;
+            margin: 0 0 18px;
+            border-bottom: 1px solid #8b5cf6;
+        }
+
+        .row {
+            display: block;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .sidebar {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 3px;
+        }
+
+        .sidebar-title {
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        .detail-empty {
+            font-size: 12px;
+            font-weight: 400;
+            letter-spacing: 1px;
+        }
+
+        .content-title {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .file-name {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .file-name-line {
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+            letter-spacing: 0.5px;
+        }
+
+        .file-meta {
+            font-size: 10px;
+            color: #737373;
+            letter-spacing: 0.5px;
+        }
+
+        .action-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            background: #fff;
+            border: 2px solid #1a1a1a;
+            color: #1a1a1a;
+            font-family: "Chakra Petch", sans-serif;
+            font-weight: 600;
+            font-size: 12px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .nav-sep {
+            font-size: 16px;
+            color: #8b5cf6;
+        }
+
+        .tree-toggle {
+            display: inline-flex;
+            width: 16px;
+            height: 16px;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b5cf6;
+        }
+
+        .symbol {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .tree-label {
+            font-size: 13px;
+            font-weight: 400;
+        }
+
+        .tree-label-selected {
+            font-size: 13px;
+            font-weight: 600;
+        }
+
+        .detail-name {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .detail-label {
+            font-size: 10px;
+            color: #737373;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .detail-value {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .output {
+            margin-top: 24px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+<div class="row"><span id="sample-logo" class="metric-sample sample logo" data-label="MINE//EXPLORER">MINE//EXPLORER</span></div>
+<div class="row"><span id="sample-sidebar" class="metric-sample sample sidebar" data-label="DIRECTORIES">DIRECTORIES</span></div>
+<div class="row"><span id="sample-title" class="metric-sample sample content-title" data-label="SURVIVAL">SURVIVAL</span></div>
+<div class="row"><span id="sample-detail" class="metric-sample sample detail-empty" data-label="SELECT FILE TO VIEW DETAILS">SELECT FILE TO VIEW DETAILS</span></div>
+<div class="row"><span id="sample-level" class="metric-sample sample file-name" data-label="LEVEL.DAT">LEVEL.DAT</span></div>
+<div class="row"><span id="sample-session" class="metric-sample sample file-name" data-label="SESSION.LOCK">SESSION.LOCK</span></div>
+<div class="row"><span id="sample-auto-prompt" class="metric-sample sample file-name" data-label="AUTO_PROMPT_FILE">AUTO_PROMPT_FILE</span></div>
+<div class="row"><span id="sample-icon" class="metric-sample sample file-name" data-label="ICON.PNG">ICON.PNG</span></div>
+<div class="row"><span id="sample-file-line" class="metric-sample sample file-name-line" data-label="SESSION.LOCK">SESSION.LOCK</span></div>
+<div class="row"><span id="sample-file-meta" class="metric-sample sample file-meta" data-label="256 KB">256 KB</span></div>
+<div class="row"><button id="sample-action-back" class="metric-sample action-btn" data-label="◀ BACK">◀ BACK</button></div>
+<div class="row"><button id="sample-action-up" class="metric-sample action-btn" data-label="▲ UP">▲ UP</button></div>
+<div class="row"><button id="sample-action-new" class="metric-sample action-btn" data-label="+ NEW">+ NEW</button></div>
+<div class="row"><span id="sample-sidebar-title" class="metric-sample sample sidebar-title" data-label="▸ DIRECTORIES">▸ DIRECTORIES</span></div>
+<div class="row"><span id="sample-nav-sep" class="metric-sample sample nav-sep" data-label="▸">▸</span></div>
+<div class="row"><span id="sample-tree-toggle" class="metric-sample sample tree-toggle" data-label="▾">▾</span></div>
+<div class="row"><span id="sample-symbol-back" class="metric-sample sample symbol" data-label="◀">◀</span></div>
+<div class="row"><span id="sample-symbol-up" class="metric-sample sample symbol" data-label="▲">▲</span></div>
+<div class="row"><span id="sample-symbol-right" class="metric-sample sample symbol" data-label="▸">▸</span></div>
+<div class="row"><span id="sample-symbol-down" class="metric-sample sample symbol" data-label="▾">▾</span></div>
+<div class="row"><span id="sample-tree-label" class="metric-sample sample tree-label" data-label="Survival">Survival</span></div>
+<div class="row"><span id="sample-tree-selected" class="metric-sample sample tree-label-selected" data-label="Survival">Survival</span></div>
+<div class="row"><span id="sample-detail-name" class="metric-sample sample detail-name" data-label="LEVEL.DAT">LEVEL.DAT</span></div>
+<div class="row"><span id="sample-detail-label" class="metric-sample sample detail-label" data-label="TYPE">TYPE</span></div>
+<div class="row"><span id="sample-detail-value" class="metric-sample sample detail-value" data-label="DATA">DATA</span></div>
+<pre id="metrics" class="output">PENDING</pre>
+
+<script>
+    function collectMetrics() {
+        var nodes = document.querySelectorAll('.metric-sample');
+        var result = [];
+        for (var i = 0; i < nodes.length; i++) {
+            var node = nodes[i];
+            var rect = node.getBoundingClientRect();
+            var style = getComputedStyle(node);
+            result.push({
+                id: node.id,
+                text: node.getAttribute('data-label'),
+                codePoints: Array.from(node.getAttribute('data-label')).map(function(ch) {
+                    return ch.codePointAt(0).toString(16);
+                }).join(' '),
+                width: Math.round(rect.width * 100) / 100,
+                height: Math.round(rect.height * 100) / 100,
+                fontSize: style.fontSize,
+                fontWeight: style.fontWeight,
+                lineHeight: style.lineHeight,
+                letterSpacing: style.letterSpacing,
+                fontFamily: style.fontFamily
+            });
+        }
+        var payload = JSON.stringify(result);
+        document.getElementById('metrics').textContent = 'BROWSER_TEXT_METRICS ' + payload + '\nAUI_TEXT_METRICS ' + payload;
+        console.log('BROWSER_TEXT_METRICS ' + payload);
+        console.log('AUI_TEXT_METRICS ' + payload);
+    }
+
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function() {
+            setTimeout(collectMetrics, 0);
+        });
+    } else {
+        collectMetrics();
+    }
+</script>
+</body>
+</html>

@@ -19,6 +19,7 @@ public class Font {
     private static final int RUN_PLAN_CACHE_LIMIT = 512;
     private static final Map<String, Optional<java.awt.Font>> SINGLE_FAMILY_CACHE = createLruCache(SINGLE_FAMILY_CACHE_LIMIT);
     private static final Map<String, List<java.awt.Font>> BASE_FONT_CHAIN_CACHE = createLruCache(BASE_FONT_CHAIN_CACHE_LIMIT);
+    private static final Map<String, List<java.awt.Font>> SINGLE_FAMILY_CHAIN_CACHE = createLruCache(BASE_FONT_CHAIN_CACHE_LIMIT);
     private static final Map<DerivedFontKey, java.awt.Font> DERIVED_FONT_CACHE = new ConcurrentHashMap<>();
     private static final Map<RunPlanKey, List<FontRun>> RUN_PLAN_CACHE = createLruCache(RUN_PLAN_CACHE_LIMIT);
     private static final Map<String, String> GENERIC_FAMILY_MAPPING = Map.ofEntries(
@@ -99,11 +100,12 @@ public class Font {
         ArrayList<java.awt.Font> result = new ArrayList<>();
         Set<String> seen = new LinkedHashSet<>();
         for (String family : parseFontFamilies(rawFamilyChain)) {
-            java.awt.Font font = resolveSingleFamily(family);
-            if (font == null) continue;
-            String key = font.getFontName(Locale.ROOT) + "|" + font.getFamily(Locale.ROOT);
-            if (seen.add(key)) {
-                result.add(font);
+            for (java.awt.Font font : resolveSingleFamilyChain(family)) {
+                if (font == null) continue;
+                String key = font.getFontName(Locale.ROOT) + "|" + font.getFamily(Locale.ROOT);
+                if (seen.add(key)) {
+                    result.add(font);
+                }
             }
         }
 
@@ -228,6 +230,12 @@ public class Font {
             return registered;
         }
 
+        java.awt.Font genericResolved = resolveGenericFamily(cleanFamily);
+        if (genericResolved != null) {
+            SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.of(genericResolved));
+            return genericResolved;
+        }
+
         String genericMapped = GENERIC_FAMILY_MAPPING.get(cleanFamily.toLowerCase(Locale.ROOT));
         if (genericMapped != null) {
             java.awt.Font resolved = new java.awt.Font(genericMapped, java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
@@ -247,16 +255,82 @@ public class Font {
 
     private static java.awt.Font resolveKnownWebFontAlias(String family) {
         String normalized = cleanFamilyName(family).toLowerCase(Locale.ROOT);
-        if (!"rajdhani".equals(normalized)) return null;
-        java.awt.Font bahnschrift = new java.awt.Font("Bahnschrift", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
-        if (!java.awt.Font.DIALOG.equalsIgnoreCase(bahnschrift.getFamily(Locale.ROOT))) {
-            return bahnschrift;
+        if ("chakra petch".equals(normalized)) {
+            return resolveInstalledFont("Chakra Petch");
         }
-        java.awt.Font agency = new java.awt.Font("Agency FB", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
-        if (!java.awt.Font.DIALOG.equalsIgnoreCase(agency.getFamily(Locale.ROOT))) {
-            return agency;
+        if ("rajdhani".equals(normalized)) {
+            return resolveInstalledFont("Rajdhani");
         }
         return null;
+    }
+
+    private static List<java.awt.Font> resolveSingleFamilyChain(String family) {
+        if (family == null || family.isBlank()) return List.of();
+
+        String cleanFamily = cleanFamilyName(family);
+        List<java.awt.Font> cached = SINGLE_FAMILY_CHAIN_CACHE.get(cleanFamily);
+        if (cached != null) return cached;
+
+        java.awt.Font primary = resolveSingleFamily(cleanFamily);
+        if (primary == null) {
+            SINGLE_FAMILY_CHAIN_CACHE.put(cleanFamily, List.of());
+            return List.of();
+        }
+
+        ArrayList<java.awt.Font> chain = new ArrayList<>();
+        chain.add(primary);
+
+        if (isSansGeneric(cleanFamily)) {
+            addInstalledFont(chain, "Noto Sans SC");
+            addInstalledFont(chain, "Segoe UI Symbol");
+            addInstalledFont(chain, "Segoe UI Emoji");
+        }
+
+        List<java.awt.Font> immutable = List.copyOf(chain);
+        SINGLE_FAMILY_CHAIN_CACHE.put(cleanFamily, immutable);
+        return immutable;
+    }
+
+    private static java.awt.Font resolveGenericFamily(String family) {
+        String normalized = cleanFamilyName(family).toLowerCase(Locale.ROOT);
+        if (!isSansGeneric(normalized)) {
+            return null;
+        }
+
+        java.awt.Font browserSans = resolveInstalledFont("Sans Serif Collection");
+        if (browserSans != null) return browserSans;
+
+        java.awt.Font arial = resolveInstalledFont("Arial");
+        if (arial != null) return arial;
+
+        return new java.awt.Font(java.awt.Font.SANS_SERIF, java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
+    }
+
+    private static boolean isSansGeneric(String family) {
+        String normalized = cleanFamilyName(family).toLowerCase(Locale.ROOT);
+        return normalized.equals("sans-serif")
+                || normalized.equals("ui-sans-serif")
+                || normalized.equals("ui-rounded")
+                || normalized.equals("cursive")
+                || normalized.equals("fantasy");
+    }
+
+    private static java.awt.Font resolveInstalledFont(String family) {
+        if (family == null || family.isBlank()) return null;
+        java.awt.Font font = new java.awt.Font(family, java.awt.Font.PLAIN, (int) BASE_FONT_SIZE);
+        return java.awt.Font.DIALOG.equalsIgnoreCase(font.getFamily(Locale.ROOT)) ? null : font;
+    }
+
+    private static void addInstalledFont(List<java.awt.Font> fonts, String family) {
+        java.awt.Font font = resolveInstalledFont(family);
+        if (font == null) return;
+        String key = font.getFontName(Locale.ROOT) + "|" + font.getFamily(Locale.ROOT);
+        for (java.awt.Font existing : fonts) {
+            if (existing == null) continue;
+            String existingKey = existing.getFontName(Locale.ROOT) + "|" + existing.getFamily(Locale.ROOT);
+            if (existingKey.equals(key)) return;
+        }
+        fonts.add(font);
     }
 
     private static java.awt.Font pickDisplayFont(List<java.awt.Font> fonts, int codePoint) {
@@ -320,6 +394,7 @@ public class Font {
 
     private static void clearResolutionCaches() {
         SINGLE_FAMILY_CACHE.clear();
+        SINGLE_FAMILY_CHAIN_CACHE.clear();
         BASE_FONT_CHAIN_CACHE.clear();
         DERIVED_FONT_CACHE.clear();
         RUN_PLAN_CACHE.clear();

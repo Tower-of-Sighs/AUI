@@ -15,6 +15,7 @@ public class Box {
     public static final String BOX_SIZING_BORDER_BOX = "border-box";
     public final HashMap<String, SideBorder> border = new HashMap<>();
     public final HashMap<String, Double> margin = new HashMap<>();
+    public final HashMap<String, Boolean> autoMargin = new HashMap<>();
     public final HashMap<String, Double> padding = new HashMap<>();
     public final ArrayList<Integer> borderRadius = new ArrayList<>();
     public final List<Shadow> shadows = new ArrayList<>();
@@ -26,6 +27,7 @@ public class Box {
         SIDE.forEach(side -> {
             border.put(side, SideBorder.getDefault());
             margin.put(side, 0d);
+            autoMargin.put(side, false);
             padding.put(side, 0d);
         });
     }
@@ -40,15 +42,17 @@ public class Box {
     }
 
     public void applyMargin(String side, String value) {
-        margin.put(side, resolveBoxLength(value));
+        boolean auto = isAuto(value);
+        autoMargin.put(side, auto);
+        margin.put(side, auto ? 0d : resolveBoxLength(value));
     }
 
     public void applyMarginAll(String value) {
-        double[] values = parseFourSideLengths(value);
-        margin.put("top", values[0]);
-        margin.put("right", values[1]);
-        margin.put("bottom", values[2]);
-        margin.put("left", values[3]);
+        BoxLength[] values = parseFourSideBoxLengths(value);
+        applyParsedMargin("top", values[0]);
+        applyParsedMargin("right", values[1]);
+        applyParsedMargin("bottom", values[2]);
+        applyParsedMargin("left", values[3]);
     }
 
     public void applyPadding(String side, String value) {
@@ -65,6 +69,16 @@ public class Box {
 
     private static boolean valid(String s) {
         return !s.equals("unset");
+    }
+
+    private static boolean isAuto(String value) {
+        return value != null && "auto".equalsIgnoreCase(value.trim());
+    }
+
+    private void applyParsedMargin(String side, BoxLength value) {
+        if (value == null) value = BoxLength.zero();
+        autoMargin.put(side, value.auto());
+        margin.put(side, value.length());
     }
 
     public static Box of(Element element) {
@@ -202,6 +216,25 @@ public class Box {
         };
     }
 
+    private BoxLength[] parseFourSideBoxLengths(String raw) {
+        if (raw == null || raw.isBlank() || "unset".equals(raw)) {
+            return new BoxLength[]{BoxLength.zero(), BoxLength.zero(), BoxLength.zero(), BoxLength.zero()};
+        }
+
+        String[] parts = raw.trim().split("\\s+");
+        BoxLength[] parsed = new BoxLength[Math.min(parts.length, 4)];
+        for (int i = 0; i < parsed.length; i++) {
+            parsed[i] = isAuto(parts[i]) ? BoxLength.autoValue() : new BoxLength(resolveBoxLength(parts[i]), false);
+        }
+
+        return switch (parsed.length) {
+            case 1 -> new BoxLength[]{parsed[0], parsed[0], parsed[0], parsed[0]};
+            case 2 -> new BoxLength[]{parsed[0], parsed[1], parsed[0], parsed[1]};
+            case 3 -> new BoxLength[]{parsed[0], parsed[1], parsed[2], parsed[1]};
+            default -> new BoxLength[]{parsed[0], parsed[1], parsed[2], parsed[3]};
+        };
+    }
+
     public double offset(String side) {
         return border.getOrDefault(side, SideBorder.getDefault()).size + margin.getOrDefault(side, 0d) + padding.getOrDefault(side, 0d);
     }
@@ -228,6 +261,10 @@ public class Box {
 
     public double getMarginBottom() {
         return margin.getOrDefault("bottom", 0d);
+    }
+
+    public boolean isMarginAuto(String side) {
+        return autoMargin.getOrDefault(side, false);
     }
 
     public double getBorderHorizontal() {
@@ -469,6 +506,16 @@ public class Box {
 
         public boolean isEmpty() {
             return source == null || source.equals("none");
+        }
+    }
+
+    private record BoxLength(double length, boolean auto) {
+        private static BoxLength zero() {
+            return new BoxLength(0, false);
+        }
+
+        private static BoxLength autoValue() {
+            return new BoxLength(0, true);
         }
     }
 }

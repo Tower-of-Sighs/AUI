@@ -41,6 +41,7 @@ public class RenderElement {
         }
     };
     public Cache<Size> size = new Cache<>();
+    public Cache<Size> gridAssignedSize = new Cache<>();
     public Cache<Box> box = new Cache<>();
     public Cache<Position> position = new Cache<>() {
         @Override
@@ -206,9 +207,11 @@ public class RenderElement {
         }
 
         if (check.test(PADDING_AND_BORDER_PROPS)) {
+            renderer.gridAssignedSize.clear();
             element.forEachRoute(e -> e.getRenderer().size.clear());
             element.forEachRoute(e -> e.getRenderer().box.clear());
             if (element.parentElement != null) {
+                element.parentElement.getRenderer().size.clear();
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
 
@@ -216,9 +219,11 @@ public class RenderElement {
         }
 
         if (check.test(LAYOUT_PROPS)) {
+            renderer.gridAssignedSize.clear();
             element.forEachRoute(e -> e.getRenderer().size.clear());
             renderer.box.clear();
             if (element.parentElement != null) {
+                element.parentElement.getRenderer().size.clear();
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
 

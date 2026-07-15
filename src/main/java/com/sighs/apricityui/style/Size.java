@@ -214,11 +214,17 @@ public record Size(double width, double height) {
             return ZERO;
         }
 
-        boolean unsetWidth = parseNumber(style.width) == null;
-        boolean unsetHeight = parseNumber(style.height) == null;
+        Size gridAssignedSize = noCacheForElement ? null : element.getRenderer().gridAssignedSize.get();
+        if (gridAssignedSize != null
+                && element.parentElement != null
+                && Layout.isGridDisplay(element.parentElement.getComputedStyle().display)
+                && Layout.isInFlow(style)) {
+            element.getRenderer().size.set(gridAssignedSize);
+            return gridAssignedSize;
+        }
 
         boolean isText = element instanceof AbstractText
-                || ((!element.innerText.isEmpty() || hasDirectTextNodeChildren(element)) && element.children.isEmpty());
+                || ((!element.innerText.isEmpty() || hasDirectTextNodeChildren(element)) && element.getRenderChildren().isEmpty());
         Size contentSize;
         if (element instanceof com.sighs.apricityui.element.Canvas canvas) {
             contentSize = canvas.getIntrinsicSize();
@@ -229,12 +235,35 @@ public record Size(double width, double height) {
         double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
         double verticalBox = box.getBorderVertical() + box.getPaddingVertical();
 
+        boolean borderBox = box.isBorderBox();
+        boolean absolutePositioned = "absolute".equals(style.position) || "fixed".equals(style.position);
         double contentWidth = contentSize.width;
         double contentHeight = contentSize.height;
-        double parentWidth = getScaleWidth(element);
-        Double explicitParentHeight = getExplicitContainingBlockHeight(element);
-        double parentHeight = explicitParentHeight != null ? explicitParentHeight : 0;
-        boolean borderBox = box.isBorderBox();
+        Double cachedParentWidth = absolutePositioned ? getContainingBlockPaddingBoxWidth(element) : null;
+        Double explicitParentWidth = absolutePositioned ? getExplicitContainingBlockPaddingBoxWidth(element) : null;
+        Double definiteParentWidth = cachedParentWidth != null ? cachedParentWidth : explicitParentWidth;
+        double parentWidth = absolutePositioned && definiteParentWidth != null ? definiteParentWidth : getScaleWidth(element);
+        Double explicitParentHeight = absolutePositioned ? getExplicitContainingBlockPaddingBoxHeight(element) : getExplicitContainingBlockHeight(element);
+        Double cachedParentHeight = absolutePositioned ? getContainingBlockPaddingBoxHeight(element) : null;
+        Double definiteParentHeight = cachedParentHeight != null ? cachedParentHeight : explicitParentHeight;
+        double parentHeight = definiteParentHeight != null ? definiteParentHeight : 0;
+        boolean unsetWidth = tryResolveLength(style.width, parentWidth) == null;
+        boolean unsetHeight = tryResolveLength(style.height, parentHeight) == null;
+        boolean hasLeft = isInsetSet(style.left);
+        boolean hasRight = isInsetSet(style.right);
+        boolean hasTop = isInsetSet(style.top);
+        boolean hasBottom = isInsetSet(style.bottom);
+
+        if (absolutePositioned && unsetWidth && hasLeft && hasRight) {
+            double left = resolveLength(style.left, parentWidth, 0);
+            double right = resolveLength(style.right, parentWidth, 0);
+            contentWidth = Math.max(0, parentWidth - left - right - horizontalBox);
+        }
+        if (absolutePositioned && unsetHeight && hasTop && hasBottom && definiteParentHeight != null) {
+            double top = resolveLength(style.top, parentHeight, 0);
+            double bottom = resolveLength(style.bottom, parentHeight, 0);
+            contentHeight = Math.max(0, parentHeight - top - bottom - verticalBox);
+        }
 
         if (unsetWidth && shouldFillAvailableBlockWidth(element, style)
                 && !shouldUseContentBasedAutoWidthInNaturalFlexMeasurement(element, allowFlexAdjustments)
@@ -247,7 +276,7 @@ public record Size(double width, double height) {
             double resolved = resolveLength(style.width, parentWidth, contentWidth);
             contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
         }
-        if (!unsetHeight && (!isPercent(style.height) || explicitParentHeight != null)) {
+        if (!unsetHeight && (!isPercent(style.height) || definiteParentHeight != null)) {
             double resolved = resolveLength(style.height, parentHeight, contentHeight);
             contentHeight = borderBox ? Math.max(0, resolved - verticalBox) : Math.max(0, resolved);
         }
@@ -303,11 +332,11 @@ public record Size(double width, double height) {
         }
 
         double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
-        double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, explicitParentHeight != null);
+        double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
         if (aspectRatio != null && aspectRatio > 0) {
             if (!unsetWidth && unsetHeight) {
                 constrainedContentHeight = constrainedContentWidth / aspectRatio;
-                constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, explicitParentHeight != null);
+                constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
             } else if (unsetWidth && !unsetHeight) {
                 constrainedContentWidth = constrainedContentHeight * aspectRatio;
                 constrainedContentWidth = clampContentExtent(constrainedContentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
@@ -366,13 +395,19 @@ public record Size(double width, double height) {
         return Math.max(0, result);
     }
 
+    private static boolean isInsetSet(String value) {
+        if (value == null || value.isBlank()) return false;
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return !"unset".equals(normalized) && !"auto".equals(normalized);
+    }
+
     public static Size getTextSize(Element element) {
         return Text.of(element).size;
     }
 
     private static boolean hasDirectTextNodeChildren(Element element) {
         if (element == null) return false;
-        for (com.sighs.apricityui.init.Node child : element.childNodes) {
+        for (com.sighs.apricityui.init.Node child : element.getRenderChildNodes()) {
             if (child instanceof com.sighs.apricityui.init.TextNode textNode && !textNode.getTextContent().isEmpty()) {
                 return true;
             }
@@ -441,6 +476,50 @@ public record Size(double width, double height) {
         Double parentOwnHeight = resolveOwnExplicitContentHeight(parent);
         if (parentOwnHeight == null) return null;
         return Math.max(0, parentOwnHeight);
+    }
+
+    private static Double getContainingBlockPaddingBoxHeight(Element element) {
+        Element parent = element == null ? null : element.parentElement;
+        if (parent == null) return Math.max(0, getWindowSize().height());
+        Size cachedParentSize = parent.getRenderer().size.get();
+        Size parentSize = cachedParentSize;
+        if (parentSize == null) {
+            if (isResolving(parent)) return null;
+            parentSize = Size.of(parent);
+        }
+        Box parentBox = Box.of(parent);
+        return Math.max(0, parentSize.height() - parentBox.getBorderVertical());
+    }
+
+    private static Double getContainingBlockPaddingBoxWidth(Element element) {
+        Element parent = element == null ? null : element.parentElement;
+        if (parent == null) return Math.max(0, getWindowSize().width());
+        Size cachedParentSize = parent.getRenderer().size.get();
+        Size parentSize = cachedParentSize;
+        if (parentSize == null) {
+            if (isResolving(parent)) return null;
+            parentSize = Size.of(parent);
+        }
+        Box parentBox = Box.of(parent);
+        return Math.max(0, parentSize.width() - parentBox.getBorderHorizontal());
+    }
+
+    private static Double getExplicitContainingBlockPaddingBoxWidth(Element element) {
+        Element parent = element == null ? null : element.parentElement;
+        if (parent == null) return Math.max(0, getWindowSize().width());
+        Double contentWidth = resolveOwnExplicitContentWidth(parent);
+        if (contentWidth == null) return null;
+        Box parentBox = Box.of(parent);
+        return Math.max(0, contentWidth + parentBox.getPaddingHorizontal());
+    }
+
+    private static Double getExplicitContainingBlockPaddingBoxHeight(Element element) {
+        Element parent = element == null ? null : element.parentElement;
+        if (parent == null) return Math.max(0, getWindowSize().height());
+        Double contentHeight = resolveOwnExplicitContentHeight(parent);
+        if (contentHeight == null) return null;
+        Box parentBox = Box.of(parent);
+        return Math.max(0, contentHeight + parentBox.getPaddingVertical());
     }
 
     private static Double resolveOwnExplicitContentHeight(Element element) {
@@ -575,6 +654,10 @@ public record Size(double width, double height) {
 
         Set<Element> resolving = RESOLVING.get();
         if (!resolving.contains(parent)) return false;
+
+        if (unsetWidth && shouldFillAvailableBlockWidth(element, style)) {
+            return true;
+        }
 
         if (isPercent(style.width) || isPercent(style.height)) {
             return true;

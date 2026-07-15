@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>MINE//EXPLORER</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --purple: #8b5cf6;
+            --purple-dark: #6d28d9;
+            --purple-light: #a78bfa;
+            --white: #ffffff;
+            --gray-light: #e0e0e0;
+            --gray: #999999;
+            --black: #1a1a1a;
+            --bg: #fafafa;
+        }
+
+        body {
+            font-family: 'Chakra Petch', sans-serif;
+            background: var(--bg);
+            color: var(--black);
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        /* ===== Header ===== */
+        .header {
+            height: 60px;
+            background: var(--white);
+            border-bottom: 3px solid var(--purple);
+            display: flex;
+            align-items: center;
+            padding: 0 24px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            background: repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(139,92,246,0.03) 20px, rgba(139,92,246,0.03) 21px);
+            pointer-events: none;
+        }
+
+        .header::after {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(139,92,246,0.08), transparent);
+            animation: scanline 6s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanline {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 600;
+            font-size: 20px;
+            letter-spacing: 2px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .logo-block {
+            width: 32px; height: 32px;
+            background: var(--purple);
+            position: relative;
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+
+        .logo-block::after {
+            content: '';
+            position: absolute;
+            top: 4px; left: 4px;
+            width: 8px; height: 8px;
+            background: var(--white);
+        }
+
+        @keyframes logoPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+
+        .nav-path {
+            margin-left: 40px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: var(--gray);
+            position: relative;
+            z-index: 1;
+        }
+
+        .nav-path span {
+            cursor: pointer;
+            padding: 4px 8px;
+            transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+            position: relative;
+        }
+
+        .nav-path span:hover {
+            color: var(--purple);
+            background: rgba(139,92,246,0.1);
+            transform: translateY(-1px);
+        }
+
+        .nav-path .current {
+            color: var(--black);
+            font-weight: 600;
+        }
+
+        .nav-path .current::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 8px; right: 8px;
+            height: 2px;
+            background: var(--purple);
+        }
+
+        .nav-sep {
+            color: var(--purple);
+            font-size: 16px;
+            animation: blink 2s ease-in-out infinite;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .header-actions {
+            margin-left: auto;
+            display: flex;
+            gap: 8px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .action-btn {
+            padding: 8px 16px;
+            background: var(--white);
+            border: 2px solid var(--black);
+            color: var(--black);
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 600;
+            font-size: 12px;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all 0.15s cubic-bezier(0.4,0,0.2,1);
+            text-transform: uppercase;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .action-btn::before {
+            content: '';
+            position: absolute;
+            top: 0; left: -100%;
+            width: 100%; height: 100%;
+            background: var(--purple);
+            transition: left 0.25s cubic-bezier(0.4,0,0.2,1);
+            z-index: -1;
+        }
+
+        .action-btn:hover::before { left: 0; }
+
+        .action-btn:hover {
+            border-color: var(--purple);
+            color: var(--white);
+            transform: translate(-2px, -2px);
+            box-shadow: 4px 4px 0 var(--black);
+        }
+
+        .action-btn:active {
+            transform: translate(0, 0);
+            box-shadow: 0 0 0 var(--black);
+        }
+
+        /* ===== Main ===== */
+        .main {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+
+        /* ===== Sidebar ===== */
+        .sidebar {
+            width: 280px;
+            background: var(--white);
+            border-right: 2px solid var(--gray-light);
+            overflow-y: auto;
+        }
+
+        .sidebar-title {
+            padding: 20px 24px 12px;
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            color: var(--purple);
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--gray-light);
+            position: relative;
+        }
+
+        .sidebar-title::after {
+            content: '';
+            position: absolute;
+            bottom: -1px; left: 24px;
+            width: 0; height: 2px;
+            background: var(--purple);
+            animation: titleLine 1s ease forwards 0.3s;
+        }
+
+        @keyframes titleLine {
+            to { width: 60px; }
+        }
+
+        /* Tree */
+        .tree-item {
+            padding: 10px 24px;
+            font-size: 13px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-left: 3px solid transparent;
+            transition: background 0.15s, border-color 0.15s, padding-left 0.15s;
+            position: relative;
+        }
+
+        .tree-item:hover {
+            background: rgba(139,92,246,0.05);
+            border-left-color: var(--purple-light);
+            padding-left: 28px;
+        }
+
+        .tree-item.selected {
+            background: rgba(139,92,246,0.1);
+            border-left-color: var(--purple);
+            font-weight: 600;
+        }
+
+        .tree-item.anim-in {
+            animation: treeItemIn 0.3s ease backwards;
+        }
+
+        @keyframes treeItemIn {
+            from { opacity: 0; transform: translateX(-12px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .tree-toggle {
+            width: 16px; height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--purple);
+            font-size: 14px;
+            font-weight: 600;
+            transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .tree-toggle.collapsed { transform: rotate(-90deg); }
+        .tree-toggle.empty { visibility: hidden; }
+
+        .tree-icon {
+            width: 16px; height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: transform 0.2s ease;
+        }
+
+        .tree-item:hover .tree-icon { transform: scale(1.2); }
+        .tree-icon svg { width: 14px; height: 14px; }
+
+        .tree-children-wrapper {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.3s cubic-bezier(0.4,0,0.2,1);
+        }
+
+        .tree-children-wrapper.expanded {
+            grid-template-rows: 1fr;
+        }
+
+        .tree-children-inner {
+            overflow: hidden;
+        }
+
+        /* ===== Content ===== */
+        .content {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .content-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--black);
+            position: relative;
+        }
+
+        .content-header::after {
+            content: '';
+            position: absolute;
+            bottom: -2px; left: 0;
+            height: 2px;
+            background: var(--purple);
+            width: 100%;
+        }
+
+        .content-title {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .content-count {
+            font-size: 13px;
+            color: var(--gray);
+            letter-spacing: 1px;
+        }
+
+        /* ===== File Grid ===== */
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 16px;
+        }
+
+        .file-card {
+            background: var(--white);
+            border: 2px solid var(--gray-light);
+            padding: 20px 16px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.4,0,0.2,1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .file-card.entering {
+            animation: cardIn 0.4s cubic-bezier(0.4,0,0.2,1) backwards;
+        }
+
+        @keyframes cardIn {
+            from { opacity: 0; transform: translateY(20px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        .file-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 4px; height: 100%;
+            background: var(--purple);
+            transform: scaleY(0);
+            transform-origin: center;
+            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+        }
+
+        .file-card::after {
+            content: '';
+            position: absolute;
+            top: 0; right: 0;
+            width: 0; height: 0;
+            background: var(--purple);
+            transition: all 0.2s ease;
+        }
+
+        .file-card:hover {
+            border-color: var(--purple);
+            transform: translate(-3px, -3px);
+            box-shadow: 6px 6px 0 var(--black);
+        }
+
+        .file-card:hover::before { transform: scaleY(1); }
+
+        .file-card:hover::after {
+            width: 12px; height: 12px;
+            clip-path: polygon(100% 0, 0 0, 100% 100%);
+        }
+
+        .file-card:hover .file-icon { animation: iconShake 0.4s ease; }
+
+        @keyframes iconShake {
+            0%, 100% { transform: rotate(0); }
+            25% { transform: rotate(-5deg); }
+            75% { transform: rotate(5deg); }
+        }
+
+        .file-card.selected {
+            border-color: var(--purple);
+            background: rgba(139,92,246,0.05);
+        }
+
+        .file-card.selected::before { transform: scaleY(1); }
+
+        .file-card.selected::after {
+            width: 12px; height: 12px;
+            clip-path: polygon(100% 0, 0 0, 100% 100%);
+        }
+
+        .file-card:active {
+            transform: translate(0, 0);
+            box-shadow: 0 0 0 var(--black);
+        }
+
+        .file-icon {
+            width: 48px; height: 48px;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s ease;
+        }
+
+        .file-icon svg { width: 40px; height: 40px; }
+
+        .file-name {
+            font-size: 12px;
+            font-weight: 600;
+            text-align: center;
+            word-break: break-all;
+            line-height: 1.4;
+            letter-spacing: 0.5px;
+            transition: color 0.2s ease;
+        }
+
+        .file-card:hover .file-name { color: var(--purple); }
+
+        .file-meta {
+            font-size: 10px;
+            color: var(--gray);
+            text-align: center;
+            margin-top: 6px;
+            letter-spacing: 0.5px;
+        }
+
+        /* ===== Detail ===== */
+        .detail-panel {
+            width: 300px;
+            background: var(--white);
+            border-left: 2px solid var(--gray-light);
+            padding: 24px;
+            overflow-y: auto;
+            position: relative;
+        }
+
+        .detail-panel::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0;
+            width: 2px; height: 0;
+            background: var(--purple);
+            transition: height 0.4s ease;
+        }
+
+        .detail-panel.active::before { height: 100%; }
+
+        .detail-empty {
+            color: var(--gray);
+            font-size: 12px;
+            text-align: center;
+            margin-top: 60px;
+            letter-spacing: 1px;
+        }
+
+        .detail-content {
+            animation: detailIn 0.35s cubic-bezier(0.4,0,0.2,1);
+        }
+
+        @keyframes detailIn {
+            from { opacity: 0; transform: translateX(20px); }
+            to { opacity: 1; transform: translateX(0); }
+        }
+
+        .detail-icon {
+            width: 80px; height: 80px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid var(--purple);
+            position: relative;
+            transition: transform 0.3s ease;
+        }
+
+        .detail-icon:hover { transform: rotate(-5deg) scale(1.05); }
+
+        .detail-icon::before {
+            content: '';
+            position: absolute;
+            inset: -6px;
+            border: 1px dashed var(--purple);
+            opacity: 0.4;
+            animation: rotateBorder 8s linear infinite;
+        }
+
+        @keyframes rotateBorder {
+            from { transform: rotate(0); }
+            to { transform: rotate(360deg); }
+        }
+
+        .detail-icon svg { width: 56px; height: 56px; }
+
+        .detail-name {
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 24px;
+            letter-spacing: 1px;
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .detail-name::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 40px; height: 2px;
+            background: var(--purple);
+        }
+
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid var(--gray-light);
+            font-size: 12px;
+        }
+
+        .detail-label {
+            color: var(--gray);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+
+        .detail-value {
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-tags { margin-top: 20px; }
+
+        .detail-tags-title {
+            font-size: 10px;
+            color: var(--gray);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 4px 10px;
+            background: var(--purple);
+            color: var(--white);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            margin: 2px 4px 2px 0;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .tag:hover {
+            background: var(--black);
+            transform: translate(-2px, -2px);
+            box-shadow: 2px 2px 0 var(--purple);
+        }
+
+        /* ===== Scrollbar ===== */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--gray-light); }
+        ::-webkit-scrollbar-thumb { background: var(--purple); }
+        ::-webkit-scrollbar-thumb:hover { background: var(--purple-dark); }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="logo">
+        <div class="logo-block"></div>
+        <span>MINE//EXPLORER</span>
+    </div>
+    <div class="nav-path" id="navPath"></div>
+    <div class="header-actions">
+        <button class="action-btn" onclick="goBack()">◀ BACK</button>
+        <button class="action-btn" onclick="goUp()">▲ UP</button>
+        <button class="action-btn" onclick="createNew()">+ NEW</button>
+    </div>
+</div>
+
+<div class="main">
+    <div class="sidebar">
+        <div class="sidebar-title">▸ DIRECTORIES</div>
+        <div id="treeContainer"></div>
+    </div>
+
+    <div class="content">
+        <div class="content-header">
+            <div class="content-title" id="contentTitle">SURVIVAL</div>
+            <div class="content-count" id="contentCount">0 ITEMS</div>
+        </div>
+        <div class="file-grid" id="fileGrid"></div>
+    </div>
+
+    <div class="detail-panel" id="detailPanel">
+        <div id="detailContent">
+            <div class="detail-empty">SELECT FILE TO VIEW DETAILS</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const fs = {
+        '/': { name: 'ROOT', type: 'folder', children: ['worlds', 'mods', 'resourcepacks', 'config'] },
+        '/worlds': { name: 'WORLDS', type: 'folder', children: ['survival', 'creative', 'redstone'] },
+        '/worlds/survival': { name: 'SURVIVAL', type: 'folder', children: ['level.dat', 'region', 'playerdata', 'icon.png', 'session.lock'] },
+        '/worlds/survival/region': { name: 'REGION', type: 'folder', children: ['r.0.0.mca', 'r.0.1.mca'] },
+        '/worlds/survival/playerdata': { name: 'PLAYERDATA', type: 'folder', children: ['player.dat'] },
+        '/worlds/creative': { name: 'CREATIVE', type: 'folder', children: ['level.dat', 'region'] },
+        '/worlds/redstone': { name: 'REDSTONE', type: 'folder', children: ['level.dat'] },
+        '/mods': { name: 'MODS', type: 'folder', children: ['optifine.jar', 'jei.jar'] },
+        '/resourcepacks': { name: 'RESOURCEPACKS', type: 'folder', children: ['faithful.zip'] },
+        '/config': { name: 'CONFIG', type: 'folder', children: ['options.txt'] }
+    };
+
+    const details = {
+        'level.dat': { type: 'DATA', size: '256 KB', modified: '2024-03-15', tags: ['NBT', 'WORLD'] },
+        'region': { type: 'FOLDER', size: '--', modified: '2024-03-15', tags: ['CHUNKS'] },
+        'playerdata': { type: 'FOLDER', size: '--', modified: '2024-03-15', tags: ['PLAYERS'] },
+        'icon.png': { type: 'IMAGE', size: '4 KB', modified: '2024-03-10', tags: ['PNG', 'ICON'] },
+        'session.lock': { type: 'LOCK', size: '1 KB', modified: '2024-03-15', tags: ['SYSTEM'] },
+        'r.0.0.mca': { type: 'DATA', size: '1.2 MB', modified: '2024-03-15', tags: ['ANVIL', 'CHUNK'] },
+        'r.0.1.mca': { type: 'DATA', size: '890 KB', modified: '2024-03-15', tags: ['ANVIL', 'CHUNK'] },
+        'player.dat': { type: 'DATA', size: '32 KB', modified: '2024-03-15', tags: ['NBT', 'PLAYER'] },
+        'optifine.jar': { type: 'MOD', size: '6.2 MB', modified: '2024-02-20', tags: ['OPTIMIZATION'] },
+        'jei.jar': { type: 'MOD', size: '1.8 MB', modified: '2024-03-01', tags: ['RECIPE'] },
+        'faithful.zip': { type: 'PACK', size: '24 MB', modified: '2024-01-20', tags: ['32X', 'TEXTURE'] },
+        'options.txt': { type: 'CONFIG', size: '4 KB', modified: '2024-03-15', tags: ['SETTINGS'] }
+    };
+
+    let currentPath = '/worlds/survival';
+    let selectedItem = null;
+    let history = ['/worlds/survival'];
+    let historyIndex = 0;
+    let expandedPaths = new Set();
+
+    function getChildPath(parentPath, child) {
+        return parentPath === '/' ? '/' + child : parentPath + '/' + child;
+    }
+
+    function isFolder(path) {
+        return fs[path]?.type === 'folder';
+    }
+
+    function getFileType(name, path) {
+        if (isFolder(path)) return 'folder';
+        return (details[name]?.type || 'data').toLowerCase();
+    }
+
+    function getIcon(type) {
+        const icons = {
+            folder: `<svg viewBox="0 0 40 40" fill="none"><rect x="4" y="12" width="32" height="22" fill="#8b5cf6"/><rect x="4" y="8" width="14" height="6" fill="#6d28d9"/><rect x="4" y="14" width="32" height="2" fill="#6d28d9"/></svg>`,
+            data: `<svg viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" fill="none" stroke="#1a1a1a" stroke-width="2"/><rect x="10" y="12" width="20" height="2" fill="#8b5cf6"/><rect x="10" y="18" width="16" height="2" fill="#8b5cf6"/><rect x="10" y="24" width="20" height="2" fill="#8b5cf6"/><rect x="10" y="30" width="12" height="2" fill="#8b5cf6"/></svg>`,
+            image: `<svg viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" fill="none" stroke="#1a1a1a" stroke-width="2"/><rect x="10" y="12" width="20" height="14" fill="#8b5cf6" opacity="0.2"/><circle cx="16" cy="18" r="3" fill="#8b5cf6"/><path d="M10 24l6-6 4 4 6-8 4 6v4H10z" fill="#8b5cf6"/></svg>`,
+            lock: `<svg viewBox="0 0 40 40" fill="none"><rect x="10" y="18" width="20" height="16" fill="#8b5cf6"/><path d="M14 18v-5a6 6 0 0 1 12 0v5" fill="none" stroke="#1a1a1a" stroke-width="2"/><circle cx="20" cy="26" r="2" fill="#fff"/></svg>`,
+            mod: `<svg viewBox="0 0 40 40" fill="none"><rect x="10" y="4" width="20" height="6" fill="#6d28d9"/><rect x="8" y="10" width="24" height="26" fill="none" stroke="#1a1a1a" stroke-width="2"/><rect x="12" y="16" width="16" height="2" fill="#8b5cf6"/><rect x="12" y="22" width="16" height="2" fill="#8b5cf6"/><rect x="12" y="28" width="10" height="2" fill="#8b5cf6"/></svg>`,
+            pack: `<svg viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" fill="none" stroke="#1a1a1a" stroke-width="2"/><rect x="18" y="6" width="4" height="4" fill="#8b5cf6"/><rect x="18" y="14" width="4" height="4" fill="#8b5cf6"/><rect x="18" y="22" width="4" height="4" fill="#8b5cf6"/></svg>`,
+            config: `<svg viewBox="0 0 40 40" fill="none"><rect x="6" y="4" width="28" height="32" fill="none" stroke="#1a1a1a" stroke-width="2"/><circle cx="20" cy="20" r="6" fill="none" stroke="#8b5cf6" stroke-width="2"/><rect x="18" y="10" width="4" height="4" fill="#8b5cf6"/><rect x="18" y="26" width="4" height="4" fill="#8b5cf6"/></svg>`
+        };
+        return icons[type] || icons.data;
+    }
+
+    function renderTree(pathsToAnimate = new Set()) {
+        const container = document.getElementById('treeContainer');
+        container.innerHTML = buildTreeHTML('/', 0, pathsToAnimate);
+    }
+
+    function buildTreeHTML(parentPath, depth, pathsToAnimate) {
+        const node = fs[parentPath];
+        if (!node || !node.children) return '';
+
+        const shouldAnimate = pathsToAnimate.has(parentPath);
+        let html = '';
+
+        node.children.forEach((child, i) => {
+            const childPath = getChildPath(parentPath, child);
+            const folder = isFolder(childPath);
+            const hasChildren = folder && fs[childPath]?.children?.length > 0;
+            const expanded = expandedPaths.has(childPath);
+            const selected = childPath === currentPath;
+
+            const animClass = shouldAnimate ? ' anim-in' : '';
+            const animDelay = shouldAnimate ? `animation-delay:${i * 0.04}s;` : '';
+
+            html += `<div class="tree-item${selected ? ' selected' : ''}${animClass}" style="padding-left:${24 + depth * 16}px;${animDelay}" data-path="${childPath}" onclick="navigate('${childPath}')">
+      <div class="tree-toggle ${hasChildren ? (expanded ? '' : 'collapsed') : 'empty'}" onclick="toggleExpand(event,'${childPath}')">▾</div>
+      <div class="tree-icon">${getIcon(getFileType(child, childPath))}</div>
+      <span>${child.toUpperCase()}</span>
+    </div>`;
+
+            if (hasChildren) {
+                html += `<div class="tree-children-wrapper${expanded ? ' expanded' : ''}">
+        <div class="tree-children-inner">`;
+                if (expanded) {
+                    html += buildTreeHTML(childPath, depth + 1, pathsToAnimate);
+                }
+                html += `</div></div>`;
+            }
+        });
+        return html;
+    }
+
+    function toggleExpand(event, path) {
+        event.stopPropagation();
+        const pathsToAnimate = new Set();
+
+        if (expandedPaths.has(path)) {
+            expandedPaths.delete(path);
+        } else {
+            expandedPaths.add(path);
+            pathsToAnimate.add(path);
+        }
+        renderTree(pathsToAnimate);
+    }
+
+    function navigate(path) {
+        if (!fs[path]) return;
+        if (path === currentPath) return;
+
+        currentPath = path;
+        selectedItem = null;
+
+        if (historyIndex < history.length - 1) {
+            history = history.slice(0, historyIndex + 1);
+        }
+        history.push(path);
+        historyIndex = history.length - 1;
+
+        const pathsToAnimate = new Set();
+        const parts = path.split('/').filter(Boolean);
+        let tempPath = '';
+        parts.forEach(part => {
+            tempPath += '/' + part;
+            if (isFolder(tempPath) && !expandedPaths.has(tempPath)) {
+                expandedPaths.add(tempPath);
+                pathsToAnimate.add(tempPath);
+            }
+        });
+
+        updateNav();
+        renderTree(pathsToAnimate);
+        renderFiles(true);
+        clearDetail();
+    }
+
+    function goBack() {
+        if (historyIndex > 0) {
+            historyIndex--;
+            navigate(history[historyIndex]);
+        }
+    }
+
+    function goUp() {
+        if (currentPath === '/') return;
+        const parts = currentPath.split('/').filter(Boolean);
+        parts.pop();
+        navigate(parts.length === 0 ? '/' : '/' + parts.join('/'));
+    }
+
+    function updateNav() {
+        const nav = document.getElementById('navPath');
+        const parts = currentPath.split('/').filter(Boolean);
+        let html = `<span onclick="navigate('/')">ROOT</span>`;
+        let path = '';
+        parts.forEach((part, i) => {
+            path += '/' + part;
+            const isCurrent = i === parts.length - 1;
+            html += `<span class="nav-sep">▸</span>`;
+            html += `<span class="${isCurrent ? 'current' : ''}" onclick="navigate('${path}')">${part.toUpperCase()}</span>`;
+        });
+        nav.innerHTML = html;
+    }
+
+    function renderFiles(animate) {
+        const grid = document.getElementById('fileGrid');
+        const node = fs[currentPath];
+
+        if (!node || !node.children) {
+            grid.innerHTML = '<div style="color:var(--gray);text-align:center;padding:40px;">EMPTY</div>';
+            document.getElementById('contentTitle').textContent = 'EMPTY';
+            document.getElementById('contentCount').textContent = '0 ITEMS';
+            return;
+        }
+
+        let html = '';
+        node.children.forEach((child, i) => {
+            const childPath = getChildPath(currentPath, child);
+            const type = getFileType(child, childPath);
+            const icon = getIcon(type);
+            const isSelected = selectedItem === child;
+            const size = details[child]?.size || '--';
+            const enterClass = animate ? ' entering' : '';
+            const delay = animate ? `animation-delay:${i * 0.05}s;` : '';
+
+            html += `<div class="file-card${isSelected ? ' selected' : ''}${enterClass}" style="${delay}" data-name="${child}" onclick="selectFile('${child}')" ondblclick="openFile('${child}')">
+      <div class="file-icon">${icon}</div>
+      <div class="file-name">${child.toUpperCase()}</div>
+      <div class="file-meta">${size}</div>
+    </div>`;
+        });
+
+        grid.innerHTML = html;
+        document.getElementById('contentTitle').textContent = node.name;
+        document.getElementById('contentCount').textContent = `${node.children.length} ITEMS`;
+    }
+
+    function selectFile(name) {
+        if (selectedItem === name) return;
+        const oldCard = document.querySelector('.file-card.selected');
+        if (oldCard) oldCard.classList.remove('selected');
+        selectedItem = name;
+        const newCard = document.querySelector(`.file-card[data-name="${name}"]`);
+        if (newCard) newCard.classList.add('selected');
+        updateDetail();
+    }
+
+    function openFile(name) {
+        const childPath = getChildPath(currentPath, name);
+        if (isFolder(childPath)) navigate(childPath);
+    }
+
+    function updateDetail() {
+        const panel = document.getElementById('detailPanel');
+        const content = document.getElementById('detailContent');
+        if (!selectedItem) { clearDetail(); return; }
+
+        panel.classList.add('active');
+        const childPath = getChildPath(currentPath, selectedItem);
+        const folder = isFolder(childPath);
+        const info = details[selectedItem] || {};
+        const type = folder ? 'FOLDER' : (info.type || 'FILE');
+        const icon = getIcon(type.toLowerCase());
+
+        let tagsHtml = '';
+        if (info.tags) {
+            tagsHtml = `<div class="detail-tags"><div class="detail-tags-title">TAGS</div>${info.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>`;
+        }
+
+        content.innerHTML = `<div class="detail-content">
+    <div class="detail-icon">${icon}</div>
+    <div class="detail-name">${selectedItem.toUpperCase()}</div>
+    <div class="detail-row"><span class="detail-label">TYPE</span><span class="detail-value">${type}</span></div>
+    <div class="detail-row"><span class="detail-label">SIZE</span><span class="detail-value">${info.size || '--'}</span></div>
+    <div class="detail-row"><span class="detail-label">MODIFIED</span><span class="detail-value">${info.modified || '--'}</span></div>
+    <div class="detail-row"><span class="detail-label">PATH</span><span class="detail-value">${childPath}</span></div>
+    ${tagsHtml}
+  </div>`;
+    }
+
+    function clearDetail() {
+        document.getElementById('detailPanel').classList.remove('active');
+        document.getElementById('detailContent').innerHTML = '<div class="detail-empty">SELECT FILE TO VIEW DETAILS</div>';
+    }
+
+    function createNew() {
+        const name = prompt('ENTER NAME:');
+        if (name) {
+            const node = fs[currentPath];
+            if (node && node.children) {
+                node.children.push(name);
+                renderFiles(true);
+            }
+        }
+    }
+
+    const initPathsToAnimate = new Set();
+    const initParts = currentPath.split('/').filter(Boolean);
+    let initTempPath = '';
+    initParts.forEach(part => {
+        initTempPath += '/' + part;
+        if (isFolder(initTempPath)) {
+            expandedPaths.add(initTempPath);
+            initPathsToAnimate.add(initTempPath);
+        }
+    });
+
+    renderTree(initPathsToAnimate);
+    renderFiles(true);
+    updateNav();
+</script>
+</body>
+</html>

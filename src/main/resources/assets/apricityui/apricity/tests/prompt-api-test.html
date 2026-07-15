@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-font-mode" content="web">
+    <title>AUI Prompt API Test</title>
+    <style>
+        html,
+        body {
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            background: #10131a;
+            color: #f3f7ff;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .panel {
+            width: 520px;
+            padding: 24px;
+            border: 1px solid #6fffe9;
+            background: #171d28;
+        }
+
+        h1 {
+            margin: 0 0 16px;
+            font-size: 20px;
+            letter-spacing: 1px;
+        }
+
+        button {
+            height: 40px;
+            padding: 0 18px;
+            border: 1px solid #6fffe9;
+            background: #203142;
+            color: #f3f7ff;
+            font: inherit;
+        }
+
+        #status {
+            margin-top: 16px;
+            color: #9aa8bd;
+        }
+
+        #files {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .file-card {
+            padding: 14px;
+            min-height: 52px;
+            border: 1px solid #34465c;
+            background: #202a38;
+        }
+    </style>
+</head>
+<body>
+<section class="panel">
+    <h1>PROMPT API</h1>
+    <button id="new-button" onclick="createNew()">+ NEW</button>
+    <div id="status">WAITING</div>
+    <div id="files"></div>
+</section>
+
+<script>
+    function createNew() {
+        var name = prompt('ENTER NAME:', 'fallback-name');
+        var status = document.getElementById('status');
+        if (name == null || name === '') {
+            status.textContent = 'CANCELLED';
+            return;
+        }
+
+        var card = document.createElement('div');
+        card.className = 'file-card';
+        card.textContent = name;
+        document.getElementById('files').appendChild(card);
+        status.textContent = 'ADDED: ' + name;
+    }
+
+    setTimeout(function() {
+        document.getElementById('new-button').click();
+    }, 250);
+</script>
+</body>
+</html>

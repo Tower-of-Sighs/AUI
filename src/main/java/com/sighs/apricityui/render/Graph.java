@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
+import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Gradient;
 import org.joml.Matrix4f;
 
@@ -203,6 +204,70 @@ public class Graph {
         BufferUploader.drawWithShader(buf.end());
         Base.finishRendering();
         return true;
+    }
+
+    public static boolean drawAxisAlignedStopGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
+        if (gradient == null || w <= 0 || h <= 0 || gradient.stops().size() < 2) return false;
+
+        float angle = normalizeAngle(gradient.angle());
+        boolean vertical = Math.abs(angle - 180f) < 0.01f || Math.abs(angle) < 0.01f;
+        boolean horizontal = Math.abs(angle - 90f) < 0.01f || Math.abs(angle - 270f) < 0.01f;
+        if (!vertical && !horizontal) return false;
+
+        if (batchActive) {
+            BufferBuilder buf = Base.getBuffer();
+            addAxisAlignedStopGradientVertices(buf, mat, x, y, w, h, gradient, vertical, angle);
+            return true;
+        }
+        BufferBuilder buf = Base.getBuffer();
+        Base.beginRendering();
+        prepare(buf);
+        addAxisAlignedStopGradientVertices(buf, mat, x, y, w, h, gradient, vertical, angle);
+        BufferUploader.drawWithShader(buf.end());
+        Base.finishRendering();
+        return true;
+    }
+
+    private static void addAxisAlignedStopGradientVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+                                                          Gradient gradient, boolean vertical, float angle) {
+        float axis = vertical ? h : w;
+        boolean reverse = Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f;
+        for (int i = 0; i < gradient.stops().size() - 1; i++) {
+            Gradient.Stop start = gradient.stops().get(i);
+            Gradient.Stop end = gradient.stops().get(i + 1);
+            float a = clamp01(start.position) * axis;
+            float b = clamp01(end.position) * axis;
+            if (Math.abs(b - a) <= 0.001f) continue;
+            float from = Math.min(a, b);
+            float to = Math.max(a, b);
+            int colorFrom = a <= b ? start.color : end.color;
+            int colorTo = a <= b ? end.color : start.color;
+            if (reverse) {
+                float rf = axis - to;
+                float rt = axis - from;
+                from = rf;
+                to = rt;
+                int tmp = colorFrom;
+                colorFrom = colorTo;
+                colorTo = tmp;
+            }
+            addAxisAlignedSegment(buf, mat, x, y, w, h, vertical, from, to, colorFrom, colorTo);
+        }
+    }
+
+    private static void addAxisAlignedSegment(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+                                              boolean vertical, float from, float to, int colorFrom, int colorTo) {
+        if (to - from <= 0.001f) return;
+        if (colorFrom == colorTo) {
+            if (vertical) addRect(buf, mat, x, y + from, x + w, y + to, colorFrom);
+            else addRect(buf, mat, x + from, y, x + to, y + h, colorFrom);
+            return;
+        }
+        ColorResolver colorRes = vertical
+                ? (px, py) -> (int) Color.mixColors(colorFrom, colorTo, (py - (y + from)) / Math.max(1f, to - from))
+                : (px, py) -> (int) Color.mixColors(colorFrom, colorTo, (px - (x + from)) / Math.max(1f, to - from));
+        if (vertical) addRect(buf, mat, x, y + from, x + w, y + to, colorRes);
+        else addRect(buf, mat, x + from, y, x + to, y + h, colorRes);
     }
 
     private static void addAxisAlignedHardStopVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,

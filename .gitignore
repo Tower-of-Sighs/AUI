@@ -83,6 +83,8 @@ ehthumbs_vista.db
 
 # Dump file
 *.stackdump
+*.hprof
+*.jfr
 
 # Folder config file
 [Dd]esktop.ini
@@ -114,6 +116,12 @@ gradle-app.setting
 # Common working directory
 run/
 runs/
+
+# Local screenshots / profiler captures produced during visual parity work.
+/20??-??-??_??.??.??.png
+/img*.png
+!/icon.png
+/IdeaSnapshots/
 
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar

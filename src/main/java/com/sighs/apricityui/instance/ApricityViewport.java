@@ -18,6 +18,17 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Resolves the logical document viewport and the render transform used by screen documents.
+ *
+ * <p>Mode summary:
+ * <ul>
+ *     <li>{@code gui}: Minecraft GUI-scaled logical viewport.</li>
+ *     <li>{@code browser}/{@code css}: browser-like CSS viewport. Layout uses framebuffer
+ *     dimensions converted through the OS/GLFW content scale, and rendering maps CSS px back
+ *     into the current Minecraft GUI coordinate space.</li>
+ *     <li>{@code window}/{@code native}: compatibility aliases for {@code browser}/{@code css}.</li>
+ *     <li>{@code screen}/{@code fullscreen}: monitor video-mode viewport fitted into the MC window.</li>
+ *     <li>{@code fixed}: explicit logical viewport dimensions.</li>
+ * </ul>
  */
 public record ApricityViewport(
         int layoutWidth,
@@ -59,7 +70,7 @@ public record ApricityViewport(
     private static ApricityViewport resolveBase(String mode, Map<String, String> options, Window window) {
         double actualGuiScale = Math.max(1.0d, window.getGuiScale());
         return switch (mode) {
-            case "window", "native" -> rawWindow(window, actualGuiScale);
+            case "browser", "css", "web", "window", "native" -> browser(window, actualGuiScale);
             case "screen", "fullscreen" -> fullscreen(window, actualGuiScale);
             case "fixed" -> fixed(window, actualGuiScale, options);
             case "gui", "mc", "default", "" -> gui(window, actualGuiScale);
@@ -88,23 +99,38 @@ public record ApricityViewport(
         return new ApricityViewport(width, height, renderScale, documentGuiScale);
     }
 
-    private static ApricityViewport rawWindow(Window window, double actualGuiScale) {
-        int width = Math.max(1, window.getScreenWidth());
-        int height = Math.max(1, window.getScreenHeight());
-        float renderScale = (float) (1.0d / actualGuiScale);
-        return new ApricityViewport(width, height, renderScale, 1.0d);
+    private static ApricityViewport browser(Window window, double actualGuiScale) {
+        double cssScale = browserCssScale(window);
+        int width = Math.max(1, (int) Math.round(window.getScreenWidth() / cssScale));
+        int height = Math.max(1, (int) Math.round(window.getScreenHeight() / cssScale));
+        float renderScale = (float) (cssScale / actualGuiScale);
+        return new ApricityViewport(width, height, renderScale, cssScale);
     }
 
     private static ApricityViewport fullscreen(Window window, double actualGuiScale) {
         GLFWVidMode videoMode = resolveVideoMode(window);
-        if (videoMode == null) return rawWindow(window, actualGuiScale);
+        if (videoMode == null) return browser(window, actualGuiScale);
 
-        int width = Math.max(1, videoMode.width());
-        int height = Math.max(1, videoMode.height());
+        double cssScale = browserCssScale(window);
+        int width = Math.max(1, (int) Math.round(videoMode.width() / cssScale));
+        int height = Math.max(1, (int) Math.round(videoMode.height() / cssScale));
         double guiWidth = window.getScreenWidth() / actualGuiScale;
         double guiHeight = window.getScreenHeight() / actualGuiScale;
         float renderScale = (float) Math.max(0.0001d, Math.min(guiWidth / width, guiHeight / height));
         return new ApricityViewport(width, height, renderScale, actualGuiScale * renderScale);
+    }
+
+    private static double browserCssScale(Window window) {
+        if (window == null || window.getWindow() == 0L) return 1.0d;
+        float[] xScale = new float[1];
+        float[] yScale = new float[1];
+        try {
+            GLFW.glfwGetWindowContentScale(window.getWindow(), xScale, yScale);
+            double scale = Math.max(xScale[0], yScale[0]);
+            return scale > 0 && Double.isFinite(scale) ? scale : 1.0d;
+        } catch (Throwable ignored) {
+            return 1.0d;
+        }
     }
 
     private static ApricityViewport fixed(Window window, double actualGuiScale, Map<String, String> options) {

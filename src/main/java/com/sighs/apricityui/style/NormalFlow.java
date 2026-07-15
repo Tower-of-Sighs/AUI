@@ -14,7 +14,7 @@ public final class NormalFlow {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Box parentBox = Box.of(parent);
-        FlowResult result = computeFlow(parent, parent.childNodes, parentBox.innerSize().width(), element);
+        FlowResult result = computeFlow(parent, parent.getRenderChildNodes(), parentBox.innerSize().width(), element);
         FlowMetrics metrics = result.metrics();
         return new Position(
                 parentBox.offset("left") + metrics.targetX,
@@ -23,11 +23,11 @@ public final class NormalFlow {
     }
 
     public static Size computeContentSize(Element element) {
-        return computeFlow(element, element.childNodes, resolveLineLimit(element), null).metrics().contentSize();
+        return computeFlow(element, element.getRenderChildNodes(), resolveLineLimit(element), null).metrics().contentSize();
     }
 
     public static List<TextRunLayout> computeTextRuns(Element element) {
-        return computeFlow(element, element.childNodes, resolveLineLimit(element), null).textRuns();
+        return computeFlow(element, element.getRenderChildNodes(), resolveLineLimit(element), null).textRuns();
     }
 
     public static boolean isInlineTextPaintedByAncestor(Element element) {
@@ -157,11 +157,11 @@ public final class NormalFlow {
 
     private static void layoutInlineContent(Element element, FlowState state) {
         if (element == null) return;
-        if (element.childNodes.isEmpty()) {
+        if (element.getRenderChildNodes().isEmpty()) {
             placeInlineText(element, element.innerText, state);
             return;
         }
-        layoutChildren(element, element.childNodes, state);
+        layoutChildren(element, element.getRenderChildNodes(), state);
     }
 
     private static void placeAtomicInline(Element childElement, FlowState state) {
@@ -199,6 +199,13 @@ public final class NormalFlow {
         } else {
             blockSize = childBox.size();
         }
+        boolean hasHorizontalAutoMargin = childBox.isMarginAuto("left") || childBox.isMarginAuto("right");
+        HorizontalBlockMargins horizontalMargins = hasHorizontalAutoMargin
+                ? resolveHorizontalBlockMargins(childBox, state.lineLimit)
+                : new HorizontalBlockMargins(childBox.getMarginLeft(), childBox.getMarginRight());
+        double blockOuterWidth = hasHorizontalAutoMargin
+                ? horizontalMargins.left() + childBox.elementSize().width() + horizontalMargins.right()
+                : blockSize.width();
         double blockY = state.cursorY;
         if (state.previousFlowWasBlock) {
             double collapsedMargin = collapseAdjacentMargins(state.previousBlockMarginBottom, childBox.getMarginTop());
@@ -206,16 +213,42 @@ public final class NormalFlow {
         }
 
         if (state.target != null && childElement == state.target) {
-            state.targetX = 0;
+            state.targetX = horizontalMargins.left();
             state.targetY = blockY;
             state.foundTarget = true;
             return;
         }
 
         state.cursorY = blockY + blockSize.height();
-        state.maxLineWidth = Math.max(state.maxLineWidth, blockSize.width());
+        state.maxLineWidth = Math.max(state.maxLineWidth, blockOuterWidth);
         state.previousBlockMarginBottom = childBox.getMarginBottom();
         state.previousFlowWasBlock = true;
+    }
+
+    private static HorizontalBlockMargins resolveHorizontalBlockMargins(Box childBox, double containingBlockWidth) {
+        if (childBox == null) return new HorizontalBlockMargins(0, 0);
+
+        double left = childBox.getMarginLeft();
+        double right = childBox.getMarginRight();
+        boolean leftAuto = childBox.isMarginAuto("left");
+        boolean rightAuto = childBox.isMarginAuto("right");
+        if (!leftAuto && !rightAuto) return new HorizontalBlockMargins(left, right);
+        if (containingBlockWidth <= 0) return new HorizontalBlockMargins(left, right);
+
+        double remaining = containingBlockWidth
+                - childBox.elementSize().width()
+                - (leftAuto ? 0 : left)
+                - (rightAuto ? 0 : right);
+        remaining = Math.max(0, remaining);
+
+        if (leftAuto && rightAuto) {
+            double split = remaining / 2.0;
+            return new HorizontalBlockMargins(split, split);
+        }
+        if (leftAuto) {
+            return new HorizontalBlockMargins(remaining, right);
+        }
+        return new HorizontalBlockMargins(left, remaining);
     }
 
     private static void commitLineBreak(FlowState state) {
@@ -309,7 +342,7 @@ public final class NormalFlow {
         if (hasRenderableInlineText(element)) {
             return true;
         }
-        for (Node child : element.childNodes) {
+        for (Node child : element.getRenderChildNodes()) {
             if (child instanceof TextNode textNode) {
                 if (!normalizeInlineTextFragment(textNode.getTextContent(), Text.getWhiteSpace(element)).isEmpty()) {
                     return true;
@@ -331,7 +364,7 @@ public final class NormalFlow {
         if (element.innerText != null && !normalizeInlineTextFragment(element.innerText, Text.getWhiteSpace(element)).isEmpty()) {
             return true;
         }
-        for (Node child : element.childNodes) {
+        for (Node child : element.getRenderChildNodes()) {
             if (child instanceof TextNode textNode
                     && !normalizeInlineTextFragment(textNode.getTextContent(), Text.getWhiteSpace(element)).isEmpty()) {
                 return true;
@@ -346,7 +379,7 @@ public final class NormalFlow {
         String display = normalizeDisplay(style.display);
         if (!"inline".equals(display)) return true;
         if (isReplacedLikeElement(element)) return true;
-        for (Node child : element.childNodes) {
+        for (Node child : element.getRenderChildNodes()) {
             if (child instanceof TextNode) continue;
             if (!(child instanceof Element childElement)) continue;
             Style childStyle = childElement.getComputedStyle();
@@ -397,5 +430,8 @@ public final class NormalFlow {
     }
 
     private record FlowResult(FlowMetrics metrics, List<TextRunLayout> textRuns) {
+    }
+
+    private record HorizontalBlockMargins(double left, double right) {
     }
 }

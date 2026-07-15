@@ -5,6 +5,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.*;
 
 import java.util.*;
@@ -25,6 +26,16 @@ public class Element extends Node {
     public HashMap<String, String> cssCache = new HashMap<>();
     public Element parentElement = null;
     public ArrayList<Element> children = new ArrayList<>();
+    private Element beforePseudoElement = null;
+    private Element afterPseudoElement = null;
+    private HashMap<String, String> beforePseudoStyles = null;
+    private HashMap<String, String> afterPseudoStyles = null;
+    private boolean beforePseudoResolved = false;
+    private boolean afterPseudoResolved = false;
+    private boolean pseudoElement = false;
+    private Selector.PseudoElement pseudoElementKind = null;
+    private Element pseudoElementHost = null;
+    private Style pseudoElementPreviousStyle = null;
     public boolean isPointerEnabled = true;
     public boolean isVisible = true;
     public String id = null;
@@ -52,6 +63,7 @@ public class Element extends Node {
     private final DOMTokenList classList = new DOMTokenList(this);
     private final DOMStringMap dataset = new DOMStringMap(this);
     private boolean domInitHookInvoked = false;
+    private boolean inlineEventHandlersInstalled = false;
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
 
@@ -74,6 +86,7 @@ public class Element extends Node {
 
     protected final void invalidateStyleCaches() {
         renderElement.computedStyle.clear();
+        clearPseudoElementCaches();
         // 避免清空整帧缓存导致更多重复计算；只对当前元素失效即可。
         StyleFrameCache.invalidate(this);
     }
@@ -285,7 +298,9 @@ public class Element extends Node {
     void recomputeStyleSelf() {
         Style originStyle = getComputedStyle();
 
-        cssCache = Selector.matchCSS(this);
+        cssCache = pseudoElement
+                ? Selector.matchPseudoElementCSS(pseudoElementHost, pseudoElementKind)
+                : Selector.matchCSS(this);
         invalidateStyleCaches();
 
         Style currentStyle = getRawComputedStyle();
@@ -333,6 +348,10 @@ public class Element extends Node {
     }
 
     private void ensureCssCacheReady() {
+        if (pseudoElement) {
+            cssCache = Selector.matchPseudoElementCSS(pseudoElementHost, pseudoElementKind);
+            return;
+        }
         if (document == null || !cssCache.isEmpty()) return;
         if (getClassNames().isEmpty() && (id == null || id.isBlank()) && getAttributes().isEmpty()) return;
         cssCache = Selector.matchCSS(this);
@@ -650,6 +669,21 @@ public class Element extends Node {
 
         onInitFromDom(origin);
         applyDomStateFromAttributes();
+        installInlineEventHandlers();
+    }
+
+    private void installInlineEventHandlers() {
+        if (inlineEventHandlersInstalled || attributes == null || attributes.isEmpty()) return;
+        inlineEventHandlersInstalled = true;
+        for (Map.Entry<String, String> entry : new ArrayList<>(attributes.entrySet())) {
+            String name = entry.getKey();
+            String code = entry.getValue();
+            if (name == null || code == null || code.isBlank()) continue;
+            if (name.length() <= 2 || !name.startsWith("on")) continue;
+            String type = name.substring(2).trim().toLowerCase(Locale.ROOT);
+            if (type.isEmpty()) continue;
+            addEventListener(type, event -> ApricityJS.eval(code));
+        }
     }
 
     // 元素工厂
@@ -757,6 +791,170 @@ public class Element extends Node {
 
     public List<Element> getChildren() {
         return Collections.unmodifiableList(children);
+    }
+
+    public List<Element> getRenderChildren() {
+        if (children.isEmpty()
+                && !hasGeneratedPseudoElement(Selector.PseudoElement.BEFORE)
+                && !hasGeneratedPseudoElement(Selector.PseudoElement.AFTER)) {
+            return children;
+        }
+        ArrayList<Element> result = new ArrayList<>(children.size() + 2);
+        Element before = getGeneratedPseudoElement(Selector.PseudoElement.BEFORE);
+        if (before != null) result.add(before);
+        result.addAll(children);
+        Element after = getGeneratedPseudoElement(Selector.PseudoElement.AFTER);
+        if (after != null) result.add(after);
+        return result;
+    }
+
+    public List<Node> getRenderChildNodes() {
+        if (childNodes.isEmpty()
+                && !hasGeneratedPseudoElement(Selector.PseudoElement.BEFORE)
+                && !hasGeneratedPseudoElement(Selector.PseudoElement.AFTER)) {
+            return childNodes;
+        }
+        ArrayList<Node> result = new ArrayList<>(childNodes.size() + 2);
+        Element before = getGeneratedPseudoElement(Selector.PseudoElement.BEFORE);
+        if (before != null) result.add(before);
+        result.addAll(childNodes);
+        Element after = getGeneratedPseudoElement(Selector.PseudoElement.AFTER);
+        if (after != null) result.add(after);
+        return result;
+    }
+
+    public boolean isPseudoElement() {
+        return pseudoElement;
+    }
+
+    public Element getPseudoElementHost() {
+        return pseudoElementHost;
+    }
+
+    private boolean hasGeneratedPseudoElement(Selector.PseudoElement kind) {
+        return getGeneratedPseudoElement(kind) != null;
+    }
+
+    private Element getGeneratedPseudoElement(Selector.PseudoElement kind) {
+        if (kind == null || pseudoElement) return null;
+        HashMap<String, String> styles = resolvePseudoElementStyles(kind);
+        if (!isGeneratedPseudoContent(styles == null ? null : styles.get("content"))) return null;
+        Element pseudo = kind == Selector.PseudoElement.BEFORE ? beforePseudoElement : afterPseudoElement;
+        if (pseudo == null) {
+            pseudo = createPseudoElement(kind);
+            if (kind == Selector.PseudoElement.BEFORE) beforePseudoElement = pseudo;
+            else afterPseudoElement = pseudo;
+        }
+        pseudo.syncPseudoElement(styles);
+        return pseudo.isPseudoContentGenerated() ? pseudo : null;
+    }
+
+    private Element createPseudoElement(Selector.PseudoElement kind) {
+        Element pseudo = new Element(document, kind == Selector.PseudoElement.BEFORE ? "::before" : "::after");
+        pseudo.pseudoElement = true;
+        pseudo.pseudoElementKind = kind;
+        pseudo.pseudoElementHost = this;
+        pseudo.parentNode = this;
+        pseudo.parentElement = this;
+        pseudo.depth = depth + 1;
+        pseudo.isPointerEnabled = false;
+        return pseudo;
+    }
+
+    private void syncPseudoElement(HashMap<String, String> styles) {
+        if (!pseudoElement || pseudoElementHost == null) return;
+        document = pseudoElementHost.document;
+        parentNode = pseudoElementHost;
+        parentElement = pseudoElementHost;
+        depth = pseudoElementHost.depth + 1;
+        Style originStyle = pseudoElementPreviousStyle;
+        if (originStyle == null) {
+            Style cached = renderElement.computedStyle.get();
+            originStyle = cached == null ? getRawComputedStyle() : cached;
+        }
+        cssCache = styles == null ? new HashMap<>() : new HashMap<>(styles);
+        getRenderer().computedStyle.clear();
+        Style style = getRawComputedStyle();
+        if (document != null) {
+            document.setHasAnimationSpec(this, Animation.hasAnimationSpec(style));
+        }
+        RenderElement.observeStyle(this, originStyle, style);
+        Transition.create(this, originStyle, style);
+        pseudoElementPreviousStyle = style.clone();
+        innerText = parsePseudoContentText(style.content);
+        isPointerEnabled = false;
+    }
+
+    private boolean isPseudoContentGenerated() {
+        if (!pseudoElement) return false;
+        Style style = getRawComputedStyle();
+        return isGeneratedPseudoContent(style.content);
+    }
+
+    private HashMap<String, String> resolvePseudoElementStyles(Selector.PseudoElement kind) {
+        if (kind == Selector.PseudoElement.BEFORE) {
+            if (!beforePseudoResolved) {
+                beforePseudoStyles = Selector.matchPseudoElementCSS(this, kind);
+                beforePseudoResolved = true;
+            }
+            return beforePseudoStyles;
+        }
+        if (!afterPseudoResolved) {
+            afterPseudoStyles = Selector.matchPseudoElementCSS(this, kind);
+            afterPseudoResolved = true;
+        }
+        return afterPseudoStyles;
+    }
+
+    private static boolean isGeneratedPseudoContent(String raw) {
+        String content = raw == null ? "" : raw.trim();
+        return !content.isEmpty()
+                && !"normal".equalsIgnoreCase(content)
+                && !"none".equalsIgnoreCase(content)
+                && !"unset".equalsIgnoreCase(content);
+    }
+
+    private static String parsePseudoContentText(String raw) {
+        if (raw == null) return "";
+        String value = raw.trim();
+        if (value.length() >= 2) {
+            char first = value.charAt(0);
+            char last = value.charAt(value.length() - 1);
+            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
+                return unescapeCssString(value.substring(1, value.length() - 1));
+            }
+        }
+        return "";
+    }
+
+    private static String unescapeCssString(String value) {
+        if (value == null || value.isEmpty()) return "";
+        return value
+                .replace("\\\"", "\"")
+                .replace("\\'", "'")
+                .replace("\\\\", "\\");
+    }
+
+    private void clearPseudoElementCaches() {
+        beforePseudoResolved = false;
+        afterPseudoResolved = false;
+        beforePseudoStyles = null;
+        afterPseudoStyles = null;
+        if (beforePseudoElement != null) beforePseudoElement.clearPseudoElementSelfCaches();
+        if (afterPseudoElement != null) afterPseudoElement.clearPseudoElementSelfCaches();
+    }
+
+    private void clearPseudoElementSelfCaches() {
+        Style cachedStyle = renderElement.computedStyle.get();
+        if (cachedStyle != null) pseudoElementPreviousStyle = cachedStyle.clone();
+        cssCache.clear();
+        renderElement.computedStyle.clear();
+        renderElement.text.clear();
+        renderElement.wrappedText.clear();
+        renderElement.size.clear();
+        renderElement.box.clear();
+        renderElement.position.clear();
+        StyleFrameCache.invalidate(this);
     }
 
     @Override
@@ -1686,10 +1884,11 @@ public class Element extends Node {
     }
 
     private void drawChildTextRuns(PoseStack poseStack, Rect rectRenderer) {
-        if (childNodes.isEmpty()) return;
+        List<Node> renderChildNodes = getRenderChildNodes();
+        if (renderChildNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
-        if (children.isEmpty()) {
-            for (Node child : childNodes) {
+        if (getRenderChildren().isEmpty()) {
+            for (Node child : renderChildNodes) {
                 if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
                     return;
                 }
@@ -1750,8 +1949,8 @@ public class Element extends Node {
     }
 
     private boolean hasMixedDirectTextAndElementChildren() {
-        if (children.isEmpty() || childNodes.isEmpty()) return false;
-        for (Node child : childNodes) {
+        if (getRenderChildren().isEmpty() || getRenderChildNodes().isEmpty()) return false;
+        for (Node child : getRenderChildNodes()) {
             if (child instanceof TextNode textNode && !textNode.getTextContent().isBlank()) {
                 return true;
             }
@@ -1828,6 +2027,7 @@ public class Element extends Node {
         copy.letterSpacing = base.letterSpacing;
         copy.content = content == null ? "" : content;
         copy.flexDirect = base.flexDirect;
+        copy.rasterBackgroundColor = base.rasterBackgroundColor;
         return copy;
     }
 
@@ -1848,6 +2048,7 @@ public class Element extends Node {
         out.textIndent = 0;
         out.letterSpacing = base.letterSpacing;
         out.size = null;
+        out.rasterBackgroundColor = base.rasterBackgroundColor;
     }
 
     protected static double computeAlignedX(Text text, double contentWidth, double lineWidth, boolean firstLine) {

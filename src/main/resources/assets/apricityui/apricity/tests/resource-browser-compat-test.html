@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>AUI Resource Browser Compatibility Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --purple: #8b5cf6;
+            --purple-dark: #6d28d9;
+            --purple-faint: rgba(139, 92, 246, 0.08);
+            --black: #1a1a1a;
+            --gray: #999999;
+            --gray-light: #e0e0e0;
+            --bg: #fafafa;
+            --white: #ffffff;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: var(--bg);
+            color: var(--black);
+            font-family: "Chakra Petch", sans-serif;
+            font-size: 14px;
+            user-select: none;
+        }
+
+        .page {
+            height: 100vh;
+            display: grid;
+            grid-template-rows: 62px 1fr;
+        }
+
+        .topbar {
+            position: relative;
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            height: 62px;
+            padding: 0 24px;
+            background: var(--white);
+            border-bottom: 3px solid var(--purple);
+            overflow: hidden;
+        }
+
+        .topbar::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(139, 92, 246, 0.08) 20px, rgba(139, 92, 246, 0.08) 21px);
+            pointer-events: none;
+        }
+
+        .topbar::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.14), transparent);
+            animation: scanline 4s linear infinite;
+            pointer-events: none;
+        }
+
+        @keyframes scanline {
+            from { left: -100%; }
+            to { left: 100%; }
+        }
+
+        .logo-block {
+            position: relative;
+            z-index: 1;
+            width: 32px;
+            height: 32px;
+            background: var(--purple);
+            flex: 0 0 auto;
+            animation: logoPulse 3s ease-in-out infinite;
+        }
+
+        .logo-block::after {
+            content: "";
+            position: absolute;
+            top: 4px;
+            left: 4px;
+            width: 8px;
+            height: 8px;
+            background: var(--white);
+        }
+
+        @keyframes logoPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.08); }
+        }
+
+        .brand {
+            position: relative;
+            z-index: 1;
+            font-size: 20px;
+            font-weight: 600;
+            letter-spacing: 2px;
+        }
+
+        .crumbs {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-left: 28px;
+            color: var(--gray);
+            font-size: 13px;
+            letter-spacing: 1px;
+        }
+
+        .crumbs .current {
+            position: relative;
+            color: var(--black);
+            font-weight: 600;
+        }
+
+        .crumbs .current::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: -7px;
+            height: 2px;
+            background: var(--purple);
+        }
+
+        .actions {
+            position: relative;
+            z-index: 1;
+            display: flex;
+            gap: 8px;
+            margin-left: auto;
+        }
+
+        .action-btn {
+            position: relative;
+            overflow: hidden;
+            padding: 8px 16px;
+            border: 2px solid var(--black);
+            background: var(--white);
+            color: var(--black);
+            font-family: "Chakra Petch", sans-serif;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .action-btn::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--purple);
+            transition: left 0.25s ease;
+            z-index: -1;
+        }
+
+        .action-btn:hover::before {
+            left: 0;
+        }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 280px 1fr 300px;
+            min-height: 0;
+        }
+
+        .panel {
+            min-height: 0;
+            background: var(--white);
+            border-right: 2px solid var(--gray-light);
+            overflow: hidden;
+        }
+
+        .panel-title {
+            position: relative;
+            padding: 20px 24px 12px;
+            border-bottom: 1px solid var(--gray-light);
+            color: var(--purple);
+            font-size: 11px;
+            font-weight: 600;
+            letter-spacing: 3px;
+        }
+
+        .panel-title::after {
+            content: "";
+            position: absolute;
+            left: 24px;
+            bottom: -1px;
+            width: 60px;
+            height: 2px;
+            background: var(--purple);
+        }
+
+        .tree-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 24px;
+            border-left: 3px solid transparent;
+            font-size: 13px;
+        }
+
+        .tree-row.selected {
+            border-left-color: var(--purple);
+            background: rgba(139, 92, 246, 0.1);
+            font-weight: 600;
+        }
+
+        .tree-triangle {
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--purple);
+            transform: rotate(-90deg);
+        }
+
+        .folder-icon {
+            width: 16px;
+            height: 16px;
+            background: var(--purple);
+            box-shadow: inset 0 4px 0 var(--purple-dark);
+        }
+
+        .content {
+            min-width: 0;
+            min-height: 0;
+            padding: 32px;
+            overflow: hidden;
+        }
+
+        .content-header {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid var(--black);
+        }
+
+        .content-header::after {
+            content: "";
+            position: absolute;
+            left: 0;
+            bottom: -2px;
+            width: 100%;
+            height: 2px;
+            background: var(--purple);
+        }
+
+        .content-title {
+            font-size: 24px;
+            font-weight: 600;
+            letter-spacing: 1px;
+        }
+
+        .content-count {
+            color: var(--gray);
+            font-size: 13px;
+            letter-spacing: 1px;
+        }
+
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 16px;
+        }
+
+        .file-card {
+            position: relative;
+            overflow: hidden;
+            min-height: 128px;
+            padding: 20px 16px;
+            border: 2px solid var(--gray-light);
+            background: var(--white);
+        }
+
+        .file-card::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 4px;
+            height: 100%;
+            background: var(--purple);
+            transform: scaleY(0);
+            transform-origin: center;
+        }
+
+        .file-card::after {
+            content: "";
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            background: var(--purple);
+            clip-path: polygon(100% 0, 0 0, 100% 100%);
+        }
+
+        .file-card.selected::before {
+            transform: scaleY(1);
+        }
+
+        .file-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .file-icon svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .file-name {
+            text-align: center;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+            letter-spacing: 0.5px;
+        }
+
+        .file-meta {
+            margin-top: 6px;
+            color: var(--gray);
+            text-align: center;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+        }
+
+        .details {
+            position: relative;
+            min-height: 0;
+            padding: 24px;
+            background: var(--white);
+            border-left: 2px solid var(--gray-light);
+        }
+
+        .details::before {
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 2px;
+            height: 100%;
+            background: var(--purple);
+        }
+
+        .detail-empty {
+            margin-top: 60px;
+            text-align: center;
+            color: var(--gray);
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 28px;
+            padding: 12px;
+            border: 1px solid var(--gray-light);
+            background: var(--white);
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        .scroll-probe {
+            width: 100%;
+            height: 70px;
+            margin-top: 16px;
+            overflow-y: auto;
+            border: 1px solid var(--gray-light);
+        }
+
+        .scroll-probe div {
+            height: 180px;
+            background: linear-gradient(180deg, var(--purple-faint), transparent);
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: var(--gray-light); }
+        ::-webkit-scrollbar-thumb { background: var(--purple); }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="topbar">
+        <div class="logo-block"></div>
+        <div class="brand">MINE//EXPLORER</div>
+        <div class="crumbs">
+            <span>ROOT</span>
+            <span>▸</span>
+            <span>WORLDS</span>
+            <span>▸</span>
+            <span class="current">SURVIVAL</span>
+        </div>
+        <div class="actions">
+            <button class="action-btn">◀ BACK</button>
+            <button class="action-btn">▲ UP</button>
+            <button class="action-btn">+ NEW</button>
+        </div>
+    </div>
+
+    <div class="workspace">
+        <aside class="panel">
+            <div class="panel-title">▸ DIRECTORIES</div>
+            <div class="tree-row"><span>▾</span><span class="folder-icon"></span><span>WORLDS</span></div>
+            <div class="tree-row selected" style="padding-left: 40px;"><span>▾</span><span class="folder-icon"></span><span>SURVIVAL</span></div>
+            <div class="tree-row" style="padding-left: 72px;"><span class="tree-triangle">▾</span><span class="folder-icon"></span><span>REGION</span></div>
+            <div class="tree-row" style="padding-left: 72px;"><span class="tree-triangle">▾</span><span class="folder-icon"></span><span>PLAYERDATA</span></div>
+        </aside>
+
+        <main class="content">
+            <div class="content-header">
+                <div class="content-title">SURVIVAL</div>
+                <div class="content-count">5 ITEMS</div>
+            </div>
+
+            <div class="file-grid">
+                <div class="file-card selected">
+                    <div class="file-icon">
+                        <svg viewBox="0 0 40 40" fill="none">
+                            <rect x="6" y="4" width="28" height="32" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+                            <rect x="10" y="12" width="20" height="2" fill="#8b5cf6"/>
+                            <rect x="10" y="18" width="16" height="2" fill="#8b5cf6"/>
+                            <rect x="10" y="24" width="20" height="2" fill="#8b5cf6"/>
+                        </svg>
+                    </div>
+                    <div class="file-name">LEVEL.DAT</div>
+                    <div class="file-meta">256 KB</div>
+                </div>
+
+                <div class="file-card">
+                    <div class="file-icon">
+                        <svg viewBox="0 0 40 40" fill="none">
+                            <rect x="4" y="12" width="32" height="22" fill="#8b5cf6"/>
+                            <rect x="4" y="8" width="14" height="6" fill="#6d28d9"/>
+                        </svg>
+                    </div>
+                    <div class="file-name">REGION</div>
+                    <div class="file-meta">--</div>
+                </div>
+
+                <div class="file-card">
+                    <div class="file-icon">
+                        <svg viewBox="0 0 40 40" fill="none">
+                            <rect x="6" y="4" width="28" height="32" fill="none" stroke="#1a1a1a" stroke-width="2"/>
+                            <rect x="10" y="12" width="20" height="14" fill="#8b5cf6" opacity="0.2"/>
+                            <circle cx="16" cy="18" r="3" fill="#8b5cf6"/>
+                            <path d="M10 24l6-6 4 4 6-8 4 6v4H10z" fill="#8b5cf6"/>
+                        </svg>
+                    </div>
+                    <div class="file-name">ICON.PNG</div>
+                    <div class="file-meta">4 KB</div>
+                </div>
+            </div>
+
+            <div class="metric-row">
+                <span>LETTER SPACING</span>
+                <strong>MINE//EXPLORER</strong>
+            </div>
+
+            <div class="scroll-probe">
+                <div></div>
+            </div>
+        </main>
+
+        <aside class="details">
+            <div class="detail-empty">SELECT FILE TO VIEW DETAILS</div>
+        </aside>
+    </div>
+</div>
+</body>
+</html>

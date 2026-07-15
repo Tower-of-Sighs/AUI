@@ -69,6 +69,7 @@ public class Base {
         StyleFrameCache.begin();
         FilterRenderer.beginFrame();
         poseStack.pushPose();
+        FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
         try {
             poseStack.translate(0, 0, GLOBAL_DOCUMENT_Z_OFFSET);
             // 这个if是应对paintList更新没跟上节点树更新的情况，也就是渲染状态滞后，差不多这个意思。
@@ -93,6 +94,7 @@ public class Base {
                 poseStack.popPose();
             }
         } finally {
+            FontDrawer.popDocumentPixelScale();
             poseStack.popPose();
             StyleFrameCache.end();
             RectFrameCache.end();

@@ -17,6 +17,8 @@ import java.util.Map;
 
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
+    private static final double BROWSER_NORMAL_LINE_HEIGHT_LEADING = 1.125;
+    private static final double BROWSER_NORMAL_LINE_HEIGHT_MAX = 1.45;
     private static final int LINE_WIDTH_CACHE_LIMIT = 2048;
     private static final Map<LineMeasureKey, Double> LINE_WIDTH_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
         @Override
@@ -43,6 +45,7 @@ public class Text {
     public double letterSpacing = 0;
     public Document.FontMode fontMode = Document.FontMode.WEB_SCALED;
     public Size size = null;
+    public String rasterBackgroundColor = "unset";
     // 标记该 Text 是否由 flex 容器直接文本节点生成。直接文本节点已由 Flex 布局居中，
     // 绘制时不应再在行框内部做二次居中，否则会把文本相对于图标基准线下移。
     public boolean flexDirect = false;
@@ -362,8 +365,9 @@ public class Text {
         if (!(element instanceof AbstractText)) {
             text.content = normalizeWhiteSpaceContent(text.content, text.whiteSpace);
         }
+        text.rasterBackgroundColor = resolveRasterBackgroundColor(element);
 
-        if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text.fontSize, lineHeight);
+        if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text, lineHeight);
         WrappedText wrapped = wrap(element, text);
         text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
 
@@ -390,12 +394,12 @@ public class Text {
 
     public static double calculateLineHeight(double fontSize, String lh) {
         if (lh == null || lh.isEmpty() || lh.equals("normal") || lh.equals("unset")) {
-            return fontSize + 2;
+            return normalLineHeight(fontSize);
         }
 
         if (lh.endsWith("%")) {
             Double percent = Size.parseNumber(lh);
-            if (percent == null) return fontSize + 2;
+            if (percent == null) return normalLineHeight(fontSize);
             return fontSize * (percent / 100.0);
         } else {
             try {
@@ -403,10 +407,42 @@ public class Text {
                 return fontSize * multiplier;
             } catch (NumberFormatException e) {
                 Double val = Size.tryResolveLength(lh, fontSize);
-                return val != null ? val : fontSize + 2;
+                return val != null ? val : normalLineHeight(fontSize);
             }
         }
     }
+
+    public static double calculateLineHeight(Text text, String lh) {
+        if (text == null) return calculateLineHeight(16, lh);
+        if (lh == null || lh.isEmpty() || lh.equals("normal") || lh.equals("unset")) {
+            return normalLineHeight(text);
+        }
+        return calculateLineHeight(text.fontSize, lh);
+    }
+
+    private static double normalLineHeight(double fontSize) {
+        return fontSize * 1.2;
+    }
+
+    private static double normalLineHeight(Text text) {
+        if (text == null) return normalLineHeight(16);
+        if (text.fontFamily == null || text.fontFamily.equals("unset")) {
+            return normalLineHeight(text.fontSize);
+        }
+
+        int fontStyle = java.awt.Font.PLAIN;
+        if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
+        if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+        java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
+        if (base == null) return normalLineHeight(text.fontSize);
+
+        java.awt.Font measured = base.deriveFont(fontStyle, Font.getBaseFontSize());
+        FontMetrics metrics = METRICS_CANVAS.getFontMetrics(measured);
+        double scaled = metrics.getHeight() * BROWSER_NORMAL_LINE_HEIGHT_LEADING * (text.fontSize / Font.getBaseFontSize());
+        double capped = Math.min(scaled, text.fontSize * BROWSER_NORMAL_LINE_HEIGHT_MAX);
+        return Math.max(normalLineHeight(text.fontSize), capped);
+    }
+
 
     public static double measureText(Element element, String content) {
         Text text = Text.of(element);
@@ -490,6 +526,7 @@ public class Text {
         h = 31 * h + (int) Math.round(textIndent * 1000);
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
         h = 31 * h + (fontMode == null ? 0 : fontMode.hashCode());
+        h = 31 * h + (rasterBackgroundColor == null ? 0 : rasterBackgroundColor.hashCode());
         if (cachedKey != null && cachedKeyHash == h) return cachedKey;
 
         StringBuilder sb = new StringBuilder(64);
@@ -507,7 +544,8 @@ public class Text {
                 .append(whiteSpace == null ? "" : whiteSpace).append('/')
                 .append(textIndent).append('/')
                 .append(letterSpacing).append('/')
-                .append(fontMode == null ? "" : fontMode.value());
+                .append(fontMode == null ? "" : fontMode.value()).append('/')
+                .append(rasterBackgroundColor == null ? "" : rasterBackgroundColor);
         cachedKey = sb.toString();
         cachedKeyHash = h;
         return cachedKey;
@@ -542,6 +580,19 @@ public class Text {
     private static Document.FontMode getFontMode(Element element) {
         if (element == null || element.document == null) return Document.FontMode.WEB_SCALED;
         return element.document.getFontMode();
+    }
+
+    private static String resolveRasterBackgroundColor(Element element) {
+        Element current = element;
+        while (current != null) {
+            Style style = current.getComputedStyle();
+            String color = style == null ? null : style.backgroundColor;
+            if (color != null && !color.isBlank() && !"unset".equalsIgnoreCase(color) && !"transparent".equalsIgnoreCase(color)) {
+                return color;
+            }
+            current = current.parentElement;
+        }
+        return "unset";
     }
 
     private static String getDeclaredFontSize(Element element) {

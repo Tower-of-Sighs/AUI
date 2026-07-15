@@ -165,11 +165,50 @@ public class Animation {
             if (p.equals("transform")) Transform.interpolateTransform(changes, vS, vE, fraction);
             else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
             else {
-                double val = Transition.getOffset(p, Transition.parseStyle(p, vS), Transition.parseStyle(p, vE), fraction);
+                double val = Transition.getOffset(p, parseAnimationStyle(element, p, vS), parseAnimationStyle(element, p, vE), fraction);
                 changes.add(new Transition.Change(p, val));
             }
         }
         Transition.applyChanges(style, changes);
+    }
+
+    private static double parseAnimationStyle(Element element, String name, String value) {
+        if (value == null || value.equals("unset") || value.isEmpty()) {
+            return 0;
+        }
+        if (name.contains("color") || name.equals("opacity")) {
+            return Transition.parseStyle(name, value);
+        }
+        Double resolved = Size.tryResolveLength(value, animationPercentBasis(element, name));
+        if (resolved != null) return resolved;
+        return Transition.parseStyle(name, value);
+    }
+
+    private static double animationPercentBasis(Element element, String name) {
+        Element containing = element == null ? null : element.parentElement;
+        if (containing == null) {
+            Size viewport = Size.getWindowSize();
+            return isVerticalLengthProperty(name) ? viewport.height() : viewport.width();
+        }
+        if (isVerticalLengthProperty(name)) {
+            return Size.getScaleHeight(containing);
+        }
+        return Size.getScaleWidth(containing);
+    }
+
+    private static boolean isVerticalLengthProperty(String name) {
+        if (name == null) return false;
+        return name.equals("top")
+                || name.equals("bottom")
+                || name.equals("height")
+                || name.equals("min-height")
+                || name.equals("max-height")
+                || name.equals("margin-top")
+                || name.equals("margin-bottom")
+                || name.equals("padding-top")
+                || name.equals("padding-bottom")
+                || name.equals("border-top-width")
+                || name.equals("border-bottom-width");
     }
 
     private static String findProperty(TreeMap<Double, Map<String, String>> timeline, double percent, String prop, boolean backward, String fallback) {

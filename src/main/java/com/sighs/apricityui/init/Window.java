@@ -112,6 +112,12 @@ public class Window {
         return console;
     }
 
+    public String getTestPromptResponse() {
+        String propertyValue = System.getProperty("apricityui.test.promptResponse");
+        if (propertyValue != null) return propertyValue;
+        return System.getenv("APRICITYUI_TEST_PROMPT_RESPONSE");
+    }
+
     public BrowserLocation getLocation() {
         for (Document document : Document.getAll()) {
             if (document != null && document.isActive()) {
@@ -357,6 +363,34 @@ public class Window {
 
         public String get(String name) {
             return getPropertyValue(name);
+        }
+
+        public String getFontSize() {
+            return getPropertyValue("font-size");
+        }
+
+        public String getFontWeight() {
+            return getPropertyValue("font-weight");
+        }
+
+        public String getLetterSpacing() {
+            return getPropertyValue("letter-spacing");
+        }
+
+        public String getFontFamily() {
+            return getPropertyValue("font-family");
+        }
+
+        public String getLineHeight() {
+            return getPropertyValue("line-height");
+        }
+
+        public String getDisplay() {
+            return getPropertyValue("display");
+        }
+
+        public String getColor() {
+            return getPropertyValue("color");
         }
     }
 
