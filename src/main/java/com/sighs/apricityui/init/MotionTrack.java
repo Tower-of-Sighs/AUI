@@ -95,7 +95,8 @@ final class MotionTrack {
             StyleFrameCache.put(element, animated);
 
             // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
-            if (!Objects.equals(animated.transform, base.transform)) {
+            if (!Objects.equals(animated.transform, base.transform)
+                    || (hasAnimationSpec && Animation.affectsTransform(base))) {
                 element.getRenderer().transform.clear();
             }
             if (!Objects.equals(animated.filter, base.filter) || !Objects.equals(animated.opacity, base.opacity)) {
