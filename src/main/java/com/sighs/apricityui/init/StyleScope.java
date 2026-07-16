@@ -1,7 +1,5 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.ApricityUI;
-
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,16 +21,6 @@ final class StyleScope {
     void requestRecalc(Element element) {
         if (element == null) return;
         if (element.document != owner) return;
-        if (Element.isHoverDebugEnabled() && Element.isResourceHoverDebugElement(element)) {
-            ApricityUI.LOGGER.info(
-                    "[AUI HoverDebug] requestStyleRecalc element={} hover={} active={} focus={} cssCacheSize={}",
-                    Element.debugElementName(element),
-                    element.isHover,
-                    element.isActive,
-                    element.isFocus,
-                    element.cssCache == null ? -1 : element.cssCache.size()
-            );
-        }
         synchronized (pendingRootsLock) {
             pendingRoots.add(element);
         }
@@ -58,14 +46,6 @@ final class StyleScope {
         }
 
         for (Element root : roots) {
-            if (Element.isHoverDebugEnabled() && Element.isResourceHoverDebugElement(root)) {
-                ApricityUI.LOGGER.info(
-                        "[AUI HoverDebug] recomputeSubtree root={} hover={} children={}",
-                        Element.debugElementName(root),
-                        root.isHover,
-                        root.children == null ? -1 : root.children.size()
-                );
-            }
             recomputeSubtree(root);
         }
     }

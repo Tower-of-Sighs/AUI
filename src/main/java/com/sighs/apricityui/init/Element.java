@@ -1,7 +1,6 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
@@ -367,53 +366,8 @@ public class Element extends Node {
 
     public void setHover(boolean hover) {
         if (isHover == hover) return;
-        if (debugHoverState()) {
-            ApricityUI.LOGGER.info(
-                    "[AUI HoverDebug] setHover element={} from={} to={}",
-                    debugElementName(this),
-                    isHover,
-                    hover
-            );
-        }
         isHover = hover;
         requestStyleRecalc();
-    }
-
-    public static boolean isHoverDebugEnabled() {
-        return "1".equals(System.getenv("APRICITYUI_DEBUG_HOVER"));
-    }
-
-    public static String debugElementName(Element element) {
-        if (element == null) return "<null>";
-        StringBuilder builder = new StringBuilder(element.tagName);
-        if (element.id != null && !element.id.isBlank()) {
-            builder.append('#').append(element.id);
-        }
-        if (element.classNames != null && !element.classNames.isEmpty()) {
-            builder.append(element.classNames);
-        }
-        String name = element.getAttribute("data-name");
-        if (name != null && !name.isBlank()) {
-            builder.append("[data-name=").append(name).append(']');
-        }
-        return builder.toString();
-    }
-
-    private boolean debugHoverState() {
-        if (!isHoverDebugEnabled()) return false;
-        if (isResourceHoverDebugElement(this)) return true;
-        Element host = getPseudoElementHost();
-        return isResourceHoverDebugElement(host);
-    }
-
-    public static boolean isResourceHoverDebugElement(Element element) {
-        if (element == null) return false;
-        if (element.getClassNames().contains("file-card")) return true;
-        if (element.getClassNames().contains("file-icon")) return true;
-        if (element.getClassNames().contains("file-name")) return true;
-        if (element.getClassNames().contains("file-meta")) return true;
-        Element host = element.getPseudoElementHost();
-        return host != null && host.getClassNames().contains("file-card");
     }
 
     public void setActive(boolean active) {
@@ -929,6 +883,12 @@ public class Element extends Node {
         parentNode = pseudoElementHost;
         parentElement = pseudoElementHost;
         depth = pseudoElementHost.depth + 1;
+
+        if (samePseudoStyles(cssCache, styles) && renderElement.computedStyle.get() != null) {
+            isPointerEnabled = false;
+            return;
+        }
+
         Style originStyle = pseudoElementPreviousStyle;
         if (originStyle == null) {
             Style cached = renderElement.computedStyle.get();
@@ -937,19 +897,6 @@ public class Element extends Node {
         cssCache = styles == null ? new HashMap<>() : new HashMap<>(styles);
         getRenderer().computedStyle.clear();
         Style style = getRawComputedStyle();
-        if (debugHoverPseudoSync()) {
-            ApricityUI.LOGGER.info(
-                    "[AUI HoverDebug] syncPseudo host={} pseudo={} hostHover={} originTransform={} nextTransform={} cssTransform={} previousTransform={} transition={}",
-                    debugElementName(pseudoElementHost),
-                    tagName,
-                    pseudoElementHost.isHover,
-                    originStyle == null ? "<null>" : originStyle.transform,
-                    style.transform,
-                    styles == null ? "<null>" : styles.get("transform"),
-                    pseudoElementPreviousStyle == null ? "<null>" : pseudoElementPreviousStyle.transform,
-                    style.transition
-            );
-        }
         if (document != null) {
             document.setHasAnimationSpec(this, Animation.hasAnimationSpec(style));
         }
@@ -958,6 +905,13 @@ public class Element extends Node {
         pseudoElementPreviousStyle = style.clone();
         innerText = parsePseudoContentText(style.content);
         isPointerEnabled = false;
+    }
+
+    private static boolean samePseudoStyles(HashMap<String, String> current, HashMap<String, String> next) {
+        if (current == null || current.isEmpty()) {
+            return next == null || next.isEmpty();
+        }
+        return current.equals(next);
     }
 
     private boolean isPseudoContentGenerated() {
@@ -1030,12 +984,6 @@ public class Element extends Node {
         renderElement.box.clear();
         renderElement.position.clear();
         StyleFrameCache.invalidate(this);
-    }
-
-    private boolean debugHoverPseudoSync() {
-        return isHoverDebugEnabled()
-                && pseudoElementHost != null
-                && pseudoElementHost.getClassNames().contains("file-card");
     }
 
     @Override

@@ -1,6 +1,5 @@
 package com.sighs.apricityui.style;
 
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.StyleFrameCache;
@@ -23,21 +22,7 @@ public record Transition(String name, double start, double end, double duration,
         if (parsed.isEmpty()) return;
         synchronized (LOCK) {
             List<Transition> existing = workList.get(element.uuid);
-            if (debugTransition(element)) {
-                ApricityUI.LOGGER.info(
-                        "[AUI TransitionDebug] create target={} spec={} startTransform={} endTransform={} parsed={} existing={}",
-                        debugTargetName(element),
-                        transitionSpec,
-                        startStyle.transform,
-                        endStyle.transform,
-                        debugTransitions(parsed),
-                        debugTransitions(existing)
-                );
-            }
             if (hasSameTransitionTargets(existing, parsed)) {
-                if (debugTransition(element)) {
-                    ApricityUI.LOGGER.info("[AUI TransitionDebug] skip-same-target target={} parsed={}", debugTargetName(element), debugTransitions(parsed));
-                }
                 return;
             }
             workList.put(element.uuid, parsed);
@@ -107,18 +92,6 @@ public record Transition(String name, double start, double end, double duration,
                 if (t.startTime < 0) {
                     t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now);
                     it.set(t);
-                    if (debugTransition(element)) {
-                        ApricityUI.LOGGER.info(
-                                "[AUI TransitionDebug] arm target={} name={} start={} end={} duration={} delay={} startTime={}",
-                                debugTargetName(element),
-                                t.name,
-                                t.start,
-                                t.end,
-                                t.duration,
-                                t.delay,
-                                t.startTime
-                        );
-                    }
                 }
                 double progress = (now - t.startTime - t.delay) / t.duration;
                 if (progress < 0) continue;
@@ -126,20 +99,6 @@ public record Transition(String name, double start, double end, double duration,
 
                 if (changes == null) changes = new ArrayList<>();
                 changes.add(new Change(t.name, getOffset(t.name, t.start, t.end, progress)));
-                if (debugTransition(element)) {
-                    ApricityUI.LOGGER.info(
-                            "[AUI TransitionDebug] update target={} name={} progress={} start={} end={} value={} duration={} delay={} ageMs={}",
-                            debugTargetName(element),
-                            t.name,
-                            String.format(Locale.ROOT, "%.3f", progress),
-                            t.start,
-                            t.end,
-                            getOffset(t.name, t.start, t.end, progress),
-                            t.duration,
-                            t.delay,
-                            now - t.startTime
-                    );
-                }
                 if (progress >= 1) it.remove();
             }
 
@@ -178,16 +137,6 @@ public record Transition(String name, double start, double end, double duration,
         if (element.document != null && !stillActive) {
             element.document.setTransitionActive(element, false);
         }
-        if (debugTransition(element)) {
-            ApricityUI.LOGGER.info(
-                    "[AUI TransitionDebug] prime-frame target={} transform={} filter={} opacity={} stillActive={}",
-                    debugTargetName(element),
-                    animated.transform,
-                    animated.filter,
-                    animated.opacity,
-                    stillActive
-            );
-        }
     }
 
     public static double getOffset(String name, double start, double end, double progress) {
@@ -197,14 +146,18 @@ public record Transition(String name, double start, double end, double duration,
 
     public static double parseTime(String token) {
         if (token == null || token.isEmpty() || "unset".equals(token)) return 0;
-        String t = token.toLowerCase(Locale.ROOT);
-        try {
-            if (t.endsWith("ms")) return Double.parseDouble(t.substring(0, t.length() - 2));
-            if (t.endsWith("s")) return Double.parseDouble(t.substring(0, t.length() - 1)) * 1000;
-            return Double.parseDouble(t) * 1000;
-        } catch (Exception ex) {
-            return 0;
+        String t = token.trim().toLowerCase(Locale.ROOT);
+        if (t.isEmpty() || "unset".equals(t)) return 0;
+        if (t.endsWith("ms")) {
+            Double value = Size.parseNumber(t.substring(0, t.length() - 2));
+            return value == null ? 0 : value;
         }
+        if (t.endsWith("s")) {
+            Double value = Size.parseNumber(t.substring(0, t.length() - 1));
+            return value == null ? 0 : value * 1000;
+        }
+        Double value = Size.parseNumber(t);
+        return value == null ? 0 : value * 1000;
     }
 
     public static double parseStyle(String name, String value) {
@@ -339,41 +292,4 @@ public record Transition(String name, double start, double end, double duration,
             "border-radius"
     );
 
-    private static boolean debugTransition(Element element) {
-        if (!"1".equals(System.getenv("APRICITYUI_DEBUG_TRANSITION"))) return false;
-        if (element == null) return false;
-        if ("::before".equalsIgnoreCase(element.tagName) && element.getPseudoElementHost() != null) {
-            return element.getPseudoElementHost().getClassNames().contains("file-card");
-        }
-        return element.getClassNames().contains("file-card");
-    }
-
-    private static String debugTargetName(Element element) {
-        if (element == null) return "<null>";
-        if (element.getPseudoElementHost() != null) {
-            return element.getPseudoElementHost().tagName + element.getPseudoElementHost().getClassNames() + element.tagName;
-        }
-        return element.tagName + element.getClassNames();
-    }
-
-    private static String debugTransitions(List<Transition> transitions) {
-        if (transitions == null) return "<none>";
-        StringBuilder builder = new StringBuilder("[");
-        for (int i = 0; i < transitions.size(); i++) {
-            Transition t = transitions.get(i);
-            if (i > 0) builder.append(", ");
-            builder.append(t.name)
-                    .append(":")
-                    .append(t.start)
-                    .append("->")
-                    .append(t.end)
-                    .append("/")
-                    .append(t.duration)
-                    .append("+")
-                    .append(t.delay)
-                    .append("@")
-                    .append(t.startTime);
-        }
-        return builder.append("]").toString();
-    }
 }

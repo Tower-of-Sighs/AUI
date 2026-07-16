@@ -11,6 +11,7 @@ public class Rect {
     public Box box;
     public String documentPath;
     public Background background;
+    private AABB visualBounds;
 
     public Rect(Element element) {
         this.element = element;
@@ -36,6 +37,7 @@ public class Rect {
     }
 
     public AABB getVisualBounds() {
+        if (visualBounds != null) return visualBounds;
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
         double w = box.elementSize().width();
@@ -59,7 +61,8 @@ public class Rect {
             h += maxExtendY - minExtendY;
         }
 
-        return new AABB((float) x, (float) y, (float) w, (float) h);
+        visualBounds = new AABB((float) x, (float) y, (float) w, (float) h);
+        return visualBounds;
     }
 
     private double getMinBorderSize() {
