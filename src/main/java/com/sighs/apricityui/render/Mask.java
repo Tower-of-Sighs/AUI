@@ -66,7 +66,11 @@ public class Mask {
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
-        boolean useScissor = isRectMask(radii);
+        pushMask(pose, x, y, width, height, radii, false);
+    }
+
+    public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii, boolean forceStencil) {
+        boolean useScissor = !forceStencil && isRectMask(radii);
         maskScissorStack.push(useScissor);
         if (useScissor) {
             ImageDrawer.flushBatch();
@@ -155,7 +159,7 @@ public class Mask {
     private static void restoreRenderState() {
         GL11.glColorMask(true, true, true, true);
         GL11.glDepthMask(true);
-        GL11.glEnable(GL11.GL_CULL_FACE);
+        GL11.glDisable(GL11.GL_CULL_FACE);
     }
 
     public static void pushClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {

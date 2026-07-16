@@ -1,6 +1,8 @@
 package com.sighs.apricityui.script;
 
 import dev.latvian.mods.kubejs.KubeJS;
+import dev.latvian.mods.rhino.Scriptable;
+import com.sighs.apricityui.init.Event;
 import net.minecraftforge.fml.ModList;
 
 import java.util.ArrayList;
@@ -127,6 +129,10 @@ public class ApricityJS {
             """;
 
     public static void eval(String code) {
+        eval(code, null);
+    }
+
+    public static void eval(String code, Event event) {
         if (!ModList.get().isLoaded("kubejs")) return;
         code = INNER_TEXT_POLYFILL + "\n" + PROMPT_POLYFILL + "\n" + code;
         code = ARRAY_SPREAD_PATTERN.matcher(code).replaceAll("$1.slice()");
@@ -136,7 +142,24 @@ public class ApricityJS {
         var manager = KubeJS.getClientScriptManager();
         var context = manager.context;
         var top = manager.topLevelScope;
-        context.evaluateString(top, code, "eval", 1, null);
+        Object previousEvent = null;
+        boolean hadEvent = false;
+        if (event != null) {
+            previousEvent = top.get(context, "event", top);
+            hadEvent = previousEvent != Scriptable.NOT_FOUND;
+            top.put(context, "event", top, event);
+        }
+        try {
+            context.evaluateString(top, code, "eval", 1, null);
+        } finally {
+            if (event != null) {
+                if (hadEvent) {
+                    top.put(context, "event", top, previousEvent);
+                } else {
+                    top.delete(context, "event");
+                }
+            }
+        }
     }
 
     public static void reload() {

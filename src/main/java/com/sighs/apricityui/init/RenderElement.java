@@ -1,9 +1,11 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.style.*;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -252,12 +254,34 @@ public class RenderElement {
             renderer.cursor.clear();
         }
 
-//        if (!origin.animation.equals(current.animation)) {
-//            Animation.stop(element);
-//        }
+        if (!origin.animation.equals(current.animation)) {
+            Animation.stop(element);
+            renderer.transform.clear();
+            renderer.filter.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
 
         if (!origin.zIndex.equals(current.zIndex)) {
             dirtyMask |= Drawer.REORDER;
+        }
+
+        if (Element.isHoverDebugEnabled() && Element.isResourceHoverDebugElement(element)
+                && (!Objects.equals(origin.transform, current.transform)
+                || !Objects.equals(origin.animation, current.animation)
+                || !Objects.equals(origin.transition, current.transition)
+                || dirtyMask != 0)) {
+            ApricityUI.LOGGER.info(
+                    "[AUI HoverDebug] observeStyle element={} hover={} transform {} -> {} animation {} -> {} transition {} -> {} dirtyMask={}",
+                    Element.debugElementName(element),
+                    element.isHover,
+                    origin.transform,
+                    current.transform,
+                    origin.animation,
+                    current.animation,
+                    origin.transition,
+                    current.transition,
+                    dirtyMask
+            );
         }
 
         if (dirtyMask != 0 && element.document != null) {

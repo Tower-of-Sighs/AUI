@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.FrameScheduler;
@@ -118,6 +119,8 @@ public class Base {
 
     private static Element getRenderNodeTarget(RenderNode node) {
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
+        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
+        if (node instanceof RenderNode.ElementContentNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
@@ -187,7 +190,7 @@ public class Base {
             }
         }
 
-        for (int i = 0; i < routeSize; i++) {
+        for (int i = routeSize - 1; i >= 0; i--) {
             Element e = route[i];
             double posX = absX[i];
             double posY = absY[i];
@@ -202,6 +205,20 @@ public class Base {
                 String cssTransform = e.getComputedStyle().transform;
                 functions = Transform.parse(cssTransform, size.width(), size.height());
                 e.getRenderer().transform.set(functions);
+            }
+            if (Element.isHoverDebugEnabled()
+                    && "::BEFORE".equalsIgnoreCase(e.tagName)
+                    && e.getPseudoElementHost() != null
+                    && e.getPseudoElementHost().getClassNames().contains("file-card")) {
+                ApricityUI.LOGGER.info(
+                        "[AUI RenderDebug] applyTransform element={} host={} hostHover={} cssTransform={} cached={} scaleY={}",
+                        Element.debugElementName(e),
+                        Element.debugElementName(e.getPseudoElementHost()),
+                        e.getPseudoElementHost().isHover,
+                        e.getComputedStyle().transform,
+                        functions,
+                        debugScaleY(functions)
+                );
             }
 
             if (!functions.isEmpty()) {
@@ -229,6 +246,17 @@ public class Base {
                 }
             }
         }
+    }
+
+    private static double debugScaleY(List<Transform> functions) {
+        if (functions == null || functions.isEmpty()) return 1.0d;
+        double scaleY = 1.0d;
+        for (Transform transform : functions) {
+            if (transform instanceof Transform.Scale scale) {
+                scaleY *= scale.y();
+            }
+        }
+        return scaleY;
     }
 
     private static float[] resolveTransformOrigin(String value, double width, double height) {

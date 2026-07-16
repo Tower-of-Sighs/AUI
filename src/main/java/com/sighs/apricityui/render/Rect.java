@@ -222,17 +222,58 @@ public class Rect {
         Size s = getShadowSize();
         float[] radii = box.getCalculatedRadii((float) s.width(), (float) s.height(), 0);
         Graph.beginBatch();
+        double sourceX = position.x + box.getMarginLeft();
+        double sourceY = position.y + box.getMarginTop();
         for (Box.Shadow shadow : box.shadows) {
             if ((shadow.color().getValue() >>> 24) == 0) continue;
-            double x = position.x + box.getMarginLeft() + shadow.x();
-            double y = position.y + box.getMarginTop() + shadow.y();
+            double x = sourceX + shadow.x();
+            double y = sourceY + shadow.y();
             if (shadow.size() <= 0) {
-                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, shadow.color().getValue());
+                drawZeroBlurOuterShadow(
+                        poseStack,
+                        (float) sourceX,
+                        (float) sourceY,
+                        (float) x,
+                        (float) y,
+                        (float) s.width(),
+                        (float) s.height(),
+                        shadow.color().getValue()
+                );
             } else {
                 Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
             }
         }
         Graph.endBatch();
+    }
+
+    private void drawZeroBlurOuterShadow(PoseStack poseStack, float sourceX, float sourceY, float shadowX, float shadowY, float width, float height, int color) {
+        float shadowRight = shadowX + width;
+        float shadowBottom = shadowY + height;
+        float sourceRight = sourceX + width;
+        float sourceBottom = sourceY + height;
+
+        float ix0 = Math.max(shadowX, sourceX);
+        float iy0 = Math.max(shadowY, sourceY);
+        float ix1 = Math.min(shadowRight, sourceRight);
+        float iy1 = Math.min(shadowBottom, sourceBottom);
+
+        if (ix0 >= ix1 || iy0 >= iy1) {
+            Graph.drawFillRect(poseStack.last().pose(), shadowX, shadowY, shadowRight, shadowBottom, color);
+            return;
+        }
+
+        if (shadowY < iy0) {
+            Graph.drawFillRect(poseStack.last().pose(), shadowX, shadowY, shadowRight, iy0, color);
+        }
+        if (iy1 < shadowBottom) {
+            Graph.drawFillRect(poseStack.last().pose(), shadowX, iy1, shadowRight, shadowBottom, color);
+        }
+        if (shadowX < ix0) {
+            Graph.drawFillRect(poseStack.last().pose(), shadowX, iy0, ix0, iy1, color);
+        }
+        if (ix1 < shadowRight) {
+            Graph.drawFillRect(poseStack.last().pose(), ix1, iy0, shadowRight, iy1, color);
+        }
     }
 
     public Position getContentPosition() {

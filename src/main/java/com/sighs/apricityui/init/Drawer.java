@@ -110,17 +110,11 @@ public class Drawer {
         }
 
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
-        appendBodyRenderNodes(contextRoot, paintList);
-        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
-
-        boolean needsMask = Interaction.clipsOverflow(rootStyle);
-        if (needsMask) {
-            paintList.add(new RenderNode.MaskPushNode(contextRoot));
-        }
 
         List<Element> children = contextRoot.getRenderChildren();
         if (children.isEmpty()) {
-            if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
+            appendBodyRenderNodes(contextRoot, paintList);
+            paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
             if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
             if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
             return;
@@ -174,7 +168,23 @@ public class Drawer {
         if (autoOrZeroContext.size() > 1) autoOrZeroContext.sort(PAINTABLE_ORDER);
         if (positiveZ.size() > 1) positiveZ.sort(PAINTABLE_ORDER);
 
+        boolean splitContentForNegativeZ = !negativeZ.isEmpty();
+        if (splitContentForNegativeZ) {
+            paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+        } else {
+            appendBodyRenderNodes(contextRoot, paintList);
+        }
+        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+
+        boolean needsMask = Interaction.clipsOverflow(rootStyle);
+        if (needsMask) {
+            paintList.add(new RenderNode.MaskPushNode(contextRoot));
+        }
+
         for (Paintable p : negativeZ) processStackingContext(p.element, paintList);
+        if (splitContentForNegativeZ) {
+            paintList.add(new RenderNode.ElementContentNode(contextRoot));
+        }
         for (Element e : normalFlow) processStackingContext(e, paintList);
         for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList);
         for (Paintable p : positiveZ) processStackingContext(p.element, paintList);
@@ -226,6 +236,8 @@ public class Drawer {
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
+        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
+        if (node instanceof RenderNode.ElementContentNode n) return n.target();
         if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();

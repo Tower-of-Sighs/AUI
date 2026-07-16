@@ -47,6 +47,12 @@ public class Animation {
         return ACTIVE_ANIMATIONS.containsKey(e.uuid);
     }
 
+    public static void stop(Element e) {
+        if (e != null) {
+            ACTIVE_ANIMATIONS.remove(e.uuid);
+        }
+    }
+
     public static boolean hasAnimationSpec(Style style) {
         if (style == null) return false;
         String spec = style.animation;
@@ -64,6 +70,19 @@ public class Animation {
             Set<String> props = KEYFRAME_PROPS.get(config.name);
             if (props == null || props.isEmpty()) continue;
             if (props.contains("filter") || props.contains("opacity")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public static boolean affectsTransform(Style style) {
+        if (!hasAnimationSpec(style)) return false;
+        String spec = style.animation.trim();
+        for (AnimationConfig config : resolve(spec, new AnimationState())) {
+            if (config.name == null || config.name.isBlank() || "none".equals(config.name)) continue;
+            Set<String> props = KEYFRAME_PROPS.get(config.name);
+            if (props != null && props.contains("transform")) {
                 return true;
             }
         }

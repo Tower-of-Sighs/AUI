@@ -1,4 +1,5 @@
 package com.sighs.apricityui.init;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
@@ -49,7 +50,29 @@ public class Operation {
         if (currentMousePosition == null) {
             currentMousePosition = getMousePositionDirectly();
         }
+        if (currentMousePosition == null) {
+            if (Element.isHoverDebugEnabled()) {
+                ApricityUI.LOGGER.info("[AUI HoverDebug] onMouseMove skip null current cached={}", cachedMousePosition);
+            }
+            return;
+        }
         if (cachedMousePosition != null) {
+            if (Double.compare(currentMousePosition.x, cachedMousePosition.x) == 0
+                    && Double.compare(currentMousePosition.y, cachedMousePosition.y) == 0) {
+                if (Element.isHoverDebugEnabled()) {
+                    ApricityUI.LOGGER.info("[AUI HoverDebug] onMouseMove skip unchanged current={} cached={}", currentMousePosition, cachedMousePosition);
+                }
+                return;
+            }
+            if (Element.isHoverDebugEnabled()) {
+                ApricityUI.LOGGER.info(
+                        "[AUI HoverDebug] onMouseMove dispatch current={} cached={} movement={}x{}",
+                        currentMousePosition,
+                        cachedMousePosition,
+                        currentMousePosition.x - cachedMousePosition.x,
+                        currentMousePosition.y - cachedMousePosition.y
+                );
+            }
             MouseEvent mouseEvent = new MouseEvent("mousemove", currentMousePosition);
             mouseEvent.movementX = currentMousePosition.x - cachedMousePosition.x;
             mouseEvent.movementY = currentMousePosition.y - cachedMousePosition.y;

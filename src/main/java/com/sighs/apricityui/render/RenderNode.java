@@ -9,6 +9,7 @@ import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transform;
 import org.lwjgl.opengl.GL11;
 
 import java.util.function.Consumer;
@@ -45,7 +46,7 @@ public interface RenderNode {
                             Mask.getCurrentClip()
                     );
                 }
-                Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
+                Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius(), hasTransformedAncestor(target));
             });
         }
     }
@@ -70,6 +71,16 @@ public interface RenderNode {
                 Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
             });
         }
+    }
+
+    private static boolean hasTransformedAncestor(Element target) {
+        if (target == null) return false;
+        for (Element element : target.getRouteArray()) {
+            if (Transform.createsStackingContext(element.getComputedStyle().transform)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     record ElementPhaseNode(Element target, Base.RenderPhase phase) implements RenderNode {
@@ -116,6 +127,48 @@ public interface RenderNode {
             if (target.getClassNames().contains("btn-apply")) return true;
             if ("slots-container".equals(target.id)) return true;
             return "MAIN".equalsIgnoreCase(target.tagName);
+        }
+    }
+
+    record ElementBackgroundNode(Element target) implements RenderNode {
+        @Override
+        public void render(PoseStack poseStack) {
+            if (shouldSkip(target)) return;
+            AABB currentClip = Mask.getCurrentClip();
+            Rect rect = Rect.of(target);
+            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+
+            poseStack.pushPose();
+            Base.applyTransform(poseStack, target);
+            RenderSystem.enableBlend();
+            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            if (!target.isLoaded) {
+                target.resetRenderer();
+                target.isLoaded = true;
+            }
+            target.drawBackgroundOnly(poseStack);
+            poseStack.popPose();
+        }
+    }
+
+    record ElementContentNode(Element target) implements RenderNode {
+        @Override
+        public void render(PoseStack poseStack) {
+            if (shouldSkip(target)) return;
+            AABB currentClip = Mask.getCurrentClip();
+            Rect rect = Rect.of(target);
+            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+
+            poseStack.pushPose();
+            Base.applyTransform(poseStack, target);
+            RenderSystem.enableBlend();
+            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            if (!target.isLoaded) {
+                target.resetRenderer();
+                target.isLoaded = true;
+            }
+            target.drawContentOnly(poseStack);
+            poseStack.popPose();
         }
     }
 
