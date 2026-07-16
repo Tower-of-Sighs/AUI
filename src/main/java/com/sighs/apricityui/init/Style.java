@@ -270,9 +270,11 @@ public class Style implements Cloneable {
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
     private static final Field[] STYLE_FIELDS;
+    private static final String[] STYLE_FIELD_CSS_NAMES;
 
     static {
         java.util.List<Field> fields = new java.util.ArrayList<>();
+        java.util.List<String> cssNames = new java.util.ArrayList<>();
         for (Field field : Style.class.getDeclaredFields()) {
             // 只缓存非静态的 String 类型字段
             if (field.getType() == String.class && !Modifier.isStatic(field.getModifiers())) {
@@ -287,9 +289,11 @@ public class Style implements Cloneable {
                     FIELD_CACHE.put(cssName, field);
                 }
                 fields.add(field);
+                cssNames.add(cssName);
             }
         }
         STYLE_FIELDS = fields.toArray(new Field[0]);
+        STYLE_FIELD_CSS_NAMES = cssNames.toArray(new String[0]);
     }
 
     public void merge(String styleString) {
@@ -884,14 +888,11 @@ public class Style implements Cloneable {
             return customProperties.get(normalizeCustomPropertyName(name));
         }
         String styleName = transformStyleName(name);
+        Field field = FIELD_CACHE.get(styleName);
+        if (field == null) return null;
         try {
-            Field field = FIELD_CACHE.get(styleName);
-            if (field == null) {
-                field = this.getClass().getDeclaredField(styleName);
-                FIELD_CACHE.put(styleName, field);
-            }
             return (String) field.get(this);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        } catch (IllegalAccessException ignored) {
         }
         return null;
     }
@@ -1042,10 +1043,11 @@ public class Style implements Cloneable {
 
     public void finalizeComputedValues(Element context) {
         Style parentStyle = context == null || context.parentElement == null ? null : context.parentElement.getComputedStyle();
-        for (Field field : STYLE_FIELDS) {
+        for (int i = 0; i < STYLE_FIELDS.length; i++) {
+            Field field = STYLE_FIELDS[i];
             try {
                 String current = (String) field.get(this);
-                String cssName = camelToKebab(field.getName());
+                String cssName = STYLE_FIELD_CSS_NAMES[i];
                 String resolved = resolveCssWideKeyword(cssName, current, parentStyle);
                 if ("display".equals(cssName)) {
                     resolved = normalizeDisplay(resolved);
@@ -1263,17 +1265,14 @@ public class Style implements Cloneable {
     public String toCss() {
         StringBuilder css = new StringBuilder();
 
-        for (Field field : Style.class.getDeclaredFields()) {
-            if (Modifier.isStatic(field.getModifiers())) continue;
-            if ("customProperties".equals(field.getName())) continue;
+        for (int i = 0; i < STYLE_FIELDS.length; i++) {
+            Field field = STYLE_FIELDS[i];
             try {
-                field.setAccessible(true);
-
                 Object value = field.get(this);
                 Object defaultValue = field.get(DEFAULT);
 
                 if (value != null && !value.toString().equals(defaultValue == null ? null : defaultValue.toString())) {
-                    css.append(camelToKebab(field.getName()))
+                    css.append(STYLE_FIELD_CSS_NAMES[i])
                             .append(": ")
                             .append(value)
                             .append(";");
@@ -1311,18 +1310,9 @@ public class Style implements Cloneable {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
-        Field[] fields = this.getClass().getDeclaredFields();
 
-        for (Field field : fields) {
-            // 跳过静态字段
-            if (Modifier.isStatic(field.getModifiers())) {
-                continue;
-            }
-            if ("customProperties".equals(field.getName())) {
-                continue;
-            }
-
-            field.setAccessible(true);
+        for (int i = 0; i < STYLE_FIELDS.length; i++) {
+            Field field = STYLE_FIELDS[i];
             try {
                 Object value = field.get(this);
                 if (value == null) continue;
@@ -1332,10 +1322,7 @@ public class Style implements Cloneable {
                     continue;
                 }
 
-                // CSS 属性名：驼峰 -> 连字符
-                String cssName = camelToKebab(field.getName());
-
-                sb.append(cssName)
+                sb.append(STYLE_FIELD_CSS_NAMES[i])
                         .append(":")
                         .append(value)
                         .append(";");

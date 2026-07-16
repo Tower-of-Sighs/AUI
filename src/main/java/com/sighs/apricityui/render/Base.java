@@ -5,7 +5,6 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.FrameScheduler;
@@ -114,7 +113,9 @@ public class Base {
 
         AABB currentClip = Mask.getCurrentClip();
         if (!currentClip.isValid()) return false;
-        return !Rect.of(target).getVisualBounds().intersects(currentClip);
+        Rect cachedRect = RectFrameCache.get(target);
+        if (cachedRect == null) return false;
+        return !cachedRect.getVisualBounds().intersects(currentClip);
     }
 
     private static Element getRenderNodeTarget(RenderNode node) {
@@ -206,20 +207,6 @@ public class Base {
                 functions = Transform.parse(cssTransform, size.width(), size.height());
                 e.getRenderer().transform.set(functions);
             }
-            if (Element.isHoverDebugEnabled()
-                    && "::BEFORE".equalsIgnoreCase(e.tagName)
-                    && e.getPseudoElementHost() != null
-                    && e.getPseudoElementHost().getClassNames().contains("file-card")) {
-                ApricityUI.LOGGER.info(
-                        "[AUI RenderDebug] applyTransform element={} host={} hostHover={} cssTransform={} cached={} scaleY={}",
-                        Element.debugElementName(e),
-                        Element.debugElementName(e.getPseudoElementHost()),
-                        e.getPseudoElementHost().isHover,
-                        e.getComputedStyle().transform,
-                        functions,
-                        debugScaleY(functions)
-                );
-            }
 
             if (!functions.isEmpty()) {
                 double w = size.width();
@@ -246,17 +233,6 @@ public class Base {
                 }
             }
         }
-    }
-
-    private static double debugScaleY(List<Transform> functions) {
-        if (functions == null || functions.isEmpty()) return 1.0d;
-        double scaleY = 1.0d;
-        for (Transform transform : functions) {
-            if (transform instanceof Transform.Scale scale) {
-                scaleY *= scale.y();
-            }
-        }
-        return scaleY;
     }
 
     private static float[] resolveTransformOrigin(String value, double width, double height) {

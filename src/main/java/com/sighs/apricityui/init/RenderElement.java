@@ -1,6 +1,5 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.style.*;
 
 import java.util.HashMap;
@@ -263,25 +262,6 @@ public class RenderElement {
 
         if (!origin.zIndex.equals(current.zIndex)) {
             dirtyMask |= Drawer.REORDER;
-        }
-
-        if (Element.isHoverDebugEnabled() && Element.isResourceHoverDebugElement(element)
-                && (!Objects.equals(origin.transform, current.transform)
-                || !Objects.equals(origin.animation, current.animation)
-                || !Objects.equals(origin.transition, current.transition)
-                || dirtyMask != 0)) {
-            ApricityUI.LOGGER.info(
-                    "[AUI HoverDebug] observeStyle element={} hover={} transform {} -> {} animation {} -> {} transition {} -> {} dirtyMask={}",
-                    Element.debugElementName(element),
-                    element.isHover,
-                    origin.transform,
-                    current.transform,
-                    origin.animation,
-                    current.animation,
-                    origin.transition,
-                    current.transition,
-                    dirtyMask
-            );
         }
 
         if (dirtyMask != 0 && element.document != null) {

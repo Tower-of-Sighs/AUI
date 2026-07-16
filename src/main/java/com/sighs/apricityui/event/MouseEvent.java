@@ -1,5 +1,4 @@
 package com.sighs.apricityui.event;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
@@ -146,21 +145,6 @@ public class MouseEvent extends Event implements Cloneable {
             Element activeElement = document.getPressedElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
             Element target = document.hitTest(detectionPos);
-            if (Element.isHoverDebugEnabled() && "mousemove".equals(event.type)
-                    && (Element.isResourceHoverDebugElement(target)
-                    || Element.isResourceHoverDebugElement(document.getPreviousCursorElement()))) {
-                ApricityUI.LOGGER.info(
-                        "[AUI HoverDebug] dispatchMouseMove doc={} original={}x{} document={}x{} target={} previous={} active={}",
-                        document.getPath(),
-                        originalClientX,
-                        originalClientY,
-                        event.clientX,
-                        event.clientY,
-                        Element.debugElementName(target),
-                        Element.debugElementName(document.getPreviousCursorElement()),
-                        Element.debugElementName(activeElement)
-                );
-            }
             return triggerResolvedEvent(event, document, target, activeElement, true);
         } finally {
             StyleFrameCache.end();
@@ -220,17 +204,6 @@ public class MouseEvent extends Event implements Cloneable {
     private static void handleHoverChange(MouseEvent originalEvent, Element newTarget, Document document) {
         Element previousCursorElement = document.getPreviousCursorElement();
         if (previousCursorElement == newTarget) return;
-        if (Element.isHoverDebugEnabled()) {
-            ApricityUI.LOGGER.info(
-                    "[AUI HoverDebug] hoverChange old={} new={} client={}x{} type={} trusted={}",
-                    Element.debugElementName(previousCursorElement),
-                    Element.debugElementName(newTarget),
-                    originalEvent.clientX,
-                    originalEvent.clientY,
-                    originalEvent.type,
-                    originalEvent.isTrusted
-            );
-        }
         List<Element> oldChain = previousCursorElement != null ? previousCursorElement.getRoute() : Collections.emptyList();
         List<Element> newChain = newTarget != null ? newTarget.getRoute() : Collections.emptyList();
 

@@ -7,9 +7,13 @@ import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Stack;
+import java.util.Map;
+import java.util.Set;
 
 final class HitTestCache {
     private final Document owner;
@@ -34,11 +38,16 @@ final class HitTestCache {
         dirty = false;
         if (owner == null || owner.body == null || paintOrder == null || paintOrder.isEmpty()) return;
 
-        Stack<Element> clipStack = new Stack<>();
+        ArrayDeque<Element> clipStack = new ArrayDeque<>();
+        Map<Element, Bounds> boundsCache = new IdentityHashMap<>();
+        Set<Element> seenElements = Collections.newSetFromMap(new IdentityHashMap<>());
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
             if (node instanceof RenderNode.MaskPopNode popNode) {
-                clipStack.push(popNode.target());
+                Element target = popNode.target();
+                if (target != null) {
+                    clipStack.push(target);
+                }
                 continue;
             }
             if (node instanceof RenderNode.MaskPushNode pushNode) {
@@ -50,15 +59,12 @@ final class HitTestCache {
             if (!(node instanceof RenderNode.ElementPhaseNode phaseNode)) continue;
             Element element = phaseNode.target();
             if (element == null || element.document != owner) continue;
+            if (!seenElements.add(element)) continue;
             if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;
 
-            Bounds bounds = resolveBounds(element);
+            Bounds bounds = resolveBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            ArrayList<Bounds> clips = new ArrayList<>(clipStack.size());
-            for (Element clip : clipStack) {
-                Bounds clipBounds = resolveBounds(clip);
-                if (clipBounds.isValid()) clips.add(clipBounds);
-            }
+            List<Bounds> clips = resolveClipBounds(clipStack, boundsCache);
             entries.add(new Entry(element, bounds, clips));
         }
     }
@@ -82,24 +88,40 @@ final class HitTestCache {
         return null;
     }
 
-    private static Bounds resolveBounds(Element element) {
+    private static Bounds resolveBounds(Element element, Map<Element, Bounds> boundsCache) {
         if (element == null) return Bounds.EMPTY;
+        Bounds cached = boundsCache.get(element);
+        if (cached != null) return cached;
+
+        Bounds bounds;
         if ("IMG".equals(element.tagName)) {
             Rect rect = Rect.of(element);
             Position position = rect.getBodyRectPosition();
             Size size = rect.getBodyRectSize();
-            return new Bounds(position.x, position.y, size.width(), size.height());
+            bounds = new Bounds(position.x, position.y, size.width(), size.height());
+        } else {
+            Position position = Position.of(element);
+            Box box = Box.of(element);
+            Size size = Size.of(element);
+            bounds = new Bounds(
+                    position.x + box.getMarginLeft(),
+                    position.y + box.getMarginTop(),
+                    size.width(),
+                    size.height()
+            );
         }
+        boundsCache.put(element, bounds);
+        return bounds;
+    }
 
-        Position position = Position.of(element);
-        Box box = Box.of(element);
-        Size size = Size.of(element);
-        return new Bounds(
-                position.x + box.getMarginLeft(),
-                position.y + box.getMarginTop(),
-                size.width(),
-                size.height()
-        );
+    private static List<Bounds> resolveClipBounds(ArrayDeque<Element> clipStack, Map<Element, Bounds> boundsCache) {
+        if (clipStack.isEmpty()) return List.of();
+        ArrayList<Bounds> clips = new ArrayList<>(clipStack.size());
+        for (Element clip : clipStack) {
+            Bounds clipBounds = resolveBounds(clip, boundsCache);
+            if (clipBounds.isValid()) clips.add(clipBounds);
+        }
+        return clips.isEmpty() ? List.of() : clips;
     }
 
     private record Entry(Element element, Bounds bounds, List<Bounds> clips) {

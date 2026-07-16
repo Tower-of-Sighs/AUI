@@ -28,6 +28,12 @@ public interface RenderNode {
         return !Interaction.isDisplayed(target) || !target.isVisible;
     }
 
+    static void ensureRendererLoaded(Element target) {
+        if (target == null || target.isLoaded) return;
+        target.resetRenderer();
+        target.isLoaded = true;
+    }
+
     record MaskPushNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
@@ -86,6 +92,7 @@ public interface RenderNode {
     record ElementPhaseNode(Element target, Base.RenderPhase phase) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
@@ -97,10 +104,6 @@ public interface RenderNode {
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
-            if (!target.isLoaded) {
-                target.resetRenderer();
-                target.isLoaded = true;
-            }
             if (Boolean.getBoolean("apricityui.test.logRenderPhases") && shouldLogTarget(target)) {
                 Position bodyPos = rect.getBodyRectPosition();
                 Size bodySize = rect.getBodyRectSize();
@@ -133,6 +136,7 @@ public interface RenderNode {
     record ElementBackgroundNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
@@ -142,10 +146,6 @@ public interface RenderNode {
             Base.applyTransform(poseStack, target);
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            if (!target.isLoaded) {
-                target.resetRenderer();
-                target.isLoaded = true;
-            }
             target.drawBackgroundOnly(poseStack);
             poseStack.popPose();
         }
@@ -154,6 +154,7 @@ public interface RenderNode {
     record ElementContentNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
             Rect rect = Rect.of(target);
@@ -163,10 +164,6 @@ public interface RenderNode {
             Base.applyTransform(poseStack, target);
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-            if (!target.isLoaded) {
-                target.resetRenderer();
-                target.isLoaded = true;
-            }
             target.drawContentOnly(poseStack);
             poseStack.popPose();
         }

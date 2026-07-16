@@ -40,7 +40,7 @@ final class RenderQueue {
             return;
         }
         paintList = Drawer.createPaintList(owner.documentElement);
-        hitTestCache.rebuild(paintList);
+        hitTestCache.markDirty();
     }
 
     void tickElements() {
@@ -54,7 +54,7 @@ final class RenderQueue {
         applyGlobalDirty();
         Drawer.flushUpdates(owner);
         if (hadWork) {
-            hitTestCache.rebuild(paintList);
+            hitTestCache.markDirty();
         }
     }
 
