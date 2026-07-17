@@ -221,8 +221,8 @@ public class Input extends AbstractText {
     }
 
     private int resolveCheckableBorderColor(Box box) {
-        Box.SideBorder top = box.border.get("top");
-        if (top != null && top.size() > 0) {
+        Box.SideBorder top = box.getBorderTopSide();
+        if (top.size() > 0) {
             return top.color().getValue();
         }
         return new Color(Text.getFontColor(this)).getValue();

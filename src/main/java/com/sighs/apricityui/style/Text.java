@@ -53,7 +53,7 @@ public class Text {
     public static double getFontSize(Element element) {
         Document.FontMode fontMode = getFontMode(element);
         double fontSize = fontMode.defaultFontSize();
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             e.getComputedStyle();
             String f = getDeclaredFontSize(e);
             if (!f.equals("unset")) {
@@ -67,7 +67,7 @@ public class Text {
 
     public static String getFontFamily(Element element) {
         String fontFamily = "unset";
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String f = e.getComputedStyle().fontFamily;
             if (!f.equals("unset")) {
                 fontFamily = f;
@@ -79,7 +79,7 @@ public class Text {
 
     public static int getFontWeight(Element element) {
         int fontWeight = 400;
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String f = e.getComputedStyle().fontWeight;
             if (!f.equals("unset")) {
                 fontWeight = parseFontWeight(f);
@@ -90,7 +90,7 @@ public class Text {
     }
 
     public static boolean isOblique(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String f = e.getComputedStyle().fontStyle;
             if (!f.equals("unset")) {
                 return isObliqueValue(f);
@@ -145,7 +145,7 @@ public class Text {
     }
 
     public static Style.TextStroke getTextStroke(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String s = e.getComputedStyle().textStroke;
             if (!s.equals("unset")) {
                 return parseTextStroke(s);
@@ -155,7 +155,7 @@ public class Text {
     }
 
     public static String getTextDirection(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String value = e.getComputedStyle().direction;
             if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
         }
@@ -163,7 +163,7 @@ public class Text {
     }
 
     public static String getTextAlign(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String value = e.getComputedStyle().textAlign;
             if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
         }
@@ -171,7 +171,7 @@ public class Text {
     }
 
     public static String getVerticalAlign(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String value = e.getComputedStyle().verticalAlign;
             if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
         }
@@ -179,7 +179,7 @@ public class Text {
     }
 
     public static String getWhiteSpace(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String value = e.getComputedStyle().whiteSpace;
             if (!value.equals("unset")) return value.trim().toLowerCase(Locale.ROOT);
         }
@@ -187,7 +187,7 @@ public class Text {
     }
 
     public static double getTextIndent(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String value = e.getComputedStyle().textIndent;
             if (!value.equals("unset")) {
                 Double indent = Size.tryResolveLength(value, Size.getScaleWidth(element));
@@ -198,7 +198,7 @@ public class Text {
     }
 
     public static double getLetterSpacing(Element element) {
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             String value = e.getComputedStyle().letterSpacing;
             if (!value.equals("unset")) {
                 String normalized = value.trim().toLowerCase(Locale.ROOT);
@@ -266,7 +266,7 @@ public class Text {
         boolean resolvedWhiteSpace = false;
         boolean resolvedTextIndent = false;
         boolean resolvedLetterSpacing = false;
-        for (Element e : element.getRoute()) {
+        for (Element e : element.getRouteArray()) {
             Style style = e.getComputedStyle();
             boolean shouldBreak = true;
             if (text.fontFamily.equals("unset")) {
@@ -866,20 +866,74 @@ public class Text {
     }
 
     private static String collapseToSingleLine(String content) {
-        String normalized = content.replace("\r\n", "\n").replace('\r', '\n');
-        normalized = normalized.replace('\n', ' ');
-        return normalized.replaceAll("[\\t\\x0B\\f ]+", " ").trim();
+        StringBuilder sb = new StringBuilder(content.length());
+        boolean pendingSpace = false;
+        boolean emitted = false;
+        for (int i = 0; i < content.length(); i++) {
+            char c = content.charAt(i);
+            if (c == '\r') {
+                if (i + 1 < content.length() && content.charAt(i + 1) == '\n') i++;
+                pendingSpace = true;
+                continue;
+            }
+            if (c == '\n' || isCollapsibleSpace(c)) {
+                pendingSpace = true;
+                continue;
+            }
+            if (pendingSpace && emitted) {
+                sb.append(' ');
+            }
+            sb.append(c);
+            pendingSpace = false;
+            emitted = true;
+        }
+        return sb.toString();
     }
 
     private static String collapseSpacesPreserveNewlines(String content) {
-        String normalized = content.replace("\r\n", "\n").replace('\r', '\n');
-        String[] lines = normalized.split("\n", -1);
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            if (i > 0) sb.append('\n');
-            sb.append(lines[i].replaceAll("[\\t\\x0B\\f ]+", " ").trim());
+        StringBuilder sb = new StringBuilder(content.length());
+        StringBuilder line = new StringBuilder();
+        for (int i = 0; i <= content.length(); i++) {
+            boolean end = i >= content.length();
+            char c = end ? '\n' : content.charAt(i);
+            if (c == '\r') {
+                if (i + 1 < content.length() && content.charAt(i + 1) == '\n') i++;
+                appendCollapsedLine(sb, line);
+                line.setLength(0);
+                if (!end) sb.append('\n');
+                continue;
+            }
+            if (c == '\n') {
+                appendCollapsedLine(sb, line);
+                line.setLength(0);
+                if (!end) sb.append('\n');
+                continue;
+            }
+            line.append(c);
         }
         return sb.toString();
+    }
+
+    private static void appendCollapsedLine(StringBuilder target, CharSequence line) {
+        boolean pendingSpace = false;
+        boolean emitted = false;
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (isCollapsibleSpace(c)) {
+                pendingSpace = true;
+                continue;
+            }
+            if (pendingSpace && emitted) {
+                target.append(' ');
+            }
+            target.append(c);
+            pendingSpace = false;
+            emitted = true;
+        }
+    }
+
+    private static boolean isCollapsibleSpace(char c) {
+        return c == ' ' || c == '\t' || c == '\u000B' || c == '\f';
     }
 
     private record LineMeasureKey(double fontSize, int fontWeight, boolean oblique, double strokeWidth,

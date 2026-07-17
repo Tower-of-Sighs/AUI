@@ -40,10 +40,7 @@ public final class LayoutCommit {
 
         Rect rect = Rect.of(target);
         rect.getVisualBounds();
-        for (Element routeElement : target.getRouteArray()) {
-            Rect routeRect = Rect.of(routeElement);
-            Base.prepareTransform(routeElement, routeRect.getShadowSize());
-        }
+        Base.prepareWorldTransform(target);
     }
 
     private static void ensureRendererLoaded(Element target) {

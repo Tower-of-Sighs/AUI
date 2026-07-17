@@ -70,6 +70,7 @@ public class Base {
         // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
         FrameScheduler.renderBegin();
         RectFrameCache.begin();
+        TransformFrameCache.begin();
         LayoutMeasureCache.begin();
         StyleFrameCache.begin();
         FilterRenderer.beginFrame();
@@ -104,6 +105,7 @@ public class Base {
             poseStack.popPose();
             StyleFrameCache.end();
             LayoutMeasureCache.end();
+            TransformFrameCache.end();
             RectFrameCache.end();
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
@@ -173,6 +175,19 @@ public class Base {
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {
+        Matrix4f matrix = prepareWorldTransform(element);
+        poseStack.mulPoseMatrix(matrix);
+    }
+
+    public static Matrix4f prepareWorldTransform(Element element) {
+        Matrix4f cached = TransformFrameCache.get(element);
+        if (cached != null) return cached;
+        Matrix4f matrix = computeWorldTransform(element);
+        TransformFrameCache.put(element, matrix);
+        return matrix;
+    }
+
+    private static Matrix4f computeWorldTransform(Element element) {
         Element[] route = element.getRouteArray();
         int routeSize = route.length;
         Scratch scratch = SCRATCH.get();
@@ -199,6 +214,7 @@ public class Base {
             }
         }
 
+        Matrix4f matrix = new Matrix4f();
         for (int i = routeSize - 1; i >= 0; i--) {
             Element e = route[i];
             double posX = absX[i];
@@ -222,21 +238,22 @@ public class Base {
 
                 for (Transform transform : functions) {
                     if (transform instanceof Transform.Translate t) {
-                        poseStack.translate(t.x(), t.y(), t.z());
+                        matrix.translate((float) t.x(), (float) t.y(), (float) t.z());
                     } else if (transform instanceof Transform.Rotate r) {
-                        poseStack.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
-                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
-                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
-                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
-                        poseStack.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
+                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
+                        if (r.x() != 0) matrix.rotate(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
+                        if (r.y() != 0) matrix.rotate(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
+                        if (r.z() != 0) matrix.rotate(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
+                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     } else if (transform instanceof Transform.Scale s) {
-                        poseStack.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
-                        poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
-                        poseStack.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
+                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
+                        matrix.scale((float) s.x(), (float) s.y(), 1.0f);
+                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     }
                 }
             }
         }
+        return matrix;
     }
 
     public static List<Transform> prepareTransform(Element element, Size size) {

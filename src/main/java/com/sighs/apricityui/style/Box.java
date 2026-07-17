@@ -4,7 +4,6 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -13,10 +12,22 @@ public class Box {
     public static final List<String> SIDE = List.of("top", "bottom", "left", "right");
     public static final String BOX_SIZING_CONTENT_BOX = "content-box";
     public static final String BOX_SIZING_BORDER_BOX = "border-box";
-    public final HashMap<String, SideBorder> border = new HashMap<>();
-    public final HashMap<String, Double> margin = new HashMap<>();
-    public final HashMap<String, Boolean> autoMargin = new HashMap<>();
-    public final HashMap<String, Double> padding = new HashMap<>();
+    private SideBorder borderTop = SideBorder.getDefault();
+    private SideBorder borderRight = SideBorder.getDefault();
+    private SideBorder borderBottom = SideBorder.getDefault();
+    private SideBorder borderLeft = SideBorder.getDefault();
+    private double marginTop = 0d;
+    private double marginRight = 0d;
+    private double marginBottom = 0d;
+    private double marginLeft = 0d;
+    private boolean autoMarginTop = false;
+    private boolean autoMarginRight = false;
+    private boolean autoMarginBottom = false;
+    private boolean autoMarginLeft = false;
+    private double paddingTop = 0d;
+    private double paddingRight = 0d;
+    private double paddingBottom = 0d;
+    private double paddingLeft = 0d;
     public final ArrayList<Integer> borderRadius = new ArrayList<>();
     public final List<Shadow> shadows = new ArrayList<>();
     public Shadow shadow = null;
@@ -24,17 +35,11 @@ public class Box {
     public Element element;
 
     public Box() {
-        SIDE.forEach(side -> {
-            border.put(side, SideBorder.getDefault());
-            margin.put(side, 0d);
-            autoMargin.put(side, false);
-            padding.put(side, 0d);
-        });
     }
 
     public void applyBorder(String side, String value) {
         SideBorder sideBorder = parseSideBorder(value);
-        border.put(side, sideBorder);
+        setBorder(side, sideBorder);
     }
 
     public void applyBorderAll(String value) {
@@ -43,8 +48,8 @@ public class Box {
 
     public void applyMargin(String side, String value) {
         boolean auto = isAuto(value);
-        autoMargin.put(side, auto);
-        margin.put(side, auto ? 0d : resolveBoxLength(value));
+        setAutoMargin(side, auto);
+        setMargin(side, auto ? 0d : resolveBoxLength(value));
     }
 
     public void applyMarginAll(String value) {
@@ -56,15 +61,15 @@ public class Box {
     }
 
     public void applyPadding(String side, String value) {
-        padding.put(side, resolveBoxLength(value));
+        setPadding(side, resolveBoxLength(value));
     }
 
     public void applyPaddingAll(String value) {
         double[] values = parseFourSideLengths(value);
-        padding.put("top", values[0]);
-        padding.put("right", values[1]);
-        padding.put("bottom", values[2]);
-        padding.put("left", values[3]);
+        paddingTop = values[0];
+        paddingRight = values[1];
+        paddingBottom = values[2];
+        paddingLeft = values[3];
     }
 
     private static boolean valid(String s) {
@@ -77,8 +82,8 @@ public class Box {
 
     private void applyParsedMargin(String side, BoxLength value) {
         if (value == null) value = BoxLength.zero();
-        autoMargin.put(side, value.auto());
-        margin.put(side, value.length());
+        setAutoMargin(side, value.auto());
+        setMargin(side, value.length());
     }
 
     public static Box of(Element element) {
@@ -236,7 +241,7 @@ public class Box {
     }
 
     public double offset(String side) {
-        return border.getOrDefault(side, SideBorder.getDefault()).size + margin.getOrDefault(side, 0d) + padding.getOrDefault(side, 0d);
+        return getBorder(side).size + getMargin(side) + getPadding(side);
     }
 
     public double getMarginHorizontal() {
@@ -248,23 +253,29 @@ public class Box {
     }
 
     public double getMarginLeft() {
-        return margin.getOrDefault("left", 0d);
+        return marginLeft;
     }
 
     public double getMarginTop() {
-        return margin.getOrDefault("top", 0d);
+        return marginTop;
     }
 
     public double getMarginRight() {
-        return margin.getOrDefault("right", 0d);
+        return marginRight;
     }
 
     public double getMarginBottom() {
-        return margin.getOrDefault("bottom", 0d);
+        return marginBottom;
     }
 
     public boolean isMarginAuto(String side) {
-        return autoMargin.getOrDefault(side, false);
+        return switch (normalizeSide(side)) {
+            case "top" -> autoMarginTop;
+            case "right" -> autoMarginRight;
+            case "bottom" -> autoMarginBottom;
+            case "left" -> autoMarginLeft;
+            default -> false;
+        };
     }
 
     public double getBorderHorizontal() {
@@ -276,19 +287,19 @@ public class Box {
     }
 
     public double getBorderLeft() {
-        return border.getOrDefault("left", SideBorder.getDefault()).size;
+        return borderLeft.size;
     }
 
     public double getBorderRight() {
-        return border.getOrDefault("right", SideBorder.getDefault()).size;
+        return borderRight.size;
     }
 
     public double getBorderTop() {
-        return border.getOrDefault("top", SideBorder.getDefault()).size;
+        return borderTop.size;
     }
 
     public double getBorderBottom() {
-        return border.getOrDefault("bottom", SideBorder.getDefault()).size;
+        return borderBottom.size;
     }
 
     public double getPaddingHorizontal() {
@@ -300,19 +311,110 @@ public class Box {
     }
 
     public double getPaddingLeft() {
-        return padding.getOrDefault("left", 0d);
+        return paddingLeft;
     }
 
     public double getPaddingRight() {
-        return padding.getOrDefault("right", 0d);
+        return paddingRight;
     }
 
     public double getPaddingTop() {
-        return padding.getOrDefault("top", 0d);
+        return paddingTop;
     }
 
     public double getPaddingBottom() {
-        return padding.getOrDefault("bottom", 0d);
+        return paddingBottom;
+    }
+
+    public SideBorder getBorderSide(String side) {
+        return getBorder(side);
+    }
+
+    public SideBorder getBorderTopSide() {
+        return borderTop;
+    }
+
+    public SideBorder getBorderRightSide() {
+        return borderRight;
+    }
+
+    public SideBorder getBorderBottomSide() {
+        return borderBottom;
+    }
+
+    public SideBorder getBorderLeftSide() {
+        return borderLeft;
+    }
+
+    private SideBorder getBorder(String side) {
+        return switch (normalizeSide(side)) {
+            case "top" -> borderTop;
+            case "right" -> borderRight;
+            case "bottom" -> borderBottom;
+            case "left" -> borderLeft;
+            default -> SideBorder.getDefault();
+        };
+    }
+
+    private double getMargin(String side) {
+        return switch (normalizeSide(side)) {
+            case "top" -> marginTop;
+            case "right" -> marginRight;
+            case "bottom" -> marginBottom;
+            case "left" -> marginLeft;
+            default -> 0d;
+        };
+    }
+
+    private double getPadding(String side) {
+        return switch (normalizeSide(side)) {
+            case "top" -> paddingTop;
+            case "right" -> paddingRight;
+            case "bottom" -> paddingBottom;
+            case "left" -> paddingLeft;
+            default -> 0d;
+        };
+    }
+
+    private void setBorder(String side, SideBorder value) {
+        SideBorder border = value == null ? SideBorder.getDefault() : value;
+        switch (normalizeSide(side)) {
+            case "top" -> borderTop = border;
+            case "right" -> borderRight = border;
+            case "bottom" -> borderBottom = border;
+            case "left" -> borderLeft = border;
+        }
+    }
+
+    private void setMargin(String side, double value) {
+        switch (normalizeSide(side)) {
+            case "top" -> marginTop = value;
+            case "right" -> marginRight = value;
+            case "bottom" -> marginBottom = value;
+            case "left" -> marginLeft = value;
+        }
+    }
+
+    private void setAutoMargin(String side, boolean value) {
+        switch (normalizeSide(side)) {
+            case "top" -> autoMarginTop = value;
+            case "right" -> autoMarginRight = value;
+            case "bottom" -> autoMarginBottom = value;
+            case "left" -> autoMarginLeft = value;
+        }
+    }
+
+    private void setPadding(String side, double value) {
+        switch (normalizeSide(side)) {
+            case "top" -> paddingTop = value;
+            case "right" -> paddingRight = value;
+            case "bottom" -> paddingBottom = value;
+            case "left" -> paddingLeft = value;
+        }
+    }
+
+    private static String normalizeSide(String side) {
+        return side == null ? "" : side.trim().toLowerCase(Locale.ROOT);
     }
 
 
