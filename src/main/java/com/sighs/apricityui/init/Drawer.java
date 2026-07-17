@@ -36,17 +36,14 @@ public class Drawer {
             if (e.hasDirtyFlag(REORDER)) {
                 // REORDER 通常会同时标记一批同层元素；按层叠上下文去重，避免同一帧重复 rebuild 大子树。
                 Element contextRoot = findNearestStackingContext(e);
-                reorderRoots.add(contextRoot);
+                if (contextRoot != null) {
+                    reorderRoots.add(contextRoot);
+                }
             }
         }
 
         if (!reorderRoots.isEmpty()) {
-            ArrayList<RenderNode> rebuilt = document.body == null
-                    ? new ArrayList<>()
-                    : createPaintList(document.body);
-            List<RenderNode> globalList = document.getPaintList();
-            globalList.clear();
-            globalList.addAll(rebuilt);
+            updatePaintList(document, reorderRoots);
         }
 
         for (Element e : sortedDirty) {
@@ -65,6 +62,43 @@ public class Drawer {
         ArrayList<RenderNode> paintList = new ArrayList<>();
         processStackingContext(body, paintList);
         return paintList;
+    }
+
+    private static void updatePaintList(Document document, Set<Element> reorderRoots) {
+        List<RenderNode> globalList = document.getPaintList();
+        Element paintRoot = getDocumentPaintRoot(document);
+        if (paintRoot == null) {
+            globalList.clear();
+            return;
+        }
+
+        List<Element> roots = minimizeRoots(reorderRoots);
+        boolean rebuildAll = globalList.isEmpty();
+
+        for (Element root : roots) {
+            if (root == null || !root.isConnected() || root == paintRoot) {
+                rebuildAll = true;
+                break;
+            }
+
+            ArrayList<RenderNode> rebuiltSubtree = createPaintList(root);
+            if (!updateGlobalPaintList(globalList, root, rebuiltSubtree)) {
+                rebuildAll = true;
+                break;
+            }
+        }
+
+        if (rebuildAll) {
+            ArrayList<RenderNode> rebuilt = createPaintList(paintRoot);
+            globalList.clear();
+            globalList.addAll(rebuilt);
+        }
+    }
+
+    private static Element getDocumentPaintRoot(Document document) {
+        if (document == null) return null;
+        if (document.documentElement != null) return document.documentElement;
+        return document.body;
     }
 
     /**
@@ -134,14 +168,8 @@ public class Drawer {
             String zIndexStr = style.zIndex;
             double translateZ = Transform.getTranslateZ(style.transform);
 
-            boolean childHasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
-            boolean childHasFilter = hasCompositedFilter(child, style);
             // 按照规范，filter, opacity, transform 等都会触发层叠上下文
-            boolean createsContext = !zIndexStr.equals("auto")
-                    || !style.position.equals("static")
-                    || childHasFilter
-                    || childHasBackdrop
-                    || Transform.createsStackingContext(style.transform);
+            boolean createsContext = createsPaintStackingContext(child, style);
 
             // 关键：保持 CSS 的大体绘制顺序
             // - 普通流（static, 不创建层叠上下文）应当先绘制
@@ -249,18 +277,19 @@ public class Drawer {
     }
 
     private static Element findNearestStackingContext(Element e) {
+        Element paintRoot = getDocumentPaintRoot(e == null ? null : e.document);
+        if (e == null) return paintRoot;
         Element current = e.parentElement;
         while (current != null) {
-            String zi = current.getRawComputedStyle().zIndex;
-            if (zi != null && !"auto".equals(zi)) {
+            if (current == paintRoot || createsPaintStackingContext(current, current.getRawComputedStyle())) {
                 return current;
             }
             current = current.parentElement;
         }
-        return e.document.body;
+        return paintRoot;
     }
 
-    private static void updateGlobalPaintList(List<RenderNode> globalList, Element root, List<RenderNode> newSubtree) {
+    private static boolean updateGlobalPaintList(List<RenderNode> globalList, Element root, List<RenderNode> newSubtree) {
         int startIndex = -1;
         for (int i = 0; i < globalList.size(); i++) {
             if (getNodeTarget(globalList.get(i)) == root) {
@@ -270,7 +299,7 @@ public class Drawer {
         }
 
         if (startIndex == -1) {
-            return;
+            return false;
         }
 
         int endIndex = startIndex + 1;
@@ -285,6 +314,7 @@ public class Drawer {
 
         globalList.subList(startIndex, endIndex).clear();
         globalList.addAll(startIndex, newSubtree);
+        return true;
     }
 
     private static boolean isNodeRelatedTo(RenderNode node, Element potentialParent) {
@@ -309,6 +339,18 @@ public class Drawer {
         if (!Filter.isDisabled(style.filter, style.opacity)) return true;
         if (Transition.affectsFilter(element)) return true;
         return Animation.affectsFilter(style);
+    }
+
+    private static boolean createsPaintStackingContext(Element element, Style style) {
+        if (style == null) return false;
+        String zIndex = style.zIndex == null ? "auto" : style.zIndex;
+        String position = style.position == null ? "static" : style.position;
+        boolean hasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
+        return !zIndex.equals("auto")
+                || !position.equals("static")
+                || hasCompositedFilter(element, style)
+                || hasBackdrop
+                || Transform.createsStackingContext(style.transform);
     }
 
 }

@@ -12,6 +12,12 @@ public class Rect {
     public String documentPath;
     public Background background;
     private AABB visualBounds;
+    private Position bodyRectPosition;
+    private Size bodyRectSize;
+    private float[] bodyRadius;
+    private Position shadowPosition;
+    private Size shadowSize;
+    private Position contentPosition;
 
     public Rect(Element element) {
         this.element = element;
@@ -66,22 +72,26 @@ public class Rect {
     }
 
     private double getMinBorderSize() {
-        return Math.min(Math.min(box.border.get("left").size(), box.border.get("top").size()), Math.min(box.border.get("right").size(), box.border.get("bottom").size()));
+        return Math.min(Math.min(box.getBorderLeft(), box.getBorderTop()), Math.min(box.getBorderRight(), box.getBorderBottom()));
     }
 
     public void drawBorder(PoseStack poseStack) {
-        float topW = (float) box.border.get("top").size();
-        float bottomW = (float) box.border.get("bottom").size();
-        float leftW = (float) box.border.get("left").size();
-        float rightW = (float) box.border.get("right").size();
+        Box.SideBorder topBorder = box.getBorderTopSide();
+        Box.SideBorder rightBorder = box.getBorderRightSide();
+        Box.SideBorder bottomBorder = box.getBorderBottomSide();
+        Box.SideBorder leftBorder = box.getBorderLeftSide();
+        float topW = (float) topBorder.size();
+        float bottomW = (float) bottomBorder.size();
+        float leftW = (float) leftBorder.size();
+        float rightW = (float) rightBorder.size();
 
         if (topW <= 0 && bottomW <= 0 && leftW <= 0 && rightW <= 0) return;
 
         Graph.beginBatch();
-        int topC = box.border.get("top").color().getValue();
-        int bottomC = box.border.get("bottom").color().getValue();
-        int leftC = box.border.get("left").color().getValue();
-        int rightC = box.border.get("right").color().getValue();
+        int topC = topBorder.color().getValue();
+        int bottomC = bottomBorder.color().getValue();
+        int leftC = leftBorder.color().getValue();
+        int rightC = rightBorder.color().getValue();
 
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
@@ -112,20 +122,26 @@ public class Rect {
     }
 
     public Position getBodyRectPosition() {
+        if (bodyRectPosition != null) return bodyRectPosition;
         double x = position.x + box.getMarginLeft() + box.getBorderLeft();
         double y = position.y + box.getMarginTop() + box.getBorderTop();
-        return new Position(x, y);
+        bodyRectPosition = new Position(x, y);
+        return bodyRectPosition;
     }
 
     public Size getBodyRectSize() {
+        if (bodyRectSize != null) return bodyRectSize;
         double width = box.elementSize().width() - box.getBorderHorizontal();
         double height = box.elementSize().height() - box.getBorderVertical();
-        return new Size(width, height);
+        bodyRectSize = new Size(width, height);
+        return bodyRectSize;
     }
 
     public float[] getBodyRadius() {
+        if (bodyRadius != null) return bodyRadius;
         Size s = getBodyRectSize();
-        return box.getCalculatedRadii((float) s.width(), (float) s.height(), (float) getMinBorderSize());
+        bodyRadius = box.getCalculatedRadii((float) s.width(), (float) s.height(), (float) getMinBorderSize());
+        return bodyRadius;
     }
 
     public void drawBody(PoseStack poseStack) {
@@ -209,15 +225,19 @@ public class Rect {
     }
 
     public Position getShadowPosition() {
+        if (shadowPosition != null) return shadowPosition;
         double x = position.x + box.getMarginLeft() + box.shadow.x();
         double y = position.y + box.getMarginTop() + box.shadow.y();
-        return new Position(x, y);
+        shadowPosition = new Position(x, y);
+        return shadowPosition;
     }
 
     public Size getShadowSize() {
+        if (shadowSize != null) return shadowSize;
         double width = box.elementSize().width();
         double height = box.elementSize().height();
-        return new Size(width, height);
+        shadowSize = new Size(width, height);
+        return shadowSize;
     }
 
     public void drawShadow(PoseStack poseStack) {
@@ -280,8 +300,10 @@ public class Rect {
     }
 
     public Position getContentPosition() {
+        if (contentPosition != null) return contentPosition;
         double x = position.x + box.getMarginLeft() + box.getBorderLeft() + box.getPaddingLeft();
         double y = position.y + box.getMarginTop() + box.getBorderTop() + box.getPaddingTop();
-        return new Position(x, y);
+        contentPosition = new Position(x, y);
+        return contentPosition;
     }
 }

@@ -111,8 +111,7 @@ final class TextSelection {
 
     void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
         if (!canSelectInnerText() || !hasInnerTextSelection()) return;
-        Text baseText = Text.of(owner);
-        baseText.content = getSelectableInnerText();
+        Text baseText = selectableText();
         if (baseText.content.isEmpty()) return;
         Text.WrappedText wrapped = Text.wrapCached(owner, baseText);
         List<String> lines = wrapped.lines();
@@ -148,9 +147,8 @@ final class TextSelection {
     }
 
     void drawInnerText(PoseStack poseStack, Rect rectRenderer) {
-        Text text = Text.of(owner);
+        Text text = selectableText();
         Position contentPos = rectRenderer.getContentPosition();
-        text.content = getSelectableInnerText();
         text.color = new Color(Text.getFontColor(owner));
 
         if (text.content == null || text.content.isEmpty()) return;
@@ -308,5 +306,28 @@ final class TextSelection {
         Text base = Text.of(owner);
         Text copy = Element.cloneTextForSegment(base, segment, Color.BLACK);
         return Text.measureLine(copy, segment);
+    }
+
+    private Text selectableText() {
+        Text base = Text.of(owner);
+        Text copy = new Text();
+        copy.fontSize = base.fontSize;
+        copy.fontWeight = base.fontWeight;
+        copy.oblique = base.oblique;
+        copy.strokeWidth = base.strokeWidth;
+        copy.strokeColor = base.strokeColor;
+        copy.color = base.color;
+        copy.fontFamily = base.fontFamily;
+        copy.lineHeight = base.lineHeight;
+        copy.direction = base.direction;
+        copy.textAlign = base.textAlign;
+        copy.verticalAlign = base.verticalAlign;
+        copy.whiteSpace = base.whiteSpace;
+        copy.fontMode = base.fontMode;
+        copy.textIndent = base.textIndent;
+        copy.letterSpacing = base.letterSpacing;
+        copy.rasterBackgroundColor = base.rasterBackgroundColor;
+        copy.content = getSelectableInnerText();
+        return copy;
     }
 }

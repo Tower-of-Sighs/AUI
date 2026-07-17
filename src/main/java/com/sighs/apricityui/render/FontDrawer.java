@@ -312,12 +312,6 @@ public class FontDrawer {
         String rasterKey = "|raster=" + rasterMode.cacheKey()
                 + "|comp=" + resolveTextCompositeMode(text).cacheKey()
                 + "|filter=" + resolveTextureFilterMode().cacheKey()
-                + "|source=" + resolveGlyphRasterSourceMode().cacheKey()
-                + "|alphaScale=" + resolveAlphaScaleMode().cacheKey()
-                + "|alphaCap=" + resolveAlphaCapMode().cacheKey()
-                + "|alphaRemap=" + resolveAlphaRemapMode().cacheKey()
-                + "|strokeControl=" + resolveStrokeControlMode().cacheKey()
-                + "|frc=" + resolveFontRenderContextMode().cacheKey()
                 + "|quadTexture=" + quadMode.textureCacheKey();
         if (Objects.equals(raw, content)) {
             return text.toKey() + rasterKey;
