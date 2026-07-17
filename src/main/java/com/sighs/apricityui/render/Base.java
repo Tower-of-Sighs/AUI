@@ -39,6 +39,7 @@ public class Base {
         for (Document document : Document.getAll()) {
             if (!document.inWorld) drawOverlayDocument(poseStack, document);
         }
+        FrameTimingHud.draw(poseStack);
     }
 
     public static void drawOverlayDocument(PoseStack poseStack, Document document) {
@@ -53,19 +54,23 @@ public class Base {
             Mask.popScissorScale();
             poseStack.popPose();
         }
+        FrameTimingHud.draw(poseStack);
     }
 
     public static void drawScreenDocument(PoseStack poseStack, Document document) {
         // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
         Mask.resetDepth();
         drawDocument(poseStack, document);
+        FrameTimingHud.draw(poseStack);
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        long startNs = System.nanoTime();
         // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
         // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
         FrameScheduler.renderBegin();
         RectFrameCache.begin();
+        LayoutMeasureCache.begin();
         StyleFrameCache.begin();
         FilterRenderer.beginFrame();
         poseStack.pushPose();
@@ -75,6 +80,7 @@ public class Base {
             // 这个if是应对paintList更新没跟上节点树更新的情况，也就是渲染状态滞后，差不多这个意思。
             document.stepMotionRender();
             document.stepScrollRender();
+            LayoutCommit.commit(document);
             Element skippedSubtree = null;
             for (RenderNode node : document.getPaintList()) {
                 if (skippedSubtree != null) {
@@ -97,9 +103,11 @@ public class Base {
             FontDrawer.popDocumentPixelScale();
             poseStack.popPose();
             StyleFrameCache.end();
+            LayoutMeasureCache.end();
             RectFrameCache.end();
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
+            FrameTimingHud.record(System.nanoTime() - startNs);
         }
     }
 
@@ -195,18 +203,14 @@ public class Base {
             Element e = route[i];
             double posX = absX[i];
             double posY = absY[i];
-            Box box = Box.of(e);
-            Size size = Size.of(e);
+            Rect rect = Rect.of(e);
+            Box box = rect.box;
+            Size size = rect.getShadowSize();
 
             double currentAbsX = posX + box.getMarginLeft();
             double currentAbsY = posY + box.getMarginTop();
 
-            List<Transform> functions = e.getRenderer().transform.get();
-            if (functions == null) {
-                String cssTransform = e.getComputedStyle().transform;
-                functions = Transform.parse(cssTransform, size.width(), size.height());
-                e.getRenderer().transform.set(functions);
-            }
+            List<Transform> functions = prepareTransform(e, size);
 
             if (!functions.isEmpty()) {
                 double w = size.width();
@@ -233,6 +237,15 @@ public class Base {
                 }
             }
         }
+    }
+
+    public static List<Transform> prepareTransform(Element element, Size size) {
+        List<Transform> functions = element.getRenderer().transform.get();
+        if (functions != null) return functions;
+        String cssTransform = element.getComputedStyle().transform;
+        functions = Transform.parse(cssTransform, size.width(), size.height());
+        element.getRenderer().transform.set(functions);
+        return functions;
     }
 
     private static float[] resolveTransformOrigin(String value, double width, double height) {

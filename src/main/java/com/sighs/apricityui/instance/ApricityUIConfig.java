@@ -15,6 +15,7 @@ public final class ApricityUIConfig {
     public static final class Client {
         public final ForgeConfigSpec.BooleanValue debugAutoReload;
         public final ForgeConfigSpec.BooleanValue aiAutoScreenshot;
+        public final ForgeConfigSpec.BooleanValue frameTimingHud;
 
         private Client(ForgeConfigSpec.Builder builder) {
             builder.push("debug");
@@ -24,6 +25,9 @@ public final class ApricityUIConfig {
             aiAutoScreenshot = builder
                     .comment("Enable AI helper screenshots (1 per second, keep latest 3) under screenshots/aui.")
                     .define("aiAutoScreenshot", false);
+            frameTimingHud = builder
+                    .comment("Show the AUI per-frame timing monitor in the top-left corner.")
+                    .define("frameTimingHud", false);
             builder.pop();
         }
     }

@@ -23,7 +23,13 @@ public final class NormalFlow {
     }
 
     public static Size computeContentSize(Element element) {
-        return computeFlow(element, element.getRenderChildNodes(), resolveLineLimit(element), null).metrics().contentSize();
+        double lineLimit = resolveLineLimit(element);
+        boolean natural = Size.isNaturalMeasurementContext();
+        Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.CONTENT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural);
+        if (cached != null) return cached;
+        Size result = computeFlow(element, element.getRenderChildNodes(), lineLimit, null).metrics().contentSize();
+        LayoutMeasureCache.putSize(LayoutMeasureCache.CONTENT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural, result);
+        return result;
     }
 
     public static List<TextRunLayout> computeTextRuns(Element element) {
