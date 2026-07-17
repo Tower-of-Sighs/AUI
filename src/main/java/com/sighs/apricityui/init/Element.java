@@ -295,7 +295,13 @@ public class Element extends Node {
         }
     }
 
-    void recomputeStyleSelf() {
+    protected final void requestPseudoStyleRecalc(String pseudoName) {
+        if (document != null) {
+            document.requestPseudoStyleRecalc(this, pseudoName);
+        }
+    }
+
+    boolean recomputeStyleSelf() {
         Style originStyle = getComputedStyle();
 
         cssCache = pseudoElement
@@ -310,6 +316,7 @@ public class Element extends Node {
 
         RenderElement.observeStyle(this, originStyle, currentStyle);
         Transition.create(this, originStyle, currentStyle);
+        return currentStyle.affectsDescendantComputedStyleComparedTo(originStyle);
     }
 
     public Style getComputedStyle() {
@@ -367,19 +374,19 @@ public class Element extends Node {
     public void setHover(boolean hover) {
         if (isHover == hover) return;
         isHover = hover;
-        requestStyleRecalc();
+        requestPseudoStyleRecalc("hover");
     }
 
     public void setActive(boolean active) {
         if (isActive == active) return;
         isActive = active;
-        requestStyleRecalc();
+        requestPseudoStyleRecalc("active");
     }
 
     public void setFocus(boolean value) {
         if (isFocus == value) return;
         isFocus = value;
-        requestStyleRecalc();
+        requestPseudoStyleRecalc("focus");
     }
 
     public boolean canFocus() {

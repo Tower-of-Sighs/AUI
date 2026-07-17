@@ -138,6 +138,7 @@ public class MouseEvent extends Event implements Cloneable {
     public static boolean tiggerEvent(MouseEvent event, Document document) {
         StyleFrameCache.begin();
         try {
+            try (Document.ContextScope ignored = Document.withContext(document)) {
             double originalClientX = event == null ? 0 : event.clientX;
             double originalClientY = event == null ? 0 : event.clientY;
             event = adaptToDocumentViewport(event, document);
@@ -146,6 +147,7 @@ public class MouseEvent extends Event implements Cloneable {
             Position detectionPos = new Position(event.clientX, event.clientY);
             Element target = document.hitTest(detectionPos);
             return triggerResolvedEvent(event, document, target, activeElement, true);
+            }
         } finally {
             StyleFrameCache.end();
         }
@@ -175,7 +177,9 @@ public class MouseEvent extends Event implements Cloneable {
     public static boolean dispatchToTarget(MouseEvent event, Document document, Element target) {
         StyleFrameCache.begin();
         try {
+            try (Document.ContextScope ignored = Document.withContext(document)) {
             return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
+            }
         } finally {
             StyleFrameCache.end();
         }

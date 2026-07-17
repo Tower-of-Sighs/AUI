@@ -37,6 +37,11 @@ public record Size(double width, double height) {
     }
 
     public static Size getWindowSize() {
+        Document context = Document.getContextDocument();
+        if (context != null && !context.inWorld && context.isActive()) {
+            com.sighs.apricityui.instance.ApricityViewport viewport = context.getViewport();
+            return new Size(viewport.layoutWidth(), viewport.layoutHeight());
+        }
         Size override = viewportOverride;
         if (override != null) {
             return override;
@@ -753,20 +758,20 @@ public record Size(double width, double height) {
     }
 
     public static double getRootFontSize() {
-        return getRootFontSize(null);
+        return getRootFontSize(Document.getContextDocument());
     }
 
     public static double getRootFontSize(Document preferredDocument) {
-        Double override = rootFontOverride;
-        if (override != null && override > 0) {
-            return override;
-        }
         if (preferredDocument != null) {
             Double parsed = resolveDocumentRootFontSize(preferredDocument);
             if (parsed != null && parsed > 0) {
                 return parsed;
             }
             return preferredDocument.getFontMode().defaultFontSize();
+        }
+        Double override = rootFontOverride;
+        if (override != null && override > 0) {
+            return override;
         }
         for (Document document : Document.getAll()) {
             if (document == null || !document.isActive()) continue;

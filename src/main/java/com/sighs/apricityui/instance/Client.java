@@ -10,6 +10,7 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
@@ -182,8 +183,13 @@ public class Client {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            drawPersistentScreenDocuments(event.getGuiGraphics());
-            Cursor.drawPseudoCursor(event.getGuiGraphics());
+            FrameTimingHud.beginFrame();
+            try {
+                drawPersistentScreenDocuments(event.getGuiGraphics());
+                Cursor.drawPseudoCursor(event.getGuiGraphics());
+            } finally {
+                FrameTimingHud.endFrame(event.getGuiGraphics().pose());
+            }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
@@ -191,21 +197,30 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
-            // Shared item render pass for DOM <slot> (createDocument path).
-            for (Document document : Document.getAll()) {
-                if (!document.inWorld) {
-                    renderOverlaySlotItems(event.getGuiGraphics(), document);
+            FrameTimingHud.beginFrame();
+            try {
+                Base.drawAllDocument(event.getGuiGraphics().pose());
+                // Shared item render pass for DOM <slot> (createDocument path).
+                for (Document document : Document.getAll()) {
+                    if (!document.inWorld) {
+                        renderOverlaySlotItems(event.getGuiGraphics(), document);
+                    }
                 }
+                Cursor.drawPseudoCursor(event.getGuiGraphics());
+            } finally {
+                FrameTimingHud.endFrame(event.getGuiGraphics().pose());
             }
-            Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
 
-    private static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics) {
+    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics) {
+        drawPersistentScreenDocuments(guiGraphics, null);
+    }
+
+    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics, Document excludedDocument) {
         for (Document document : Document.getAll()) {
-            if (document == null || document.inWorld || !document.isReloadPersistent()) {
+            if (document == null || document == excludedDocument || document.inWorld || !document.isReloadPersistent()) {
                 continue;
             }
             Base.drawOverlayDocument(guiGraphics.pose(), document);
@@ -215,6 +230,7 @@ public class Client {
 
     private static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphics guiGraphics, Document document) {
         if (guiGraphics == null || document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
         ApricityViewport viewport = document.getViewport();
         guiGraphics.pose().pushPose();
         Mask.pushScissorScale(viewport.scissorScale());
@@ -224,6 +240,7 @@ public class Client {
         } finally {
             Mask.popScissorScale();
             guiGraphics.pose().popPose();
+        }
         }
     }
 

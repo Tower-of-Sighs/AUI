@@ -243,6 +243,7 @@ public class ImageDrawer {
     public static void flushBatch() {
         if (batchRenderType == null || batchBufferSource == null) return;
         batchBufferSource.endBatch(batchRenderType);
+        RenderBatchStats.recordImageFlush();
         batchRenderType = null;
         batchBufferSource = null;
     }
@@ -589,6 +590,7 @@ public class ImageDrawer {
     }
 
     private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
+        Graph.endBatch();
         RenderType renderType = getRenderType(texture, blur, depthTest);
         if (Mask.isActive() || Mask.getCurrentScissor() != null) {
             flushBatch();
@@ -596,6 +598,7 @@ public class ImageDrawer {
             VertexConsumer vertexConsumer = bufferSource.getBuffer(renderType);
             emitQuad(vertexConsumer, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
             bufferSource.endBatch(renderType);
+            RenderBatchStats.recordImmediateImageFlush();
             return;
         }
 

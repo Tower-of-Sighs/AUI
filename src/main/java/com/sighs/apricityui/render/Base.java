@@ -39,29 +39,32 @@ public class Base {
         for (Document document : Document.getAll()) {
             if (!document.inWorld) drawOverlayDocument(poseStack, document);
         }
-        FrameTimingHud.draw(poseStack);
     }
 
     public static void drawOverlayDocument(PoseStack poseStack, Document document) {
         if (document == null) return;
-        ApricityViewport viewport = document.getViewport();
-        poseStack.pushPose();
-        Mask.pushScissorScale(viewport.scissorScale());
-        try {
-            poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-            drawDocument(poseStack, document);
-        } finally {
-            Mask.popScissorScale();
-            poseStack.popPose();
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            ApricityViewport viewport = document.getViewport();
+            poseStack.pushPose();
+            Mask.pushScissorScale(viewport.scissorScale());
+            try {
+                poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                drawDocument(poseStack, document);
+            } finally {
+                Mask.popScissorScale();
+                poseStack.popPose();
+            }
         }
-        FrameTimingHud.draw(poseStack);
     }
 
     public static void drawScreenDocument(PoseStack poseStack, Document document) {
-        // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
-        Mask.resetDepth();
-        drawDocument(poseStack, document);
-        FrameTimingHud.draw(poseStack);
+        if (document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
+            Mask.resetDepth();
+            Mask.resetDepth();
+            drawDocument(poseStack, document);
+        }
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
@@ -69,6 +72,8 @@ public class Base {
         // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
         // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
         FrameScheduler.renderBegin();
+        FrameScheduler.renderBegin();
+        RenderBatchStats.beginDocument();
         RectFrameCache.begin();
         TransformFrameCache.begin();
         LayoutMeasureCache.begin();
@@ -107,8 +112,10 @@ public class Base {
             LayoutMeasureCache.end();
             TransformFrameCache.end();
             RectFrameCache.end();
+            Graph.endBatch();
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
+            RenderBatchStats.endDocument();
             FrameTimingHud.record(System.nanoTime() - startNs);
         }
     }

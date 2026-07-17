@@ -73,6 +73,7 @@ public class Mask {
         boolean useScissor = !forceStencil && isRectMask(radii);
         maskScissorStack.push(useScissor);
         if (useScissor) {
+            Graph.endBatch();
             ImageDrawer.flushBatch();
             scissorStack.push(currentScissor);
             AABB newMask = new AABB(x, y, width, height);
@@ -83,6 +84,7 @@ public class Mask {
             return;
         }
 
+        Graph.endBatch();
         ImageDrawer.flushBatch();
 
         if (depth == 0) {
@@ -110,6 +112,7 @@ public class Mask {
     public static void popMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
         boolean useScissor = !maskScissorStack.isEmpty() && maskScissorStack.pop();
         if (useScissor) {
+            Graph.endBatch();
             ImageDrawer.flushBatch();
             if (!clipStack.isEmpty()) currentClip = clipStack.pop();
             currentScissor = scissorStack.isEmpty() ? null : scissorStack.pop();
@@ -118,6 +121,8 @@ public class Mask {
             return;
         }
 
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
         depth--;
         if (depth > 0) {
@@ -166,6 +171,7 @@ public class Mask {
         clipStack.push(currentClip);
         AABB newMask = new AABB(x, y, width, height);
         currentClip = currentClip.intersection(newMask);
+        Graph.endBatch();
         ImageDrawer.flushBatch();
 
         if (depth == 0) {
@@ -191,6 +197,8 @@ public class Mask {
     }
 
     public static void popClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
         pose.pushPose();
         setupStencilStatePop();

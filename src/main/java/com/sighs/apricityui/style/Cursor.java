@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
@@ -124,6 +125,7 @@ public class Cursor {
         float drawY = (float) mouse.y - drawHotspotY;
 
         poseStack.pushPose();
+        Graph.endBatch();
         ImageDrawer.flushBatch();
         Base.resolveOffset(poseStack);
         poseStack.translate(0.0D, 0.0D, PSEUDO_CURSOR_Z);

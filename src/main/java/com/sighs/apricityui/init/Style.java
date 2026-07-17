@@ -902,6 +902,17 @@ public class Style implements Cloneable {
         return customProperties.get(normalizeCustomPropertyName(name));
     }
 
+    public boolean affectsDescendantComputedStyleComparedTo(Style previous) {
+        if (previous == null) return true;
+        if (!customProperties.equals(previous.customProperties)) return true;
+        for (String cssName : INHERITED_PROPERTIES) {
+            if (!java.util.Objects.equals(get(cssName), previous.get(cssName))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static String normalizeCustomPropertyName(String name) {
         if (name.startsWith("--")) return name;
         return "--" + name;

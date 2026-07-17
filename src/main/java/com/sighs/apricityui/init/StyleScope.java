@@ -9,8 +9,13 @@ import java.util.List;
 import java.util.Set;
 
 final class StyleScope {
+    private enum RecalcMode {
+        SELF,
+        SUBTREE
+    }
+
     private final Document owner;
-    private final Set<Element> pendingRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final IdentityHashMap<Element, RecalcMode> pendingRoots = new IdentityHashMap<>();
     private final Object pendingRootsLock = new Object();
     private volatile Selector.Index selectorIndex = null;
 
@@ -19,34 +24,58 @@ final class StyleScope {
     }
 
     void requestRecalc(Element element) {
+        requestRecalc(element, RecalcMode.SUBTREE);
+    }
+
+    void requestPseudoRecalc(Element element, String pseudoName) {
+        if (element == null || element.document != owner) return;
+        RecalcMode mode = getSelectorIndex().pseudoCanAffectDescendants(pseudoName) ? RecalcMode.SUBTREE : RecalcMode.SELF;
+        requestRecalc(element, mode);
+    }
+
+    private void requestRecalc(Element element, RecalcMode mode) {
         if (element == null) return;
         if (element.document != owner) return;
         synchronized (pendingRootsLock) {
-            pendingRoots.add(element);
+            RecalcMode previous = pendingRoots.get(element);
+            if (previous == RecalcMode.SUBTREE || mode == null) return;
+            pendingRoots.put(element, mode);
         }
     }
 
     void flushPendingUpdates() {
-        ArrayList<Element> candidates;
+        ArrayList<Request> candidates;
         synchronized (pendingRootsLock) {
             if (pendingRoots.isEmpty()) return;
-            candidates = new ArrayList<>(pendingRoots);
+            candidates = new ArrayList<>(pendingRoots.size());
+            for (var entry : pendingRoots.entrySet()) {
+                candidates.add(new Request(entry.getKey(), entry.getValue()));
+            }
             pendingRoots.clear();
         }
-        candidates.sort(Comparator.comparingInt(Element::getDepth));
+        candidates.sort(Comparator.comparingInt(request -> request.element.getDepth()));
 
-        Set<Element> selected = Collections.newSetFromMap(new IdentityHashMap<>());
-        ArrayList<Element> roots = new ArrayList<>();
+        Set<Element> selectedSubtreeRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+        ArrayList<Request> roots = new ArrayList<>();
 
-        for (Element candidate : candidates) {
+        for (Request request : candidates) {
+            Element candidate = request.element;
             if (candidate == null || candidate.document != owner) continue;
-            if (isCoveredByAncestor(candidate, selected)) continue;
-            selected.add(candidate);
-            roots.add(candidate);
+            RecalcMode mode = request.mode == null ? RecalcMode.SUBTREE : request.mode;
+            if (isCoveredByAncestor(candidate, selectedSubtreeRoots)) continue;
+            roots.add(new Request(candidate, mode));
+            if (mode == RecalcMode.SUBTREE) {
+                selectedSubtreeRoots.add(candidate);
+            }
         }
 
-        for (Element root : roots) {
-            recomputeSubtree(root);
+        for (Request request : roots) {
+            Element root = request.element;
+            if (request.mode == RecalcMode.SELF) {
+                recomputeSelfAndMaybeDescendants(root);
+            } else {
+                recomputeSubtree(root);
+            }
         }
     }
 
@@ -68,6 +97,17 @@ final class StyleScope {
                 if (child == null) continue;
                 stack.push(child);
             }
+        }
+    }
+
+    private void recomputeSelfAndMaybeDescendants(Element element) {
+        if (element == null || element.document != owner) return;
+        boolean descendantsAffected = element.recomputeStyleSelf();
+        if (!descendantsAffected) return;
+
+        List<Element> children = element.children;
+        for (int i = 0; i < children.size(); i++) {
+            recomputeSubtree(children.get(i));
         }
     }
 
@@ -94,5 +134,8 @@ final class StyleScope {
             current = current.parentElement;
         }
         return false;
+    }
+
+    private record Request(Element element, RecalcMode mode) {
     }
 }
