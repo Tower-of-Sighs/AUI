@@ -117,8 +117,6 @@ public class Rect {
             ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage);
             return;
         }
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
     }
 
     public Position getBodyRectPosition() {
@@ -169,8 +167,6 @@ public class Rect {
                     Graph.beginBatch();
                 }
             }
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
             return;
         }
 
@@ -188,8 +184,6 @@ public class Rect {
             ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), background, element);
             return;
         }
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
     }
 
     private void drawGradientLayer(PoseStack poseStack, Position p, Size s, float[] radii, Background.Layer layer) {
@@ -266,7 +260,6 @@ public class Rect {
                 Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
             }
         }
-        Graph.endBatch();
     }
 
     private void drawZeroBlurOuterShadow(PoseStack poseStack, float sourceX, float sourceY, float shadowX, float shadowY, float width, float height, int color) {

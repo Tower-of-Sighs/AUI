@@ -21,8 +21,20 @@ public final class FrameTimingHud {
     private static final long[] SAMPLES = new long[SAMPLE_COUNT];
     private static int sampleIndex = 0;
     private static int sampleSize = 0;
+    private static boolean frameActive = false;
+    private static long frameElapsedNs = 0L;
 
     private FrameTimingHud() {
+    }
+
+    public static void beginFrame() {
+        if (!isEnabled()) {
+            clear();
+            return;
+        }
+        frameActive = true;
+        frameElapsedNs = 0L;
+        RenderBatchStats.beginFrame();
     }
 
     public static void record(long elapsedNs) {
@@ -31,6 +43,30 @@ public final class FrameTimingHud {
             return;
         }
         if (elapsedNs <= 0) return;
+        if (frameActive) {
+            frameElapsedNs += elapsedNs;
+            return;
+        }
+        pushSample(elapsedNs);
+    }
+
+    public static void endFrame(PoseStack poseStack) {
+        if (!isEnabled()) {
+            clear();
+            return;
+        }
+        if (frameActive) {
+            if (frameElapsedNs > 0) {
+                pushSample(frameElapsedNs);
+            }
+            frameActive = false;
+            frameElapsedNs = 0L;
+            RenderBatchStats.endFrame();
+        }
+        draw(poseStack);
+    }
+
+    private static void pushSample(long elapsedNs) {
         SAMPLES[sampleIndex] = elapsedNs;
         sampleIndex = (sampleIndex + 1) % SAMPLE_COUNT;
         if (sampleSize < SAMPLE_COUNT) {
@@ -58,10 +94,13 @@ public final class FrameTimingHud {
         double avg = (double) sum / sampleSize;
         String text = String.format(
                 Locale.ROOT,
-                "max %.2f ms  min %.2f ms  avg %.2f ms",
+                "max %.2f ms  min %.2f ms  avg %.2f ms  g %d img %d imm %d",
                 toMillis(max),
                 toMillis(min),
-                toMillis(avg)
+                toMillis(avg),
+                RenderBatchStats.lastGraphFlushes(),
+                RenderBatchStats.lastImageFlushes(),
+                RenderBatchStats.lastImmediateImageFlushes()
         );
         Minecraft minecraft = Minecraft.getInstance();
         Mask.resetDepth();
@@ -108,6 +147,8 @@ public final class FrameTimingHud {
     }
 
     private static void clear() {
+        frameActive = false;
+        frameElapsedNs = 0L;
         if (sampleSize == 0 && sampleIndex == 0) return;
         Arrays.fill(SAMPLES, 0L);
         sampleIndex = 0;

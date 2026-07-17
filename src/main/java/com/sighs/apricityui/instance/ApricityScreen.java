@@ -3,6 +3,7 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Size;
@@ -59,31 +60,37 @@ public class ApricityScreen extends Screen {
 
     @Override
     public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        if (linkedDocument != null) {
-            if (!loggedRenderState) {
-                loggedRenderState = true;
-                com.sighs.apricityui.ApricityUI.LOGGER.info(
-                        "[AUI Screen] render path={} doc={} body={} paintList={} dirty={}",
-                        templatePath,
-                        linkedDocument.getUuid(),
-                        linkedDocument.body == null ? "<null>" : linkedDocument.body.tagName,
-                        linkedDocument.getPaintList().size(),
-                        linkedDocument.getDirtyElements().size()
-                );
+        FrameTimingHud.beginFrame();
+        try {
+            if (linkedDocument != null) {
+                if (!loggedRenderState) {
+                    loggedRenderState = true;
+                    com.sighs.apricityui.ApricityUI.LOGGER.info(
+                            "[AUI Screen] render path={} doc={} body={} paintList={} dirty={}",
+                            templatePath,
+                            linkedDocument.getUuid(),
+                            linkedDocument.body == null ? "<null>" : linkedDocument.body.tagName,
+                            linkedDocument.getPaintList().size(),
+                            linkedDocument.getDirtyElements().size()
+                    );
+                }
+                ApricityViewport viewport = currentViewport();
+                guiGraphics.pose().pushPose();
+                Mask.pushScissorScale(viewport.scissorScale());
+                try {
+                    guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                    Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+                } finally {
+                    Mask.popScissorScale();
+                    guiGraphics.pose().popPose();
+                }
+                Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             }
-            ApricityViewport viewport = currentViewport();
-            guiGraphics.pose().pushPose();
-            Mask.pushScissorScale(viewport.scissorScale());
-            try {
-                guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-                Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
-            } finally {
-                Mask.popScissorScale();
-                guiGraphics.pose().popPose();
-            }
-            Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            Cursor.drawPseudoCursor(guiGraphics);
+        } finally {
+            FrameTimingHud.endFrame(guiGraphics.pose());
         }
-        Cursor.drawPseudoCursor(guiGraphics);
     }
 
     @Override

@@ -98,6 +98,7 @@ public class Graph {
             BufferBuilder buf = Base.getBuffer();
             BufferUploader.drawWithShader(buf.end());
             Base.finishRendering();
+            RenderBatchStats.recordGraphFlush();
         }
         batchActive = false;
         batchHasVertices = false;

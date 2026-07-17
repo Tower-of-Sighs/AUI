@@ -76,6 +76,7 @@ public class Document {
     }
 
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
+    private static final ThreadLocal<Document> contextDocument = new ThreadLocal<>();
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
@@ -156,7 +157,6 @@ public class Document {
     public void applyViewport(boolean relayout) {
         if (inWorld) return;
         viewport = viewportState.resolve(Minecraft.getInstance().getWindow());
-        Size.setViewportOverride(viewport.layoutWidth(), viewport.layoutHeight());
         setViewportTransform(viewport.renderScale(), viewport.renderScale(), 0.0d, 0.0d);
         if (relayout) {
             markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
@@ -194,57 +194,62 @@ public class Document {
 
     public void refresh() {
         beginRefreshLifecycle();
-        Size.clearRootFontOverride();
-        setFontMode(FontMode.WEB_SCALED);
-        CSSCache.clear();
-        CSSDebugRules.clear();
-        JSCache.clear();
-        tree.clear();
-        render.reset();
-        motion.clear();
-        invalidateSelectorIndex();
-        FontMode sourceFontMode = FontMode.parse(HTML.findMetaContent(path, "aui-font-mode"));
-        HTML.DocumentRoot root = HTML.create(this, path);
+        ContextScope contextScope = withContext(this);
         try {
-            if (root == null || root.body() == null) return;
-            if (body != null) root.body().setEventListeners(body.EventListener);
-            documentElement = root.documentElement();
-            head = root.head();
-            body = root.body();
-            FontMode headFontMode = resolveFontModeFromHead(head);
-            setFontMode(headFontMode == FontMode.WEB_SCALED ? sourceFontMode : headFontMode);
-            rebuildElementIndexFromBody();
+            Size.clearRootFontOverride();
+            setFontMode(FontMode.WEB_SCALED);
+            CSSCache.clear();
+            CSSDebugRules.clear();
+            JSCache.clear();
+            tree.clear();
+            render.reset();
+            motion.clear();
+            invalidateSelectorIndex();
+            FontMode sourceFontMode = FontMode.parse(HTML.findMetaContent(path, "aui-font-mode"));
+            HTML.DocumentRoot root = HTML.create(this, path);
+            try {
+                if (root == null || root.body() == null) return;
+                if (body != null) root.body().setEventListeners(body.EventListener);
+                documentElement = root.documentElement();
+                head = root.head();
+                body = root.body();
+                FontMode headFontMode = resolveFontModeFromHead(head);
+                setFontMode(headFontMode == FontMode.WEB_SCALED ? sourceFontMode : headFontMode);
+                rebuildElementIndexFromBody();
 
-            // First pass: ensure computed styles exist for DOM expanders.
-            style.recomputeSubtree(documentElement);
-            if (documentElement != null) {
-                Size.setRootFontOverride(resolveRootFontSize());
+                // First pass: ensure computed styles exist for DOM expanders.
+                style.recomputeSubtree(documentElement);
+                if (documentElement != null) {
+                    Size.setRootFontOverride(resolveRootFontSize());
+                    clearRenderCaches(documentElement);
+                    style.recomputeSubtree(documentElement);
+                }
+                DocumentExpander.apply(this);
+
+                // Final pass: apply styles once after expansion.
                 clearRenderCaches(documentElement);
                 style.recomputeSubtree(documentElement);
-            }
-            DocumentExpander.apply(this);
+                tree.getElements().forEach(Element::clearDirtyFlags);
+                render.reset();
+                render.rebuildPaintList();
+                ImageAsyncHandler.prefetchImages(this);
+                enterInteractive();
 
-            // Final pass: apply styles once after expansion.
-            clearRenderCaches(documentElement);
-            style.recomputeSubtree(documentElement);
-            tree.getElements().forEach(Element::clearDirtyFlags);
-            render.reset();
-            render.rebuildPaintList();
-            ImageAsyncHandler.prefetchImages(this);
-            enterInteractive();
-
-            for (String js : JSCache) {
-                String head = Loader.readGlobalJS();
-                if (head == null) head = "";
-                else head = head.replace("__AUI_DOCUMENT_UUID__", uuid.toString());
-                if (!head.isEmpty() && !head.endsWith("\n")) head += "\n";
-                ApricityJS.eval(head + js);
+                for (String js : JSCache) {
+                    String head = Loader.readGlobalJS();
+                    if (head == null) head = "";
+                    else head = head.replace("__AUI_DOCUMENT_UUID__", uuid.toString());
+                    if (!head.isEmpty() && !head.endsWith("\n")) head += "\n";
+                    ApricityJS.eval(head + js);
+                }
+                fireLifecycleEvent("DOMContentLoaded", false);
+                enterComplete();
+                fireLifecycleEvent("load", false);
+            } catch (Exception exception) {
+                ApricityUI.LOGGER.error("[AUI JS] document refresh failed for {}", path, exception);
             }
-            fireLifecycleEvent("DOMContentLoaded", false);
-            enterComplete();
-            fireLifecycleEvent("load", false);
-        } catch (Exception exception) {
-            ApricityUI.LOGGER.error("[AUI JS] document refresh failed for {}", path, exception);
+        } finally {
+            contextScope.close();
         }
     }
 
@@ -356,7 +361,9 @@ public class Document {
 
     public Element hitTest(Position documentPosition) {
         if (!isActive()) return null;
-        return render.hitTest(documentPosition);
+        try (ContextScope ignored = withContext(this)) {
+            return render.hitTest(documentPosition);
+        }
     }
 
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
@@ -372,6 +379,12 @@ public class Document {
         if (element == null) return;
         if (element.document != this) return;
         style.requestRecalc(element);
+    }
+
+    public void requestPseudoStyleRecalc(Element element, String pseudoName) {
+        if (element == null) return;
+        if (element.document != this) return;
+        style.requestPseudoRecalc(element, pseudoName);
     }
 
     /**
@@ -396,6 +409,7 @@ public class Document {
      */
     public void tickFrame() {
         if (!isActive()) return;
+        try (ContextScope ignored = withContext(this)) {
         commitStyleRecalc();
         stepMotion();
         tickElements();
@@ -404,6 +418,7 @@ public class Document {
         stepMotion();
         flushMutationObservers();
         commitRenderState();
+        }
     }
 
     /**
@@ -754,6 +769,47 @@ public class Document {
 
     public static List<Document> getAll() {
         return documents;
+    }
+
+    public static Document getContextDocument() {
+        return contextDocument.get();
+    }
+
+    public static void runWithContext(Document document, Runnable runnable) {
+        if (runnable == null) return;
+        try (ContextScope ignored = withContext(document)) {
+            runnable.run();
+        }
+    }
+
+    public static ContextScope withContext(Document document) {
+        Document previous = contextDocument.get();
+        if (document == null) {
+            contextDocument.remove();
+        } else {
+            contextDocument.set(document);
+        }
+        return new ContextScope(previous);
+    }
+
+    public static final class ContextScope implements AutoCloseable {
+        private final Document previous;
+        private boolean closed = false;
+
+        private ContextScope(Document previous) {
+            this.previous = previous;
+        }
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+            if (previous == null) {
+                contextDocument.remove();
+            } else {
+                contextDocument.set(previous);
+            }
+        }
     }
 
     public ArrayList<Element> getElements() {

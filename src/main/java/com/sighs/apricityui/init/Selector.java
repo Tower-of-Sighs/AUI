@@ -134,6 +134,7 @@ public class Selector {
         private final Map<String, List<IndexedRule>> byTag = new HashMap<>();
         private final Map<String, List<IndexedRule>> byPseudo = new HashMap<>();
         private final Map<String, List<IndexedRule>> byAttr = new HashMap<>();
+        private final Set<String> pseudosAffectingDescendants = new HashSet<>();
         private final List<IndexedRule> always = new ArrayList<>();
 
         // 每次调用 match() 时复用的临时缓冲区（仅 tick 线程）
@@ -170,6 +171,7 @@ public class Selector {
 
         private void addRule(IndexedRule rule) {
             List<Component> components = rule.selector.components;
+            recordAncestorPseudoDependencies(rule.selector);
             Component last = components.get(components.size() - 1);
 
             // 优先用最后一个 component 的 id/class/tag 作为候选索引键。
@@ -204,6 +206,22 @@ public class Selector {
             }
 
             always.add(rule);
+        }
+
+        private void recordAncestorPseudoDependencies(CompiledSelector selector) {
+            if (selector == null || selector.components == null || selector.components.size() <= 1) return;
+            for (int i = 0; i < selector.components.size() - 1; i++) {
+                Component component = selector.components.get(i);
+                if (component == null || component.pseudos == null || component.pseudos.isEmpty()) continue;
+                for (Pseudo pseudo : component.pseudos) {
+                    if (pseudo == null || pseudo.name == null || pseudo.name.isBlank()) continue;
+                    pseudosAffectingDescendants.add(pseudo.name);
+                }
+            }
+        }
+
+        public boolean pseudoCanAffectDescendants(String pseudoName) {
+            return pseudoName != null && pseudosAffectingDescendants.contains(pseudoName);
         }
 
         public HashMap<String, String> match(Element element) {

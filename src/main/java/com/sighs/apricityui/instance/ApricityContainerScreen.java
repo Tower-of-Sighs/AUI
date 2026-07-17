@@ -7,6 +7,7 @@ import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.instance.screen.SlotDataBinder;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Size;
@@ -121,19 +122,25 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
     @Override
     public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        if (linkedDocument != null && slotBinder != null) {
-            if (slotBinder.shouldRebindSlotsFromDom(linkedDocument)) {
-                slotBinder.bindSlotsFromDocument(linkedDocument);
-                slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
-            } else {
-                slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, false);
+        FrameTimingHud.beginFrame();
+        try {
+            if (linkedDocument != null && slotBinder != null) {
+                if (slotBinder.shouldRebindSlotsFromDom(linkedDocument)) {
+                    slotBinder.bindSlotsFromDocument(linkedDocument);
+                    slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+                } else {
+                    slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, false);
+                }
             }
-        }
 
-        super.render(guiGraphics, mouseX, mouseY, partialTick);
-        drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
-        drawDevToolsOverlay(guiGraphics);
-        Cursor.drawPseudoCursor(guiGraphics);
+            super.render(guiGraphics, mouseX, mouseY, partialTick);
+            drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
+            drawDevToolsOverlay(guiGraphics);
+            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            Cursor.drawPseudoCursor(guiGraphics);
+        } finally {
+            FrameTimingHud.endFrame(guiGraphics.pose());
+        }
     }
 
     @Override

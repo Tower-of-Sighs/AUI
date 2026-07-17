@@ -202,7 +202,6 @@ public class Input extends AbstractText {
                 drawCheckboxMark(poseStack, x, y, controlSize, indicatorColor);
             }
         }
-        Graph.endBatch();
     }
 
     private void drawCheckboxMark(PoseStack poseStack, float x, float y, float size, int color) {
