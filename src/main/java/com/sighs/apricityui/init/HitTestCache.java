@@ -11,6 +11,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -62,11 +63,68 @@ final class HitTestCache {
             if (!seenElements.add(element)) continue;
             if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;
 
-            Bounds bounds = resolveBounds(element, boundsCache);
+            Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            List<Bounds> clips = resolveClipBounds(clipStack, boundsCache);
+            List<Bounds> clips = resolveCommittedClipBounds(clipStack, boundsCache);
             entries.add(new Entry(element, bounds, clips));
         }
+    }
+
+    void updateSubtrees(List<RenderNode> paintOrder, Set<Element> dirtyRoots) {
+        if (dirty || dirtyRoots == null || dirtyRoots.isEmpty()) {
+            if (dirty) rebuild(paintOrder);
+            return;
+        }
+        if (paintOrder == null || paintOrder.isEmpty()) {
+            clear();
+            return;
+        }
+
+        Set<Element> roots = minimizeRoots(dirtyRoots);
+        if (roots.isEmpty()) return;
+        removeEntriesForRoots(roots);
+
+        ArrayDeque<Element> clipStack = new ArrayDeque<>();
+        Map<Element, Bounds> boundsCache = new IdentityHashMap<>();
+        Set<Element> seenElements = Collections.newSetFromMap(new IdentityHashMap<>());
+        ArrayList<Entry> rebuilt = new ArrayList<>();
+        for (int i = paintOrder.size() - 1; i >= 0; i--) {
+            RenderNode node = paintOrder.get(i);
+            if (node instanceof RenderNode.MaskPopNode popNode) {
+                Element target = popNode.target();
+                if (target != null) {
+                    clipStack.push(target);
+                }
+                continue;
+            }
+            if (node instanceof RenderNode.MaskPushNode pushNode) {
+                if (!clipStack.isEmpty() && clipStack.peek() == pushNode.target()) {
+                    clipStack.pop();
+                }
+                continue;
+            }
+            if (!(node instanceof RenderNode.ElementPhaseNode phaseNode)) continue;
+            Element element = phaseNode.target();
+            if (element == null || element.document != owner) continue;
+            if (!isInAnyRoot(element, roots)) continue;
+            if (!seenElements.add(element)) continue;
+            if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;
+
+            Bounds bounds = resolveCommittedBounds(element, boundsCache);
+            if (!bounds.isValid()) continue;
+            List<Bounds> clips = resolveCommittedClipBounds(clipStack, boundsCache);
+            rebuilt.add(new Entry(element, bounds, clips));
+        }
+        if (rebuilt.isEmpty()) return;
+
+        int insertIndex = entries.size();
+        for (int i = 0; i < entries.size(); i++) {
+            if (comesBeforeInPaintOrder(rebuilt.get(0).element, entries.get(i).element, paintOrder)) {
+                insertIndex = i;
+                break;
+            }
+        }
+        entries.addAll(insertIndex, rebuilt);
     }
 
     Element hitTest(Position cursorPosition, List<RenderNode> paintOrder) {
@@ -88,21 +146,22 @@ final class HitTestCache {
         return null;
     }
 
-    private static Bounds resolveBounds(Element element, Map<Element, Bounds> boundsCache) {
+    private static Bounds resolveCommittedBounds(Element element, Map<Element, Bounds> boundsCache) {
         if (element == null) return Bounds.EMPTY;
         Bounds cached = boundsCache.get(element);
         if (cached != null) return cached;
 
+        Rect rect = element.getRenderer().getCommittedRect();
+        if (rect == null) return Bounds.EMPTY;
         Bounds bounds;
         if ("IMG".equals(element.tagName)) {
-            Rect rect = Rect.of(element);
             Position position = rect.getBodyRectPosition();
             Size size = rect.getBodyRectSize();
             bounds = new Bounds(position.x, position.y, size.width(), size.height());
         } else {
-            Position position = Position.of(element);
-            Box box = Box.of(element);
-            Size size = Size.of(element);
+            Position position = rect.position;
+            Box box = rect.box;
+            Size size = box.elementSize();
             bounds = new Bounds(
                     position.x + box.getMarginLeft(),
                     position.y + box.getMarginTop(),
@@ -114,14 +173,79 @@ final class HitTestCache {
         return bounds;
     }
 
-    private static List<Bounds> resolveClipBounds(ArrayDeque<Element> clipStack, Map<Element, Bounds> boundsCache) {
+    private static List<Bounds> resolveCommittedClipBounds(ArrayDeque<Element> clipStack, Map<Element, Bounds> boundsCache) {
         if (clipStack.isEmpty()) return List.of();
         ArrayList<Bounds> clips = new ArrayList<>(clipStack.size());
         for (Element clip : clipStack) {
-            Bounds clipBounds = resolveBounds(clip, boundsCache);
+            Bounds clipBounds = resolveCommittedBounds(clip, boundsCache);
             if (clipBounds.isValid()) clips.add(clipBounds);
         }
         return clips.isEmpty() ? List.of() : clips;
+    }
+
+    private void removeEntriesForRoots(Set<Element> roots) {
+        for (Iterator<Entry> iterator = entries.iterator(); iterator.hasNext(); ) {
+            Entry entry = iterator.next();
+            if (isInAnyRoot(entry.element, roots)) {
+                iterator.remove();
+            }
+        }
+    }
+
+    private static Set<Element> minimizeRoots(Set<Element> roots) {
+        ArrayList<Element> sorted = new ArrayList<>(roots);
+        sorted.sort(java.util.Comparator.comparingInt(Element::getDepth));
+        Set<Element> result = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Element root : sorted) {
+            if (root == null || !root.isConnected()) continue;
+            boolean covered = false;
+            for (Element selected : result) {
+                if (isDescendantOf(root, selected)) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) result.add(root);
+        }
+        return result;
+    }
+
+    private static boolean isInAnyRoot(Element element, Set<Element> roots) {
+        if (element == null || roots == null || roots.isEmpty()) return false;
+        for (Element root : roots) {
+            if (isDescendantOf(element, root)) return true;
+        }
+        return false;
+    }
+
+    private static boolean isDescendantOf(Element child, Element potentialParent) {
+        if (child == null || potentialParent == null) return false;
+        if (child == potentialParent) return true;
+        Element current = child.parentElement;
+        while (current != null) {
+            if (current == potentialParent) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
+    private static boolean comesBeforeInPaintOrder(Element left, Element right, List<RenderNode> paintOrder) {
+        int leftIndex = firstPaintIndex(left, paintOrder);
+        int rightIndex = firstPaintIndex(right, paintOrder);
+        if (leftIndex < 0) return false;
+        if (rightIndex < 0) return true;
+        return leftIndex > rightIndex;
+    }
+
+    private static int firstPaintIndex(Element element, List<RenderNode> paintOrder) {
+        if (element == null || paintOrder == null) return -1;
+        for (int i = paintOrder.size() - 1; i >= 0; i--) {
+            RenderNode node = paintOrder.get(i);
+            if (node instanceof RenderNode.ElementPhaseNode phaseNode && phaseNode.target() == element) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private record Entry(Element element, Bounds bounds, List<Bounds> clips) {

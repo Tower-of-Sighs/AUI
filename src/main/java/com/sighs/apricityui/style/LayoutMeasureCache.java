@@ -9,6 +9,9 @@ public final class LayoutMeasureCache {
     public static final int SIZE_NATURAL = 1;
     public static final int CONTENT_FLEX = 2;
     public static final int CONTENT_NORMAL_FLOW = 3;
+    public static final int LAYOUT_FLEX = 4;
+    public static final int LAYOUT_NORMAL_FLOW = 5;
+    public static final int FLEX_ASSIGNED_MAIN_SIZES = 6;
 
     private static final ThreadLocal<State> STATE = new ThreadLocal<>();
 
@@ -59,12 +62,25 @@ public final class LayoutMeasureCache {
         state.sizes.put(new Key(mode, element, availableWidth, availableHeight, natural), size);
     }
 
+    public static Object getObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
+        State state = STATE.get();
+        if (state == null || element == null) return null;
+        return state.objects.get(new Key(mode, element, availableWidth, availableHeight, natural));
+    }
+
+    public static void putObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Object value) {
+        State state = STATE.get();
+        if (state == null || element == null || value == null) return;
+        state.objects.put(new Key(mode, element, availableWidth, availableHeight, natural), value);
+    }
+
     private static final class State {
         private int depth = 0;
         private final IdentityHashMap<Element, Size> naturalSizes = new IdentityHashMap<>();
         private final IdentityHashMap<Element, Size> flexContentSizes = new IdentityHashMap<>();
         private final IdentityHashMap<Element, Size> naturalFlexContentSizes = new IdentityHashMap<>();
         private final HashMap<Key, Size> sizes = new HashMap<>();
+        private final HashMap<Key, Object> objects = new HashMap<>();
     }
 
     private static final class Key {

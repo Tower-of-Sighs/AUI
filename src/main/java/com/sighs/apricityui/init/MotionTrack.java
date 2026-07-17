@@ -50,10 +50,11 @@ final class MotionTrack {
         setFlag(element, FLAG_ANIMATION_SPEC, hasSpec);
     }
 
-    void stepRender() {
-        if (!StyleFrameCache.isActive()) return;
-        if (flags.isEmpty()) return;
+    boolean stepRender() {
+        if (!StyleFrameCache.isActive()) return false;
+        if (flags.isEmpty()) return false;
 
+        boolean changed = false;
         for (Map.Entry<Element, Integer> entry : flags.entrySet()) {
             Element element = entry.getKey();
             if (element == null || element.document != owner) {
@@ -93,6 +94,7 @@ final class MotionTrack {
             // 为当帧提供“带 motion 的 computed style”
             invalidateMotionCaches(element, base, animated);
             StyleFrameCache.put(element, animated);
+            changed = true;
 
             // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
             if (!Objects.equals(animated.transform, base.transform)
@@ -106,6 +108,7 @@ final class MotionTrack {
                 element.getRenderer().backdropFilter.clear();
             }
         }
+        return changed;
     }
 
     private static void invalidateMotionCaches(Element element, Style base, Style animated) {

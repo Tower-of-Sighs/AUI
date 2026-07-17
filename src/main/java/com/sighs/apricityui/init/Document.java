@@ -410,14 +410,19 @@ public class Document {
     public void tickFrame() {
         if (!isActive()) return;
         try (ContextScope ignored = withContext(this)) {
-        commitStyleRecalc();
-        stepMotion();
-        tickElements();
-        // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
-        commitStyleRecalc();
-        stepMotion();
-        flushMutationObservers();
-        commitRenderState();
+            StyleFrameCache.begin();
+            try {
+                commitStyleRecalc();
+                tickElements();
+                // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
+                commitStyleRecalc();
+                stepMotion();
+                stepScrollRender();
+                flushMutationObservers();
+                commitRenderState();
+            } finally {
+                StyleFrameCache.end();
+            }
         }
     }
 
@@ -436,7 +441,11 @@ public class Document {
      * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
      */
     public void stepMotion() {
-        // Intentionally no-op for now.
+        boolean changed = motion.stepRender();
+        if (changed) {
+            render.markLayoutCommitDirty();
+            render.markHitTestDirty();
+        }
     }
 
     /**
@@ -445,11 +454,6 @@ public class Document {
      * 该阶段只写 {@link StyleFrameCache}（当帧缓存）与少量渲染相关缓存失效（transform/filter），
      * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
      */
-    public void stepMotionRender() {
-        if (!isActive()) return;
-        motion.stepRender();
-    }
-
     public void stepScrollRender() {
         if (!isActive()) return;
         if (activeScrollElements.isEmpty()) return;
@@ -460,7 +464,9 @@ public class Document {
             }
             boolean moving = element.stepScrollRender();
             if (moving) {
-                render.markHitTestDirty();
+                element.getRenderer().clearCommittedLayoutSubtree();
+                render.markLayoutCommitDirty();
+                render.markHitTestDirty(element);
             }
             if (!moving && !element.needsScrollRenderStep()) {
                 activeScrollElements.remove(element);

@@ -30,8 +30,7 @@ public class Rect {
     public static Rect of(Element element) {
         Rect cached = RectFrameCache.get(element);
         if (cached != null) return cached;
-        Rect result = new Rect(element);
-        RectFrameCache.put(element, result);
+        Rect result = createAndCache(element);
         return result;
 //        Rect cache = Cache.rect.get(element);
 //        if (cache != null) return cache;
@@ -40,6 +39,12 @@ public class Rect {
 //            Cache.rect.set(element, result);
 //            return result;
 //        }
+    }
+
+    public static Rect createAndCache(Element element) {
+        Rect result = new Rect(element);
+        RectFrameCache.put(element, result);
+        return result;
     }
 
     public AABB getVisualBounds() {
