@@ -7,6 +7,7 @@ import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.TextNode;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 
 public class Flex {
@@ -30,113 +31,8 @@ public class Flex {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Box parentBox = Box.of(parent);
-        Flex flex = Flex.of(parent);
-        List<Element> flowItems = getFlowItems(siblings);
-        List<FlexParticipant> participants = buildParticipants(parent, flowItems);
-        int index = flowItems.indexOf(element);
-        if (index < 0) {
-            return new Position(parentBox.offset("left"), parentBox.offset("top"));
-        }
-        int participantIndex = indexOfParticipant(participants, element);
-        if (participantIndex < 0) {
-            return new Position(parentBox.offset("left"), parentBox.offset("top"));
-        }
-        if (flex.flexWrap.canWrap() && flex.flexDirection.isRow()) {
-            return computeWrappedRowChildPosition(element, parent, flowItems, index);
-        }
-
-        Size parentContentSize = parentBox.innerSize();
-        double availableMain = resolveAvailableMainSize(parent, parentBox, flex);
-
-        double offsetX = parentBox.offset("left"), offsetY = parentBox.offset("top");
-        double gap = resolveMainAxisGap(parent);
-        double[] itemMainSizes = computeAssignedMainSizes(parent, flowItems);
-
-        double siblingsTotalWidth = 0, siblingsTotalHeight = 0;
-        for (int i = 0; i < participants.size(); i++) {
-            FlexParticipant participant = participants.get(i);
-            Size siblingSize = participant.size();
-            double mainSize = participant.element() == null
-                    ? participant.mainSize(flex.flexDirection.isColumn())
-                    : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
-            if (flex.flexDirection.isColumn()) {
-                siblingsTotalWidth = Math.max(siblingsTotalWidth, siblingSize.width());
-                siblingsTotalHeight += mainSize;
-            } else {
-                siblingsTotalHeight = Math.max(siblingsTotalHeight, siblingSize.height());
-                siblingsTotalWidth += mainSize;
-            }
-        }
-        if (participants.size() > 1) {
-            if (flex.flexDirection.isColumn()) siblingsTotalHeight += gap * (participants.size() - 1);
-            else siblingsTotalWidth += gap * (participants.size() - 1);
-        }
-
-        double offsetTotal;
-        if (flex.flexDirection.isColumn()) {
-            offsetTotal = availableMain - siblingsTotalHeight;
-        } else {
-            offsetTotal = availableMain - siblingsTotalWidth;
-        }
-
-        double autoMarginShare = resolveMainAxisAutoMarginShare(participants, flex.flexDirection.isColumn(), offsetTotal);
-        double justifyOffsetTotal = autoMarginShare > 0 ? 0 : offsetTotal;
-        FlexLayoutOffset flexOffset = computeJustifyContentOffset(flex.justifyContent, justifyOffsetTotal, participants.size(), participantIndex);
-        double offsetStart = flexOffset.offsetStart;
-        double offsetInterval = flexOffset.offsetInterval;
-
-        if (flex.flexDirection.isColumn()) {
-            offsetY += offsetStart;
-        } else {
-            offsetX += offsetStart;
-        }
-
-        for (int i = 0; i < participants.size(); i++) {
-            if (i < participantIndex) {
-                FlexParticipant participant = participants.get(i);
-                double mainSize = participant.element() == null
-                        ? participant.mainSize(flex.flexDirection.isColumn())
-                        : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
-                if (flex.flexDirection.isColumn()) {
-                    offsetY += mainAxisAutoMarginBefore(participant, true, autoMarginShare)
-                            + mainSize
-                            + mainAxisAutoMarginAfter(participant, true, autoMarginShare)
-                            + gap
-                            + offsetInterval;
-                } else {
-                    offsetX += mainAxisAutoMarginBefore(participant, false, autoMarginShare)
-                            + mainSize
-                            + mainAxisAutoMarginAfter(participant, false, autoMarginShare)
-                            + gap
-                            + offsetInterval;
-                }
-            }
-        }
-
-        FlexParticipant targetParticipant = participants.get(participantIndex);
-        if (flex.flexDirection.isColumn()) {
-            offsetY += mainAxisAutoMarginBefore(targetParticipant, true, autoMarginShare);
-        } else {
-            offsetX += mainAxisAutoMarginBefore(targetParticipant, false, autoMarginShare);
-        }
-
-        double offsetWidth = parentContentSize.width() - Size.box(element).width();
-        double offsetHeight = parentContentSize.height() - Size.box(element).height();
-        if (flex.alignItems.isCenter()) {
-            if (flex.flexDirection.isColumn()) {
-                offsetX += offsetWidth / 2;
-            } else {
-                offsetY += offsetHeight / 2;
-            }
-        } else if (flex.alignItems.isFlexEnd()) {
-            if (flex.flexDirection.isColumn()) {
-                offsetX += offsetWidth;
-            } else {
-                offsetY += offsetHeight;
-            }
-        }
-
-        Position position = new Position(offsetX, offsetY);
+        Position position = getOrComputeLayout(parent).positions().get(element);
+        if (position == null) position = new Position(parentBox.offset("left"), parentBox.offset("top"));
         if (Boolean.getBoolean("apricityui.test.logStyles") && shouldLogFlexParent(parent)) {
             ApricityUI.LOGGER.info(
                     "[AUI FlexPos] child={} class={} position={} size={}x{} parentClass={}",
@@ -192,24 +88,41 @@ public class Flex {
     public static List<DirectTextLayout> computeDirectTextLayouts(Element parent) {
         if (parent == null) return List.of();
         if (!Layout.isFlexDisplay(parent.getComputedStyle().display)) return List.of();
-        List<Element> flowItems = getFlowItems(parent.getRenderChildren());
-        List<FlexParticipant> participants = buildParticipants(parent, flowItems);
-        if (participants.isEmpty()) return List.of();
+        return getOrComputeLayout(parent).directTextLayouts();
+    }
 
+    private static FlexLayoutResult getOrComputeLayout(Element parent) {
+        if (parent == null) return FlexLayoutResult.EMPTY;
         Flex flex = Flex.of(parent);
         Box parentBox = Box.of(parent);
+        boolean wrappedRow = flex.flexWrap.canWrap() && flex.flexDirection.isRow();
+        double availableWidth = wrappedRow ? resolveWrappedRowAvailableWidth(parent) : Double.NaN;
+        boolean natural = Size.isNaturalMeasurementContext();
+        FlexLayoutResult cached = (FlexLayoutResult) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, Double.NaN, natural);
+        if (cached != null) return cached;
+
+        List<Element> flowItems = getFlowItems(parent.getRenderChildren());
+        List<FlexParticipant> participants = buildParticipants(parent, flowItems);
+        if (participants.isEmpty()) {
+            LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, Double.NaN, natural, FlexLayoutResult.EMPTY);
+            return FlexLayoutResult.EMPTY;
+        }
+        FlexLayoutResult result = wrappedRow
+                ? computeWrappedRowLayout(parent, parentBox, flowItems, availableWidth)
+                : computeSingleLineLayout(parent, parentBox, flex, flowItems, participants);
+        LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_FLEX, parent, availableWidth, Double.NaN, natural, result);
+        return result;
+    }
+
+    private static FlexLayoutResult computeSingleLineLayout(Element parent, Box parentBox, Flex flex, List<Element> flowItems,
+                                                            List<FlexParticipant> participants) {
         Size parentContentSize = parentBox.innerSize();
         double gap = resolveMainAxisGap(parent);
         double[] itemMainSizes = computeAssignedMainSizes(parent, flowItems);
         double totalMain = 0;
-        double totalCross = 0;
         for (FlexParticipant participant : participants) {
-            double mainSize = participant.element() == null
-                    ? participant.mainSize(flex.flexDirection.isColumn())
-                    : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
-            double crossSize = flex.flexDirection.isColumn() ? participant.size().width() : participant.size().height();
+            double mainSize = participantMainSize(participant, itemMainSizes, flex.flexDirection.isColumn());
             totalMain += mainSize;
-            totalCross = Math.max(totalCross, crossSize);
         }
         if (participants.size() > 1) {
             totalMain += gap * (participants.size() - 1);
@@ -228,16 +141,31 @@ public class Flex {
             cursorX += flexOffset.offsetStart;
         }
 
+        IdentityHashMap<Element, Position> positions = new IdentityHashMap<>();
         ArrayList<DirectTextLayout> layouts = new ArrayList<>();
         for (int i = 0; i < participants.size(); i++) {
             FlexParticipant participant = participants.get(i);
-            double mainSize = participant.element() == null
-                    ? participant.mainSize(flex.flexDirection.isColumn())
-                    : itemMainSizes[Math.max(0, flowItems.indexOf(participant.element()))];
+            double mainSize = participantMainSize(participant, itemMainSizes, flex.flexDirection.isColumn());
             if (flex.flexDirection.isColumn()) {
                 cursorY += mainAxisAutoMarginBefore(participant, true, autoMarginShare);
             } else {
                 cursorX += mainAxisAutoMarginBefore(participant, false, autoMarginShare);
+            }
+            if (participant.element() != null) {
+                Element child = participant.element();
+                Size childSize = Size.box(child);
+                double childX = cursorX;
+                double childY = cursorY;
+                double offsetWidth = parentContentSize.width() - childSize.width();
+                double offsetHeight = parentContentSize.height() - childSize.height();
+                if (flex.alignItems.isCenter()) {
+                    if (flex.flexDirection.isColumn()) childX += offsetWidth / 2;
+                    else childY += offsetHeight / 2;
+                } else if (flex.alignItems.isFlexEnd()) {
+                    if (flex.flexDirection.isColumn()) childX += offsetWidth;
+                    else childY += offsetHeight;
+                }
+                positions.put(child, new Position(childX, childY));
             }
             if (participant.text() != null) {
                 double crossOffset = 0;
@@ -262,7 +190,24 @@ public class Flex {
                 }
             }
         }
-        return layouts;
+        return new FlexLayoutResult(positions, List.copyOf(layouts));
+    }
+
+    private static FlexLayoutResult computeWrappedRowLayout(Element parent, Box parentBox, List<Element> flowItems, double availableWidth) {
+        IdentityHashMap<Element, Position> positions = new IdentityHashMap<>();
+        double cursorY = 0;
+        double rowGap = resolveRowGap(parent);
+        for (WrappedRowLine line : buildWrappedRowLines(parent, flowItems, availableWidth)) {
+            double cursorX = 0;
+            for (Element item : line.items()) {
+                Size itemSize = Size.box(item);
+                double offsetY = resolveWrappedRowCrossAxisOffset(item, line.lineHeight(), itemSize.height(), parent);
+                positions.put(item, new Position(parentBox.offset("left") + cursorX, parentBox.offset("top") + cursorY + offsetY));
+                cursorX += itemSize.width() + line.columnGap();
+            }
+            cursorY += line.lineHeight() + rowGap;
+        }
+        return new FlexLayoutResult(positions, List.of());
     }
 
     public static List<Element> getFlowItems(List<Element> siblings) {
@@ -345,12 +290,16 @@ public class Flex {
     public static double resolveAssignedMainSize(Element child, Element parent, double naturalOuterMainSize) {
         if (child == null || parent == null) return naturalOuterMainSize;
         List<Element> flowItems = getFlowItems(parent.getRenderChildren());
-        int index = flowItems.indexOf(child);
+        int index = indexOfIdentity(flowItems, child);
         if (index < 0) return naturalOuterMainSize;
         return computeAssignedMainSizes(parent, flowItems)[index];
     }
 
     private static double[] computeAssignedMainSizes(Element parent, List<Element> items) {
+        boolean natural = Size.isNaturalMeasurementContext();
+        AssignedMainSizes cached = (AssignedMainSizes) LayoutMeasureCache.getObject(LayoutMeasureCache.FLEX_ASSIGNED_MAIN_SIZES, parent, Double.NaN, Double.NaN, natural);
+        if (cached != null && cached.matches(items)) return cached.values().clone();
+
         Flex flex = Flex.of(parent);
         Box parentBox = Box.of(parent);
         Size parentContentSize = parentBox.innerSize();
@@ -411,6 +360,7 @@ public class Flex {
             ApricityUI.LOGGER.info(builder.toString());
         }
 
+        LayoutMeasureCache.putObject(LayoutMeasureCache.FLEX_ASSIGNED_MAIN_SIZES, parent, Double.NaN, Double.NaN, natural, new AssignedMainSizes(items, assigned.clone()));
         return assigned;
     }
 
@@ -538,30 +488,6 @@ public class Flex {
                 || "visible".equalsIgnoreCase(overflow);
     }
 
-    private static Position computeWrappedRowChildPosition(Element element, Element parent, List<Element> items, int targetIndex) {
-        Box parentBox = Box.of(parent);
-        double cursorY = 0;
-        double rowGap = resolveRowGap(parent);
-        for (WrappedRowLine line : buildWrappedRowLines(parent, items)) {
-            double cursorX = 0;
-            for (Element item : line.items()) {
-                Size itemSize = Size.box(item);
-                if (item == element) {
-                    double offsetY = resolveWrappedRowCrossAxisOffset(item, line.lineHeight(), itemSize.height(), parent);
-                    return new Position(parentBox.offset("left") + cursorX, parentBox.offset("top") + cursorY + offsetY);
-                }
-                cursorX += itemSize.width() + line.columnGap();
-            }
-            cursorY += line.lineHeight() + rowGap;
-        }
-
-        return new Position(parentBox.offset("left"), parentBox.offset("top"));
-    }
-
-    private static Size computeWrappedRowContentSize(Element element, List<Element> items) {
-        return computeWrappedRowContentSize(element, items, resolveWrappedRowAvailableWidth(element));
-    }
-
     private static Size computeWrappedRowContentSize(Element element, List<Element> items, double availableWidth) {
         double rowGap = resolveRowGap(element);
         double totalHeight = 0;
@@ -684,14 +610,6 @@ public class Flex {
         return 0;
     }
 
-    private static int indexOfParticipant(List<FlexParticipant> participants, Element element) {
-        if (participants == null || element == null) return -1;
-        for (int i = 0; i < participants.size(); i++) {
-            if (participants.get(i).element() == element) return i;
-        }
-        return -1;
-    }
-
     private static double resolveMainAxisAutoMarginShare(List<FlexParticipant> participants, boolean columnMainAxis, double freeSpace) {
         if (participants == null || participants.isEmpty() || freeSpace <= 0) return 0;
         int autoMarginCount = 0;
@@ -723,13 +641,32 @@ public class Flex {
         return box.isMarginAuto(columnMainAxis ? "bottom" : "right") ? autoMarginShare : 0;
     }
 
+    private static double participantMainSize(FlexParticipant participant, double[] itemMainSizes, boolean columnMainAxis) {
+        if (participant == null) return 0;
+        Element element = participant.element();
+        if (element == null) return participant.mainSize(columnMainAxis);
+        int index = participant.itemIndex();
+        if (index < 0 || index >= itemMainSizes.length) return participant.mainSize(columnMainAxis);
+        return itemMainSizes[index];
+    }
+
+    private static int indexOfIdentity(List<Element> items, Element target) {
+        if (items == null || target == null) return -1;
+        for (int i = 0; i < items.size(); i++) {
+            if (items.get(i) == target) return i;
+        }
+        return -1;
+    }
+
     private static List<FlexParticipant> buildParticipants(Element parent, List<Element> flowItems) {
         ArrayList<FlexParticipant> participants = new ArrayList<>();
         if (parent == null) return participants;
+        int flowIndex = 0;
         for (Node child : parent.getRenderChildNodes()) {
             if (child instanceof Element childElement) {
-                if (!flowItems.contains(childElement)) continue;
-                participants.add(new FlexParticipant(childElement, null, participantSize(parent, childElement)));
+                if (flowIndex >= flowItems.size() || flowItems.get(flowIndex) != childElement) continue;
+                participants.add(new FlexParticipant(childElement, null, participantSize(parent, childElement), flowIndex));
+                flowIndex++;
                 continue;
             }
             if (child instanceof TextNode textNode) {
@@ -744,7 +681,7 @@ public class Flex {
                 text.flexDirect = true;
                 Text.WrappedText wrapped = Text.wrap(text, 0);
                 text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
-                participants.add(new FlexParticipant(null, text, text.size));
+                participants.add(new FlexParticipant(null, text, text.size, -1));
             }
         }
         return participants;
@@ -761,7 +698,7 @@ public class Flex {
         );
     }
 
-    private record FlexParticipant(Element element, Text text, Size size) {
+    private record FlexParticipant(Element element, Text text, Size size, int itemIndex) {
         private double mainSize(boolean columnMainAxis) {
             if (size == null) return 0;
             return columnMainAxis ? size.height() : size.width();
@@ -769,6 +706,21 @@ public class Flex {
     }
 
     public record DirectTextLayout(Text text, Position position) {
+    }
+
+    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions, List<DirectTextLayout> directTextLayouts) {
+        private static final FlexLayoutResult EMPTY = new FlexLayoutResult(new IdentityHashMap<>(), List.of());
+    }
+
+    private record AssignedMainSizes(List<Element> items, double[] values) {
+        private boolean matches(List<Element> current) {
+            if (items == current) return true;
+            if (items == null || current == null || items.size() != current.size()) return false;
+            for (int i = 0; i < items.size(); i++) {
+                if (items.get(i) != current.get(i)) return false;
+            }
+            return true;
+        }
     }
 
     private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,

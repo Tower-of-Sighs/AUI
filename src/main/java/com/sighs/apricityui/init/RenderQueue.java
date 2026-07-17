@@ -4,15 +4,19 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.render.LayoutCommit;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 final class RenderQueue {
     private final Document owner;
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
+    private final Set<Element> hitTestDirtyRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private final HitTestCache hitTestCache;
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private int globalDirtyMask = 0;
+    private boolean layoutCommitDirty = false;
 
     RenderQueue(Document owner) {
         this.owner = owner;
@@ -29,7 +33,9 @@ final class RenderQueue {
 
     void reset() {
         dirtyElements.clear();
+        hitTestDirtyRoots.clear();
         globalDirtyMask = 0;
+        layoutCommitDirty = false;
         paintList = new ArrayList<>();
         hitTestCache.clear();
     }
@@ -38,9 +44,11 @@ final class RenderQueue {
         if (owner.documentElement == null) {
             paintList = new ArrayList<>();
             hitTestCache.clear();
+            layoutCommitDirty = false;
             return;
         }
         paintList = Drawer.createPaintList(owner.documentElement);
+        layoutCommitDirty = true;
         hitTestCache.markDirty();
     }
 
@@ -51,11 +59,36 @@ final class RenderQueue {
     }
 
     void commit() {
-        boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty();
+        boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty() || layoutCommitDirty;
+        boolean hadGlobalDirty = globalDirtyMask != 0;
+        boolean fullHitTestRebuild = hadGlobalDirty || hitTestDirtyRoots.contains(owner.documentElement);
+        Set<Element> incrementalHitRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+        for (Element element : dirtyElements) {
+            if (element == null || !element.isConnected()) continue;
+            if (element.hasDirtyFlag(Drawer.REORDER)) {
+                fullHitTestRebuild = true;
+            }
+            if (element.hasDirtyFlag(Drawer.RELAYOUT)) {
+                incrementalHitRoots.add(element.parentElement == null ? element : element.parentElement);
+            } else if (element.hasDirtyFlag(Drawer.HITTEST)) {
+                incrementalHitRoots.add(element);
+            }
+        }
+        if (!fullHitTestRebuild) {
+            incrementalHitRoots.addAll(hitTestDirtyRoots);
+        }
+
         applyGlobalDirty();
         Drawer.flushUpdates(owner);
         if (hadWork) {
-            hitTestCache.markDirty();
+            LayoutCommit.commit(owner);
+            if (fullHitTestRebuild) {
+                hitTestCache.markDirty();
+            } else if (!incrementalHitRoots.isEmpty()) {
+                hitTestCache.updateSubtrees(paintList, incrementalHitRoots);
+            }
+            layoutCommitDirty = false;
+            hitTestDirtyRoots.clear();
         }
     }
 
@@ -72,7 +105,7 @@ final class RenderQueue {
     }
 
     boolean hasPendingWork() {
-        return globalDirtyMask != 0 || !dirtyElements.isEmpty();
+        return globalDirtyMask != 0 || !dirtyElements.isEmpty() || layoutCommitDirty;
     }
 
     int getGlobalDirtyMask() {
@@ -80,12 +113,22 @@ final class RenderQueue {
     }
 
     Element hitTest(com.sighs.apricityui.style.Position position) {
-        LayoutCommit.commit(owner);
         return hitTestCache.hitTest(position, paintList);
     }
 
     void markHitTestDirty() {
         hitTestCache.markDirty();
+        hitTestDirtyRoots.clear();
+    }
+
+    void markHitTestDirty(Element element) {
+        if (element == null || !element.isConnected()) return;
+        if (hitTestDirtyRoots.contains(owner.documentElement)) return;
+        hitTestDirtyRoots.add(element);
+    }
+
+    void markLayoutCommitDirty() {
+        layoutCommitDirty = true;
     }
 
     private void applyGlobalDirty() {

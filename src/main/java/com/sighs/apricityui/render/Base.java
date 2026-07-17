@@ -83,10 +83,6 @@ public class Base {
         FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
         try {
             poseStack.translate(0, 0, GLOBAL_DOCUMENT_Z_OFFSET);
-            // 这个if是应对paintList更新没跟上节点树更新的情况，也就是渲染状态滞后，差不多这个意思。
-            document.stepMotionRender();
-            document.stepScrollRender();
-            LayoutCommit.commit(document);
             Element skippedSubtree = null;
             for (RenderNode node : document.getPaintList()) {
                 if (skippedSubtree != null) {
@@ -189,6 +185,12 @@ public class Base {
     public static Matrix4f prepareWorldTransform(Element element) {
         Matrix4f cached = TransformFrameCache.get(element);
         if (cached != null) return cached;
+        Matrix4f matrix = computeWorldTransform(element);
+        TransformFrameCache.put(element, matrix);
+        return matrix;
+    }
+
+    public static Matrix4f createAndCacheWorldTransform(Element element) {
         Matrix4f matrix = computeWorldTransform(element);
         TransformFrameCache.put(element, matrix);
         return matrix;

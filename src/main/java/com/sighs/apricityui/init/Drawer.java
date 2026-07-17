@@ -15,6 +15,7 @@ public class Drawer {
     public static final int REPAINT = 1;
     public static final int REORDER = 2;
     public static final int RELAYOUT = 4;
+    public static final int HITTEST = 8;
 
     public static void flushUpdates(Document document) {
         Set<Element> dirtyElements = document.getDirtyElements();
@@ -28,6 +29,7 @@ public class Drawer {
             if (e.hasDirtyFlag(RELAYOUT)) {
                 e.forEachRoute(element -> element.getRenderer().size.clear());
                 e.forEachRoute(element -> element.getRenderer().position.clear());
+                e.getRenderer().clearCommittedLayoutSubtree();
                 // 布局变化通常需要重绘，但不一定需要重排队列（除非影响了层叠上下文）
                 // 但为了安全起见，布局变动通常触发 REPAINT
                 e.addDirtyFlags(REPAINT);

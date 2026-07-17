@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.LayoutMeasureCache;
+import org.joml.Matrix4f;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -21,6 +22,9 @@ public final class LayoutCommit {
 
         Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         RectFrameCache.begin();
+        TransformFrameCache.begin();
+        RectFrameCache.disableCommittedFallback();
+        TransformFrameCache.disableCommittedFallback();
         LayoutMeasureCache.begin();
         try {
             for (RenderNode node : paintList) {
@@ -30,6 +34,9 @@ public final class LayoutCommit {
             }
         } finally {
             LayoutMeasureCache.end();
+            TransformFrameCache.enableCommittedFallback();
+            RectFrameCache.enableCommittedFallback();
+            TransformFrameCache.end();
             RectFrameCache.end();
         }
     }
@@ -38,9 +45,10 @@ public final class LayoutCommit {
         ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
 
-        Rect rect = Rect.of(target);
+        Rect rect = Rect.createAndCache(target);
         rect.getVisualBounds();
-        Base.prepareWorldTransform(target);
+        Matrix4f matrix = Base.createAndCacheWorldTransform(target);
+        target.getRenderer().commitLayout(rect, matrix);
     }
 
     private static void ensureRendererLoaded(Element target) {

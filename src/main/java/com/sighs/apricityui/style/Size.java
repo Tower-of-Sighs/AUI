@@ -62,6 +62,48 @@ public record Size(double width, double height) {
         }
     }
 
+    public static double getWindowWidth() {
+        Document context = Document.getContextDocument();
+        if (context != null && !context.inWorld && context.isActive()) {
+            return context.getViewport().layoutWidth();
+        }
+        Size override = viewportOverride;
+        if (override != null) {
+            return override.width;
+        }
+        String widthOverride = System.getProperty("aui.test.viewport.width");
+        if (widthOverride != null) {
+            Double parsedWidth = parseNumber(widthOverride);
+            return parsedWidth == null ? 1920 : parsedWidth;
+        }
+        try {
+            return Client.getWindowSize().width();
+        } catch (NoClassDefFoundError | Exception ignored) {
+            return 1920;
+        }
+    }
+
+    public static double getWindowHeight() {
+        Document context = Document.getContextDocument();
+        if (context != null && !context.inWorld && context.isActive()) {
+            return context.getViewport().layoutHeight();
+        }
+        Size override = viewportOverride;
+        if (override != null) {
+            return override.height;
+        }
+        String heightOverride = System.getProperty("aui.test.viewport.height");
+        if (heightOverride != null) {
+            Double parsedHeight = parseNumber(heightOverride);
+            return parsedHeight == null ? 1080 : parsedHeight;
+        }
+        try {
+            return Client.getWindowSize().height();
+        } catch (NoClassDefFoundError | Exception ignored) {
+            return 1080;
+        }
+    }
+
     public static void setViewportOverride(double width, double height) {
         viewportOverride = new Size(Math.max(0, width), Math.max(0, height));
     }
@@ -452,7 +494,7 @@ public record Size(double width, double height) {
                 return Math.max(0, resolvedWidth);
             }
             return getScaleWidth(parent);
-        } else return getWindowSize().width;
+        } else return getWindowWidth();
     }
 
     public static double getScaleHeight(Element element) {
@@ -475,12 +517,12 @@ public record Size(double width, double height) {
                 return Math.max(0, resolvedHeight);
             }
             return getScaleHeight(parent);
-        } else return getWindowSize().height;
+        } else return getWindowHeight();
     }
 
     public static Double getExplicitContainingBlockHeight(Element element) {
         Element parent = element.parentElement;
-        if (parent == null) return Math.max(0, getWindowSize().height());
+        if (parent == null) return Math.max(0, getWindowHeight());
 
         Double parentOwnHeight = resolveOwnExplicitContentHeight(parent);
         if (parentOwnHeight == null) return null;
@@ -489,7 +531,7 @@ public record Size(double width, double height) {
 
     private static Double getContainingBlockPaddingBoxHeight(Element element) {
         Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowSize().height());
+        if (parent == null) return Math.max(0, getWindowHeight());
         Size cachedParentSize = parent.getRenderer().size.get();
         Size parentSize = cachedParentSize;
         if (parentSize == null) {
@@ -502,7 +544,7 @@ public record Size(double width, double height) {
 
     private static Double getContainingBlockPaddingBoxWidth(Element element) {
         Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowSize().width());
+        if (parent == null) return Math.max(0, getWindowWidth());
         Size cachedParentSize = parent.getRenderer().size.get();
         Size parentSize = cachedParentSize;
         if (parentSize == null) {
@@ -515,7 +557,7 @@ public record Size(double width, double height) {
 
     private static Double getExplicitContainingBlockPaddingBoxWidth(Element element) {
         Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowSize().width());
+        if (parent == null) return Math.max(0, getWindowWidth());
         Double contentWidth = resolveOwnExplicitContentWidth(parent);
         if (contentWidth == null) return null;
         Box parentBox = Box.of(parent);
@@ -524,7 +566,7 @@ public record Size(double width, double height) {
 
     private static Double getExplicitContainingBlockPaddingBoxHeight(Element element) {
         Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowSize().height());
+        if (parent == null) return Math.max(0, getWindowHeight());
         Double contentHeight = resolveOwnExplicitContentHeight(parent);
         if (contentHeight == null) return null;
         Box parentBox = Box.of(parent);
@@ -536,7 +578,7 @@ public record Size(double width, double height) {
         Style style = element.getRawComputedStyle();
 
         Double containingBlockHeight = element.parentElement == null
-                ? Double.valueOf(Math.max(0, getWindowSize().height()))
+                ? Double.valueOf(Math.max(0, getWindowHeight()))
                 : getExplicitContainingBlockHeight(element);
 
         Double resolvedHeight = tryResolveLength(style.height, containingBlockHeight == null ? 0 : containingBlockHeight);
@@ -566,13 +608,13 @@ public record Size(double width, double height) {
     private static Double resolveOwnExplicitContentWidth(Element element) {
         if (element == null) return null;
         Style style = element.getRawComputedStyle();
-        Double containingBlockWidth = element.parentElement == null ? getWindowSize().width() : getScaleWidth(element);
+        Double containingBlockWidth = element.parentElement == null ? getWindowWidth() : getScaleWidth(element);
         Double resolvedWidth = tryResolveLength(style.width, containingBlockWidth == null ? 0 : containingBlockWidth);
         if (resolvedWidth != null) {
             if (!isPercent(style.width) || containingBlockWidth != null) {
                 Box box = Box.of(element);
                 double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
-                double parentWidth = element.parentElement == null ? getWindowSize().width() : getScaleWidth(element);
+                double parentWidth = element.parentElement == null ? getWindowWidth() : getScaleWidth(element);
                 double contentWidth = box.isBorderBox() ? Math.max(0, resolvedWidth - horizontalBox) : resolvedWidth;
                 return clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
             }
@@ -752,8 +794,8 @@ public record Size(double width, double height) {
         if (value.endsWith("%")) return percentBasis * (number / 100d);
         if (value.endsWith("rem")) return number * getRootFontSize();
         if (value.endsWith("em")) return number * emBasis;
-        if (value.endsWith("vw")) return getWindowSize().width() * (number / 100d);
-        if (value.endsWith("vh")) return getWindowSize().height() * (number / 100d);
+        if (value.endsWith("vw")) return getWindowWidth() * (number / 100d);
+        if (value.endsWith("vh")) return getWindowHeight() * (number / 100d);
         return number;
     }
 

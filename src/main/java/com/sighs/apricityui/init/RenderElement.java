@@ -1,6 +1,8 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.render.Rect;
+import org.joml.Matrix4f;
 
 import java.util.HashMap;
 import java.util.List;
@@ -13,12 +15,14 @@ public class RenderElement {
     public Cache<Element[]> route = new Cache<>() {
         @Override
         void expandClear() {
+            clearCommittedLayout();
             element.children.forEach(e -> e.getRenderer().route.clear());
         }
     };
     public Cache<List<Transform>> transform = new Cache<>() {
         @Override
         void expandClear() {
+            clearCommittedWorldTransform();
             element.children.forEach(e -> e.getRenderer().transform.clear());
         }
     };
@@ -41,12 +45,23 @@ public class RenderElement {
             element.children.forEach(e -> e.getRenderer().wrappedText.clear());
         }
     };
-    public Cache<Size> size = new Cache<>();
+    public Cache<Size> size = new Cache<>() {
+        @Override
+        void expandClear() {
+            clearCommittedLayout();
+        }
+    };
     public Cache<Size> gridAssignedSize = new Cache<>();
-    public Cache<Box> box = new Cache<>();
+    public Cache<Box> box = new Cache<>() {
+        @Override
+        void expandClear() {
+            clearCommittedLayout();
+        }
+    };
     public Cache<Position> position = new Cache<>() {
         @Override
         void expandClear() {
+            clearCommittedLayout();
             element.children.forEach(e -> e.getRenderer().position.clear());
         }
     };
@@ -59,9 +74,47 @@ public class RenderElement {
     };
     public Cache<Filter.FilterState> filter = new Cache<>();
     public Cache<Filter.FilterState> backdropFilter = new Cache<>();
+    private Rect committedRect = null;
+    private Matrix4f committedWorldTransform = null;
 
     public RenderElement(Element element) {
         this.element = element;
+    }
+
+    public Rect getCommittedRect() {
+        return committedRect;
+    }
+
+    public Matrix4f getCommittedWorldTransform() {
+        return committedWorldTransform;
+    }
+
+    public void commitLayout(Rect rect, Matrix4f worldTransform) {
+        committedRect = rect;
+        committedWorldTransform = worldTransform;
+    }
+
+    public void clearCommittedLayout() {
+        committedRect = null;
+        committedWorldTransform = null;
+    }
+
+    public void clearCommittedWorldTransform() {
+        committedWorldTransform = null;
+    }
+
+    public void clearCommittedLayoutSubtree() {
+        clearCommittedLayout();
+        for (Element child : element.children) {
+            child.getRenderer().clearCommittedLayoutSubtree();
+        }
+    }
+
+    public void clearCommittedWorldTransformSubtree() {
+        clearCommittedWorldTransform();
+        for (Element child : element.children) {
+            child.getRenderer().clearCommittedWorldTransformSubtree();
+        }
     }
 
     public static class Cache<T> {
@@ -112,6 +165,7 @@ public class RenderElement {
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     );
     private static final Set<String> CURSOR_PROPS = Set.of("cursor");
+    private static final Set<String> HIT_TEST_PROPS = Set.of("visibility", "pointerEvents");
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
             "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke",
@@ -251,6 +305,10 @@ public class RenderElement {
 
         if (check.test(CURSOR_PROPS)) {
             renderer.cursor.clear();
+        }
+
+        if (check.test(HIT_TEST_PROPS)) {
+            dirtyMask |= Drawer.HITTEST;
         }
 
         if (!origin.animation.equals(current.animation)) {

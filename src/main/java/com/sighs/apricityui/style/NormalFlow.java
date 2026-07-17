@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.TextNode;
 
 import java.util.ArrayList;
+import java.util.IdentityHashMap;
 import java.util.List;
 
 public final class NormalFlow {
@@ -14,7 +15,13 @@ public final class NormalFlow {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Box parentBox = Box.of(parent);
-        FlowResult result = computeFlow(parent, parent.getRenderChildNodes(), parentBox.innerSize().width(), element);
+        double lineLimit = parentBox.innerSize().width();
+        FlowResult result = getOrComputeFlowLayout(parent, lineLimit);
+        Position childPosition = result.childPositions().get(element);
+        if (childPosition != null) {
+            return new Position(parentBox.offset("left") + childPosition.x, parentBox.offset("top") + childPosition.y);
+        }
+        result = computeFlow(parent, parent.getRenderChildNodes(), lineLimit, element);
         FlowMetrics metrics = result.metrics();
         return new Position(
                 parentBox.offset("left") + metrics.targetX,
@@ -27,13 +34,22 @@ public final class NormalFlow {
         boolean natural = Size.isNaturalMeasurementContext();
         Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.CONTENT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural);
         if (cached != null) return cached;
-        Size result = computeFlow(element, element.getRenderChildNodes(), lineLimit, null).metrics().contentSize();
+        Size result = getOrComputeFlowLayout(element, lineLimit).metrics().contentSize();
         LayoutMeasureCache.putSize(LayoutMeasureCache.CONTENT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural, result);
         return result;
     }
 
     public static List<TextRunLayout> computeTextRuns(Element element) {
-        return computeFlow(element, element.getRenderChildNodes(), resolveLineLimit(element), null).textRuns();
+        return getOrComputeFlowLayout(element, resolveLineLimit(element)).textRuns();
+    }
+
+    private static FlowResult getOrComputeFlowLayout(Element element, double lineLimit) {
+        boolean natural = Size.isNaturalMeasurementContext();
+        FlowResult cached = (FlowResult) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural);
+        if (cached != null) return cached;
+        FlowResult result = computeFlow(element, element.getRenderChildNodes(), lineLimit, null);
+        LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural, result);
+        return result;
     }
 
     public static boolean isInlineTextPaintedByAncestor(Element element) {
@@ -90,6 +106,7 @@ public final class NormalFlow {
         double contentHeight = state.cursorY + state.lineHeight;
         return new FlowResult(
                 new FlowMetrics(state.targetX, state.targetY, new Size(contentWidth, contentHeight)),
+                new IdentityHashMap<>(state.childPositions),
                 List.copyOf(state.textRuns)
         );
     }
@@ -113,6 +130,7 @@ public final class NormalFlow {
 
         if (isInlineLevel(style.display)) {
             if (shouldFragmentInlineElement(childElement)) {
+                state.childPositions.put(childElement, new Position(state.cursorX, state.cursorY));
                 if (state.target != null && childElement == state.target) {
                     state.targetX = state.cursorX;
                     state.targetY = state.cursorY;
@@ -176,6 +194,7 @@ public final class NormalFlow {
             commitLineBreak(state);
         }
 
+        state.childPositions.put(childElement, new Position(state.cursorX, state.cursorY));
         if (state.target != null && childElement == state.target) {
             state.targetX = state.cursorX;
             state.targetY = state.cursorY;
@@ -218,6 +237,7 @@ public final class NormalFlow {
             blockY = state.cursorY - state.previousBlockMarginBottom - childBox.getMarginTop() + collapsedMargin;
         }
 
+        state.childPositions.put(childElement, new Position(horizontalMargins.left(), blockY));
         if (state.target != null && childElement == state.target) {
             state.targetX = horizontalMargins.left();
             state.targetY = blockY;
@@ -423,6 +443,7 @@ public final class NormalFlow {
         private double targetX = 0;
         private double targetY = 0;
         private boolean foundTarget = false;
+        private final IdentityHashMap<Element, Position> childPositions = new IdentityHashMap<>();
         private double previousBlockMarginBottom = 0;
         private boolean previousFlowWasBlock = false;
 
@@ -435,7 +456,7 @@ public final class NormalFlow {
     private record FlowMetrics(double targetX, double targetY, Size contentSize) {
     }
 
-    private record FlowResult(FlowMetrics metrics, List<TextRunLayout> textRuns) {
+    private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions, List<TextRunLayout> textRuns) {
     }
 
     private record HorizontalBlockMargins(double left, double right) {
