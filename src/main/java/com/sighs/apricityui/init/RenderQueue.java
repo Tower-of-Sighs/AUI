@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.render.LayoutCommit;
 
 import java.util.ArrayList;
 import java.util.Set;
@@ -79,6 +80,7 @@ final class RenderQueue {
     }
 
     Element hitTest(com.sighs.apricityui.style.Position position) {
+        LayoutCommit.commit(owner);
         return hitTestCache.hitTest(position, paintList);
     }
 

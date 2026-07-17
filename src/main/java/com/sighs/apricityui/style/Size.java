@@ -175,11 +175,15 @@ public record Size(double width, double height) {
 
     public static Size natural(Element element) {
         if (element == null) return ZERO;
+        Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element, Double.NaN, Double.NaN, true);
+        if (cached != null) return cached;
         int depth = NATURAL_MEASURE_DEPTH.get();
         NATURAL_MEASURE_DEPTH.set(depth + 1);
         NATURAL_NO_CACHE.get().add(element);
         try {
-            return computeSize(element, false);
+            Size result = computeSize(element, false);
+            LayoutMeasureCache.putSize(LayoutMeasureCache.SIZE_NATURAL, element, Double.NaN, Double.NaN, true, result);
+            return result;
         } finally {
             Set<Element> noCache = NATURAL_NO_CACHE.get();
             noCache.remove(element);

@@ -154,11 +154,18 @@ public class Flex {
     public static Size computeContentSize(Element element) {
         Flex flex = Flex.of(element);
         boolean flexColumn = flex.flexDirection.isColumn();
+        boolean wrappedRow = flex.flexWrap.canWrap() && !flexColumn;
+        double availableWidth = wrappedRow ? resolveWrappedRowAvailableWidth(element) : Double.NaN;
+        boolean natural = Size.isNaturalMeasurementContext();
+        Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.CONTENT_FLEX, element, availableWidth, Double.NaN, natural);
+        if (cached != null) return cached;
         List<Element> flowItems = getFlowItems(element.getRenderChildren());
         List<FlexParticipant> participants = buildParticipants(element, flowItems);
         double gap = resolveMainAxisGap(element);
-        if (flex.flexWrap.canWrap() && !flexColumn) {
-            return computeWrappedRowContentSize(element, flowItems);
+        if (wrappedRow) {
+            Size result = computeWrappedRowContentSize(element, flowItems, availableWidth);
+            LayoutMeasureCache.putSize(LayoutMeasureCache.CONTENT_FLEX, element, availableWidth, Double.NaN, natural, result);
+            return result;
         }
         double totalWidth = 0;
         double totalHeight = 0;
@@ -177,7 +184,9 @@ public class Flex {
             if (flexColumn) totalHeight += gap * (participants.size() - 1);
             else totalWidth += gap * (participants.size() - 1);
         }
-        return new Size(totalWidth, totalHeight);
+        Size result = new Size(totalWidth, totalHeight);
+        LayoutMeasureCache.putSize(LayoutMeasureCache.CONTENT_FLEX, element, availableWidth, Double.NaN, natural, result);
+        return result;
     }
 
     public static List<DirectTextLayout> computeDirectTextLayouts(Element parent) {
@@ -550,10 +559,14 @@ public class Flex {
     }
 
     private static Size computeWrappedRowContentSize(Element element, List<Element> items) {
+        return computeWrappedRowContentSize(element, items, resolveWrappedRowAvailableWidth(element));
+    }
+
+    private static Size computeWrappedRowContentSize(Element element, List<Element> items, double availableWidth) {
         double rowGap = resolveRowGap(element);
         double totalHeight = 0;
         double maxWidth = 0;
-        List<WrappedRowLine> lines = buildWrappedRowLines(element, items);
+        List<WrappedRowLine> lines = buildWrappedRowLines(element, items, availableWidth);
         for (int i = 0; i < lines.size(); i++) {
             WrappedRowLine line = lines.get(i);
             maxWidth = Math.max(maxWidth, line.lineWidth());
@@ -567,10 +580,13 @@ public class Flex {
     }
 
     private static List<WrappedRowLine> buildWrappedRowLines(Element parent, List<Element> items) {
+        return buildWrappedRowLines(parent, items, resolveWrappedRowAvailableWidth(parent));
+    }
+
+    private static List<WrappedRowLine> buildWrappedRowLines(Element parent, List<Element> items, double availableWidth) {
         ArrayList<WrappedRowLine> lines = new ArrayList<>();
         if (parent == null || items == null || items.isEmpty()) return lines;
 
-        double availableWidth = resolveWrappedRowAvailableWidth(parent);
         double columnGap = resolveColumnGap(parent);
         ArrayList<Element> currentItems = new ArrayList<>();
         double lineWidth = 0;
