@@ -43,10 +43,10 @@ final class StyleScope {
         }
     }
 
-    void flushPendingUpdates() {
+    boolean flushPendingUpdates() {
         ArrayList<Request> candidates;
         synchronized (pendingRootsLock) {
-            if (pendingRoots.isEmpty()) return;
+            if (pendingRoots.isEmpty()) return false;
             candidates = new ArrayList<>(pendingRoots.size());
             for (var entry : pendingRoots.entrySet()) {
                 candidates.add(new Request(entry.getKey(), entry.getValue()));
@@ -77,6 +77,7 @@ final class StyleScope {
                 recomputeSubtree(root);
             }
         }
+        return true;
     }
 
     void recomputeSubtree(Element root) {

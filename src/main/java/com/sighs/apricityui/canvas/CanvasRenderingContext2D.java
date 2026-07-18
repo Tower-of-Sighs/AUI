@@ -218,17 +218,15 @@ public class CanvasRenderingContext2D {
 
     public void clearRect(double x, double y, double width, double height) {
         if (width <= 0 || height <= 0) return;
+        if (state.transform.isIdentity() && state.clip == null) {
+            int ix = (int) Math.floor(x);
+            int iy = (int) Math.floor(y);
+            int iw = (int) Math.ceil(x + width) - ix;
+            int ih = (int) Math.ceil(y + height) - iy;
+            canvas.clearSurfaceRect(ix, iy, iw, ih);
+            return;
+        }
         canvas.renderOperation(g -> {
-            if (state.transform.isIdentity() && state.clip == null) {
-                int ix = (int) Math.floor(x);
-                int iy = (int) Math.floor(y);
-                int iw = (int) Math.ceil(x + width) - ix;
-                int ih = (int) Math.ceil(y + height) - iy;
-                if (iw > 0 && ih > 0) {
-                    g.clearRect(ix, iy, iw, ih);
-                }
-                return;
-            }
             applyTransformAndClip(g);
             g.setComposite(AlphaComposite.Clear);
             g.fill(new Rectangle2D.Double(x, y, width, height));

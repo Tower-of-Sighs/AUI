@@ -33,6 +33,10 @@ public class Svg extends Canvas {
     private double rasterLayoutHeight = -1;
     private int intrinsicViewportWidth = 1;
     private int intrinsicViewportHeight = 1;
+    private long rasterSubtreeMutationVersion = Long.MIN_VALUE;
+    private long rasterStyleFingerprint = Long.MIN_VALUE;
+    private int rasterSurfaceWidth = -1;
+    private int rasterSurfaceHeight = -1;
 
     public Svg(Document document) {
         super(document);
@@ -91,6 +95,14 @@ public class Svg extends Canvas {
 
     private void renderVectorSurface() {
         syncSurfaceToLayoutSize();
+        long subtreeMutationVersion = getSubtreeMutationVersion();
+        long styleFingerprint = svgStyleFingerprint(this, 17L);
+        if (rasterSubtreeMutationVersion == subtreeMutationVersion
+                && rasterStyleFingerprint == styleFingerprint
+                && rasterSurfaceWidth == getWidth()
+                && rasterSurfaceHeight == getHeight()) {
+            return;
+        }
         renderOperation(graphics -> {
             graphics.setComposite(java.awt.AlphaComposite.Clear);
             graphics.fill(new Rectangle2D.Double(0, 0, getWidth(), getHeight()));
@@ -114,6 +126,10 @@ public class Svg extends Canvas {
             drawSvgSubtree(graphics, this, inheritedPaint);
             graphics.setTransform(original);
         });
+        rasterSubtreeMutationVersion = subtreeMutationVersion;
+        rasterStyleFingerprint = styleFingerprint;
+        rasterSurfaceWidth = getWidth();
+        rasterSurfaceHeight = getHeight();
     }
 
     private void syncSurfaceToLayoutSize() {
@@ -302,6 +318,30 @@ public class Svg extends Canvas {
         int b = argb & 0xFF;
         a = (int) Math.round(a * clampOpacity(opacityMultiplier));
         return new java.awt.Color(r, g, b, a);
+    }
+
+    private static long svgStyleFingerprint(Element element, long value) {
+        if (element == null) return value;
+        String[] paintAttributes = {
+                "color", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
+                "opacity", "fill-opacity", "stroke-opacity", "fill-rule", "d", "cx", "cy", "r",
+                "x", "y", "width", "height", "rx", "ry", "x1", "y1", "x2", "y2"
+        };
+        String color = element.getComputedStyle() == null ? null : element.getComputedStyle().color;
+        value = mixStyleFingerprint(value, color);
+        for (String attribute : paintAttributes) {
+            value = mixStyleFingerprint(value, element.getAttribute(attribute));
+        }
+        for (Node child : element.childNodes) {
+            if (child instanceof Element childElement) {
+                value = svgStyleFingerprint(childElement, value);
+            }
+        }
+        return value;
+    }
+
+    private static long mixStyleFingerprint(long value, String component) {
+        return (value * 0x9E3779B185EBCA87L) ^ (component == null ? 0 : component.hashCode());
     }
 
     private double[] parseViewBox() {

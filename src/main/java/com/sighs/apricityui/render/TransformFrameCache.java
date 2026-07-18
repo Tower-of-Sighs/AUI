@@ -50,7 +50,7 @@ public final class TransformFrameCache {
         Matrix4f cached = map == null ? null : map.get(element);
         if (cached != null) return cached;
         if (COMMITTED_FALLBACK_DISABLED.get() > 0) return null;
-        return element == null ? null : element.getRenderer().getCommittedWorldTransform();
+        return element == null ? null : element.getRenderer().getCommittedWorldTransformIfValid();
     }
 
     public static void put(Element element, Matrix4f matrix) {

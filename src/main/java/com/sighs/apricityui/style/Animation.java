@@ -10,7 +10,12 @@ public class Animation {
     private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
     private static final Map<String, Set<String>> KEYFRAME_PROPS = new HashMap<>();
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
-    private static final Pattern STEPS_PATTERN = Pattern.compile("^steps\\(\\s*([0-9]+)\\s*(?:,\\s*(start|end)\\s*)?\\)\\s*$");
+    private static final Pattern STEPS_PATTERN = Pattern.compile(
+            "^steps\\(\\s*([1-9][0-9]*)\\s*(?:,\\s*(start|end|jump-start|jump-end|jump-none|jump-both)\\s*)?\\)\\s*$"
+    );
+    private static final Pattern TIME_PATTERN = Pattern.compile(
+            "^[+-]?(?:(?:[0-9]+(?:\\.[0-9]*)?)|(?:\\.[0-9]+))(?:ms|s)$"
+    );
     private static final Pattern CUBIC_BEZIER_PATTERN = Pattern.compile(
             "^cubic-bezier\\(\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*,\\s*([-+]?(?:\\d*\\.\\d+|\\d+))\\s*\\)\\s*$"
     );
@@ -22,7 +27,7 @@ public class Animation {
     private static final Set<String> PLAY_STATE_SET = Set.of("running", "paused");
 
     private static class AnimationConfig {
-        String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "linear", playState = "running";
+        String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "ease", playState = "running";
     }
 
     private static class AnimationState {
@@ -238,15 +243,15 @@ public class Animation {
         return fallback;
     }
 
-    private static double applyTiming(double p, String tf) {
+    static double applyTiming(double p, String tf) {
         if (tf == null || tf.isBlank()) return p;
         tf = tf.trim();
         if (tf.startsWith("steps")) {
             var m = STEPS_PATTERN.matcher(tf);
             if (m.matches()) {
                 int steps = Integer.parseInt(m.group(1));
-                String mode = m.group(2);
-                return (mode != null && mode.equals("start")) ? Math.ceil(p * steps) / steps : Math.floor(p * steps) / steps;
+                String mode = m.group(2) == null ? "end" : m.group(2);
+                return applySteps(p, steps, mode);
             }
         }
         if ("step-start".equals(tf)) return 1.0;
@@ -316,11 +321,15 @@ public class Animation {
         configs.add(c);
     }
 
-    private static boolean isTimingFunctionToken(String token) {
+    static boolean isTimingFunctionToken(String token) {
         if (token == null || token.isBlank()) return false;
         if (TIMING_SET.contains(token)) return true;
         if (token.startsWith("steps")) return STEPS_PATTERN.matcher(token).matches();
-        return CUBIC_BEZIER_PATTERN.matcher(token).matches();
+        var bezier = CUBIC_BEZIER_PATTERN.matcher(token);
+        if (!bezier.matches()) return false;
+        double x1 = Double.parseDouble(bezier.group(1));
+        double x2 = Double.parseDouble(bezier.group(3));
+        return x1 >= 0.0 && x1 <= 1.0 && x2 >= 0.0 && x2 <= 1.0;
     }
 
     private static List<String> splitAnimationTokens(String spec, int start, int end) {
@@ -365,16 +374,19 @@ public class Animation {
         return 3.0 * omt * omt * t * p1 + 3.0 * omt * t * t * p2 + t * t * t;
     }
 
-    private static boolean isTimeToken(String t) {
-        int len = t.length();
-        if (len < 2) return false;
-        if (t.endsWith("ms")) {
-            return isNumberToken(t.substring(0, len - 2));
-        }
-        if (t.charAt(len - 1) == 's') {
-            return isNumberToken(t.substring(0, len - 1));
-        }
-        return false;
+    static boolean isTimeToken(String t) {
+        return t != null && TIME_PATTERN.matcher(t.trim().toLowerCase(Locale.ROOT)).matches();
+    }
+
+    private static double applySteps(double progress, int steps, String mode) {
+        progress = Math.max(0.0, Math.min(1.0, progress));
+        return switch (mode) {
+            case "start", "jump-start" -> Math.min(1.0, (Math.floor(progress * steps) + 1.0) / steps);
+            case "jump-none" -> steps <= 1 ? progress : Math.min(1.0, Math.floor(progress * steps) / (steps - 1.0));
+            case "jump-both" -> (Math.floor(progress * steps) + 1.0) / (steps + 1.0);
+            case "end", "jump-end" -> Math.floor(progress * steps) / steps;
+            default -> progress;
+        };
     }
 
     private static boolean isNumberToken(String t) {

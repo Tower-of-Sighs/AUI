@@ -316,6 +316,7 @@ public class Element extends Node {
 
         RenderElement.observeStyle(this, originStyle, currentStyle);
         Transition.create(this, originStyle, currentStyle);
+        syncGeneratedPseudoElementsForStyleRecalc();
         return currentStyle.affectsDescendantComputedStyleComparedTo(originStyle);
     }
 
@@ -858,6 +859,24 @@ public class Element extends Node {
         return getGeneratedPseudoElement(kind) != null;
     }
 
+    /**
+     * Generated pseudo-elements participate in the host's style update. Keeping
+     * this out of the lazy paint-tree path would delay selectors such as
+     * .button:hover::before until a later frame or client tick.
+     */
+    private void syncGeneratedPseudoElementsForStyleRecalc() {
+        if (pseudoElement) return;
+
+        boolean hadBefore = beforePseudoElement != null && beforePseudoElement.wasPseudoContentGenerated();
+        boolean hadAfter = afterPseudoElement != null && afterPseudoElement.wasPseudoContentGenerated();
+        boolean hasBefore = getGeneratedPseudoElement(Selector.PseudoElement.BEFORE) != null;
+        boolean hasAfter = getGeneratedPseudoElement(Selector.PseudoElement.AFTER) != null;
+
+        if ((hadBefore != hasBefore || hadAfter != hasAfter) && document != null) {
+            document.markDirty(this, Drawer.REORDER | Drawer.REPAINT);
+        }
+    }
+
     private Element getGeneratedPseudoElement(Selector.PseudoElement kind) {
         if (kind == null || pseudoElement) return null;
         HashMap<String, String> styles = resolvePseudoElementStyles(kind);
@@ -925,6 +944,12 @@ public class Element extends Node {
         if (!pseudoElement) return false;
         Style style = getRawComputedStyle();
         return isGeneratedPseudoContent(style.content);
+    }
+
+    private boolean wasPseudoContentGenerated() {
+        if (!pseudoElement) return false;
+        Style previous = pseudoElementPreviousStyle;
+        return previous != null && isGeneratedPseudoContent(previous.content);
     }
 
     private HashMap<String, String> resolvePseudoElementStyles(Selector.PseudoElement kind) {

@@ -100,6 +100,7 @@ public class Document {
     private volatile double viewportScaleY = 1.0d;
     private volatile double viewportOffsetX = 0.0d;
     private volatile double viewportOffsetY = 0.0d;
+    private volatile long viewportVersion = 1L;
     private final ApricityViewport.State viewportState;
     private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
     private final CopyOnWriteArrayList<MutationObserver> mutationObservers = new CopyOnWriteArrayList<>();
@@ -154,10 +155,18 @@ public class Document {
         return viewport;
     }
 
+    public long getViewportVersion() {
+        return viewportVersion;
+    }
+
     public void applyViewport(boolean relayout) {
         if (inWorld) return;
+        ApricityViewport previous = viewport;
         viewport = viewportState.resolve(Minecraft.getInstance().getWindow());
         setViewportTransform(viewport.renderScale(), viewport.renderScale(), 0.0d, 0.0d);
+        if (!viewport.equals(previous)) {
+            viewportVersion++;
+        }
         if (relayout) {
             markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
         }
@@ -416,7 +425,6 @@ public class Document {
                 tickElements();
                 // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
                 commitStyleRecalc();
-                stepMotion();
                 stepScrollRender();
                 flushMutationObservers();
                 commitRenderState();
@@ -435,17 +443,23 @@ public class Document {
     }
 
     /**
+     * Commits interaction-driven style changes at the start of a paint frame.
+     * CSS hover transitions must begin on the next render frame rather than wait
+     * for Minecraft's 20 Hz client tick.
+     */
+    public boolean commitPendingStyleRecalcForRender() {
+        return isActive() && style.flushPendingUpdates();
+    }
+
+    /**
      * Transition/Animation 阶段（占位）。
      * <p>
      * tick 阶段目前不搞 motion；推进逻辑在 render 阶段执行以保持稳定 60 帧。
      * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
      */
-    public void stepMotion() {
+    public boolean stepMotionRender() {
         boolean changed = motion.stepRender();
-        if (changed) {
-            render.markLayoutCommitDirty();
-            render.markHitTestDirty();
-        }
+        return changed;
     }
 
     /**
@@ -464,7 +478,7 @@ public class Document {
             }
             boolean moving = element.stepScrollRender();
             if (moving) {
-                element.getRenderer().clearCommittedLayoutSubtree();
+                element.getRenderer().invalidateScrollVersion();
                 render.markLayoutCommitDirty();
                 render.markHitTestDirty(element);
             }
@@ -493,6 +507,15 @@ public class Document {
     public void commitRenderState() {
         if (!isActive()) return;
         render.commit();
+    }
+
+    /**
+     * Render-frame style commits must not commit target geometry before an
+     * immediately-created transition has supplied its first interpolated style.
+     */
+    public void commitRenderStateForMotion() {
+        if (!isActive()) return;
+        render.commit(false);
     }
 
     public boolean hasPendingRenderState() {
@@ -887,6 +910,9 @@ public class Document {
 
     public void queueMutation(MutationRecord record) {
         if (record == null || !isActive()) return;
+        if (record.target != null) {
+            record.target.invalidateSubtreeMutationVersion();
+        }
         for (MutationObserver observer : mutationObservers) {
             if (observer != null) observer.enqueue(record);
         }
