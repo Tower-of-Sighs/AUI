@@ -90,7 +90,6 @@ final class MotionTrack {
             if (hasAnimationSpec) {
                 Animation.updateStyle(element, animated);
             }
-
             // 为当帧提供“带 motion 的 computed style”
             invalidateMotionCaches(element, base, animated);
             StyleFrameCache.put(element, animated);
@@ -115,6 +114,7 @@ final class MotionTrack {
         RenderElement renderer = element.getRenderer();
 
         if (differsAny(base, animated, LAYOUT_PROPS)) {
+            element.forEachRoute(e -> e.getRenderer().invalidateLayoutVersion());
             element.forEachRoute(e -> e.getRenderer().size.clear());
             element.forEachRoute(e -> e.getRenderer().box.clear());
             renderer.position.clear();
@@ -127,12 +127,33 @@ final class MotionTrack {
             renderer.box.clear();
         }
 
+        // Text.of() is cached independently from the computed style. A color
+        // transition otherwise leaves the glyph cache pinned to its first frame:
+        // black on hover enter and white on hover leave.
+        if (differsAny(base, animated, Style.getTextProp())) {
+            renderer.text.clear();
+            renderer.wrappedText.clear();
+        }
+
+        if (!Objects.equals(base.transform, animated.transform)) {
+            renderer.invalidateTransformVersion();
+        }
+
         if (differsAny(base, animated, BACKGROUND_PROPS)) {
             renderer.background.clear();
         }
     }
 
     private static boolean differsAny(Style base, Style animated, String[] props) {
+        for (String prop : props) {
+            if (!Objects.equals(base.get(prop), animated.get(prop))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean differsAny(Style base, Style animated, Iterable<String> props) {
         for (String prop : props) {
             if (!Objects.equals(base.get(prop), animated.get(prop))) {
                 return true;

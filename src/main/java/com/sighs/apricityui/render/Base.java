@@ -82,6 +82,18 @@ public class Base {
         poseStack.pushPose();
         FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
         try {
+            // Pointer state can change between client ticks. Commit only the
+            // queued style roots here so CSS transitions start on this frame.
+            boolean styleChanged = document.commitPendingStyleRecalcForRender();
+            // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
+            // Layout-affecting motion must also refresh committed bounds before this paint pass.
+            boolean motionChanged = document.stepMotionRender();
+            if (styleChanged) {
+                document.commitRenderStateForMotion();
+            }
+            if (styleChanged || motionChanged) {
+                LayoutCommit.commit(document);
+            }
             poseStack.translate(0, 0, GLOBAL_DOCUMENT_Z_OFFSET);
             Element skippedSubtree = null;
             for (RenderNode node : document.getPaintList()) {

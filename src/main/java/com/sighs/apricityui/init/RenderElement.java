@@ -76,6 +76,12 @@ public class RenderElement {
     public Cache<Filter.FilterState> backdropFilter = new Cache<>();
     private Rect committedRect = null;
     private Matrix4f committedWorldTransform = null;
+    private long styleVersion = 1L;
+    private long layoutVersion = 1L;
+    private long scrollVersion = 1L;
+    private long transformVersion = 1L;
+    private long committedRectDependency = Long.MIN_VALUE;
+    private long committedTransformDependency = Long.MIN_VALUE;
 
     public RenderElement(Element element) {
         this.element = element;
@@ -85,22 +91,93 @@ public class RenderElement {
         return committedRect;
     }
 
+    public Rect getCommittedRectIfValid() {
+        return hasCommittedRect(rectDependency(element.document)) ? committedRect : null;
+    }
+
     public Matrix4f getCommittedWorldTransform() {
         return committedWorldTransform;
     }
 
-    public void commitLayout(Rect rect, Matrix4f worldTransform) {
+    public Matrix4f getCommittedWorldTransformIfValid() {
+        return hasCommittedWorldTransform(transformDependency(element.document)) ? committedWorldTransform : null;
+    }
+
+    public boolean hasCommittedRect(long dependency) {
+        return committedRect != null && committedRectDependency == dependency;
+    }
+
+    public boolean hasCommittedWorldTransform(long dependency) {
+        return committedWorldTransform != null && committedTransformDependency == dependency;
+    }
+
+    public void commitRect(Rect rect, long dependency) {
         committedRect = rect;
+        committedRectDependency = dependency;
+    }
+
+    public void commitWorldTransform(Matrix4f worldTransform, long dependency) {
         committedWorldTransform = worldTransform;
+        committedTransformDependency = dependency;
+    }
+
+    public void invalidateLayoutVersion() {
+        layoutVersion++;
+    }
+
+    public void invalidateStyleVersion() {
+        styleVersion++;
+    }
+
+    public void invalidateScrollVersion() {
+        scrollVersion++;
+    }
+
+    public void invalidateTransformVersion() {
+        transformVersion++;
+    }
+
+    public long rectDependency(Document document) {
+        return dependency(document, false);
+    }
+
+    public long transformDependency(Document document) {
+        return dependency(document, true);
+    }
+
+    private long dependency(Document document, boolean includeTransform) {
+        long value = 17L;
+        if (document != null) {
+            value = mix(value, document.getViewportVersion());
+        }
+        for (Element routeElement : element.getRouteArray()) {
+            RenderElement renderer = routeElement.getRenderer();
+            if (!includeTransform && routeElement == element) {
+                value = mix(value, renderer.styleVersion);
+            }
+            value = mix(value, renderer.layoutVersion);
+            value = mix(value, renderer.scrollVersion);
+            if (includeTransform) {
+                value = mix(value, renderer.transformVersion);
+            }
+        }
+        return value;
+    }
+
+    private static long mix(long value, long version) {
+        return (value * 0x9E3779B185EBCA87L) ^ version;
     }
 
     public void clearCommittedLayout() {
         committedRect = null;
         committedWorldTransform = null;
+        committedRectDependency = Long.MIN_VALUE;
+        committedTransformDependency = Long.MIN_VALUE;
     }
 
     public void clearCommittedWorldTransform() {
         committedWorldTransform = null;
+        committedTransformDependency = Long.MIN_VALUE;
     }
 
     public void clearCommittedLayoutSubtree() {
@@ -218,9 +295,10 @@ public class RenderElement {
             dirtyMask |= Drawer.REORDER;
         }
 
-        if (!current.transform.equals(origin.transform)) {
+        if (!current.transform.equals(origin.transform) || !current.transformOrigin.equals(origin.transformOrigin)) {
             renderer.transform.clear();
-            dirtyMask |= Drawer.REPAINT;
+            renderer.invalidateTransformVersion();
+            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT;
             if (Transform.createsStackingContext(origin.transform) != Transform.createsStackingContext(current.transform)
                     || Math.abs(Transform.getTranslateZ(origin.transform) - Transform.getTranslateZ(current.transform)) > 0.0001) {
                 dirtyMask |= Drawer.REORDER;
@@ -295,12 +373,14 @@ public class RenderElement {
 
         if (check.test(BACKGROUND_PROPS)) {
             renderer.background.clear();
-            dirtyMask |= Drawer.REPAINT;
+            renderer.invalidateStyleVersion();
+            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT;
         }
 
         if (check.test(VISUAL_BOX_PROPS)) {
             renderer.box.clear();
-            dirtyMask |= Drawer.REPAINT;
+            renderer.invalidateStyleVersion();
+            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT;
         }
 
         if (check.test(CURSOR_PROPS)) {
@@ -314,6 +394,7 @@ public class RenderElement {
         if (!origin.animation.equals(current.animation)) {
             Animation.stop(element);
             renderer.transform.clear();
+            renderer.invalidateTransformVersion();
             renderer.filter.clear();
             dirtyMask |= Drawer.REPAINT;
         }

@@ -529,7 +529,7 @@ public record Size(double width, double height) {
         return Math.max(0, parentOwnHeight);
     }
 
-    private static Double getContainingBlockPaddingBoxHeight(Element element) {
+    public static Double getContainingBlockPaddingBoxHeight(Element element) {
         Element parent = element == null ? null : element.parentElement;
         if (parent == null) return Math.max(0, getWindowHeight());
         Size cachedParentSize = parent.getRenderer().size.get();
@@ -542,7 +542,7 @@ public record Size(double width, double height) {
         return Math.max(0, parentSize.height() - parentBox.getBorderVertical());
     }
 
-    private static Double getContainingBlockPaddingBoxWidth(Element element) {
+    public static Double getContainingBlockPaddingBoxWidth(Element element) {
         Element parent = element == null ? null : element.parentElement;
         if (parent == null) return Math.max(0, getWindowWidth());
         Size cachedParentSize = parent.getRenderer().size.get();

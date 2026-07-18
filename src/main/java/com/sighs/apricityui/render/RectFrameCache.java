@@ -49,7 +49,7 @@ public final class RectFrameCache {
         Rect cached = map == null ? null : map.get(element);
         if (cached != null) return cached;
         if (COMMITTED_FALLBACK_DISABLED.get() > 0) return null;
-        return element == null ? null : element.getRenderer().getCommittedRect();
+        return element == null ? null : element.getRenderer().getCommittedRectIfValid();
     }
 
     public static void put(Element element, Rect rect) {

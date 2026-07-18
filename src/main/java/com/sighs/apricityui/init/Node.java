@@ -18,6 +18,7 @@ public abstract class Node {
     public Node parentNode = null;
     public final ArrayList<Node> childNodes = new ArrayList<>();
     public int depth = 0;
+    private long subtreeMutationVersion = 1L;
 
     private final EventRegistry events = new EventRegistry(this);
     public CopyOnWriteArrayList<Event.ListenerRecord> EventListener = events.listeners();
@@ -36,6 +37,16 @@ public abstract class Node {
 
     public List<Node> getChildNodes() {
         return Collections.unmodifiableList(childNodes);
+    }
+
+    public long getSubtreeMutationVersion() {
+        return subtreeMutationVersion;
+    }
+
+    void invalidateSubtreeMutationVersion() {
+        for (Node current = this; current != null; current = current.parentNode) {
+            current.subtreeMutationVersion++;
+        }
     }
 
     public Node getFirstChild() {

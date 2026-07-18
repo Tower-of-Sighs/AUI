@@ -6,25 +6,37 @@ import com.sighs.apricityui.init.StyleFrameCache;
 
 import java.util.*;
 
-public record Transition(String name, double start, double end, double duration, double delay, long startTime) {
+public record Transition(String name, double start, double end, double duration, double delay, long startTime,
+                         String timing) {
     private static final Object LOCK = new Object();
     private static final Map<UUID, List<Transition>> workList = new HashMap<>();
+
+    public Transition(String name, double start, double end, double duration, double delay, long startTime) {
+        this(name, start, end, duration, delay, startTime, "ease");
+    }
 
     public record Change(String name, double value) {
     }
 
     public static void create(Element element, Style startStyle, Style endStyle) {
         String transitionSpec = resolveTransitionSpec(startStyle, endStyle);
-        if (transitionSpec.equals(Style.DEFAULT.transition)) return;
+        if (transitionSpec.equals(Style.DEFAULT.transition)) {
+            cancel(element);
+            return;
+        }
 
         List<Transition> parsed = deferStartTimes(parseTransitions(element, startStyle, endStyle, transitionSpec));
-        // 避免同一轮中后续“无变化 updateCSS”覆盖掉刚创建的 transition
-        if (parsed.isEmpty()) return;
+        // A style change with no matching transition property ends any prior transition.
+        if (parsed.isEmpty()) {
+            cancel(element);
+            return;
+        }
         synchronized (LOCK) {
             List<Transition> existing = workList.get(element.uuid);
             if (hasSameTransitionTargets(existing, parsed)) {
                 return;
             }
+            retargetFromActiveTransition(existing, parsed, System.currentTimeMillis());
             workList.put(element.uuid, parsed);
         }
         if (element.document != null) {
@@ -36,6 +48,16 @@ public record Transition(String name, double start, double end, double duration,
     public static boolean isActive(Element element) {
         synchronized (LOCK) {
             return workList.containsKey(element.uuid);
+        }
+    }
+
+    private static void cancel(Element element) {
+        if (element == null) return;
+        synchronized (LOCK) {
+            workList.remove(element.uuid);
+        }
+        if (element.document != null) {
+            element.document.setTransitionActive(element, false);
         }
     }
 
@@ -53,6 +75,7 @@ public record Transition(String name, double start, double end, double duration,
             if (Math.abs(old.end - transition.end) > 0.0001) return false;
             if (Math.abs(old.duration - transition.duration) > 0.0001) return false;
             if (Math.abs(old.delay - transition.delay) > 0.0001) return false;
+            if (!Objects.equals(old.timing, transition.timing)) return false;
         }
         return true;
     }
@@ -90,15 +113,22 @@ public record Transition(String name, double start, double end, double duration,
             for (ListIterator<Transition> it = transitions.listIterator(); it.hasNext(); ) {
                 Transition t = it.next();
                 if (t.startTime < 0) {
-                    t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now);
+                    t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now, t.timing);
                     it.set(t);
+                }
+                if (t.duration <= 0.0) {
+                    if (changes == null) changes = new ArrayList<>();
+                    changes.add(new Change(t.name, t.end));
+                    it.remove();
+                    continue;
                 }
                 double progress = (now - t.startTime - t.delay) / t.duration;
                 if (progress < 0) continue;
                 if (progress > 1) progress = 1;
 
                 if (changes == null) changes = new ArrayList<>();
-                changes.add(new Change(t.name, getOffset(t.name, t.start, t.end, progress)));
+                changes.add(new Change(t.name, getOffset(t.name, t.start, t.end,
+                        Animation.applyTiming(progress, t.timing))));
                 if (progress >= 1) it.remove();
             }
 
@@ -183,6 +213,19 @@ public record Transition(String name, double start, double end, double duration,
     }
 
     private static double transitionPercentBasis(Element element, String name) {
+        if (element != null && isInsetProperty(name)) {
+            String position = element.getRawComputedStyle().position;
+            if ("fixed".equals(position)) {
+                Size viewport = Size.getWindowSize();
+                return isVerticalLengthProperty(name) ? viewport.height() : viewport.width();
+            }
+            if ("absolute".equals(position)) {
+                Double containingBlock = isVerticalLengthProperty(name)
+                        ? Size.getContainingBlockPaddingBoxHeight(element)
+                        : Size.getContainingBlockPaddingBoxWidth(element);
+                if (containingBlock != null) return containingBlock;
+            }
+        }
         Element containing = element == null ? null : element.parentElement;
         if (containing == null) {
             Size viewport = Size.getWindowSize();
@@ -216,6 +259,10 @@ public record Transition(String name, double start, double end, double duration,
                 || name.equals("borderBottom");
     }
 
+    private static boolean isInsetProperty(String name) {
+        return "top".equals(name) || "right".equals(name) || "bottom".equals(name) || "left".equals(name);
+    }
+
     public static void merge(Style style, String name, double value) {
         if (name.contains("color")) {
             style.update(name, new Color(value).toRgbaString());
@@ -238,21 +285,40 @@ public record Transition(String name, double start, double end, double duration,
         List<Transition> result = new ArrayList<>();
         if (raw == null || raw.isBlank()) return result;
 
-        for (String part : raw.split(",")) {
-            String[] tokens = part.trim().split("\\s+");
-            if (tokens.length < 2) continue;
-            String prop = tokens[0];
+        for (String part : splitTransitionParts(raw)) {
+            String prop = "all";
+            String timing = "ease";
             double dur = 0, del = 0;
-            for (int i = 1; i < tokens.length; i++) {
-                double time = parseTime(tokens[i]);
-                if (dur == 0) dur = time;
-                else del = time;
+            int timeCount = 0;
+            boolean invalid = false;
+            for (String token : splitTransitionTokens(part)) {
+                String normalized = token.toLowerCase(Locale.ROOT);
+                if (isTimeToken(normalized)) {
+                    if (timeCount++ == 0) {
+                        dur = parseTime(normalized);
+                        if (dur < 0.0) invalid = true;
+                    } else if (timeCount == 2) {
+                        del = parseTime(normalized);
+                    } else {
+                        invalid = true;
+                    }
+                } else if (isTimingFunctionToken(normalized)) {
+                    timing = normalized;
+                } else if (normalized.startsWith("steps(") || normalized.startsWith("cubic-bezier(")) {
+                    invalid = true;
+                } else if ("none".equals(normalized)) {
+                    prop = "none";
+                } else {
+                    prop = token;
+                }
             }
+            if (invalid || "none".equals(prop)) continue;
             if ("all".equals(prop)) {
                 double finalDur = dur;
                 double finalDel = del;
-                ANIMATABLE.forEach(name -> build(element, startStyle, endStyle, result, name, finalDur, finalDel));
-            } else build(element, startStyle, endStyle, result, prop, dur, del);
+                String finalTiming = timing;
+                ANIMATABLE.forEach(name -> build(element, startStyle, endStyle, result, name, finalDur, finalDel, finalTiming));
+            } else build(element, startStyle, endStyle, result, prop, dur, del, timing);
         }
         return result;
     }
@@ -267,13 +333,16 @@ public record Transition(String name, double start, double end, double duration,
                     transition.end,
                     transition.duration,
                     transition.delay,
-                    -1L
+                    -1L,
+                    transition.timing
             ));
         }
         return result;
     }
 
-    private static void build(Element element, Style sS, Style eS, List<Transition> res, String name, double dur, double del) {
+    private static void build(Element element, Style sS, Style eS, List<Transition> res, String name, double dur,
+                              double del, String timing) {
+        int first = res.size();
         if (name.equals("transform")) Transform.createTransition(sS, eS, res, dur, del);
         else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
         else if (Box.matchStyleName(name)) Box.createTransition(sS, eS, res, name, dur, del);
@@ -281,6 +350,95 @@ public record Transition(String name, double start, double end, double duration,
             double s = parseStyle(element, name, sS.get(name)), e = parseStyle(element, name, eS.get(name));
             if (Math.abs(s - e) > 0.0001) res.add(new Transition(name, s, e, dur, del, System.currentTimeMillis()));
         }
+        for (int i = first; i < res.size(); i++) {
+            Transition transition = res.get(i);
+            res.set(i, new Transition(transition.name, transition.start, transition.end, transition.duration,
+                    transition.delay, transition.startTime, timing));
+        }
+    }
+
+    private static List<String> splitTransitionParts(String raw) {
+        ArrayList<String> parts = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        for (int i = 0; i < raw.length(); i++) {
+            char ch = raw.charAt(i);
+            if (ch == '(') depth++;
+            else if (ch == ')' && depth > 0) depth--;
+            else if (ch == ',' && depth == 0) {
+                parts.add(raw.substring(start, i));
+                start = i + 1;
+            }
+        }
+        parts.add(raw.substring(start));
+        return parts;
+    }
+
+    private static List<String> splitTransitionTokens(String part) {
+        ArrayList<String> tokens = new ArrayList<>();
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < part.length(); i++) {
+            char ch = part.charAt(i);
+            if (Character.isWhitespace(ch) && depth == 0) {
+                if (!current.isEmpty()) {
+                    tokens.add(current.toString());
+                    current.setLength(0);
+                }
+                continue;
+            }
+            if (ch == '(') depth++;
+            else if (ch == ')' && depth > 0) depth--;
+            current.append(ch);
+        }
+        if (!current.isEmpty()) tokens.add(current.toString());
+        return tokens;
+    }
+
+    private static boolean isTimeToken(String token) {
+        return Animation.isTimeToken(token);
+    }
+
+    private static boolean isTimingFunctionToken(String token) {
+        return Animation.isTimingFunctionToken(token);
+    }
+
+    private static void retargetFromActiveTransition(List<Transition> existing, List<Transition> next, long now) {
+        if (existing == null || existing.isEmpty() || next == null || next.isEmpty()) return;
+        HashMap<String, Transition> activeByName = new HashMap<>();
+        for (Transition transition : existing) {
+            activeByName.put(transition.name, transition);
+        }
+        for (ListIterator<Transition> it = next.listIterator(); it.hasNext(); ) {
+            Transition replacement = it.next();
+            Transition active = activeByName.get(replacement.name);
+            if (active == null) continue;
+
+            double current = currentValue(active, now);
+            double duration = replacement.duration;
+            if (isReversing(active, replacement.end)) {
+                double span = Math.abs(active.end - active.start);
+                if (span > 0.0001) {
+                    duration *= Math.min(1.0, Math.abs(current - active.start) / span);
+                }
+            }
+            it.set(new Transition(replacement.name, current, replacement.end, duration, replacement.delay,
+                    replacement.startTime, replacement.timing));
+        }
+    }
+
+    private static boolean isReversing(Transition active, double newEnd) {
+        return Math.abs(newEnd - active.start) <= 0.0001;
+    }
+
+    private static double currentValue(Transition transition, long now) {
+        if (transition.startTime < 0 || now <= transition.startTime + transition.delay) return transition.start;
+        if (transition.duration <= 0.0) return transition.end;
+        double progress = (now - transition.startTime - transition.delay) / transition.duration;
+        if (progress <= 0.0) return transition.start;
+        if (progress >= 1.0) return transition.end;
+        return getOffset(transition.name, transition.start, transition.end,
+                Animation.applyTiming(progress, transition.timing));
     }
 
     private static final Set<String> ANIMATABLE = Set.of(

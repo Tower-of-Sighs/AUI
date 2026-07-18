@@ -45,10 +45,18 @@ public final class LayoutCommit {
         ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
 
-        Rect rect = Rect.createAndCache(target);
-        rect.getVisualBounds();
-        Matrix4f matrix = Base.createAndCacheWorldTransform(target);
-        target.getRenderer().commitLayout(rect, matrix);
+        long rectDependency = target.getRenderer().rectDependency(target.document);
+        if (!target.getRenderer().hasCommittedRect(rectDependency)) {
+            Rect rect = Rect.createAndCache(target);
+            rect.getVisualBounds();
+            target.getRenderer().commitRect(rect, rectDependency);
+        }
+
+        long transformDependency = target.getRenderer().transformDependency(target.document);
+        if (!target.getRenderer().hasCommittedWorldTransform(transformDependency)) {
+            Matrix4f matrix = Base.createAndCacheWorldTransform(target);
+            target.getRenderer().commitWorldTransform(matrix, transformDependency);
+        }
     }
 
     private static void ensureRendererLoaded(Element target) {

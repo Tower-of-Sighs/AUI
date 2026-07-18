@@ -59,14 +59,22 @@ final class RenderQueue {
     }
 
     void commit() {
+        commit(true);
+    }
+
+    void commit(boolean commitLayoutNow) {
         boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty() || layoutCommitDirty;
         boolean hadGlobalDirty = globalDirtyMask != 0;
+        boolean needsLayoutCommit = layoutCommitDirty || hadGlobalDirty;
         boolean fullHitTestRebuild = hadGlobalDirty || hitTestDirtyRoots.contains(owner.documentElement);
         Set<Element> incrementalHitRoots = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Element element : dirtyElements) {
             if (element == null || !element.isConnected()) continue;
             if (element.hasDirtyFlag(Drawer.REORDER)) {
                 fullHitTestRebuild = true;
+            }
+            if (element.hasDirtyFlag(Drawer.RELAYOUT) || element.hasDirtyFlag(Drawer.COMMIT_LAYOUT)) {
+                needsLayoutCommit = true;
             }
             if (element.hasDirtyFlag(Drawer.RELAYOUT)) {
                 incrementalHitRoots.add(element.parentElement == null ? element : element.parentElement);
@@ -80,8 +88,10 @@ final class RenderQueue {
 
         applyGlobalDirty();
         Drawer.flushUpdates(owner);
-        if (hadWork) {
+        if (needsLayoutCommit && commitLayoutNow) {
             LayoutCommit.commit(owner);
+        }
+        if (hadWork) {
             if (fullHitTestRebuild) {
                 hitTestCache.markDirty();
             } else if (!incrementalHitRoots.isEmpty()) {

@@ -19,10 +19,12 @@ import net.minecraft.resources.ResourceLocation;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -118,6 +120,36 @@ public class Canvas extends Element {
             action.accept(g);
         } finally {
             g.dispose();
+        }
+        surfaceDirty = true;
+        if (document != null) {
+            document.markDirty(this, Drawer.REPAINT);
+        }
+    }
+
+    /**
+     * Fast path for the common untransformed 2D-canvas clearRect case. The canvas surface is
+     * always TYPE_INT_ARGB, so clearing its backing array avoids Java2D's antialiased fill path.
+     */
+    public void clearSurfaceRect(int x, int y, int width, int height) {
+        ensureSurface();
+        if (width <= 0 || height <= 0) return;
+
+        int left = Math.max(0, x);
+        int top = Math.max(0, y);
+        int right = Math.min(bitmapWidth, x + width);
+        int bottom = Math.min(bitmapHeight, y + height);
+        if (left >= right || top >= bottom) return;
+
+        int[] pixels = ((DataBufferInt) surface.getRaster().getDataBuffer()).getData();
+        int rowWidth = right - left;
+        if (left == 0 && top == 0 && right == bitmapWidth && bottom == bitmapHeight) {
+            Arrays.fill(pixels, 0);
+        } else {
+            for (int row = top; row < bottom; row++) {
+                int offset = row * bitmapWidth + left;
+                Arrays.fill(pixels, offset, offset + rowWidth, 0);
+            }
         }
         surfaceDirty = true;
         if (document != null) {
@@ -255,9 +287,11 @@ public class Canvas extends Element {
             Minecraft.getInstance().getTextureManager().register(textureLocation, texture);
         }
 
+        int[] pixels = ((DataBufferInt) surface.getRaster().getDataBuffer()).getData();
+        int index = 0;
         for (int y = 0; y < bitmapHeight; y++) {
             for (int x = 0; x < bitmapWidth; x++) {
-                nativeImage.setPixelRGBA(x, y, argbToAbgr(surface.getRGB(x, y)));
+                nativeImage.setPixelRGBA(x, y, argbToAbgr(pixels[index++]));
             }
         }
         texture.upload();
