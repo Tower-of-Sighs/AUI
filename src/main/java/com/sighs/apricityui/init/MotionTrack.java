@@ -84,6 +84,9 @@ final class MotionTrack {
             if (hasTransition) {
                 boolean stillActive = Transition.updateStyle(element, animated);
                 if (!stillActive) {
+                    // The final sampled transition value can be identical to the raw target style.
+                    // It still must invalidate the half-way committed geometry from the prior frame.
+                    invalidateCompletedTransitionCaches(element);
                     setTransitionActive(element, false);
                 }
             }
@@ -151,6 +154,24 @@ final class MotionTrack {
             }
         }
         return false;
+    }
+
+    private static void invalidateCompletedTransitionCaches(Element element) {
+        RenderElement renderer = element.getRenderer();
+        element.forEachRoute(e -> {
+            RenderElement routeRenderer = e.getRenderer();
+            routeRenderer.invalidateLayoutVersion();
+            routeRenderer.size.clear();
+            routeRenderer.box.clear();
+            routeRenderer.position.clear();
+        });
+        renderer.invalidateTransformVersion();
+        renderer.transform.clear();
+        renderer.filter.clear();
+        renderer.backdropFilter.clear();
+        renderer.background.clear();
+        renderer.text.clear();
+        renderer.wrappedText.clear();
     }
 
     private static boolean differsAny(Style base, Style animated, Iterable<String> props) {

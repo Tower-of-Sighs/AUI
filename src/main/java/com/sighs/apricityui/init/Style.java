@@ -863,12 +863,22 @@ public class Style implements Cloneable {
         if (raw == null || raw.isBlank()) {
             return new String[]{"unset", "unset", "unset", "unset"};
         }
-        String[] parts = raw.trim().split("\\s+");
-        return switch (parts.length) {
-            case 1 -> new String[]{parts[0], parts[0], parts[0], parts[0]};
-            case 2 -> new String[]{parts[0], parts[1], parts[0], parts[1]};
-            case 3 -> new String[]{parts[0], parts[1], parts[2], parts[1]};
-            default -> new String[]{parts[0], parts[1], parts[2], parts[3]};
+        String[] tokens = new String[4];
+        int count = 0;
+        int index = 0;
+        while (index < raw.length() && count < tokens.length) {
+            while (index < raw.length() && Character.isWhitespace(raw.charAt(index))) index++;
+            if (index >= raw.length()) break;
+            int start = index;
+            while (index < raw.length() && !Character.isWhitespace(raw.charAt(index))) index++;
+            tokens[count++] = raw.substring(start, index);
+        }
+        if (count == 0) return new String[]{"unset", "unset", "unset", "unset"};
+        return switch (count) {
+            case 1 -> new String[]{tokens[0], tokens[0], tokens[0], tokens[0]};
+            case 2 -> new String[]{tokens[0], tokens[1], tokens[0], tokens[1]};
+            case 3 -> new String[]{tokens[0], tokens[1], tokens[2], tokens[1]};
+            default -> tokens;
         };
     }
 
