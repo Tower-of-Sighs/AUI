@@ -29,6 +29,11 @@ import java.util.Locale;
 public class Svg extends Canvas {
     public static final String TAG_NAME = "SVG";
     private static final int RASTER_SCALE = 4;
+    private static final String[] RASTER_FINGERPRINT_ATTRIBUTES = {
+            "color", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
+            "opacity", "fill-opacity", "stroke-opacity", "fill-rule", "d", "cx", "cy", "r",
+            "x", "y", "width", "height", "rx", "ry", "x1", "y1", "x2", "y2"
+    };
     private double rasterLayoutWidth = -1;
     private double rasterLayoutHeight = -1;
     private int intrinsicViewportWidth = 1;
@@ -322,14 +327,9 @@ public class Svg extends Canvas {
 
     private static long svgStyleFingerprint(Element element, long value) {
         if (element == null) return value;
-        String[] paintAttributes = {
-                "color", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
-                "opacity", "fill-opacity", "stroke-opacity", "fill-rule", "d", "cx", "cy", "r",
-                "x", "y", "width", "height", "rx", "ry", "x1", "y1", "x2", "y2"
-        };
         String color = element.getComputedStyle() == null ? null : element.getComputedStyle().color;
         value = mixStyleFingerprint(value, color);
-        for (String attribute : paintAttributes) {
+        for (String attribute : RASTER_FINGERPRINT_ATTRIBUTES) {
             value = mixStyleFingerprint(value, element.getAttribute(attribute));
         }
         for (Node child : element.childNodes) {

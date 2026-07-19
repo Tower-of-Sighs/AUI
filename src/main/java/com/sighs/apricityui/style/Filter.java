@@ -160,6 +160,15 @@ public class Filter {
     }
 
     public static void readTransition(List<Transition.Change> changeList, Style originStyle) {
+        boolean hasFilterChange = false;
+        for (Transition.Change change : changeList) {
+            if (change.name().startsWith("filter-")) {
+                hasFilterChange = true;
+                break;
+            }
+        }
+        if (!hasFilterChange) return;
+
         FilterState base = parse(originStyle.filter, 1.0f);
         float blur = base.blurRadius();
         float brightness = base.brightness();

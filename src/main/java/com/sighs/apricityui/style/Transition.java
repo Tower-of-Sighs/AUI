@@ -53,12 +53,43 @@ public record Transition(String name, double start, double end, double duration,
 
     private static void cancel(Element element) {
         if (element == null) return;
+        boolean cancelledActiveTransition;
         synchronized (LOCK) {
-            workList.remove(element.uuid);
+            List<Transition> removed = workList.remove(element.uuid);
+            cancelledActiveTransition = removed != null && !removed.isEmpty();
+        }
+        if (cancelledActiveTransition) {
+            invalidateCancelledTransitionCaches(element);
         }
         if (element.document != null) {
             element.document.setTransitionActive(element, false);
         }
+    }
+
+    /**
+     * A rapid state flip can coalesce back to the same raw style while an
+     * earlier transition is still sampled at an intermediate value. Cancelling
+     * that transition must invalidate its committed geometry; otherwise the
+     * prior transform remains drawable even though the raw style has won.
+     */
+    private static void invalidateCancelledTransitionCaches(Element element) {
+        element.forEachRoute(routeElement -> {
+            var renderer = routeElement.getRenderer();
+            renderer.invalidateLayoutVersion();
+            renderer.size.clear();
+            renderer.box.clear();
+            renderer.position.clear();
+        });
+
+        var renderer = element.getRenderer();
+        renderer.invalidateTransformVersion();
+        renderer.transform.clear();
+        renderer.opacity.clear();
+        renderer.filter.clear();
+        renderer.backdropFilter.clear();
+        renderer.background.clear();
+        renderer.text.clear();
+        renderer.wrappedText.clear();
     }
 
     private static boolean hasSameTransitionTargets(List<Transition> existing, List<Transition> next) {

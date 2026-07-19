@@ -419,7 +419,7 @@ public class Box {
 
 
     public static SideBorder parseSideBorder(String string) {
-        String[] res = string.trim().split("\\s+");
+        String[] res = splitWhitespace(string, 3);
         if (res.length != 3) return SideBorder.getDefault();
         Double width = Size.parseNumber(res[0]);
         if (width == null) return SideBorder.getDefault();
@@ -438,7 +438,7 @@ public class Box {
         }
 
         for (String shadowToken : Background.splitTopLevelComma(string)) {
-            String[] res = shadowToken.trim().split("\\s+");
+            String[] res = splitWhitespace(shadowToken, 8);
             if (res.length < 3) continue;
 
             Double x = Size.parseNumber(res[0]);
@@ -449,6 +449,20 @@ public class Box {
             result.add(new Shadow(x, y, blur, new Color(color)));
         }
         return result;
+    }
+
+    private static String[] splitWhitespace(String value, int maxTokens) {
+        if (value == null || value.isBlank() || maxTokens <= 0) return new String[0];
+        ArrayList<String> tokens = new ArrayList<>(Math.min(4, maxTokens));
+        int index = 0;
+        while (index < value.length() && tokens.size() < maxTokens) {
+            while (index < value.length() && Character.isWhitespace(value.charAt(index))) index++;
+            if (index >= value.length()) break;
+            int start = index;
+            while (index < value.length() && !Character.isWhitespace(value.charAt(index))) index++;
+            tokens.add(value.substring(start, index));
+        }
+        return tokens.toArray(String[]::new);
     }
 
     public record SideBorder(double size, String type, Color color) {

@@ -52,14 +52,19 @@ public class Position {
 
     public static Position of(Element element) {
         if (element == null) return ZERO;
-        Position resultPosition = new Position(0, 0);
+        double x = 0.0;
+        double y = 0.0;
         for (Element e : element.getRouteArray()) {
-            resultPosition = resultPosition.add(Position.getOffset(e));
-            if (!e.uuid.equals(element.uuid))
-                resultPosition = resultPosition.add(new Position(-e.getScrollLeft(), -e.getScrollTop()));
+            Position offset = Position.getOffset(e);
+            x += offset.x;
+            y += offset.y;
+            if (!e.uuid.equals(element.uuid)) {
+                x -= e.getScrollLeft();
+                y -= e.getScrollTop();
+            }
             if ("fixed".equals(e.getComputedStyle().position)) break;
         }
-        return resultPosition;
+        return x == 0.0 && y == 0.0 ? ZERO : new Position(x, y);
     }
 
     private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {
