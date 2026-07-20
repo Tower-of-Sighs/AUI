@@ -188,7 +188,7 @@ public class Client {
                 drawPersistentScreenDocuments(event.getGuiGraphics());
                 Cursor.drawPseudoCursor(event.getGuiGraphics());
             } finally {
-                FrameTimingHud.endFrame(event.getGuiGraphics().pose());
+                FrameTimingHud.endFrame(event.getGuiGraphics());
             }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
@@ -208,7 +208,7 @@ public class Client {
                 }
                 Cursor.drawPseudoCursor(event.getGuiGraphics());
             } finally {
-                FrameTimingHud.endFrame(event.getGuiGraphics().pose());
+                FrameTimingHud.endFrame(event.getGuiGraphics());
             }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }

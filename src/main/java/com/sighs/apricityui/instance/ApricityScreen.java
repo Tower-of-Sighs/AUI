@@ -91,7 +91,7 @@ public class ApricityScreen extends Screen {
             Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             Cursor.drawPseudoCursor(guiGraphics);
         } finally {
-            FrameTimingHud.endFrame(guiGraphics.pose());
+            FrameTimingHud.endFrame(guiGraphics);
         }
     }
 

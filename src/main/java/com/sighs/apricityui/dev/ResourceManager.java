@@ -1,433 +1,434 @@
 package com.sighs.apricityui.dev;
-import com.sighs.apricityui.event.MouseEvent;
+
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.FrameTaskScheduler;
-import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.style.Position;
 import net.minecraft.Util;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
-public class ResourceManager {
-    private static final String PATH = "devtools/resource-manager.html";
-    private static final int INITIAL_ROW_BATCH = 48;
-    private static final int TICK_ROW_BATCH = 96;
-    private static Document toolDocument = null;
-    private static String filterText = "";
-    private static ViewMode viewMode = ViewMode.ALL;
-    private static final Set<String> collapsedFolderPaths = new LinkedHashSet<>();
-    private static boolean contextMenuVisible = false;
-    private static int contextMenuX = 0;
-    private static int contextMenuY = 0;
-    private static Loader.StaticResourceEntry contextMenuEntry = null;
-    private static final Map<String, Element> fileRowByKey = new HashMap<>();
-    private static String selectedRowKey = "";
-    private static Loader.StaticResourceEntry previewEntry = null;
-    private static Document previewDocument = null;
+public final class ResourceManager {
+    private static final String PATH = "devtools/resource.html";
+    private static final String ROOT_PATH = "";
+
+    private static final String FOLDER_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"4\" y=\"12\" width=\"32\" height=\"22\" fill=\"#8b5cf6\"/><rect x=\"4\" y=\"8\" width=\"14\" height=\"6\" fill=\"#6d28d9\"/><rect x=\"4\" y=\"14\" width=\"32\" height=\"2\" fill=\"#6d28d9\"/></svg>";
+    private static final String FILE_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"6\" y=\"4\" width=\"28\" height=\"32\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><rect x=\"10\" y=\"12\" width=\"20\" height=\"2\" fill=\"#8b5cf6\"/><rect x=\"10\" y=\"18\" width=\"16\" height=\"2\" fill=\"#8b5cf6\"/><rect x=\"10\" y=\"24\" width=\"20\" height=\"2\" fill=\"#8b5cf6\"/><rect x=\"10\" y=\"30\" width=\"12\" height=\"2\" fill=\"#8b5cf6\"/></svg>";
+    private static final String IMAGE_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"6\" y=\"4\" width=\"28\" height=\"32\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><rect x=\"10\" y=\"12\" width=\"20\" height=\"14\" fill=\"#8b5cf6\" opacity=\"0.2\"/><circle cx=\"16\" cy=\"18\" r=\"3\" fill=\"#8b5cf6\"/><path d=\"M10 24l6-6 4 4 6-8 4 6v4H10z\" fill=\"#8b5cf6\"/></svg>";
+    private static final String LOCK_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"10\" y=\"18\" width=\"20\" height=\"16\" fill=\"#8b5cf6\"/><path d=\"M14 18v-5a6 6 0 0 1 12 0v5\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><circle cx=\"20\" cy=\"26\" r=\"2\" fill=\"#fff\"/></svg>";
+    private static final String ARCHIVE_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"6\" y=\"4\" width=\"28\" height=\"32\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><rect x=\"18\" y=\"6\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/><rect x=\"18\" y=\"14\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/><rect x=\"18\" y=\"22\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/></svg>";
+    private static final String CONFIG_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"6\" y=\"4\" width=\"28\" height=\"32\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><circle cx=\"20\" cy=\"20\" r=\"6\" fill=\"none\" stroke=\"#8b5cf6\" stroke-width=\"2\"/><rect x=\"18\" y=\"10\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/><rect x=\"18\" y=\"26\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/></svg>";
+
+    private static Document toolDocument;
+    private static Document previewDocument;
     private static String previewDocumentPath = "";
-    private static PendingRows pendingRows = null;
-    private static int pendingRowsGeneration = 0;
-
-    private enum ViewMode {
-        ALL,
-        FOLDER
-    }
+    private static FolderNode root = new FolderNode("ROOT", ROOT_PATH);
+    private static String currentPath = ROOT_PATH;
+    private static SelectedItem selectedItem;
+    private static final List<String> history = new ArrayList<>(List.of(ROOT_PATH));
+    private static int historyIndex;
+    private static final Set<String> expandedPaths = new LinkedHashSet<>();
 
     private ResourceManager() {
     }
 
     public static boolean isOpen() {
-        return toolDocument != null && !Document.get(PATH).isEmpty();
+        return toolDocument != null && !toolDocument.isDisposed();
     }
 
     public static void toggle() {
-        if (Document.get(PATH).isEmpty()) {
-            toolDocument = Document.create(PATH);
-            if (toolDocument != null) {
-                toolDocument.setReloadPersistent(true);
-            }
-            refresh();
-            return;
+        if (isOpen()) {
+            close();
+        } else {
+            open();
+        }
+    }
+
+    public static void open() {
+        if (!isOpen()) {
+            List<Document> existing = Document.get(PATH);
+            toolDocument = existing.isEmpty() ? Document.create(PATH) : existing.get(existing.size() - 1);
+        }
+        if (toolDocument == null) return;
+        toolDocument.setReloadPersistent(true);
+        refresh();
+    }
+
+    public static void close() {
+        closePreviewDocument();
+        if (toolDocument != null && !toolDocument.isDisposed()) {
+            toolDocument.remove();
         }
         toolDocument = null;
-        pendingRows = null;
-        filterText = "";
-        collapsedFolderPaths.clear();
-        clearContextMenuState();
-        clearPreviewState();
-        Document.remove(PATH);
+        resetNavigation();
     }
 
     public static void refresh() {
+        if (!isOpen()) {
+            List<Document> existing = Document.get(PATH);
+            if (existing.isEmpty()) return;
+            toolDocument = existing.get(existing.size() - 1);
+            toolDocument.setReloadPersistent(true);
+        }
+        render(ClientLoader.listFinalStaticResources());
+    }
+
+    private static void render(List<Loader.StaticResourceEntry> entries) {
         if (toolDocument == null || toolDocument.body == null) return;
-        Element title = toolDocument.querySelector(".title");
-        Element count = toolDocument.querySelector(".count");
-        Element rows = toolDocument.querySelector(".rows");
-        Element manager = toolDocument.querySelector(".manager");
-        Element filterInput = toolDocument.querySelector(".filter-input");
-        Element refreshBtn = toolDocument.querySelector(".refresh-btn");
-        Element closeBtn = toolDocument.querySelector(".close-btn");
-        Element modeAllBtn = toolDocument.querySelector(".mode-all");
-        Element modeFolderBtn = toolDocument.querySelector(".mode-folder");
-        Element previewPanel = toolDocument.querySelector(".preview-panel");
-        Element previewName = toolDocument.querySelector(".preview-name");
-        Element previewImage = toolDocument.querySelector(".preview-image");
-        Element previewPath = toolDocument.querySelector(".preview-info-path");
-        Element previewExt = toolDocument.querySelector(".preview-info-ext");
-        Element previewLayer = toolDocument.querySelector(".preview-info-layer");
-        Element previewSize = toolDocument.querySelector(".preview-info-size");
-        Element previewSource = toolDocument.querySelector(".preview-info-source");
-        Element previewStatus = toolDocument.querySelector(".preview-status");
-        Element previewStatusPath = toolDocument.querySelector(".preview-status-path");
-        Element closePreviewBtn = toolDocument.querySelector(".preview-close-btn");
-        if (title == null || count == null || rows == null || manager == null || filterInput == null || refreshBtn == null || closeBtn == null
-                || modeAllBtn == null || modeFolderBtn == null || previewPanel == null || previewName == null
-                || previewImage == null || previewPath == null || previewExt == null || previewLayer == null
-                || previewSize == null || previewSource == null || previewStatus == null
-                || previewStatusPath == null || closePreviewBtn == null) return;
-
-        List<Loader.StaticResourceEntry> allEntries = ClientLoader.listFinalStaticResources();
-        List<Loader.StaticResourceEntry> displayEntries = applyFilter(allEntries, filterText);
-        title.innerText = "Resource Manager";
-        count.innerText = displayEntries.size() + " / " + allEntries.size();
-
-        filterInput.value = filterText;
-        filterInput.setAttribute("value", filterText);
-        bindFilterInput(filterInput);
-        bindRefreshButton(refreshBtn);
-        bindCloseButton(closeBtn);
-        bindModeButtons(modeAllBtn, modeFolderBtn);
-        bindMenuDismiss(toolDocument.body);
-        bindClosePreviewButton(closePreviewBtn);
-        modeAllBtn.setAttribute("class", viewMode == ViewMode.ALL ? "mode-btn mode-all active" : "mode-btn mode-all");
-        modeFolderBtn.setAttribute("class", viewMode == ViewMode.FOLDER ? "mode-btn mode-folder active" : "mode-btn mode-folder");
-
-        pendingRows = null;
-        pendingRowsGeneration++;
-        clearChildren(rows);
-        fileRowByKey.clear();
-        selectedRowKey = "";
-        List<RowSpec> rowSpecs;
-        if (viewMode == ViewMode.ALL) {
-            rowSpecs = new ArrayList<>(displayEntries.size());
-            int index = 1;
-            for (Loader.StaticResourceEntry entry : displayEntries) {
-                rowSpecs.add(RowSpec.file(index, 0, entry, false));
-                index++;
-            }
-        } else {
-            FolderNode root = buildFolderTree(displayEntries);
-            rowSpecs = new ArrayList<>(displayEntries.size());
-            collectFolderRows(rowSpecs, root, 0);
+        root = buildTree(entries);
+        if (findFolder(currentPath) == null) {
+            currentPath = ROOT_PATH;
+            selectedItem = null;
+            resetHistory(ROOT_PATH);
+        } else if (selectedItem != null && !selectedItem.existsIn(root)) {
+            selectedItem = null;
         }
-        PendingRows pending = new PendingRows(toolDocument, rows, manager, rowSpecs, pendingRowsGeneration);
-        appendPendingRows(pending, INITIAL_ROW_BATCH);
-        if (!pending.isComplete()) {
-            pendingRows = pending;
-            int generation = pending.generation;
-            FrameTaskScheduler.schedule(deadlineNs -> runPendingRowsUntil(generation, deadlineNs));
-        }
-        updateRowSelection(contextMenuVisible ? contextMenuEntry : null);
-        clearContextMenus(manager);
-        appendContextMenu(manager);
-        updatePreviewSection(previewPanel, previewName, previewImage, previewPath, previewExt, previewLayer, previewSize, previewSource);
-        updatePreviewStatus(previewStatus, previewStatusPath);
 
-        markDirty(toolDocument);
+        bindShellActions();
+        renderNavigation();
+        renderTree();
+        renderFiles(true);
+        renderDetail();
+        markDirty();
     }
 
-    private static boolean runPendingRowsUntil(int generation, long deadlineNs) {
-        PendingRows pending = pendingRows;
-        if (pending == null) return true;
-        if (pending.generation != generation) return true;
-        if (toolDocument == null || toolDocument != pending.document || toolDocument.body == null) {
-            pendingRows = null;
-            return true;
-        }
-        if (pending.rows.parentElement == null) {
-            pendingRows = null;
-            return true;
-        }
-
-        do {
-            appendPendingRows(pending, Math.min(16, TICK_ROW_BATCH));
-            if (pending.isComplete()) {
-                pendingRows = null;
-                break;
-            }
-        } while (System.nanoTime() < deadlineNs);
-
-        if (contextMenuVisible) {
-            updateRowSelection(contextMenuEntry);
-        }
-        markDirty(toolDocument);
-        return pendingRows == null;
+    private static void bindShellActions() {
+        bindOnce("#backButton", event -> goBack());
+        bindOnce("#upButton", event -> goUp());
+        bindOnce("#refreshButton", event -> ClientLoader.reload());
     }
 
-    private static void appendPendingRows(PendingRows pending, int maxRows) {
-        if (pending == null || pending.rows == null || pending.manager == null || pending.specs == null) return;
-        int limit = Math.min(pending.specs.size(), pending.nextIndex + Math.max(0, maxRows));
-        while (pending.nextIndex < limit) {
-            RowSpec spec = pending.specs.get(pending.nextIndex);
-            Element row = spec.folder
-                    ? buildFolderRow(spec.depth, spec.folderPath, spec.folderName, spec.collapsed)
-                    : buildFileRow(spec.index, spec.depth, spec.entry, spec.inFolderMode, pending.manager);
-            if (row != null) pending.rows.append(row);
-            pending.nextIndex++;
+    private static void bindOnce(String selector, java.util.function.Consumer<Event> listener) {
+        Element element = toolDocument.querySelector(selector);
+        if (element == null || "1".equals(element.getAttribute("data-java-bound"))) return;
+        element.setAttribute("data-java-bound", "1");
+        element.addEventListener("click", listener);
+    }
+
+    private static void goBack() {
+        if (historyIndex <= 0) return;
+        historyIndex--;
+        navigate(history.get(historyIndex), false);
+    }
+
+    private static void goUp() {
+        if (currentPath.isBlank()) return;
+        navigate(parentPath(currentPath), true);
+    }
+
+    private static void navigate(String path, boolean recordHistory) {
+        String normalized = normalizePath(path);
+        if (findFolder(normalized) == null) return;
+        if (recordHistory && !normalized.equals(currentPath)) {
+            while (history.size() > historyIndex + 1) history.remove(history.size() - 1);
+            history.add(normalized);
+            historyIndex = history.size() - 1;
+        }
+        currentPath = normalized;
+        selectedItem = null;
+        expandAncestors(normalized);
+        renderNavigation();
+        renderTree();
+        renderFiles(true);
+        renderDetail();
+        markDirty();
+    }
+
+    private static void select(SelectedItem item) {
+        selectedItem = item;
+        renderTree();
+        renderFiles(false);
+        renderDetail();
+        markDirty();
+    }
+
+    private static void selectFromTree(Loader.StaticResourceEntry entry) {
+        if (entry == null) return;
+        String parent = parentPath(entry.path());
+        if (!parent.equals(currentPath)) {
+            while (history.size() > historyIndex + 1) history.remove(history.size() - 1);
+            history.add(parent);
+            historyIndex = history.size() - 1;
+            currentPath = parent;
+            expandAncestors(parent);
+        }
+        selectedItem = SelectedItem.file(entry);
+        renderNavigation();
+        renderTree();
+        renderFiles(false);
+        renderDetail();
+        markDirty();
+    }
+
+    private static void renderNavigation() {
+        Element nav = toolDocument.querySelector("#navPath");
+        if (nav == null) return;
+        nav.clearChildren();
+
+        Element rootLink = textElement("SPAN", "ROOT");
+        rootLink.addEventListener("click", event -> navigate(ROOT_PATH, true));
+        nav.append(rootLink);
+
+        if (currentPath.isBlank()) return;
+        StringBuilder path = new StringBuilder();
+        String[] parts = currentPath.split("/");
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            if (part.isBlank()) continue;
+            if (!path.isEmpty()) path.append('/');
+            path.append(part);
+            String targetPath = path.toString();
+
+            Element separator = textElement("SPAN", "▸");
+            separator.setAttribute("class", "nav-sep");
+            nav.append(separator);
+
+            Element link = textElement("SPAN", part.toUpperCase(Locale.ROOT));
+            if (i == parts.length - 1) link.setAttribute("class", "current");
+            link.addEventListener("click", event -> navigate(targetPath, true));
+            nav.append(link);
         }
     }
 
-    public static boolean devOpenContextMenuForFirstResource() {
-        if (toolDocument == null || toolDocument.body == null) return false;
-        List<Loader.StaticResourceEntry> allEntries = ClientLoader.listFinalStaticResources();
-        List<Loader.StaticResourceEntry> displayEntries = applyFilter(allEntries, filterText);
-        if (displayEntries.isEmpty()) return false;
-        viewMode = ViewMode.ALL;
-        contextMenuVisible = true;
-        contextMenuEntry = displayEntries.get(0);
-        contextMenuX = 8;
-        contextMenuY = 40;
-        refresh();
-        return true;
+    private static void renderTree() {
+        Element container = toolDocument.querySelector("#treeContainer");
+        if (container == null) return;
+        container.clearChildren();
+        appendTreeChildren(container, root, 0);
     }
 
-    private static List<Loader.StaticResourceEntry> applyFilter(List<Loader.StaticResourceEntry> entries, String filter) {
-        if (entries == null || entries.isEmpty()) return List.of();
-        String normalizedFilter = normalizeFilter(filter);
-        if (normalizedFilter.isBlank()) return entries;
+    private static void appendTreeChildren(Element parent, FolderNode folder, int depth) {
+        int index = 0;
+        for (FolderNode child : folder.sortedFolders()) {
+            boolean expanded = expandedPaths.contains(child.path);
+            boolean hasChildren = !child.folders.isEmpty() || !child.files.isEmpty();
+            Element item = createElement("DIV", "tree-item anim-in");
+            if (child.path.equals(currentPath)) item.setAttribute("class", "tree-item selected anim-in");
+            item.setAttribute("style", "padding-left:" + (24 + depth * 16) + "px;animation-delay:" + (index * 0.04d) + "s;");
+            item.setAttribute("data-path", child.path);
+            item.addEventListener("click", event -> navigate(child.path, true));
 
-        List<Loader.StaticResourceEntry> result = new ArrayList<>();
-        for (Loader.StaticResourceEntry entry : entries) {
-            if (entry == null) continue;
-            String haystack = (entry.path() + "|" + entry.extension() + "|" + entry.layer())
-                    .toLowerCase(Locale.ROOT);
-            if (haystack.contains(normalizedFilter)) result.add(entry);
-        }
-        return result;
-    }
-
-    private static Element buildFileRow(int index, int depth, Loader.StaticResourceEntry entry, boolean inFolderMode, Element manager) {
-        Element row = createToolElement("DIV");
-        row.setAttribute("class", "row");
-        row.setAttribute("data-base-class", "row");
-        row.addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent)) return;
-            if (mouseEvent.button != 1) {
-                if (contextMenuVisible && mouseEvent.button == 0) {
-                    clearContextMenuState();
-                    refreshContextMenuOnly();
-                }
-                return;
-            }
-            showContextMenu(entry, manager, mouseEvent);
-            event.stopPropagation();
-            refreshContextMenuOnly();
-        });
-        String rowKey = rowKeyOf(entry);
-        row.setAttribute("data-resource-key", rowKey);
-        fileRowByKey.put(rowKey, row);
-
-        row.append(cell("c-index", index > 0 ? String.valueOf(index) : ""));
-        String name = inFolderMode ? fileNameOf(entry.path()) : safe(entry.path());
-        Element pathCell = cell("c-path", name);
-        applyDepthIndent(pathCell, depth);
-        row.append(pathCell);
-        row.append(cell("c-ext", safe(entry.extension())));
-        row.append(cell("c-layer", switch (entry.layer()) {
-            case RESOURCE_PACK -> "PACK";
-            case LOCAL_FOLDER -> "LOCAL";
-            case DEV_FOLDER -> "DEV";
-        }));
-        row.append(cell("c-size", formatSize(entry.sizeBytes())));
-        return row;
-    }
-
-    private static Element buildFolderRow(int depth, String path, String name, boolean collapsed) {
-        Element row = createToolElement("DIV");
-        row.setAttribute("class", "row folder-row");
-        row.setAttribute("data-base-class", "row folder-row");
-        row.addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || mouseEvent.button != 0) return;
-            if (collapsedFolderPaths.contains(path)) collapsedFolderPaths.remove(path);
-            else collapsedFolderPaths.add(path);
-            refresh();
-        });
-        row.append(cell("c-index", ""));
-        Element pathCell = cell("c-path folder-name", (collapsed ? "► " : "▼ ") + name + "/");
-        applyDepthIndent(pathCell, depth);
-        row.append(pathCell);
-        row.append(cell("c-ext", ""));
-        row.append(cell("c-layer", ""));
-        row.append(cell("c-size", ""));
-        return row;
-    }
-
-    private static FolderNode buildFolderTree(List<Loader.StaticResourceEntry> entries) {
-        FolderNode root = new FolderNode("", "");
-        for (Loader.StaticResourceEntry entry : entries) {
-            if (entry == null || entry.path() == null || entry.path().isBlank()) continue;
-            String[] parts = entry.path().split("/");
-            FolderNode current = root;
-            StringBuilder fullPathBuilder = new StringBuilder();
-            for (int i = 0; i < parts.length - 1; i++) {
-                String part = parts[i];
-                if (part == null || part.isBlank()) continue;
-                if (!fullPathBuilder.isEmpty()) fullPathBuilder.append('/');
-                fullPathBuilder.append(part);
-                String folderPath = fullPathBuilder.toString();
-                current = current.children.computeIfAbsent(part, ignored -> new FolderNode(part, folderPath));
-            }
-            current.files.add(entry);
-        }
-        return root;
-    }
-
-    private static void collectFolderRows(List<RowSpec> rows, FolderNode node, int depth) {
-        if (node == null || rows == null) return;
-
-        if (!node.path.isBlank()) {
-            boolean collapsed = collapsedFolderPaths.contains(node.path);
-            rows.add(RowSpec.folder(depth, node.path, node.name, collapsed));
-            if (collapsed) return;
-        }
-
-        for (FolderNode child : node.children.values()) {
-            collectFolderRows(rows, child, node.path.isBlank() ? depth : depth + 1);
-        }
-        int fileDepth = node.path.isBlank() ? depth : depth + 1;
-        for (Loader.StaticResourceEntry file : node.files) {
-            rows.add(RowSpec.file(0, fileDepth, file, true));
-        }
-    }
-
-    private static void bindMenuDismiss(Element root) {
-        if (root == null) return;
-        if ("1".equals(root.getAttribute("data-menu-dismiss-bound"))) return;
-        root.setAttribute("data-menu-dismiss-bound", "1");
-        root.addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || mouseEvent.button != 0) return;
-            if (!contextMenuVisible) return;
-            if (isInsideContextMenu(event.target)) return;
-            clearContextMenuState();
-            refreshContextMenuOnly();
-        });
-        root.addEventListener("scroll", event -> {
-            if (!contextMenuVisible) return;
-            clearContextMenuState();
-            refreshContextMenuOnly();
-        });
-    }
-
-    private static void appendContextMenu(Element manager) {
-        if (manager == null || !contextMenuVisible || contextMenuEntry == null) return;
-        Loader.StaticResourceEntry selectedEntry = contextMenuEntry;
-
-        Element menu = createToolElement("DIV");
-        menu.setAttribute("class", "context-menu");
-        menu.setAttribute("style", "left:" + contextMenuX + "px;top:" + contextMenuY + "px;");
-        boolean previewable = isPreviewable(selectedEntry);
-        menu.append(menuItem("Preview", !previewable, ignored -> {
-            openPreview(selectedEntry);
-            clearContextMenuState();
-            refresh();
-        }));
-        menu.append(menuItem("Copy Path", false, ignored -> {
-            Operation.setClipboardText(safe(selectedEntry.path()));
-            ToastManager.show("Path copied");
-            clearContextMenuState();
-            refreshContextMenuOnly();
-        }));
-        menu.append(menuItem("Copy Source", false, ignored -> {
-            Operation.setClipboardText(resolveSourceForCopy(selectedEntry));
-            ToastManager.show("Source copied");
-            clearContextMenuState();
-            refreshContextMenuOnly();
-        }));
-        menu.append(menuItem("Browse Local File", false, ignored -> {
-            browseLocalFile(selectedEntry);
-            clearContextMenuState();
-            refreshContextMenuOnly();
-        }));
-        menu.addEventListener("mousedown", event -> event.stopPropagation());
-        manager.append(menu);
-    }
-
-    private static Element menuItem(String label, boolean disabled, java.util.function.Consumer<com.sighs.apricityui.init.Event> action) {
-        Element item = createToolElement("DIV");
-        item.setAttribute("class", disabled ? "context-item disabled" : "context-item");
-        Element text = createToolElement("SPAN");
-        text.setAttribute("class", "context-item-label");
-        text.innerText = safe(label);
-        item.append(text);
-        if (!disabled) {
-            item.addEventListener("mousedown", event -> {
-                if (!(event instanceof MouseEvent mouseEvent) || mouseEvent.button != 0) return;
+            Element toggle = textElement("DIV", "▾");
+            toggle.setAttribute("class", hasChildren ? (expanded ? "tree-toggle" : "tree-toggle collapsed") : "tree-toggle empty");
+            toggle.addEventListener("click", event -> {
                 event.stopPropagation();
-                action.accept(event);
+                if (expandedPaths.contains(child.path)) expandedPaths.remove(child.path);
+                else expandedPaths.add(child.path);
+                renderTree();
+                markDirty();
             });
+            item.append(toggle);
+            item.append(iconElement("tree-icon", FOLDER_ICON));
+            item.append(textElement("SPAN", child.name.toUpperCase(Locale.ROOT)));
+            parent.append(item);
+
+            if (hasChildren) {
+                Element wrapper = createElement("DIV", expanded ? "tree-children-wrapper expanded" : "tree-children-wrapper");
+                Element inner = createElement("DIV", "tree-children-inner");
+                if (expanded) appendTreeChildren(inner, child, depth + 1);
+                wrapper.append(inner);
+                parent.append(wrapper);
+            }
+            index++;
         }
-        return item;
+
+        for (Loader.StaticResourceEntry entry : folder.sortedFiles()) {
+            Element item = createElement("DIV", "tree-item anim-in");
+            if (selectedItem != null && selectedItem.matches(entry)) {
+                item.setAttribute("class", "tree-item selected anim-in");
+            }
+            item.setAttribute("style", "padding-left:" + (24 + depth * 16) + "px;animation-delay:" + (index * 0.04d) + "s;");
+            item.setAttribute("data-path", safe(entry.path()));
+            item.setAttribute("data-resource-key", resourceKey(entry));
+            item.addEventListener("click", event -> selectFromTree(entry));
+            item.append(textElement("DIV", "▾", "tree-toggle empty"));
+            item.append(iconElement("tree-icon", iconFor(entry)));
+            item.append(textElement("SPAN", fileName(entry.path()).toUpperCase(Locale.ROOT)));
+            parent.append(item);
+            index++;
+        }
     }
 
-    private static void clearContextMenus(Element manager) {
-        if (manager == null) return;
-        ArrayList<Element> snapshot = new ArrayList<>(manager.children);
-        for (Element child : snapshot) {
-            if (child == null) continue;
-            String cls = safe(child.getAttribute("class"));
-            if (hasClass(cls, "context-menu")) {
-                child.remove();
+    private static void renderFiles(boolean animate) {
+        Element grid = toolDocument.querySelector("#fileGrid");
+        Element title = toolDocument.querySelector("#contentTitle");
+        Element count = toolDocument.querySelector("#contentCount");
+        if (grid == null || title == null || count == null) return;
+
+        FolderNode folder = findFolder(currentPath);
+        grid.clearChildren();
+        if (folder == null) return;
+
+        List<FolderNode> folders = folder.sortedFolders();
+        List<Loader.StaticResourceEntry> files = folder.sortedFiles();
+        int total = folders.size() + files.size();
+        title.setTextContent(folder.name.toUpperCase(Locale.ROOT));
+        count.setTextContent(total + (total == 1 ? " ITEM" : " ITEMS"));
+
+        if (total == 0) {
+            Element empty = textElement("DIV", "EMPTY");
+            empty.setAttribute("style", "color:var(--gray);text-align:center;padding:40px;");
+            grid.append(empty);
+            return;
+        }
+
+        int index = 0;
+        for (FolderNode child : folders) {
+            SelectedItem folderItem = SelectedItem.folder(child);
+            Element card = fileCard(child.name, "--", FOLDER_ICON, folderItem, animate, index++);
+            card.setAttribute("data-path", child.path);
+            card.addEventListener("dblclick", event -> navigate(child.path, true));
+            grid.append(card);
+        }
+        for (Loader.StaticResourceEntry entry : files) {
+            SelectedItem fileItem = SelectedItem.file(entry);
+            Element card = fileCard(fileName(entry.path()), formatSize(entry.sizeBytes()), iconFor(entry), fileItem, animate, index++);
+            card.setAttribute("data-path", safe(entry.path()));
+            card.setAttribute("data-resource-key", resourceKey(entry));
+            card.addEventListener("dblclick", event -> openPreview(entry));
+            grid.append(card);
+        }
+    }
+
+    private static Element fileCard(String name, String meta, String icon, SelectedItem item, boolean animate, int index) {
+        boolean selected = selectedItem != null && selectedItem.key.equals(item.key);
+        String classes = "file-card" + (selected ? " selected" : "") + (animate ? " entering" : "");
+        Element card = createElement("DIV", classes);
+        if (animate) card.setAttribute("style", "animation-delay:" + (index * 0.05d) + "s;");
+        card.addEventListener("click", event -> select(item));
+        card.append(iconElement("file-icon", icon));
+        card.append(textElement("DIV", name.toUpperCase(Locale.ROOT), "file-name"));
+        card.append(textElement("DIV", meta, "file-meta"));
+        return card;
+    }
+
+    private static void renderDetail() {
+        Element panel = toolDocument.querySelector("#detailPanel");
+        Element content = toolDocument.querySelector("#detailContent");
+        if (panel == null || content == null) return;
+        content.clearChildren();
+
+        if (selectedItem == null) {
+            panel.setAttribute("class", "detail-panel");
+            content.append(textElement("DIV", "SELECT FILE TO VIEW DETAILS", "detail-empty"));
+            return;
+        }
+
+        panel.setAttribute("class", "detail-panel active");
+        Element detail = createElement("DIV", "detail-content");
+        Element icon = createElement("DIV", "detail-icon");
+        Loader.StaticResourceEntry entry = selectedItem.entry;
+        if (entry != null && isImagePreviewable(entry)) {
+            Element image = createElement("IMG", "detail-preview-image");
+            image.setAttribute("src", "/" + safe(entry.path()));
+            image.setAttribute("alt", fileName(entry.path()));
+            image.setAttribute("style", "width:56px;height:56px;object-fit:contain;");
+            icon.append(image);
+        } else {
+            icon.setInnerHTML(selectedItem.folder != null ? FOLDER_ICON : iconFor(entry));
+        }
+        detail.append(icon);
+        detail.append(textElement("DIV", selectedItem.name.toUpperCase(Locale.ROOT), "detail-name"));
+
+        if (selectedItem.folder != null) {
+            detail.append(detailRow("TYPE", "FOLDER"));
+            detail.append(detailRow("SIZE", "--"));
+            detail.append(detailRow("LAYER", "--"));
+            detail.append(detailRow("PATH", displayPath(selectedItem.path)));
+        } else {
+            String type = safe(entry.extension()).isBlank() ? "FILE" : entry.extension().toUpperCase(Locale.ROOT);
+            detail.append(detailRow("TYPE", type));
+            detail.append(detailRow("SIZE", formatSize(entry.sizeBytes())));
+            detail.append(detailRow("LAYER", layerLabel(entry.layer())));
+            detail.append(detailRow("PATH", safe(entry.path())));
+        }
+        appendActions(detail, selectedItem);
+        content.append(detail);
+    }
+
+    private static Element detailRow(String label, String value) {
+        Element row = createElement("DIV", "detail-row");
+        row.append(textElement("SPAN", label, "detail-label"));
+        row.append(textElement("SPAN", value, "detail-value"));
+        return row;
+    }
+
+    private static void appendActions(Element detail, SelectedItem item) {
+        Element actions = createElement("DIV", "detail-tags");
+        actions.append(textElement("DIV", "ACTIONS", "detail-tags-title"));
+        actions.append(action("COPY PATH", event -> {
+            Operation.setClipboardText(item.path);
+            ToastManager.show("Path copied");
+        }));
+
+        if (item.entry != null) {
+            Loader.StaticResourceEntry entry = item.entry;
+            if (isPreviewable(entry)) {
+                actions.append(action("PREVIEW", event -> openPreview(entry)));
+            }
+            String source = resolveSourceForCopy(entry);
+            if (!source.isBlank()) {
+                actions.append(action("COPY SOURCE", event -> {
+                    Operation.setClipboardText(source);
+                    ToastManager.show("Source copied");
+                }));
+            }
+            if (resolveLocalPath(entry) != null) {
+                actions.append(action("OPEN FOLDER", event -> browseLocalFile(entry)));
             }
         }
+        detail.append(actions);
     }
 
-    private static void showContextMenu(Loader.StaticResourceEntry entry, Element manager, MouseEvent event) {
-        if (entry == null || manager == null || event == null) return;
-        Position managerPos = Position.of(manager);
-        contextMenuX = Math.max(0, (int) Math.round(event.clientX - managerPos.x));
-        contextMenuY = Math.max(0, (int) Math.round(event.clientY - managerPos.y));
-        contextMenuEntry = entry;
-        contextMenuVisible = true;
+    private static Element action(String label, java.util.function.Consumer<Event> listener) {
+        Element action = textElement("SPAN", label, "tag");
+        action.addEventListener("click", listener);
+        return action;
     }
 
-    private static void refreshContextMenuOnly() {
-        if (toolDocument == null || toolDocument.body == null) return;
-        Element manager = toolDocument.querySelector(".manager");
-        if (manager == null) return;
-        updateRowSelection(contextMenuVisible ? contextMenuEntry : null);
-        clearContextMenus(manager);
-        appendContextMenu(manager);
-        toolDocument.markDirty(toolDocument.body, Drawer.REPAINT | Drawer.REORDER);
-    }
-
-    private static void updateRowSelection(Loader.StaticResourceEntry entry) {
-        String nextKey = entry == null ? "" : rowKeyOf(entry);
-        for (Element row : new ArrayList<>(fileRowByKey.values())) {
-            if (row == null) continue;
-            String baseClass = safe(row.getAttribute("data-base-class"));
-            row.setAttribute("class", baseClass.isBlank() ? "row" : baseClass);
+    private static void openPreview(Loader.StaticResourceEntry entry) {
+        if (entry == null) return;
+        if (isImagePreviewable(entry)) {
+            selectedItem = SelectedItem.file(entry);
+            renderFiles(false);
+            renderDetail();
+            markDirty();
+            return;
         }
-        selectedRowKey = "";
-        if (nextKey.isBlank()) return;
-        Element current = fileRowByKey.get(nextKey);
-        if (current != null) {
-            String baseClass = safe(current.getAttribute("data-base-class"));
-            if (baseClass.isBlank()) baseClass = "row";
-            current.setAttribute("class", baseClass + " row-selected");
-            selectedRowKey = nextKey;
-        }
+        if (isHtmlPreviewable(entry)) openHtmlPreview(entry);
     }
 
-    private static String rowKeyOf(Loader.StaticResourceEntry entry) {
-        if (entry == null) return "";
-        return safe(entry.path()) + "|" + (entry.layer() == null ? "" : entry.layer().name());
+    private static void openHtmlPreview(Loader.StaticResourceEntry entry) {
+        String path = entry == null ? "" : safe(entry.path());
+        if (path.isBlank() || PATH.equals(path)) return;
+        if (previewDocument != null && path.equals(previewDocumentPath) && !previewDocument.isDisposed()) return;
+        closePreviewDocument();
+        Document created = Document.create(path);
+        if (created == null) {
+            ToastManager.show("HTML preview unavailable");
+            return;
+        }
+        created.setReloadPersistent(true);
+        previewDocument = created;
+        previewDocumentPath = path;
+    }
+
+    private static void closePreviewDocument() {
+        if (previewDocument != null && !previewDocument.isDisposed()) previewDocument.remove();
+        previewDocument = null;
+        previewDocumentPath = "";
     }
 
     private static void browseLocalFile(Loader.StaticResourceEntry entry) {
@@ -447,261 +448,95 @@ public class ResourceManager {
     }
 
     private static Path resolveLocalPath(Loader.StaticResourceEntry entry) {
-        if (entry == null) return null;
-        if (entry.layer() == Loader.ResourceLayer.RESOURCE_PACK) return null;
+        if (entry == null || entry.layer() == Loader.ResourceLayer.RESOURCE_PACK) return null;
         String sourceRoot = safe(entry.sourceRoot());
         if (sourceRoot.isBlank()) return null;
-        Path root = Path.of(sourceRoot).toAbsolutePath().normalize();
-        if (!Files.exists(root)) return null;
-        String relative = safe(entry.path());
-        Path resolved = root;
-        for (String part : relative.split("/")) {
-            if (part == null || part.isBlank()) continue;
-            resolved = resolved.resolve(part);
+        Path rootPath = Path.of(sourceRoot).toAbsolutePath().normalize();
+        if (!Files.exists(rootPath)) return null;
+        Path resolved = rootPath;
+        for (String part : normalizePath(entry.path()).split("/")) {
+            if (!part.isBlank()) resolved = resolved.resolve(part);
         }
         resolved = resolved.normalize();
-        if (!resolved.startsWith(root)) return null;
-        return resolved;
+        return resolved.startsWith(rootPath) ? resolved : null;
+    }
+
+    private static FolderNode buildTree(List<Loader.StaticResourceEntry> entries) {
+        FolderNode treeRoot = new FolderNode("ROOT", ROOT_PATH);
+        if (entries == null) return treeRoot;
+        for (Loader.StaticResourceEntry entry : entries) {
+            if (entry == null) continue;
+            String path = normalizePath(entry.path());
+            if (path.isBlank()) continue;
+            String[] parts = path.split("/");
+            FolderNode cursor = treeRoot;
+            StringBuilder folderPath = new StringBuilder();
+            for (int i = 0; i < parts.length - 1; i++) {
+                String name = parts[i];
+                if (name.isBlank()) continue;
+                if (!folderPath.isEmpty()) folderPath.append('/');
+                folderPath.append(name);
+                String nextPath = folderPath.toString();
+                cursor = cursor.folders.computeIfAbsent(name, ignored -> new FolderNode(name, nextPath));
+            }
+            cursor.files.add(entry);
+        }
+        return treeRoot;
+    }
+
+    private static FolderNode findFolder(String path) {
+        String normalized = normalizePath(path);
+        if (normalized.isBlank()) return root;
+        FolderNode cursor = root;
+        for (String part : normalized.split("/")) {
+            cursor = cursor.folders.get(part);
+            if (cursor == null) return null;
+        }
+        return cursor;
+    }
+
+    private static void expandAncestors(String path) {
+        StringBuilder cursor = new StringBuilder();
+        for (String part : normalizePath(path).split("/")) {
+            if (part.isBlank()) continue;
+            if (!cursor.isEmpty()) cursor.append('/');
+            cursor.append(part);
+            expandedPaths.add(cursor.toString());
+        }
+    }
+
+    private static String iconFor(Loader.StaticResourceEntry entry) {
+        if (entry == null) return FILE_ICON;
+        String extension = safe(entry.extension()).toLowerCase(Locale.ROOT);
+        if (isImagePreviewable(entry)) return IMAGE_ICON;
+        if (extension.equals("lock")) return LOCK_ICON;
+        if (extension.equals("zip") || extension.equals("jar") || extension.equals("rar") || extension.equals("7z")) return ARCHIVE_ICON;
+        if (extension.equals("json") || extension.equals("toml") || extension.equals("properties") || extension.equals("cfg") || extension.equals("conf")) return CONFIG_ICON;
+        return FILE_ICON;
+    }
+
+    private static boolean isImagePreviewable(Loader.StaticResourceEntry entry) {
+        String extension = entry == null ? "" : safe(entry.extension()).toLowerCase(Locale.ROOT);
+        return extension.equals("png") || extension.equals("jpg") || extension.equals("jpeg")
+                || extension.equals("bmp") || extension.equals("gif") || extension.equals("webp");
+    }
+
+    private static boolean isHtmlPreviewable(Loader.StaticResourceEntry entry) {
+        String extension = entry == null ? "" : safe(entry.extension()).toLowerCase(Locale.ROOT);
+        return extension.equals("html") || extension.equals("htm");
+    }
+
+    private static boolean isPreviewable(Loader.StaticResourceEntry entry) {
+        return isImagePreviewable(entry) || (isHtmlPreviewable(entry) && !PATH.equals(safe(entry.path())));
     }
 
     private static String resolveSourceForCopy(Loader.StaticResourceEntry entry) {
         if (entry == null) return "";
-        if (!safe(entry.sourceDetail()).isBlank()) return entry.sourceDetail();
-        return safe(entry.sourceRoot());
-    }
-
-    private static boolean isInsideContextMenu(Object target) {
-        if (!(target instanceof Node node)) return false;
-        Node cursor = node;
-        while (cursor != null) {
-            if (!(cursor instanceof Element element)) {
-                cursor = cursor.getParentNode();
-                continue;
-            }
-            String cls = safe(element.getAttribute("class"));
-            if (hasClass(cls, "context-menu")) return true;
-            cursor = cursor.getParentNode();
-        }
-        return false;
-    }
-
-    private static boolean hasClass(String classes, String expected) {
-        if (classes == null || classes.isBlank() || expected == null || expected.isBlank()) return false;
-        String[] tokens = classes.split("\\s+");
-        for (String token : tokens) {
-            if (expected.equals(token)) return true;
-        }
-        return false;
-    }
-
-    private static void clearContextMenuState() {
-        contextMenuVisible = false;
-        contextMenuX = 0;
-        contextMenuY = 0;
-        contextMenuEntry = null;
-    }
-
-    private static Element cell(String className, String text) {
-        Element span = createToolElement("SPAN");
-        span.setAttribute("class", "cell " + className);
-        span.innerText = text;
-        return span;
-    }
-
-    private static void bindFilterInput(Element filterInput) {
-        if ("1".equals(filterInput.getAttribute("data-bound"))) return;
-        filterInput.setAttribute("data-bound", "1");
-        filterInput.addEventListener("keydown", event -> {
-            if (!(event instanceof com.sighs.apricityui.event.KeyEvent keyEvent)) return;
-            if (!"Enter".equals(keyEvent.key)) return;
-            filterText = normalizeFilter(filterInput.value);
-            refresh();
-        });
-        filterInput.addEventListener("blur", event -> {
-            filterText = normalizeFilter(filterInput.value);
-            refresh();
-        });
-    }
-
-    private static void bindRefreshButton(Element refreshBtn) {
-        if ("1".equals(refreshBtn.getAttribute("data-bound"))) return;
-        refreshBtn.setAttribute("data-bound", "1");
-        refreshBtn.addEventListener("mousedown", event -> refresh());
-    }
-
-    private static void bindCloseButton(Element closeBtn) {
-        if ("1".equals(closeBtn.getAttribute("data-bound"))) return;
-        closeBtn.setAttribute("data-bound", "1");
-        closeBtn.addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || mouseEvent.button != 0) return;
-            toggle();
-            event.stopPropagation();
-        });
-    }
-
-    private static void bindClosePreviewButton(Element closePreviewBtn) {
-        if ("1".equals(closePreviewBtn.getAttribute("data-bound"))) return;
-        closePreviewBtn.setAttribute("data-bound", "1");
-        closePreviewBtn.addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent mouseEvent) || mouseEvent.button != 0) return;
-            clearPreviewState();
-            refresh();
-            event.stopPropagation();
-        });
-    }
-
-    private static void bindModeButtons(Element modeAllBtn, Element modeFolderBtn) {
-        if (!"1".equals(modeAllBtn.getAttribute("data-bound"))) {
-            modeAllBtn.setAttribute("data-bound", "1");
-            modeAllBtn.addEventListener("mousedown", event -> {
-                if (viewMode == ViewMode.ALL) return;
-                viewMode = ViewMode.ALL;
-                refresh();
-            });
-        }
-        if (!"1".equals(modeFolderBtn.getAttribute("data-bound"))) {
-            modeFolderBtn.setAttribute("data-bound", "1");
-            modeFolderBtn.addEventListener("mousedown", event -> {
-                if (viewMode == ViewMode.FOLDER) return;
-                viewMode = ViewMode.FOLDER;
-                refresh();
-            });
-        }
-    }
-
-    private static String formatSize(long sizeBytes) {
-        if (sizeBytes < 0) return "-";
-        if (sizeBytes < 1024) return sizeBytes + " B";
-        double kb = sizeBytes / 1024.0;
-        if (kb < 1024) return String.format(Locale.ROOT, "%.1f KB", kb);
-        double mb = kb / 1024.0;
-        return String.format(Locale.ROOT, "%.1f MB", mb);
-    }
-
-    private static void clearChildren(Element parent) {
-        if (parent != null) parent.clearChildren();
-    }
-
-    private static String normalizeFilter(String value) {
-        return safe(value).trim().toLowerCase(Locale.ROOT);
-    }
-
-    private static String fileNameOf(String path) {
-        String safePath = safe(path);
-        int idx = safePath.lastIndexOf('/');
-        if (idx < 0 || idx == safePath.length() - 1) return safePath;
-        return safePath.substring(idx + 1);
-    }
-
-    private static void applyDepthIndent(Element pathCell, int depth) {
-        if (pathCell == null) return;
-        int safeDepth = Math.max(0, depth);
-        if (safeDepth == 0) {
-            pathCell.setAttribute("style", "padding-left:0px;");
-            return;
-        }
-        int px = safeDepth * 6;
-        pathCell.setAttribute("style", "padding-left:" + px + "px;");
-    }
-
-    private static Element createToolElement(String tagName) {
-        if (toolDocument == null) return null;
-        return Element.init(toolDocument.createElement(tagName));
-    }
-
-    private static String safe(String value) {
-        return value == null ? "" : value;
-    }
-
-    private static void markDirty(Document document) {
-        if (document == null || document.body == null) return;
-        document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
-    }
-
-    private static void updatePreviewSection(
-            Element previewPanel,
-            Element previewName,
-            Element previewImage,
-            Element previewPath,
-            Element previewExt,
-            Element previewLayer,
-            Element previewSize,
-            Element previewSource
-    ) {
-        Loader.StaticResourceEntry current = previewEntry;
-        if (current == null || !isImagePreviewable(current)) {
-            previewPanel.setAttribute("class", "preview-panel hidden");
-            previewPanel.setAttribute("style", "display:none;");
-            previewName.innerText = "";
-            previewImage.setAttribute("style", "");
-            previewPath.innerText = "Path: -";
-            previewExt.innerText = "Ext: -";
-            previewLayer.innerText = "Layer: -";
-            previewSize.innerText = "Size: -";
-            previewSource.innerText = "Source: -";
-            return;
-        }
-
-        previewPanel.setAttribute("class", "preview-panel");
-        previewPanel.setAttribute("style", "");
-        previewName.innerText = fileNameOf(current.path());
-        previewImage.setAttribute("style", previewImageStyle(current));
-        previewPath.innerText = "Path: " + safe(current.path());
-        previewExt.innerText = "Ext: " + safe(current.extension());
-        previewLayer.innerText = "Layer: " + layerLabel(current.layer());
-        previewSize.innerText = "Size: " + formatSize(current.sizeBytes());
-        String sourceText = safe(resolveSourceForCopy(current));
-        previewSource.innerText = "Source: " + (sourceText.isBlank() ? "-" : sourceText);
-    }
-
-    private static void updatePreviewStatus(Element previewStatus, Element previewStatusPath) {
-        Loader.StaticResourceEntry current = previewEntry;
-        if (current == null || !isPreviewStatusVisible(current)) {
-            previewStatus.setAttribute("class", "preview-status hidden");
-            previewStatusPath.innerText = "";
-            return;
-        }
-        previewStatus.setAttribute("class", "preview-status");
-        previewStatusPath.innerText = safe(current.path());
-    }
-
-    private static String previewImageStyle(Loader.StaticResourceEntry entry) {
-        if (entry == null) return "";
-        String path = safe(entry.path());
-        if (path.isBlank()) return "";
-        String escapedPath = path.replace("\"", "%22");
-        return "background-image:url(\"/" + escapedPath + "\");";
-    }
-
-    private static boolean isImagePreviewable(Loader.StaticResourceEntry entry) {
-        if (entry == null) return false;
-        String ext = safe(entry.extension()).toLowerCase(Locale.ROOT);
-        return ext.equals("png")
-                || ext.equals("jpg")
-                || ext.equals("jpeg")
-                || ext.equals("bmp")
-                || ext.equals("gif")
-                || ext.equals("webp");
-    }
-
-    private static boolean isHtmlPreviewable(Loader.StaticResourceEntry entry) {
-        if (entry == null) return false;
-        String ext = safe(entry.extension()).toLowerCase(Locale.ROOT);
-        return ext.equals("html") || ext.equals("htm");
-    }
-
-    private static boolean isPreviewable(Loader.StaticResourceEntry entry) {
-        return isImagePreviewable(entry) || isHtmlPreviewable(entry);
-    }
-
-    private static boolean isPreviewStatusVisible(Loader.StaticResourceEntry entry) {
-        if (isImagePreviewable(entry)) return true;
-        if (!isHtmlPreviewable(entry)) return false;
-        return previewDocument != null && safe(entry.path()).equals(previewDocumentPath);
+        return safe(entry.sourceDetail()).isBlank() ? safe(entry.sourceRoot()) : safe(entry.sourceDetail());
     }
 
     private static String layerLabel(Loader.ResourceLayer layer) {
-        if (layer == null) return "-";
+        if (layer == null) return "--";
         return switch (layer) {
             case RESOURCE_PACK -> "PACK";
             case LOCAL_FOLDER -> "LOCAL";
@@ -709,121 +544,153 @@ public class ResourceManager {
         };
     }
 
-    private static void clearPreviewState() {
-        previewEntry = null;
-        closePreviewDocument();
+    private static String formatSize(long bytes) {
+        if (bytes < 0) return "--";
+        if (bytes < 1024) return bytes + " B";
+        double kilobytes = bytes / 1024.0d;
+        if (kilobytes < 1024) return String.format(Locale.ROOT, "%.1f KB", kilobytes);
+        return String.format(Locale.ROOT, "%.1f MB", kilobytes / 1024.0d);
     }
 
-    private static void openPreview(Loader.StaticResourceEntry entry) {
-        if (entry == null) return;
-        if (isHtmlPreviewable(entry)) {
-            openHtmlPreview(entry);
-            return;
-        }
-        if (isImagePreviewable(entry)) {
-            closePreviewDocument();
-            previewEntry = entry;
-        }
+    private static Element createElement(String tagName, String className) {
+        Element element = Element.init(toolDocument.createElement(tagName));
+        if (className != null && !className.isBlank()) element.setAttribute("class", className);
+        return element;
     }
 
-    private static void openHtmlPreview(Loader.StaticResourceEntry entry) {
-        String path = safe(entry.path());
-        if (path.isBlank()) return;
-        if (previewDocument != null && path.equals(previewDocumentPath)) {
-            previewEntry = entry;
-            return;
-        }
-        closePreviewDocument();
-        Document created = Document.create(path);
-        if (created == null) {
-            ToastManager.show("HTML preview unavailable");
-            return;
-        }
-        created.setReloadPersistent(true);
-        previewDocument = created;
-        previewDocumentPath = path;
-        previewEntry = entry;
+    private static Element textElement(String tagName, String text) {
+        return textElement(tagName, text, "");
     }
 
-    private static void closePreviewDocument() {
-        if (previewDocument == null) {
-            previewDocumentPath = "";
-            return;
-        }
-        previewDocument.remove();
-        previewDocument = null;
-        previewDocumentPath = "";
+    private static Element textElement(String tagName, String text, String className) {
+        Element element = createElement(tagName, className);
+        element.innerText = safe(text);
+        return element;
     }
 
-    private static class FolderNode {
+    private static Element iconElement(String className, String icon) {
+        Element element = createElement("DIV", className);
+        element.setInnerHTML(icon);
+        return element;
+    }
+
+    private static String resourceKey(Loader.StaticResourceEntry entry) {
+        if (entry == null) return "";
+        return safe(entry.path()) + "|" + (entry.layer() == null ? "" : entry.layer().name());
+    }
+
+    private static String normalizePath(String path) {
+        String normalized = safe(path).replace('\\', '/').trim();
+        while (normalized.startsWith("/")) normalized = normalized.substring(1);
+        while (normalized.endsWith("/")) normalized = normalized.substring(0, normalized.length() - 1);
+        return normalized;
+    }
+
+    private static String parentPath(String path) {
+        String normalized = normalizePath(path);
+        int separator = normalized.lastIndexOf('/');
+        return separator < 0 ? ROOT_PATH : normalized.substring(0, separator);
+    }
+
+    private static String fileName(String path) {
+        String normalized = normalizePath(path);
+        int separator = normalized.lastIndexOf('/');
+        return separator < 0 ? normalized : normalized.substring(separator + 1);
+    }
+
+    private static String displayPath(String path) {
+        String normalized = normalizePath(path);
+        return normalized.isBlank() ? "/" : normalized;
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
+
+    private static void markDirty() {
+        if (toolDocument == null || toolDocument.body == null) return;
+        toolDocument.markDirty(toolDocument.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+    }
+
+    private static void resetNavigation() {
+        root = new FolderNode("ROOT", ROOT_PATH);
+        currentPath = ROOT_PATH;
+        selectedItem = null;
+        expandedPaths.clear();
+        resetHistory(ROOT_PATH);
+    }
+
+    private static void resetHistory(String path) {
+        history.clear();
+        history.add(path);
+        historyIndex = 0;
+    }
+
+    private static final class FolderNode {
         private final String name;
         private final String path;
-        private final LinkedHashMap<String, FolderNode> children = new LinkedHashMap<>();
+        private final Map<String, FolderNode> folders = new LinkedHashMap<>();
         private final List<Loader.StaticResourceEntry> files = new ArrayList<>();
 
         private FolderNode(String name, String path) {
             this.name = safe(name);
-            this.path = safe(path);
+            this.path = normalizePath(path);
+        }
+
+        private List<FolderNode> sortedFolders() {
+            return folders.values().stream()
+                    .sorted(Comparator.comparing(folder -> folder.name.toLowerCase(Locale.ROOT)))
+                    .toList();
+        }
+
+        private List<Loader.StaticResourceEntry> sortedFiles() {
+            return files.stream()
+                    .sorted(Comparator.comparing(entry -> fileName(entry.path()).toLowerCase(Locale.ROOT)))
+                    .toList();
         }
     }
 
-    private static class PendingRows {
-        private final Document document;
-        private final Element rows;
-        private final Element manager;
-        private final List<RowSpec> specs;
-        private final int generation;
-        private int nextIndex = 0;
-
-        private PendingRows(Document document, Element rows, Element manager, List<RowSpec> specs, int generation) {
-            this.document = document;
-            this.rows = rows;
-            this.manager = manager;
-            this.specs = specs == null ? List.of() : specs;
-            this.generation = generation;
-        }
-
-        private boolean isComplete() {
-            return nextIndex >= specs.size();
-        }
-    }
-
-    private static class RowSpec {
-        private final boolean folder;
-        private final int index;
-        private final int depth;
+    private static final class SelectedItem {
+        private final String key;
+        private final String name;
+        private final String path;
+        private final FolderNode folder;
         private final Loader.StaticResourceEntry entry;
-        private final boolean inFolderMode;
-        private final String folderPath;
-        private final String folderName;
-        private final boolean collapsed;
 
-        private RowSpec(
-                boolean folder,
-                int index,
-                int depth,
-                Loader.StaticResourceEntry entry,
-                boolean inFolderMode,
-                String folderPath,
-                String folderName,
-                boolean collapsed
-        ) {
+        private SelectedItem(String key, String name, String path, FolderNode folder, Loader.StaticResourceEntry entry) {
+            this.key = key;
+            this.name = name;
+            this.path = normalizePath(path);
             this.folder = folder;
-            this.index = index;
-            this.depth = depth;
             this.entry = entry;
-            this.inFolderMode = inFolderMode;
-            this.folderPath = folderPath;
-            this.folderName = folderName;
-            this.collapsed = collapsed;
         }
 
-        private static RowSpec file(int index, int depth, Loader.StaticResourceEntry entry, boolean inFolderMode) {
-            return new RowSpec(false, index, depth, entry, inFolderMode, "", "", false);
+        private static SelectedItem folder(FolderNode folder) {
+            return new SelectedItem("folder|" + folder.path, folder.name, folder.path, folder, null);
         }
 
-        private static RowSpec folder(int depth, String path, String name, boolean collapsed) {
-            return new RowSpec(true, 0, depth, null, false, safe(path), safe(name), collapsed);
+        private static SelectedItem file(Loader.StaticResourceEntry entry) {
+            return new SelectedItem("file|" + resourceKey(entry), fileName(entry.path()), entry.path(), null, entry);
+        }
+
+        private boolean matches(Loader.StaticResourceEntry other) {
+            return entry != null && resourceKey(entry).equals(resourceKey(other));
+        }
+
+        private boolean existsIn(FolderNode tree) {
+            if (folder != null) return findFolder(path) != null;
+            if (entry == null) return false;
+            return findEntry(tree, resourceKey(entry));
+        }
+
+        private static boolean findEntry(FolderNode folder, String key) {
+            for (Loader.StaticResourceEntry entry : folder.files) {
+                if (resourceKey(entry).equals(key)) return true;
+            }
+            for (FolderNode child : folder.folders.values()) {
+                if (findEntry(child, key)) return true;
+            }
+            return false;
         }
     }
 }

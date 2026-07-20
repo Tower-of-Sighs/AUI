@@ -139,7 +139,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             Cursor.drawPseudoCursor(guiGraphics);
         } finally {
-            FrameTimingHud.endFrame(guiGraphics.pose());
+            FrameTimingHud.endFrame(guiGraphics);
         }
     }
 
