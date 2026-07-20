@@ -5,6 +5,7 @@ import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ToastManager;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
@@ -33,6 +34,8 @@ import java.util.function.BiConsumer;
 public class ClientLoader extends Loader {
     private static final Object STATIC_RESOURCE_CACHE_LOCK = new Object();
     private static List<StaticResourceEntry> cachedFinalStaticResources = null;
+    private static boolean reloadQueued;
+    private static boolean reloadRequested;
 
     public ClientLoader(String extension) {
         super(extension);
@@ -46,9 +49,29 @@ public class ClientLoader extends Loader {
     }
 
     public static void reload() {
-        long beginNs = System.nanoTime();
-        ApricityJS.reload();
-        reloadResourcesInternal(beginNs);
+        reloadRequested = true;
+        if (reloadQueued) return;
+        reloadQueued = true;
+        String progressToast = ToastManager.show(
+                "Reloading...",
+                new ToastManager.ToastOptions(0, false, "", "", "", "")
+        );
+
+        // Leave one complete UI frame between the progress toast and the synchronous reload.
+        FrameTaskScheduler.scheduleAfterFrames(2, deadlineNs -> {
+            try {
+                do {
+                    reloadRequested = false;
+                    long beginNs = System.nanoTime();
+                    ApricityJS.reload();
+                    reloadResourcesInternal(beginNs);
+                } while (reloadRequested);
+            } finally {
+                ToastManager.dismiss(progressToast);
+                reloadQueued = false;
+            }
+            return true;
+        });
     }
 
     private static void reloadResources() {
@@ -77,7 +100,7 @@ public class ClientLoader extends Loader {
         long totalCostMs = (System.nanoTime() - beginNs) / 1_000_000L;
         ToastManager.show(
                 "重载完成 " + totalCostMs + "ms (扫描 " + scanCostMs + "ms, 刷新 " + refreshCostMs + "ms)",
-                new ToastManager.ToastOptions(4200, true, "#0f172a", "#e2e8f0", "#334155", "")
+                new ToastManager.ToastOptions(4200, true, "", "", "", "")
         );
     }
 

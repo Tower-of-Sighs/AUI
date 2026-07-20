@@ -2,6 +2,8 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.instance.ClientLoader;
+import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
@@ -103,6 +105,10 @@ public class ApricityScreen extends Screen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == Keybindings.RELOAD.getKey().getValue()) {
+            ClientLoader.reload();
+            return true;
+        }
         if (isControlModifier(modifiers)) {
             if (keyCode == GLFW.GLFW_KEY_EQUAL || keyCode == GLFW.GLFW_KEY_KP_ADD) {
                 return handleViewportZoom(true);
