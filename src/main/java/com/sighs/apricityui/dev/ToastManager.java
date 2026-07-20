@@ -1,31 +1,38 @@
 package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.init.FrameTaskScheduler;
 
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public final class ToastManager {
-    private static final String DOC_PATH = "__runtime/aui-toast-overlay__.html";
+    private static final String DOC_PATH = "devtools/toast.html";
     private static final String LIST_ID = "aui-toast-list";
+    private static final long EXIT_DURATION_NS = 180_000_000L;
     private static final AtomicLong SEQ = new AtomicLong(1);
     private static final Map<String, ToastRef> ACTIVE = new ConcurrentHashMap<>();
 
-    private static final String DOC_TEMPLATE = """
-            <body style="transform:translateZ(10000px);position:fixed;top:0;left:0;width:100%;height:100%;pointer-events:none;">
-              <div id="aui-toast-list" style="position:fixed;top:12px;right:12px;display:flex;flex-direction:column;align-items:flex-end;gap:8px;max-width:38%;pointer-events:none;"></div>
-            </body>
-            """;
-
     private static final String ITEM_BASE_STYLE =
-            "pointer-events:auto;min-width:180px;max-width:420px;padding:8px 12px;" +
-                    "border-radius:8px;border:1px solid #3d4a5f;background-color:#1e293b;color:#f8fafc;" +
-                    "box-shadow:0 4px 16px rgba(0,0,0,0.25);font-size:13px;line-height:18px;overflow:hidden;";
+            "pointer-events:auto;display:flex;align-items:flex-start;gap:10px;width:100%;" +
+                    "padding:10px 12px;border:2px solid #1a1a1a;border-left:6px solid #8b5cf6;" +
+                    "background-color:#ffffff;color:#1a1a1a;box-shadow:4px 4px 0 #1a1a1a;" +
+                    "font-family:'Chakra Petch',sans-serif;font-size:12px;font-weight:600;line-height:18px;" +
+                    "letter-spacing:0.7px;text-transform:uppercase;overflow:hidden;";
+    private static final String MARKER_STYLE =
+            "flex:0 0 18px;width:18px;height:18px;background-color:#8b5cf6;color:#ffffff;" +
+                    "font-size:12px;font-weight:700;line-height:18px;text-align:center;";
+    private static final String CONTENT_STYLE =
+            "display:flex;flex:1;min-width:0;flex-direction:column;gap:2px;";
+    private static final String LABEL_STYLE =
+            "color:#6d28d9;font-size:10px;font-weight:700;line-height:12px;letter-spacing:1px;";
+    private static final String MESSAGE_STYLE =
+            "color:#1a1a1a;font-size:12px;font-weight:600;line-height:18px;letter-spacing:0.4px;";
+    private static final String CLOSE_STYLE =
+            "flex:0 0 14px;width:14px;color:#999999;font-size:14px;font-weight:700;line-height:14px;text-align:center;";
 
     private ToastManager() {
     }
@@ -45,37 +52,86 @@ public final class ToastManager {
         if (overlay == null || overlay.list() == null) return "";
 
         String id = "toast-" + SEQ.getAndIncrement();
-        Element item = overlay.document().createElement("div");
+        Element item = Element.init(overlay.document().createElement("div"));
         item.setAttribute("id", id);
-        item.innerText = content;
+        item.setClassName("aui-toast");
         item.setAttribute("style", buildItemStyle(safe));
+        item.append(createPart(overlay.document(), "span", "!", buildMarkerStyle(safe)));
+
+        Element contentBox = Element.init(overlay.document().createElement("div"));
+        contentBox.setAttribute("style", CONTENT_STYLE);
+        contentBox.append(createPart(overlay.document(), "span", "AUI // NOTICE", LABEL_STYLE));
+        contentBox.append(createPart(overlay.document(), "span", content, MESSAGE_STYLE));
+        item.append(contentBox);
+        if (safe.dismissOnClick()) {
+            Element close = createPart(overlay.document(), "span", "x", CLOSE_STYLE);
+            close.addEventListener("click", event -> dismiss(id));
+            item.append(close);
+        }
         if (safe.dismissOnClick()) {
             item.addEventListener("click", event -> dismiss(id));
         }
-        overlay.list().prepend(item);
-        ACTIVE.put(id, new ToastRef(overlay.document().getUuid(), id));
-
-        if (safe.durationMs() > 0) {
-            Window.window.setTimeout(c -> dismiss(id), safe.durationMs());
-        }
+        Element attachedItem = overlay.list().insertBefore(item, overlay.list().getFirstElementChild());
+        if (attachedItem == null) return "";
+        overlay.document().markDirty(overlay.document().body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+        long expiresAtNs = safe.durationMs() <= 0
+                ? Long.MAX_VALUE
+                : System.nanoTime() + safe.durationMs() * 1_000_000L;
+        ACTIVE.put(id, new ToastRef(attachedItem, expiresAtNs));
+        FrameTaskScheduler.scheduleAfterFrames(1, deadlineNs -> {
+            ToastRef ref = ACTIVE.get(id);
+            if (ref != null && !ref.leaving) {
+                ref.item.setClassName("aui-toast aui-toast-visible");
+                markDirty(ref.item.getOwnerDocument());
+            }
+            return true;
+        });
         return id;
+    }
+
+    /** Runs on the client tick, so startup and reload do not depend on a background timer. */
+    public static void tick() {
+        if (ACTIVE.isEmpty()) return;
+        long now = System.nanoTime();
+        for (Map.Entry<String, ToastRef> entry : ACTIVE.entrySet()) {
+            ToastRef ref = entry.getValue();
+            if (!ref.leaving && now >= ref.expiresAtNs) {
+                beginDismiss(ref, now);
+            } else if (ref.leaving && now >= ref.removeAtNs) {
+                remove(entry.getKey(), ref);
+            }
+        }
     }
 
     public static void dismiss(String id) {
         if (id == null || id.isBlank()) return;
-        ToastRef ref = ACTIVE.remove(id);
+        ToastRef ref = ACTIVE.get(id);
         if (ref == null) return;
-        Document document = Document.getByUUID(ref.documentId().toString());
-        if (document == null) return;
-        Element item = document.getElementById(ref.elementId());
-        if (item != null) item.remove();
+        beginDismiss(ref, System.nanoTime());
     }
 
     public static void clear() {
-        for (String id : ACTIVE.keySet()) {
-            dismiss(id);
+        for (Map.Entry<String, ToastRef> entry : ACTIVE.entrySet()) {
+            remove(entry.getKey(), entry.getValue());
         }
         ACTIVE.clear();
+    }
+
+    private static void beginDismiss(ToastRef ref, long now) {
+        if (ref == null || ref.leaving) return;
+        ref.leaving = true;
+        ref.removeAtNs = now + EXIT_DURATION_NS;
+        ref.item.setClassName("aui-toast aui-toast-leaving");
+        markDirty(ref.item.getOwnerDocument());
+    }
+
+    private static void remove(String id, ToastRef ref) {
+        if (ref == null || !ACTIVE.remove(id, ref)) return;
+        Element item = ref.item;
+        if (item == null) return;
+        Document owner = item.getOwnerDocument();
+        item.remove();
+        markDirty(owner);
     }
 
     private static Overlay ensureOverlay() {
@@ -84,7 +140,6 @@ public final class ToastManager {
         if (!docs.isEmpty()) {
             document = docs.get(0);
         } else {
-            HTML.putTemple(DOC_PATH, DOC_TEMPLATE);
             document = Document.create(DOC_PATH);
             if (document != null) document.setReloadPersistent(true);
         }
@@ -116,10 +171,39 @@ public final class ToastManager {
         return style.toString();
     }
 
+    private static String buildMarkerStyle(ToastOptions options) {
+        String color = options.borderColor() == null || options.borderColor().isBlank()
+                ? "#8b5cf6"
+                : options.borderColor().trim();
+        return MARKER_STYLE + "background-color:" + color + ';';
+    }
+
+    private static Element createPart(Document document, String tagName, String text, String style) {
+        Element element = Element.init(document.createElement(tagName));
+        element.innerText = text;
+        element.setAttribute("style", style);
+        return element;
+    }
+
+    private static void markDirty(Document document) {
+        if (document != null && document.body != null) {
+            document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+        }
+    }
+
     private record Overlay(Document document, Element list) {
     }
 
-    private record ToastRef(UUID documentId, String elementId) {
+    private static final class ToastRef {
+        private final Element item;
+        private final long expiresAtNs;
+        private boolean leaving;
+        private long removeAtNs;
+
+        private ToastRef(Element item, long expiresAtNs) {
+            this.item = item;
+            this.expiresAtNs = expiresAtNs;
+        }
     }
 
     public record ToastOptions(

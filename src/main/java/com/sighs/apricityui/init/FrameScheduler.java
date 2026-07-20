@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.sighs.apricityui.dev.ToastManager;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 
@@ -18,6 +19,8 @@ public final class FrameScheduler {
     }
 
     public static void tick() {
+        ToastManager.tick();
+
         // 1) Drain async apply tasks (style/image decode -> apply)
         StyleAsyncHandler.INSTANCE.tickApplyQueue();
         ImageAsyncHandler.INSTANCE.tickApplyQueue();
