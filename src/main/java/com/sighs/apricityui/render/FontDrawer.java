@@ -2,7 +2,6 @@ package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
@@ -19,14 +18,11 @@ import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.imageio.ImageIO;
 
 public class FontDrawer {
     private static final String MODID = "apricityui";
@@ -35,10 +31,6 @@ public class FontDrawer {
     private static final String COMPOSITE_MODE_PROPERTY = "apricityui.fontRaster.composite";
     private static final String FILTER_MODE_PROPERTY = "apricityui.fontRaster.filter";
     private static final String QUAD_MODE_PROPERTY = "apricityui.fontRaster.quadMode";
-    private static final String LOG_TEXTURE_STATS_PROPERTY = "apricityui.fontRaster.logTextureStats";
-    private static final String LOG_PROJECTION_PROPERTY = "apricityui.fontRaster.logProjection";
-    private static final String LOG_SOURCE_BOUNDS_PROPERTY = "apricityui.fontRaster.logSourceBounds";
-    private static final String LOG_ALPHA_HISTOGRAM_PROPERTY = "apricityui.fontRaster.logAlphaHistogram";
     private static final String FRACTIONAL_METRICS_PROPERTY = "apricityui.fontRaster.fractionalMetrics";
     private static final String ALPHA_GAMMA_PROPERTY = "apricityui.fontRaster.alphaGamma";
     private static final String ALPHA_SCALE_PROPERTY = "apricityui.fontRaster.alphaScale";
@@ -47,14 +39,7 @@ public class FontDrawer {
     private static final String RASTER_SOURCE_PROPERTY = "apricityui.fontRaster.source";
     private static final String STROKE_CONTROL_PROPERTY = "apricityui.fontRaster.strokeControl";
     private static final String FONT_RENDER_CONTEXT_PROPERTY = "apricityui.fontRaster.frc";
-    private static final String EXPORT_ALPHA_MASK_PROPERTY = "apricityui.fontRaster.exportAlphaMask";
     private static final Map<String, FontEntry> CACHE = new ConcurrentHashMap<>();
-    private static final Set<String> LOGGED_TEXTURE_STATS = ConcurrentHashMap.newKeySet();
-    private static final Set<String> LOGGED_PROJECTIONS = ConcurrentHashMap.newKeySet();
-    private static final Set<String> LOGGED_RUNTIME_GUARDS = ConcurrentHashMap.newKeySet();
-    private static final Set<String> LOGGED_SOURCE_BOUNDS = ConcurrentHashMap.newKeySet();
-    private static final Set<String> LOGGED_ALPHA_HISTOGRAMS = ConcurrentHashMap.newKeySet();
-    private static final Set<String> EXPORTED_ALPHA_MASKS = ConcurrentHashMap.newKeySet();
     private static final ThreadLocal<java.util.ArrayDeque<Double>> DOCUMENT_PIXEL_SCALE_STACK = ThreadLocal.withInitial(java.util.ArrayDeque::new);
 
     public static void pushDocumentPixelScale(double scale) {
@@ -77,12 +62,10 @@ public class FontDrawer {
 
         // 避免每次都走 split("\n") 的 regex 路径（会产生大量分配）。
         double baseX = position.x;
-        // flex 容器中的直接文本节点已由 Flex 布局按行高居中，这里不再在行框内部二次居中；
-        // 否则实际字高大于 renderedFontSize 时会让文本相对于图标/按钮中心整体下移。
-        double baseY = text.flexDirect
-                ? position.y
-                : position.y + (text.lineHeight - text.renderedFontSize()) / 2.0;
-        Position linePos = new Position(baseX, baseY);
+        // drawSingleRun anchors the raster's own AWT line metrics to this CSS line box.
+        // Keeping the original line-box origin here makes flex, normal flow and controls
+        // use the same vertical positioning rule.
+        Position linePos = new Position(baseX, position.y);
 
         int firstNl = content.indexOf('\n');
         if (firstNl < 0) {
@@ -150,8 +133,12 @@ public class FontDrawer {
         float drawScale = (float) rasterMode.drawScale();
         float drawW = entry.width() * drawScale;
         float drawH = entry.height() * drawScale;
-        float drawX = x - drawH * 0.08f;
-        float drawY = y - drawH * 0.2f;
+        RasterLayout layout = entry.rasterLayout();
+        // Align the actual glyph ink with the CSS line box.  AWT's metrics box contains
+        // asymmetric ascender/descender space, so centering that box leaves the visible
+        // glyphs optically high.  Opaque raster modes fall back to the metrics box.
+        float drawX = x - layout.pad() * drawScale;
+        float drawY = y + (float) (text.lineHeight / 2.0d) - entry.verticalAnchorTexel() * drawScale;
         if (quadMode.snapsAnyPhysicalEdge()) {
             double pixelScale = rasterMode.pixelScale();
             if (pixelScale > 0.0d && Double.isFinite(pixelScale)) {
@@ -172,8 +159,6 @@ public class FontDrawer {
                 }
             }
         }
-
-        maybeLogProjection(text, content, position, rasterMode, entry, quadMode, drawScale, drawX, drawY, drawW, drawH);
 
         if (quadMode.hasRuntimeRightFracCutoff()
                 && drawRuntimeRightFracCutoff(poseStack, text, content, position, rasterMode, entry, quadMode, drawX, drawY, drawW, drawH)) {
@@ -251,8 +236,6 @@ public class FontDrawer {
         boolean apply = cutoffColumns > 0
                 && sourceRightExclusive > 0
                 && sourceRightExclusive < entry.width();
-        maybeLogRuntimeRightFracCutoff(text, content, position, rasterMode, entry, quadMode,
-                drawX, drawY, drawW, drawH, physicalInkRight, rightFrac, sourceRightExclusive, long12pxSource, cutoffColumns, apply);
         if (!apply) return false;
 
         TextQuadMode actionMode = quadMode.runtimeTextureModeForCutoffColumns(cutoffColumns);
@@ -378,7 +361,6 @@ public class FontDrawer {
             }
             g.setComposite(AlphaComposite.SrcOver);
             int baseline = pad + metrics.ascent();
-            maybeLogSourceBounds(text, drawText, cacheKey, rasterMode, aaMode, fractionalMetricsMode, sourceMode, frcMode, g, runs, rasterLetterSpacing, metrics, pad, baseline, imgW, imgH);
             if (sourceMode == GlyphRasterSourceMode.OUTLINE_COVERAGE_4X || sourceMode == GlyphRasterSourceMode.OUTLINE_COVERAGE_4X_ROW_CLAMP) {
                 drawRunsOutlineCoverage(img, g, runs, pad, baseline, rasterLetterSpacing, stroke,
                         strokeColor, color, frcMode, sourceMode.coverageSamples(), sourceMode.rowClamped());
@@ -415,9 +397,6 @@ public class FontDrawer {
             imgH = img.getHeight();
 
             TextureStats textureStats = computeTextureStats(img);
-            maybeLogTextureStats(text, drawText, cacheKey, rasterMode, aaMode, fractionalMetricsMode, alphaGammaMode, alphaScaleMode, alphaCapMode, sourceMode, strokeControlMode, frcMode, compositeMode, filterMode, metrics, pad, baseline, img, textureStats);
-            maybeLogAlphaHistogram(text, drawText, cacheKey, rasterMode, aaMode, fractionalMetricsMode, alphaGammaMode, alphaScaleMode, alphaCapMode, sourceMode, strokeControlMode, frcMode, compositeMode, filterMode, img);
-            maybeExportAlphaMask(text, drawText, cacheKey, rasterMode, aaMode, fractionalMetricsMode, alphaGammaMode, alphaScaleMode, alphaCapMode, sourceMode, strokeControlMode, frcMode, compositeMode, filterMode, metrics, pad, baseline, img);
 
             NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, imgW, imgH, true);
 
@@ -441,514 +420,42 @@ public class FontDrawer {
 
             Minecraft.getInstance().getTextureManager().register(location, texture);
 
-            return new FontEntry(location, nativeImg, texture, imgW, imgH, textureStats);
+            return new FontEntry(location, nativeImg, texture, imgW, imgH, textureStats,
+                    new RasterLayout(pad, metrics.height()));
 
         } catch (Exception e) {
             return null;
         }
     }
 
-    private static void maybeLogTextureStats(Text text, String content, String cacheKey, RasterMode rasterMode,
-                                             TextAntialiasMode aaMode, FractionalMetricsMode fractionalMetricsMode,
-                                             AlphaGammaMode alphaGammaMode,
-                                             AlphaScaleMode alphaScaleMode,
-                                             AlphaCapMode alphaCapMode,
-                                             GlyphRasterSourceMode sourceMode,
-                                             StrokeControlMode strokeControlMode,
-                                             FontRenderContextMode frcMode,
-                                             TextCompositeMode compositeMode,
-                                             TextureFilterMode filterMode, LineMetrics metrics, int pad,
-                                             int baseline, BufferedImage img, TextureStats stats) {
-        if (!isTextureStatsLoggingEnabled() || img == null) return;
-        if (!LOGGED_TEXTURE_STATS.add(cacheKey)) return;
-        if (stats == null) stats = computeTextureStats(img);
-        int width = stats.width();
-        int height = stats.height();
-        int ink = stats.ink();
-        String bounds = stats.boundsText();
-        long alphaSum = 0L;
-        long redSum = 0L;
-        long greenSum = 0L;
-        long blueSum = 0L;
-        ApricityUI.LOGGER.info(
-                "[AUI FontRaster] textureStats text='{}' fontFamily={} fontSize={} renderedFontSize={} letterSpacing={} color={} raster={} aa={} fractionalMetrics={} alphaGamma={} alphaScale={} alphaCap={} source={} strokeControl={} frc={} composite={} filter={} image={}x{} pad={} baseline={} metricsAscent={} metricsDescent={} metricsLeading={} metricsHeight={} ink={} coverage={} alphaAvg={} alphaMin={} alphaMax={} avgRgb={},{},{} coloredSubpixelPixels={} inkBounds={}",
-                content,
-                text.fontFamily,
-                text.fontSize,
-                text.renderedFontSize(),
-                text.letterSpacing,
-                text.color == null ? "<null>" : text.color.toHexString(),
-                rasterMode.cacheKey(),
-                aaMode.cacheKey(),
-                fractionalMetricsMode.cacheKey(),
-                alphaGammaMode.cacheKey(),
-                alphaScaleMode.cacheKey(),
-                alphaCapMode.cacheKey(),
-                sourceMode.cacheKey(),
-                strokeControlMode.cacheKey(),
-                frcMode.cacheKey(),
-                compositeMode.cacheKey(),
-                filterMode.cacheKey(),
-                width,
-                height,
-                pad,
-                baseline,
-                metrics.ascent(),
-                metrics.descent(),
-                metrics.leading(),
-                metrics.height(),
-                ink,
-                round6(stats.coverage()),
-                round6(stats.alphaAvg()),
-                ink == 0 ? 0 : stats.minAlpha(),
-                stats.maxAlpha(),
-                round6(stats.redAvg()),
-                round6(stats.greenAvg()),
-                round6(stats.blueAvg()),
-                stats.coloredSubpixelPixels(),
-                bounds
-        );
-    }
-
-    private static void maybeLogAlphaHistogram(Text text, String content, String cacheKey, RasterMode rasterMode,
-                                               TextAntialiasMode aaMode, FractionalMetricsMode fractionalMetricsMode,
-                                               AlphaGammaMode alphaGammaMode,
-                                               AlphaScaleMode alphaScaleMode,
-                                               AlphaCapMode alphaCapMode,
-                                               GlyphRasterSourceMode sourceMode,
-                                               StrokeControlMode strokeControlMode,
-                                               FontRenderContextMode frcMode,
-                                               TextCompositeMode compositeMode,
-                                               TextureFilterMode filterMode, BufferedImage img) {
-        if (!isAlphaHistogramLoggingEnabled() || img == null) return;
-        if (!LOGGED_ALPHA_HISTOGRAMS.add(cacheKey)) return;
-        AlphaHistogram histogram = computeAlphaHistogram(img);
-        ApricityUI.LOGGER.info(
-                "[AUI FontRaster] alphaHistogram text='{}' fontFamily={} fontSize={} renderedFontSize={} letterSpacing={} raster={} aa={} fractionalMetrics={} alphaGamma={} alphaScale={} alphaCap={} source={} strokeControl={} frc={} composite={} filter={} image={}x{} ink={} coverage={} avgAlpha={} bounds={} bins={} cdf={} rows={}",
-                content,
-                text.fontFamily,
-                text.fontSize,
-                text.renderedFontSize(),
-                text.letterSpacing,
-                rasterMode.cacheKey(),
-                aaMode.cacheKey(),
-                fractionalMetricsMode.cacheKey(),
-                alphaGammaMode.cacheKey(),
-                alphaScaleMode.cacheKey(),
-                alphaCapMode.cacheKey(),
-                sourceMode.cacheKey(),
-                strokeControlMode.cacheKey(),
-                frcMode.cacheKey(),
-                compositeMode.cacheKey(),
-                filterMode.cacheKey(),
-                img.getWidth(),
-                img.getHeight(),
-                histogram.ink(),
-                round6(histogram.coverage()),
-                round6(histogram.avgAlpha()),
-                histogram.boundsText(),
-                histogram.binsText(),
-                histogram.cdfText(),
-                histogram.rowsText()
-        );
-    }
-
-    private static void maybeLogProjection(Text text, String content, Position position, RasterMode rasterMode,
-                                           FontEntry entry, TextQuadMode quadMode, float drawScale, float drawX, float drawY,
-                                           float drawW, float drawH) {
-        if (!isProjectionLoggingEnabled() || text == null || entry == null) return;
-        TextureStats stats = entry.textureStats();
-        String key = content + "|" + text.fontFamily + "|" + text.fontSize + "|" + text.letterSpacing
-                + "|" + position.x + "|" + position.y + "|" + entry.width() + "x" + entry.height()
-                + "|" + rasterMode.cacheKey() + "|" + quadMode.cacheKey();
-        if (!LOGGED_PROJECTIONS.add(key)) return;
-        double pixelScale = rasterMode.pixelScale();
-        double physicalDrawX = drawX * pixelScale;
-        double physicalDrawY = drawY * pixelScale;
-        double physicalDrawW = drawW * pixelScale;
-        double physicalDrawH = drawH * pixelScale;
-        double physicalScaleX = entry.width() <= 0 ? 0.0d : physicalDrawW / entry.width();
-        double physicalScaleY = entry.height() <= 0 ? 0.0d : physicalDrawH / entry.height();
-        double physicalInkX = stats == null || !stats.hasInk() ? Double.NaN : physicalDrawX + stats.minX() * physicalScaleX;
-        double physicalInkY = stats == null || !stats.hasInk() ? Double.NaN : physicalDrawY + stats.minY() * physicalScaleY;
-        double physicalInkW = stats == null || !stats.hasInk() ? 0.0d : stats.inkWidth() * physicalScaleX;
-        double physicalInkH = stats == null || !stats.hasInk() ? 0.0d : stats.inkHeight() * physicalScaleY;
-        ApricityUI.LOGGER.info(
-                "[AUI FontRaster] projection text='{}' fontFamily={} fontSize={} renderedFontSize={} letterSpacing={} cssPosition={},{} texture={}x{} drawScale={} pixelScale={} quadMode={} uvInset={},{} cssQuad={},{},{},{} physicalQuad={},{},{},{} quadScale={},{} sourceInkBounds={} physicalInkBounds={},{},{},{} alphaAvg={} coverage={} filter={}",
-                content,
-                text.fontFamily,
-                text.fontSize,
-                text.renderedFontSize(),
-                text.letterSpacing,
-                round6(position.x),
-                round6(position.y),
-                entry.width(),
-                entry.height(),
-                round6(drawScale),
-                round6(pixelScale),
-                quadMode.cacheKey(),
-                round6(quadMode.uvRightInsetTexels()),
-                round6(quadMode.uvBottomInsetTexels()),
-                round6(drawX),
-                round6(drawY),
-                round6(drawW),
-                round6(drawH),
-                round6(physicalDrawX),
-                round6(physicalDrawY),
-                round6(physicalDrawW),
-                round6(physicalDrawH),
-                round6(physicalScaleX),
-                round6(physicalScaleY),
-                stats == null ? "<none>" : stats.boundsText(),
-                Double.isNaN(physicalInkX) ? "<none>" : round6(physicalInkX),
-                Double.isNaN(physicalInkY) ? "<none>" : round6(physicalInkY),
-                round6(physicalInkW),
-                round6(physicalInkH),
-                stats == null ? 0.0d : round6(stats.alphaAvg()),
-                stats == null ? 0.0d : round6(stats.coverage()),
-                resolveTextureFilterMode().cacheKey()
-        );
-    }
-
-    private static void maybeLogRuntimeRightFracCutoff(Text text, String content, Position position, RasterMode rasterMode,
-                                                       FontEntry entry, TextQuadMode quadMode, float drawX, float drawY,
-                                                       float drawW, float drawH, double physicalInkRight,
-                                                       double rightFrac, int sourceRightExclusive,
-                                                       boolean long12pxSource, int cutoffColumns, boolean apply) {
-        if (!isProjectionLoggingEnabled() || text == null || entry == null) return;
-        TextureStats stats = entry.textureStats();
-        String key = content + "|" + text.fontFamily + "|" + text.fontSize + "|" + text.letterSpacing
-                + "|" + position.x + "|" + position.y + "|" + entry.width() + "x" + entry.height()
-                + "|" + rasterMode.cacheKey() + "|" + quadMode.cacheKey() + "|runtime-right-frac";
-        if (!LOGGED_RUNTIME_GUARDS.add(key)) return;
-
-        double widthTexels = Math.max(0.0d, sourceRightExclusive);
-        double croppedDrawW = entry.width() <= 0 ? 0.0d : drawW * (widthTexels / entry.width());
-        ApricityUI.LOGGER.info(
-                "[AUI FontRaster] runtimeRightFracCutoff text='{}' fontFamily={} fontSize={} renderedFontSize={} letterSpacing={} cssPosition={},{} quadMode={} threshold={} cutoffColumns={} sourceInkBounds={} physicalInkRight={} rightFrac={} long12pxSource={} apply={} sourceRightExclusive={} texture={}x{} cssQuad={},{},{},{} croppedDrawW={} pixelScale={}",
-                content,
-                text.fontFamily,
-                text.fontSize,
-                text.renderedFontSize(),
-                text.letterSpacing,
-                round6(position.x),
-                round6(position.y),
-                quadMode.cacheKey(),
-                round6(quadMode.runtimeRightFracThreshold()),
-                cutoffColumns,
-                stats == null ? "<none>" : stats.boundsText(),
-                round6(physicalInkRight),
-                round6(rightFrac),
-                long12pxSource,
-                apply,
-                sourceRightExclusive,
-                entry.width(),
-                entry.height(),
-                round6(drawX),
-                round6(drawY),
-                round6(drawW),
-                round6(drawH),
-                round6(croppedDrawW),
-                round6(rasterMode.pixelScale())
-        );
-    }
-
-    private static void maybeLogSourceBounds(Text text, String content, String cacheKey, RasterMode rasterMode,
-                                             TextAntialiasMode aaMode, FractionalMetricsMode fractionalMetricsMode,
-                                             GlyphRasterSourceMode sourceMode, FontRenderContextMode frcMode,
-                                             Graphics2D g, java.util.List<Font.FontRun> runs, double spacing,
-                                             LineMetrics metrics, int pad, int baseline, int imgW, int imgH) {
-        if (!isSourceBoundsLoggingEnabled() || text == null || g == null) return;
-        if (!LOGGED_SOURCE_BOUNDS.add(cacheKey)) return;
-
-        SourceBounds bounds = measureSourceBounds(g, runs, pad, baseline, spacing, frcMode);
-        String glyphGeometry = sourceGlyphGeometry(g, runs, pad, baseline, spacing, frcMode);
-        FontRenderContext frc = fontRenderContext(g, frcMode);
-        ApricityUI.LOGGER.info(
-                "[AUI FontRaster] sourceBounds text='{}' fontFamily={} fontSize={} renderedFontSize={} letterSpacing={} raster={} aa={} fractionalMetrics={} source={} frc={} image={}x{} pad={} baseline={} metricsAscent={} metricsDescent={} metricsLeading={} metricsHeight={} runCount={} awtWidth={} awtWidthWithSpacing={} visualBounds={} logicalBounds={} visualSize={} logicalSize={} fontRenderContextAa={} fontRenderContextFm={} glyphs={}",
-                content,
-                text.fontFamily,
-                text.fontSize,
-                rasterMode.rasterFontSize(),
-                text.letterSpacing,
-                rasterMode.cacheKey(),
-                aaMode.cacheKey(),
-                fractionalMetricsMode.cacheKey(),
-                sourceMode.cacheKey(),
-                frcMode.cacheKey(),
-                imgW,
-                imgH,
-                pad,
-                baseline,
-                metrics.ascent(),
-                metrics.descent(),
-                metrics.leading(),
-                metrics.height(),
-                bounds.runCount(),
-                round6(bounds.awtWidth()),
-                round6(bounds.awtWidthWithSpacing()),
-                bounds.visualBoundsText(),
-                bounds.logicalBoundsText(),
-                round6(bounds.visualWidth()) + "x" + round6(bounds.visualHeight()),
-                round6(bounds.logicalWidth()) + "x" + round6(bounds.logicalHeight()),
-                frc.isAntiAliased(),
-                frc.usesFractionalMetrics(),
-                glyphGeometry
-        );
-    }
-
-    private static SourceBounds measureSourceBounds(Graphics2D g, java.util.List<Font.FontRun> runs, double x, int baselineY,
-                                                    double spacing, FontRenderContextMode frcMode) {
-        FontRenderContext frc = fontRenderContext(g, frcMode);
-        double cursor = x;
-        double visualMinX = Double.POSITIVE_INFINITY;
-        double visualMinY = Double.POSITIVE_INFINITY;
-        double visualMaxX = Double.NEGATIVE_INFINITY;
-        double visualMaxY = Double.NEGATIVE_INFINITY;
-        double logicalMinX = Double.POSITIVE_INFINITY;
-        double logicalMinY = Double.POSITIVE_INFINITY;
-        double logicalMaxX = Double.NEGATIVE_INFINITY;
-        double logicalMaxY = Double.NEGATIVE_INFINITY;
-        double awtWidth = 0.0d;
-        int runCount = 0;
-
-        for (Font.FontRun run : runs) {
-            if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
-            g.setFont(run.font());
-            FontMetrics fm = g.getFontMetrics();
-            String runText = run.text();
-            runCount++;
-            awtWidth += fm.stringWidth(runText);
-
-            if (Math.abs(spacing) <= 1e-6) {
-                GlyphVector glyphVector = run.font().createGlyphVector(frc, runText);
-                java.awt.geom.Rectangle2D visual = glyphVector.getVisualBounds();
-                java.awt.geom.Rectangle2D logical = glyphVector.getLogicalBounds();
-                visualMinX = Math.min(visualMinX, cursor + visual.getX());
-                visualMinY = Math.min(visualMinY, baselineY + visual.getY());
-                visualMaxX = Math.max(visualMaxX, cursor + visual.getX() + visual.getWidth());
-                visualMaxY = Math.max(visualMaxY, baselineY + visual.getY() + visual.getHeight());
-                logicalMinX = Math.min(logicalMinX, cursor + logical.getX());
-                logicalMinY = Math.min(logicalMinY, baselineY + logical.getY());
-                logicalMaxX = Math.max(logicalMaxX, cursor + logical.getX() + logical.getWidth());
-                logicalMaxY = Math.max(logicalMaxY, baselineY + logical.getY() + logical.getHeight());
-                cursor += fm.stringWidth(runText);
-            } else {
-                for (int i = 0; i < runText.length(); ) {
-                    int cp = runText.codePointAt(i);
-                    String glyph = new String(Character.toChars(cp));
-                    GlyphVector glyphVector = run.font().createGlyphVector(frc, glyph);
-                    java.awt.geom.Rectangle2D visual = glyphVector.getVisualBounds();
-                    java.awt.geom.Rectangle2D logical = glyphVector.getLogicalBounds();
-                    visualMinX = Math.min(visualMinX, cursor + visual.getX());
-                    visualMinY = Math.min(visualMinY, baselineY + visual.getY());
-                    visualMaxX = Math.max(visualMaxX, cursor + visual.getX() + visual.getWidth());
-                    visualMaxY = Math.max(visualMaxY, baselineY + visual.getY() + visual.getHeight());
-                    logicalMinX = Math.min(logicalMinX, cursor + logical.getX());
-                    logicalMinY = Math.min(logicalMinY, baselineY + logical.getY());
-                    logicalMaxX = Math.max(logicalMaxX, cursor + logical.getX() + logical.getWidth());
-                    logicalMaxY = Math.max(logicalMaxY, baselineY + logical.getY() + logical.getHeight());
-                    cursor += fm.stringWidth(glyph) + spacing;
-                    i += Character.charCount(cp);
-                }
-            }
-        }
-
-        if (!Double.isFinite(visualMinX)) {
-            return SourceBounds.empty(runCount, awtWidth, Math.max(0.0d, cursor - x));
-        }
-        return new SourceBounds(
-                runCount,
-                awtWidth,
-                Math.max(0.0d, cursor - x),
-                visualMinX,
-                visualMinY,
-                visualMaxX - visualMinX,
-                visualMaxY - visualMinY,
-                logicalMinX,
-                logicalMinY,
-                logicalMaxX - logicalMinX,
-                logicalMaxY - logicalMinY
-        );
-    }
-
-    private static String sourceGlyphGeometry(Graphics2D g, java.util.List<Font.FontRun> runs, double x, int baselineY,
-                                              double spacing, FontRenderContextMode frcMode) {
-        if (runs == null || runs.isEmpty()) return "[]";
-        FontRenderContext frc = fontRenderContext(g, frcMode);
-        StringBuilder builder = new StringBuilder("[");
-        double cursor = x;
-        int glyphIndex = 0;
-        boolean first = true;
-        for (Font.FontRun run : runs) {
-            if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
-            g.setFont(run.font());
-            FontMetrics fm = g.getFontMetrics();
-            String runText = run.text();
-            for (int i = 0; i < runText.length(); ) {
-                int cp = runText.codePointAt(i);
-                String glyph = new String(Character.toChars(cp));
-                GlyphVector glyphVector = run.font().createGlyphVector(frc, glyph);
-                java.awt.geom.Rectangle2D visual = glyphVector.getVisualBounds();
-                double advance = fm.stringWidth(glyph) + spacing;
-                if (!first) builder.append(';');
-                first = false;
-                builder.append(glyphIndex)
-                        .append(":U+")
-                        .append(Integer.toHexString(cp).toUpperCase(java.util.Locale.ROOT))
-                        .append(":cursor=")
-                        .append(round6(cursor))
-                        .append(":advance=")
-                        .append(round6(advance))
-                        .append(":visual=")
-                        .append(round6(cursor + visual.getX()))
-                        .append(',')
-                        .append(round6(baselineY + visual.getY()))
-                        .append(',')
-                        .append(round6(visual.getWidth()))
-                        .append(',')
-                        .append(round6(visual.getHeight()));
-                cursor += advance;
-                glyphIndex++;
-                i += Character.charCount(cp);
-            }
-        }
-        builder.append(']');
-        return builder.toString();
-    }
-
     private static TextureStats computeTextureStats(BufferedImage img) {
         if (img == null) return TextureStats.empty();
         int width = img.getWidth();
         int height = img.getHeight();
-        long alphaSum = 0L;
-        long redSum = 0L;
-        long greenSum = 0L;
-        long blueSum = 0L;
         int ink = 0;
         int minX = width;
         int minY = height;
         int maxX = -1;
         int maxY = -1;
-        int minAlpha = 255;
-        int maxAlpha = 0;
-        int coloredSubpixelPixels = 0;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 int argb = img.getRGB(x, y);
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0) continue;
-                int red = (argb >>> 16) & 0xFF;
-                int green = (argb >>> 8) & 0xFF;
-                int blue = argb & 0xFF;
                 ink++;
-                alphaSum += alpha;
-                redSum += red;
-                greenSum += green;
-                blueSum += blue;
-                minAlpha = Math.min(minAlpha, alpha);
-                maxAlpha = Math.max(maxAlpha, alpha);
                 minX = Math.min(minX, x);
                 minY = Math.min(minY, y);
                 maxX = Math.max(maxX, x);
                 maxY = Math.max(maxY, y);
-                if (red != green || green != blue) coloredSubpixelPixels++;
             }
         }
-        double area = Math.max(1.0d, width * (double) height);
         return new TextureStats(
-                width,
-                height,
                 ink,
-                ink / area,
-                ink == 0 ? 0.0d : alphaSum / (double) ink,
-                ink == 0 ? 0 : minAlpha,
-                maxAlpha,
-                ink == 0 ? 0.0d : redSum / (double) ink,
-                ink == 0 ? 0.0d : greenSum / (double) ink,
-                ink == 0 ? 0.0d : blueSum / (double) ink,
-                coloredSubpixelPixels,
                 ink == 0 ? -1 : minX,
                 ink == 0 ? -1 : minY,
                 ink == 0 ? 0 : maxX - minX + 1,
                 ink == 0 ? 0 : maxY - minY + 1
         );
-    }
-
-    private static AlphaHistogram computeAlphaHistogram(BufferedImage img) {
-        if (img == null) return AlphaHistogram.empty();
-        int width = img.getWidth();
-        int height = img.getHeight();
-        int[] bins = new int[8];
-        int[] cdfCounts = new int[8];
-        int[] rowInk = new int[height];
-        long[] rowAlpha = new long[height];
-        int ink = 0;
-        long alphaSum = 0L;
-        int minX = width;
-        int minY = height;
-        int maxX = -1;
-        int maxY = -1;
-        for (int y = 0; y < height; y++) {
-            for (int x = 0; x < width; x++) {
-                int alpha = (img.getRGB(x, y) >>> 24) & 0xFF;
-                if (alpha <= 0) continue;
-                ink++;
-                alphaSum += alpha;
-                bins[alphaBinIndex(alpha)]++;
-                if (alpha <= 32) cdfCounts[0]++;
-                if (alpha <= 64) cdfCounts[1]++;
-                if (alpha <= 96) cdfCounts[2]++;
-                if (alpha <= 128) cdfCounts[3]++;
-                if (alpha <= 160) cdfCounts[4]++;
-                if (alpha <= 192) cdfCounts[5]++;
-                if (alpha <= 224) cdfCounts[6]++;
-                if (alpha <= 240) cdfCounts[7]++;
-                rowInk[y]++;
-                rowAlpha[y] += alpha;
-                minX = Math.min(minX, x);
-                minY = Math.min(minY, y);
-                maxX = Math.max(maxX, x);
-                maxY = Math.max(maxY, y);
-            }
-        }
-        double area = Math.max(1.0d, width * (double) height);
-        double inkCount = Math.max(1.0d, ink);
-        return new AlphaHistogram(
-                width,
-                height,
-                ink,
-                ink / area,
-                ink == 0 ? 0.0d : alphaSum / inkCount,
-                bins,
-                new double[]{
-                        cdfCounts[0] / inkCount,
-                        cdfCounts[1] / inkCount,
-                        cdfCounts[2] / inkCount,
-                        cdfCounts[3] / inkCount,
-                        cdfCounts[4] / inkCount,
-                        cdfCounts[5] / inkCount,
-                        cdfCounts[6] / inkCount,
-                        cdfCounts[7] / inkCount
-                },
-                ink == 0 ? -1 : minX,
-                ink == 0 ? -1 : minY,
-                ink == 0 ? 0 : maxX - minX + 1,
-                ink == 0 ? 0 : maxY - minY + 1,
-                rowInk,
-                rowAlpha
-        );
-    }
-
-    private static int alphaBinIndex(int alpha) {
-        if (alpha <= 31) return 0;
-        if (alpha <= 63) return 1;
-        if (alpha <= 95) return 2;
-        if (alpha <= 127) return 3;
-        if (alpha <= 159) return 4;
-        if (alpha <= 191) return 5;
-        if (alpha <= 223) return 6;
-        return 7;
     }
 
     private static void applyAlphaGamma(BufferedImage img, AlphaGammaMode mode) {
@@ -1089,135 +596,6 @@ public class FontDrawer {
                 img.setRGB(x, y, argb & 0x00FFFFFF);
             }
         }
-    }
-
-    private static void maybeExportAlphaMask(Text text, String content, String cacheKey, RasterMode rasterMode,
-                                             TextAntialiasMode aaMode, FractionalMetricsMode fractionalMetricsMode,
-                                             AlphaGammaMode alphaGammaMode,
-                                             AlphaScaleMode alphaScaleMode,
-                                             AlphaCapMode alphaCapMode,
-                                             GlyphRasterSourceMode sourceMode,
-                                             StrokeControlMode strokeControlMode,
-                                             FontRenderContextMode frcMode,
-                                             TextCompositeMode compositeMode,
-                                             TextureFilterMode filterMode, LineMetrics metrics, int pad,
-                                             int baseline, BufferedImage img) {
-        if (!isAlphaMaskExportEnabled() || img == null) return;
-        if (!EXPORTED_ALPHA_MASKS.add(cacheKey)) return;
-        try {
-            File dir = new File(Minecraft.getInstance().gameDirectory, "font-raster-masks");
-            if (!dir.exists() && !dir.mkdirs()) return;
-            String id = UUID.nameUUIDFromBytes(cacheKey.getBytes(StandardCharsets.UTF_8)).toString();
-            File maskFile = new File(dir, id + ".png");
-            File metaFile = new File(dir, id + ".txt");
-            BufferedImage mask = new BufferedImage(img.getWidth(), img.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
-            for (int y = 0; y < img.getHeight(); y++) {
-                for (int x = 0; x < img.getWidth(); x++) {
-                    int alpha = (img.getRGB(x, y) >>> 24) & 0xFF;
-                    int rgb = (alpha << 16) | (alpha << 8) | alpha;
-                    mask.setRGB(x, y, rgb);
-                }
-            }
-            ImageIO.write(mask, "png", maskFile);
-            java.nio.file.Files.writeString(metaFile.toPath(), alphaMaskMetadata(
-                    text, content, cacheKey, rasterMode, aaMode, fractionalMetricsMode, alphaGammaMode, alphaScaleMode, alphaCapMode,
-                    sourceMode, strokeControlMode, frcMode, compositeMode, filterMode, metrics, pad, baseline, img,
-                    maskFile
-            ), StandardCharsets.UTF_8);
-            ApricityUI.LOGGER.info(
-                    "[AUI FontRaster] alphaMask text='{}' file={} metadata={}",
-                    content,
-                    maskFile.getPath().replace('\\', '/'),
-                    metaFile.getPath().replace('\\', '/')
-            );
-        } catch (Exception exception) {
-            ApricityUI.LOGGER.warn("[AUI FontRaster] alphaMask export failed text='{}'", content, exception);
-        }
-    }
-
-    private static String alphaMaskMetadata(Text text, String content, String cacheKey, RasterMode rasterMode,
-                                            TextAntialiasMode aaMode, FractionalMetricsMode fractionalMetricsMode,
-                                            AlphaGammaMode alphaGammaMode,
-                                            AlphaScaleMode alphaScaleMode,
-                                            AlphaCapMode alphaCapMode,
-                                            GlyphRasterSourceMode sourceMode,
-                                            StrokeControlMode strokeControlMode,
-                                            FontRenderContextMode frcMode,
-                                            TextCompositeMode compositeMode,
-                                            TextureFilterMode filterMode, LineMetrics metrics, int pad,
-                                            int baseline, BufferedImage img, File maskFile) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("text=").append(content).append('\n');
-        builder.append("fontFamily=").append(text.fontFamily).append('\n');
-        builder.append("fontSize=").append(text.fontSize).append('\n');
-        builder.append("renderedFontSize=").append(text.renderedFontSize()).append('\n');
-        builder.append("letterSpacing=").append(text.letterSpacing).append('\n');
-        builder.append("color=").append(text.color == null ? "<null>" : text.color.toHexString()).append('\n');
-        builder.append("raster=").append(rasterMode.cacheKey()).append('\n');
-        builder.append("aa=").append(aaMode.cacheKey()).append('\n');
-        builder.append("fractionalMetrics=").append(fractionalMetricsMode.cacheKey()).append('\n');
-        builder.append("alphaGamma=").append(alphaGammaMode.cacheKey()).append('\n');
-        builder.append("alphaScale=").append(alphaScaleMode.cacheKey()).append('\n');
-        builder.append("alphaCap=").append(alphaCapMode.cacheKey()).append('\n');
-        builder.append("source=").append(sourceMode.cacheKey()).append('\n');
-        builder.append("strokeControl=").append(strokeControlMode.cacheKey()).append('\n');
-        builder.append("frc=").append(frcMode.cacheKey()).append('\n');
-        builder.append("composite=").append(compositeMode.cacheKey()).append('\n');
-        builder.append("filter=").append(filterMode.cacheKey()).append('\n');
-        builder.append("image=").append(img.getWidth()).append('x').append(img.getHeight()).append('\n');
-        builder.append("pad=").append(pad).append('\n');
-        builder.append("baseline=").append(baseline).append('\n');
-        builder.append("metricsAscent=").append(metrics.ascent()).append('\n');
-        builder.append("metricsDescent=").append(metrics.descent()).append('\n');
-        builder.append("metricsLeading=").append(metrics.leading()).append('\n');
-        builder.append("metricsHeight=").append(metrics.height()).append('\n');
-        builder.append("cacheKey=").append(cacheKey).append('\n');
-        builder.append("mask=").append(maskFile.getPath().replace('\\', '/')).append('\n');
-        return builder.toString();
-    }
-
-    private static boolean isAlphaMaskExportEnabled() {
-        if (Boolean.getBoolean(EXPORT_ALPHA_MASK_PROPERTY)) return true;
-        String env = System.getenv("APRICITYUI_FONT_RASTER_EXPORT_ALPHA_MASK");
-        if (env == null || env.isBlank()) return false;
-        String normalized = env.trim().toLowerCase(java.util.Locale.ROOT);
-        return normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on");
-    }
-
-    private static boolean isTextureStatsLoggingEnabled() {
-        if (Boolean.getBoolean(LOG_TEXTURE_STATS_PROPERTY)) return true;
-        String env = System.getenv("APRICITYUI_FONT_RASTER_LOG_TEXTURE_STATS");
-        if (env == null || env.isBlank()) return false;
-        String normalized = env.trim().toLowerCase(java.util.Locale.ROOT);
-        return normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on");
-    }
-
-    private static boolean isProjectionLoggingEnabled() {
-        if (Boolean.getBoolean(LOG_PROJECTION_PROPERTY)) return true;
-        String env = System.getenv("APRICITYUI_FONT_RASTER_LOG_PROJECTION");
-        if (env == null || env.isBlank()) return false;
-        String normalized = env.trim().toLowerCase(java.util.Locale.ROOT);
-        return normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on");
-    }
-
-    private static boolean isSourceBoundsLoggingEnabled() {
-        if (Boolean.getBoolean(LOG_SOURCE_BOUNDS_PROPERTY)) return true;
-        String env = System.getenv("APRICITYUI_FONT_RASTER_LOG_SOURCE_BOUNDS");
-        if (env == null || env.isBlank()) return false;
-        String normalized = env.trim().toLowerCase(java.util.Locale.ROOT);
-        return normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on");
-    }
-
-    private static boolean isAlphaHistogramLoggingEnabled() {
-        if (Boolean.getBoolean(LOG_ALPHA_HISTOGRAM_PROPERTY)) return true;
-        String env = System.getenv("APRICITYUI_FONT_RASTER_LOG_ALPHA_HISTOGRAM");
-        if (env == null || env.isBlank()) return false;
-        String normalized = env.trim().toLowerCase(java.util.Locale.ROOT);
-        return normalized.equals("1") || normalized.equals("true") || normalized.equals("yes") || normalized.equals("on");
-    }
-
-    private static double round6(double value) {
-        return Math.round(value * 1_000_000.0d) / 1_000_000.0d;
     }
 
     public static void clearCache() {
@@ -2178,91 +1556,27 @@ public class FontDrawer {
         }
     }
 
-    private record TextureStats(int width, int height, int ink, double coverage, double alphaAvg,
-                                int minAlpha, int maxAlpha, double redAvg, double greenAvg, double blueAvg,
-                                int coloredSubpixelPixels, int minX, int minY, int inkWidth, int inkHeight) {
+    private record TextureStats(int ink, int minX, int minY, int inkWidth, int inkHeight) {
         private static TextureStats empty() {
-            return new TextureStats(0, 0, 0, 0.0d, 0.0d, 0, 0, 0.0d, 0.0d, 0.0d, 0, -1, -1, 0, 0);
+            return new TextureStats(0, -1, -1, 0, 0);
         }
 
         boolean hasInk() {
             return ink > 0;
         }
-
-        String boundsText() {
-            return hasInk() ? minX + "," + minY + "," + inkWidth + "," + inkHeight : "<none>";
-        }
     }
 
-    private record SourceBounds(int runCount, double awtWidth, double awtWidthWithSpacing,
-                                double visualX, double visualY, double visualWidth, double visualHeight,
-                                double logicalX, double logicalY, double logicalWidth, double logicalHeight) {
-        private static SourceBounds empty(int runCount, double awtWidth, double awtWidthWithSpacing) {
-            return new SourceBounds(runCount, awtWidth, awtWidthWithSpacing, Double.NaN, Double.NaN, 0.0d, 0.0d, Double.NaN, Double.NaN, 0.0d, 0.0d);
-        }
-
-        String visualBoundsText() {
-            return Double.isNaN(visualX) ? "<none>" : round6(visualX) + "," + round6(visualY) + "," + round6(visualWidth) + "," + round6(visualHeight);
-        }
-
-        String logicalBoundsText() {
-            return Double.isNaN(logicalX) ? "<none>" : round6(logicalX) + "," + round6(logicalY) + "," + round6(logicalWidth) + "," + round6(logicalHeight);
-        }
-    }
-
-    private record AlphaHistogram(int width, int height, int ink, double coverage, double avgAlpha,
-                                  int[] bins, double[] cdf, int minX, int minY, int inkWidth, int inkHeight,
-                                  int[] rowInk, long[] rowAlpha) {
-        private static AlphaHistogram empty() {
-            return new AlphaHistogram(0, 0, 0, 0.0d, 0.0d, new int[8], new double[8], -1, -1, 0, 0, new int[0], new long[0]);
-        }
-
-        String boundsText() {
-            return ink > 0 ? minX + "," + minY + "," + inkWidth + "," + inkHeight : "<none>";
-        }
-
-        String binsText() {
-            return "1-31=" + bins[0]
-                    + ",32-63=" + bins[1]
-                    + ",64-95=" + bins[2]
-                    + ",96-127=" + bins[3]
-                    + ",128-159=" + bins[4]
-                    + ",160-191=" + bins[5]
-                    + ",192-223=" + bins[6]
-                    + ",224-255=" + bins[7];
-        }
-
-        String cdfText() {
-            return "le32=" + round6(cdf[0])
-                    + ",le64=" + round6(cdf[1])
-                    + ",le96=" + round6(cdf[2])
-                    + ",le128=" + round6(cdf[3])
-                    + ",le160=" + round6(cdf[4])
-                    + ",le192=" + round6(cdf[5])
-                    + ",le224=" + round6(cdf[6])
-                    + ",le240=" + round6(cdf[7]);
-        }
-
-        String rowsText() {
-            if (rowInk == null || rowAlpha == null || rowInk.length == 0 || ink <= 0) return "[]";
-            StringBuilder builder = new StringBuilder("[");
-            boolean first = true;
-            int count = Math.min(rowInk.length, rowAlpha.length);
-            for (int y = 0; y < count; y++) {
-                int rowCount = rowInk[y];
-                if (rowCount <= 0) continue;
-                if (!first) builder.append(';');
-                first = false;
-                builder.append("y=").append(y)
-                        .append(",ink=").append(rowCount)
-                        .append(",avgA=").append(round6(rowAlpha[y] / (double) rowCount));
-            }
-            return builder.append(']').toString();
-        }
+    private record RasterLayout(int pad, int lineHeight) {
     }
 
     public record FontEntry(ResourceLocation location, NativeImage nativeImage, DynamicTexture dynamicTexture,
-                            int width, int height, TextureStats textureStats) {
+                            int width, int height, TextureStats textureStats, RasterLayout rasterLayout) {
+        float verticalAnchorTexel() {
+            if (textureStats != null && textureStats.hasInk() && textureStats.ink() < width * height) {
+                return textureStats.minY() + textureStats.inkHeight() / 2.0f;
+            }
+            return rasterLayout.pad() + rasterLayout.lineHeight() / 2.0f;
+        }
     }
 }
 

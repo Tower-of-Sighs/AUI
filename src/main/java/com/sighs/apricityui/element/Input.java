@@ -164,7 +164,8 @@ public class Input extends AbstractText {
         Text text = Text.of(this);
         text.content = label;
         text.color = new Color(Text.getFontColor(this));
-        FontDrawer.drawFont(poseStack, text, rectRenderer.getContentPosition());
+        Position contentPos = rectRenderer.getContentPosition();
+        FontDrawer.drawFont(poseStack, text, new Position(contentPos.x, singleLineDrawY(rectRenderer, text)));
     }
 
     private void drawCheckableInput(PoseStack poseStack, Rect rectRenderer, Mode mode) {
@@ -269,10 +270,10 @@ public class Input extends AbstractText {
 
         Position contentPos = rectRenderer.getContentPosition();
         float drawX = (float) (contentPos.x - scrollLeft);
-        float drawY = (float) contentPos.y;
+        float drawY = (float) singleLineDrawY(rectRenderer, text);
 
         if (!isPlaceholder) {
-            drawSingleLineSelection(poseStack, rectRenderer, textToShow, text.lineHeight);
+            drawSingleLineSelection(poseStack, rectRenderer, textToShow, drawY, text.lineHeight);
         }
         if (!isPlaceholder && hasSelection() && canSelectText()) {
             int min = Math.max(0, Math.min(selMin(), textToShow.length()));
@@ -303,5 +304,12 @@ public class Input extends AbstractText {
             FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
         }
         drawSingleLineCursor(poseStack, textToShow, drawX, drawY, (float) text.lineHeight);
+    }
+
+    private double singleLineDrawY(Rect rectRenderer, Text text) {
+        if (rectRenderer == null || text == null) return 0.0d;
+        Position contentPos = rectRenderer.getContentPosition();
+        double contentHeight = Math.max(0.0d, rectRenderer.box.innerSize().height());
+        return contentPos.y + (contentHeight - text.lineHeight) / 2.0d;
     }
 }
