@@ -231,7 +231,7 @@ class CssCompatibilityTest {
 
     @Test
     void commaGroupedClassSelectorsApplyToEachClass() throws Exception {
-        HashMap<String, java.util.Map<String, String>> cache = new HashMap<>();
+        HashMap<String, java.util.Map<String, CSS.Declaration>> cache = new HashMap<>();
         String css = """
                 .inline-pill,
                 .inline-outer,
@@ -276,7 +276,7 @@ class CssCompatibilityTest {
 
     @Test
     void mediaQueriesFilterRulesAgainstCurrentViewport() throws Exception {
-        HashMap<String, java.util.Map<String, String>> cache = new HashMap<>();
+        HashMap<String, java.util.Map<String, CSS.Declaration>> cache = new HashMap<>();
         String css = """
                 @media (min-width: 300px) {
                   .panel { color: #111111; }
@@ -288,12 +288,12 @@ class CssCompatibilityTest {
 
         withViewport(400, 300, () -> CSS.readCSS(css, cache, "test://doc"));
 
-        assertEquals("#111111", cache.get(".panel").get("color"));
+        assertEquals("#111111", cache.get(".panel").get("color").value());
     }
 
     @Test
     void mediaQueriesAlsoSupportOrientationAndHeight() throws Exception {
-        HashMap<String, java.util.Map<String, String>> cache = new HashMap<>();
+        HashMap<String, java.util.Map<String, CSS.Declaration>> cache = new HashMap<>();
         String css = """
                 @media (orientation: landscape) and (min-height: 300px) {
                   .panel { color: #333333; }
@@ -305,7 +305,7 @@ class CssCompatibilityTest {
 
         withViewport(640, 360, () -> CSS.readCSS(css, cache, "test://doc"));
 
-        assertEquals("#333333", cache.get(".panel").get("color"));
+        assertEquals("#333333", cache.get(".panel").get("color").value());
     }
 
     @Test
@@ -466,7 +466,7 @@ class CssCompatibilityTest {
     @Test
     void keyframesSupportFromToAndCommaSeparatedSelectors() {
         String animationName = "css-compat-keyframes-" + UUID.randomUUID();
-        HashMap<String, java.util.Map<String, String>> cache = new HashMap<>();
+        HashMap<String, java.util.Map<String, CSS.Declaration>> cache = new HashMap<>();
         CSS.readCSS("""
                 @keyframes %s {
                   from, 50%% { opacity: 0.25; }
@@ -475,7 +475,7 @@ class CssCompatibilityTest {
                 .panel { color: #123456; }
                 """.formatted(animationName), cache, "test://doc");
 
-        assertEquals("#123456", cache.get(".panel").get("color"));
+        assertEquals("#123456", cache.get(".panel").get("color").value());
         TreeMap<Double, Map<String, String>> timeline = readRegisteredTimeline(animationName);
         assertNotNull(timeline);
         assertEquals("0.25", timeline.get(0d).get("opacity"));

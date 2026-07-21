@@ -310,7 +310,7 @@ public class Loader {
         }
     }
 
-    private static Path getGameDir() {
+    public static Path getGameDirectory() {
         try {
             Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
             Object gameDirHolder = fmlPathsClass.getField("GAMEDIR").get(null);
@@ -321,5 +321,9 @@ public class Loader {
         } catch (Throwable ignored) {
         }
         return Path.of("").toAbsolutePath().normalize();
+    }
+
+    private static Path getGameDir() {
+        return getGameDirectory();
     }
 }
