@@ -16,6 +16,9 @@ import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Text;
+import org.lwjgl.PointerBuffer;
+import org.lwjgl.system.MemoryStack;
+import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
 import java.util.Locale;
 
@@ -27,7 +30,8 @@ public class Input extends AbstractText {
         TEXT,
         BUTTON,
         CHECKBOX,
-        RADIO
+        RADIO,
+        FILE
     }
 
     public Input(Document document) {
@@ -43,6 +47,8 @@ public class Input extends AbstractText {
             } else if (mode == Mode.RADIO && !isChecked()) {
                 setChecked(true);
                 triggerChangeEvent();
+            } else if (mode == Mode.FILE) {
+                openFileDialog();
             } else if (mode == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
                 submitEnclosingForm();
             }
@@ -56,6 +62,7 @@ public class Input extends AbstractText {
             case "button", "submit", "reset" -> Mode.BUTTON;
             case "checkbox" -> Mode.CHECKBOX;
             case "radio" -> Mode.RADIO;
+            case "file" -> Mode.FILE;
             default -> Mode.TEXT;
         };
     }
@@ -69,7 +76,9 @@ public class Input extends AbstractText {
     public void click() {
         super.click();
         if (isDisabled()) return;
-        if (getMode() == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
+        if (getMode() == Mode.FILE) {
+            openFileDialog();
+        } else if (getMode() == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
             submitEnclosingForm();
         }
     }
@@ -87,6 +96,22 @@ public class Input extends AbstractText {
         Event changeEvent = new Event(this, "change", true);
         Event.markTrustedFromCurrentDispatch(changeEvent);
         Event.tiggerEvent(changeEvent);
+    }
+
+    private void openFileDialog() {
+        String accept = getAttribute("accept");
+        String pattern = accept != null && accept.toLowerCase(Locale.ROOT).contains("html") ? "*.html" : "*.*";
+        String description = "*.html".equals(pattern) ? "HTML files" : "Files";
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            PointerBuffer filters = stack.mallocPointer(1);
+            filters.put(stack.UTF8(pattern)).flip();
+            String selected = TinyFileDialogs.tinyfd_openFileDialog("Choose file", "", filters, description, false);
+            if (selected == null || selected.isBlank()) return;
+            setValue(selected);
+            setAttribute("value", selected);
+            triggerChangeEvent();
+        } catch (Exception ignored) {
+        }
     }
 
     public boolean handleSpaceKey() {

@@ -1,5 +1,7 @@
 package com.sighs.apricityui.dev;
 
+import com.sighs.apricityui.dev.resource.ResourceCreateDialog;
+import com.sighs.apricityui.dev.resource.ResourcePath;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -40,6 +42,7 @@ public final class ResourceManager {
     private static final List<String> history = new ArrayList<>(List.of(ROOT_PATH));
     private static int historyIndex;
     private static final Set<String> expandedPaths = new LinkedHashSet<>();
+    private static final ResourceCreateDialog createDialog = new ResourceCreateDialog();
 
     private ResourceManager() {
     }
@@ -67,6 +70,7 @@ public final class ResourceManager {
     }
 
     public static void close() {
+        createDialog.close();
         closePreviewDocument();
         if (toolDocument != null && !toolDocument.isDisposed()) {
             toolDocument.remove();
@@ -107,7 +111,7 @@ public final class ResourceManager {
     private static void bindShellActions() {
         bindOnce("#backButton", event -> goBack());
         bindOnce("#upButton", event -> goUp());
-        bindOnce("#refreshButton", event -> ClientLoader.reload());
+        bindOnce("#newButton", event -> createDialog.open(toolDocument, currentPath, ClientLoader::reload));
     }
 
     private static void bindOnce(String selector, java.util.function.Consumer<Event> listener) {
@@ -545,11 +549,7 @@ public final class ResourceManager {
     }
 
     private static String formatSize(long bytes) {
-        if (bytes < 0) return "--";
-        if (bytes < 1024) return bytes + " B";
-        double kilobytes = bytes / 1024.0d;
-        if (kilobytes < 1024) return String.format(Locale.ROOT, "%.1f KB", kilobytes);
-        return String.format(Locale.ROOT, "%.1f MB", kilobytes / 1024.0d);
+        return ResourcePath.formatSize(bytes);
     }
 
     private static Element createElement(String tagName, String className) {
@@ -580,22 +580,15 @@ public final class ResourceManager {
     }
 
     private static String normalizePath(String path) {
-        String normalized = safe(path).replace('\\', '/').trim();
-        while (normalized.startsWith("/")) normalized = normalized.substring(1);
-        while (normalized.endsWith("/")) normalized = normalized.substring(0, normalized.length() - 1);
-        return normalized;
+        return ResourcePath.normalize(path);
     }
 
     private static String parentPath(String path) {
-        String normalized = normalizePath(path);
-        int separator = normalized.lastIndexOf('/');
-        return separator < 0 ? ROOT_PATH : normalized.substring(0, separator);
+        return ResourcePath.parent(path);
     }
 
     private static String fileName(String path) {
-        String normalized = normalizePath(path);
-        int separator = normalized.lastIndexOf('/');
-        return separator < 0 ? normalized : normalized.substring(separator + 1);
+        return ResourcePath.fileName(path);
     }
 
     private static String displayPath(String path) {
@@ -604,7 +597,7 @@ public final class ResourceManager {
     }
 
     private static String safe(String value) {
-        return value == null ? "" : value;
+        return ResourcePath.safe(value);
     }
 
     private static void markDirty() {

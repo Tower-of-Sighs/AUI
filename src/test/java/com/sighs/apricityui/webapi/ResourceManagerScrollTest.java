@@ -95,6 +95,23 @@ class ResourceManagerScrollTest {
     }
 
     @Test
+    void newButtonOpensTheJavaOwnedHtmlCreateOverlay() throws Exception {
+        Document document = createManagerDocument("test://resource-manager-new-overlay", sampleEntries());
+        try {
+            Element newButton = document.querySelector("#newButton");
+            assertNotNull(newButton);
+            newButton.click();
+
+            assertNotNull(document.querySelector("#resourceCreateDialog"));
+            assertNotNull(document.querySelector(".resource-create-input"));
+            assertEquals(2, document.querySelectorAll(".resource-import-card").size());
+            assertNotNull(document.querySelector(".resource-create-submit"));
+        } finally {
+            ResourceManager.close();
+        }
+    }
+
+    @Test
     void htmlPreviewCreatesPersistentPreviewDocument() throws Exception {
         String path = "test://resource-manager-html-preview";
         HTML.putTemple(path, "<body><div style=\"width:40px;height:20px;background-color:#ffffff;\"></div></body>");
