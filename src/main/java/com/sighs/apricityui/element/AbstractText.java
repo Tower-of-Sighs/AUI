@@ -431,7 +431,7 @@ public abstract class AbstractText extends Element {
         return value;
     }
 
-    protected void drawSingleLineSelection(PoseStack poseStack, Rect rectRenderer, String renderText, double lineHeight) {
+    protected void drawSingleLineSelection(PoseStack poseStack, Rect rectRenderer, String renderText, float drawY, double lineHeight) {
         if (!canSelectText()) return;
         if (!hasSelection()) return;
         int min = clamp(selMin(), 0, renderText.length());
@@ -444,7 +444,7 @@ public abstract class AbstractText extends Element {
 
         float x0 = (float) (contentPos.x + startX);
         float x1 = (float) (contentPos.x + endX);
-        float y0 = (float) contentPos.y;
+        float y0 = drawY;
         float y1 = y0 + (float) lineHeight;
         Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
     }
