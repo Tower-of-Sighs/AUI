@@ -124,6 +124,7 @@ public final class ContextMenu {
         public static final String NEW_FILE = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M3 1h5l3 3v8H3V1zm5 1v3h3M7 6v2H5v1h2v2h1V9h2V8H8V6H7z\"/></svg>";
         public static final String NEW_FOLDER = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M1 3h4.5L7 4.5H13v7H1V3zm6 3v1.5H5.5v1H7V10h1V8.5H9.5v-1H8V6H7z\"/></svg>";
         public static final String RENAME = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M10 1l3 3-8 8H2v-3l8-8zm-1 2L4 8v2h2l5-5-2-2z\"/></svg>";
+        public static final String EDIT = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M10 1l3 3-8 8H2v-3l8-8zm-1.5 3L4 8.5V10h1.5L10 5.5 8.5 4z\"/></svg>";
         public static final String DELETE = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M4 2h6v1H4V2zM2 4h10v1H2V4zm1 2h8l-1 7H4L3 6zm3 1v5h1V7H6zm2 0v5h1V7H8z\"/></svg>";
         public static final String REFRESH = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M12 7a5 5 0 1 1-1.5-3.5L12 2v3.5H8.5l1.5-1.5A3.5 3.5 0 1 0 10.5 7H12z\"/></svg>";
         public static final String UP = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M2 9l5-5 5 5H2z\"/></svg>";

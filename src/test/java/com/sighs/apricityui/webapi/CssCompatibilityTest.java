@@ -9,6 +9,7 @@ import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Gradient;
 import com.sighs.apricityui.style.Transform;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,25 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CssCompatibilityTest {
+    @Test
+    void multipleBoxShadowsRetainCssOrderAndSpreadRadius() {
+        List<Box.Shadow> shadows = Box.parseShadowList(
+                "10px 10px 0 rgba(139,92,246,0.25), 10px 10px 0 3px #1a1a1a");
+
+        assertEquals(2, shadows.size());
+        assertEquals(0, shadows.get(0).size());
+        assertEquals(0, shadows.get(0).spread());
+        assertEquals(0x408B5CF6, shadows.get(0).color().getValue());
+        assertEquals(0, shadows.get(1).size());
+        assertEquals(3, shadows.get(1).spread());
+        assertEquals(0xFF1A1A1A, shadows.get(1).color().getValue());
+
+        Box.Shadow colorlessSpread = Box.parseShadowList("2px 4px 6px 8px").get(0);
+        assertEquals(6, colorlessSpread.size());
+        assertEquals(8, colorlessSpread.spread());
+        assertEquals(0xFF000000, colorlessSpread.color().getValue());
+    }
+
     @Test
     void inheritedPropertiesCascadeIntoChildrenByDefault() {
         Document document = TestDocumentFactory.createDocument();
@@ -257,6 +277,117 @@ class CssCompatibilityTest {
         assertEquals("inline", pill.getComputedStyle().display);
         assertEquals("inline", outer.getComputedStyle().display);
         assertEquals("inline", inner.getComputedStyle().display);
+    }
+
+    @Test
+    void shorthandsExpandBeforeSelectorCascade() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("""
+                select { padding-left: 2px; }
+                .dialog-select { padding: 10px 40px 10px 14px; }
+                """, cache, "test://shorthand-cascade.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element select = new Element(document, "select");
+        select.setAttribute("class", "dialog-select");
+        document.body.appendChild(select);
+
+        assertEquals("10px", Selector.matchCSS(select).get("padding-top"));
+        assertEquals("40px", Selector.matchCSS(select).get("padding-right"));
+        assertEquals("10px", Selector.matchCSS(select).get("padding-bottom"));
+        assertEquals("14px", Selector.matchCSS(select).get("padding-left"));
+        assertEquals("14px", select.getRawComputedStyle().paddingLeft);
+    }
+
+    @Test
+    void moreSpecificLonghandOverridesLessSpecificShorthand() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("""
+                select { padding: 10px 40px; }
+                .dialog-select { padding-left: 14px; }
+                """, cache, "test://longhand-cascade.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element select = new Element(document, "select");
+        select.setAttribute("class", "dialog-select");
+        document.body.appendChild(select);
+
+        assertEquals("14px", Selector.matchCSS(select).get("padding-left"));
+        assertEquals("14px", select.getRawComputedStyle().paddingLeft);
+    }
+
+    @Test
+    void importantShorthandLonghandsRetainImportance() {
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS(".field { padding: 8px 12px !important; padding-left: 2px; }", cache,
+                "test://important-shorthand.css");
+
+        CSS.Declaration left = cache.get(".field").get("padding-left");
+        assertEquals("12px", left.value());
+        assertTrue(left.important());
+    }
+
+    @Test
+    void generatedPseudoElementDoesNotRemoveHostTextFromRenderFlow() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS(".label::before { content: '+'; position: absolute; }", cache,
+                "test://pseudo-host-text.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element label = new Element(document, "label");
+        label.setAttribute("class", "label");
+        label.setTextContent("Viewport");
+        document.body.appendChild(label);
+
+        assertEquals(2, label.getRenderChildNodes().size());
+        assertTrue(label.getRenderChildNodes().get(0) instanceof Element);
+        assertTrue(label.getRenderChildNodes().get(1) instanceof com.sighs.apricityui.init.TextNode);
+        assertEquals("Viewport", label.getRenderChildNodes().get(1).getTextContent());
+        assertTrue(label.getChildNodes().isEmpty(), "generated render text must not mutate the DOM child list");
+    }
+
+    @Test
+    void disabledAndFocusWithinPseudoClassesTrackControlState() throws Exception {
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        CSS.readCSS("""
+                .confirm:disabled { opacity: 0.4; transform: none !important; }
+                .select-wrap { background-color: #ffffff; }
+                .select-wrap:focus-within { background-color: #6d28d9; }
+                """, cache, "test://dialog-states.css");
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        Element button = new Element(document, "button");
+        button.setAttribute("class", "confirm");
+        Element wrap = new Element(document, "div");
+        wrap.setAttribute("class", "select-wrap");
+        Element select = new Element(document, "select");
+        wrap.appendChild(select);
+        document.body.appendChild(button);
+        document.body.appendChild(wrap);
+
+        assertFalse(button.matches(":disabled"));
+        button.setAttribute("disabled", "disabled");
+        document.flushPendingStyleUpdates();
+        assertTrue(button.matches(":disabled"));
+        assertEquals("0.4", button.getComputedStyle().opacity);
+
+        assertFalse(wrap.matches(":focus-within"));
+        document.setFocusedElement(select);
+        document.flushPendingStyleUpdates();
+        assertTrue(wrap.matches(":focus-within"));
+        assertEquals("#6d28d9", wrap.getComputedStyle().backgroundColor);
+
+        document.clearFocus();
+        document.flushPendingStyleUpdates();
+        assertFalse(wrap.matches(":focus-within"));
+        assertEquals("#ffffff", wrap.getComputedStyle().backgroundColor);
     }
 
     @Test

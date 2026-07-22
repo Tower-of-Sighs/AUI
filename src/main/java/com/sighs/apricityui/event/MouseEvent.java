@@ -1,4 +1,6 @@
 package com.sighs.apricityui.event;
+
+import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
@@ -391,6 +393,10 @@ public class MouseEvent extends Event implements Cloneable {
             click.target = activationTarget;
             click.cancelable = true;
             consumed |= Event.tiggerEvent(click);
+            if (!click.defaultPrevented && activationTarget instanceof Select select) {
+                select.handleClickDefault();
+                consumed = true;
+            }
 
             if (document.registerClickAndCheckDoubleClick(activationTarget, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {
                 MouseEvent dblclick = originalEvent.clone();

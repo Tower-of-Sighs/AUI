@@ -137,6 +137,7 @@ final class ElementTree {
         nodes.removeAll(removedNodes);
         elements.removeAll(removedElements);
         for (Element element : removedElements) {
+            element.onDisconnectedFromDocument();
             if (element.id != null && !element.id.isBlank()) {
                 removeId(element.id, element);
             }
@@ -260,6 +261,7 @@ final class ElementTree {
         List<Element> subtreeElements = flattenElements(subtree);
         elements.removeAll(subtreeElements);
         for (Element element : subtreeElements) {
+            element.onDisconnectedFromDocument();
             if (element.id != null && !element.id.isBlank()) {
                 removeId(element.id, element);
             }
@@ -357,6 +359,7 @@ final class ElementTree {
             }
         }
         element.children = elementChildren;
+        element.syncSelectStateAfterChildrenChanged();
     }
 
     private List<Element> flattenElements(List<Node> source) {

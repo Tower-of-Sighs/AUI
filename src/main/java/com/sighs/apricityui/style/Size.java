@@ -279,6 +279,8 @@ public record Size(double width, double height) {
         Size contentSize;
         if (element instanceof com.sighs.apricityui.element.Canvas canvas) {
             contentSize = canvas.getIntrinsicSize();
+        } else if (element instanceof com.sighs.apricityui.element.Select select) {
+            contentSize = select.getIntrinsicSize();
         } else {
             contentSize = isText ? getTextSize(element) : getContentSize(element);
         }

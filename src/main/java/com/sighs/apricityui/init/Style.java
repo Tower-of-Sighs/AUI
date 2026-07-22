@@ -398,6 +398,13 @@ public class Style implements Cloneable {
 
     public void applyUserAgentDefaults(Element element) {
         display = defaultDisplayFor(element);
+        if (element != null && "SELECT".equalsIgnoreCase(element.tagName)) {
+            boxSizing = "border-box";
+            whiteSpace = "nowrap";
+            overflow = "hidden";
+            overflowX = "hidden";
+            overflowY = "hidden";
+        }
     }
 
     private void applyBoxShorthand(String baseName, String raw) {
@@ -1086,7 +1093,7 @@ public class Style implements Cloneable {
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
         return switch (tag) {
             case "A", "SPAN", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS", "SVG", "BUTTON", "LABEL" -> "inline";
-            case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK" -> "none";
+            case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
             default -> "block";
         };
     }

@@ -168,8 +168,9 @@ function FormData(form) {
         else if (typeof option.hasAttribute === 'function') selected = option.hasAttribute('selected');
         else selected = !!option.selected;
         if (!selected) continue;
-        let optionValue = typeof option.getAttribute === 'function' ? option.getAttribute('value') : option.value;
-        if ((optionValue == null || optionValue === '') && option.textContent != null) optionValue = option.textContent;
+        if (typeof option.isOptionEffectivelyDisabled === 'function' && option.isOptionEffectivelyDisabled()) continue;
+        let optionValue = typeof option.getValue === 'function' ? option.getValue() : option.value;
+        if (optionValue == null && option.textContent != null) optionValue = option.textContent;
         this.__pairs.push([fieldName, optionValue == null ? '' : String(optionValue)]);
       }
     };
@@ -472,13 +473,19 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'classList', () => __auiDecorateTokenList(el.getClassList()));
       __auiInstallValueBridge(el, 'dataset', () => __auiDecorateDataset(el.getDataset()));
       __auiInstallValueBridge(el, 'name', () => el.getAttribute('name'), (v) => el.setAttribute('name', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'type', () => el.getAttribute('type'), (v) => el.setAttribute('type', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'type', () => el.getType(), (v) => el.setType(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
       __auiInstallValueBridge(el, 'multiple', () => !!el.hasAttribute('multiple'), (v) => el.toggleAttribute('multiple', !!v));
       __auiInstallValueBridge(el, 'value', () => el.getValue(), (v) => el.setValue(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'checked', () => el.isChecked(), (v) => el.setChecked(!!v));
       __auiInstallValueBridge(el, 'selected', () => el.isSelected(), (v) => el.setSelected(!!v));
+      __auiInstallValueBridge(el, 'defaultSelected', () => el.isDefaultSelected(), (v) => el.setDefaultSelected(!!v));
+      __auiInstallValueBridge(el, 'label', () => el.getOptionLabel(), (v) => el.setOptionLabel(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'text', () => el.getOptionText(), (v) => el.setOptionText(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'index', () => el.getOptionIndex());
       __auiInstallValueBridge(el, 'selectedIndex', () => el.getSelectedIndex(), (v) => el.setSelectedIndex(v == null ? -1 : Number(v)));
+      __auiInstallValueBridge(el, 'length', () => el.getSelectLength());
+      __auiInstallValueBridge(el, 'size', () => el.getSelectSize(), (v) => el.setSelectSize(v == null ? 0 : Number(v)));
       __auiInstallValueBridge(el, 'scrollTop', () => el.getScrollTop(), (v) => el.setScrollTop(Number(v) || 0));
       __auiInstallValueBridge(el, 'scrollLeft', () => el.getScrollLeft(), (v) => el.setScrollLeft(Number(v) || 0));
       __auiInstallValueBridge(el, 'currentSrc', () => el.getCurrentSrc ? el.getCurrentSrc() : '');

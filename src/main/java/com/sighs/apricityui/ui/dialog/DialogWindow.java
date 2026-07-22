@@ -10,10 +10,19 @@ import com.sighs.apricityui.init.Event;
 public final class DialogWindow {
     public record Options(String title, double width, double height, boolean resizable,
                           String overlayClass, String windowClass, String headingClass,
-                          String titleClass, String closeClass) {
+                          String titleClass, String closeClass, String contentClass,
+                          String titleIconClass) {
+        public Options(String title, double width, double height, boolean resizable,
+                       String overlayClass, String windowClass, String headingClass,
+                       String titleClass, String closeClass) {
+            this(title, width, height, resizable, overlayClass, windowClass, headingClass,
+                    titleClass, closeClass, "aui-dialog-content", "");
+        }
+
         public static Options of(String title, double width, double height, boolean resizable) {
             return new Options(title, width, height, resizable, "aui-dialog-overlay", "aui-dialog-window",
-                    "aui-dialog-heading", "aui-dialog-title", "aui-dialog-close");
+                    "aui-dialog-heading", "aui-dialog-title", "aui-dialog-close",
+                    "aui-dialog-content", "aui-dialog-title-icon");
         }
     }
     private final Document document;
@@ -30,6 +39,7 @@ public final class DialogWindow {
         DialogWindow result = new DialogWindow(document, options, onClose); result.create(); return result;
     }
     public Element content() { return content; }
+    public Element window() { return window; }
     public boolean isOpen() { return overlay != null && overlay.isConnected(); }
     public void close() {
         if (overlay != null) overlay.remove();
@@ -46,11 +56,15 @@ public final class DialogWindow {
         window = el("DIV", options.windowClass()); applyBounds();
         Element heading = el("DIV", options.headingClass());
         heading.setAttribute("style", "cursor:move;user-select:none;");
-        Element title = el("DIV", options.titleClass()); title.setTextContent(options.title()); title.setAttribute("style", "user-select:none;");
-        Element close = el("BUTTON", options.closeClass()); close.setTextContent("x");
+        Element title = el("DIV", options.titleClass()); title.setAttribute("style", "user-select:none;");
+        if (options.titleIconClass() != null && !options.titleIconClass().isBlank()) {
+            title.append(el("DIV", options.titleIconClass()));
+        }
+        Element titleText = el("SPAN", "aui-dialog-title-text"); titleText.setTextContent(options.title()); title.append(titleText);
+        Element close = el("BUTTON", options.closeClass()); close.setTextContent("\u2715");
         close.addEventListener("click", e -> { e.stopPropagation(); close(); });
         heading.addEventListener("mousedown", e -> begin(e, Mode.MOVE)); heading.append(title); heading.append(close); window.append(heading);
-        content = el("DIV", "aui-dialog-content"); content.setAttribute("style", height > 0 ? "position:relative;flex:1;min-height:0;" : "position:relative;"); window.append(content);
+        content = el("DIV", options.contentClass()); content.setAttribute("style", height > 0 ? "position:relative;flex:1;min-height:0;" : "position:relative;"); window.append(content);
         if (options.resizable()) for (Mode resize : new Mode[]{Mode.N,Mode.NE,Mode.E,Mode.SE,Mode.S,Mode.SW,Mode.W,Mode.NW}) handle(resize);
         overlay.addEventListener("mousemove", this::move); overlay.addEventListener("mouseup", e -> mode = Mode.NONE);
         overlay.append(window); document.body.append(overlay); dirty();

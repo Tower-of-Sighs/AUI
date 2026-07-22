@@ -80,6 +80,11 @@ public class FilterRenderer {
     public static void pushFilter() {
         boolean ON_OSX = Minecraft.ON_OSX;
 
+        // Pending parent draws must land in the parent target before the child
+        // filter binds its offscreen target. Otherwise they inherit the child's opacity.
+        ImageDrawer.flushBatch();
+        Graph.endBatch();
+
         if (fboStack.isEmpty()) {
             mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
             poolPointer = 0;

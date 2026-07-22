@@ -41,6 +41,8 @@ public class Selector {
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
                 case "focus" -> e.isFocus;
+                case "focus-within" -> isFocusWithin(e);
+                case "disabled" -> e.isDisabled();
                 case "empty" -> e.children.isEmpty();
                 case "checked" -> isChecked(e);
                 default -> false;
@@ -253,6 +255,8 @@ public class Selector {
             if (element.isHover) addCandidates(byPseudo.get("hover"));
             if (element.isActive) addCandidates(byPseudo.get("active"));
             if (element.isFocus) addCandidates(byPseudo.get("focus"));
+            if (isFocusWithin(element)) addCandidates(byPseudo.get("focus-within"));
+            if (element.isDisabled()) addCandidates(byPseudo.get("disabled"));
             if (element.children.isEmpty()) addCandidates(byPseudo.get("empty"));
             if (element.parentElement == null) addCandidates(byPseudo.get("root"));
             if (element.parentElement != null) {
@@ -291,19 +295,15 @@ public class Selector {
             List<MatchedRule> importantRules = new ArrayList<>();
             for (MatchedRule rule : matched) {
                 boolean hasImportant = false;
-                for (CSS.Declaration declaration : rule.styles.values()) {
+                for (Map.Entry<String, CSS.Declaration> entry : rule.styles.entrySet()) {
+                    CSS.Declaration declaration = entry.getValue();
                     if (declaration.important()) {
                         hasImportant = true;
-                        break;
+                    } else {
+                        finalStyles.put(entry.getKey(), declaration.value());
                     }
                 }
-                if (hasImportant) {
-                    importantRules.add(rule);
-                } else {
-                    for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
-                        finalStyles.put(e.getKey(), e.getValue().value());
-                    }
-                }
+                if (hasImportant) importantRules.add(rule);
             }
             for (MatchedRule rule : importantRules) {
                 for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
@@ -356,19 +356,15 @@ public class Selector {
             List<MatchedRule> importantRules = new ArrayList<>();
             for (MatchedRule rule : matched) {
                 boolean hasImportant = false;
-                for (CSS.Declaration declaration : rule.styles.values()) {
+                for (Map.Entry<String, CSS.Declaration> entry : rule.styles.entrySet()) {
+                    CSS.Declaration declaration = entry.getValue();
                     if (declaration.important()) {
                         hasImportant = true;
-                        break;
+                    } else {
+                        finalStyles.put(entry.getKey(), declaration.value());
                     }
                 }
-                if (hasImportant) {
-                    importantRules.add(rule);
-                } else {
-                    for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
-                        finalStyles.put(e.getKey(), e.getValue().value());
-                    }
-                }
+                if (hasImportant) importantRules.add(rule);
             }
             for (MatchedRule rule : importantRules) {
                 for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
@@ -400,6 +396,17 @@ public class Selector {
     public static HashMap<String, String> matchCSS(Element element) {
         if (element == null || element.document == null) return new HashMap<>();
         return element.document.getSelectorIndex().match(element);
+    }
+
+    private static boolean isFocusWithin(Element element) {
+        Element focused = element == null || element.document == null
+                ? null
+                : element.document.getFocusedElement();
+        while (focused != null) {
+            if (focused == element) return true;
+            focused = focused.parentElement;
+        }
+        return false;
     }
 
     public static HashMap<String, String> matchPseudoElementCSS(Element element, PseudoElement pseudoElement) {

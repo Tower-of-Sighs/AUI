@@ -604,7 +604,10 @@ class ElementBindingTest {
         select.addEventListener("input", event -> inputEvents.incrementAndGet());
         select.addEventListener("change", event -> changeEvents.incrementAndGet());
 
-        assertTrue(second.dispatchEvent(new Event(second, "mousedown", null, false)));
+        select.openPopup();
+        var popupOptions = document.body.querySelectorAll(".aui-select-option");
+        assertEquals(2, popupOptions.size());
+        popupOptions.get(1).click();
         assertEquals("b", select.getValue());
         assertEquals(1, inputEvents.get());
         assertEquals(1, changeEvents.get());

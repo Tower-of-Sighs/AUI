@@ -8,6 +8,7 @@ import com.sighs.apricityui.style.Size;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
@@ -189,12 +190,12 @@ public class CSS {
 
                 String rules = matcher.group(2).trim();
                 String[] selectors = selector.split("\\s*,\\s*");
-                HashMap<String, Declaration> properties = parseProperties(rules, contextPath);
+                Map<String, Declaration> properties = parseProperties(rules, contextPath);
 
                 for (String sel : selectors) {
                     String normalizedSelector = sel.trim();
-                    targetCache.merge(normalizedSelector, properties, (oldMap, newMap) -> {
-                        oldMap.putAll(newMap);
+                    targetCache.merge(normalizedSelector, new LinkedHashMap<>(properties), (oldMap, newMap) -> {
+                        newMap.forEach((property, declaration) -> putDeclaration(oldMap, property, declaration));
                         return oldMap;
                     });
                     if (debugRules != null) {
@@ -356,8 +357,8 @@ public class CSS {
             }
         }
 
-        private static HashMap<String, Declaration> parseProperties(String rules, String contextPath) {
-            HashMap<String, Declaration> properties = new HashMap<>();
+        private static Map<String, Declaration> parseProperties(String rules, String contextPath) {
+            Map<String, Declaration> properties = new LinkedHashMap<>();
             String[] pairs = rules.split(";");
             for (String pair : pairs) {
                 String[] kv = pair.split(":", 2);
@@ -370,11 +371,103 @@ public class CSS {
                         value = normalizeUrlValue(value, contextPath);
                     }
                     if (!key.isEmpty() && !value.isEmpty()) {
-                        properties.put(key, new Declaration(value, declaration.important()));
+                        Declaration normalized = new Declaration(value, declaration.important());
+                        putDeclaration(properties, key, normalized);
+                        expandShorthand(properties, key, normalized);
                     }
                 }
             }
             return properties;
+        }
+
+        /**
+         * CSS shorthands participate in the cascade as their constituent longhands. Expanding them
+         * while declarations still retain source order prevents a less-specific longhand from
+         * overriding a more-specific shorthand (for example padding-left versus padding).
+         */
+        private static void expandShorthand(Map<String, Declaration> properties, String property,
+                                            Declaration declaration) {
+            String normalized = property.trim().toLowerCase(Locale.ROOT);
+            switch (normalized) {
+                case "margin", "padding" -> putFourSides(properties, normalized, declaration);
+                case "inset" -> putFourProperties(
+                        properties, new String[]{"top", "right", "bottom", "left"}, declaration);
+                case "border-width" -> putFourProperties(properties, new String[]{
+                        "border-top-width", "border-right-width", "border-bottom-width", "border-left-width"
+                }, declaration);
+                case "border-color" -> putFourProperties(properties, new String[]{
+                        "border-top-color", "border-right-color", "border-bottom-color", "border-left-color"
+                }, declaration);
+                case "border" -> {
+                    for (String side : List.of("top", "right", "bottom", "left")) {
+                        putDeclaration(properties, "border-" + side, declaration);
+                    }
+                }
+                case "gap" -> {
+                    List<String> values = splitCssValueTokens(declaration.value());
+                    String row = values.isEmpty() ? declaration.value() : values.get(0);
+                    String column = values.size() > 1 ? values.get(1) : row;
+                    putDeclaration(properties, "row-gap", new Declaration(row, declaration.important()));
+                    putDeclaration(properties, "column-gap", new Declaration(column, declaration.important()));
+                }
+                default -> {
+                }
+            }
+        }
+
+        private static void putFourSides(Map<String, Declaration> properties, String base,
+                                         Declaration declaration) {
+            putFourProperties(properties, new String[]{
+                    base + "-top", base + "-right", base + "-bottom", base + "-left"
+            }, declaration);
+        }
+
+        private static void putFourProperties(Map<String, Declaration> properties, String[] names,
+                                              Declaration declaration) {
+            String[] values = expandFourSideValues(declaration.value());
+            for (int i = 0; i < names.length; i++) {
+                putDeclaration(properties, names[i], new Declaration(values[i], declaration.important()));
+            }
+        }
+
+        private static String[] expandFourSideValues(String value) {
+            List<String> tokens = splitCssValueTokens(value);
+            if (tokens.isEmpty()) return new String[]{value, value, value, value};
+            return switch (tokens.size()) {
+                case 1 -> new String[]{tokens.get(0), tokens.get(0), tokens.get(0), tokens.get(0)};
+                case 2 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(0), tokens.get(1)};
+                case 3 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(2), tokens.get(1)};
+                default -> new String[]{tokens.get(0), tokens.get(1), tokens.get(2), tokens.get(3)};
+            };
+        }
+
+        private static List<String> splitCssValueTokens(String value) {
+            List<String> tokens = new ArrayList<>();
+            if (value == null || value.isBlank()) return tokens;
+            StringBuilder token = new StringBuilder();
+            int parentheses = 0;
+            for (int i = 0; i < value.length(); i++) {
+                char character = value.charAt(i);
+                if (Character.isWhitespace(character) && parentheses == 0) {
+                    if (!token.isEmpty()) {
+                        tokens.add(token.toString());
+                        token.setLength(0);
+                    }
+                    continue;
+                }
+                if (character == '(') parentheses++;
+                else if (character == ')' && parentheses > 0) parentheses--;
+                token.append(character);
+            }
+            if (!token.isEmpty()) tokens.add(token.toString());
+            return tokens;
+        }
+
+        private static void putDeclaration(Map<String, Declaration> properties, String property,
+                                           Declaration declaration) {
+            Declaration existing = properties.get(property);
+            if (existing != null && existing.important() && !declaration.important()) return;
+            properties.put(property, declaration);
         }
 
         private static Declaration stripImportant(String value) {
