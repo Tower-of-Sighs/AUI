@@ -633,10 +633,12 @@ public record Size(double width, double height) {
         Element parent = element.parentElement;
         if (parent != null) {
             Style parentStyle = parent.getRawComputedStyle();
-            String parentPosition = parentStyle.position == null ? "static" : parentStyle.position.trim().toLowerCase(Locale.ROOT);
-            boolean parentAutoWidth = tryResolveLength(parentStyle.width, getScaleWidth(parent)) == null;
-            if (parentAutoWidth && ("absolute".equals(parentPosition) || "fixed".equals(parentPosition))) {
-                return false;
+            if (isAutoWidthPositionedContainer(parent, parentStyle)) {
+                // An auto-width positioned container is first measured from the
+                // intrinsic contributions of its children. During that pass the
+                // children must remain content-sized. Once the container has a
+                // used width, normal block children resolve width:auto against it.
+                return parent.getRenderer().size.get() != null && !isResolving(parent);
             }
         }
         String display = style.display == null ? "" : style.display.trim().toLowerCase(Locale.ROOT);
@@ -703,6 +705,16 @@ public record Size(double width, double height) {
         Element parent = element.parentElement;
         if (parent == null) return false;
 
+        if (unsetWidth
+                && isAutoWidthPositionedContainer(parent, parent.getRawComputedStyle())
+                && parent.getRenderer().size.get() == null) {
+            // The width produced while the positioned parent is doing its
+            // shrink-to-fit/intrinsic pass is provisional. Caching it would keep
+            // headers and menu rows at their content width after the parent width
+            // has already been resolved.
+            return true;
+        }
+
         Set<Element> resolving = RESOLVING.get();
         if (!resolving.contains(parent)) return false;
 
@@ -732,6 +744,13 @@ public record Size(double width, double height) {
             return true;
         }
         return false;
+    }
+
+    private static boolean isAutoWidthPositionedContainer(Element element, Style style) {
+        if (element == null || style == null) return false;
+        String position = style.position == null ? "static" : style.position.trim().toLowerCase(Locale.ROOT);
+        if (!"absolute".equals(position) && !"fixed".equals(position)) return false;
+        return tryResolveLength(style.width, getScaleWidth(element)) == null;
     }
 
     public static double lerp(double current, double target) {

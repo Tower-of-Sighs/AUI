@@ -187,6 +187,46 @@ public record Transition(String name, double start, double end, double duration,
         });
     }
 
+    public static boolean affectsLayout(Element element) {
+        return anyActiveTransitionMatches(element, Transition::isLayoutProperty);
+    }
+
+    public static boolean affectsTransform(Element element) {
+        return anyActiveTransitionMatches(element, name -> name.startsWith("transform-"));
+    }
+
+    public static boolean affectsRect(Element element) {
+        return anyActiveTransitionMatches(element, Transition::isRectProperty);
+    }
+
+    private static boolean anyActiveTransitionMatches(Element element, java.util.function.Predicate<String> predicate) {
+        if (element == null || predicate == null) return false;
+        synchronized (LOCK) {
+            List<Transition> transitions = workList.get(element.uuid);
+            if (transitions == null || transitions.isEmpty()) return false;
+            for (Transition transition : transitions) {
+                String name = transition.name;
+                if (name != null && predicate.test(name)) return true;
+            }
+            return false;
+        }
+    }
+
+    private static boolean isLayoutProperty(String name) {
+        if (name == null) return false;
+        return name.equals("width") || name.equals("height")
+                || name.equals("top") || name.equals("right") || name.equals("bottom") || name.equals("left")
+                || name.startsWith("margin-") || name.startsWith("padding-")
+                || (name.startsWith("border-") && name.endsWith("-width"));
+    }
+
+    private static boolean isRectProperty(String name) {
+        if (name == null) return false;
+        return isLayoutProperty(name)
+                || name.equals("background-color")
+                || name.equals("border-radius");
+    }
+
     private static void primeCurrentFrameStyle(Element element, Style endStyle) {
         if (!StyleFrameCache.isActive()) return;
         Style animated = endStyle.clone();
@@ -373,6 +413,13 @@ public record Transition(String name, double start, double end, double duration,
 
     private static void build(Element element, Style sS, Style eS, List<Transition> res, String name, double dur,
                               double del, String timing) {
+        // Do not coerce unsupported properties into pixel values.  For example,
+        // grid-template-rows: 0fr -> 1fr used to become 0px -> 1px here, so a
+        // dynamically expanded grid stayed collapsed even though its CSS class
+        // had changed.  Unsupported transition properties must retain the raw
+        // target style; they simply do not animate until the renderer supports
+        // their value type.
+        if (!isAnimatable(name)) return;
         int first = res.size();
         if (name.equals("transform")) Transform.createTransition(sS, eS, res, dur, del);
         else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
@@ -480,5 +527,12 @@ public record Transition(String name, double start, double end, double duration,
             "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
             "border-radius"
     );
+
+    private static boolean isAnimatable(String name) {
+        return "transform".equals(name)
+                || "filter".equals(name)
+                || Box.matchStyleName(name)
+                || ANIMATABLE.contains(name);
+    }
 
 }

@@ -1,4 +1,4 @@
-package com.sighs.apricityui.dev;
+package com.sighs.apricityui.ui.toast;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;

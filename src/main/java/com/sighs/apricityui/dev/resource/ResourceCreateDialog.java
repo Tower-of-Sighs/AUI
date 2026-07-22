@@ -1,11 +1,12 @@
 package com.sighs.apricityui.dev.resource;
 
-import com.sighs.apricityui.dev.ToastManager;
+import com.sighs.apricityui.ui.toast.ToastManager;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.ui.dialog.DialogWindow;
 
 import java.util.Locale;
 
@@ -20,10 +21,12 @@ public final class ResourceCreateDialog {
     private Element localCard;
     private Element clipboardCard;
     private Element submitButton;
+    private DialogWindow dialog;
 
     public void open(Document document, String currentPath, Runnable afterCreate) {
         close();
         if (document == null || document.body == null) return;
+        if (openFrameworkDialog(document, currentPath, afterCreate)) return;
 
         overlay = element(document, "DIV", "resource-create-overlay opening");
         overlay.setAttribute("id", "resourceCreateDialog");
@@ -76,6 +79,8 @@ public final class ResourceCreateDialog {
     }
 
     public void close() {
+        if (dialog != null) dialog.close();
+        dialog = null;
         if (overlay != null) {
             Document document = overlay.getOwnerDocument();
             overlay.remove();
@@ -88,6 +93,38 @@ public final class ResourceCreateDialog {
         clipboardCard = null;
         submitButton = null;
         importedContent = "";
+    }
+
+    private boolean openFrameworkDialog(Document document, String currentPath, Runnable afterCreate) {
+        dialog = DialogWindow.open(document, new DialogWindow.Options(
+                "NEW HTML", 720, 0, false,
+                "resource-create-overlay opening", "resource-create-dialog",
+                "resource-create-heading", "resource-create-title", "resource-create-close"
+        ), null);
+        Element root = dialog.content();
+        Element pathField = element(document, "DIV", "resource-create-path");
+        pathField.append(text(document, "LABEL", "SAVE PATH", "resource-create-label"));
+        pathInput = element(document, "INPUT", "resource-create-input");
+        pathInput.setAttribute("type", "text");
+        pathInput.setAttribute("placeholder", "example/original-file.html");
+        pathInput.value = ResourcePath.normalize(currentPath).isBlank() ? "" : ResourcePath.normalize(currentPath) + "/";
+        pathInput.addEventListener("input", event -> refreshSubmit(document));
+        pathInput.addEventListener("change", event -> refreshSubmit(document));
+        pathField.append(pathInput); root.append(pathField);
+        Element importGrid = element(document, "DIV", "resource-import-grid");
+        localCard = importCard(document, "LOCAL FILE", "OPEN FILE PICKER", LOCAL_FILE_ICON, "resource-import-local");
+        localFileInput = element(document, "INPUT", "resource-create-file-input");
+        localFileInput.setAttribute("type", "file"); localFileInput.setAttribute("accept", ".html,text/html");
+        localFileInput.addEventListener("change", event -> importLocal(document, localFileInput.value));
+        localCard.addEventListener("click", event -> localFileInput.click());
+        clipboardCard = importCard(document, "CLIPBOARD", "IMPORT HTML TEXT", CLIPBOARD_ICON, "resource-import-clipboard");
+        clipboardCard.addEventListener("click", event -> importClipboard(document));
+        importGrid.append(localCard); importGrid.append(clipboardCard); root.append(importGrid); root.append(localFileInput);
+        Element submitRow = element(document, "DIV", "resource-create-submit-row");
+        submitButton = text(document, "BUTTON", "CREATE", "resource-create-submit");
+        submitButton.addEventListener("click", event -> submit(afterCreate)); submitRow.append(submitButton); root.append(submitRow);
+        markDirty(document);
+        return true;
     }
 
     private void importLocal(Document document, String selectedPath) {

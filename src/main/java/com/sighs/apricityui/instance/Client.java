@@ -186,6 +186,7 @@ public class Client {
             FrameTimingHud.beginFrame();
             try {
                 drawPersistentScreenDocuments(event.getGuiGraphics());
+                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 Cursor.drawPseudoCursor(event.getGuiGraphics());
             } finally {
                 FrameTimingHud.endFrame(event.getGuiGraphics());
@@ -200,9 +201,10 @@ public class Client {
             FrameTimingHud.beginFrame();
             try {
                 Base.drawAllDocument(event.getGuiGraphics().pose());
+                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 // Shared item render pass for DOM <slot> (createDocument path).
                 for (Document document : Document.getAll()) {
-                    if (!document.inWorld) {
+                    if (!document.inWorld && !document.isManuallyRendered()) {
                         renderOverlaySlotItems(event.getGuiGraphics(), document);
                     }
                 }
@@ -220,7 +222,7 @@ public class Client {
 
     public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics, Document excludedDocument) {
         for (Document document : Document.getAll()) {
-            if (document == null || document == excludedDocument || document.inWorld || !document.isReloadPersistent()) {
+            if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
                 continue;
             }
             Base.drawOverlayDocument(guiGraphics.pose(), document);
@@ -386,7 +388,7 @@ public class Client {
         ArrayList<Document> candidates = new ArrayList<>(Document.getAll());
         for (int i = candidates.size() - 1; i >= 0; i--) {
             Document document = candidates.get(i);
-            if (document == null || document.inWorld || !document.isActive()) continue;
+            if (document == null || document.inWorld || document.isManuallyRendered() || !document.isActive()) continue;
             if (document.hitTest(document.screenToDocumentPosition(mouse)) != null) {
                 return document;
             }

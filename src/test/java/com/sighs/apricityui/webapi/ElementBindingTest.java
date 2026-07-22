@@ -868,6 +868,54 @@ class ElementBindingTest {
     }
 
     @Test
+    void mouseClickUsesNearestCommonAncestorWhenHitNodeChangesInsideControl() {
+        Document document = createDocument();
+        Element control = new Element(document, "button");
+        Element icon = new Element(document, "span");
+        Element label = new Element(document, "span");
+        document.appendChild(control);
+        control.appendChild(icon);
+        control.appendChild(label);
+
+        AtomicInteger controlClicks = new AtomicInteger();
+        AtomicInteger iconClicks = new AtomicInteger();
+        control.addEventListener("click", event -> {
+            controlClicks.incrementAndGet();
+            assertSame(control, event.target);
+            assertSame(control, event.currentTarget);
+        });
+        icon.addEventListener("click", event -> iconClicks.incrementAndGet());
+
+        MouseEvent.dispatchToTarget(new MouseEvent("mousedown", new Position(0, 0), 0, false), document, icon);
+        MouseEvent.dispatchToTarget(new MouseEvent("mouseup", new Position(1, 0), 0, false), document, label);
+
+        assertEquals(1, controlClicks.get());
+        assertEquals(0, iconClicks.get());
+    }
+
+    @Test
+    void parentHoverSurvivesExactHitMovingToDescendant() {
+        Document document = createDocument();
+        Element control = new Element(document, "button");
+        Element label = new Element(document, "span");
+        document.appendChild(control);
+        control.appendChild(label);
+
+        AtomicInteger enterCalls = new AtomicInteger();
+        AtomicInteger leaveCalls = new AtomicInteger();
+        control.addEventListener("mouseenter", event -> enterCalls.incrementAndGet());
+        control.addEventListener("mouseleave", event -> leaveCalls.incrementAndGet());
+
+        MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(0, 0), -1, false), document, control);
+        MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(1, 0), -1, false), document, label);
+
+        assertTrue(control.isHover);
+        assertTrue(label.isHover);
+        assertEquals(1, enterCalls.get());
+        assertEquals(0, leaveCalls.get());
+    }
+
+    @Test
     void hitTestPrefersTopmostOverlappingElementOnRealMousePath() {
         Document document = createDocument();
         Element bottom = new Element(document, "button");

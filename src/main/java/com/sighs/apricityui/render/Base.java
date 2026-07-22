@@ -16,7 +16,10 @@ import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 public class Base {
     public enum RenderPhase {
@@ -37,7 +40,7 @@ public class Base {
     public static void drawAllDocument(PoseStack poseStack) {
         Mask.resetDepth();
         for (Document document : Document.getAll()) {
-            if (!document.inWorld) drawOverlayDocument(poseStack, document);
+            if (!document.inWorld && !document.isManuallyRendered()) drawOverlayDocument(poseStack, document);
         }
     }
 
@@ -68,6 +71,17 @@ public class Base {
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        if (document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            drawDocumentInContext(poseStack, document);
+        }
+    }
+
+    /**
+     * Draws a document while its document context is active. Keeping this
+     * boundary inside Base makes standalone surfaces behave like overlays.
+     */
+    private static void drawDocumentInContext(PoseStack poseStack, Document document) {
         long startNs = System.nanoTime();
         // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
         // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
@@ -87,25 +101,29 @@ public class Base {
             boolean styleChanged = document.commitPendingStyleRecalcForRender();
             // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
             // Layout-affecting motion must also refresh committed bounds before this paint pass.
-            boolean motionChanged = document.stepMotionRender();
+            boolean motionNeedsGeometryCommit = document.stepMotionRender();
             if (styleChanged) {
                 document.commitRenderStateForMotion();
             }
-            if (styleChanged || motionChanged) {
+            if (styleChanged || motionNeedsGeometryCommit) {
                 LayoutCommit.commit(document);
+                document.commitMotionHitTest();
             }
             poseStack.translate(0, 0, GLOBAL_DOCUMENT_Z_OFFSET);
             Element skippedSubtree = null;
+            Set<Element> enteredSubtrees = Collections.newSetFromMap(new IdentityHashMap<>());
             for (RenderNode node : document.getPaintList()) {
+                Element target = getRenderNodeTarget(node);
                 if (skippedSubtree != null) {
-                    Element target = getRenderNodeTarget(node);
                     if (target != null && isSameOrDescendant(target, skippedSubtree)) {
                         continue;
                     }
                     skippedSubtree = null;
                 }
-                if (shouldSkipSubtree(node)) {
-                    skippedSubtree = getRenderNodeTarget(node);
+                // Clip/filter pushes precede an element's SHADOW node. Cull at
+                // the first node so a skipped subtree cannot leave either stack unbalanced.
+                if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
+                    skippedSubtree = target;
                     continue;
                 }
                 poseStack.pushPose();
@@ -128,11 +146,7 @@ public class Base {
         }
     }
 
-    private static boolean shouldSkipSubtree(RenderNode node) {
-        if (!(node instanceof RenderNode.ElementPhaseNode phaseNode)) return false;
-        if (phaseNode.phase() != RenderPhase.SHADOW) return false;
-
-        Element target = phaseNode.target();
+    private static boolean shouldSkipSubtree(Element target) {
         if (target == null || target.document == null || target == target.document.body) return false;
         if (RenderNode.shouldSkip(target)) return true;
 

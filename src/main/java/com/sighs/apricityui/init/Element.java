@@ -832,6 +832,15 @@ public class Element extends Node {
         return result;
     }
 
+    List<Element> getExistingLayoutChildren() {
+        if (beforePseudoElement == null && afterPseudoElement == null) return children;
+        ArrayList<Element> result = new ArrayList<>(children.size() + 2);
+        if (beforePseudoElement != null) result.add(beforePseudoElement);
+        result.addAll(children);
+        if (afterPseudoElement != null) result.add(afterPseudoElement);
+        return result;
+    }
+
     public List<Node> getRenderChildNodes() {
         if (childNodes.isEmpty()
                 && !hasGeneratedPseudoElement(Selector.PseudoElement.BEFORE)

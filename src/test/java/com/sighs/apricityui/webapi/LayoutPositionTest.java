@@ -19,6 +19,42 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayoutPositionTest {
     @Test
+    void fixedAutoWidthContainerShrinkFitsBeforeStretchingBlockChildren() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 400px; height: 300px;");
+
+        Element menu = new Element(document, "div");
+        menu.setAttribute("style", "position: fixed; left: 20px; top: 20px; min-width: 200px; padding: 4px 0; border: 2px solid #000;");
+        document.body.appendChild(menu);
+
+        Element header = new Element(document, "div");
+        header.setAttribute("style", "padding: 6px 16px 8px; border-bottom: 1px solid #ddd;");
+        Element headerContent = new Element(document, "span");
+        headerContent.setAttribute("style", "display: inline-block; width: 20px; height: 10px;");
+        header.appendChild(headerContent);
+        menu.appendChild(header);
+
+        Element item = new Element(document, "div");
+        item.setAttribute("style", "position: relative; padding: 8px 16px;");
+        Element itemContent = new Element(document, "span");
+        itemContent.setAttribute("style", "display: inline-block; width: 60px; height: 10px;");
+        item.appendChild(itemContent);
+        Element fill = new Element(document, "div");
+        fill.setAttribute("style", "position: absolute; left: 0; top: 0; width: 100%; height: 100%;");
+        item.appendChild(fill);
+        menu.appendChild(item);
+
+        double menuWidth = Size.of(menu).width();
+        double menuContentWidth = Box.of(menu).innerSize().width();
+
+        assertEquals(200, Math.round(menuWidth));
+        assertEquals(Math.round(menuContentWidth), Math.round(Size.of(header).width()));
+        assertEquals(Math.round(menuContentWidth), Math.round(Size.of(item).width()));
+        assertEquals(Math.round(item.getBoundingClientRect().width), Math.round(Size.of(fill).width()));
+        assertEquals(200, Math.round(Size.of(menu).width()), "percentage hover fill must not expand the auto-width menu");
+    }
+
+    @Test
     void parseSignedNumberAcceptsNegativeAndDecimalLengths() {
         assertEquals(-12.5, Position.parseSignedNumber("-12.5px"));
         assertEquals(7.25, Position.parseSignedNumber("translate(7.25px)"));
@@ -99,6 +135,40 @@ class LayoutPositionTest {
 
         double parentInnerWidth = Box.of(parent).innerSize().width();
         assertEquals(parentInnerWidth, Size.box(child).width());
+    }
+
+    @Test
+    void ancestorResizeInvalidatesDependentDescendantLayoutCaches() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 1000px; height: 800px;");
+
+        Element window = new Element(document, "div");
+        window.setAttribute("style", "display: flex; flex-direction: column; width: 800px; height: 600px;");
+        document.body.appendChild(window);
+
+        Element heading = new Element(document, "div");
+        heading.setAttribute("style", "height: 50px;");
+        window.appendChild(heading);
+
+        Element viewport = new Element(document, "div");
+        viewport.setAttribute("style", "position: relative; flex: 1 1 0%; min-height: 0;");
+        window.appendChild(viewport);
+
+        Element preview = new Element(document, "div");
+        preview.setAttribute("style", "position: absolute; inset: 0; width: 100%; height: 100%;");
+        viewport.appendChild(preview);
+
+        assertEquals(800, Math.round(Size.of(heading).width()));
+        assertEquals(550, Math.round(Size.of(viewport).height()));
+        assertEquals(800, Math.round(Size.of(preview).width()));
+        assertEquals(550, Math.round(Size.of(preview).height()));
+
+        window.setAttribute("style", "display: flex; flex-direction: column; width: 400px; height: 300px;");
+
+        assertEquals(400, Math.round(Size.of(heading).width()));
+        assertEquals(250, Math.round(Size.of(viewport).height()));
+        assertEquals(400, Math.round(Size.of(preview).width()));
+        assertEquals(250, Math.round(Size.of(preview).height()));
     }
 
     @Test
@@ -789,6 +859,36 @@ class LayoutPositionTest {
 
         assertEquals(15, Position.getOffset(child).x);
         assertEquals(20, Position.getOffset(child).y);
+    }
+
+    @Test
+    void autoHeightFractionalRowRemeasuresContentAfterCollapsedAssignment() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element host = new Element(document, "div");
+        document.body.appendChild(host);
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; width: 100px; grid-template-rows: 0fr;");
+        Element inner = new Element(document, "div");
+        inner.setAttribute("style", "overflow: hidden;");
+        grid.appendChild(inner);
+        host.appendChild(grid);
+
+        // The initial collapsed layout assigns a zero-height grid area.
+        Position.getOffset(inner);
+        assertEquals(0, Size.of(inner).height());
+
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "height: 40px;");
+        inner.appendChild(child);
+        grid.setAttribute("style", "display: grid; width: 100px; grid-template-rows: 1fr;");
+        document.flushPendingStyleUpdates();
+
+        assertEquals(40, Size.of(grid).height());
+        Position.getOffset(inner);
+        assertEquals(40, Size.of(inner).height());
     }
 
     @Test

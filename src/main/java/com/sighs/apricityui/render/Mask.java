@@ -17,16 +17,20 @@ public class Mask {
     private static final Stack<AABB> clipStack = new Stack<>();
     private static final Stack<AABB> scissorStack = new Stack<>();
     private static final Stack<Boolean> maskScissorStack = new Stack<>();
+    private static final Stack<SurfaceClipState> surfaceClipStack = new Stack<>();
     private static final ThreadLocal<ArrayDeque<Double>> scissorScaleStack = ThreadLocal.withInitial(ArrayDeque::new);
     private static AABB currentScissor = null;
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
+    private static SurfaceScissorTransform surfaceScissorTransform = null;
 
     public static void resetDepth() {
         depth = 0;
         clipStack.clear();
         scissorStack.clear();
         maskScissorStack.clear();
+        surfaceClipStack.clear();
         currentScissor = null;
+        surfaceScissorTransform = null;
         disableScissor();
         int screenWidth = (int) Size.getWindowSize().width();
         int screenHeight = (int) Size.getWindowSize().height();
@@ -63,6 +67,34 @@ public class Mask {
 
     public static boolean isActive() {
         return depth > 0;
+    }
+
+    /**
+     * Starts a clipped embedded document surface. Its render nodes retain a
+     * document-local clip space while its scissor rectangles are mapped into
+     * the current GUI surface.
+     */
+    public static void pushSurfaceClip(double width, double height, double offsetX, double offsetY, double scaleX, double scaleY) {
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
+        surfaceClipStack.push(new SurfaceClipState(currentClip, currentScissor, surfaceScissorTransform));
+        currentClip = new AABB(0, 0, (float) width, (float) height);
+        currentScissor = currentClip;
+        surfaceScissorTransform = new SurfaceScissorTransform(offsetX, offsetY, scaleX, scaleY);
+        applyScissor(currentScissor);
+    }
+
+    /** Restores the parent document's clip and scissor coordinate space. */
+    public static void popSurfaceClip() {
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
+        if (surfaceClipStack.isEmpty()) return;
+        SurfaceClipState previous = surfaceClipStack.pop();
+        currentClip = previous.clip();
+        currentScissor = previous.scissor();
+        surfaceScissorTransform = previous.transform();
+        if (currentScissor == null) disableScissor();
+        else applyScissor(currentScissor);
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
@@ -262,7 +294,31 @@ public class Mask {
             disableScissor();
             return;
         }
+        if (surfaceScissorTransform != null) {
+            surfaceScissorTransform.apply(rect);
+            return;
+        }
         enableScissor(rect.x(), rect.y(), rect.width(), rect.height());
+    }
+
+    private record SurfaceClipState(AABB clip, AABB scissor, SurfaceScissorTransform transform) {
+    }
+
+    private record SurfaceScissorTransform(double offsetX, double offsetY, double scaleX, double scaleY) {
+        private void apply(AABB rect) {
+            Window window = Minecraft.getInstance().getWindow();
+            double guiScale = Math.max(1.0d, window.getGuiScale());
+            double left = (offsetX + rect.x() * scaleX) * guiScale;
+            double top = (offsetY + rect.y() * scaleY) * guiScale;
+            double right = (offsetX + (rect.x() + rect.width()) * scaleX) * guiScale;
+            double bottom = (offsetY + (rect.y() + rect.height()) * scaleY) * guiScale;
+            int x = (int) Math.floor(left);
+            int y = (int) Math.floor(window.getHeight() - bottom);
+            int rightEdge = (int) Math.ceil(right);
+            int topEdge = (int) Math.ceil(window.getHeight() - top);
+            GlStateManager._enableScissorTest();
+            GlStateManager._scissorBox(x, y, Math.max(0, rightEdge - x), Math.max(0, topEdge - y));
+        }
     }
 
     private static double getScissorScale(Window window) {

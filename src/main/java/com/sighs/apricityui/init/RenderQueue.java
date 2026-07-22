@@ -78,6 +78,8 @@ final class RenderQueue {
             }
             if (element.hasDirtyFlag(Drawer.RELAYOUT)) {
                 incrementalHitRoots.add(element.parentElement == null ? element : element.parentElement);
+            } else if (element.hasDirtyFlag(Drawer.COMMIT_LAYOUT)) {
+                incrementalHitRoots.add(element.parentElement == null ? element : element.parentElement);
             } else if (element.hasDirtyFlag(Drawer.HITTEST)) {
                 incrementalHitRoots.add(element);
             }
@@ -92,13 +94,24 @@ final class RenderQueue {
             LayoutCommit.commit(owner);
         }
         if (hadWork) {
-            if (fullHitTestRebuild) {
+            if (needsLayoutCommit && !commitLayoutNow) {
+                // Render-frame style changes commit geometry immediately after
+                // this queue flush. Updating hit-test entries here would read
+                // the previous committed rects and leave the cache one frame
+                // behind the pixels on screen. Layout can also ripple through
+                // auto-sized ancestors and following siblings, so defer a full
+                // rebuild until the new committed geometry is available.
                 hitTestCache.markDirty();
-            } else if (!incrementalHitRoots.isEmpty()) {
-                hitTestCache.updateSubtrees(paintList, incrementalHitRoots);
+                hitTestDirtyRoots.clear();
+            } else {
+                if (fullHitTestRebuild) {
+                    hitTestCache.markDirty();
+                } else if (!incrementalHitRoots.isEmpty()) {
+                    hitTestCache.updateSubtrees(paintList, incrementalHitRoots);
+                }
+                hitTestDirtyRoots.clear();
             }
             layoutCommitDirty = false;
-            hitTestDirtyRoots.clear();
         }
     }
 
@@ -139,6 +152,14 @@ final class RenderQueue {
 
     void markLayoutCommitDirty() {
         layoutCommitDirty = true;
+    }
+
+    void updateHitTestSubtrees(Set<Element> roots) {
+        Set<Element> combined = Collections.newSetFromMap(new IdentityHashMap<>());
+        combined.addAll(hitTestDirtyRoots);
+        if (roots != null) combined.addAll(roots);
+        hitTestCache.updateSubtrees(paintList, combined);
+        hitTestDirtyRoots.clear();
     }
 
     private void applyGlobalDirty() {
