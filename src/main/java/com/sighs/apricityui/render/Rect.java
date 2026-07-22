@@ -60,10 +60,11 @@ public class Rect {
         double maxExtendY = 0;
         for (Box.Shadow shadow : box.shadows) {
             if ((shadow.color().getValue() >>> 24) == 0) continue;
-            minExtendX = Math.min(minExtendX, shadow.x() - shadow.size());
-            minExtendY = Math.min(minExtendY, shadow.y() - shadow.size());
-            maxExtendX = Math.max(maxExtendX, shadow.x() + shadow.size());
-            maxExtendY = Math.max(maxExtendY, shadow.y() + shadow.size());
+            double extent = shadow.size() + shadow.spread();
+            minExtendX = Math.min(minExtendX, shadow.x() - extent);
+            minExtendY = Math.min(minExtendY, shadow.y() - extent);
+            maxExtendX = Math.max(maxExtendX, shadow.x() + extent);
+            maxExtendY = Math.max(maxExtendY, shadow.y() + extent);
         }
         if (minExtendX != 0 || minExtendY != 0 || maxExtendX != 0 || maxExtendY != 0) {
             x += minExtendX;
@@ -242,36 +243,50 @@ public class Rect {
     public void drawShadow(PoseStack poseStack) {
         if (box.shadows.isEmpty()) return;
         Size s = getShadowSize();
-        float[] radii = box.getCalculatedRadii((float) s.width(), (float) s.height(), 0);
-        Graph.beginBatch();
+        boolean layered = box.shadows.size() > 1;
+        if (layered) Graph.beginLayeredBatch();
+        else Graph.beginBatch();
         double sourceX = position.x + box.getMarginLeft();
         double sourceY = position.y + box.getMarginTop();
-        for (Box.Shadow shadow : box.shadows) {
+        // CSS paints the first shadow on top, so layers are submitted back-to-front.
+        for (int i = box.shadows.size() - 1; i >= 0; i--) {
+            Box.Shadow shadow = box.shadows.get(i);
             if ((shadow.color().getValue() >>> 24) == 0) continue;
-            double x = sourceX + shadow.x();
-            double y = sourceY + shadow.y();
+            double spread = shadow.spread();
+            double x = sourceX + shadow.x() - spread;
+            double y = sourceY + shadow.y() - spread;
+            double width = Math.max(0, s.width() + spread * 2);
+            double height = Math.max(0, s.height() + spread * 2);
+            if (width <= 0 || height <= 0) continue;
             if (shadow.size() <= 0) {
                 drawZeroBlurOuterShadow(
                         poseStack,
                         (float) sourceX,
                         (float) sourceY,
-                        (float) x,
-                        (float) y,
                         (float) s.width(),
                         (float) s.height(),
+                        (float) x,
+                        (float) y,
+                        (float) width,
+                        (float) height,
                         shadow.color().getValue()
                 );
             } else {
-                Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) s.width(), (float) s.height(), radii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
+                float[] shadowRadii = box.getCalculatedRadii((float) width, (float) height, (float) -spread);
+                Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) width, (float) height, shadowRadii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
             }
         }
+        if (layered) Graph.endBatch();
     }
 
-    private void drawZeroBlurOuterShadow(PoseStack poseStack, float sourceX, float sourceY, float shadowX, float shadowY, float width, float height, int color) {
-        float shadowRight = shadowX + width;
-        float shadowBottom = shadowY + height;
-        float sourceRight = sourceX + width;
-        float sourceBottom = sourceY + height;
+    private void drawZeroBlurOuterShadow(PoseStack poseStack,
+                                         float sourceX, float sourceY, float sourceWidth, float sourceHeight,
+                                         float shadowX, float shadowY, float shadowWidth, float shadowHeight,
+                                         int color) {
+        float shadowRight = shadowX + shadowWidth;
+        float shadowBottom = shadowY + shadowHeight;
+        float sourceRight = sourceX + sourceWidth;
+        float sourceBottom = sourceY + sourceHeight;
 
         float ix0 = Math.max(shadowX, sourceX);
         float iy0 = Math.max(shadowY, sourceY);

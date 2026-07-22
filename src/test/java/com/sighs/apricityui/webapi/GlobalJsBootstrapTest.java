@@ -67,9 +67,12 @@ class GlobalJsBootstrapTest {
         assertTrue(script.contains("let options = field.getElementsByTagName ? field.getElementsByTagName('option') : (field.options || []);"));
         assertTrue(script.contains("option.hasAttribute('selected')"));
         assertTrue(script.contains("__auiInstallValueBridge(el, 'name', () => el.getAttribute('name')"));
-        assertTrue(script.contains("__auiInstallValueBridge(el, 'type', () => el.getAttribute('type')"));
+        assertTrue(script.contains("__auiInstallValueBridge(el, 'type', () => el.getType()"));
         assertTrue(script.contains("__auiInstallValueBridge(el, 'multiple', () => !!el.hasAttribute('multiple')"));
         assertTrue(script.contains("__auiInstallValueBridge(el, 'selected', () => el.isSelected()"));
+        assertTrue(script.contains("__auiInstallValueBridge(el, 'defaultSelected', () => el.isDefaultSelected()"));
+        assertTrue(script.contains("__auiInstallValueBridge(el, 'label', () => el.getOptionLabel()"));
+        assertTrue(script.contains("__auiInstallValueBridge(el, 'index', () => el.getOptionIndex()"));
         assertTrue(script.contains("append: function(key, value)"));
         assertTrue(script.contains("getAll: function(key)"));
         assertTrue(script.contains("forEach: function(callback, thisArg)"));

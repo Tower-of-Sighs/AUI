@@ -425,7 +425,9 @@ public record Transition(String name, double start, double end, double duration,
         else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
         else if (Box.matchStyleName(name)) Box.createTransition(sS, eS, res, name, dur, del);
         else {
-            double s = parseStyle(element, name, sS.get(name)), e = parseStyle(element, name, eS.get(name));
+            Double s = parseInterpolableStyle(element, name, sS.get(name));
+            Double e = parseInterpolableStyle(element, name, eS.get(name));
+            if (s == null || e == null) return;
             if (Math.abs(s - e) > 0.0001) res.add(new Transition(name, s, e, dur, del, System.currentTimeMillis()));
         }
         for (int i = first; i < res.size(); i++) {
@@ -533,6 +535,21 @@ public record Transition(String name, double start, double end, double duration,
                 || "filter".equals(name)
                 || Box.matchStyleName(name)
                 || ANIMATABLE.contains(name);
+    }
+
+    private static Double parseInterpolableStyle(Element element, String name, String value) {
+        if (value == null || value.isBlank()) return null;
+        if (name.contains("color")) return (double) new Color(value).getValue();
+        if (name.equals("opacity")) {
+            try {
+                return Double.parseDouble(value);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        // CSS-wide keywords and intrinsic sizing keywords such as auto are
+        // discrete values. Browsers do not coerce them to 0px for transitions.
+        return Size.tryResolveLength(value, transitionPercentBasis(element, name));
     }
 
 }

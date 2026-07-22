@@ -17,6 +17,7 @@ public class Graph {
     private static boolean batchActive = false;
     private static boolean batchHasVertices = false;
     private static boolean batchStarted = false;
+    private static boolean batchDepthTest = true;
 
     static {
         double stepAngle = 360.0 / TOTAL_STEPS;
@@ -90,6 +91,16 @@ public class Graph {
         batchActive = true;
         batchHasVertices = false;
         batchStarted = false;
+        batchDepthTest = true;
+    }
+
+    public static void beginLayeredBatch() {
+        endBatch();
+        ImageDrawer.flushBatch();
+        batchActive = true;
+        batchHasVertices = false;
+        batchStarted = false;
+        batchDepthTest = false;
     }
 
     public static void endBatch() {
@@ -97,18 +108,27 @@ public class Graph {
         if (batchStarted) {
             BufferBuilder buf = Base.getBuffer();
             BufferUploader.drawWithShader(buf.end());
+            if (!batchDepthTest) {
+                GlStateManager._enableDepthTest();
+                GlStateManager._depthMask(true);
+            }
             Base.finishRendering();
             RenderBatchStats.recordGraphFlush();
         }
         batchActive = false;
         batchHasVertices = false;
         batchStarted = false;
+        batchDepthTest = true;
     }
 
     private static void ensureBatchStarted() {
         if (!batchActive || batchStarted) return;
         BufferBuilder buf = Base.getBuffer();
         Base.beginRendering();
+        if (!batchDepthTest) {
+            GlStateManager._disableDepthTest();
+            GlStateManager._depthMask(false);
+        }
         prepare(buf);
         batchStarted = true;
     }

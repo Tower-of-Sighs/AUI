@@ -223,11 +223,11 @@ public interface Transform {
 
     static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {
         long time = System.currentTimeMillis();
-        List<Transform> startTransforms = parse(startStyle.transform);
-        List<Transform> endTransforms = parse(endStyle.transform);
+        List<Transform> startTransforms = new ArrayList<>(parse(startStyle.transform));
+        List<Transform> endTransforms = new ArrayList<>(parse(endStyle.transform));
 
-        if (startTransforms.size() != endTransforms.size()) return;
-        for (int i = 0; i < startTransforms.size(); i++) {
+        int transformCount = padWithIdentityTransforms(startTransforms, endTransforms);
+        for (int i = 0; i < transformCount; i++) {
             Transform start = startTransforms.get(i);
             Transform end = endTransforms.get(i);
             if (start instanceof Translate startTranslate && end instanceof Translate endTranslate) {
@@ -294,19 +294,13 @@ public interface Transform {
     }
 
     static void interpolateTransform(List<Transition.Change> changes, String start, String end, double progress) {
-        List<Transform> sTs = Transform.parse(start);
-        List<Transform> eTs = Transform.parse(end);
+        List<Transform> sTs = new ArrayList<>(Transform.parse(start));
+        List<Transform> eTs = new ArrayList<>(Transform.parse(end));
 
-        if (sTs.isEmpty() && !eTs.isEmpty()) {
-            for (Transform e : eTs) sTs.add(getIdentity(e));
-        } else if (eTs.isEmpty() && !sTs.isEmpty()) {
-            for (Transform s : sTs) eTs.add(getIdentity(s));
-        }
-
-        int size = Math.max(sTs.size(), eTs.size());
+        int size = padWithIdentityTransforms(sTs, eTs);
         for (int i = 0; i < size; i++) {
-            Transform s = (i < sTs.size()) ? sTs.get(i) : (i < eTs.size() ? getIdentity(eTs.get(i)) : null);
-            Transform e = (i < eTs.size()) ? eTs.get(i) : (i < sTs.size() ? getIdentity(sTs.get(i)) : null);
+            Transform s = sTs.get(i);
+            Transform e = eTs.get(i);
 
             if (s instanceof Transform.Translate st && e instanceof Transform.Translate et) {
                 changes.add(new Transition.Change("transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress)));
@@ -321,6 +315,17 @@ public interface Transform {
                 changes.add(new Transition.Change("transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress)));
             }
         }
+    }
+
+    private static int padWithIdentityTransforms(List<Transform> start, List<Transform> end) {
+        int size = Math.max(start.size(), end.size());
+        for (int i = start.size(); i < size; i++) {
+            start.add(getIdentity(end.get(i)));
+        }
+        for (int i = end.size(); i < size; i++) {
+            end.add(getIdentity(start.get(i)));
+        }
+        return size;
     }
 
     private static Transform getIdentity(Transform t) {

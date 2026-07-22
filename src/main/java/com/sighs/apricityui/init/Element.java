@@ -28,6 +28,7 @@ public class Element extends Node {
     public ArrayList<Element> children = new ArrayList<>();
     private Element beforePseudoElement = null;
     private Element afterPseudoElement = null;
+    private TextNode legacyRenderTextNode = null;
     private HashMap<String, String> beforePseudoStyles = null;
     private HashMap<String, String> afterPseudoStyles = null;
     private boolean beforePseudoResolved = false;
@@ -388,6 +389,11 @@ public class Element extends Node {
         if (isFocus == value) return;
         isFocus = value;
         requestPseudoStyleRecalc("focus");
+        Element ancestor = parentElement;
+        while (ancestor != null) {
+            ancestor.requestPseudoStyleRecalc("focus-within");
+            ancestor = ancestor.parentElement;
+        }
     }
 
     public boolean canFocus() {
@@ -463,23 +469,42 @@ public class Element extends Node {
             this.value = normalized;
             getRenderer().text.clear();
             getRenderer().wrappedText.clear();
-            if ("SELECT".equalsIgnoreCase(tagName)) {
-                syncSelectOptionSelectionState();
-            }
         }
         invalidateStyle();
     }
 
     public String getValue() {
+        if ("SELECT".equalsIgnoreCase(tagName)) {
+            for (Element option : getOptionChildren()) {
+                if (option.currentSelectedness()) return option.getOptionValue();
+            }
+            return "";
+        }
+        if ("OPTION".equalsIgnoreCase(tagName)) return getOptionValue();
         return value == null ? getDefaultValue() : value;
     }
 
     public void setValue(String value) {
-        this.value = value == null ? "" : value;
+        String normalized = value == null ? "" : value;
+        if ("SELECT".equalsIgnoreCase(tagName)) {
+            boolean matched = false;
+            for (Element option : getOptionChildren()) {
+                boolean selected = !matched && Objects.equals(normalized, option.getOptionValue());
+                option.selectedState = selected;
+                option.selectedDirty = true;
+                matched |= selected;
+            }
+            this.value = normalized;
+            valueDirty = true;
+            getRenderer().text.clear();
+            getRenderer().wrappedText.clear();
+            invalidateStyle();
+            return;
+        }
+        this.value = normalized;
         valueDirty = true;
         getRenderer().text.clear();
         getRenderer().wrappedText.clear();
-        syncSelectOptionSelectionState();
         invalidateStyle();
     }
 
@@ -500,6 +525,7 @@ public class Element extends Node {
     }
 
     public String getType() {
+        if ("SELECT".equalsIgnoreCase(tagName)) return isMultiple() ? "select-multiple" : "select-one";
         return getAttribute("type");
     }
 
@@ -552,25 +578,22 @@ public class Element extends Node {
     }
 
     public boolean isSelected() {
-        if ("OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
-            return Objects.equals(parentElement.getValue(), getOptionValue());
-        }
-        return selectedState != null ? selectedState : hasRawBooleanAttribute("selected");
+        return currentSelectedness();
     }
 
     public void setSelected(boolean selected) {
-        boolean wasSelected = isSelected();
         selectedState = selected;
         selectedDirty = true;
-        if ("OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
-            if (selected) {
-                parentElement.setValue(getOptionValue());
-            } else if (wasSelected) {
-                parentElement.setValue(resolveFallbackSelectValue(parentElement, this));
+        Element select = getOwnerSelect();
+        if (select != null) {
+            if (selected && !select.isMultiple()) {
+                for (Element option : select.getOptionChildren()) {
+                    if (option != this) option.selectedState = false;
+                }
             }
-        } else {
-            invalidateStyle();
+            select.invalidateSelectPresentation();
         }
+        invalidateStyle();
     }
 
     public boolean isDefaultSelected() {
@@ -582,36 +605,32 @@ public class Element extends Node {
         if (!selectedDirty) {
             selectedState = selected;
         }
-        syncAttributeState("selected");
+        Element select = getOwnerSelect();
+        if (select != null && !selectedDirty) {
+            select.normalizeSelectSelection(false);
+            select.invalidateSelectPresentation();
+        }
         invalidateStyle();
     }
 
     public int getSelectedIndex() {
         if (!"SELECT".equalsIgnoreCase(tagName)) return -1;
-        String selectedValue = getValue();
         List<Element> options = getOptionChildren();
         for (int i = 0; i < options.size(); i++) {
-            if (Objects.equals(selectedValue, options.get(i).getOptionValue())) return i;
+            if (options.get(i).currentSelectedness()) return i;
         }
-        if (options.isEmpty()) return -1;
-        return selectedValue == null || selectedValue.isEmpty() ? 0 : -1;
+        return -1;
     }
 
     public void setSelectedIndex(int index) {
         if (!"SELECT".equalsIgnoreCase(tagName)) return;
         List<Element> options = getOptionChildren();
-        if (options.isEmpty()) {
-            setValue("");
-            return;
+        for (int i = 0; i < options.size(); i++) {
+            Element option = options.get(i);
+            option.selectedState = i == index && index >= 0 && index < options.size();
+            option.selectedDirty = true;
         }
-        if (index < 0 || index >= options.size()) {
-            setValue("");
-            for (Element option : options) {
-                option.setBooleanAttribute("selected", false);
-            }
-            return;
-        }
-        setValue(options.get(index).getOptionValue());
+        invalidateSelectPresentation();
     }
 
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
@@ -818,6 +837,9 @@ public class Element extends Node {
     }
 
     public List<Element> getRenderChildren() {
+        // SELECT is a replaced control. Its OPTION/OPTGROUP descendants belong to
+        // the control's data model and must never enter the document paint tree.
+        if ("SELECT".equalsIgnoreCase(tagName)) return List.of();
         if (children.isEmpty()
                 && !hasGeneratedPseudoElement(Selector.PseudoElement.BEFORE)
                 && !hasGeneratedPseudoElement(Selector.PseudoElement.AFTER)) {
@@ -842,18 +864,32 @@ public class Element extends Node {
     }
 
     public List<Node> getRenderChildNodes() {
+        if ("SELECT".equalsIgnoreCase(tagName)) return List.of();
         if (childNodes.isEmpty()
                 && !hasGeneratedPseudoElement(Selector.PseudoElement.BEFORE)
                 && !hasGeneratedPseudoElement(Selector.PseudoElement.AFTER)) {
             return childNodes;
         }
-        ArrayList<Node> result = new ArrayList<>(childNodes.size() + 2);
+        boolean includeLegacyText = childNodes.isEmpty() && innerText != null && !innerText.isEmpty();
+        ArrayList<Node> result = new ArrayList<>(childNodes.size() + (includeLegacyText ? 3 : 2));
         Element before = getGeneratedPseudoElement(Selector.PseudoElement.BEFORE);
         if (before != null) result.add(before);
+        if (includeLegacyText) result.add(getLegacyRenderTextNode());
         result.addAll(childNodes);
         Element after = getGeneratedPseudoElement(Selector.PseudoElement.AFTER);
         if (after != null) result.add(after);
         return result;
+    }
+
+    private TextNode getLegacyRenderTextNode() {
+        if (legacyRenderTextNode == null
+                || legacyRenderTextNode.document != document
+                || !Objects.equals(legacyRenderTextNode.getTextContent(), innerText)) {
+            legacyRenderTextNode = new TextNode(document, innerText);
+        }
+        legacyRenderTextNode.parentNode = this;
+        legacyRenderTextNode.depth = depth + 1;
+        return legacyRenderTextNode;
     }
 
     public boolean isPseudoElement() {
@@ -1035,11 +1071,7 @@ public class Element extends Node {
     public List<Element> getOptions() {
         if (!"SELECT".equalsIgnoreCase(tagName)) return List.of();
         ArrayList<Element> options = new ArrayList<>();
-        for (Element child : children) {
-            if (child != null && "OPTION".equalsIgnoreCase(child.tagName)) {
-                options.add(child);
-            }
-        }
+        collectOptionChildren(this, options);
         return Collections.unmodifiableList(options);
     }
 
@@ -1106,6 +1138,7 @@ public class Element extends Node {
             }
         }
         innerText = normalized;
+        legacyRenderTextNode = null;
         getRenderer().text.clear();
         getRenderer().wrappedText.clear();
         getRenderer().size.clear();
@@ -1496,10 +1529,7 @@ public class Element extends Node {
     }
 
     protected final boolean hasBooleanAttribute(String name) {
-        if (!hasAttribute(name)) return false;
-        String attrValue = getAttribute(name);
-        if (attrValue == null || attrValue.isBlank()) return true;
-        return !("false".equalsIgnoreCase(attrValue) || "0".equals(attrValue));
+        return hasAttribute(name);
     }
 
     protected final void setBooleanAttribute(String name, boolean enabled) {
@@ -1508,10 +1538,7 @@ public class Element extends Node {
     }
 
     protected final boolean hasRawBooleanAttribute(String name) {
-        if (!attributes.containsKey(name)) return false;
-        String attrValue = attributes.get(name);
-        if (attrValue == null || attrValue.isBlank()) return true;
-        return !("false".equalsIgnoreCase(attrValue) || "0".equals(attrValue));
+        return attributes.containsKey(name);
     }
 
     protected final void setRawBooleanAttribute(String name, boolean enabled) {
@@ -1522,47 +1549,138 @@ public class Element extends Node {
     private List<Element> getOptionChildren() {
         if (!"SELECT".equalsIgnoreCase(tagName)) return List.of();
         ArrayList<Element> options = new ArrayList<>();
-        for (Element child : children) {
-            if (child != null && "OPTION".equalsIgnoreCase(child.tagName)) {
-                options.add(child);
-            }
-        }
+        collectOptionChildren(this, options);
         return options;
     }
 
-    private String getOptionValue() {
-        String optionValue = getAttribute("value");
-        if (optionValue == null || optionValue.isBlank()) return getTextContent();
-        return optionValue;
-    }
-
-    private static String resolveFallbackSelectValue(Element select, Element removedOption) {
-        if (select == null) return "";
-        for (Element option : select.children) {
-            if (option == null || option == removedOption) continue;
-            if (!"OPTION".equalsIgnoreCase(option.tagName)) continue;
-            return option.getOptionValue();
+    private static void collectOptionChildren(Element parent, List<Element> result) {
+        if (parent == null) return;
+        for (Element child : parent.children) {
+            if (child == null) continue;
+            if ("OPTION".equalsIgnoreCase(child.tagName)) {
+                result.add(child);
+            } else if ("OPTGROUP".equalsIgnoreCase(child.tagName)) {
+                collectOptionChildren(child, result);
+            }
         }
-        return "";
     }
 
-    private void syncSelectOptionSelectionState() {
+    public String getOptionValue() {
+        if (!"OPTION".equalsIgnoreCase(tagName)) return getValue();
+        if (hasAttribute("value")) return getAttribute("value");
+        return normalizeOptionText(getTextContent());
+    }
+
+    public String getOptionLabel() {
+        if (!"OPTION".equalsIgnoreCase(tagName)) return getTextContent();
+        if (hasAttribute("label")) return getAttribute("label");
+        return normalizeOptionText(getTextContent());
+    }
+
+    public void setOptionLabel(String label) {
+        if ("OPTION".equalsIgnoreCase(tagName)) setAttribute("label", label == null ? "" : label);
+    }
+
+    public String getOptionText() {
+        return "OPTION".equalsIgnoreCase(tagName) ? normalizeOptionText(getTextContent()) : "";
+    }
+
+    public void setOptionText(String text) {
+        if ("OPTION".equalsIgnoreCase(tagName)) setTextContent(text == null ? "" : text);
+    }
+
+    public int getOptionIndex() {
+        Element select = getOwnerSelect();
+        return select == null ? -1 : select.getOptionChildren().indexOf(this);
+    }
+
+    public int getSelectLength() {
+        return "SELECT".equalsIgnoreCase(tagName) ? getOptionChildren().size() : 0;
+    }
+
+    public int getSelectSize() {
+        return "SELECT".equalsIgnoreCase(tagName) ? getSelectDisplaySize() : 0;
+    }
+
+    public void setSelectSize(int size) {
         if (!"SELECT".equalsIgnoreCase(tagName)) return;
-        String selectedValue = getValue();
-        for (Element option : children) {
-            if (option == null || !"OPTION".equalsIgnoreCase(option.tagName)) continue;
-            option.selectedState = Objects.equals(selectedValue, option.getOptionValue());
+        if (size <= 0) removeAttribute("size");
+        else setAttribute("size", Integer.toString(size));
+    }
+
+    public Element getOwnerSelect() {
+        if (!"OPTION".equalsIgnoreCase(tagName)) return null;
+        Element current = parentElement;
+        if (current != null && "OPTGROUP".equalsIgnoreCase(current.tagName)) current = current.parentElement;
+        return current != null && "SELECT".equalsIgnoreCase(current.tagName) ? current : null;
+    }
+
+    public boolean isOptionEffectivelyDisabled() {
+        if (!"OPTION".equalsIgnoreCase(tagName)) return isDisabled();
+        if (isDisabled()) return true;
+        return parentElement != null
+                && "OPTGROUP".equalsIgnoreCase(parentElement.tagName)
+                && parentElement.isDisabled();
+    }
+
+    private boolean currentSelectedness() {
+        return selectedState != null ? selectedState : hasRawBooleanAttribute("selected");
+    }
+
+    private static String normalizeOptionText(String text) {
+        if (text == null || text.isEmpty()) return "";
+        return text.trim().replaceAll("[\\t\\n\\f\\r ]+", " ");
+    }
+
+    private void normalizeSelectSelection(boolean allowDefaultSelection) {
+        if (!"SELECT".equalsIgnoreCase(tagName)) return;
+        List<Element> options = getOptionChildren();
+        if (options.isEmpty()) return;
+
+        for (Element option : options) {
+            if (option.selectedState == null) {
+                option.selectedState = option.hasRawBooleanAttribute("selected");
+            }
         }
+        if (isMultiple()) return;
+
+        Element winner = null;
+        for (Element option : options) {
+            if (option.currentSelectedness()) winner = option;
+        }
+        if (winner == null && allowDefaultSelection && getSelectDisplaySize() <= 1) {
+            winner = options.get(0);
+        }
+        if (winner != null) {
+            for (Element option : options) option.selectedState = option == winner;
+        }
+    }
+
+    private int getSelectDisplaySize() {
+        String raw = getAttribute("size");
+        if (raw == null || raw.isBlank()) return isMultiple() ? 4 : 1;
+        try {
+            int parsed = Integer.parseInt(raw.trim());
+            return parsed > 0 ? parsed : (isMultiple() ? 4 : 1);
+        } catch (NumberFormatException ignored) {
+            return isMultiple() ? 4 : 1;
+        }
+    }
+
+    private void invalidateSelectPresentation() {
+        getRenderer().text.clear();
+        getRenderer().wrappedText.clear();
+        invalidateStyle();
     }
 
     private void syncAttributeState(String name) {
         if (name == null || name.isBlank()) return;
 
-        if ("value".equals(name) && "SELECT".equalsIgnoreCase(tagName)) {
-            if (!valueDirty || value == null) {
-                value = getDefaultValue();
-            }
-            syncSelectOptionSelectionState();
+        if ("value".equals(name) && "SELECT".equalsIgnoreCase(tagName)) return;
+
+        if (("multiple".equals(name) || "size".equals(name)) && "SELECT".equalsIgnoreCase(tagName)) {
+            normalizeSelectSelection(true);
+            invalidateSelectPresentation();
             return;
         }
 
@@ -1583,18 +1701,14 @@ public class Element extends Node {
             return;
         }
 
-        if ("selected".equals(name) && "OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
-            String optionValue = getOptionValue();
-            String parentValue = parentElement.getValue();
+        if ("selected".equals(name) && "OPTION".equalsIgnoreCase(tagName)) {
             if (!selectedDirty) {
                 selectedState = hasRawBooleanAttribute("selected");
             }
-            if (hasRawBooleanAttribute("selected")) {
-                if (!Objects.equals(parentValue, optionValue)) {
-                    parentElement.setValue(optionValue);
-                }
-            } else if (Objects.equals(parentValue, optionValue)) {
-                parentElement.setValue(resolveFallbackSelectValue(parentElement, this));
+            Element select = getOwnerSelect();
+            if (select != null && !selectedDirty) {
+                select.normalizeSelectSelection(false);
+                select.invalidateSelectPresentation();
             }
             return;
         }
@@ -1608,30 +1722,16 @@ public class Element extends Node {
 
     private void applyDomStateFromAttributes() {
         if ("SELECT".equalsIgnoreCase(tagName)) {
-            syncSelectOptionSelectionState();
+            normalizeSelectSelection(true);
             return;
         }
 
-        if ("OPTION".equalsIgnoreCase(tagName) && parentElement != null && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
-            if (selectedDirty) {
-                if (Boolean.TRUE.equals(selectedState)) {
-                    String parentValue = parentElement.getValue();
-                    if (parentValue == null || parentValue.isEmpty() || !Objects.equals(parentValue, getOptionValue())) {
-                        parentElement.setValue(getOptionValue());
-                    }
-                } else if (Boolean.FALSE.equals(selectedState) && Objects.equals(parentElement.getValue(), getOptionValue())) {
-                    parentElement.setValue(resolveFallbackSelectValue(parentElement, this));
-                }
-                return;
-            }
-            selectedState = hasRawBooleanAttribute("selected");
-            if (hasRawBooleanAttribute("selected")) {
-                String parentValue = parentElement.getValue();
-                if (parentValue == null || parentValue.isEmpty() || !Objects.equals(parentValue, getOptionValue())) {
-                    parentElement.setValue(getOptionValue());
-                }
-            } else if (Objects.equals(parentElement.getValue(), getOptionValue())) {
-                selectedState = true;
+        if ("OPTION".equalsIgnoreCase(tagName)) {
+            if (!selectedDirty) selectedState = hasRawBooleanAttribute("selected");
+            Element select = getOwnerSelect();
+            if (select != null) {
+                select.normalizeSelectSelection(true);
+                select.invalidateSelectPresentation();
             }
             return;
         }
@@ -1657,6 +1757,23 @@ public class Element extends Node {
                 child.syncDomStateAfterAttach();
             }
         }
+        if ("SELECT".equalsIgnoreCase(tagName)) normalizeSelectSelection(true);
+    }
+
+    void syncSelectStateAfterChildrenChanged() {
+        if ("SELECT".equalsIgnoreCase(tagName)) {
+            normalizeSelectSelection(true);
+            invalidateSelectPresentation();
+            return;
+        }
+        if ("OPTGROUP".equalsIgnoreCase(tagName) && parentElement != null
+                && "SELECT".equalsIgnoreCase(parentElement.tagName)) {
+            parentElement.normalizeSelectSelection(true);
+            parentElement.invalidateSelectPresentation();
+        }
+    }
+
+    protected void onDisconnectedFromDocument() {
     }
 
     void invalidateSubtreeAfterAttach() {

@@ -445,8 +445,18 @@ public class Box {
             Double y = Size.parseNumber(res[1]);
             Double blur = Size.parseNumber(res[2]);
             if (x == null || y == null || blur == null) continue;
-            String color = res.length >= 4 ? res[res.length - 1] : "#000";
-            result.add(new Shadow(x, y, blur, new Color(color)));
+
+            double spread = 0;
+            int colorIndex = 3;
+            if (res.length >= 4) {
+                Double parsedSpread = Size.parseNumber(res[3]);
+                if (parsedSpread != null) {
+                    spread = parsedSpread;
+                    colorIndex = 4;
+                }
+            }
+            String color = res.length > colorIndex ? res[colorIndex] : "#000";
+            result.add(new Shadow(x, y, Math.max(0, blur), spread, new Color(color)));
         }
         return result;
     }
@@ -478,8 +488,8 @@ public class Box {
         }
     }
 
-    public record Shadow(double x, double y, double size, Color color) {
-        private static final Shadow DEFAULT = new Shadow(0, 0, 0, Color.BLACK);
+    public record Shadow(double x, double y, double size, double spread, Color color) {
+        private static final Shadow DEFAULT = new Shadow(0, 0, 0, 0, Color.BLACK);
 
         public static Shadow getDefault() {
             return DEFAULT;

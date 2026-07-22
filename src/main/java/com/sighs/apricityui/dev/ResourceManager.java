@@ -1,6 +1,7 @@
 package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.dev.resource.ResourceCreateDialog;
+import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
 import com.sighs.apricityui.dev.resource.ResourcePath;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.ui.toast.ToastManager;
@@ -51,6 +52,7 @@ public final class ResourceManager {
     private static final Map<String, TreeBranch> treeBranches = new LinkedHashMap<>();
     private static final ResourceCreateDialog createDialog = new ResourceCreateDialog();
     private static final ResourcePreviewDialog previewDialog = new ResourcePreviewDialog();
+    private static final ResourceMetaDialog metaDialog = new ResourceMetaDialog();
 
     private ResourceManager() {
     }
@@ -81,6 +83,7 @@ public final class ResourceManager {
         ContextMenu.closeActive();
         createDialog.close();
         previewDialog.close();
+        metaDialog.close();
         if (toolDocument != null && !toolDocument.isDisposed()) {
             toolDocument.remove();
         }
@@ -518,6 +521,12 @@ public final class ResourceManager {
             ContextMenu.Item preview = ContextMenu.Item.action(
                     "PREVIEW", ContextMenu.Icons.OPEN, "DBL-CLK", () -> openPreview(item.entry));
             items.add(previewable ? preview : preview.disabled());
+            if ("html".equalsIgnoreCase(safe(item.entry.extension()))) {
+                Path localPath = resolveLocalPath(item.entry);
+                ContextMenu.Item editMeta = ContextMenu.Item.action(
+                        "EDIT META", ContextMenu.Icons.EDIT, () -> openMetaEditor(item.entry));
+                items.add(localPath != null && Files.isRegularFile(localPath) ? editMeta : editMeta.disabled());
+            }
         }
         items.add(ContextMenu.Item.separator());
         items.add(ContextMenu.Item.action("COPY PATH", ContextMenu.Icons.COPY, "CTRL+C", () -> {
@@ -568,6 +577,16 @@ public final class ResourceManager {
     private static void openPreview(Loader.StaticResourceEntry entry) {
         if (entry == null || toolDocument == null) return;
         previewDialog.open(toolDocument, entry);
+    }
+
+    private static void openMetaEditor(Loader.StaticResourceEntry entry) {
+        if (entry == null || toolDocument == null) return;
+        Path localPath = resolveLocalPath(entry);
+        if (localPath == null || !Files.isRegularFile(localPath)) {
+            ToastManager.show("HTML source is read-only");
+            return;
+        }
+        metaDialog.open(toolDocument, entry.path(), localPath, ClientLoader::reload);
     }
 
     private static void browseLocalFile(Loader.StaticResourceEntry entry) {

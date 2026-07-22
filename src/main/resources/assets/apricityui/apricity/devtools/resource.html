@@ -597,82 +597,290 @@
             box-shadow: 2px 2px 0 var(--purple);
         }
 
-        /* ===== Create HTML Overlay ===== */
-        .resource-create-overlay {
+        /* ===== Dialogs ===== */
+        .dialog-overlay {
             position: fixed;
             inset: 0;
-            z-index: 30;
-            display: flex;
+            background: rgba(26, 26, 26, 0.45);
+            backdrop-filter: blur(2px);
+            z-index: 9500;
+            display: none;
             align-items: center;
             justify-content: center;
-            padding: 24px;
-            background: rgba(26,26,26,0.42);
-            animation: createOverlayIn 0.2s ease forwards;
+            animation: overlayIn 0.25s ease;
         }
 
-        @keyframes createOverlayIn {
+        .dialog-overlay.show { display: flex; }
+
+        @keyframes overlayIn {
             from { opacity: 0; }
             to { opacity: 1; }
         }
 
-        .resource-create-dialog {
-            width: 720px;
+        .dialog {
+            width: 440px;
             background: var(--white);
-            border-top: 3px solid var(--purple);
-            border-left: 3px solid var(--purple);
-            border-right: 3px solid var(--black);
-            border-bottom: 3px solid var(--black);
-            box-shadow: none;
-            padding: 24px;
-            animation: createDialogIn 0.35s cubic-bezier(0.4,0,0.2,1) backwards;
+            border: 3px solid var(--black);
+            box-shadow: 10px 10px 0 rgba(139,92,246,0.25), 10px 10px 0 3px var(--black);
+            position: relative;
+            animation: dialogIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
-        @keyframes createDialogIn {
-            from { opacity: 0; transform: translateY(28px) scale(0.96); }
+        @keyframes dialogIn {
+            from { opacity: 0; transform: translateY(-30px) scale(0.9); }
             to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        .resource-create-heading {
+        .dialog-header {
+            background: var(--purple);
+            color: var(--white);
+            padding: 14px 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding-bottom: 14px;
-            border-bottom: 2px solid var(--purple);
+            position: relative;
+            overflow: hidden;
         }
 
-        .resource-create-title { font-size: 20px; font-weight: 600; letter-spacing: 2px; }
+        .dialog-header::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: repeating-linear-gradient(90deg, transparent, transparent 8px, rgba(255,255,255,0.08) 8px, rgba(255,255,255,0.08) 9px);
+            pointer-events: none;
+        }
 
-        .resource-create-close {
-            width: 30px; height: 30px;
-            border: 1px solid var(--gray-light);
+        .dialog-title {
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            position: relative;
+            z-index: 1;
+            min-width: 0;
+        }
+
+        .aui-dialog-title-text {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .dialog-title-icon {
+            width: 18px;
+            height: 18px;
             background: var(--white);
-            color: var(--black);
-            cursor: pointer;
-            padding: 0;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .dialog-title-icon::after {
+            content: '+';
+            position: absolute;
+            inset: 0;
             display: flex;
             align-items: center;
             justify-content: center;
-            text-align: center;
-            font: 600 18px/18px 'Chakra Petch', sans-serif;
+            color: var(--purple);
+            font-size: 14px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .dialog-close {
+            width: 24px;
+            height: 24px;
+            background: transparent;
+            border: 2px solid var(--white);
+            color: var(--white);
+            cursor: pointer;
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 600;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+        }
+
+        .dialog-close:hover {
+            background: var(--white);
+            color: var(--purple);
+            transform: rotate(90deg);
+        }
+
+        .dialog-body {
+            padding: 24px 24px 20px;
+            background:
+                    linear-gradient(var(--white), var(--white)),
+                    repeating-linear-gradient(0deg, transparent, transparent 19px, rgba(139,92,246,0.06) 19px, rgba(139,92,246,0.06) 20px),
+                    repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(139,92,246,0.06) 19px, rgba(139,92,246,0.06) 20px);
+        }
+
+        .dialog-field {
+            margin-bottom: 18px;
+            position: relative;
+        }
+
+        .dialog-label {
+            display: block;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--purple);
+            margin-bottom: 8px;
+            position: relative;
+            padding-left: 12px;
+        }
+
+        .dialog-label::before {
+            content: '▸';
+            position: absolute;
+            left: 0;
+            color: var(--purple);
+        }
+
+        .dialog-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg);
+            border: 2px solid var(--gray-light);
+            color: var(--black);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            outline: none;
             transition: all 0.2s ease;
         }
 
-        .resource-create-close:hover { border-color: var(--purple); color: var(--purple); transform: translateY(-1px); }
-
-        .resource-create-path { margin: 22px 0 16px; }
-        .resource-create-label { display: block; margin-bottom: 8px; color: var(--gray); font-size: 10px; font-weight: 600; letter-spacing: 2px; }
-        .resource-create-input {
-            width: 100%; height: 42px;
-            border: 2px solid var(--gray-light);
-            padding: 0 12px;
-            background: var(--bg);
-            color: var(--black);
-            font: 600 13px 'Chakra Petch', sans-serif;
-            letter-spacing: 0.5px;
-            outline: none;
-            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        .dialog-input:focus {
+            border-color: var(--purple);
+            background: var(--white);
+            box-shadow: 4px 4px 0 rgba(139,92,246,0.15);
+            transform: translate(-2px, -2px);
         }
-        .resource-create-input:focus { border-color: var(--purple); box-shadow: 3px 3px 0 rgba(139,92,246,0.25); }
+
+        .dialog-input::placeholder {
+            color: var(--gray);
+            font-weight: 400;
+            letter-spacing: 0.5px;
+        }
+
+        .dialog-select-wrap { position: relative; }
+
+        .dialog-select {
+            width: 100%;
+            padding: 10px 40px 10px 14px;
+            background: var(--bg);
+            border: 2px solid var(--gray-light);
+            color: var(--black);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            outline: none;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .dialog-select:hover,
+        .dialog-select:focus {
+            border-color: var(--purple);
+        }
+
+        .dialog-select-arrow {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 36px;
+            height: 100%;
+            background: var(--purple);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            color: var(--white);
+            font-size: 12px;
+            transition: background-color 0.2s ease;
+        }
+
+        .dialog-select-wrap:hover .dialog-select-arrow,
+        .dialog-select-wrap:focus-within .dialog-select-arrow { background: var(--purple-dark); }
+
+        .dialog-select option {
+            padding: 8px;
+            font-family: 'Chakra Petch', sans-serif;
+            background: var(--white);
+        }
+
+        .dialog-footer {
+            padding: 14px 24px;
+            background: var(--bg);
+            border-top: 2px solid var(--gray-light);
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .dialog-btn {
+            padding: 8px 20px;
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 600;
+            font-size: 12px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            border: 2px solid var(--black);
+            transition: all 0.15s cubic-bezier(0.4,0,0.2,1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .dialog-btn-confirm {
+            background: var(--purple);
+            color: var(--white);
+            border-color: var(--purple-dark);
+        }
+
+        .dialog-btn-confirm::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: var(--purple-dark);
+            transform: translateX(-100%);
+            transition: transform 0.25s cubic-bezier(0.4,0,0.2,1);
+            z-index: 0;
+        }
+
+        .dialog-btn-confirm > span { position: relative; z-index: 1; }
+        .dialog-btn-confirm:hover::before { transform: translateX(0); }
+
+        .dialog-btn-confirm:hover {
+            transform: translate(-2px, -2px);
+            box-shadow: 4px 4px 0 var(--black);
+        }
+
+        .dialog-btn:active {
+            transform: translate(0, 0);
+            box-shadow: 0 0 0 var(--black);
+        }
+
+        .dialog-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+            transform: none !important;
+            box-shadow: none !important;
+        }
 
         .resource-import-grid { display: flex; flex-direction: row; justify-content: space-between; gap: 16px; }
         .resource-import-card { width: 328px; height: 190px; display: flex; flex-direction: column; justify-content: center; }
@@ -681,30 +889,6 @@
         .resource-import-icon svg { width: 48px; height: 48px; }
         .resource-import-card .file-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .resource-create-file-input { display: none; }
-
-        .resource-create-submit-row { display: flex; justify-content: flex-end; margin-top: 18px; }
-        .resource-create-submit {
-            width: 142px; height: 40px;
-            border: 1px solid var(--gray-light);
-            background: var(--gray-light);
-            color: var(--gray);
-            cursor: default;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
-            font: 600 12px 'Chakra Petch', sans-serif;
-            letter-spacing: 2px;
-            transition: all 0.2s ease;
-        }
-        .resource-create-submit.ready { border-color: var(--purple); background: var(--purple); color: var(--white); cursor: pointer; }
-        .resource-create-submit.ready:hover { background: var(--purple-dark); transform: translateY(-1px); }
-
-        @media (max-width: 620px) {
-            .resource-create-overlay { padding: 12px; }
-            .resource-create-dialog { padding: 18px; }
-        }
 
         /* ===== Scrollbar ===== */
         ::-webkit-scrollbar { width: 6px; }

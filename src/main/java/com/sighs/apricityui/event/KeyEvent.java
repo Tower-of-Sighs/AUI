@@ -47,19 +47,20 @@ public class KeyEvent extends Event {
                 || isModifierPressed("key.keyboard.right.win");
     }
 
-    public static void triggerEvent(Document document, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
-        if (document == null) return;
+    public static KeyEvent triggerEvent(Document document, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {
+        if (document == null) return null;
         Element target = document.getFocusedElement();
         if (target == null) target = document.getPressedElement();
         if (target == null) target = document.body;
-        if (target == null) return;
+        if (target == null) return null;
         KeyEvent event = new KeyEvent(target, type, keyCode, scanCode, modifiers, repeat, source);
         event.setTrusted(true);
         Event.tiggerEvent(event);
+        return event;
     }
 
-    public static void triggerEvent(Document document, String type, int keyCode, boolean repeat) {
-        triggerEvent(document, type, keyCode, 0, 0, repeat, Source.INPUT_EVENT);
+    public static KeyEvent triggerEvent(Document document, String type, int keyCode, boolean repeat) {
+        return triggerEvent(document, type, keyCode, 0, 0, repeat, Source.INPUT_EVENT);
     }
 
     private static String resolveKey(int keyCode, int scanCode) {

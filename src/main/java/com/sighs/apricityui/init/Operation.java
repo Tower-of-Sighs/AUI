@@ -3,6 +3,7 @@ import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
+import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
@@ -114,10 +115,19 @@ public class Operation {
         for (Document document : Document.getAll()) {
             final boolean[] documentCanceled = {false};
             Event.runTrustedAction(() -> {
-                KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
+                KeyEvent keyEvent = KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
+                if (keyEvent != null && keyEvent.defaultPrevented) {
+                    documentCanceled[0] = true;
+                    return;
+                }
                 Element focusedElement = document.getFocusedElement();
                 String selectedText = resolveSelectedText(document, focusedElement);
                 boolean ctrlDown = isCtrlDown();
+
+                if (focusedElement instanceof Select select && select.handleKeyDownDefault(keyEvent)) {
+                    documentCanceled[0] = true;
+                    return;
+                }
 
                 if (focusedElement instanceof AbstractText textElement) {
                     if (ctrlDown) {
