@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.ui.dialog.DialogWindow;
 import com.sighs.apricityui.ui.toast.ToastManager;
+import com.sighs.apricityui.ui.tooltip.Tooltip;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -14,17 +15,22 @@ import java.util.Locale;
 /** Resource-browser dialog for editing the meta elements in an HTML head. */
 public final class ResourceMetaDialog {
     private static final List<Choice> FONT_MODE_CHOICES = List.of(
-            new Choice("NOT SET", ""), new Choice("MC", "mc"), new Choice("WEB", "web"),
-            new Choice("WEB SCALED", "web-scaled")
+            new Choice("NOT SET", "", "tooltip.apricityui.meta.font_mode.not_set"),
+            new Choice("MC", "mc", "tooltip.apricityui.meta.font_mode.mc"),
+            new Choice("WEB", "web", "tooltip.apricityui.meta.font_mode.web"),
+            new Choice("WEB SCALED", "web-scaled", "tooltip.apricityui.meta.font_mode.web_scaled")
     );
     private static final List<Choice> VIEWPORT_CHOICES = List.of(
-            new Choice("NOT SET", ""), new Choice("GUI", "mode=gui"),
-            new Choice("BROWSER", "mode=browser"), new Choice("SCREEN", "mode=screen"),
-            new Choice("FIXED / 427 x 249", "mode=fixed,width=427,height=249"),
-            new Choice("FIXED / 1920 x 1080 / FIT", "mode=fixed,width=1920,height=1080,scale=fit")
+            new Choice("NOT SET", "", "tooltip.apricityui.meta.viewport.not_set"),
+            new Choice("GUI", "mode=gui", "tooltip.apricityui.meta.viewport.gui"),
+            new Choice("BROWSER", "mode=browser", "tooltip.apricityui.meta.viewport.browser"),
+            new Choice("SCREEN", "mode=screen", "tooltip.apricityui.meta.viewport.screen"),
+            new Choice("FIXED / 427 x 249", "mode=fixed,width=427,height=249", "tooltip.apricityui.meta.viewport.fixed_gui"),
+            new Choice("FIXED / 1920 x 1080 / FIT", "mode=fixed,width=1920,height=1080,scale=fit", "tooltip.apricityui.meta.viewport.fixed_fit")
     );
     private static final List<Choice> MOUSE_EVENT_CHOICES = List.of(
-            new Choice("NOT SET / PASS THROUGH", ""), new Choice("INTERCEPT", "intercept")
+            new Choice("NOT SET / PASS THROUGH", "", "tooltip.apricityui.meta.mouse_events.pass_through"),
+            new Choice("INTERCEPT", "intercept", "tooltip.apricityui.meta.mouse_events.intercept")
     );
     private DialogWindow dialog;
     private Element fontModeSelect;
@@ -62,9 +68,9 @@ public final class ResourceMetaDialog {
         HtmlMetaEditor.MetaSettings settings = HtmlMetaEditor.parseSettings(loaded.metaMarkup());
         charset = settings.charset();
         preservedMeta = settings.preservedMeta();
-        viewportSelect = appendSelectField(fields, "VIEWPORT", VIEWPORT_CHOICES, settings.viewport());
-        fontModeSelect = appendSelectField(fields, "FONT MODE", FONT_MODE_CHOICES, settings.fontMode());
-        mouseEventsSelect = appendSelectField(fields, "MOUSE EVENTS", MOUSE_EVENT_CHOICES, settings.mouseEvents());
+        viewportSelect = appendSelectField(fields, "VIEWPORT", "tooltip.apricityui.meta.viewport", VIEWPORT_CHOICES, settings.viewport());
+        fontModeSelect = appendSelectField(fields, "FONT MODE", "tooltip.apricityui.meta.font_mode", FONT_MODE_CHOICES, settings.fontMode());
+        mouseEventsSelect = appendSelectField(fields, "MOUSE EVENTS", "tooltip.apricityui.meta.mouse_events", MOUSE_EVENT_CHOICES, settings.mouseEvents());
         root.append(fields);
 
         Element submitRow = element("DIV", "dialog-footer");
@@ -106,20 +112,25 @@ public final class ResourceMetaDialog {
         markDirty();
     }
 
-    private Element appendSelectField(Element parent, String label, List<Choice> choices, String currentValue) {
+    private Element appendSelectField(Element parent, String label, String tooltipKey,
+                                      List<Choice> choices, String currentValue) {
         Element field = element("DIV", "dialog-field");
         field.setAttribute("style", "margin:0 0 14px;");
         field.append(text("LABEL", label, "dialog-label"));
         Element selectWrap = element("DIV", "dialog-select-wrap");
         Element select = element("SELECT", "dialog-select resource-meta-select");
+        select.setAttribute("data-tooltip-key", tooltipKey);
+        Tooltip.bindTranslation(select, tooltipKey);
         List<Choice> available = new ArrayList<>(choices);
         boolean known = available.stream().anyMatch(choice -> choice.value().equals(currentValue));
         if (!known && currentValue != null && !currentValue.isBlank()) {
-            available.add(new Choice("CURRENT / " + abbreviate(currentValue).toUpperCase(Locale.ROOT), currentValue));
+            available.add(new Choice("CURRENT / " + abbreviate(currentValue).toUpperCase(Locale.ROOT), currentValue,
+                    "tooltip.apricityui.meta.current"));
         }
         for (Choice choice : available) {
             Element option = text("OPTION", choice.label(), "resource-meta-option");
             option.setAttribute("value", choice.value());
+            option.setAttribute("data-tooltip-key", choice.tooltipKey());
             select.append(option);
         }
         select.setValue(currentValue == null ? "" : currentValue);
@@ -172,6 +183,6 @@ public final class ResourceMetaDialog {
         }
     }
 
-    private record Choice(String label, String value) {
+    private record Choice(String label, String value, String tooltipKey) {
     }
 }

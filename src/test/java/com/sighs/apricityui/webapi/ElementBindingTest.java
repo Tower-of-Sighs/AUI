@@ -598,6 +598,7 @@ class ElementBindingTest {
         select.appendChild(first);
         select.appendChild(second);
         select.setValue("a");
+        setRelativeHitBox(select, 0, 0, 120, 28);
 
         AtomicInteger inputEvents = new AtomicInteger();
         AtomicInteger changeEvents = new AtomicInteger();
@@ -1484,6 +1485,8 @@ class ElementBindingTest {
         element.getRenderer().box.set(box);
         element.getRenderer().size.set(new Size(width, height));
         element.getRenderer().position.set(new Position(x, y));
+        com.sighs.apricityui.render.Rect committed = new com.sighs.apricityui.render.Rect(element);
+        element.getRenderer().commitRect(committed, element.getRenderer().rectDependency(element.document));
     }
 
     private static void setPaintOrder(Document document, Element... elements) {

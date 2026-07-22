@@ -238,6 +238,27 @@ public record ApricityViewport(
             return applyZoom(resolveBase(mode, options, window), clamp(sanitizeZoom(zoom, initialZoom), minZoom, maxZoom));
         }
 
+        /** Resolves the same CSS viewport contract when no Minecraft window is available. */
+        public ApricityViewport resolveHeadless(int availableWidth, int availableHeight, double zoom) {
+            int fallbackWidth = Math.max(1, availableWidth);
+            int fallbackHeight = Math.max(1, availableHeight);
+            ApricityViewport base;
+            if ("fixed".equals(mode)) {
+                int width = Math.max(1, parseInt(options.get("width"), DEFAULT_FIXED_WIDTH));
+                int height = Math.max(1, parseInt(options.get("height"), DEFAULT_FIXED_HEIGHT));
+                String scaleOption = options.getOrDefault("scale", "1").trim().toLowerCase(Locale.ROOT);
+                double scale = switch (scaleOption) {
+                    case "fit", "contain" -> Math.min((double) fallbackWidth / width, (double) fallbackHeight / height);
+                    case "window", "native", "gui", "mc" -> 1.0d;
+                    default -> Math.max(0.0001d, parseDouble(scaleOption, 1.0d));
+                };
+                base = new ApricityViewport(width, height, (float) scale, scale);
+            } else {
+                base = new ApricityViewport(fallbackWidth, fallbackHeight, 1.0f, 1.0d);
+            }
+            return applyZoom(base, clamp(sanitizeZoom(zoom, initialZoom), minZoom, maxZoom));
+        }
+
         public State createState() {
             return new State(this);
         }
@@ -270,6 +291,10 @@ public record ApricityViewport(
 
         public ApricityViewport resolve(Window window) {
             return spec.resolve(window, zoom);
+        }
+
+        public ApricityViewport resolveHeadless(int availableWidth, int availableHeight) {
+            return spec.resolveHeadless(availableWidth, availableHeight, zoom);
         }
 
         public synchronized boolean zoomIn() {
