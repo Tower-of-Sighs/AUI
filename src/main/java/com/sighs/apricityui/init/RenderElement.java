@@ -4,6 +4,7 @@ import com.sighs.apricityui.style.*;
 import com.sighs.apricityui.render.Rect;
 import org.joml.Matrix4f;
 
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
@@ -123,6 +124,32 @@ public class RenderElement {
 
     public void invalidateLayoutVersion() {
         layoutVersion++;
+    }
+
+    /**
+     * Invalidates cached used values whose containing block may have changed.
+     * Descendant percentages, flex/grid assignments, text wrapping and
+     * percentage transforms all depend on ancestor geometry.
+     */
+    public void invalidateLayoutSubtree() {
+        ArrayDeque<Element> stack = new ArrayDeque<>();
+        stack.push(element);
+        while (!stack.isEmpty()) {
+            Element current = stack.pop();
+            RenderElement renderer = current.getRenderer();
+            renderer.layoutVersion++;
+            renderer.size.value = null;
+            renderer.gridAssignedSize.value = null;
+            renderer.box.value = null;
+            renderer.position.value = null;
+            renderer.text.value = null;
+            renderer.wrappedText.value = null;
+            renderer.transform.value = null;
+            renderer.clearCommittedLayout();
+            for (Element child : current.getExistingLayoutChildren()) {
+                stack.push(child);
+            }
+        }
     }
 
     public void invalidateStyleVersion() {
@@ -339,7 +366,10 @@ public class RenderElement {
             }
         }
 
-        if (check.test(PADDING_AND_BORDER_PROPS)) {
+        boolean paddingOrBorderChanged = check.test(PADDING_AND_BORDER_PROPS);
+        boolean layoutChanged = check.test(LAYOUT_PROPS);
+
+        if (paddingOrBorderChanged) {
             renderer.gridAssignedSize.clear();
             element.forEachRoute(e -> e.getRenderer().size.clear());
             element.forEachRoute(e -> e.getRenderer().box.clear());
@@ -351,7 +381,7 @@ public class RenderElement {
             dirtyMask |= Drawer.RELAYOUT;
         }
 
-        if (check.test(LAYOUT_PROPS)) {
+        if (layoutChanged) {
             renderer.gridAssignedSize.clear();
             element.forEachRoute(e -> e.getRenderer().size.clear());
             renderer.box.clear();
@@ -361,6 +391,10 @@ public class RenderElement {
             } else renderer.position.clear();
 
             dirtyMask |= Drawer.RELAYOUT;
+        }
+
+        if (paddingOrBorderChanged || layoutChanged) {
+            renderer.invalidateLayoutSubtree();
         }
 
         if (!origin.display.equals(current.display)) {

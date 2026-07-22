@@ -1,7 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.sighs.apricityui.dev.ToastManager;
+import com.sighs.apricityui.ui.toast.ToastManager;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 

@@ -1,10 +1,14 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Layout;
 import com.sighs.apricityui.style.Transition;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 final class MotionTrack {
@@ -28,6 +32,8 @@ final class MotionTrack {
 
     private final Document owner;
     private final ConcurrentHashMap<Element, Integer> flags = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Element, Style> lastMotionStyles = new ConcurrentHashMap<>();
+    private final Set<Element> hitTestRoots = Collections.newSetFromMap(new IdentityHashMap<>());
 
     MotionTrack(Document owner) {
         this.owner = owner;
@@ -35,11 +41,14 @@ final class MotionTrack {
 
     void clear() {
         flags.clear();
+        lastMotionStyles.clear();
+        hitTestRoots.clear();
     }
 
     void removeElement(Element element) {
         if (element == null) return;
         flags.keySet().removeIf(e -> element.uuid.equals(e.uuid));
+        lastMotionStyles.keySet().removeIf(e -> element.uuid.equals(e.uuid));
     }
 
     void setTransitionActive(Element element, boolean active) {
@@ -51,10 +60,11 @@ final class MotionTrack {
     }
 
     boolean stepRender() {
+        hitTestRoots.clear();
         if (!StyleFrameCache.isActive()) return false;
         if (flags.isEmpty()) return false;
 
-        boolean changed = false;
+        boolean requiresGeometryCommit = false;
         for (Map.Entry<Element, Integer> entry : flags.entrySet()) {
             Element element = entry.getKey();
             if (element == null || element.document != owner) {
@@ -67,6 +77,7 @@ final class MotionTrack {
             boolean hasAnimationSpec = (value & FLAG_ANIMATION_SPEC) != 0;
             if (!hasTransition && !hasAnimationSpec) {
                 flags.remove(element);
+                lastMotionStyles.remove(element);
                 continue;
             }
 
@@ -81,12 +92,23 @@ final class MotionTrack {
             if (!hasTransition && !hasAnimationSpec) continue;
 
             Style animated = base.clone();
+            boolean completedLayoutTransition = false;
+            boolean completedTransformTransition = false;
+            boolean completedRectTransition = false;
             if (hasTransition) {
+                completedLayoutTransition = Transition.affectsLayout(element);
+                completedTransformTransition = Transition.affectsTransform(element);
+                completedRectTransition = Transition.affectsRect(element);
                 boolean stillActive = Transition.updateStyle(element, animated);
                 if (!stillActive) {
                     // The final sampled transition value can be identical to the raw target style.
                     // It still must invalidate the half-way committed geometry from the prior frame.
-                    invalidateCompletedTransitionCaches(element);
+                    requiresGeometryCommit |= invalidateCompletedTransitionCaches(
+                            element,
+                            completedLayoutTransition,
+                            completedTransformTransition,
+                            completedRectTransition
+                    );
                     setTransitionActive(element, false);
                 }
             }
@@ -94,40 +116,40 @@ final class MotionTrack {
                 Animation.updateStyle(element, animated);
             }
             // 为当帧提供“带 motion 的 computed style”
-            invalidateMotionCaches(element, base, animated);
+            Style previousMotionStyle = lastMotionStyles.put(element, animated);
+            requiresGeometryCommit |= invalidateMotionCaches(
+                    element,
+                    previousMotionStyle == null ? base : previousMotionStyle,
+                    animated
+            );
             StyleFrameCache.put(element, animated);
-            changed = true;
 
-            // motion 可能改变 transform/filter/opacity 等渲染关键字段，需要确保对应缓存不会跨帧黏住旧值
-            if (!Objects.equals(animated.transform, base.transform)
-                    || (hasAnimationSpec && Animation.affectsTransform(base))) {
-                element.getRenderer().transform.clear();
-            }
-            if (!Objects.equals(animated.filter, base.filter) || !Objects.equals(animated.opacity, base.opacity)) {
-                element.getRenderer().filter.clear();
-            }
-            if (!Objects.equals(animated.backdropFilter, base.backdropFilter)) {
-                element.getRenderer().backdropFilter.clear();
+            if (!flags.containsKey(element)) {
+                lastMotionStyles.remove(element);
             }
         }
-        return changed;
+        return requiresGeometryCommit;
     }
 
-    private static void invalidateMotionCaches(Element element, Style base, Style animated) {
+    Set<Element> drainHitTestRoots() {
+        if (hitTestRoots.isEmpty()) return Set.of();
+        Set<Element> result = Collections.newSetFromMap(new IdentityHashMap<>());
+        result.addAll(hitTestRoots);
+        hitTestRoots.clear();
+        return result;
+    }
+
+    private boolean invalidateMotionCaches(Element element, Style base, Style animated) {
         RenderElement renderer = element.getRenderer();
+        boolean requiresGeometryCommit = false;
 
         if (differsAny(base, animated, LAYOUT_PROPS)) {
-            element.forEachRoute(e -> e.getRenderer().invalidateLayoutVersion());
-            element.forEachRoute(e -> e.getRenderer().size.clear());
-            element.forEachRoute(e -> e.getRenderer().box.clear());
-            renderer.position.clear();
-            if (element.parentElement != null) {
-                element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
-            } else {
-                renderer.position.clear();
-            }
+            invalidateLayoutMotion(element, base, animated);
+            requiresGeometryCommit = true;
         } else if (differsAny(base, animated, VISUAL_BOX_PROPS)) {
             renderer.box.clear();
+            renderer.invalidateLayoutVersion();
+            requiresGeometryCommit = true;
         }
 
         // Text.of() is cached independently from the computed style. A color
@@ -140,11 +162,49 @@ final class MotionTrack {
 
         if (!Objects.equals(base.transform, animated.transform)) {
             renderer.invalidateTransformVersion();
+            renderer.transform.clear();
+            hitTestRoots.add(element);
+            requiresGeometryCommit = true;
+        }
+
+        if (!Objects.equals(base.filter, animated.filter) || !Objects.equals(base.opacity, animated.opacity)) {
+            renderer.filter.clear();
+        }
+        if (!Objects.equals(base.backdropFilter, animated.backdropFilter)) {
+            renderer.backdropFilter.clear();
         }
 
         if (differsAny(base, animated, BACKGROUND_PROPS)) {
             renderer.background.clear();
+            renderer.invalidateLayoutVersion();
+            requiresGeometryCommit = true;
         }
+        return requiresGeometryCommit;
+    }
+
+    private void invalidateLayoutMotion(Element element, Style base, Style animated) {
+        RenderElement renderer = element.getRenderer();
+        boolean affectsNormalFlow = Layout.isInFlow(base) || Layout.isInFlow(animated);
+        if (affectsNormalFlow) {
+            element.forEachRoute(e -> {
+                RenderElement routeRenderer = e.getRenderer();
+                routeRenderer.invalidateLayoutVersion();
+                routeRenderer.size.clear();
+                routeRenderer.box.clear();
+            });
+            if (element.parentElement != null) {
+                element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
+                hitTestRoots.add(element.parentElement);
+            } else {
+                hitTestRoots.add(element);
+            }
+        } else {
+            renderer.invalidateLayoutVersion();
+            renderer.size.clear();
+            renderer.box.clear();
+            hitTestRoots.add(element);
+        }
+        renderer.invalidateLayoutSubtree();
     }
 
     private static boolean differsAny(Style base, Style animated, String[] props) {
@@ -156,22 +216,32 @@ final class MotionTrack {
         return false;
     }
 
-    private static void invalidateCompletedTransitionCaches(Element element) {
+    private boolean invalidateCompletedTransitionCaches(Element element, boolean affectsLayout,
+                                                        boolean affectsTransform, boolean affectsRect) {
         RenderElement renderer = element.getRenderer();
-        element.forEachRoute(e -> {
-            RenderElement routeRenderer = e.getRenderer();
-            routeRenderer.invalidateLayoutVersion();
-            routeRenderer.size.clear();
-            routeRenderer.box.clear();
-            routeRenderer.position.clear();
-        });
-        renderer.invalidateTransformVersion();
+        boolean requiresGeometryCommit = false;
+        if (affectsLayout) {
+            Style style = element.getRawComputedStyle();
+            invalidateLayoutMotion(element, style, style);
+            requiresGeometryCommit = true;
+        } else if (affectsRect) {
+            renderer.invalidateLayoutVersion();
+            renderer.box.clear();
+            renderer.background.clear();
+            requiresGeometryCommit = true;
+        }
+        if (affectsTransform) {
+            renderer.invalidateTransformVersion();
+            hitTestRoots.add(element);
+            requiresGeometryCommit = true;
+        }
         renderer.transform.clear();
         renderer.filter.clear();
         renderer.backdropFilter.clear();
         renderer.background.clear();
         renderer.text.clear();
         renderer.wrappedText.clear();
+        return requiresGeometryCommit;
     }
 
     private static boolean differsAny(Style base, Style animated, Iterable<String> props) {
@@ -191,5 +261,8 @@ final class MotionTrack {
             else value &= ~flag;
             return value == 0 ? null : value;
         });
+        if (!flags.containsKey(element)) {
+            lastMotionStyles.remove(element);
+        }
     }
 }

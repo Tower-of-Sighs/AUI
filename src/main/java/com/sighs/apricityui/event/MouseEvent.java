@@ -76,9 +76,12 @@ public class MouseEvent extends Event implements Cloneable {
 
             for (int i = docs.size() - 1; i >= 0; i--) {
                 Document document = docs.get(i);
-                if (document == null || document.inWorld) continue;
+                if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                 boolean consumed = tiggerEvent(event, document);
                 if (consumed) {
+                    return true;
+                }
+                if (document.interceptsMouseEventsAt(new Position(event.clientX, event.clientY))) {
                     return true;
                 }
             }
@@ -99,7 +102,7 @@ public class MouseEvent extends Event implements Cloneable {
 
         for (int i = docs.size() - 1; i >= 0; i--) {
             Document document = docs.get(i);
-            if (document == null || document.inWorld) continue;
+            if (document == null || document.inWorld || document.isManuallyRendered()) continue;
 
             Element target = document.hitTest(document.screenToDocumentPosition(detectionPos));
             if (target == null) continue;
@@ -375,31 +378,49 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static boolean dispatchMouseUpFollowupEvents(Document document, MouseEvent originalEvent, Element target, Element activeElement) {
         if (document == null || target == null || activeElement == null) return false;
-        if (target != activeElement || target.isDisabled()) return false;
+        Element activationTarget = nearestCommonInclusiveAncestor(activeElement, target);
+        if (activationTarget == null
+                || activeElement.isDisabled()
+                || target.isDisabled()
+                || activationTarget.isDisabled()) return false;
 
         boolean consumed = false;
         if (originalEvent.button == 0) {
             MouseEvent click = originalEvent.clone();
             click.type = "click";
-            click.target = target;
+            click.target = activationTarget;
             click.cancelable = true;
             consumed |= Event.tiggerEvent(click);
 
-            if (document.registerClickAndCheckDoubleClick(target, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {
+            if (document.registerClickAndCheckDoubleClick(activationTarget, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {
                 MouseEvent dblclick = originalEvent.clone();
                 dblclick.type = "dblclick";
-                dblclick.target = target;
+                dblclick.target = activationTarget;
                 dblclick.cancelable = true;
                 consumed |= Event.tiggerEvent(dblclick);
             }
         } else if (originalEvent.button == 1) {
             MouseEvent contextmenu = originalEvent.clone();
             contextmenu.type = "contextmenu";
-            contextmenu.target = target;
+            contextmenu.target = activationTarget;
             contextmenu.cancelable = true;
             consumed |= Event.tiggerEvent(contextmenu);
         }
         return consumed;
+    }
+
+    /**
+     * UI Events defines click activation against the nearest common inclusive
+     * ancestor of the press and release targets. A layout/paint update may make
+     * the exact hit node change from a control to one of its descendants (or
+     * between sibling descendants) without the pointer ever leaving the control.
+     */
+    private static Element nearestCommonInclusiveAncestor(Element first, Element second) {
+        if (first == null || second == null) return null;
+        for (Element candidate = first; candidate != null; candidate = candidate.parentElement) {
+            if (candidate.contains(second)) return candidate;
+        }
+        return null;
     }
 
     private static boolean dispatchPointerCompatEvent(MouseEvent source, Element target, boolean singleTargetOnly) {

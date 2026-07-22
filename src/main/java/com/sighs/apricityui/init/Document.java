@@ -77,6 +77,7 @@ public class Document {
 
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
     private static final ThreadLocal<Document> contextDocument = new ThreadLocal<>();
+    private static final String MOUSE_EVENTS_META_NAME = "aui-mouse-events";
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
@@ -89,6 +90,9 @@ public class Document {
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
+    private final boolean interceptMouseEvents;
+    /** A document rendered by an owning surface instead of the global document pass. */
+    private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
     private volatile String readyState = LifecycleState.LOADING.readyStateValue;
@@ -114,6 +118,23 @@ public class Document {
         this.path = path;
         this.inWorld = inWorld;
         this.viewportState = ApricityViewport.spec(path).createState(path);
+        this.interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
+    }
+
+    public boolean interceptsMouseEvents() {
+        return interceptMouseEvents;
+    }
+
+    public boolean interceptsMouseEventsAt(Position screenPosition) {
+        return interceptMouseEvents && hitTest(screenToDocumentPosition(screenPosition)) != null;
+    }
+
+    private static boolean parseMouseEventInterception(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "intercept", "block", "true", "yes", "on", "1" -> true;
+            default -> false;
+        };
     }
 
     public UUID getUuid() {
@@ -153,6 +174,14 @@ public class Document {
 
     public ApricityViewport getViewport() {
         return viewport;
+    }
+
+    public boolean isManuallyRendered() {
+        return manuallyRendered;
+    }
+
+    public void setManuallyRendered(boolean manuallyRendered) {
+        this.manuallyRendered = manuallyRendered;
     }
 
     public long getViewportVersion() {
@@ -458,8 +487,11 @@ public class Document {
      * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
      */
     public boolean stepMotionRender() {
-        boolean changed = motion.stepRender();
-        return changed;
+        return motion.stepRender();
+    }
+
+    public void commitMotionHitTest() {
+        render.updateHitTestSubtrees(motion.drainHitTestRoots());
     }
 
     /**

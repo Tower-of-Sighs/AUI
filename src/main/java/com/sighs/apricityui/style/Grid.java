@@ -325,7 +325,17 @@ public final class Grid {
             int start = columnAxis ? p.col : p.row;
             int span = Math.max(1, columnAxis ? p.colSpan : p.rowSpan);
             int internalGaps = Math.max(0, span - 1) * gap;
-            int desired = (int) Math.ceil(Math.max(0, (columnAxis ? Size.box(el).width() : Size.box(el).height()) - internalGaps));
+            // Track sizing must use the item's intrinsic contribution, not the
+            // size previously assigned by this grid.  Reusing gridAssignedSize
+            // creates a feedback loop for auto-sized grids: a collapsed 0fr
+            // row assigns 0px to its item, then a later 1fr layout measures that
+            // stale 0px and can never grow even when the item now has children.
+            Size naturalSize = Size.natural(el);
+            Box itemBox = Box.of(el);
+            double outerContribution = columnAxis
+                    ? naturalSize.width() + itemBox.getMarginHorizontal()
+                    : naturalSize.height() + itemBox.getMarginVertical();
+            int desired = (int) Math.ceil(Math.max(0, outerContribution - internalGaps));
 
             int current = 0;
             int growableCount = 0;
@@ -392,7 +402,8 @@ public final class Grid {
 
     private static boolean canGrow(Track track) {
         return switch (track.type) {
-            case AUTO, FR -> true;
+            case AUTO -> true;
+            case FR -> track.fr > 0;
             case FIXED -> false;
             case MINMAX -> canGrowBeyondMinimum(track.maxTrack);
         };
@@ -400,7 +411,8 @@ public final class Grid {
 
     private static boolean canGrowForItemContribution(Track track) {
         return switch (track.type) {
-            case AUTO, FR -> true;
+            case AUTO -> true;
+            case FR -> track.fr > 0;
             case FIXED -> false;
             case MINMAX -> track.minTrack != null
                     && !(track.minTrack.type == TrackType.FIXED && track.minTrack.px == 0)

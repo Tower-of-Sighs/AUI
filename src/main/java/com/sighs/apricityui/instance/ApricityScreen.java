@@ -89,6 +89,7 @@ public class ApricityScreen extends Screen {
                 Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             }
             Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose());
             Cursor.drawPseudoCursor(guiGraphics);
         } finally {
             FrameTimingHud.endFrame(guiGraphics);
