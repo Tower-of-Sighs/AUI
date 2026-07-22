@@ -90,23 +90,23 @@ For `bind="player"`:
 
 Unified slot semantics:
 
-- `<slot>` inside a top-level `container` binds real menu slots by index
-- Slots outside `container`, or inside `<recipe>` previews, are virtual
+- `<slot>` inside a top-level `container` binds real menu slots by index; runtime code can distinguish this with
+  `Slot.isBound()`
+- Slots outside `container`, or inside `<recipe>` previews, are display slots whose item source is read only from
+  `slot.innerText`
 - `mode` exists mainly for legacy compatibility and should not be relied on in new templates
-- Virtual item sources are read only from `slot.innerText`
-- `<recipe type="...">recipe_id</recipe>` always generates virtual slots and can be placed inside a container or in normal HTML
+- `<recipe type="...">recipe_id</recipe>` generates display slots and can be placed inside a container or in normal HTML
 - `recipe` reads the recipe id only from `innerText`
 - `recipe.type` is required and strictly validated; if invalid, no preview is rendered and `data-recipe-error` is written
 
-Default `global.css` variables:
+Slot `global.css` variables:
 
 - `--aui-slot-size`: slot size in pixels
-- `--aui-slot-render-bg`: whether to render slot background (`1/0`)
-- `--aui-slot-render-item`: whether to render item (`1/0`)
 - `--aui-slot-icon-scale`: icon scale
+- Use `render="all|bg|item|none"` to control background and item visibility
 - `--aui-slot-z`: slot z-index
-- `--aui-slot-interactive`: whether interaction is allowed (`1/0`)
-- `--aui-slot-cycle` / `--aui-slot-cycle-interval`: virtual slot cycling toggle and interval
+- `--aui-slot-interactive`: interaction capability tokens (`tooltip`, `slot`, `none`, or `tooltip slot`)
+- `--aui-slot-cycle` / `--aui-slot-cycle-interval`: display-slot cycling toggle and interval
 - `--aui-container-columns`: optional explicit column count; if omitted, runtime injects `min(9, slotCount)`
 
 Useful examples:

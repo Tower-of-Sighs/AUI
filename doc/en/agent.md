@@ -139,11 +139,10 @@ Do not require `frameW` or `frameH`. The current implementation can infer frame 
 ### 6.3 Slot Variables
 
 - `--aui-slot-size`
-- `--aui-slot-render-bg`
-- `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
+- `render="all|bg|item|none"` (controls background and item visibility)
 - `--aui-slot-z`
-- `--aui-slot-interactive`
+- `--aui-slot-interactive` (`tooltip`, `slot`, `none`, or `tooltip slot`)
 - `--aui-slot-cycle`
 - `--aui-slot-cycle-interval`
 - `--aui-container-columns`

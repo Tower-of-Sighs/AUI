@@ -1,0 +1,88 @@
+package com.sighs.apricityui.render.item;
+
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.ImageDrawer;
+import com.sighs.apricityui.render.RenderNode;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.Font;
+import net.minecraft.network.chat.Component;
+import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
+
+/**
+ * 数量、耐久、冷却、ghost 与覆盖文字的 AUI 内容装饰层。
+ */
+public record ItemDecorationRenderNode(Slot slot) implements RenderNode {
+    static void drawDecorations(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
+        ItemStack stack = state.stack();
+        if (stack.isEmpty()) return;
+
+        poseStack.pushPose();
+        poseStack.translate(0.0F, 0.0F, ItemRenderContext.GUI_DECORATION_Z);
+        try {
+            ImageDrawer.flushBatch();
+            if (state.ghost()) {
+                Graph.drawFillRect(poseStack.last().pose(), 0.0F, 0.0F, 16.0F, 16.0F, 0x80FFFFFF);
+            }
+
+            drawCooldown(poseStack, state.cooldownProgress());
+            drawDurability(poseStack, stack);
+            drawOverlayText(poseStack, stack, state.overlayText(), context.packedLight());
+        } finally {
+            poseStack.popPose();
+        }
+    }
+
+    private static void drawCooldown(PoseStack poseStack, float progress) {
+        if (progress < 0.0F) return;
+        float clamped = Math.max(0.0F, Math.min(1.0F, progress));
+        int top = Mth.floor(16.0F * (1.0F - clamped));
+        int bottom = top + Mth.ceil(16.0F * clamped);
+        Graph.drawFillRect(poseStack.last().pose(), 0.0F, top, 16.0F, bottom, Integer.MAX_VALUE);
+    }
+
+    private static void drawDurability(PoseStack poseStack, ItemStack stack) {
+        if (!stack.isBarVisible()) return;
+        int width = Math.max(0, Math.min(13, stack.getBarWidth()));
+        int color = 0xFF000000 | stack.getBarColor();
+        Graph.drawFillRect(poseStack.last().pose(), 2.0F, 13.0F, 15.0F, 15.0F, 0xFF000000);
+        if (width > 0) {
+            Graph.drawFillRect(poseStack.last().pose(), 2.0F, 13.0F, 2.0F + width, 14.0F, color);
+        }
+    }
+
+    private static void drawOverlayText(PoseStack poseStack, ItemStack stack, String overlayText, int packedLight) {
+        String text = overlayText;
+        if (text == null || text.isBlank()) {
+            int count = stack.getCount();
+            if (count != 1) text = String.valueOf(count);
+        }
+        if (text == null || text.isBlank()) return;
+
+        Graph.endBatch();
+        Font font = Minecraft.getInstance().font;
+        float x = 16.0F - font.width(text);
+        font.drawInBatch(
+                Component.literal(text).getVisualOrderText(),
+                x,
+                7.0F,
+                0xFFFFFFFF,
+                true,
+                poseStack.last().pose(),
+                Minecraft.getInstance().renderBuffers().bufferSource(),
+                Font.DisplayMode.NORMAL,
+                0,
+                packedLight
+        );
+        Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+    }
+
+    @Override
+    public void render(PoseStack poseStack) {
+        ItemRenderState state = slot == null ? ItemRenderState.EMPTY : slot.getItemRenderState();
+        if (slot == null || !slot.rendersItem() || state.hidden() || state.isEmpty()) return;
+        ItemRenderNode.renderAtContent(poseStack, slot, state, ItemDecorationRenderNode::drawDecorations);
+    }
+}

@@ -64,23 +64,22 @@ ApricityUI.openScreen("demo/index.html")
 
 统一槽位语义（新模板推荐）：
 
-- 顶层 `container` 内的 `<slot>` 默认按索引绑定真实菜单槽位；
-- 不在 `container` 内，或位于 `<recipe>` 预览中的槽位为 virtual；
+- 顶层 `container` 内的 `<slot>` 会按索引绑定真实菜单槽位；运行时可通过 `Slot.isBound()` 区分绑定态；
+- 不在 `container` 内，或位于 `<recipe>` 预览中的槽位为展示槽位，物品来源只读取 `slot.innerText`（不再读取
+  `item/itemid/count/hover` 属性）；
 - `mode` 属性仅用于旧模板兼容，新模板不建议依赖；
-- `virtual` 物品来源只读取 `slot` 的 `innerText`（不再读取 `item/itemid/count/hover` 属性）；
-- `<recipe type="...">recipe_id</recipe>`：生成的槽位始终是 `virtual`，可放在 `container` 内或普通 HTML 区域；
+- `<recipe type="...">recipe_id</recipe>` 生成展示槽位，可放在 `container` 内或普通 HTML 区域；
 - `recipe` 的配方 id 只读取 `innerText`（不再读取 `recipe-id` 属性）；
 - `recipe.type` 必填并严格校验（不匹配则不渲染预览并写入 `data-recipe-error`）。
 
-`global.css` 默认变量（可在容器或 slot 层覆盖）：
+`global.css` 槽位变量（可在容器或 slot 层覆盖）：
 
 - `--aui-slot-size`：槽位像素尺寸（整数）；
-- `--aui-slot-render-bg`：是否渲染槽位背景（1/0）；
-- `--aui-slot-render-item`：是否渲染物品（1/0）；
 - `--aui-slot-icon-scale`：图标缩放（浮点）；
+- 物品与背景的可见性使用 `render="all|bg|item|none"` 属性控制；
 - `--aui-slot-z`：槽位层级（整数）；
-- `--aui-slot-interactive`：是否允许交互（1/0）；
-- `--aui-slot-cycle` / `--aui-slot-cycle-interval`：virtual 槽位轮播开关与间隔；
+- `--aui-slot-interactive`：交互能力 token（`tooltip`、`slot`、`none`；可组合 `tooltip slot`）；
+- `--aui-slot-cycle` / `--aui-slot-cycle-interval`：展示槽位轮播开关与间隔；
 - `--aui-container-columns`：可选，显式指定容器列数；未设置时由运行时按 `min(9, slotCount)` 注入默认列数。
 
 示例可直接参考：

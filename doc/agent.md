@@ -140,11 +140,10 @@ innerText 就是翻译 key。
 ### 6.3 槽位变量
 
 - `--aui-slot-size`
-- `--aui-slot-render-bg`
-- `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
+- `render="all|bg|item|none"`（控制背景与物品可见性）
 - `--aui-slot-z`
-- `--aui-slot-interactive`
+- `--aui-slot-interactive`（`tooltip`、`slot`、`none` 或 `tooltip slot`）
 - `--aui-slot-cycle`
 - `--aui-slot-cycle-interval`
 - `--aui-container-columns`

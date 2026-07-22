@@ -17,8 +17,11 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -27,10 +30,6 @@ import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 @ElementRegister(Canvas.TAG_NAME)
 public class Canvas extends Element {
@@ -193,6 +192,8 @@ public class Canvas extends Element {
                 drawCanvas(poseStack, rectRenderer);
             }
             case BORDER -> rectRenderer.drawBorder(poseStack);
+            case CONTENT -> {
+            }
         }
     }
 

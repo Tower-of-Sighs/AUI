@@ -78,6 +78,8 @@ public class Img extends Element {
                 ImageDrawer.draw(poseStack, this, rectRenderer);
             }
             case BORDER -> rectRenderer.drawBorder(poseStack);
+            case CONTENT -> {
+            }
         }
     }
 

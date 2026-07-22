@@ -1,23 +1,13 @@
 package com.sighs.apricityui.webapi;
 
-import com.sighs.apricityui.element.Body;
-import com.sighs.apricityui.element.Img;
-import com.sighs.apricityui.element.Input;
-import com.sighs.apricityui.element.Option;
-import com.sighs.apricityui.element.Select;
-import com.sighs.apricityui.element.TextArea;
+import com.sighs.apricityui.element.*;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.init.CommentNode;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.render.item.ItemRenderState;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
@@ -25,8 +15,8 @@ import com.sighs.apricityui.style.Size;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -1356,6 +1346,39 @@ class ElementBindingTest {
         slot.tick();
 
         assertFalse(invokeResolveDisplayStack(slot).toString().isBlank());
+    }
+
+    @Test
+    void slotInteractionUsesOnlyCapabilityTokens() {
+        assumeMinecraftItemRuntime();
+        Slot slot = new Slot(createDocument());
+        slot.bindToMenuSlot(ItemRenderState.EMPTY);
+
+        assertTrue(slot.canShowItemTooltip());
+        assertTrue(slot.canOperateBoundMenuSlot());
+
+        slot.setAttribute("interactive", "tooltip");
+        assertTrue(slot.canShowItemTooltip());
+        assertFalse(slot.canOperateBoundMenuSlot());
+
+        slot.setAttribute("interactive", "slot");
+        assertFalse(slot.canShowItemTooltip());
+        assertTrue(slot.canOperateBoundMenuSlot());
+
+        slot.setAttribute("interactive", "none");
+        assertFalse(slot.canShowItemTooltip());
+        assertFalse(slot.canOperateBoundMenuSlot());
+
+        slot.setAttribute("interactive", "tooltip slot");
+        assertTrue(slot.canShowItemTooltip());
+        assertTrue(slot.canOperateBoundMenuSlot());
+
+        slot.setAttribute("interactive", "0");
+        assertTrue(slot.canShowItemTooltip());
+        assertTrue(slot.canOperateBoundMenuSlot());
+
+        slot.setAttribute("disabled", "");
+        assertFalse(slot.isDisabled());
     }
 
     private static Document createDocument() {

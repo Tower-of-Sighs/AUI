@@ -1,15 +1,20 @@
 package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.style.Interaction;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.ItemStack;
 
 import javax.annotation.Nonnull;
+import java.util.List;
 
 /**
  * 纯 UI Screen（不带容器交互）。
@@ -46,8 +51,31 @@ public class ApricityScreen extends Screen {
             Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
             // 默认字体使用 Minecraft 的 BufferSource，文档绘制结束后立即提交，避免文本延迟到后续阶段才显示。
             Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+            drawDisplaySlotTooltip(guiGraphics, mouseX, mouseY);
         }
         Cursor.drawPseudoCursor(guiGraphics);
+    }
+
+    private void drawDisplaySlotTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        if (linkedDocument == null) return;
+
+        List<Element> elements = linkedDocument.getElements();
+        for (int index = elements.size() - 1; index >= 0; index--) {
+            Element element = elements.get(index);
+            if (!(element instanceof Slot slot)
+                    || slot.isBound()
+                    || !Interaction.isDisplayed(slot)
+                    || !slot.isVisible
+                    || !slot.canShowItemTooltip()
+                    || !slot.containsSlotPoint(mouseX, mouseY)) {
+                continue;
+            }
+
+            ItemStack stack = slot.getTooltipStack();
+            if (stack.isEmpty()) continue;
+            slot.renderTooltip(guiGraphics, mouseX, mouseY);
+            return;
+        }
     }
 
     @Override

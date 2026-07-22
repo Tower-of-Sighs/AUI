@@ -7,6 +7,7 @@ import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
+import com.sighs.apricityui.render.ItemDrawer;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
@@ -19,6 +20,7 @@ import net.minecraft.server.packs.resources.Resource;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
+import net.minecraftforge.client.event.RegisterClientReloadListenersEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
@@ -42,6 +44,11 @@ public class ClientLoader extends Loader {
         event.enqueueWork(ClientLoader::reloadResources);
     }
 
+    @SubscribeEvent
+    public static void registerItemRenderReloadListener(RegisterClientReloadListenersEvent event) {
+        event.registerReloadListener(new ItemRenderReloadListener());
+    }
+
     public static void reload() {
         long beginNs = System.nanoTime();
         ApricityJS.reload();
@@ -56,6 +63,7 @@ public class ClientLoader extends Loader {
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
+        ItemDrawer.clearCache();
         FontDrawer.clearCache();
         Font.clear();
 

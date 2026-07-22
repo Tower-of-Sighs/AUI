@@ -1,0 +1,269 @@
+<body>
+<div class="page">
+    <div class="title">AUI Item Rendering Regression</div>
+    <div class="summary">
+        验证标准 Item/BlockItem、Forge BEWLR、动态模型解析、slot render 模式、interactive 能力、内容裁剪与 AUI fallback。
+    </div>
+
+    <div class="toolbar">
+        <button id="modeButton">切换 render 模式</button>
+        <button id="interactiveButton">切换 interactive</button>
+        <button id="sizeButton">切换大槽位</button>
+        <span id="state">render=all, interactive=tooltip, size=18</span>
+    </div>
+
+    <div class="grid">
+        <section class="panel">
+            <div class="heading">A. 普通 Item / 标准 3D BlockItem</div>
+            <div class="row">
+                <slot class="slot" cycle="0">minecraft:diamond</slot>
+                <slot class="slot" cycle="0">minecraft:apple</slot>
+                <slot class="slot" cycle="0">minecraft:crafting_table</slot>
+                <slot class="slot" cycle="0">minecraft:glass</slot>
+            </div>
+            <div class="hint">钻石、苹果、工作台、玻璃应由 AUI 标准 quad 路径显示。</div>
+        </section>
+
+        <section class="panel">
+            <div class="heading">B. Forge ISTER / BEWLR</div>
+            <div class="row">
+                <slot class="slot" cycle="0">minecraft:shield</slot>
+                <slot class="slot" cycle="0">minecraft:trident</slot>
+                <slot class="slot" cycle="0">minecraft:chest</slot>
+            </div>
+            <div class="hint">盾牌、三叉戟和箱子不应再稳定落入紫黑棋盘格；自定义 renderer 应在 AUI 内容盒中提交。</div>
+        </section>
+
+        <section class="panel">
+            <div class="heading">C. 动态标准模型 / override</div>
+            <div class="row">
+                <slot class="slot" cycle="0">minecraft:clock</slot>
+                <slot class="slot" cycle="0">minecraft:compass</slot>
+                <slot class="slot" cycle="0">minecraft:recovery_compass</slot>
+            </div>
+            <div class="hint">进入世界后改变时间或朝向，时钟和指南针应逐帧更新，不得复用上一帧的 mesh。</div>
+        </section>
+
+        <section class="panel">
+            <div class="heading">D. render=all / bg / item / none</div>
+            <div class="row">
+                <slot class="slot mode-target" cycle="0" render="all">minecraft:emerald</slot>
+                <slot class="slot" cycle="0" render="bg">minecraft:gold_ingot</slot>
+                <slot class="slot" cycle="0" render="item">minecraft:redstone</slot>
+                <slot class="slot" cycle="0" render="none">minecraft:lapis_lazuli</slot>
+            </div>
+            <div class="hint">第二格只留背景；第三格只留物品；第四格都不显示。切换 render 不应改变 interactive 能力。</div>
+        </section>
+
+        <section class="panel">
+            <div class="heading">E. 大槽位、数量、耐久、附魔和冷却</div>
+            <div class="row">
+                <slot class="slot large" cycle="0" id="sizedSlot">minecraft:diamond_sword</slot>
+                <slot class="slot" cycle="0">minecraft:enchanted_book</slot>
+                <slot class="slot" cycle="0">minecraft:ender_pearl</slot>
+            </div>
+            <div class="hint">通过容器交互观察真实数量、耐久、附魔层与冷却遮罩。</div>
+        </section>
+
+        <section class="panel clipped">
+            <div class="heading">F. opacity / filter / transform / overflow</div>
+            <div class="row transform-row">
+                <slot class="slot translucent" cycle="0">minecraft:diamond_block</slot>
+                <slot class="slot clipped-slot" cycle="0">minecraft:shield</slot>
+                <slot class="slot rotated" cycle="0">minecraft:trident</slot>
+            </div>
+            <div class="hint">标准模型和 BEWLR 都应跟随元素 opacity、filter、transform 和父级 overflow 裁剪。</div>
+        </section>
+
+        <section class="panel">
+            <div class="heading">G. interactive=tooltip / slot / tooltip slot / none</div>
+            <div class="row">
+                <slot class="slot" cycle="0" id="interactiveSlot" interactive="tooltip">minecraft:netherite_ingot</slot>
+                <slot class="slot" cycle="0" interactive="none">minecraft:barrier</slot>
+                <recipe class="recipe" type="crafting_shaped">minecraft:crafting_table</recipe>
+            </div>
+            <div class="hint">当前页的展示槽位可验证 tooltip 与 none；真实容器中应额外验证 slot 仅允许取放、tooltip slot
+                同时启用两者。
+            </div>
+        </section>
+
+        <section class="panel">
+            <div class="heading">H. WorldWindow、异常 fallback、鼠标携带 / quick craft</div>
+            <div class="row">
+                <slot class="slot" cycle="0">minecraft:oak_log</slot>
+                <slot class="slot" cycle="0">minecraft:debug_stick</slot>
+            </div>
+            <div class="hint">在 WorldWindow 中打开此页面；容器场景拖动或快速合成时，鼠标物品应由 AUI overlay
+                绘制。只有模型/BEWLR 实际抛错时才显示紫黑棋盘格。
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    (function () {
+        if (document.body.getAttribute("data-item-render-regression-init") === "1") return;
+        document.body.setAttribute("data-item-render-regression-init", "1");
+
+        var modes = ["all", "bg", "item", "none"];
+        var interactiveModes = ["tooltip", "slot", "tooltip slot", "none"];
+        var modeIndex = 0;
+        var interactiveIndex = 0;
+        var large = true;
+        var target = document.querySelector(".mode-target");
+        var interactiveSlot = document.getElementById("interactiveSlot");
+        var sizedSlot = document.getElementById("sizedSlot");
+        var state = document.getElementById("state");
+
+        function refreshState() {
+            state.innerText = "render=" + modes[modeIndex]
+                + ", interactive=" + interactiveModes[interactiveIndex]
+                + ", size=" + (large ? "32" : "18");
+        }
+
+        document.getElementById("modeButton").addEventListener("click", function () {
+            modeIndex = (modeIndex + 1) % modes.length;
+            target.setAttribute("render", modes[modeIndex]);
+            refreshState();
+        });
+
+        document.getElementById("interactiveButton").addEventListener("click", function () {
+            interactiveIndex = (interactiveIndex + 1) % interactiveModes.length;
+            interactiveSlot.setAttribute("interactive", interactiveModes[interactiveIndex]);
+            refreshState();
+        });
+
+        document.getElementById("sizeButton").addEventListener("click", function () {
+            large = !large;
+            sizedSlot.setAttribute("style", "width:" + (large ? "32px" : "18px") + ";height:" + (large ? "32px" : "18px") + ";");
+            refreshState();
+        });
+
+        refreshState();
+    })();
+</script>
+
+<style>
+    html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+    }
+
+    body {
+        background: #101720;
+        color: #e9f6ff;
+        font-family: "Consolas", monospace;
+        font-size: 10px;
+    }
+
+    .page {
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        padding: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+    }
+
+    .title {
+        font-size: 16px;
+        font-weight: 700;
+        color: #ffe2a6;
+    }
+
+    .summary, .hint {
+        color: #aac7d8;
+    }
+
+    .toolbar {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    button {
+        padding: 3px 6px;
+        border: 1px solid #698aa0;
+        border-radius: 3px;
+        background: #1a3040;
+        color: #effaff;
+        cursor: pointer;
+    }
+
+    #state {
+        color: #8ce0bc;
+    }
+
+    .grid {
+        flex: 1;
+        min-height: 0;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 7px;
+        overflow: auto;
+    }
+
+    .panel {
+        min-height: 78px;
+        padding: 6px;
+        border: 1px solid #45657a;
+        border-radius: 5px;
+        background: rgba(21, 39, 52, 0.78);
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .heading {
+        color: #ffd18a;
+        font-weight: 700;
+    }
+
+    .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 36px;
+    }
+
+    .slot {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+    }
+
+    .large {
+        width: 32px;
+        height: 32px;
+    }
+
+    .recipe {
+        width: 98px;
+        min-height: 36px;
+    }
+
+    .clipped {
+        overflow: hidden;
+    }
+
+    .transform-row {
+        width: 120px;
+    }
+
+    .translucent {
+        opacity: 0.55;
+        filter: brightness(1.15);
+    }
+
+    .clipped-slot {
+        transform: translateX(18px);
+    }
+
+    .rotated {
+        transform: rotate(17deg);
+    }
+</style>
+</body>

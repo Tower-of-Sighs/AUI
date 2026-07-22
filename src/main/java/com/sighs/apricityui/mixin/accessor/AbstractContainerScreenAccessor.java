@@ -27,4 +27,7 @@ public interface AbstractContainerScreenAccessor {
 
     @Accessor("quickCraftingType")
     int apricityui$getQuickCraftingType();
+
+    @Accessor("quickCraftingRemainder")
+    int apricityui$getQuickCraftingRemainder();
 }

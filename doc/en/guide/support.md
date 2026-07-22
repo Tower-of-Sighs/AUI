@@ -137,11 +137,10 @@ So you are not starting from a blank sheet, but you also should not treat it lik
 These variables are useful in `slot` and `container` scenarios:
 
 - `--aui-slot-size`
-- `--aui-slot-render-bg`
-- `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
+- `render="all|bg|item|none"` (controls background and item visibility)
 - `--aui-slot-z`
-- `--aui-slot-interactive`
+- `--aui-slot-interactive` (`tooltip`, `slot`, `none`, or `tooltip slot`)
 - `--aui-slot-cycle`
 - `--aui-slot-cycle-interval`
 - `--aui-container-columns`

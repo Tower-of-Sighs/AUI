@@ -9,7 +9,10 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.FrameScheduler;
 import com.sighs.apricityui.init.StyleFrameCache;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
@@ -18,10 +21,8 @@ import org.joml.Quaternionf;
 import java.util.List;
 
 public class Base {
-    public enum RenderPhase {
-        SHADOW,
-        BODY,
-        BORDER
+    public static void drawScreenDocument(PoseStack poseStack, Document document) {
+        drawScreenDocument(poseStack, document, List.of());
     }
 
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
@@ -40,16 +41,21 @@ public class Base {
         }
     }
 
-    public static void drawScreenDocument(PoseStack poseStack, Document document) {
+    public static void drawScreenDocument(PoseStack poseStack, Document document, List<? extends RenderNode> overlayNodes) {
         // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
         Mask.resetDepth();
-        drawDocument(poseStack, document);
+        drawDocument(poseStack, document, overlayNodes);
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
+        drawDocument(poseStack, document, List.of());
+    }
+
+    private static void drawDocument(PoseStack poseStack, Document document, List<? extends RenderNode> overlayNodes) {
         // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
         // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
         FrameScheduler.renderBegin();
+        ItemDrawer.beginFrame();
         RectFrameCache.begin();
         StyleFrameCache.begin();
         FilterRenderer.beginFrame();
@@ -66,12 +72,29 @@ public class Base {
                 node.render(poseStack);
                 poseStack.popPose();
             }
+            if (overlayNodes != null) {
+                for (RenderNode node : overlayNodes) {
+                    if (node == null) continue;
+                    poseStack.pushPose();
+                    Base.resolveOffset(poseStack);
+                    node.render(poseStack);
+                    poseStack.popPose();
+                }
+            }
         } finally {
+            ItemDrawer.endFrame();
             StyleFrameCache.end();
             RectFrameCache.end();
             ImageDrawer.flushBatch();
             FilterRenderer.endFrame();
         }
+    }
+
+    public enum RenderPhase {
+        SHADOW,
+        BODY,
+        BORDER,
+        CONTENT
     }
 
     public static void beginRendering() {

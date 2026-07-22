@@ -18,7 +18,6 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
-import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.api.distmarker.Dist;
@@ -181,11 +180,6 @@ public class Client {
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
             Base.drawAllDocument(event.getGuiGraphics().pose());
-            for (Document document : Document.getAll()) {
-                if (!document.inWorld) {
-                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
-                }
-            }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
@@ -195,12 +189,6 @@ public class Client {
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
             Base.drawAllDocument(event.getGuiGraphics().pose());
-            // Shared item render pass for DOM <slot> (createDocument path).
-            for (Document document : Document.getAll()) {
-                if (!document.inWorld) {
-                    ItemRender.renderDocumentSlotItems(event.getGuiGraphics(), document);
-                }
-            }
             Cursor.drawPseudoCursor(event.getGuiGraphics());
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }

@@ -45,6 +45,8 @@ public class Option extends Element {
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
             }
+            case CONTENT -> {
+            }
         }
     }
 }

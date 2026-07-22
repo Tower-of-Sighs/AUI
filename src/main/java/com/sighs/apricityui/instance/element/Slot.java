@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.init.ContentRenderNodeProvider;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.TextNode;
@@ -8,27 +9,32 @@ import com.sighs.apricityui.instance.slot.SlotDisplaySpec;
 import com.sighs.apricityui.instance.slot.SlotExpressionCompiler;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.render.item.*;
 import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.EnumSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 /**
  * 槽位 DOM 元素。
- * 绑定态通过 SlotView 查询显示内容，未绑定态展示表达式候选。
- * 不再直接持有 mcSlot 引用或依赖 UiSlot。
+ * 绑定态消费菜单槽位快照，未绑定态展示表达式候选；两者共享同一 ItemDrawer 渲染路径。
  */
 @ElementRegister(Slot.TAG_NAME)
-public class Slot extends MinecraftElement {
+public class Slot extends MinecraftElement implements ContentRenderNodeProvider {
     public static final String TAG_NAME = "SLOT";
 
     /**
-     * 由 SlotDataBinder 注入的视图接口，绑定态时非 null。
+     * 仅由 SlotDataBinder 维护的真实菜单绑定状态，模板不能声明或伪造。
      */
-    private SlotView view = null;
+    private boolean isBound = false;
+    private ItemRenderState boundItemRenderState = ItemRenderState.EMPTY;
     private ItemStack virtualStack = ItemStack.EMPTY;
 
     private SlotDisplaySpec displaySpec = SlotDisplaySpec.EMPTY;
@@ -40,37 +46,64 @@ public class Slot extends MinecraftElement {
         super(document, TAG_NAME);
     }
 
-    // ── SlotView 管理 ──────────────────────────────────────────────
+    // ── 菜单绑定状态 ────────────────────────────────────────────────
 
-    /**
-     * 获取当前绑定视图。
-     */
-    public SlotView getView() {
-        return view;
-    }
+    private static EnumSet<InteractionCapability> parseInteractionCapabilities(String raw) {
+        if (raw == null) return null;
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isBlank() || "unset".equals(normalized) || "auto".equals(normalized)) return null;
 
-    /**
-     * 由 SlotDataBinder 调用，设置或清除绑定视图。
-     */
-    public void setView(SlotView view) {
-        this.view = view;
-        if (view != null) {
-            virtualStack = ItemStack.EMPTY;
+        EnumSet<InteractionCapability> result = EnumSet.noneOf(InteractionCapability.class);
+        boolean hasKnownCapability = false;
+        for (String token : normalized.split("\\s+")) {
+            switch (token) {
+                case "tooltip" -> {
+                    result.add(InteractionCapability.TOOLTIP);
+                    hasKnownCapability = true;
+                }
+                case "slot" -> {
+                    result.add(InteractionCapability.SLOT);
+                    hasKnownCapability = true;
+                }
+                case "none" -> {
+                    return EnumSet.noneOf(InteractionCapability.class);
+                }
+                default -> {
+                }
+            }
         }
+        return hasKnownCapability ? result : null;
     }
 
     /**
-     * 是否处于绑定态（有 SlotView）。
+     * 当前元素是否已绑定到真实菜单槽位。
      */
-    public boolean hasView() {
-        return view != null;
+    public boolean isBound() {
+        return isBound;
     }
 
-    public boolean isDisabled() {
-        if (hasView() && view.isDisabled()) return true;
-        Boolean disabledAttr = parseBooleanLike(getAttribute("disabled"));
-        if (disabledAttr != null && disabledAttr) return true;
-        return !resolveInteractive();
+    /**
+     * 由 SlotDataBinder 在建立绑定时调用。
+     */
+    public void bindToMenuSlot(ItemRenderState initialState) {
+        isBound = true;
+        virtualStack = ItemStack.EMPTY;
+        updateBoundItemRenderState(initialState);
+    }
+
+    /**
+     * 由 SlotDataBinder 在每帧菜单状态同步时调用。
+     */
+    public void updateBoundItemRenderState(ItemRenderState itemRenderState) {
+        boundItemRenderState = itemRenderState == null ? ItemRenderState.EMPTY : itemRenderState;
+    }
+
+    /**
+     * 由 SlotDataBinder 在文档刷新、Screen 销毁或重新绑定前调用。
+     */
+    public void clearMenuSlotBinding() {
+        isBound = false;
+        boundItemRenderState = ItemRenderState.EMPTY;
     }
 
     // ── 静态工具方法 ────────────────────────────────────────────────
@@ -94,24 +127,29 @@ public class Slot extends MinecraftElement {
         return parsed == null ? 1 : parsed;
     }
 
-    private String getGeneratedSourceTag() {
-        return getAttribute("data-generated");
-    }
-
-    private boolean isRecipeSlot() {
-        String generatedTag = getGeneratedSourceTag();
-        if (generatedTag != null && generatedTag.startsWith("recipe")) return true;
-        return hasAncestor(Recipe.class);
-    }
-
     public int getSlotIndex() {
         Integer parsed = parseInt(getFirstNonBlankAttribute("slot-index", "index"));
         return parsed == null ? -1 : parsed;
     }
 
-    public boolean shouldAcceptPointer() {
-        if (hasView() && view.isDisabled()) return false;
-        return !isDisabled() && resolveInteractive();
+    /**
+     * Slot 的物品行为只由 interactive 控制，不再把 disabled 作为第二个开关。
+     */
+    @Override
+    public boolean isDisabled() {
+        return false;
+    }
+
+    public boolean canShowItemTooltip() {
+        return resolveInteractionCapabilities().contains(InteractionCapability.TOOLTIP);
+    }
+
+    public boolean canOperateBoundMenuSlot() {
+        return isBound && resolveInteractionCapabilities().contains(InteractionCapability.SLOT);
+    }
+
+    public boolean canReceiveSlotFocus() {
+        return canOperateBoundMenuSlot();
     }
 
     public int resolveSlotSizeHint(int fallback) {
@@ -126,26 +164,28 @@ public class Slot extends MinecraftElement {
         Integer attrSize = parsePositiveInt(getFirstNonBlankAttribute("size", "slot-size"));
         if (attrSize != null) return attrSize;
 
-        if (hasView()) return Math.max(1, view.getSlotSize());
         return Math.max(1, fallback);
+    }
+
+    public boolean containsSlotPoint(double mouseX, double mouseY) {
+        Position position = Position.of(this);
+        int size = resolveSlotSizeHint(16);
+        return mouseX >= position.x
+                && mouseX < position.x + size
+                && mouseY >= position.y
+                && mouseY < position.y + size;
     }
 
     @Override
     public void tick() {
         super.tick();
-        // 绑定态不需要虚拟物品轮播
-        if (hasView()) return;
+        if (isBound) return;
 
         refreshDisplaySpecIfNeeded();
         if (!displaySpec.hasCandidates()) {
             virtualStack = ItemStack.EMPTY;
             return;
         }
-        if (!shouldRenderItem()) {
-            virtualStack = ItemStack.EMPTY;
-            return;
-        }
-
         int size = displaySpec.candidates().size();
         if (candidateIndex < 0 || candidateIndex >= size) candidateIndex = 0;
 
@@ -164,30 +204,32 @@ public class Slot extends MinecraftElement {
         virtualStack = stack;
     }
 
-    public boolean shouldRenderBackground() {
-        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-render-bg"));
-        if (cssFlag != null) return cssFlag;
-        Boolean attrFlag = parseBooleanLike(getAttribute("render-bg"));
-        if (attrFlag != null) return attrFlag;
-
-        String render = normalizeToken(getAttribute("render"));
-        if ("item".equals(render) || "none".equals(render)) return false;
-        if ("bg".equals(render) || "all".equals(render)) return true;
-
-        return true;
+    public ItemRenderMode getItemRenderMode() {
+        return ItemRenderMode.parse(getAttribute("render"));
     }
 
-    public boolean shouldRenderItem() {
-        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-render-item"));
-        if (cssFlag != null) return cssFlag;
-        Boolean attrFlag = parseBooleanLike(getAttribute("render-item"));
-        if (attrFlag != null) return attrFlag;
+    public boolean rendersBackground() {
+        return getItemRenderMode().rendersBackground();
+    }
 
-        String render = normalizeToken(getAttribute("render"));
-        if ("bg".equals(render) || "none".equals(render)) return false;
-        if ("item".equals(render) || "all".equals(render)) return true;
+    public boolean rendersItem() {
+        return getItemRenderMode().rendersItem();
+    }
 
-        return true;
+    public boolean shouldRenderBackground() {
+        return rendersBackground();
+    }
+
+    public ItemRenderState getItemRenderState() {
+        if (isBound) return boundItemRenderState;
+        if (!rendersItem()) return ItemRenderState.EMPTY;
+        return new ItemRenderState(
+                virtualStack,
+                null,
+                false,
+                false,
+                ItemRenderContext.resolveCooldownProgress(virtualStack)
+        );
     }
 
     public float resolveIconScale(float fallback) {
@@ -209,8 +251,13 @@ public class Slot extends MinecraftElement {
     // ── 渲染与交互 ──────────────────────────────────────────────────
 
     @Override
-    public boolean canFocus() {
-        return shouldAcceptPointer();
+    public List<RenderNode> createContentRenderNodes() {
+        // 节点常驻于 paintList，状态与 render 属性在每帧读取，避免物品变化时频繁重建整个文档绘制队列。
+        return List.of(
+                new ItemRenderNode(this),
+                new ItemGlintRenderNode(this),
+                new ItemDecorationRenderNode(this)
+        );
     }
 
     public String getBackgroundImageCandidate() {
@@ -231,41 +278,28 @@ public class Slot extends MinecraftElement {
         super.drawPhase(poseStack, phase);
     }
 
+    @Override
+    public boolean canFocus() {
+        return canReceiveSlotFocus();
+    }
+
     /**
      * 获取当前应显示的物品。
-     * 绑定态从 SlotView 获取，未绑定态从虚拟物品获取。
+     * 绑定态读取菜单快照，未绑定态读取虚拟物品。
      */
     public ItemStack resolveDisplayStack() {
-        ItemStack stack = hasView() ? view.getDisplayStack() : virtualStack;
+        ItemStack stack = getItemRenderState().stack();
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
-        return stack.copy();
+        return stack;
     }
 
     @Override
     public ItemStack getTooltipStack() {
-        // 绑定态 tooltip 由 Screen 层处理
-        if (hasView()) return ItemStack.EMPTY;
+        // 绑定态由 Screen 从真实菜单槽位读取 tooltip stack。
+        if (isBound) return ItemStack.EMPTY;
         ItemStack stack = virtualStack;
         if (stack.isEmpty()) return ItemStack.EMPTY;
         return stack.copy();
-    }
-
-    private boolean resolveInteractive() {
-        if (isRecipeSlot()) return false;
-        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-interactive"));
-        if (cssFlag != null) return cssFlag;
-        Boolean attrFlag = parseBooleanLike(getAttribute("interactive"));
-        if (attrFlag != null) return attrFlag;
-        Boolean pointerFlag = parseBooleanLike(getAttribute("pointer"));
-        if (pointerFlag != null) return pointerFlag;
-        return hasView();
-    }
-
-    @Override
-    public void renderTooltip(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
-        ItemStack stack = getTooltipStack();
-        if (stack.isEmpty()) return;
-        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
     }
 
     /**
@@ -309,29 +343,26 @@ public class Slot extends MinecraftElement {
         return innerText == null ? "" : innerText;
     }
 
-    /**
-     * 绑定态视图接口，由 SlotDataBinder 在绑定时注入。
-     */
-    public interface SlotView {
-        /**
-         * 获取当前显示的物品。
-         */
-        ItemStack getDisplayStack();
+    @Override
+    public void renderTooltip(net.minecraft.client.gui.GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        if (!canShowItemTooltip()) return;
+        ItemStack stack = getTooltipStack();
+        if (stack.isEmpty()) return;
+        guiGraphics.renderTooltip(Minecraft.getInstance().font, stack, mouseX, mouseY);
+    }
 
-        /**
-         * 是否被禁用（不可交互）。
-         */
-        boolean isDisabled();
+    private EnumSet<InteractionCapability> resolveInteractionCapabilities() {
+        EnumSet<InteractionCapability> cssCapabilities = parseInteractionCapabilities(
+                getCustomPropertyInherit("--aui-slot-interactive")
+        );
+        if (cssCapabilities != null) return cssCapabilities;
 
-        /**
-         * 是否被隐藏。
-         */
-        boolean isHidden();
+        EnumSet<InteractionCapability> attributeCapabilities = parseInteractionCapabilities(getAttribute("interactive"));
+        if (attributeCapabilities != null) return attributeCapabilities;
 
-        /**
-         * 槽位像素尺寸。
-         */
-        int getSlotSize();
+        return isBound
+                ? EnumSet.of(InteractionCapability.TOOLTIP, InteractionCapability.SLOT)
+                : EnumSet.of(InteractionCapability.TOOLTIP);
     }
 
     private boolean resolveCycleEnabled() {
@@ -359,11 +390,6 @@ public class Slot extends MinecraftElement {
             return value;
         }
         return null;
-    }
-
-    private static String normalizeToken(String raw) {
-        if (raw == null) return "";
-        return raw.trim().toLowerCase(Locale.ROOT);
     }
 
     private static Integer parseInt(String raw) {
@@ -409,5 +435,10 @@ public class Slot extends MinecraftElement {
             case "0", "false", "no", "off", "disabled", "none" -> false;
             default -> null;
         };
+    }
+
+    private enum InteractionCapability {
+        TOOLTIP,
+        SLOT
     }
 }

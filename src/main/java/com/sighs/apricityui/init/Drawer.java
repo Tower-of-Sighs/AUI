@@ -2,12 +2,7 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Filter;
-import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.Transform;
-import com.sighs.apricityui.style.Transition;
+import com.sighs.apricityui.style.*;
 
 import java.util.*;
 
@@ -117,6 +112,7 @@ public class Drawer {
         if (needsMask) {
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
         }
+        appendContentRenderNodes(contextRoot, paintList);
 
         List<Element> children = contextRoot.children;
         if (children.isEmpty()) {
@@ -201,6 +197,13 @@ public class Drawer {
             }
         }
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BODY));
+    }
+
+    private static void appendContentRenderNodes(Element contextRoot, List<RenderNode> paintList) {
+        if (!(contextRoot instanceof ContentRenderNodeProvider provider)) return;
+        List<RenderNode> nodes = provider.createContentRenderNodes();
+        if (nodes == null || nodes.isEmpty()) return;
+        paintList.addAll(nodes);
     }
 
     private static List<Element> minimizeRoots(Set<Element> roots) {

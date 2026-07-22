@@ -6,7 +6,6 @@ import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.registry.ApricityMenus;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.world.Container;
 import net.minecraft.world.SimpleContainer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.entity.player.Player;
@@ -89,7 +88,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
             for (int localIndex = 0; localIndex < resolvedCapacity; localIndex++) {
                 Slot slot = source == null
-                        ? new UiSlot(fallback, localIndex, 0, 0)
+                        ? new Slot(fallback, localIndex, 0, 0)
                         : source.createSlot(localIndex, 0, 0);
                 addSlot(slot);
             }
@@ -121,7 +120,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     private void addPlayerInventorySlots(Inventory playerInventory, int capacity) {
         int normalized = Math.max(0, Math.min(ContainerBindType.PLAYER_SLOT_COUNT, capacity));
         for (int localIndex = 0; localIndex < normalized; localIndex++) {
-            addSlot(new UiSlot(playerInventory, localIndex, 0, 0));
+            addSlot(new Slot(playerInventory, localIndex, 0, 0));
         }
     }
 
@@ -240,54 +239,5 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     }
 
     public record ContainerSlotRef(int localSlotIndex, int globalSlotIndex) {
-    }
-
-    /**
-     * UI 槽位，支持禁用/隐藏/尺寸控制。
-     */
-    public static class UiSlot extends Slot {
-        private boolean uiDisabled = false;
-        private boolean uiHidden = false;
-        private int uiSlotSize = 16;
-
-        public UiSlot(Container container, int slot, int x, int y) {
-            super(container, slot, x, y);
-        }
-
-        @Override
-        public boolean mayPlace(@Nonnull ItemStack stack) {
-            if (uiDisabled) return false;
-            return super.mayPlace(stack);
-        }
-
-        @Override
-        public boolean mayPickup(@Nonnull Player player) {
-            if (uiDisabled) return false;
-            return super.mayPickup(player);
-        }
-
-        public int getUiSlotSize() {
-            return uiSlotSize;
-        }
-
-        public boolean isUiDisabled() {
-            return uiDisabled;
-        }
-
-        public void setUiDisabled(boolean uiDisabled) {
-            this.uiDisabled = uiDisabled;
-        }
-
-        public boolean isUiHidden() {
-            return uiHidden;
-        }
-
-        public void setUiHidden(boolean uiHidden) {
-            this.uiHidden = uiHidden;
-        }
-
-        public void setUiSlotSize(int uiSlotSize) {
-            this.uiSlotSize = Math.max(1, uiSlotSize);
-        }
     }
 }

@@ -3,6 +3,8 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.render.item.ItemRenderState;
 import com.sighs.apricityui.resource.HTML;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.api.distmarker.Dist;
@@ -17,8 +19,10 @@ import java.util.List;
 public final class ClientRuntimeSelfTest {
     private static final String ENABLE_PROPERTY = "apricityui.clientSelfTest";
     private static final String EXIT_PROPERTY = "apricityui.clientSelfTest.exitOnFinish";
+    private static final String ITEM_RENDER_REGRESSION_PROPERTY = "apricityui.itemRenderRegression";
     private static final String LIFECYCLE_DOC_PATH = "tests/lifecycle-event-test.html";
     private static final String RUNTIME_DOC_PATH = "tests/client-runtime-self-test.html";
+    private static final String ITEM_RENDER_REGRESSION_DOC_PATH = "tests/item-render-regression-test.html";
     private static final long START_DELAY_TICKS = 10L;
     private static final long ASSERT_TIMEOUT_TICKS = 120L;
 
@@ -27,6 +31,7 @@ public final class ClientRuntimeSelfTest {
     private static long startTick = -1L;
     private static Document lifecycleDocument;
     private static Document runtimeDocument;
+    private static boolean itemRenderRegressionOpened;
 
     private ClientRuntimeSelfTest() {
     }
@@ -34,10 +39,11 @@ public final class ClientRuntimeSelfTest {
     @SubscribeEvent
     public static void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) return;
-        if (!Boolean.getBoolean(ENABLE_PROPERTY)) return;
 
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null) return;
+        maybeOpenItemRenderRegression(minecraft);
+        if (!Boolean.getBoolean(ENABLE_PROPERTY)) return;
         tickCounter++;
 
         switch (state) {
@@ -46,6 +52,15 @@ public final class ClientRuntimeSelfTest {
             case DONE -> {
             }
         }
+    }
+
+    private static void maybeOpenItemRenderRegression(Minecraft minecraft) {
+        if (!Boolean.getBoolean(ITEM_RENDER_REGRESSION_PROPERTY) || itemRenderRegressionOpened) return;
+        if (HTML.getTemple(ITEM_RENDER_REGRESSION_DOC_PATH) == null) return;
+
+        minecraft.setScreen(new ApricityScreen(ITEM_RENDER_REGRESSION_DOC_PATH));
+        itemRenderRegressionOpened = true;
+        ApricityUI.LOGGER.info("[AUI SelfTest] opened item render regression screen");
     }
 
     private static void maybeStart() {
@@ -67,6 +82,7 @@ public final class ClientRuntimeSelfTest {
         List<String> failures = new ArrayList<>();
         validateLifecycleDocument(failures);
         validateRuntimeDocument(failures);
+        validateSlotInteractionCapabilities(failures);
 
         if (failures.isEmpty()) {
             ApricityUI.LOGGER.info("[AUI SelfTest] PASS client runtime self-test");
@@ -139,6 +155,48 @@ public final class ClientRuntimeSelfTest {
         if (pathname == null || !pathname.endsWith(RUNTIME_DOC_PATH)) {
             failures.add("location.pathname unexpected: " + safe(pathname)
                     + " href=" + safe(body.getAttribute("data-location-href")));
+        }
+    }
+
+    private static void validateSlotInteractionCapabilities(List<String> failures) {
+        Slot slot = new Slot(new Document("test://slot-interaction", false));
+        slot.bindToMenuSlot(ItemRenderState.EMPTY);
+
+        expectSlotCapabilities(slot, true, true, failures, "bound default");
+        slot.setAttribute("interactive", "tooltip");
+        expectSlotCapabilities(slot, true, false, failures, "tooltip");
+        slot.setAttribute("interactive", "slot");
+        expectSlotCapabilities(slot, false, true, failures, "slot");
+        slot.setAttribute("interactive", "none");
+        expectSlotCapabilities(slot, false, false, failures, "none");
+        slot.setAttribute("interactive", "tooltip slot");
+        expectSlotCapabilities(slot, true, true, failures, "tooltip slot");
+        slot.setAttribute("render", "none");
+        expectSlotCapabilities(slot, true, true, failures, "render none keeps interaction");
+        slot.setAttribute("interactive", "0");
+        expectSlotCapabilities(slot, true, true, failures, "legacy boolean falls back to default");
+        slot.setAttribute("disabled", "");
+        if (slot.isDisabled()) {
+            failures.add("slot disabled attribute affected interaction state");
+        }
+
+        Slot hiddenDisplaySlot = new Slot(new Document("test://hidden-display-slot", false));
+        hiddenDisplaySlot.innerText = "minecraft:diamond";
+        hiddenDisplaySlot.setAttribute("render", "none");
+        hiddenDisplaySlot.tick();
+        if (hiddenDisplaySlot.getTooltipStack().isEmpty()) {
+            failures.add("render=none removed a display slot tooltip stack");
+        }
+        if (!hiddenDisplaySlot.getItemRenderState().stack().isEmpty()) {
+            failures.add("render=none still produced an item render state");
+        }
+    }
+
+    private static void expectSlotCapabilities(Slot slot, boolean tooltip, boolean menuSlot,
+                                               List<String> failures, String label) {
+        if (slot.canShowItemTooltip() != tooltip || slot.canOperateBoundMenuSlot() != menuSlot) {
+            failures.add(label + " expected tooltip=" + tooltip + " slot=" + menuSlot
+                    + " actual tooltip=" + slot.canShowItemTooltip() + " slot=" + slot.canOperateBoundMenuSlot());
         }
     }
 

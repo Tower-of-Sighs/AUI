@@ -137,16 +137,41 @@ Minecraft 专属标签是这些：
 这些变量在 `slot` 和 `container` 场景里很好用：
 
 - `--aui-slot-size`
-- `--aui-slot-render-bg`
-- `--aui-slot-render-item`
 - `--aui-slot-icon-scale`
 - `--aui-slot-z`
-- `--aui-slot-interactive`
+- `--aui-slot-interactive`（`tooltip`、`slot`、`none` 或 `tooltip slot`）
 - `--aui-slot-cycle`
 - `--aui-slot-cycle-interval`
 - `--aui-container-columns`
 
 如果你在写容器 UI，这组变量建议直接记住。
+
+---
+
+### slot 物品渲染
+
+`slot` 的视觉模式统一由 `render` 属性控制：
+
+```html
+<slot render="all">minecraft:diamond</slot>
+<slot render="bg">minecraft:diamond</slot>
+<slot render="item">minecraft:diamond</slot>
+<slot render="none">minecraft:diamond</slot>
+```
+
+- `all`：背景和物品都绘制；缺省、空值或非法值也按 `all`。
+- `bg`：只绘制 slot 背景。
+- `item`：只绘制物品模型和装饰。
+- `none`：背景和物品都不绘制。
+- 物品 tooltip 与菜单取放由 `interactive` 能力独立控制，`render` 只影响可见性。
+
+标准 Item 和 BlockItem 会通过 AUI 的内容渲染节点提交模型顶点；展示槽位在主菜单、没有存档或 `Minecraft.level == null`
+时也可以解析标准模型。最终模型要求自定义 renderer 时，AUI 会通过 Forge BEWLR 在同一 ItemDrawer 路径中受控绘制；动态标准模型只做帧内
+mesh 缓存，避免跨帧陈旧 quad。模型解析或第三方 renderer 实际抛错时不会回退到原版 `renderItem`，而会显示紫黑棋盘格并记录一次诊断。Forge
+`ItemDecorator` 扩展同样不会执行，因为它依赖原版 `GuiGraphics` 物品装饰路径。
+
+Tooltip 仍由 Minecraft 绘制。旧的 `--aui-slot-render-bg`、`--aui-slot-render-item`、`render-bg` 和 `render-item`
+已移除，这是保持版本号不变的破坏性更新。
 
 ---
 
@@ -236,10 +261,11 @@ window.setTimeout(() => {
 这里只点重点，更完整的说明请看对应章节。
 
 1. `slot` 现在统一用一个标签，容器内默认 bound，容器外默认 virtual。
-2. virtual 物品优先读 innerText，不再推荐旧属性写法。
-3. `recipe` 现在是 `<recipe type="..."></recipe>` 这种风格，配方 id 读 innerText，不再读 `recipe-id`。
-4. `translation` 的 innerText 就是翻译 key。
-5. `sprite` 用 `src + steps + duration + direction` 这一套参数，别再用旧时代切图思路硬塞浏览器插件写法。
+2. `slot` 使用 `render="all|bg|item|none"` 控制视觉层，旧 render flag 与 CSS 变量不再支持。
+3. virtual 物品优先读 innerText，不再推荐旧属性写法。
+4. `recipe` 现在是 `<recipe type="..."></recipe>` 这种风格，配方 id 读 innerText，不再读 `recipe-id`。
+5. `translation` 的 innerText 就是翻译 key。
+6. `sprite` 用 `src + steps + duration + direction` 这一套参数，别再用旧时代切图思路硬塞浏览器插件写法。
 
 ---
 

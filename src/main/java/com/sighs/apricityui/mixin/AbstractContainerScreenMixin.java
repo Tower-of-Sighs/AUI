@@ -1,6 +1,5 @@
 package com.sighs.apricityui.mixin;
 
-import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -26,9 +25,17 @@ public abstract class AbstractContainerScreenMixin {
         }
     }
 
+    // Forge 新增的四整型 overload 不在 named→SRG 映射中；patched 目标保留该方法名。
     @Inject(method = "renderSlotHighlight(Lnet/minecraft/client/gui/GuiGraphics;IIII)V", at = @At("HEAD"), cancellable = true, remap = false)
     private static void apricityui$cancelVanillaSlotHighlightLegacy(CallbackInfo ci) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
+            ci.cancel();
+        }
+    }
+
+    @Inject(method = "renderFloatingItem(Lnet/minecraft/client/gui/GuiGraphics;Lnet/minecraft/world/item/ItemStack;IILjava/lang/String;)V", at = @At("HEAD"), cancellable = true)
+    private void apricityui$cancelVanillaFloatingItem(CallbackInfo ci) {
+        if ((Object) this instanceof ApricityContainerScreen) {
             ci.cancel();
         }
     }
@@ -38,15 +45,16 @@ public abstract class AbstractContainerScreenMixin {
         if (!((Object) this instanceof ApricityContainerScreen screen)) {
             return;
         }
-        if (!screen.isSlotPointerInteractable(slot)) {
+        if (!screen.canOperateSlot(slot)) {
             cir.setReturnValue(false);
+            return;
+        }
+        if (screen.isSlotBound(slot)) {
+            cir.setReturnValue(screen.isBoundElementHovered(slot, mouseX, mouseY));
             return;
         }
 
         int slotSize = 16;
-        if (slot instanceof ApricityContainerMenu.UiSlot uiSlot) {
-            slotSize = Math.max(1, uiSlot.getUiSlotSize());
-        }
 
         double localX = mouseX - (double) leftPos;
         double localY = mouseY - (double) topPos;

@@ -139,9 +139,7 @@ public final class RecipeExpander {
                 "data-role", roleName,
                 "data-i", String.valueOf(Math.max(0, roleIndex)),
                 "data-group", group == null ? "absolute" : group,
-                "interactive", "0",
-                "pointer", "0",
-                "style", "--aui-slot-interactive:0;"
+                "interactive", "tooltip"
         ), true);
         slot.innerText = entry.slotExpression();
         recipe.append(slot);
