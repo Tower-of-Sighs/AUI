@@ -123,6 +123,31 @@ class SelectCompatibilityTest {
     }
 
     @Test
+    void popupRowsInheritOptionTooltipTranslationKeys() {
+        Document document = TestDocumentFactory.createDocument();
+        Select select = new Select(document);
+        Option first = option(document, "First", "a");
+        Option second = option(document, "Second", "b");
+        first.setAttribute("data-tooltip-key", "tooltip.first");
+        second.setAttribute("data-tooltip-key", "tooltip.second");
+        document.body.appendChild(select);
+        select.appendChild(first);
+        select.appendChild(second);
+        setSelectTestGeometry(select);
+
+        try {
+            select.openPopup();
+            List<Element> rows = document.querySelectorAll(".aui-select-option");
+            assertEquals(2, rows.size());
+            assertEquals("tooltip.first", rows.get(0).getAttribute("data-tooltip-key"));
+            assertEquals("tooltip.second", rows.get(1).getAttribute("data-tooltip-key"));
+        } finally {
+            select.closePopup();
+            document.remove();
+        }
+    }
+
+    @Test
     void keyboardNavigationSkipsDisabledOptionsAndEscapeCancelsPopupChoice() {
         Document document = TestDocumentFactory.createDocument();
         Select select = new Select(document);

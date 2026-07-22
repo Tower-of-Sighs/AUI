@@ -1,6 +1,7 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.dev.ResourceManager;
+import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
@@ -51,12 +52,13 @@ class ResourceManagerScrollTest {
             imageCard.click();
 
             assertNotNull(document.querySelector(".detail-panel.active"));
-            Element image = document.querySelector(".detail-icon img");
+            Element image = imageCard.querySelector(".file-thumbnail");
             assertNotNull(image);
             assertEquals("/devtools/bear.png", image.getAttribute("src"));
-            assertTrue(hasAction(document, "COPY PATH"));
-            assertTrue(hasAction(document, "PREVIEW"));
-            assertTrue(hasAction(document, "COPY SOURCE"));
+            imageCard.dispatchEvent(new MouseEvent("contextmenu", Position.ZERO, 1, false));
+            assertTrue(hasContextAction(document, "COPY PATH"));
+            assertTrue(hasContextAction(document, "PREVIEW"));
+            assertTrue(hasContextAction(document, "COPY SOURCE"));
 
             document.querySelector("#upButton").click();
             assertEquals("ROOT", document.querySelector("#contentTitle").getTextContent());
@@ -102,17 +104,18 @@ class ResourceManagerScrollTest {
             assertNotNull(newButton);
             newButton.click();
 
-            assertNotNull(document.querySelector("#resourceCreateDialog"));
-            assertNotNull(document.querySelector(".resource-create-input"));
+            assertNotNull(document.querySelector(".dialog-overlay.show"));
+            assertNotNull(document.querySelector(".dialog-input"));
+            assertNotNull(document.querySelector(".resource-create-file-input"));
             assertEquals(2, document.querySelectorAll(".resource-import-card").size());
-            assertNotNull(document.querySelector(".resource-create-submit"));
+            assertNotNull(document.querySelector(".dialog-btn-confirm"));
         } finally {
             ResourceManager.close();
         }
     }
 
     @Test
-    void htmlPreviewCreatesPersistentPreviewDocument() throws Exception {
+    void htmlPreviewCreatesDialogOwnedPreviewDocument() throws Exception {
         String path = "test://resource-manager-html-preview";
         HTML.putTemple(path, "<body><div style=\"width:40px;height:20px;background-color:#ffffff;\"></div></body>");
         Loader.StaticResourceEntry entry = new Loader.StaticResourceEntry(
@@ -124,21 +127,24 @@ class ResourceManagerScrollTest {
                 1
         );
 
-        Method openHtmlPreview = ResourceManager.class.getDeclaredMethod("openHtmlPreview", Loader.StaticResourceEntry.class);
-        openHtmlPreview.setAccessible(true);
-        Field previewDocumentField = ResourceManager.class.getDeclaredField("previewDocument");
-        Field previewDocumentPathField = ResourceManager.class.getDeclaredField("previewDocumentPath");
+        Document owner = TestDocumentFactory.createDocument();
+        setViewport(owner, 1280, 720);
+        ResourcePreviewDialog previewDialog = new ResourcePreviewDialog();
+        Field previewDocumentField = ResourcePreviewDialog.class.getDeclaredField("preview");
+        Field previewDocumentPathField = ResourcePreviewDialog.class.getDeclaredField("sourcePath");
         previewDocumentField.setAccessible(true);
         previewDocumentPathField.setAccessible(true);
 
-        openHtmlPreview.invoke(null, entry);
-        Document previewDocument = (Document) previewDocumentField.get(null);
+        previewDialog.open(owner, entry);
+        Document previewDocument = (Document) previewDocumentField.get(previewDialog);
         try {
             assertNotNull(previewDocument);
-            assertTrue(previewDocument.isReloadPersistent());
-            assertEquals(path, previewDocumentPathField.get(null));
+            assertFalse(previewDocument.isReloadPersistent());
+            assertTrue(previewDocument.isManuallyRendered());
+            assertEquals(path, previewDocumentPathField.get(previewDialog));
         } finally {
-            ResourceManager.close();
+            previewDialog.close();
+            owner.remove();
         }
     }
 
@@ -155,6 +161,12 @@ class ResourceManagerScrollTest {
         render.setAccessible(true);
         render.invoke(null, entries);
         return document;
+    }
+
+    private static void setViewport(Document document, int width, int height) throws Exception {
+        Field viewport = Document.class.getDeclaredField("viewport");
+        viewport.setAccessible(true);
+        viewport.set(document, new com.sighs.apricityui.instance.ApricityViewport(width, height, 1.0f, 1.0d));
     }
 
     private static List<Loader.StaticResourceEntry> sampleEntries() {
@@ -177,8 +189,8 @@ class ResourceManagerScrollTest {
         );
     }
 
-    private static boolean hasAction(Document document, String label) {
-        for (Element action : document.querySelectorAll(".detail-tags .tag")) {
+    private static boolean hasContextAction(Document document, String label) {
+        for (Element action : document.querySelectorAll(".ctx-label")) {
             if (label.equals(action.getTextContent())) return true;
         }
         return false;

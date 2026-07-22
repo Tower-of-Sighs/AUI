@@ -191,7 +191,13 @@ public class Document {
     public void applyViewport(boolean relayout) {
         if (inWorld) return;
         ApricityViewport previous = viewport;
-        viewport = viewportState.resolve(Minecraft.getInstance().getWindow());
+        try {
+            viewport = viewportState.resolve(Minecraft.getInstance().getWindow());
+        } catch (NoClassDefFoundError unavailableClientRuntime) {
+            if (!isUnavailableClientRuntime(unavailableClientRuntime)) throw unavailableClientRuntime;
+            Size fallback = Size.getWindowSize();
+            viewport = viewportState.resolveHeadless((int) Math.round(fallback.width()), (int) Math.round(fallback.height()));
+        }
         setViewportTransform(viewport.renderScale(), viewport.renderScale(), 0.0d, 0.0d);
         if (!viewport.equals(previous)) {
             viewportVersion++;
@@ -199,6 +205,14 @@ public class Document {
         if (relayout) {
             markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
         }
+    }
+
+    private static boolean isUnavailableClientRuntime(NoClassDefFoundError error) {
+        String missing = error.getMessage();
+        if (missing == null) return false;
+        String className = missing.replace('.', '/');
+        return className.startsWith("net/minecraft/client/")
+                || className.equals("com/mojang/blaze3d/platform/Window");
     }
 
     public boolean handleViewportZoom(boolean zoomIn) {
@@ -800,9 +814,14 @@ public class Document {
         if (HTML.getTemple(path) == null) return null;
         Document document = new Document(path, false);
         documents.add(document);
-        document.refresh();
-        document.applyViewport(false);
-        return document;
+        try {
+            document.refresh();
+            document.applyViewport(false);
+            return document;
+        } catch (RuntimeException | LinkageError failure) {
+            document.remove();
+            throw failure;
+        }
     }
 
     public static Document createInWorld(String path) {

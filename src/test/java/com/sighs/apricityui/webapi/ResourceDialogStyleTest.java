@@ -51,6 +51,7 @@ class ResourceDialogStyleTest {
             Element create = document.querySelector(".dialog-btn-confirm");
             assertEquals("var(--purple)", header.getComputedStyle().backgroundColor);
             assertEquals("2px solid var(--gray-light)", input.getComputedStyle().border);
+            assertEquals("tests/", input.value);
             assertTrue(create.isDisabled());
             assertTrue(create.matches(".dialog-btn:disabled"));
             assertTrue(document.CSSCache.containsKey(".dialog-btn:disabled"));
@@ -68,6 +69,8 @@ class ResourceDialogStyleTest {
             assertEquals(3, document.querySelectorAll(".dialog-select-wrap").size());
             assertEquals(3, document.querySelectorAll(".dialog-select").size());
             assertEquals(3, document.querySelectorAll(".dialog-select-arrow").size());
+            assertEquals(3, document.querySelectorAll(".resource-meta-select[data-tooltip-key]").size());
+            assertEquals(12, document.querySelectorAll(".resource-meta-option[data-tooltip-key]").size());
 
             Element select = document.querySelector(".dialog-select");
             Element arrow = document.querySelector(".dialog-select-arrow");
@@ -81,6 +84,18 @@ class ResourceDialogStyleTest {
             assertEquals("var(--purple-dark)", Selector.matchCSS(arrow).get("background"));
         } finally {
             metaDialog.close();
+        }
+    }
+
+    @Test
+    void createDialogDefaultsToResourceRootPath() throws Exception {
+        Document document = styledDocument();
+        ResourceCreateDialog createDialog = new ResourceCreateDialog();
+        createDialog.open(document, "", null);
+        try {
+            assertEquals("/", document.querySelector(".dialog-input").value);
+        } finally {
+            createDialog.close();
         }
     }
 

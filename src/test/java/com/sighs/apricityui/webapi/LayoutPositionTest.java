@@ -62,7 +62,7 @@ class LayoutPositionTest {
     }
 
     @Test
-    void absoluteRightAnchorsAgainstParentContentBoxWhenLeftIsAuto() {
+    void absoluteRightAnchorsAgainstParentPaddingBoxWhenLeftIsAuto() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 120px;");
 
@@ -74,15 +74,15 @@ class LayoutPositionTest {
         absoluteChild.setAttribute("style", "position: absolute; right: 0; top: 0; width: 40px; height: 20px;");
         parent.appendChild(absoluteChild);
 
-        double parentInnerWidth = com.sighs.apricityui.style.Box.of(parent).innerSize().width();
+        double parentPaddingBoxWidth = Size.of(parent).width() - Box.of(parent).getBorderHorizontal();
         double childWidth = Size.box(absoluteChild).width();
 
-        assertEquals(parentInnerWidth - childWidth, Position.getOffset(absoluteChild).x);
+        assertEquals(parentPaddingBoxWidth - childWidth, Position.getOffset(absoluteChild).x);
         assertEquals(0, Position.getOffset(absoluteChild).y);
     }
 
     @Test
-    void absoluteBottomAnchorsAgainstParentContentBoxWhenTopIsAuto() {
+    void absoluteBottomAnchorsAgainstParentPaddingBoxWhenTopIsAuto() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
 
@@ -94,11 +94,11 @@ class LayoutPositionTest {
         absoluteChild.setAttribute("style", "position: absolute; bottom: 0; left: 0; width: 20px; height: 15px;");
         parent.appendChild(absoluteChild);
 
-        double parentInnerHeight = Box.of(parent).innerSize().height();
+        double parentPaddingBoxHeight = Size.of(parent).height() - Box.of(parent).getBorderVertical();
         double childHeight = Size.box(absoluteChild).height();
 
         assertEquals(0, Position.getOffset(absoluteChild).x);
-        assertEquals(parentInnerHeight - childHeight, Position.getOffset(absoluteChild).y);
+        assertEquals(parentPaddingBoxHeight - childHeight, Position.getOffset(absoluteChild).y);
     }
 
     @Test

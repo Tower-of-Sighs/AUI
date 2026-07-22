@@ -50,7 +50,8 @@ public final class ResourceCreateDialog {
         pathInput = element(document, "INPUT", "dialog-input");
         pathInput.setAttribute("type", "text");
         pathInput.setAttribute("placeholder", "example/original-file.html");
-        pathInput.value = ResourcePath.normalize(currentPath).isBlank() ? "" : ResourcePath.normalize(currentPath) + "/";
+        String normalizedCurrentPath = ResourcePath.normalize(currentPath);
+        pathInput.value = normalizedCurrentPath.isBlank() ? "/" : normalizedCurrentPath + "/";
         pathInput.addEventListener("input", event -> refreshSubmit(document));
         pathInput.addEventListener("change", event -> refreshSubmit(document));
         pathField.append(pathInput); root.append(pathField);

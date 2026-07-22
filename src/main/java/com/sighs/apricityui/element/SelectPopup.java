@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.ui.tooltip.Tooltip;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -74,6 +75,7 @@ final class SelectPopup {
         closed = true;
         document.removeEventListener("mousedown", outsideMouseListener, true);
         document.removeEventListener("contextmenu", outsideContextMenuListener, true);
+        Tooltip.hide(document);
         if (panel != null) panel.remove();
         panel = null;
         rows.clear();
@@ -127,6 +129,7 @@ final class SelectPopup {
 
     private void mount() {
         if (document == null || document.body == null || options.isEmpty()) return;
+        Tooltip.hide(document);
         Element.DOMRect initialAnchor = select.getBoundingClientRect();
         panel = element("DIV", "aui-select-popup");
         panel.setAttribute("role", "listbox");
@@ -178,6 +181,11 @@ final class SelectPopup {
         row.setAttribute("aria-selected", Boolean.toString(option.isSelected()));
         row.setAttribute("aria-disabled", Boolean.toString(option.isOptionEffectivelyDisabled()));
         row.setTextContent(option.getOptionLabel());
+        String tooltipKey = option.getAttribute("data-tooltip-key");
+        if (tooltipKey != null && !tooltipKey.isBlank()) {
+            row.setAttribute("data-tooltip-key", tooltipKey);
+            Tooltip.bindTranslation(row, tooltipKey);
+        }
         row.addEventListener("mouseenter", event -> setActiveIndex(index, false));
         row.addEventListener("mousedown", event -> {
             event.preventDefault();

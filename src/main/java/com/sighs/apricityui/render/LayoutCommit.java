@@ -54,9 +54,18 @@ public final class LayoutCommit {
 
         long transformDependency = target.getRenderer().transformDependency(target.document);
         if (!target.getRenderer().hasCommittedWorldTransform(transformDependency)) {
-            Matrix4f matrix = Base.createAndCacheWorldTransform(target);
-            target.getRenderer().commitWorldTransform(matrix, transformDependency);
+            try {
+                Matrix4f matrix = Base.createAndCacheWorldTransform(target);
+                target.getRenderer().commitWorldTransform(matrix, transformDependency);
+            } catch (NoClassDefFoundError unavailableRenderRuntime) {
+                if (!isOptionalRenderDependency(unavailableRenderRuntime)) throw unavailableRenderRuntime;
+            }
         }
+    }
+
+    private static boolean isOptionalRenderDependency(NoClassDefFoundError error) {
+        String missing = error.getMessage();
+        return missing != null && (missing.startsWith("org/joml/") || missing.startsWith("com/mojang/blaze3d/"));
     }
 
     private static void ensureRendererLoaded(Element target) {

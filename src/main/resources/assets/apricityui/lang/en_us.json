@@ -1,4 +1,20 @@
 {
   "key.categories.apricityui": "ApricityUI",
-  "key.apricityui.reload": "Reload"
+  "key.apricityui.reload": "Reload",
+  "tooltip.apricityui.meta.viewport": "Controls the coordinate space and scaling used to lay out this document.",
+  "tooltip.apricityui.meta.viewport.not_set": "Uses ApricityUI's default viewport behavior.",
+  "tooltip.apricityui.meta.viewport.gui": "Uses Minecraft GUI-scaled coordinates and follows the current GUI scale.",
+  "tooltip.apricityui.meta.viewport.browser": "Uses CSS-style browser coordinates based on the window size.",
+  "tooltip.apricityui.meta.viewport.screen": "Uses physical screen pixels without GUI scaling.",
+  "tooltip.apricityui.meta.viewport.fixed_gui": "Lays out at 427 x 249, a fixed reference size suited to GUI layouts.",
+  "tooltip.apricityui.meta.viewport.fixed_fit": "Lays out at 1920 x 1080 and uniformly scales the result to fit the window.",
+  "tooltip.apricityui.meta.font_mode": "Selects the font renderer and the way CSS font sizes are interpreted.",
+  "tooltip.apricityui.meta.font_mode.not_set": "Uses ApricityUI's default font rendering mode.",
+  "tooltip.apricityui.meta.font_mode.mc": "Uses Minecraft's font renderer and native GUI text sizing.",
+  "tooltip.apricityui.meta.font_mode.web": "Uses web font metrics with CSS pixel sizes.",
+  "tooltip.apricityui.meta.font_mode.web_scaled": "Uses web font metrics while scaling text with the document viewport.",
+  "tooltip.apricityui.meta.mouse_events": "Controls whether pointer events stop at this document or pass to content behind it.",
+  "tooltip.apricityui.meta.mouse_events.pass_through": "Allows unhandled pointer events to continue to documents or the game behind this UI.",
+  "tooltip.apricityui.meta.mouse_events.intercept": "Stops pointer events inside this document from reaching content behind it.",
+  "tooltip.apricityui.meta.current": "Preserves the custom value currently stored in this document."
 }

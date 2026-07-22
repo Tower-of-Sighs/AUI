@@ -16,6 +16,7 @@ import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.ui.tooltip.Tooltip;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
@@ -172,6 +173,11 @@ public class Client {
         KEY_MAP.put("key.keyboard.print.screen", 283);
         KEY_MAP.put("key.keyboard.world.1", 161);
         KEY_MAP.put("key.keyboard.world.2", 162);
+    }
+
+    @SubscribeEvent
+    public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
+        Tooltip.moveActive(new Position(event.getMouseX(), event.getMouseY()));
     }
 
     @SubscribeEvent
