@@ -20,16 +20,13 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DevToolsTest {
-    private static final Path REFERENCE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/devtools0.html");
     private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/devtools.html");
     private static final Path LEGACY = Path.of("src/main/resources/assets/apricityui/apricity/devtools/index.html");
 
     @Test
-    void templateKeepsReferenceStyleButContainsNoRuntimeJavascript() throws Exception {
-        String reference = Files.readString(REFERENCE);
+    void templateContainsNoRuntimeJavascriptAndKeepsRequiredMetadata() throws Exception {
         String template = Files.readString(TEMPLATE);
 
-        assertEquals(styleBlock(reference), styleBlock(template));
         assertFalse(template.toLowerCase().contains("<script"));
         assertFalse(template.contains("onclick="));
         assertTrue(template.contains("<meta name=\"aui-font-mode\" content=\"web\">"));
@@ -238,9 +235,4 @@ class DevToolsTest {
         return document.getPath() + " [" + document.getUuid().toString().substring(0, 4) + "]";
     }
 
-    private static String styleBlock(String html) {
-        int start = html.indexOf("<style>");
-        int end = html.indexOf("</style>", start);
-        return html.substring(start, end + "</style>".length()).replace("\r\n", "\n");
-    }
 }

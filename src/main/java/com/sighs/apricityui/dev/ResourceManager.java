@@ -2,6 +2,7 @@ package com.sighs.apricityui.dev;
 
 import com.sighs.apricityui.dev.resource.ResourceCreateDialog;
 import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
+import com.sighs.apricityui.dev.resource.ResourceFontAsset;
 import com.sighs.apricityui.dev.resource.ResourcePath;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.ui.toast.ToastManager;
@@ -456,6 +457,11 @@ public final class ResourceManager {
             thumbnail.setAttribute("alt", fileName(entry.path()));
             thumbnail.setAttribute("style", "width:48px;height:48px;object-fit:contain;");
             icon.append(thumbnail);
+        } else if (ResourceFontAsset.isFont(entry)) {
+            ResourceFontAsset.ensureLoaded(entry);
+            Element glyph = textElement("DIV", "Aa", "file-font-glyph");
+            glyph.setAttribute("style", "font-family:'" + ResourceFontAsset.familyName(entry) + "',sans-serif;");
+            icon.append(glyph);
         } else {
             icon.setInnerHTML(fallbackIcon);
         }
@@ -703,7 +709,7 @@ public final class ResourceManager {
     }
 
     private static boolean isPreviewable(Loader.StaticResourceEntry entry) {
-        return isHtmlPreviewable(entry) || isImagePreviewable(entry);
+        return isHtmlPreviewable(entry) || isImagePreviewable(entry) || ResourceFontAsset.isFont(entry);
     }
 
     private static String resolveSourceForCopy(Loader.StaticResourceEntry entry) {

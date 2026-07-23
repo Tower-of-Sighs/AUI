@@ -496,17 +496,18 @@ public class Text {
         if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
         java.util.List<Font.FontRun> runs = Font.planFontRuns(text.fontFamily, fontStyle, Font.getBaseFontSize(), line);
         if (runs.isEmpty()) return 0;
-        int baseWidth = 0;
-        for (Font.FontRun run : runs) {
-            if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
-            FontMetrics fm = METRICS_CANVAS.getFontMetrics(run.font());
-            baseWidth += fm.stringWidth(run.text());
-        }
 
         float currentSize = (float) text.renderedFontSize();
         float scale = currentSize / Font.getBaseFontSize();
+        if (scale <= 0.0f || !Float.isFinite(scale)) {
+            return letterSpacingWidth + text.strokeWidth * 2.0;
+        }
 
-        return baseWidth * scale + text.strokeWidth * 2.0 + letterSpacingWidth;
+        // Font runs are measured at the base size, so CSS letter spacing must be
+        // supplied in the same coordinate space before the result is scaled.
+        double baseLetterSpacing = text.letterSpacing / scale;
+        double baseWidth = Font.measureFontRuns(runs, METRICS_CANVAS::getFontMetrics, baseLetterSpacing, true);
+        return baseWidth * scale + text.strokeWidth * 2.0;
     }
 
     public String toKey() {

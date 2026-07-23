@@ -10,9 +10,11 @@ import com.sighs.apricityui.style.Flex;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.resource.Font;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
+import java.awt.Canvas;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -464,6 +466,26 @@ class LayoutPositionTest {
         double plainWidth = Text.measureLine(Text.of(plain), "INSPECT");
         double spacedWidth = Text.measureLine(Text.of(spaced), "INSPECT");
         assertEquals(7 * 1.5, spacedWidth - plainWidth, 0.01);
+    }
+
+    @Test
+    void spacedTextMeasurementMatchesPerGlyphRasterAdvanceThroughFinalGlyph() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        Element title = new Element(document, "span");
+        title.setAttribute("style", "font-family:Dialog;font-size:14px;font-weight:600;letter-spacing:3px;");
+
+        String content = "TEST/LXGWMARKERGOTHIC-REGULAR.TTF";
+        Text text = Text.of(title);
+        int style = text.isBold() ? java.awt.Font.BOLD : java.awt.Font.PLAIN;
+        var runs = Font.planFontRuns(text.fontFamily, style, Font.getBaseFontSize(), content);
+        Canvas metrics = new Canvas();
+        double scale = text.renderedFontSize() / Font.getBaseFontSize();
+        double expected = Font.measureFontRuns(runs, metrics::getFontMetrics, text.letterSpacing / scale, true) * scale;
+
+        assertEquals(expected, Text.measureLine(text, content), 0.01);
+        double rasterAdvance = Font.measureFontRuns(runs, metrics::getFontMetrics, text.letterSpacing / scale, false) * scale;
+        assertEquals(text.letterSpacing, expected - rasterAdvance, 0.01);
     }
 
     @Test
