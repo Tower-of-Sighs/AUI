@@ -1,0 +1,361 @@
+package com.sighs.apricityui.dev.devtools;
+
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.init.Selector;
+import com.sighs.apricityui.style.Box;
+
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+
+final class DevToolsInspector {
+    private final DevToolsController controller;
+
+    DevToolsInspector(DevToolsController controller) {
+        this.controller = controller;
+    }
+
+    void render(Document targetDocument, Element selected, DevToolsController.InspectorTab activeTab) {
+        Document tool = controller.toolDocument();
+        if (tool == null) return;
+        Element attributes = tool.querySelector("#pane-attributes");
+        Element styles = tool.querySelector("#pane-styles");
+        Element boxModel = tool.querySelector("#pane-boxmodel");
+        if (attributes == null || styles == null || boxModel == null) return;
+        DevToolsDom.clear(attributes);
+        DevToolsDom.clear(styles);
+        DevToolsDom.clear(boxModel);
+
+        if (targetDocument == null || selected == null) {
+            renderEmpty(attributes);
+            renderEmpty(styles);
+            renderEmpty(boxModel);
+            return;
+        }
+        renderAttributes(attributes, selected);
+        renderStyles(styles, selected);
+        renderBoxModel(boxModel, selected);
+    }
+
+    private void renderEmpty(Element pane) {
+        Document tool = pane.document;
+        Element empty = DevToolsDom.element(tool, "DIV", "empty-state");
+        empty.append(DevToolsDom.text(tool, "DIV", "empty-state-icon", "<>"));
+        empty.append(DevToolsDom.text(tool, "DIV", "empty-state-text", "No element selected"));
+        empty.append(DevToolsDom.text(tool, "DIV", "empty-state-sub", "Click an element in the tree"));
+        pane.append(empty);
+    }
+
+    private void renderAttributes(Element pane, Element target) {
+        Document tool = pane.document;
+        Element block = DevToolsDom.element(tool, "DIV", "attr-block");
+        block.append(DevToolsDom.text(tool, "DIV", "attr-block-header",
+                target.tagName.toUpperCase(Locale.ROOT) + " \u00b7 ATTRIBUTES"));
+
+        if (target.getAttributes().isEmpty()) {
+            Element empty = DevToolsDom.text(tool, "DIV", "attr-row", "No attributes");
+            empty.setAttribute("style", "color:var(--gray);font-size:10px;letter-spacing:0.5px;");
+            block.append(empty);
+        } else {
+            for (Map.Entry<String, String> attribute : target.getAttributes().entrySet()) {
+                block.append(attributeRow(target, attribute.getKey(), attribute.getValue()));
+            }
+        }
+
+        Element add = DevToolsDom.text(tool, "DIV", "attr-add", "+ ADD ATTRIBUTE");
+        add.addEventListener("click", event -> showAttributeAdder(block, add, target));
+        block.append(add);
+        pane.append(block);
+
+        Element info = DevToolsDom.element(tool, "DIV", "attr-block");
+        info.append(DevToolsDom.text(tool, "DIV", "attr-block-header", "ELEMENT INFO"));
+        info.append(infoRow(tool, "tag", target.tagName.toLowerCase(Locale.ROOT), "var(--tag)"));
+        String id = target.getAttribute("id");
+        info.append(infoRow(tool, "id", id == null || id.isBlank() ? shortUuid(target) : "#" + id, "var(--gray-dark)"));
+        info.append(infoRow(tool, "children", Integer.toString(target.children.size()), "var(--num)"));
+        pane.append(info);
+    }
+
+    private Element attributeRow(Element target, String key, String value) {
+        Document tool = controller.toolDocument();
+        Element row = DevToolsDom.element(tool, "DIV", "attr-row");
+        row.append(DevToolsDom.text(tool, "SPAN", "attr-name", key));
+        row.append(DevToolsDom.text(tool, "SPAN", "attr-eq", "="));
+        Element editor = DevToolsDom.input(tool, "attr-value", value, "");
+        editor.addEventListener("blur", event -> controller.updateAttribute(target, key, DevToolsDom.value(editor)));
+        editor.addEventListener("keydown", event -> {
+            if (!controller.isCommitKey(event)) return;
+            controller.updateAttribute(target, key, DevToolsDom.value(editor));
+            controller.clearToolFocus();
+        });
+        row.append(editor);
+        Element remove = DevToolsDom.text(tool, "DIV", "attr-delete", "\u00d7");
+        remove.setAttribute("title", "Delete");
+        remove.addEventListener("click", event -> controller.deleteAttribute(target, key));
+        row.append(remove);
+        return row;
+    }
+
+    private void showAttributeAdder(Element block, Element add, Element target) {
+        if (!add.isConnected()) return;
+        Document tool = block.document;
+        Element row = DevToolsDom.element(tool, "DIV", "attr-row");
+        Element name = DevToolsDom.input(tool, "attr-value", "", "name");
+        Element value = DevToolsDom.input(tool, "attr-value", "", "value");
+        Element save = DevToolsDom.text(tool, "DIV", "attr-delete", "+");
+        save.setAttribute("style", "opacity:1;color:var(--purple);");
+        Runnable commit = () -> controller.addAttribute(target, DevToolsDom.value(name), DevToolsDom.value(value));
+        save.addEventListener("click", event -> commit.run());
+        name.addEventListener("keydown", event -> commitOnEnter(event, commit));
+        value.addEventListener("keydown", event -> commitOnEnter(event, commit));
+        row.append(name);
+        row.append(value);
+        row.append(save);
+        add.before(row);
+        add.remove();
+        DevToolsDom.markDirty(tool);
+    }
+
+    private Element infoRow(Document tool, String key, String value, String color) {
+        Element row = DevToolsDom.element(tool, "DIV", "attr-row");
+        Element name = DevToolsDom.text(tool, "SPAN", "attr-name", key);
+        name.setAttribute("style", "color:var(--gray);");
+        row.append(name);
+        row.append(DevToolsDom.text(tool, "SPAN", "attr-eq", ":"));
+        Element result = DevToolsDom.text(tool, "SPAN", "", value);
+        result.setAttribute("style", "color:" + color + ";font-weight:600;");
+        row.append(result);
+        return row;
+    }
+
+    private void renderStyles(Element pane, Element target) {
+        Document tool = pane.document;
+        Element inline = DevToolsDom.element(tool, "DIV", "style-rule");
+        inline.append(DevToolsDom.text(tool, "DIV", "style-selector", selector(target)));
+        Element body = DevToolsDom.element(tool, "DIV", "style-body");
+
+        LinkedHashMap<String, String> declarations = controller.inlineStyles(target);
+        controller.disabledStyleEntries(target).forEach(declarations::putIfAbsent);
+        if (declarations.isEmpty()) {
+            Element empty = DevToolsDom.text(tool, "DIV", "style-prop", "No inline styles");
+            empty.setAttribute("style", "color:var(--gray);font-size:10px;");
+            body.append(empty);
+        } else {
+            declarations.forEach((property, value) -> body.append(stylePropertyRow(target, property, value)));
+        }
+        Element add = DevToolsDom.text(tool, "DIV", "style-add", "+ ADD PROPERTY");
+        add.addEventListener("click", event -> showStyleAdder(body, add, target));
+        body.append(add);
+        inline.append(body);
+        pane.append(inline);
+
+        Element computed = DevToolsDom.element(tool, "DIV", "style-rule");
+        computed.append(DevToolsDom.text(tool, "DIV", "style-selector", "computed \u00b7 size"));
+        Element computedBody = DevToolsDom.element(tool, "DIV", "style-body");
+        Element.DOMRect rect = boundingRect(target);
+        computedBody.append(readonlyStyleRow(tool, "width", px(rect.width)));
+        computedBody.append(readonlyStyleRow(tool, "height", px(rect.height)));
+        computed.append(computedBody);
+        pane.append(computed);
+
+        for (Selector.DebugStyleBlock matched : Selector.getDebugStyles(target)) {
+            Element rule = DevToolsDom.element(tool, "DIV", "style-rule");
+            String source = sourceName(matched.sourcePath());
+            rule.append(DevToolsDom.text(tool, "DIV", "style-selector", matched.selector() + " \u00b7 " + source));
+            Element ruleBody = DevToolsDom.element(tool, "DIV", "style-body");
+            matched.styles().forEach((property, value) -> ruleBody.append(readonlyStyleRow(tool, property, value)));
+            rule.append(ruleBody);
+            pane.append(rule);
+        }
+    }
+
+    private Element stylePropertyRow(Element target, String property, String value) {
+        Document tool = controller.toolDocument();
+        boolean disabled = controller.isStyleDisabled(target, property);
+        Element row = DevToolsDom.element(tool, "DIV", disabled ? "style-prop disabled" : "style-prop");
+        Element toggle = DevToolsDom.element(tool, "DIV", disabled ? "style-toggle" : "style-toggle on");
+        toggle.addEventListener("click", event -> controller.toggleStyle(target, property));
+        row.append(toggle);
+
+        Element name = DevToolsDom.input(tool, "style-name", property, "");
+        name.addEventListener("blur", event -> controller.renameStyle(target, property, DevToolsDom.value(name)));
+        name.addEventListener("keydown", event -> {
+            if (!controller.isCommitKey(event)) return;
+            controller.renameStyle(target, property, DevToolsDom.value(name));
+            controller.clearToolFocus();
+        });
+        row.append(name);
+        row.append(DevToolsDom.text(tool, "SPAN", "style-colon", ":"));
+
+        Element editor = DevToolsDom.input(tool, isColorValue(value) ? "style-value color-val" : "style-value", value, "");
+        editor.addEventListener("blur", event -> controller.updateStyle(target, property, DevToolsDom.value(editor)));
+        editor.addEventListener("keydown", event -> {
+            if (!controller.isCommitKey(event)) return;
+            controller.updateStyle(target, property, DevToolsDom.value(editor));
+            controller.clearToolFocus();
+        });
+        row.append(editor);
+        if (isColorValue(value)) {
+            Element swatch = DevToolsDom.element(tool, "SPAN", "style-color-swatch");
+            swatch.setAttribute("style", "background:" + value + ";");
+            row.append(swatch);
+        }
+        row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
+        Element remove = DevToolsDom.text(tool, "DIV", "style-prop-delete", "\u00d7");
+        remove.addEventListener("click", event -> controller.deleteStyle(target, property));
+        row.append(remove);
+        return row;
+    }
+
+    private void showStyleAdder(Element body, Element add, Element target) {
+        if (!add.isConnected()) return;
+        Document tool = body.document;
+        Element row = DevToolsDom.element(tool, "DIV", "style-prop");
+        row.append(DevToolsDom.element(tool, "DIV", "style-toggle on"));
+        Element name = DevToolsDom.input(tool, "style-name", "", "property");
+        Element value = DevToolsDom.input(tool, "style-value", "", "value");
+        Element save = DevToolsDom.text(tool, "DIV", "style-prop-delete", "+");
+        save.setAttribute("style", "opacity:1;color:var(--purple);");
+        Runnable commit = () -> controller.updateStyle(target, DevToolsDom.value(name), DevToolsDom.value(value));
+        save.addEventListener("click", event -> commit.run());
+        name.addEventListener("keydown", event -> commitOnEnter(event, commit));
+        value.addEventListener("keydown", event -> commitOnEnter(event, commit));
+        row.append(name);
+        row.append(DevToolsDom.text(tool, "SPAN", "style-colon", ":"));
+        row.append(value);
+        row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
+        row.append(save);
+        add.before(row);
+        add.remove();
+        DevToolsDom.markDirty(tool);
+    }
+
+    private Element readonlyStyleRow(Document tool, String property, String value) {
+        Element row = DevToolsDom.element(tool, "DIV", "style-prop");
+        Element name = DevToolsDom.text(tool, "SPAN", "style-name", property);
+        name.setAttribute("style", "color:var(--gray);");
+        row.append(name);
+        row.append(DevToolsDom.text(tool, "SPAN", "style-colon", ":"));
+        row.append(DevToolsDom.text(tool, "SPAN", "style-value", value));
+        row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
+        return row;
+    }
+
+    private void renderBoxModel(Element pane, Element target) {
+        Document tool = pane.document;
+        Box box = Box.of(target);
+        Element.DOMRect rect = boundingRect(target);
+        double contentWidth = Math.max(0, rect.width - box.getPaddingHorizontal() - box.getBorderHorizontal());
+        double contentHeight = Math.max(0, rect.height - box.getPaddingVertical() - box.getBorderVertical());
+
+        Element model = DevToolsDom.element(tool, "DIV", "boxmodel");
+        Element visual = DevToolsDom.element(tool, "DIV", "boxmodel-visual");
+        Element margin = DevToolsDom.element(tool, "DIV", "bx-margin");
+        margin.append(boxLabel(tool, "top", box.getMarginTop()));
+        margin.append(boxLabel(tool, "bottom", box.getMarginBottom()));
+        margin.append(boxLabel(tool, "left", box.getMarginLeft()));
+        margin.append(boxLabel(tool, "right", box.getMarginRight()));
+
+        Element border = DevToolsDom.element(tool, "DIV", "bx-border");
+        border.append(boxLabel(tool, "top", box.getBorderTop()));
+        border.append(boxLabel(tool, "bottom", box.getBorderBottom()));
+        Element padding = DevToolsDom.element(tool, "DIV", "bx-padding");
+        padding.append(boxLabel(tool, "top", box.getPaddingTop()));
+        padding.append(boxLabel(tool, "bottom", box.getPaddingBottom()));
+        Element content = DevToolsDom.text(tool, "DIV", "bx-content",
+                number(contentWidth) + " \u00d7 " + number(contentHeight));
+        padding.append(content);
+        border.append(padding);
+        margin.append(border);
+        visual.append(margin);
+
+        Element legend = DevToolsDom.element(tool, "DIV", "boxmodel-legend");
+        legend.append(legend(tool, "rgba(249,115,22,0.3)", "#f97316", "dashed", "MARGIN"));
+        legend.append(legend(tool, "rgba(139,92,246,0.3)", "#8b5cf6", "solid", "BORDER"));
+        legend.append(legend(tool, "rgba(34,197,94,0.3)", "#22c55e", "dashed", "PADDING"));
+        legend.append(legend(tool, "rgba(59,130,246,0.3)", "#3b82f6", "solid", "CONTENT"));
+        visual.append(legend);
+        model.append(visual);
+        pane.append(model);
+    }
+
+    private Element boxLabel(Document tool, String side, double value) {
+        return DevToolsDom.text(tool, "SPAN", "bx-label " + side, number(value));
+    }
+
+    private Element legend(Document tool, String background, String border, String borderStyle, String label) {
+        Element item = DevToolsDom.element(tool, "DIV", "legend-item");
+        Element swatch = DevToolsDom.element(tool, "SPAN", "legend-swatch");
+        swatch.setAttribute("style", "background:" + background + ";border:1px " + borderStyle + " " + border + ";");
+        item.append(swatch);
+        item.append(DevToolsDom.text(tool, "SPAN", "", label));
+        return item;
+    }
+
+    private void commitOnEnter(Event event, Runnable action) {
+        if (!controller.isCommitKey(event)) return;
+        action.run();
+        controller.clearToolFocus();
+    }
+
+    private static String selector(Element element) {
+        StringBuilder result = new StringBuilder(element.tagName.toLowerCase(Locale.ROOT));
+        String id = element.getAttribute("id");
+        if (id != null && !id.isBlank()) result.append('#').append(id);
+        String classes = element.getAttribute("class");
+        if (classes != null && !classes.isBlank()) {
+            for (String name : classes.trim().split("\\s+")) {
+                if (!name.isBlank()) result.append('.').append(name);
+            }
+        }
+        return result.toString();
+    }
+
+    private static String sourceName(String source) {
+        if (source == null || source.isBlank()) return "inline stylesheet";
+        int slash = Math.max(source.lastIndexOf('/'), source.lastIndexOf('\\'));
+        return slash >= 0 && slash < source.length() - 1 ? source.substring(slash + 1) : source;
+    }
+
+    private static boolean isColorValue(String value) {
+        if (value == null) return false;
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return normalized.startsWith("#") || normalized.startsWith("rgb") || normalized.startsWith("hsl")
+                || normalized.startsWith("linear-gradient") || normalized.startsWith("radial-gradient");
+    }
+
+    private static String shortUuid(Element element) {
+        String uuid = element.uuid.toString();
+        return "#" + uuid.substring(0, Math.min(8, uuid.length()));
+    }
+
+    private static String px(double value) {
+        return number(value) + "px";
+    }
+
+    private static Element.DOMRect boundingRect(Element element) {
+        try {
+            return element.getBoundingClientRect();
+        } catch (NoClassDefFoundError error) {
+            if (!isUnavailableClientLayoutRuntime(error)) throw error;
+            return new Element.DOMRect(0, 0, 0, 0);
+        }
+    }
+
+    private static boolean isUnavailableClientLayoutRuntime(NoClassDefFoundError error) {
+        String missing = error.getMessage();
+        if (missing == null) return false;
+        String className = missing.replace('.', '/');
+        return className.startsWith("net/minecraft/client/renderer/")
+                || className.startsWith("net/minecraft/client/gui/")
+                || className.startsWith("net/minecraft/network/chat/")
+                || className.startsWith("com/mojang/blaze3d/");
+    }
+
+    private static String number(double value) {
+        if (Math.abs(value - Math.rint(value)) < 0.01) return Long.toString(Math.round(value));
+        return String.format(Locale.ROOT, "%.1f", value);
+    }
+}

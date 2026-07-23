@@ -233,27 +233,9 @@ public class Flex {
     private static double resolveAvailableMainSize(Element parent, Box parentBox, Flex flex) {
         if (parent == null || parentBox == null || flex == null) return 0;
         Size parentContentSize = parentBox.innerSize();
-        double available = flex.flexDirection.isColumn() ? parentContentSize.height() : parentContentSize.width();
-        Style style = parent.getComputedStyle();
-        String display = style.display == null ? "" : style.display.trim().toLowerCase();
-
-        if (flex.flexDirection.isRow() && "flex".equals(display) && Size.parseNumber(style.width) == null) {
-            double blockAvailable = Size.getScaleWidth(parent)
-                    - parentBox.getPaddingHorizontal()
-                    - parentBox.getBorderHorizontal();
-            available = Math.max(available, Math.max(0, blockAvailable));
-        } else if (flex.flexDirection.isColumn()) {
-            Double explicitHeight = Size.tryResolveLength(style.height, Size.getScaleHeight(parent));
-            if (explicitHeight != null) {
-                double blockAvailable = explicitHeight;
-                if (parentBox.isBorderBox()) {
-                    blockAvailable -= parentBox.getPaddingVertical() + parentBox.getBorderVertical();
-                }
-                available = Math.max(available, Math.max(0, blockAvailable));
-            }
-        }
-
-        return Math.max(0, available);
+        return Math.max(0, flex.flexDirection.isColumn()
+                ? parentContentSize.height()
+                : parentContentSize.width());
     }
 
     public static boolean shouldStretchCrossAxis(Element child, Element parent) {

@@ -22,6 +22,9 @@ public record Size(double width, double height) {
     private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(HashSet::new);
     private static final ThreadLocal<Integer> NATURAL_MEASURE_DEPTH = ThreadLocal.withInitial(() -> 0);
     private static final ThreadLocal<Set<Element>> NATURAL_NO_CACHE = ThreadLocal.withInitial(HashSet::new);
+    private static final ThreadLocal<Set<Element>> NATURAL_TOUCHED = ThreadLocal.withInitial(
+            () -> Collections.newSetFromMap(new java.util.IdentityHashMap<>())
+    );
     private static final int NUMBER_CACHE_LIMIT = 4096;
     private static final Map<String, Double> NUMBER_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
         @Override
@@ -234,11 +237,12 @@ public record Size(double width, double height) {
         } finally {
             Set<Element> noCache = NATURAL_NO_CACHE.get();
             noCache.remove(element);
-            if (noCache.isEmpty()) {
-                NATURAL_NO_CACHE.remove();
-            }
+            if (noCache.isEmpty()) NATURAL_NO_CACHE.remove();
             int next = NATURAL_MEASURE_DEPTH.get() - 1;
             if (next <= 0) {
+                Set<Element> touched = NATURAL_TOUCHED.get();
+                touched.forEach(touchedElement -> touchedElement.getRenderer().size.clear());
+                NATURAL_TOUCHED.remove();
                 NATURAL_MEASURE_DEPTH.remove();
             } else {
                 NATURAL_MEASURE_DEPTH.set(next);
@@ -271,6 +275,7 @@ public record Size(double width, double height) {
                 && Layout.isGridDisplay(element.parentElement.getComputedStyle().display)
                 && Layout.isInFlow(style)) {
             element.getRenderer().size.set(gridAssignedSize);
+            if (isNaturalMeasurementContext()) NATURAL_TOUCHED.get().add(element);
             return gridAssignedSize;
         }
 
@@ -283,6 +288,11 @@ public record Size(double width, double height) {
             contentSize = select.getIntrinsicSize();
         } else {
             contentSize = isText ? getTextSize(element) : getContentSize(element);
+        }
+        if (isText && element instanceof AbstractText textControl
+                && !textControl.isMultiline() && usesNormalLineHeight(element)) {
+            Text text = Text.of(element);
+            contentSize = new Size(contentSize.width(), Math.round(Text.calculateLineHeight(text.fontSize, "normal")));
         }
         Box box = Box.of(element);
         double horizontalBox = box.getBorderHorizontal() + box.getPaddingHorizontal();
@@ -297,7 +307,9 @@ public record Size(double width, double height) {
         Double definiteParentWidth = cachedParentWidth != null ? cachedParentWidth : explicitParentWidth;
         double parentWidth = absolutePositioned && definiteParentWidth != null ? definiteParentWidth : getScaleWidth(element);
         Double explicitParentHeight = absolutePositioned ? getExplicitContainingBlockPaddingBoxHeight(element) : getExplicitContainingBlockHeight(element);
-        Double cachedParentHeight = absolutePositioned ? getContainingBlockPaddingBoxHeight(element) : null;
+        Double cachedParentHeight = absolutePositioned
+                ? getContainingBlockPaddingBoxHeight(element)
+                : getCachedContainingBlockContentHeight(element);
         Double definiteParentHeight = cachedParentHeight != null ? cachedParentHeight : explicitParentHeight;
         double parentHeight = definiteParentHeight != null ? definiteParentHeight : 0;
         boolean unsetWidth = tryResolveLength(style.width, parentWidth) == null;
@@ -423,6 +435,7 @@ public record Size(double width, double height) {
         }
         if (!noCacheForElement && !shouldDeferSizeCache(element, style, unsetWidth, unsetHeight)) {
             element.getRenderer().size.set(resultSize);
+            if (isNaturalMeasurementContext()) NATURAL_TOUCHED.get().add(element);
         }
         return resultSize;
     }
@@ -531,6 +544,16 @@ public record Size(double width, double height) {
         return Math.max(0, parentOwnHeight);
     }
 
+    private static boolean usesNormalLineHeight(Element element) {
+        if (element == null) return true;
+        for (Element current : element.getRouteArray()) {
+            String lineHeight = current.getComputedStyle().lineHeight;
+            if (lineHeight == null || lineHeight.isBlank() || "unset".equalsIgnoreCase(lineHeight)) continue;
+            return "normal".equalsIgnoreCase(lineHeight);
+        }
+        return true;
+    }
+
     public static Double getContainingBlockPaddingBoxHeight(Element element) {
         Element parent = element == null ? null : element.parentElement;
         if (parent == null) return Math.max(0, getWindowHeight());
@@ -542,6 +565,15 @@ public record Size(double width, double height) {
         }
         Box parentBox = Box.of(parent);
         return Math.max(0, parentSize.height() - parentBox.getBorderVertical());
+    }
+
+    private static Double getCachedContainingBlockContentHeight(Element element) {
+        Element parent = element == null ? null : element.parentElement;
+        if (parent == null) return Math.max(0, getWindowHeight());
+        Size parentSize = parent.getRenderer().size.get();
+        if (parentSize == null) return null;
+        Box parentBox = Box.of(parent);
+        return Math.max(0, parentSize.height() - parentBox.getBorderVertical() - parentBox.getPaddingVertical());
     }
 
     public static Double getContainingBlockPaddingBoxWidth(Element element) {
@@ -724,7 +756,9 @@ public record Size(double width, double height) {
             return true;
         }
 
-        if (isPercent(style.width) || isPercent(style.height)) {
+        if (isPercent(style.width) || isPercent(style.height)
+                || isPercent(style.minWidth) || isPercent(style.maxWidth)
+                || isPercent(style.minHeight) || isPercent(style.maxHeight)) {
             return true;
         }
 

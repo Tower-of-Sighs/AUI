@@ -16,5 +16,8 @@
   "tooltip.apricityui.meta.mouse_events": "控制鼠标事件是在此文档停止，还是继续传递到后方内容。",
   "tooltip.apricityui.meta.mouse_events.pass_through": "允许未处理的鼠标事件继续传递到后方文档或游戏。",
   "tooltip.apricityui.meta.mouse_events.intercept": "阻止此文档范围内的鼠标事件传递到后方内容。",
-  "tooltip.apricityui.meta.current": "保留当前文档中已有的自定义值。"
+  "tooltip.apricityui.meta.current": "保留当前文档中已有的自定义值。",
+  "tooltip.apricityui.devtools.inspect": "从页面中选择元素",
+  "tooltip.apricityui.devtools.console": "打开开发者控制台",
+  "tooltip.apricityui.devtools.move": "水平移动 DevTools"
 }

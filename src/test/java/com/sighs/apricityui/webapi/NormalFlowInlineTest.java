@@ -193,6 +193,34 @@ class NormalFlowInlineTest {
     }
 
     @Test
+    void nowrapKeepsMultipleInlineFragmentsOnOneLine() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element content = new Element(document, "span");
+        content.setAttribute("style", "display: block; width: 72px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;");
+        document.body.appendChild(content);
+
+        Element tag = new Element(document, "span");
+        tag.appendChild(new TextNode(document, "<div"));
+        Element name = new Element(document, "span");
+        name.appendChild(new TextNode(document, " class="));
+        Element value = new Element(document, "span");
+        value.appendChild(new TextNode(document, "\"cursor-layer cursor-normal\">"));
+        content.appendChild(tag);
+        content.appendChild(name);
+        content.appendChild(value);
+
+        assertEquals(0, Position.getOffset(tag).y);
+        assertEquals(0, Position.getOffset(name).y);
+        assertEquals(0, Position.getOffset(value).y);
+        assertEquals(1, NormalFlow.computeTextRuns(content).stream()
+                .mapToInt(NormalFlow.TextRunLayout::lineCount)
+                .max().orElse(0));
+    }
+
+    @Test
     void blockSiblingStartsAfterWrappedInlineContentHeight() {
         assumeMinecraftClientTextRuntime();
         Document document = TestDocumentFactory.createDocument();
