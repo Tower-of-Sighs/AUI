@@ -25,9 +25,12 @@ public final class ResourcePreviewDialog {
     private Document preview;
     private Element viewport;
     private Element imageView;
+    private Element fontTextArea;
     private DialogWindow dialog;
     private String sourcePath = "";
+    private String fontFamily = "";
     private boolean imagePreview;
+    private boolean fontPreview;
 
     public void open(Document owner, Loader.StaticResourceEntry entry) {
         if (owner == null || owner.body == null || entry == null) return;
@@ -37,8 +40,17 @@ public final class ResourcePreviewDialog {
         this.owner = owner;
         this.sourcePath = path;
         this.imagePreview = isImage(entry);
-        this.preview = imagePreview ? null : Document.create(path);
-        if (!imagePreview && preview == null) {
+        this.fontPreview = ResourceFontAsset.isFont(entry);
+        if (fontPreview) {
+            fontFamily = ResourceFontAsset.familyName(entry);
+            if (!ResourceFontAsset.ensureLoaded(entry)) {
+                ToastManager.show("Font preview unavailable");
+                close();
+                return;
+            }
+        }
+        this.preview = imagePreview || fontPreview ? null : Document.create(path);
+        if (!imagePreview && !fontPreview && preview == null) {
             ToastManager.show("Preview unavailable");
             return;
         }
@@ -58,13 +70,17 @@ public final class ResourcePreviewDialog {
         preview = null;
         viewport = null;
         imageView = null;
+        fontTextArea = null;
         dialog = null;
         sourcePath = "";
+        fontFamily = "";
         imagePreview = false;
+        fontPreview = false;
     }
 
     public boolean isOpen() {
-        return dialog != null && dialog.isOpen() && (imagePreview || (preview != null && !preview.isDisposed()));
+        return dialog != null && dialog.isOpen()
+                && (imagePreview || fontPreview || (preview != null && !preview.isDisposed()));
     }
 
     public static void draw(PoseStack poseStack) {
@@ -101,6 +117,15 @@ public final class ResourcePreviewDialog {
             imageView.setAttribute("alt", sourcePath);
             imageView.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%;object-fit:contain;display:block;");
             viewport.append(imageView);
+        } else if (fontPreview) {
+            fontTextArea = element("TEXTAREA", "resource-preview-font-sample");
+            fontTextArea.setValue("中文字体预览\nThe quick brown fox jumps over the lazy dog.");
+            fontTextArea.setAttribute("spellcheck", "false");
+            fontTextArea.setAttribute("style", "position:absolute;inset:0;width:100%;height:100%;box-sizing:border-box;"
+                    + "resize:none;border:0;outline:none;padding:32px;background:#fff;color:#1a1a1a;"
+                    + "font-family:'" + fontFamily + "',sans-serif;font-size:42px;line-height:1.5;"
+                    + "font-weight:400;letter-spacing:0;white-space:pre-wrap;overflow:auto;");
+            viewport.append(fontTextArea);
         }
         body.append(viewport);
         viewport.addEventListener("mousedown", this::forward);
@@ -118,7 +143,7 @@ public final class ResourcePreviewDialog {
 
     private void drawPreview(PoseStack poseStack) {
         if (!isOpen() || viewport == null) return;
-        if (imagePreview) {
+        if (imagePreview || fontPreview) {
             // The preview image is appended after the manager's normal frame tick.
             // Keep its async texture handle alive for the full dialog lifetime.
             if (imageView != null) imageView.tick();

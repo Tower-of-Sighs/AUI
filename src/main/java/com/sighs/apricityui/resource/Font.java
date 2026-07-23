@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 public class Font {
     private static final float BASE_FONT_SIZE = 48.0f;
@@ -85,6 +86,11 @@ public class Font {
 
         font = FONTS.get(toLookupKey(cleanKey));
         return font != null ? font : FONTS.get(DEFAULT_KEY);
+    }
+
+    public static boolean isRegistered(String key) {
+        String cleanKey = cleanFamilyName(key);
+        return !cleanKey.isEmpty() && (FONTS.containsKey(cleanKey) || FONTS.containsKey(toLookupKey(cleanKey)));
     }
 
     public static java.awt.Font resolveBaseFont(String rawFamilyChain) {
@@ -289,6 +295,40 @@ public class Font {
         List<java.awt.Font> immutable = List.copyOf(chain);
         SINGLE_FAMILY_CHAIN_CACHE.put(cleanFamily, immutable);
         return immutable;
+    }
+
+    public static double measureFontRuns(List<FontRun> runs,
+                                         Function<java.awt.Font, FontMetrics> metricsProvider,
+                                         double letterSpacing,
+                                         boolean includeTrailingSpacing) {
+        if (runs == null || runs.isEmpty() || metricsProvider == null) return 0;
+
+        double width = 0;
+        int glyphCount = 0;
+        boolean spaced = Math.abs(letterSpacing) > 1e-6;
+        for (FontRun run : runs) {
+            if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
+            FontMetrics metrics = metricsProvider.apply(run.font());
+            if (metrics == null) continue;
+
+            if (!spaced) {
+                width += metrics.stringWidth(run.text());
+                continue;
+            }
+
+            for (int offset = 0; offset < run.text().length(); ) {
+                int codePoint = run.text().codePointAt(offset);
+                width += metrics.stringWidth(new String(Character.toChars(codePoint)));
+                glyphCount++;
+                offset += Character.charCount(codePoint);
+            }
+        }
+
+        if (spaced && glyphCount > 0) {
+            int spacingCount = includeTrailingSpacing ? glyphCount : glyphCount - 1;
+            width += letterSpacing * Math.max(0, spacingCount);
+        }
+        return Math.max(0, width);
     }
 
     private static java.awt.Font resolveGenericFamily(String family) {

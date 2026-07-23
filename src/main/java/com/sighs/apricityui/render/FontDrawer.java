@@ -108,7 +108,7 @@ public class FontDrawer {
             int cp = content.codePointAt(i);
             String glyph = new String(Character.toChars(cp));
             drawSingleRun(poseStack, text, glyph, new Position(cursor, position.y));
-            cursor += Text.measureLine(text, glyph) + text.letterSpacing;
+            cursor += Text.measureLine(text, glyph);
             i += Character.charCount(cp);
         }
     }
@@ -662,18 +662,10 @@ public class FontDrawer {
     }
 
     private static int measureAwtWidthWithSpacing(Graphics2D g, java.util.List<Font.FontRun> runs, double spacing) {
-        if (runs == null || runs.isEmpty()) return 0;
-        double width = 0;
-        int glyphCount = 0;
-        for (Font.FontRun run : runs) {
-            if (run == null || run.text() == null || run.text().isEmpty() || run.font() == null) continue;
-            g.setFont(run.font());
-            FontMetrics fm = g.getFontMetrics();
-            width += fm.stringWidth(run.text());
-            glyphCount += run.text().codePointCount(0, run.text().length());
-        }
-        if (glyphCount > 1) width += spacing * (glyphCount - 1);
-        return Math.max(0, (int) Math.ceil(width));
+        return Math.max(0, (int) Math.ceil(Font.measureFontRuns(runs, font -> {
+            g.setFont(font);
+            return g.getFontMetrics();
+        }, spacing, false)));
     }
 
     private static int measureRunsWidth(java.util.List<Font.FontRun> runs, double spacing) {

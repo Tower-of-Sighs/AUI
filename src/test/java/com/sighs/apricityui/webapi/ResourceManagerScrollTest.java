@@ -1,12 +1,14 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.dev.ResourceManager;
+import com.sighs.apricityui.dev.resource.ResourceFontAsset;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import org.junit.jupiter.api.Test;
@@ -145,6 +147,34 @@ class ResourceManagerScrollTest {
         } finally {
             previewDialog.close();
             owner.remove();
+        }
+    }
+
+    @Test
+    void fontCardUsesItsFontAndPreviewOpensEditableTwoLineSample() throws Exception {
+        Loader.StaticResourceEntry fontEntry = entry("apricityui/lxgw3500.ttf", "ttf", 654_584);
+        Document document = createManagerDocument("test://resource-manager-font-preview", List.of(fontEntry));
+        try {
+            Element folder = document.querySelector(".file-card[data-path=\"apricityui\"]");
+            assertNotNull(folder);
+            folder.dispatchEvent(new MouseEvent("dblclick", Position.ZERO, 0, false));
+
+            Element card = document.querySelector(".file-card[data-resource-key=\"apricityui/lxgw3500.ttf|DEV_FOLDER\"]");
+            assertNotNull(card);
+            Element glyph = card.querySelector(".file-font-glyph");
+            assertNotNull(glyph);
+            assertEquals("Aa", glyph.getTextContent());
+            String family = ResourceFontAsset.familyName(fontEntry);
+            assertTrue(Font.isRegistered(family));
+            assertTrue(glyph.getAttribute("style").contains("font-family:'" + family + "'"));
+
+            card.dispatchEvent(new MouseEvent("dblclick", Position.ZERO, 0, false));
+            Element sample = document.querySelector(".resource-preview-font-sample");
+            assertNotNull(sample);
+            assertEquals("中文字体预览\nThe quick brown fox jumps over the lazy dog.", sample.getValue());
+            assertTrue(sample.getAttribute("style").contains("font-family:'" + family + "'"));
+        } finally {
+            ResourceManager.close();
         }
     }
 
