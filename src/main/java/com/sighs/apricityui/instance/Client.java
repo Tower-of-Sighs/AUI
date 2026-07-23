@@ -438,6 +438,7 @@ public class Client {
     @SubscribeEvent
     public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
+            com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             Runtime.tick();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();

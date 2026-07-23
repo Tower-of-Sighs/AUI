@@ -2,6 +2,7 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.debug.ExternalDebugServer;
 import com.sighs.apricityui.ui.toast.ToastManager;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
@@ -45,7 +46,10 @@ public class ClientLoader extends Loader {
     public static void setup(FMLClientSetupEvent event) {
         // 初始加载时不调用 ApricityJS.reload()，因为此时其他模组的客户端资源
         // （如模型层）可能尚未注册完毕，强制重载 KubeJS 客户端脚本会导致崩溃。
-        event.enqueueWork(ClientLoader::reloadResources);
+        event.enqueueWork(() -> {
+            ExternalDebugServer.startIfEnabled();
+            reloadResources();
+        });
     }
 
     public static void reload() {

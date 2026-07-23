@@ -124,6 +124,7 @@ runs/
 /IdeaSnapshots/
 /.codex_tmp/
 /apricity/.cache/
+node_modules/
 
 # Avoid ignoring Gradle wrapper jar file (.jar files are usually ignored)
 !gradle-wrapper.jar
