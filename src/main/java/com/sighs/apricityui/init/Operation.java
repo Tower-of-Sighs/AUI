@@ -30,7 +30,9 @@ public class Operation {
 
     public static boolean onMouseDown(int button) {
         mouseButtons |= buttonMask(button);
-        MouseEvent event = new MouseEvent("mousedown", getMousePositionDirectly(), button);
+        Position mousePosition = getMousePositionDirectly();
+        if (DevTools.handleInspectMouseDown(mousePosition, button)) return true;
+        MouseEvent event = new MouseEvent("mousedown", mousePosition, button);
         event.setTrusted(true);
         return MouseEvent.tiggerEvent(event);
     }
@@ -41,6 +43,7 @@ public class Operation {
 
     public static boolean onMouseUp(int button) {
         mouseButtons &= ~buttonMask(button);
+        if (DevTools.handleInspectMouseUp(button)) return true;
         MouseEvent event = new MouseEvent("mouseup", getMousePositionDirectly(), button);
         event.setTrusted(true);
         return MouseEvent.tiggerEvent(event);

@@ -200,6 +200,50 @@
             top: 0;
             right: 0;
             pointer-events: auto;
+            z-index: 100;
+        }
+
+        .inspect-highlight {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        .inspect-box-region {
+            position: fixed;
+            width: 0;
+            height: 0;
+            pointer-events: none;
+        }
+        .inspect-margin { background: rgba(246,178,107,0.66); }
+        .inspect-border { background: rgba(255,229,153,0.66); }
+        .inspect-padding { background: rgba(147,196,125,0.55); }
+        .inspect-content { background: rgba(111,168,220,0.66); }
+
+        .inspect-highlight-label {
+            position: fixed;
+            left: -10000px;
+            top: -10000px;
+            height: 18px;
+            padding: 2px 6px;
+            background: var(--purple);
+            color: var(--white);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            line-height: 14px;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            pointer-events: none;
+            animation: inspectLabelIn 0.15s ease;
+        }
+
+        @keyframes inspectLabelIn {
+            from { opacity: 0; transform: translateY(4px); }
+            to { opacity: 1; transform: translateY(0); }
         }
 
         /* DOM Tree Section */
@@ -755,7 +799,7 @@
             <button class="top-btn drag-handle" id="panelDragHandle" aria-label="Move DevTools horizontally" data-tooltip-key="tooltip.apricityui.devtools.move">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 8 4 4-4 4M2 12h20M6 8l-4 4 4 4"/></svg>
             </button>
-            <button class="top-btn active" id="pickBtn" aria-label="Inspect elements" data-tooltip-key="tooltip.apricityui.devtools.inspect">
+            <button class="top-btn" id="pickBtn" aria-label="Inspect elements" data-tooltip-key="tooltip.apricityui.devtools.inspect">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l10 5-4 1.5L7.5 13 6 10l-3-1z"/></svg>
             </button>
             <button class="top-btn console-btn" aria-label="Console" data-tooltip-key="tooltip.apricityui.devtools.console">
@@ -798,6 +842,23 @@
                 <div class="inspector-pane" id="pane-boxmodel"></div>
             </div>
         </div>
+</div>
+
+<div class="inspect-highlight" id="inspectHighlight">
+    <div class="inspect-box-region inspect-margin" id="inspectMarginTop"></div>
+    <div class="inspect-box-region inspect-margin" id="inspectMarginRight"></div>
+    <div class="inspect-box-region inspect-margin" id="inspectMarginBottom"></div>
+    <div class="inspect-box-region inspect-margin" id="inspectMarginLeft"></div>
+    <div class="inspect-box-region inspect-border" id="inspectBorderTop"></div>
+    <div class="inspect-box-region inspect-border" id="inspectBorderRight"></div>
+    <div class="inspect-box-region inspect-border" id="inspectBorderBottom"></div>
+    <div class="inspect-box-region inspect-border" id="inspectBorderLeft"></div>
+    <div class="inspect-box-region inspect-padding" id="inspectPaddingTop"></div>
+    <div class="inspect-box-region inspect-padding" id="inspectPaddingRight"></div>
+    <div class="inspect-box-region inspect-padding" id="inspectPaddingBottom"></div>
+    <div class="inspect-box-region inspect-padding" id="inspectPaddingLeft"></div>
+    <div class="inspect-box-region inspect-content" id="inspectContent"></div>
+    <div class="inspect-highlight-label" id="inspectHighlightLabel"></div>
 </div>
 
 <div class="toast" id="toast"></div>

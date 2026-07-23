@@ -10,8 +10,10 @@ import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import com.sighs.apricityui.instance.ApricityScreen;
 import com.sighs.apricityui.instance.element.MinecraftElement;
+import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.ui.tooltip.Tooltip;
 import net.minecraft.client.Minecraft;
 
@@ -26,6 +28,12 @@ import java.util.UUID;
 
 public final class DevToolsController {
     public static final String PATH = "devtools/devtools.html";
+    private static final String[] BOX_MODEL_REGION_IDS = {
+            "inspectMarginTop", "inspectMarginRight", "inspectMarginBottom", "inspectMarginLeft",
+            "inspectBorderTop", "inspectBorderRight", "inspectBorderBottom", "inspectBorderLeft",
+            "inspectPaddingTop", "inspectPaddingRight", "inspectPaddingBottom", "inspectPaddingLeft",
+            "inspectContent"
+    };
 
     enum InspectorTab {
         ATTRIBUTES("attributes"), STYLES("styles"), BOXMODEL("boxmodel");
@@ -46,7 +54,7 @@ public final class DevToolsController {
         }
     }
 
-    private final Set<UUID> collapsedNodes = new LinkedHashSet<>();
+    private final Set<UUID> expandedNodes = new LinkedHashSet<>();
     private final Map<UUID, LinkedHashMap<String, String>> disabledStyles = new LinkedHashMap<>();
     private final DevToolsDomTree tree = new DevToolsDomTree(this);
     private final DevToolsInspector inspector = new DevToolsInspector(this);
@@ -56,7 +64,9 @@ public final class DevToolsController {
     private Document.MutationObserver targetObserver;
     private UUID selectedElementUuid;
     private InspectorTab inspectorTab = InspectorTab.ATTRIBUTES;
-    private boolean pickMode = true;
+    private boolean pickMode;
+    private UUID treeHoverElementUuid;
+    private boolean consumeInspectMouseUp;
     private boolean draggingPanel;
     private double panelDragOffsetX;
     private boolean resizingInspector;
@@ -83,10 +93,17 @@ public final class DevToolsController {
 
     public synchronized boolean selectDocument(Document document) {
         if (!isDebuggable(document)) return false;
+        boolean wasOpen = isOpen();
         if (!ensureOpen()) return false;
-        bindTarget(document);
+        boolean openedWithRequestedTarget = !wasOpen && targetDocument == document;
+        if (targetDocument != document) {
+            bindTarget(document);
+        } else if (wasOpen) {
+            resetTreeExpansion();
+        }
         selectedElementUuid = document.body.uuid;
-        collapsedNodes.clear();
+        hideInspectHighlight();
+        if (openedWithRequestedTarget) return true;
         refresh();
         return true;
     }
@@ -110,6 +127,67 @@ public final class DevToolsController {
         disabledStyleMap(element).remove(normalized);
         applyInlineStyles(element, styles);
         afterTargetEdit(element, "Style \"" + normalized + "\" updated");
+        return true;
+    }
+
+    public synchronized boolean handleInspectMouseMove(Position screenPosition) {
+        if (!isOpen()) {
+            hideInspectHighlight();
+            return false;
+        }
+        Element treeHover = findElement(targetDocument, treeHoverElementUuid);
+        if (treeHover != null) {
+            showInspectHighlight(treeHover);
+            return false;
+        }
+        if (!pickMode) {
+            hideInspectHighlight();
+            return false;
+        }
+        if (!isDebuggable(targetDocument)) {
+            pickMode = false;
+            hideInspectHighlight();
+            updateShellState();
+            return false;
+        }
+        if (isOverToolPanel(screenPosition)) {
+            hideInspectHighlight();
+            return false;
+        }
+        Cursor.applyCssCursor("crosshair");
+        Element hit = inspectHit(screenPosition);
+        if (hit == null) {
+            hideInspectHighlight();
+            return false;
+        }
+        showInspectHighlight(hit);
+        return true;
+    }
+
+    public synchronized boolean handleInspectMouseDown(Position screenPosition, int button) {
+        if (button != 0 || !isOpen() || !pickMode || !isDebuggable(targetDocument)
+                || isOverToolPanel(screenPosition)) return false;
+        Element hit = inspectHit(screenPosition);
+        if (hit != null) {
+            selectedElementUuid = hit.uuid;
+            revealAncestors(hit);
+        }
+        consumeInspectMouseUp = true;
+        pickMode = false;
+        Cursor.resetToDefault();
+        if (hit != null) {
+            refresh();
+            scheduleTreeReveal(hit.uuid);
+        } else {
+            updateShellState();
+        }
+        hideInspectHighlight();
+        return true;
+    }
+
+    public synchronized boolean handleInspectMouseUp(int button) {
+        if (button != 0 || !consumeInspectMouseUp) return false;
+        consumeInspectMouseUp = false;
         return true;
     }
 
@@ -152,7 +230,7 @@ public final class DevToolsController {
     }
 
     boolean isCollapsed(Element element) {
-        return element != null && collapsedNodes.contains(element.uuid);
+        return element != null && !expandedNodes.contains(element.uuid);
     }
 
     boolean isPickMode() {
@@ -160,17 +238,29 @@ public final class DevToolsController {
     }
 
     void toggleCollapsed(Element element) {
-        if (element == null || (element.children.isEmpty()
-                && (element.innerText == null || element.innerText.isBlank()))) return;
-        if (!collapsedNodes.remove(element.uuid)) collapsedNodes.add(element.uuid);
-        refresh();
+        if (!DevToolsDomTree.hasInspectableChildren(element)) return;
+        if (!expandedNodes.remove(element.uuid)) expandedNodes.add(element.uuid);
+        refreshTree();
     }
 
     void selectFromView(Element element) {
         if (element == null || element.document != targetDocument) return;
+        treeHoverElementUuid = null;
         selectedElementUuid = element.uuid;
         revealAncestors(element);
         refresh();
+        hideInspectHighlight();
+    }
+
+    void hoverFromView(Element element) {
+        if (element == null || element.document != targetDocument || !element.isConnected()) return;
+        treeHoverElementUuid = element.uuid;
+        showInspectHighlight(element);
+    }
+
+    void clearHoverFromView(Element element) {
+        if (element == null || !element.uuid.equals(treeHoverElementUuid)) return;
+        clearTreeHover();
     }
 
     void updateAttribute(Element target, String name, String value) {
@@ -284,7 +374,6 @@ public final class DevToolsController {
         if (toolDocument == null) return;
         toolDocument.setReloadPersistent(true);
         bindTarget(resolvePreferredTarget());
-        bindShell();
         refresh();
     }
 
@@ -295,8 +384,11 @@ public final class DevToolsController {
         toolDocument = null;
         targetDocument = null;
         selectedElementUuid = null;
-        collapsedNodes.clear();
+        expandedNodes.clear();
         disabledStyles.clear();
+        pickMode = false;
+        treeHoverElementUuid = null;
+        consumeInspectMouseUp = false;
         draggingPanel = false;
         panelDragOffsetX = 0;
         resizingInspector = false;
@@ -306,7 +398,11 @@ public final class DevToolsController {
 
     private void bindTarget(Document target) {
         disconnectTargetObserver();
+        pickMode = false;
+        treeHoverElementUuid = null;
+        hideInspectHighlight();
         targetDocument = isDebuggable(target) ? target : null;
+        resetTreeExpansion();
         if (targetDocument == null) {
             selectedElementUuid = null;
             return;
@@ -339,7 +435,18 @@ public final class DevToolsController {
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
         Element documentSelect = toolDocument.querySelector("#documentSelect");
         bindOnce(pickButton, event -> {
+            if (!isDebuggable(targetDocument)) {
+                pickMode = false;
+                hideInspectHighlight();
+                updateShellState();
+                showToast("Select a document first");
+                return;
+            }
             pickMode = !pickMode;
+            if (!pickMode) {
+                hideInspectHighlight();
+                Cursor.resetToDefault();
+            }
             updateShellState();
             showToast(pickMode ? "Inspect mode \u00b7 ON" : "Inspect mode \u00b7 OFF");
         });
@@ -466,7 +573,6 @@ public final class DevToolsController {
         if (selected == targetDocument) return;
         bindTarget(selected);
         selectedElementUuid = selected.body.uuid;
-        collapsedNodes.clear();
         refresh();
     }
 
@@ -495,6 +601,139 @@ public final class DevToolsController {
             boolean active = ("pane-" + inspectorTab.id).equals(pane.id);
             pane.setAttribute("class", active ? "inspector-pane active" : "inspector-pane");
         }
+    }
+
+    private Element inspectHit(Position screenPosition) {
+        if (screenPosition == null || !isDebuggable(targetDocument)) return null;
+        return targetDocument.hitTest(targetDocument.screenToDocumentPosition(screenPosition));
+    }
+
+    private boolean isOverToolPanel(Position screenPosition) {
+        if (screenPosition == null || toolDocument == null) return false;
+        Element panel = toolDocument.querySelector(".side-panel");
+        if (panel == null) return false;
+        Position local = toolDocument.screenToDocumentPosition(screenPosition);
+        Element.DOMRect rect = panel.getBoundingClientRect();
+        return local.x >= rect.left && local.x <= rect.right
+                && local.y >= rect.top && local.y <= rect.bottom;
+    }
+
+    private void showInspectHighlight(Element element) {
+        if (element == null || toolDocument == null || targetDocument == null) {
+            hideInspectHighlight();
+            return;
+        }
+        Element highlight = toolDocument.querySelector("#inspectHighlight");
+        Element label = toolDocument.querySelector("#inspectHighlightLabel");
+        if (highlight == null || label == null) return;
+
+        Element.DOMRect rect = element.getBoundingClientRect();
+        Box box = Box.of(element);
+        double marginLeft = Math.max(0, box.getMarginLeft());
+        double marginTop = Math.max(0, box.getMarginTop());
+        double marginRight = Math.max(0, box.getMarginRight());
+        double marginBottom = Math.max(0, box.getMarginBottom());
+        double borderLeft = Math.max(0, box.getBorderLeft());
+        double borderTop = Math.max(0, box.getBorderTop());
+        double borderRight = Math.max(0, box.getBorderRight());
+        double borderBottom = Math.max(0, box.getBorderBottom());
+        double paddingLeft = Math.max(0, box.getPaddingLeft());
+        double paddingTop = Math.max(0, box.getPaddingTop());
+        double paddingRight = Math.max(0, box.getPaddingRight());
+        double paddingBottom = Math.max(0, box.getPaddingBottom());
+
+        setBoxModelBands("inspectMargin", rect.x - marginLeft, rect.y - marginTop,
+                rect.width + marginLeft + marginRight, rect.height + marginTop + marginBottom,
+                marginTop, marginRight, marginBottom, marginLeft);
+        setBoxModelBands("inspectBorder", rect.x, rect.y, rect.width, rect.height,
+                borderTop, borderRight, borderBottom, borderLeft);
+        double paddingBoxX = rect.x + borderLeft;
+        double paddingBoxY = rect.y + borderTop;
+        double paddingBoxWidth = Math.max(0, rect.width - borderLeft - borderRight);
+        double paddingBoxHeight = Math.max(0, rect.height - borderTop - borderBottom);
+        setBoxModelBands("inspectPadding", paddingBoxX, paddingBoxY, paddingBoxWidth, paddingBoxHeight,
+                paddingTop, paddingRight, paddingBottom, paddingLeft);
+        setBoxModelRegion("inspectContent", paddingBoxX + paddingLeft, paddingBoxY + paddingTop,
+                Math.max(0, paddingBoxWidth - paddingLeft - paddingRight),
+                Math.max(0, paddingBoxHeight - paddingTop - paddingBottom));
+
+        Position outerScreen = targetDocument.documentToScreenPosition(
+                new Position(rect.x - marginLeft, rect.y - marginTop));
+        Position outerLocal = toolDocument.screenToDocumentPosition(outerScreen);
+        double labelTop = outerLocal.y < 20 ? outerLocal.y : outerLocal.y - 20;
+        String labelStyle = String.format(Locale.ROOT, "left:%.2fpx;top:%.2fpx;", outerLocal.x, labelTop);
+        String labelText = inspectLabel(element, rect);
+        if (!"inspect-highlight show".equals(highlight.getAttribute("class"))) {
+            highlight.setAttribute("class", "inspect-highlight show");
+        }
+        if (!labelStyle.equals(label.getAttribute("style"))) label.setAttribute("style", labelStyle);
+        if (!labelText.equals(label.getTextContent())) label.setTextContent(labelText);
+    }
+
+    private void setBoxModelBands(String prefix, double x, double y, double width, double height,
+                                  double top, double right, double bottom, double left) {
+        double safeWidth = Math.max(0, width);
+        double safeHeight = Math.max(0, height);
+        double safeTop = Math.min(Math.max(0, top), safeHeight);
+        double safeBottom = Math.min(Math.max(0, bottom), Math.max(0, safeHeight - safeTop));
+        double middleHeight = Math.max(0, safeHeight - safeTop - safeBottom);
+        double safeLeft = Math.min(Math.max(0, left), safeWidth);
+        double safeRight = Math.min(Math.max(0, right), Math.max(0, safeWidth - safeLeft));
+        setBoxModelRegion(prefix + "Top", x, y, safeWidth, safeTop);
+        setBoxModelRegion(prefix + "Right", x + safeWidth - safeRight, y + safeTop,
+                safeRight, middleHeight);
+        setBoxModelRegion(prefix + "Bottom", x, y + safeHeight - safeBottom, safeWidth, safeBottom);
+        setBoxModelRegion(prefix + "Left", x, y + safeTop, safeLeft, middleHeight);
+    }
+
+    private void setBoxModelRegion(String id, double x, double y, double width, double height) {
+        Element region = toolDocument == null ? null : toolDocument.querySelector("#" + id);
+        if (region == null) return;
+        String style;
+        if (width <= 0 || height <= 0) {
+            style = "left:0px;top:0px;width:0px;height:0px;";
+        } else {
+            Position screen = targetDocument.documentToScreenPosition(new Position(x, y));
+            Position local = toolDocument.screenToDocumentPosition(screen);
+            double scaleX = targetDocument.getViewportScaleX() / toolDocument.getViewportScaleX();
+            double scaleY = targetDocument.getViewportScaleY() / toolDocument.getViewportScaleY();
+            style = String.format(Locale.ROOT, "left:%.2fpx;top:%.2fpx;width:%.2fpx;height:%.2fpx;",
+                    local.x, local.y, width * scaleX, height * scaleY);
+        }
+        if (!style.equals(region.getAttribute("style"))) region.setAttribute("style", style);
+    }
+
+    private void hideInspectHighlight() {
+        if (toolDocument == null) return;
+        Element highlight = toolDocument.querySelector("#inspectHighlight");
+        if (highlight != null && !"inspect-highlight".equals(highlight.getAttribute("class"))) {
+            highlight.setAttribute("class", "inspect-highlight");
+        }
+        for (String id : BOX_MODEL_REGION_IDS) {
+            Element region = toolDocument.querySelector("#" + id);
+            if (region != null) {
+                String hiddenStyle = "left:0px;top:0px;width:0px;height:0px;";
+                if (!hiddenStyle.equals(region.getAttribute("style"))) region.setAttribute("style", hiddenStyle);
+            }
+        }
+        Element label = toolDocument.querySelector("#inspectHighlightLabel");
+        if (label != null) {
+            String hiddenStyle = "left:-10000px;top:-10000px;";
+            if (!hiddenStyle.equals(label.getAttribute("style"))) label.setAttribute("style", hiddenStyle);
+        }
+    }
+
+    private void clearTreeHover() {
+        treeHoverElementUuid = null;
+        hideInspectHighlight();
+    }
+
+    private static String inspectLabel(Element element, Element.DOMRect rect) {
+        StringBuilder label = new StringBuilder(element.tagName.toLowerCase(Locale.ROOT));
+        if (element.id != null && !element.id.isBlank()) label.append('#').append(element.id);
+        for (String className : element.getClassNames()) label.append('.').append(className);
+        label.append(' ').append(Math.round(rect.width)).append(" x ").append(Math.round(rect.height));
+        return label.toString();
     }
 
     private void afterTargetEdit(Element target, String toast) {
@@ -582,8 +821,49 @@ public final class DevToolsController {
     }
 
     private void revealAncestors(Element element) {
-        for (Element current = element; current != null; current = current.parentElement) {
-            collapsedNodes.remove(current.uuid);
+        for (Element current = element == null ? null : element.parentElement;
+             current != null;
+             current = current.parentElement) {
+            expandedNodes.add(current.uuid);
         }
+    }
+
+    private void resetTreeExpansion() {
+        expandedNodes.clear();
+        if (targetDocument == null) return;
+        if (targetDocument.documentElement != null) expandedNodes.add(targetDocument.documentElement.uuid);
+        if (targetDocument.body != null) expandedNodes.add(targetDocument.body.uuid);
+    }
+
+    private void scheduleTreeReveal(UUID elementUuid) {
+        if (elementUuid == null) return;
+        FrameTaskScheduler.scheduleAfterFrames(1, deadlineNs -> {
+            synchronized (DevToolsController.this) {
+                if (!isOpen() || !elementUuid.equals(selectedElementUuid)) return true;
+                revealTreeRow(elementUuid);
+            }
+            return true;
+        });
+    }
+
+    private void revealTreeRow(UUID elementUuid) {
+        Element domTree = toolDocument == null ? null : toolDocument.querySelector("#domTree");
+        Element row = domTree == null ? null : domTree.querySelector(".dom-node[data-node-id=\""
+                + elementUuid + "\"]");
+        if (domTree == null || row == null) return;
+        Element.DOMRect treeRect = domTree.getBoundingClientRect();
+        Element.DOMRect rowRect = row.getBoundingClientRect();
+        double rowCenter = rowRect.top + rowRect.height / 2;
+        double viewportCenter = treeRect.top + treeRect.height / 2;
+        domTree.setScrollTop(domTree.getScrollTop() + rowCenter - viewportCenter);
+    }
+
+    private void refreshTree() {
+        if (!isOpen()) return;
+        Element domTree = toolDocument.querySelector("#domTree");
+        Element nodeCount = toolDocument.querySelector("#nodeCount");
+        if (domTree == null || nodeCount == null) return;
+        tree.render(domTree, nodeCount, targetDocument, selectedElement());
+        toolDocument.markDirty(domTree, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
     }
 }

@@ -164,6 +164,14 @@ public class Document {
         );
     }
 
+    public Position documentToScreenPosition(Position documentPosition) {
+        if (documentPosition == null) return Position.ZERO;
+        return new Position(
+                documentPosition.x * viewportScaleX + viewportOffsetX,
+                documentPosition.y * viewportScaleY + viewportOffsetY
+        );
+    }
+
     public double getViewportScaleX() {
         return viewportScaleX;
     }

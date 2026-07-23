@@ -24,19 +24,23 @@ final class DevToolsInspector {
         Element styles = tool.querySelector("#pane-styles");
         Element boxModel = tool.querySelector("#pane-boxmodel");
         if (attributes == null || styles == null || boxModel == null) return;
-        DevToolsDom.clear(attributes);
-        DevToolsDom.clear(styles);
-        DevToolsDom.clear(boxModel);
+
+        Element activePane = switch (activeTab) {
+            case ATTRIBUTES -> attributes;
+            case STYLES -> styles;
+            case BOXMODEL -> boxModel;
+        };
+        DevToolsDom.clear(activePane);
 
         if (targetDocument == null || selected == null) {
-            renderEmpty(attributes);
-            renderEmpty(styles);
-            renderEmpty(boxModel);
+            renderEmpty(activePane);
             return;
         }
-        renderAttributes(attributes, selected);
-        renderStyles(styles, selected);
-        renderBoxModel(boxModel, selected);
+        switch (activeTab) {
+            case ATTRIBUTES -> renderAttributes(attributes, selected);
+            case STYLES -> renderStyles(styles, selected);
+            case BOXMODEL -> renderBoxModel(boxModel, selected);
+        }
     }
 
     private void renderEmpty(Element pane) {
