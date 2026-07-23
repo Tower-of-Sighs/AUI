@@ -476,7 +476,6 @@ public class Document {
                 tickElements();
                 // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
                 commitStyleRecalc();
-                stepScrollRender();
                 flushMutationObservers();
                 commitRenderState();
             } finally {
@@ -516,30 +515,27 @@ public class Document {
         render.updateHitTestSubtrees(motion.drainHitTestRoots());
     }
 
-    /**
-     * Render 阶段的 motion 推进：在渲染线程、每帧执行一次，确保动画/过渡丝滑。
-     * <p>
-     * 该阶段只写 {@link StyleFrameCache}（当帧缓存）与少量渲染相关缓存失效（transform/filter），
-     * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
-     */
-    public void stepScrollRender() {
-        if (!isActive()) return;
-        if (activeScrollElements.isEmpty()) return;
+    /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */
+    public boolean stepScrollRender() {
+        if (!isActive()) return false;
+        if (activeScrollElements.isEmpty()) return false;
+        boolean changed = false;
         for (Element element : new ArrayList<>(activeScrollElements)) {
             if (element == null || !element.isConnected()) {
                 activeScrollElements.remove(element);
                 continue;
             }
-            boolean moving = element.stepScrollRender();
-            if (moving) {
+            boolean elementChanged = element.stepScrollRender();
+            if (elementChanged) {
                 element.getRenderer().invalidateScrollVersion();
-                render.markLayoutCommitDirty();
                 render.markHitTestDirty(element);
+                changed = true;
             }
-            if (!moving && !element.needsScrollRenderStep()) {
+            if (!element.needsScrollRenderStep()) {
                 activeScrollElements.remove(element);
             }
         }
+        return changed;
     }
 
     void registerActiveScroll(Element element) {

@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Size;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -154,6 +155,7 @@ final class DevToolsInspector {
         body.append(add);
         inline.append(body);
         pane.append(inline);
+        fitStyleNameInputs(inline);
 
         Element computed = DevToolsDom.element(tool, "DIV", "style-rule");
         computed.append(DevToolsDom.text(tool, "DIV", "style-selector", "computed \u00b7 size"));
@@ -166,12 +168,19 @@ final class DevToolsInspector {
 
         for (Selector.DebugStyleBlock matched : Selector.getDebugStyles(target)) {
             Element rule = DevToolsDom.element(tool, "DIV", "style-rule");
+            rule.setAttribute("data-rule-order", Integer.toString(matched.ruleOrder()));
             String source = sourceName(matched.sourcePath());
             rule.append(DevToolsDom.text(tool, "DIV", "style-selector", matched.selector() + " \u00b7 " + source));
             Element ruleBody = DevToolsDom.element(tool, "DIV", "style-body");
-            matched.styles().forEach((property, value) -> ruleBody.append(readonlyStyleRow(tool, property, value)));
+            controller.stylesheetStyles(matched).forEach((property, declaration) ->
+                    ruleBody.append(stylesheetPropertyRow(target, matched.ruleOrder(), property, declaration)));
+            Element ruleAdd = DevToolsDom.text(tool, "DIV", "style-add", "+ ADD PROPERTY");
+            ruleAdd.addEventListener("click", event ->
+                    showStylesheetAdder(ruleBody, ruleAdd, target, matched.ruleOrder()));
+            ruleBody.append(ruleAdd);
             rule.append(ruleBody);
             pane.append(rule);
+            fitStyleNameInputs(rule);
         }
     }
 
@@ -184,6 +193,7 @@ final class DevToolsInspector {
         row.append(toggle);
 
         Element name = DevToolsDom.input(tool, "style-name", property, "");
+        bindStyleNameSizing(name);
         name.addEventListener("blur", event -> controller.renameStyle(target, property, DevToolsDom.value(name)));
         name.addEventListener("keydown", event -> {
             if (!controller.isCommitKey(event)) return;
@@ -219,6 +229,7 @@ final class DevToolsInspector {
         Element row = DevToolsDom.element(tool, "DIV", "style-prop");
         row.append(DevToolsDom.element(tool, "DIV", "style-toggle on"));
         Element name = DevToolsDom.input(tool, "style-name", "", "property");
+        bindStyleNameSizing(name);
         Element value = DevToolsDom.input(tool, "style-value", "", "value");
         Element save = DevToolsDom.text(tool, "DIV", "style-prop-delete", "+");
         save.setAttribute("style", "opacity:1;color:var(--purple);");
@@ -233,6 +244,7 @@ final class DevToolsInspector {
         row.append(save);
         add.before(row);
         add.remove();
+        fitStyleNameInput(name);
         DevToolsDom.markDirty(tool);
     }
 
@@ -245,6 +257,98 @@ final class DevToolsInspector {
         row.append(DevToolsDom.text(tool, "SPAN", "style-value", value));
         row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
         return row;
+    }
+
+    private Element stylesheetPropertyRow(Element target, int ruleOrder, String property,
+                                          DevToolsController.RuleStyle declaration) {
+        Document tool = controller.toolDocument();
+        String rowClass = declaration.disabled() ? "style-prop disabled"
+                : declaration.overridden() ? "style-prop overridden" : "style-prop";
+        Element row = DevToolsDom.element(tool, "DIV", rowClass);
+        row.setAttribute("data-property", property);
+        Element toggle = DevToolsDom.element(tool, "DIV",
+                declaration.disabled() ? "style-toggle" : "style-toggle on");
+        toggle.addEventListener("click", event ->
+                controller.toggleStylesheetStyle(target, ruleOrder, property));
+        row.append(toggle);
+
+        Element name = DevToolsDom.input(tool, "style-name", property, "");
+        bindStyleNameSizing(name);
+        name.addEventListener("blur", event -> controller.renameStylesheetStyle(
+                target, ruleOrder, property, DevToolsDom.value(name)));
+        name.addEventListener("keydown", event -> {
+            if (!controller.isCommitKey(event)) return;
+            controller.renameStylesheetStyle(target, ruleOrder, property, DevToolsDom.value(name));
+            controller.clearToolFocus();
+        });
+        row.append(name);
+        row.append(DevToolsDom.text(tool, "SPAN", "style-colon", ":"));
+
+        String displayValue = declaration.displayValue();
+        Element value = DevToolsDom.input(tool,
+                isColorValue(declaration.value()) ? "style-value color-val" : "style-value",
+                displayValue, "");
+        value.addEventListener("blur", event -> controller.updateStylesheetStyle(
+                target, ruleOrder, property, DevToolsDom.value(value)));
+        value.addEventListener("keydown", event -> {
+            if (!controller.isCommitKey(event)) return;
+            controller.updateStylesheetStyle(target, ruleOrder, property, DevToolsDom.value(value));
+            controller.clearToolFocus();
+        });
+        row.append(value);
+        if (isColorValue(declaration.value())) {
+            Element swatch = DevToolsDom.element(tool, "SPAN", "style-color-swatch");
+            swatch.setAttribute("style", "background:" + declaration.value() + ";");
+            row.append(swatch);
+        }
+        row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
+        Element remove = DevToolsDom.text(tool, "DIV", "style-prop-delete", "\u00d7");
+        remove.addEventListener("click", event ->
+                controller.deleteStylesheetStyle(target, ruleOrder, property));
+        row.append(remove);
+        return row;
+    }
+
+    private void showStylesheetAdder(Element body, Element add, Element target, int ruleOrder) {
+        if (!add.isConnected()) return;
+        Document tool = body.document;
+        Element row = DevToolsDom.element(tool, "DIV", "style-prop");
+        row.append(DevToolsDom.element(tool, "DIV", "style-toggle on"));
+        Element name = DevToolsDom.input(tool, "style-name", "", "property");
+        bindStyleNameSizing(name);
+        Element value = DevToolsDom.input(tool, "style-value", "", "value");
+        Element save = DevToolsDom.text(tool, "DIV", "style-prop-delete", "+");
+        save.setAttribute("style", "opacity:1;color:var(--purple);");
+        Runnable commit = () -> controller.addStylesheetStyle(
+                target, ruleOrder, DevToolsDom.value(name), DevToolsDom.value(value));
+        save.addEventListener("click", event -> commit.run());
+        name.addEventListener("keydown", event -> commitOnEnter(event, commit));
+        value.addEventListener("keydown", event -> commitOnEnter(event, commit));
+        row.append(name);
+        row.append(DevToolsDom.text(tool, "SPAN", "style-colon", ":"));
+        row.append(value);
+        row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
+        row.append(save);
+        add.before(row);
+        add.remove();
+        fitStyleNameInput(name);
+        DevToolsDom.markDirty(tool);
+    }
+
+    private void bindStyleNameSizing(Element input) {
+        input.addEventListener("input", event -> fitStyleNameInput(input));
+    }
+
+    private void fitStyleNameInputs(Element root) {
+        for (Element input : root.querySelectorAll("input.style-name")) fitStyleNameInput(input);
+    }
+
+    private void fitStyleNameInput(Element input) {
+        if (input == null) return;
+        String content = DevToolsDom.value(input);
+        if (content == null || content.isEmpty()) content = input.getAttribute("placeholder");
+        double textWidth = Size.measureText(input, content == null ? "" : content);
+        input.setAttribute("style", "width:" + Math.max(8, Math.ceil(textWidth + 1)) + "px;");
     }
 
     private void renderBoxModel(Element pane, Element target) {

@@ -23,6 +23,27 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayoutPositionTest {
     @Test
+    void smoothScrollAdvancesOnRenderFramesInsteadOfClientTicks() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "width: 100px; height: 50px; overflow-y: auto;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+        document.commitRenderState();
+
+        scroller.setScrollTop(100);
+        document.tickFrame();
+        assertEquals(0, scroller.getScrollTop(), 0.001);
+
+        assertTrue(document.stepScrollRender());
+        assertTrue(scroller.getScrollTop() > 0);
+        assertTrue(scroller.getScrollTop() < scroller.getTargetScrollTop());
+    }
+
+    @Test
     void fixedAutoWidthContainerShrinkFitsBeforeStretchingBlockChildren() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 400px; height: 300px;");

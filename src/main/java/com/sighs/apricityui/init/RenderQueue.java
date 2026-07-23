@@ -150,10 +150,6 @@ final class RenderQueue {
         hitTestDirtyRoots.add(element);
     }
 
-    void markLayoutCommitDirty() {
-        layoutCommitDirty = true;
-    }
-
     void updateHitTestSubtrees(Set<Element> roots) {
         Set<Element> combined = Collections.newSetFromMap(new IdentityHashMap<>());
         combined.addAll(hitTestDirtyRoots);

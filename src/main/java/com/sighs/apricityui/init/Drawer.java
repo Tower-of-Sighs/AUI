@@ -75,6 +75,13 @@ public class Drawer {
             return;
         }
 
+        // Detached nodes have already lost the ancestry used to find an incremental subtree boundary.
+        // Remove them before replacing a connected subtree so stale paint nodes cannot survive the splice.
+        globalList.removeIf(node -> {
+            Element target = getNodeTarget(node);
+            return target != null && !target.isConnected();
+        });
+
         List<Element> roots = minimizeRoots(reorderRoots);
         boolean rebuildAll = globalList.isEmpty();
 
