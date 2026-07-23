@@ -7,9 +7,13 @@ import com.sighs.apricityui.init.TextNode;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.UUID;
 
 final class DevToolsDomTree {
     private final DevToolsController controller;
+    private UUID countedDocumentUuid;
+    private long countedMutationVersion = -1L;
+    private int countedNodes;
 
     DevToolsDomTree(DevToolsController controller) {
         this.controller = controller;
@@ -22,7 +26,7 @@ final class DevToolsDomTree {
             container.append(DevToolsDom.text(container.document, "DIV", "empty-state-text", "No debuggable document"));
             return;
         }
-        int count = countNodes(targetDocument.documentElement);
+        int count = countNodes(targetDocument);
         countLabel.setTextContent(count + (count == 1 ? " node" : " nodes"));
         appendNode(container, targetDocument.documentElement, selected, 0);
     }
@@ -108,13 +112,28 @@ final class DevToolsDomTree {
     }
 
     private void bindNodeRow(Element row, Element target) {
+        row.addEventListener("mouseenter", event -> controller.hoverFromView(target));
+        row.addEventListener("mouseleave", event -> controller.clearHoverFromView(target));
         row.addEventListener("click", event -> {
             event.stopPropagation();
             controller.selectFromView(target);
         });
     }
 
-    private static int countNodes(Element root) {
+    private int countNodes(Document document) {
+        Element root = document == null ? null : document.documentElement;
+        if (root == null) return 0;
+        long mutationVersion = root.getSubtreeMutationVersion();
+        if (document.getUuid().equals(countedDocumentUuid) && mutationVersion == countedMutationVersion) {
+            return countedNodes;
+        }
+        countedDocumentUuid = document.getUuid();
+        countedMutationVersion = mutationVersion;
+        countedNodes = countNodesRecursive(root);
+        return countedNodes;
+    }
+
+    private static int countNodesRecursive(Element root) {
         int count = 1;
         boolean countedDomChild = false;
         for (Node child : root.getChildNodes()) {
@@ -126,7 +145,7 @@ final class DevToolsDomTree {
                 continue;
             }
             if (child instanceof Element childElement) {
-                count += countNodes(childElement);
+                count += countNodesRecursive(childElement);
                 countedDomChild = true;
             }
         }
@@ -134,7 +153,8 @@ final class DevToolsDomTree {
         return count;
     }
 
-    private static boolean hasInspectableChildren(Element element) {
+    static boolean hasInspectableChildren(Element element) {
+        if (element == null) return false;
         for (Node child : element.getChildNodes()) {
             if (child instanceof Element) return true;
             if (child instanceof TextNode textNode

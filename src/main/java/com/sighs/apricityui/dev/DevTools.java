@@ -3,6 +3,7 @@ package com.sighs.apricityui.dev;
 import com.sighs.apricityui.dev.devtools.DevToolsController;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.style.Position;
 
 /** Public facade for the built-in F12 inspector. */
 public final class DevTools {
@@ -46,5 +47,17 @@ public final class DevTools {
 
     public static void refresh() {
         CONTROLLER.refresh();
+    }
+
+    public static boolean handleInspectMouseMove(Position screenPosition) {
+        return CONTROLLER.handleInspectMouseMove(screenPosition);
+    }
+
+    public static boolean handleInspectMouseDown(Position screenPosition, int button) {
+        return CONTROLLER.handleInspectMouseDown(screenPosition, button);
+    }
+
+    public static boolean handleInspectMouseUp(int button) {
+        return CONTROLLER.handleInspectMouseUp(button);
     }
 }

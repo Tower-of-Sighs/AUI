@@ -4,6 +4,7 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
@@ -177,7 +178,9 @@ public class Client {
 
     @SubscribeEvent
     public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
-        Tooltip.moveActiveFromScreen(new Position(event.getMouseX(), event.getMouseY()));
+        Position mousePosition = new Position(event.getMouseX(), event.getMouseY());
+        Tooltip.moveActiveFromScreen(mousePosition);
+        DevTools.handleInspectMouseMove(mousePosition);
     }
 
     @SubscribeEvent
