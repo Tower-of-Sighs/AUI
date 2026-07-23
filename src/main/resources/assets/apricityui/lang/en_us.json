@@ -16,5 +16,8 @@
   "tooltip.apricityui.meta.mouse_events": "Controls whether pointer events stop at this document or pass to content behind it.",
   "tooltip.apricityui.meta.mouse_events.pass_through": "Allows unhandled pointer events to continue to documents or the game behind this UI.",
   "tooltip.apricityui.meta.mouse_events.intercept": "Stops pointer events inside this document from reaching content behind it.",
-  "tooltip.apricityui.meta.current": "Preserves the custom value currently stored in this document."
+  "tooltip.apricityui.meta.current": "Preserves the custom value currently stored in this document.",
+  "tooltip.apricityui.devtools.inspect": "Select an element from the page",
+  "tooltip.apricityui.devtools.console": "Open the developer console",
+  "tooltip.apricityui.devtools.move": "Move DevTools horizontally"
 }

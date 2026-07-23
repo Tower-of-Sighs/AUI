@@ -485,7 +485,7 @@ public class Text {
         if (text == null) return 0;
         if (line == null || line.isEmpty()) return 0;
         int glyphCount = line.codePointCount(0, line.length());
-        double letterSpacingWidth = glyphCount > 1 ? text.letterSpacing * (glyphCount - 1) : 0;
+        double letterSpacingWidth = glyphCount > 0 ? text.letterSpacing * glyphCount : 0;
 
         if (text.fontFamily.equals("unset")) {
             return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * text.defaultFontScale() + text.strokeWidth * 2.0 + letterSpacingWidth;
@@ -791,6 +791,7 @@ public class Text {
 
     private static double resolveWrapWidth(Element element, Text text) {
         if (element == null || text == null || !allowsSoftWrap(text.whiteSpace)) return 0;
+        if (element instanceof AbstractText input && !input.isMultiline()) return 0;
         Style style = element.getRawComputedStyle();
         Double explicitWidth = Size.parseNumber(style.width);
         if (explicitWidth == null && Size.isNaturalMeasurementContext()) {

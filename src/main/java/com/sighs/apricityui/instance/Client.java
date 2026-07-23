@@ -177,7 +177,7 @@ public class Client {
 
     @SubscribeEvent
     public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
-        Tooltip.moveActive(new Position(event.getMouseX(), event.getMouseY()));
+        Tooltip.moveActiveFromScreen(new Position(event.getMouseX(), event.getMouseY()));
     }
 
     @SubscribeEvent

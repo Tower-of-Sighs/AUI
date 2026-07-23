@@ -306,7 +306,9 @@ public final class NormalFlow {
         if (text.content == null || text.content.isEmpty()) return null;
 
         boolean startOnNewLine = false;
-        if (lineLimit > 0 && cursorX > 0 && Text.measureText(text) > Math.max(0, lineLimit - cursorX)) {
+        if (Text.allowsSoftWrap(text.whiteSpace)
+                && lineLimit > 0 && cursorX > 0
+                && Text.measureText(text) > Math.max(0, lineLimit - cursorX)) {
             startOnNewLine = true;
             cursorX = 0;
         }

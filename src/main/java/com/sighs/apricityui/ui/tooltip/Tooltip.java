@@ -136,6 +136,15 @@ public final class Tooltip {
         if (activeTooltip != null) activeTooltip.move(pointer);
     }
 
+    /** Moves the active tooltip from Minecraft GUI coordinates into its document viewport. */
+    public static synchronized void moveActiveFromScreen(Position screenPointer) {
+        if (activeTooltip == null || screenPointer == null) return;
+        Position documentPointer = activeTooltip.document == null
+                ? screenPointer
+                : activeTooltip.document.screenToDocumentPosition(screenPointer);
+        activeTooltip.move(documentPointer);
+    }
+
     public boolean isVisible() {
         return !closed && element != null && element.isConnected();
     }

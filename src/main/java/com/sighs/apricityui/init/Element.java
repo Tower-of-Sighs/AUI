@@ -201,6 +201,11 @@ public class Element extends Node {
     public void setAttribute(String name, String value) {
         String oldValue = attributes.get(name);
         String oldId = "id".equals(name) ? id : null;
+        if ("style".equals(name) && inlineStyle == null) {
+            // Capture the previous inline declaration before replacing the raw
+            // attribute so the first style mutation invalidates used layout.
+            updateInlineStyle();
+        }
         attributes.put(name, value);
         if (name.equals("style")) {
             // 保持 style 缓存与 attributes 同步，避免后续读取出现旧值。
@@ -2122,7 +2127,6 @@ public class Element extends Node {
     }
 
     private void drawFlexDirectTextRuns(PoseStack poseStack) {
-        Position contentPos = Rect.of(this).getContentPosition();
         for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(this)) {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
@@ -2130,9 +2134,18 @@ public class Element extends Node {
             FontDrawer.drawFont(
                     poseStack,
                     cloneTextForSegment(text, text.content, Color.BLACK),
-                    new Position(contentPos.x + layout.position().x - scrollLeft, contentPos.y + layout.position().y - scrollTop)
+                    getFlexDirectTextPaintPosition(layout)
             );
         }
+    }
+
+    Position getFlexDirectTextPaintPosition(Flex.DirectTextLayout layout) {
+        if (layout == null || layout.position() == null) return Position.of(this);
+        Position origin = Position.of(this);
+        return new Position(
+                origin.x + layout.position().x - scrollLeft,
+                origin.y + layout.position().y - scrollTop
+        );
     }
 
     private boolean hasMixedDirectTextAndElementChildren() {

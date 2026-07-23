@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Set;
 
 public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> {
-    private static final String DEVTOOLS_PATH = "devtools/index.html";
     private static final int QUICK_CRAFT_GHOST_COLOR = -2130706433;
     private static final float ICON_SCALE_EPSILON = 0.0001F;
 
@@ -135,7 +134,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
             super.render(guiGraphics, mouseX, mouseY, partialTick);
             drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
-            drawDevToolsOverlay(guiGraphics);
             Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose());
             Cursor.drawPseudoCursor(guiGraphics);
@@ -281,16 +279,6 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         if (stack.isEmpty()) return;
 
         guiGraphics.renderTooltip(font, stack, mouseX, mouseY);
-    }
-
-    private void drawDevToolsOverlay(GuiGraphics guiGraphics) {
-        var devToolsDocuments = Document.get(DEVTOOLS_PATH);
-        if (devToolsDocuments.isEmpty()) return;
-
-        Document devToolsDocument = devToolsDocuments.get(0);
-        if (devToolsDocument == null || devToolsDocument.body == null) return;
-        if (devToolsDocument == linkedDocument) return;
-        Base.drawScreenDocument(guiGraphics.pose(), devToolsDocument);
     }
 
     @Override

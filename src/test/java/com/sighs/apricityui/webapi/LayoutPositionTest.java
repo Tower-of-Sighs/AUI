@@ -3,8 +3,10 @@ package com.sighs.apricityui.webapi;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.style.Layout;
 import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.style.Flex;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Text;
@@ -193,6 +195,42 @@ class LayoutPositionTest {
 
         assertEquals(60, Math.round(Size.of(main).height()));
         assertEquals(100, Math.round(Size.of(parent).height()));
+    }
+
+    @Test
+    void percentageChildUsesFinalNestedFlexItemContentBox() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 1600px; height: 900px;");
+
+        Element main = new Element(document, "div");
+        main.setAttribute("style", "display: flex; width: 1600px; height: 852px;");
+        document.body.appendChild(main);
+
+        Element previewPanel = new Element(document, "div");
+        previewPanel.setAttribute("style", "display: flex; flex-direction: column; flex: 1; min-width: 0;");
+        main.appendChild(previewPanel);
+
+        Element toolbar = new Element(document, "div");
+        toolbar.setAttribute("style", "height: 34px;");
+        previewPanel.appendChild(toolbar);
+
+        Element previewFrame = new Element(document, "div");
+        previewFrame.setAttribute("style", "display: flex; align-items: flex-start; flex: 1; padding: 24px;");
+        previewPanel.appendChild(previewFrame);
+
+        Element previewPage = new Element(document, "div");
+        previewPage.setAttribute("style", "width: 100%; min-height: 100%;");
+        previewFrame.appendChild(previewPage);
+
+        Element sidePanel = new Element(document, "div");
+        sidePanel.setAttribute("style", "width: 420px; flex-shrink: 0;");
+        main.appendChild(sidePanel);
+
+        assertEquals(1180, Math.round(Size.of(previewPanel).width()));
+        assertEquals(1180, Math.round(Size.of(previewFrame).width()));
+        assertEquals(1132, Math.round(Size.of(previewPage).width()));
+        assertEquals(818, Math.round(Size.of(previewFrame).height()));
+        assertEquals(770, Math.round(Size.of(previewPage).height()));
     }
 
     @Test
@@ -395,6 +433,92 @@ class LayoutPositionTest {
         Position flexTextOffset = readFlexTextOffset(button);
         assertEquals(expectedTextX, flexTextOffset.x);
         assertEquals(expectedTextY, flexTextOffset.y);
+    }
+
+    @Test
+    void singleLineInputValueDoesNotWrapAtItsCssWidth() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:300px;height:200px;");
+
+        Input input = new Input(document);
+        input.setAttribute("type", "text");
+        input.setAttribute("style", "width:64px;padding:2px 4px;border:1px solid transparent;font-size:11px;");
+        input.setValue("group-title");
+        document.body.appendChild(input);
+
+        Text text = Text.of(input);
+        assertEquals(1, Text.wrap(input).lines().size());
+        assertEquals(Math.round(Text.calculateLineHeight(text.fontSize, "normal")) + 6, Size.of(input).height(), 0.01);
+    }
+
+    @Test
+    void letterSpacingIncludesTheTrailingCharacterAdvance() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        Element plain = new Element(document, "span");
+        plain.setAttribute("style", "font-size:11px;letter-spacing:0;");
+        Element spaced = new Element(document, "span");
+        spaced.setAttribute("style", "font-size:11px;letter-spacing:1.5px;");
+
+        double plainWidth = Text.measureLine(Text.of(plain), "INSPECT");
+        double spacedWidth = Text.measureLine(Text.of(spaced), "INSPECT");
+        assertEquals(7 * 1.5, spacedWidth - plainWidth, 0.01);
+    }
+
+    @Test
+    void flexDirectTextPaintDoesNotApplyContentOriginTwice() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width:300px;height:200px;");
+
+        Element button = new Element(document, "button");
+        button.setAttribute("style", "display:flex;width:109px;height:30px;padding:0 14px;border:1px solid transparent;gap:8px;align-items:center;");
+        Element icon = new Element(document, "span");
+        icon.setAttribute("style", "width:14px;height:14px;flex-shrink:0;");
+        button.appendChild(icon);
+        button.appendChild(new TextNode(document, "INSPECT"));
+        document.body.appendChild(button);
+
+        Flex.DirectTextLayout textLayout = Flex.computeDirectTextLayouts(button).get(0);
+        Position paint = readFlexDirectTextPaintPosition(button, textLayout);
+        assertEquals(37, textLayout.position().x, 0.01);
+        assertEquals(Position.of(button).x + 37, paint.x, 0.01);
+    }
+
+    @Test
+    void nestedFlexItemCentersItsContentsWithinAssignedUsedWidth() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 500px; height: 200px;");
+
+        Element tabs = new Element(document, "div");
+        tabs.setAttribute("style", "display:flex;width:420px;height:32px;");
+        document.body.appendChild(tabs);
+
+        Element firstTab = null;
+        Element firstIcon = null;
+        for (String label : new String[]{"ATTRS", "STYLES", "BOX"}) {
+            Element tab = new Element(document, "div");
+            tab.setAttribute("style", "display:flex;flex:1;align-items:center;justify-content:center;gap:6px;");
+            Element icon = new Element(document, "span");
+            icon.setAttribute("style", "width:12px;height:12px;flex-shrink:0;");
+            tab.appendChild(icon);
+            tab.appendChild(new TextNode(document, label));
+            tabs.appendChild(tab);
+            if (firstTab == null) {
+                firstTab = tab;
+                firstIcon = icon;
+            }
+        }
+
+        assertEquals(140, Math.round(Size.of(firstTab).width()));
+        double textWidth = Text.measureLine(Text.of(firstTab), "ATTRS");
+        double expectedGroupLeft = (140 - 12 - 6 - textWidth) / 2.0;
+        assertEquals(expectedGroupLeft, Position.getOffset(firstIcon).x, 0.01);
+        Flex.DirectTextLayout textLayout = Flex.computeDirectTextLayouts(firstTab).get(0);
+        assertEquals(expectedGroupLeft + 12 + 6, textLayout.position().x, 0.01);
+        assertTrue(textLayout.position().x + textWidth <= 140);
     }
 
     @Test
@@ -915,6 +1039,17 @@ class LayoutPositionTest {
             java.lang.reflect.Method method = Element.class.getDeclaredMethod("getFlexTextOffset");
             method.setAccessible(true);
             return (Position) method.invoke(element);
+        } catch (ReflectiveOperationException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    private static Position readFlexDirectTextPaintPosition(Element element, Flex.DirectTextLayout layout) {
+        try {
+            java.lang.reflect.Method method = Element.class.getDeclaredMethod(
+                    "getFlexDirectTextPaintPosition", Flex.DirectTextLayout.class);
+            method.setAccessible(true);
+            return (Position) method.invoke(element, layout);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
         }

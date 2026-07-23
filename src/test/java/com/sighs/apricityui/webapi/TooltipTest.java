@@ -79,6 +79,28 @@ class TooltipTest {
         }
     }
 
+    @Test
+    void screenFrameUpdatesUseTheActiveDocumentsViewportTransform() throws Exception {
+        Size.setViewportOverride(1000, 500);
+        Document document = TestDocumentFactory.createDocument();
+        setViewport(document, 1000, 500);
+        document.setViewportTransform(0.25, 0.5, 5, 10);
+        try {
+            Tooltip.show(document, new Position(10, 10), "Scaled tooltip");
+            Tooltip.moveActiveFromScreen(new Position(55, 60));
+
+            Element tooltip = document.querySelector(".aui-tooltip");
+            assertNotNull(tooltip);
+            String style = tooltip.getAttribute("style");
+            assertTrue(style.contains("left:214.00px"), style);
+            assertTrue(style.contains("top:118.00px"), style);
+        } finally {
+            Tooltip.hide();
+            document.remove();
+            Size.clearViewportOverride();
+        }
+    }
+
     private static void move(Document document, Element target, double x, double y) {
         MouseEvent.dispatchToTarget(mouse("mousemove", x, y), document, target);
     }
