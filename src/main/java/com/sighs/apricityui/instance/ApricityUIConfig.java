@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance;
 
 import net.minecraftforge.common.ForgeConfigSpec;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 public final class ApricityUIConfig {
     public static final ForgeConfigSpec CLIENT_SPEC;
@@ -16,6 +17,7 @@ public final class ApricityUIConfig {
         public final ForgeConfigSpec.BooleanValue debugAutoReload;
         public final ForgeConfigSpec.BooleanValue aiAutoScreenshot;
         public final ForgeConfigSpec.BooleanValue frameTimingHud;
+        public final ForgeConfigSpec.BooleanValue remoteDebug;
 
         private Client(ForgeConfigSpec.Builder builder) {
             builder.push("debug");
@@ -28,6 +30,9 @@ public final class ApricityUIConfig {
             frameTimingHud = builder
                     .comment("Show the AUI per-frame timing monitor in the top-left corner.")
                     .define("frameTimingHud", false);
+            remoteDebug = builder
+                    .comment("Enable the loopback-only Apricity external debugger on port 25321.")
+                    .define("remoteDebug", !FMLEnvironment.production);
             builder.pop();
         }
     }
