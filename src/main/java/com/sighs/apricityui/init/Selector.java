@@ -19,7 +19,19 @@ public class Selector {
         }
     }
 
-    public record DebugStyleBlock(String sourcePath, String selector, Map<String, String> styles) {
+    public record DebugDeclaration(String value, boolean important, boolean overridden) {
+        public String displayValue() {
+            return value + (important ? " !important" : "");
+        }
+    }
+
+    public record DebugStyleBlock(String sourcePath, String selector, int ruleOrder,
+                                  Map<String, DebugDeclaration> declarations) {
+        public Map<String, String> styles() {
+            LinkedHashMap<String, String> result = new LinkedHashMap<>();
+            declarations.forEach((property, declaration) -> result.put(property, declaration.displayValue()));
+            return result;
+        }
     }
 
     public enum PseudoElement {
@@ -655,7 +667,7 @@ public class Selector {
     }
 
     public static List<DebugStyleBlock> getDebugStyles(Element element) {
-        record DebugMatch(String sourcePath, String selector, Specificity specificity, Map<String, CSS.Declaration> styles) {
+        record DebugMatch(CSS.DebugRule rule, Specificity specificity) {
         }
         List<DebugMatch> matches = new ArrayList<>();
 
@@ -663,24 +675,69 @@ public class Selector {
             String selectorStr = rule.selector();
             int finalOrder = rule.order();
             List<CompiledSelector> groups = SELECTOR_CACHE.computeIfAbsent(selectorStr, Selector::parseGroup);
+            Specificity matchedSpecificity = null;
             for (CompiledSelector sel : groups) {
                 if (isMatch(element, sel)) {
-                    matches.add(new DebugMatch(rule.sourcePath(), selectorStr, sel.specificity(finalOrder), rule.properties()));
-                    break;
+                    Specificity specificity = sel.specificity(finalOrder);
+                    if (matchedSpecificity == null || specificity.compareTo(matchedSpecificity) > 0) {
+                        matchedSpecificity = specificity;
+                    }
                 }
             }
+            if (matchedSpecificity != null) matches.add(new DebugMatch(rule, matchedSpecificity));
         }
 
         matches.sort((a, b) -> b.specificity.compareTo(a.specificity));
+        record Winner(int ruleOrder, Specificity specificity, boolean important) {
+        }
+        Map<String, Winner> winners = new HashMap<>();
+        for (DebugMatch match : matches) {
+            for (Map.Entry<String, CSS.Declaration> entry : match.rule.properties().entrySet()) {
+                String property = cascadePropertyKey(entry.getKey());
+                CSS.Declaration declaration = entry.getValue();
+                Winner current = winners.get(property);
+                if (current == null
+                        || declaration.important() && !current.important()
+                        || declaration.important() == current.important()
+                        && match.specificity.compareTo(current.specificity()) > 0) {
+                    winners.put(property, new Winner(match.rule.order(), match.specificity, declaration.important()));
+                }
+            }
+        }
+        Set<String> inlineProperties = inlinePropertyNames(element.getAttribute("style"));
         List<DebugStyleBlock> result = new ArrayList<>();
         for (DebugMatch match : matches) {
-            HashMap<String, String> valueMap = new HashMap<>();
-            for (Map.Entry<String, CSS.Declaration> e : match.styles.entrySet()) {
-                valueMap.put(e.getKey(), e.getValue().value());
+            LinkedHashMap<String, DebugDeclaration> declarations = new LinkedHashMap<>();
+            for (Map.Entry<String, CSS.Declaration> entry : match.rule.properties().entrySet()) {
+                String property = entry.getKey();
+                CSS.Declaration declaration = entry.getValue();
+                Winner winner = winners.get(cascadePropertyKey(property));
+                boolean overridden = inlineProperties.contains(cascadePropertyKey(property))
+                        || winner == null || winner.ruleOrder() != match.rule.order();
+                declarations.put(property, new DebugDeclaration(
+                        declaration.value(), declaration.important(), overridden));
             }
-            result.add(new DebugStyleBlock(match.sourcePath, match.selector, valueMap));
+            result.add(new DebugStyleBlock(match.rule.sourcePath(), match.rule.selector(),
+                    match.rule.order(), declarations));
         }
         return result;
+    }
+
+    private static Set<String> inlinePropertyNames(String style) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        if (style == null || style.isBlank()) return result;
+        for (String declaration : style.split(";")) {
+            int colon = declaration.indexOf(':');
+            if (colon <= 0) continue;
+            String property = cascadePropertyKey(declaration.substring(0, colon));
+            if (!property.isBlank()) result.add(property);
+        }
+        return result;
+    }
+
+    private static String cascadePropertyKey(String raw) {
+        String property = raw == null ? "" : raw.trim();
+        return property.startsWith("--") ? property : property.toLowerCase(Locale.ROOT);
     }
 
     private record MatchedRule(Specificity specificity, Map<String, CSS.Declaration> styles) {

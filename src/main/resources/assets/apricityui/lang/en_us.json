@@ -19,5 +19,6 @@
   "tooltip.apricityui.meta.current": "Preserves the custom value currently stored in this document.",
   "tooltip.apricityui.devtools.inspect": "Select an element from the page",
   "tooltip.apricityui.devtools.console": "Open the developer console",
-  "tooltip.apricityui.devtools.move": "Move DevTools horizontally"
+  "tooltip.apricityui.devtools.move": "Move DevTools horizontally",
+  "tooltip.apricityui.devtools.save": "Save the current HTML document"
 }

@@ -102,10 +102,11 @@ public class Base {
             // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
             // Layout-affecting motion must also refresh committed bounds before this paint pass.
             boolean motionNeedsGeometryCommit = document.stepMotionRender();
+            boolean scrollChanged = document.stepScrollRender();
             if (styleChanged) {
                 document.commitRenderStateForMotion();
             }
-            if (styleChanged || motionNeedsGeometryCommit) {
+            if (styleChanged || motionNeedsGeometryCommit || scrollChanged) {
                 LayoutCommit.commit(document);
                 document.commitMotionHitTest();
             }

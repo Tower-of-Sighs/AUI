@@ -70,12 +70,15 @@ final class DevToolsDomTree {
         children.setAttribute("data-parent", node.uuid.toString());
         appendChildren(children, node, selected, depth + 1);
 
-        Element closeRow = DevToolsDom.element(container.document, "DIV", "dom-node");
+        Element closeRow = DevToolsDom.element(container.document, "DIV",
+                selectedNode ? "dom-node dom-node-close selected" : "dom-node dom-node-close");
         closeRow.setAttribute("style", "padding-left:" + (14 + depth * 12) + "px;");
+        closeRow.setAttribute("data-closing-node-id", node.uuid.toString());
         closeRow.append(DevToolsDom.text(container.document, "SPAN", "dom-toggle leaf", "\u25be"));
         Element closeContent = DevToolsDom.element(container.document, "SPAN", "dom-content");
         closeContent.append(DevToolsDom.text(container.document, "SPAN", "dom-tag", "</" + tagName(node) + ">"));
         closeRow.append(closeContent);
+        bindNodeRow(closeRow, node);
         children.append(closeRow);
         container.append(children);
     }

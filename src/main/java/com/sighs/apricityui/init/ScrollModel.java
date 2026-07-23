@@ -81,10 +81,13 @@ final class ScrollModel {
             return false;
         }
 
+        double previousLeft = owner.scrollLeft;
+        double previousTop = owner.scrollTop;
         double frameScale = consumeFrameScale();
-        boolean scrollingX = stepHorizontalScroll(frameScale);
-        boolean scrollingY = stepVerticalScroll(frameScale);
-        return scrollingX || scrollingY;
+        stepHorizontalScroll(frameScale);
+        stepVerticalScroll(frameScale);
+        return Double.compare(previousLeft, owner.scrollLeft) != 0
+                || Double.compare(previousTop, owner.scrollTop) != 0;
     }
 
     boolean needsRenderStep() {

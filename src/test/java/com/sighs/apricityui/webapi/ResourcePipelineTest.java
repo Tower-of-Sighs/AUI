@@ -215,6 +215,31 @@ class ResourcePipelineTest {
         assertTrue(containsPaintTarget(document.getPaintList(), visible));
     }
 
+    @Test
+    void incrementalPaintListRebuildDropsDetachedSubtreeNodes() {
+        Document document = TestDocumentFactory.createDocument();
+        Element panel = new Element(document, "aside");
+        Element host = new Element(document, "div");
+        Element removed = new Element(document, "span");
+        panel.setAttribute("style", "position: fixed;");
+        document.body.appendChild(panel);
+        panel.appendChild(host);
+        host.appendChild(removed);
+
+        document.markDirty(document.body, com.sighs.apricityui.init.Drawer.REORDER);
+        document.commitRenderState();
+        assertTrue(containsPaintTarget(document.getPaintList(), removed));
+
+        removed.remove();
+        Element replacement = new Element(document, "strong");
+        host.appendChild(replacement);
+        document.commitRenderState();
+
+        assertFalse(removed.isConnected());
+        assertFalse(containsPaintTarget(document.getPaintList(), removed));
+        assertTrue(containsPaintTarget(document.getPaintList(), replacement));
+    }
+
     @SuppressWarnings("unchecked")
     private static List<String> readCachedScriptContents(JS.Extractor extractor) {
         try {

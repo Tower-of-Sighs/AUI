@@ -7,6 +7,7 @@ import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Size;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,6 +24,9 @@ public class CSS {
     }
 
     public record DebugRule(String selector, Map<String, Declaration> properties, String sourcePath, int order) {
+        public DebugRule {
+            properties = properties == null ? new LinkedHashMap<>() : new LinkedHashMap<>(properties);
+        }
     }
 
     public static void readCSS(String css, Map<String, Map<String, Declaration>> targetCache, String contextPath) {
@@ -32,6 +36,28 @@ public class CSS {
     public static int readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
                               List<DebugRule> debugRules, String contextPath, int orderStart) {
         return Parser.parse(css, targetCache, debugRules, contextPath, orderStart);
+    }
+
+    /** Rebuilds the selector cache from the author declarations exposed to DevTools. */
+    public static void rebuildCacheFromDebugRules(List<DebugRule> debugRules,
+                                                  Map<String, Map<String, Declaration>> targetCache) {
+        if (targetCache == null) return;
+        targetCache.clear();
+        if (debugRules == null || debugRules.isEmpty()) return;
+        ArrayList<DebugRule> ordered = new ArrayList<>(debugRules);
+        ordered.sort(Comparator.comparingInt(DebugRule::order));
+        for (DebugRule rule : ordered) {
+            if (rule == null || rule.selector() == null || rule.selector().isBlank()) continue;
+            Map<String, Declaration> expanded = Parser.expandAuthorProperties(rule.properties());
+            for (String selector : rule.selector().split("\\s*,\\s*")) {
+                String normalized = selector.trim();
+                if (normalized.isEmpty()) continue;
+                targetCache.merge(normalized, new LinkedHashMap<>(expanded), (oldMap, newMap) -> {
+                    newMap.forEach((property, declaration) -> Parser.putDeclaration(oldMap, property, declaration));
+                    return oldMap;
+                });
+            }
+        }
     }
 
     public static class Extractor {
@@ -190,7 +216,8 @@ public class CSS {
 
                 String rules = matcher.group(2).trim();
                 String[] selectors = selector.split("\\s*,\\s*");
-                Map<String, Declaration> properties = parseProperties(rules, contextPath);
+                Map<String, Declaration> authoredProperties = parseProperties(rules, contextPath, false);
+                Map<String, Declaration> properties = expandAuthorProperties(authoredProperties);
 
                 for (String sel : selectors) {
                     String normalizedSelector = sel.trim();
@@ -198,14 +225,10 @@ public class CSS {
                         newMap.forEach((property, declaration) -> putDeclaration(oldMap, property, declaration));
                         return oldMap;
                     });
-                    if (debugRules != null) {
-                        debugRules.add(new DebugRule(
-                                normalizedSelector,
-                                new HashMap<>(properties),
-                                contextPath,
-                                order++
-                        ));
-                    }
+                }
+                int ruleOrder = order++;
+                if (debugRules != null) {
+                    debugRules.add(new DebugRule(selector, authoredProperties, contextPath, ruleOrder));
                 }
             }
             return order;
@@ -358,12 +381,17 @@ public class CSS {
         }
 
         private static Map<String, Declaration> parseProperties(String rules, String contextPath) {
+            return parseProperties(rules, contextPath, true);
+        }
+
+        private static Map<String, Declaration> parseProperties(String rules, String contextPath,
+                                                                 boolean expand) {
             Map<String, Declaration> properties = new LinkedHashMap<>();
             String[] pairs = rules.split(";");
             for (String pair : pairs) {
                 String[] kv = pair.split(":", 2);
                 if (kv.length == 2) {
-                    String key = kv[0].trim();
+                    String key = normalizePropertyName(kv[0]);
                     String rawValue = kv[1].trim();
                     Declaration declaration = stripImportant(rawValue);
                     String value = declaration.value();
@@ -373,11 +401,29 @@ public class CSS {
                     if (!key.isEmpty() && !value.isEmpty()) {
                         Declaration normalized = new Declaration(value, declaration.important());
                         putDeclaration(properties, key, normalized);
-                        expandShorthand(properties, key, normalized);
+                        if (expand) expandShorthand(properties, key, normalized);
                     }
                 }
             }
             return properties;
+        }
+
+        private static String normalizePropertyName(String raw) {
+            String property = raw == null ? "" : raw.trim();
+            return property.startsWith("--") ? property : property.toLowerCase(Locale.ROOT);
+        }
+
+        private static Map<String, Declaration> expandAuthorProperties(Map<String, Declaration> authored) {
+            LinkedHashMap<String, Declaration> expanded = new LinkedHashMap<>();
+            if (authored == null) return expanded;
+            for (Map.Entry<String, Declaration> entry : authored.entrySet()) {
+                String property = entry.getKey();
+                Declaration declaration = entry.getValue();
+                if (property == null || property.isBlank() || declaration == null) continue;
+                putDeclaration(expanded, property, declaration);
+                expandShorthand(expanded, property, declaration);
+            }
+            return expanded;
         }
 
         /**

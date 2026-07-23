@@ -7,9 +7,12 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.FrameTaskScheduler;
+import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import com.sighs.apricityui.instance.ApricityScreen;
 import com.sighs.apricityui.instance.element.MinecraftElement;
+import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -54,10 +57,26 @@ public final class DevToolsController {
         }
     }
 
+    record RuleStyle(String value, boolean important, boolean overridden, boolean disabled) {
+        String displayValue() {
+            return value + (important ? " !important" : "");
+        }
+    }
+
+    private record RuleDeclarationKey(int ruleOrder, String property) {
+    }
+
+    private record StylesheetSnapshot(List<CSS.DebugRule> rules,
+                                      Map<RuleDeclarationKey, CSS.Declaration> disabled) {
+    }
+
     private final Set<UUID> expandedNodes = new LinkedHashSet<>();
     private final Map<UUID, LinkedHashMap<String, String>> disabledStyles = new LinkedHashMap<>();
+    private final Map<UUID, LinkedHashMap<RuleDeclarationKey, CSS.Declaration>> disabledRuleStyles = new LinkedHashMap<>();
     private final DevToolsDomTree tree = new DevToolsDomTree(this);
     private final DevToolsInspector inspector = new DevToolsInspector(this);
+    private final DevToolsEditHistory editHistory = new DevToolsEditHistory();
+    private final DevToolsSaveDialog saveDialog = new DevToolsSaveDialog();
 
     private Document toolDocument;
     private Document targetDocument;
@@ -71,6 +90,7 @@ public final class DevToolsController {
     private double panelDragOffsetX;
     private boolean resizingInspector;
     private boolean refreshQueued;
+    private boolean skipSaveConfirmation;
     private long toastTicket;
 
     public synchronized boolean isOpen() {
@@ -122,11 +142,12 @@ public final class DevToolsController {
         if (element == null || !isDebuggable(element.document)) return false;
         String normalized = InlineStyleDeclaration.normalizeProperty(property);
         if (normalized.isBlank()) return false;
+        DevToolsEditHistory.Snapshot before = editSnapshot(element);
         LinkedHashMap<String, String> styles = inlineStyles(element);
         styles.put(normalized, value == null ? "" : value.trim());
         disabledStyleMap(element).remove(normalized);
         applyInlineStyles(element, styles);
-        afterTargetEdit(element, "Style \"" + normalized + "\" updated");
+        afterTargetEdit(element, before, "Style \"" + normalized + "\" updated");
         return true;
     }
 
@@ -265,26 +286,29 @@ public final class DevToolsController {
 
     void updateAttribute(Element target, String name, String value) {
         if (target == null || name == null || name.isBlank()) return;
+        DevToolsEditHistory.Snapshot before = editSnapshot(target);
         String normalized = name.trim();
         if (value == null || value.isEmpty()) target.removeAttribute(normalized);
         else target.setAttribute(normalized, value);
         if ("style".equalsIgnoreCase(normalized)) syncRuntimeInlineStyleCache(target);
-        afterTargetEdit(target, "Attr \"" + normalized + "\" updated");
+        afterTargetEdit(target, before, "Attr \"" + normalized + "\" updated");
     }
 
     void addAttribute(Element target, String name, String value) {
         if (target == null || name == null || name.isBlank()) return;
+        DevToolsEditHistory.Snapshot before = editSnapshot(target);
         String normalized = name.trim();
         target.setAttribute(normalized, value == null ? "" : value);
         if ("style".equalsIgnoreCase(normalized)) syncRuntimeInlineStyleCache(target);
-        afterTargetEdit(target, "Attr \"" + normalized + "\" added");
+        afterTargetEdit(target, before, "Attr \"" + normalized + "\" added");
     }
 
     void deleteAttribute(Element target, String name) {
         if (target == null || name == null || name.isBlank()) return;
+        DevToolsEditHistory.Snapshot before = editSnapshot(target);
         target.removeAttribute(name);
         if ("style".equalsIgnoreCase(name)) syncRuntimeInlineStyleCache(target);
-        afterTargetEdit(target, "Attr \"" + name + "\" removed");
+        afterTargetEdit(target, before, "Attr \"" + name + "\" removed");
     }
 
     void updateStyle(Element target, String property, String value) {
@@ -296,6 +320,7 @@ public final class DevToolsController {
         String oldKey = InlineStyleDeclaration.normalizeProperty(oldProperty);
         String newKey = InlineStyleDeclaration.normalizeProperty(newProperty);
         if (oldKey.isBlank() || newKey.isBlank() || oldKey.equals(newKey)) return;
+        DevToolsEditHistory.Snapshot before = editSnapshot(target);
         LinkedHashMap<String, String> styles = inlineStyles(target);
         String value = styles.remove(oldKey);
         LinkedHashMap<String, String> disabled = disabledStyleMap(target);
@@ -303,21 +328,23 @@ public final class DevToolsController {
         if (value == null) return;
         styles.put(newKey, value);
         applyInlineStyles(target, styles);
-        afterTargetEdit(target, "Style renamed to \"" + newKey + "\"");
+        afterTargetEdit(target, before, "Style renamed to \"" + newKey + "\"");
     }
 
     void deleteStyle(Element target, String property) {
         if (target == null) return;
+        DevToolsEditHistory.Snapshot before = editSnapshot(target);
         String key = InlineStyleDeclaration.normalizeProperty(property);
         LinkedHashMap<String, String> styles = inlineStyles(target);
         styles.remove(key);
         disabledStyleMap(target).remove(key);
         applyInlineStyles(target, styles);
-        afterTargetEdit(target, "Style \"" + key + "\" removed");
+        afterTargetEdit(target, before, "Style \"" + key + "\" removed");
     }
 
     void toggleStyle(Element target, String property) {
         if (target == null) return;
+        DevToolsEditHistory.Snapshot before = editSnapshot(target);
         String key = InlineStyleDeclaration.normalizeProperty(property);
         LinkedHashMap<String, String> styles = inlineStyles(target);
         LinkedHashMap<String, String> disabled = disabledStyleMap(target);
@@ -327,7 +354,7 @@ public final class DevToolsController {
             disabled.put(key, styles.remove(key));
         }
         applyInlineStyles(target, styles);
-        afterTargetEdit(target, "Style \"" + key + "\" toggled");
+        afterTargetEdit(target, before, "Style \"" + key + "\" toggled");
     }
 
     LinkedHashMap<String, String> inlineStyles(Element target) {
@@ -340,6 +367,87 @@ public final class DevToolsController {
 
     boolean isStyleDisabled(Element target, String property) {
         return target != null && disabledStyleMap(target).containsKey(property);
+    }
+
+    LinkedHashMap<String, RuleStyle> stylesheetStyles(Selector.DebugStyleBlock block) {
+        LinkedHashMap<String, RuleStyle> result = new LinkedHashMap<>();
+        if (block == null) return result;
+        block.declarations().forEach((property, declaration) -> result.put(property,
+                new RuleStyle(declaration.value(), declaration.important(), declaration.overridden(), false)));
+        if (targetDocument == null) return result;
+        disabledRuleStyleMap(targetDocument).forEach((key, declaration) -> {
+            if (key.ruleOrder() == block.ruleOrder()) {
+                result.putIfAbsent(key.property(), new RuleStyle(
+                        declaration.value(), declaration.important(), false, true));
+            }
+        });
+        return result;
+    }
+
+    void updateStylesheetStyle(Element target, int ruleOrder, String property, String value) {
+        if (!canEditRule(target, ruleOrder)) return;
+        String key = InlineStyleDeclaration.normalizeProperty(property);
+        if (key.isBlank()) return;
+        StylesheetSnapshot before = stylesheetSnapshot(target.document);
+        RuleDeclarationKey declarationKey = new RuleDeclarationKey(ruleOrder, key);
+        LinkedHashMap<RuleDeclarationKey, CSS.Declaration> disabled = disabledRuleStyleMap(target.document);
+        CSS.Declaration declaration = parseRuleDeclaration(value);
+        if (disabled.containsKey(declarationKey)) disabled.put(declarationKey, declaration);
+        else findDebugRule(target.document, ruleOrder).properties().put(key, declaration);
+        afterStylesheetEdit(target.document, before, "Rule \"" + key + "\" updated");
+    }
+
+    void renameStylesheetStyle(Element target, int ruleOrder, String oldProperty, String newProperty) {
+        if (!canEditRule(target, ruleOrder)) return;
+        String oldKey = InlineStyleDeclaration.normalizeProperty(oldProperty);
+        String newKey = InlineStyleDeclaration.normalizeProperty(newProperty);
+        if (oldKey.isBlank() || newKey.isBlank() || oldKey.equals(newKey)) return;
+        StylesheetSnapshot before = stylesheetSnapshot(target.document);
+        CSS.DebugRule rule = findDebugRule(target.document, ruleOrder);
+        RuleDeclarationKey oldDeclarationKey = new RuleDeclarationKey(ruleOrder, oldKey);
+        RuleDeclarationKey newDeclarationKey = new RuleDeclarationKey(ruleOrder, newKey);
+        LinkedHashMap<RuleDeclarationKey, CSS.Declaration> disabled = disabledRuleStyleMap(target.document);
+        CSS.Declaration declaration = disabled.remove(oldDeclarationKey);
+        if (declaration != null) disabled.put(newDeclarationKey, declaration);
+        else {
+            declaration = rule.properties().remove(oldKey);
+            if (declaration == null) return;
+            rule.properties().put(newKey, declaration);
+        }
+        afterStylesheetEdit(target.document, before, "Rule renamed to \"" + newKey + "\"");
+    }
+
+    void deleteStylesheetStyle(Element target, int ruleOrder, String property) {
+        if (!canEditRule(target, ruleOrder)) return;
+        String key = InlineStyleDeclaration.normalizeProperty(property);
+        if (key.isBlank()) return;
+        StylesheetSnapshot before = stylesheetSnapshot(target.document);
+        CSS.DebugRule rule = findDebugRule(target.document, ruleOrder);
+        rule.properties().remove(key);
+        disabledRuleStyleMap(target.document).remove(new RuleDeclarationKey(ruleOrder, key));
+        afterStylesheetEdit(target.document, before, "Rule \"" + key + "\" removed");
+    }
+
+    void toggleStylesheetStyle(Element target, int ruleOrder, String property) {
+        if (!canEditRule(target, ruleOrder)) return;
+        String key = InlineStyleDeclaration.normalizeProperty(property);
+        if (key.isBlank()) return;
+        StylesheetSnapshot before = stylesheetSnapshot(target.document);
+        CSS.DebugRule rule = findDebugRule(target.document, ruleOrder);
+        RuleDeclarationKey declarationKey = new RuleDeclarationKey(ruleOrder, key);
+        LinkedHashMap<RuleDeclarationKey, CSS.Declaration> disabled = disabledRuleStyleMap(target.document);
+        CSS.Declaration declaration = disabled.remove(declarationKey);
+        if (declaration != null) rule.properties().put(key, declaration);
+        else {
+            declaration = rule.properties().remove(key);
+            if (declaration == null) return;
+            disabled.put(declarationKey, declaration);
+        }
+        afterStylesheetEdit(target.document, before, "Rule \"" + key + "\" toggled");
+    }
+
+    void addStylesheetStyle(Element target, int ruleOrder, String property, String value) {
+        updateStylesheetStyle(target, ruleOrder, property, value);
     }
 
     boolean isCommitKey(Event event) {
@@ -379,6 +487,7 @@ public final class DevToolsController {
 
     private void close() {
         disconnectTargetObserver();
+        saveDialog.close();
         Document closing = toolDocument;
         Tooltip.hide(closing);
         toolDocument = null;
@@ -386,6 +495,8 @@ public final class DevToolsController {
         selectedElementUuid = null;
         expandedNodes.clear();
         disabledStyles.clear();
+        disabledRuleStyles.clear();
+        editHistory.clear();
         pickMode = false;
         treeHoverElementUuid = null;
         consumeInspectMouseUp = false;
@@ -431,6 +542,7 @@ public final class DevToolsController {
     private void bindShell() {
         if (toolDocument == null || toolDocument.body == null) return;
         Element pickButton = toolDocument.querySelector("#pickBtn");
+        Element saveButton = toolDocument.querySelector("#saveBtn");
         Element consoleButton = toolDocument.querySelector(".console-btn");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
         Element documentSelect = toolDocument.querySelector("#documentSelect");
@@ -450,12 +562,15 @@ public final class DevToolsController {
             updateShellState();
             showToast(pickMode ? "Inspect mode \u00b7 ON" : "Inspect mode \u00b7 OFF");
         });
+        bindOnce(saveButton, event -> requestSave());
         bindOnce(consoleButton, event -> showToast("Console \u00b7 Coming soon"));
         bindTooltipOnce(pickButton, "tooltip.apricityui.devtools.inspect");
+        bindTooltipOnce(saveButton, "tooltip.apricityui.devtools.save");
         bindTooltipOnce(consoleButton, "tooltip.apricityui.devtools.console");
         bindPanelDrag(dragHandle);
         bindTooltipOnce(dragHandle, "tooltip.apricityui.devtools.move");
         bindDocumentSelector(documentSelect);
+        bindHistoryShortcuts();
         syncDocumentSelector(documentSelect);
         for (Element tab : toolDocument.querySelectorAll(".inspector-tab")) {
             bindOnce(tab, event -> {
@@ -501,6 +616,92 @@ public final class DevToolsController {
         select.setAttribute("data-document-bound", "1");
         select.addEventListener("click", event -> syncDocumentSelector(select));
         select.addEventListener("change", event -> selectDocumentByUuid(select.getValue()));
+    }
+
+    private void bindHistoryShortcuts() {
+        if (toolDocument == null || toolDocument.body == null
+                || "1".equals(toolDocument.body.getAttribute("data-history-bound"))) return;
+        toolDocument.body.setAttribute("data-history-bound", "1");
+        toolDocument.body.addEventListener("keydown", event -> {
+            if (!(event instanceof KeyEvent keyEvent) || (!keyEvent.controlKey && !keyEvent.metaKey)) return;
+            if (toolDocument != null && toolDocument.getFocusedElement() instanceof AbstractText) return;
+            boolean handled = false;
+            if ("KeyZ".equals(keyEvent.code)) {
+                handled = keyEvent.shiftKey ? redoEdit() : undoEdit();
+            } else if ("KeyY".equals(keyEvent.code)) {
+                handled = redoEdit();
+            }
+            if (handled) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        });
+    }
+
+    private void requestSave() {
+        Document document = targetDocument;
+        Tooltip.hide(toolDocument);
+        DevToolsDocumentStore.Resolution resolution = DevToolsDocumentStore.resolve(document);
+        if (!resolution.writable()) {
+            showToast(resolution.message());
+            return;
+        }
+        if (skipSaveConfirmation) {
+            saveDocument(document, resolution.target());
+            return;
+        }
+        saveDialog.open(toolDocument, resolution.target().relativePath(), skip -> {
+            if (skip) skipSaveConfirmation = true;
+            saveDocument(document, resolution.target());
+        });
+    }
+
+    private void saveDocument(Document document, DevToolsDocumentStore.SaveTarget target) {
+        if (document == null || target == null || !document.isActive()) {
+            showToast("The inspected document is no longer available");
+            return;
+        }
+        String original = DevToolsDocumentStore.read(target);
+        if (original == null) {
+            showToast("Could not read the source HTML file");
+            return;
+        }
+        String html = DevToolsHtmlSerializer.serialize(document, original);
+        DevToolsDocumentStore.SaveResult result = DevToolsDocumentStore.save(target, html);
+        showToast(result.success() ? "Saved " + target.relativePath() : result.message());
+    }
+
+    boolean undoEdit() {
+        return finishHistoryAction(editHistory.undo(targetDocument), "Undo");
+    }
+
+    boolean redoEdit() {
+        return finishHistoryAction(editHistory.redo(targetDocument), "Redo");
+    }
+
+    private boolean finishHistoryAction(DevToolsEditHistory.Applied applied, String action) {
+        if (applied == null || targetDocument == null) return false;
+        showToast(action + " \u00b7 " + applied.description());
+        refresh();
+        return true;
+    }
+
+    private boolean restoreElementSnapshot(Document document, UUID elementUuid,
+                                           DevToolsEditHistory.Snapshot snapshot) {
+        if (document == null || snapshot == null || !document.isActive()) return false;
+        Element target = findElement(document, elementUuid);
+        if (target == null) return false;
+        for (String name : new ArrayList<>(target.getAttributes().keySet())) target.removeAttribute(name);
+        for (Map.Entry<String, String> attribute : snapshot.attributes().entrySet()) {
+            target.setAttribute(attribute.getKey(), attribute.getValue());
+        }
+        LinkedHashMap<String, String> disabled = disabledStyleMap(target);
+        disabled.clear();
+        disabled.putAll(snapshot.disabledStyles());
+        syncRuntimeInlineStyleCache(target);
+        target.document.markDirty(target, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+        selectedElementUuid = target.uuid;
+        return true;
     }
 
     private void bindPanelDrag(Element handle) {
@@ -593,6 +794,17 @@ public final class DevToolsController {
         if (toolDocument == null) return;
         Element pickButton = toolDocument.querySelector("#pickBtn");
         if (pickButton != null) pickButton.setAttribute("class", pickMode ? "top-btn active" : "top-btn");
+        Element saveButton = toolDocument.querySelector("#saveBtn");
+        if (saveButton != null) {
+            DevToolsDocumentStore.Resolution resolution = DevToolsDocumentStore.resolve(targetDocument);
+            if (resolution.writable()) {
+                saveButton.removeAttribute("disabled");
+                saveButton.setAttribute("aria-disabled", "false");
+            } else {
+                saveButton.setAttribute("disabled", "disabled");
+                saveButton.setAttribute("aria-disabled", "true");
+            }
+        }
         for (Element tab : toolDocument.querySelectorAll(".inspector-tab")) {
             boolean active = inspectorTab.id.equalsIgnoreCase(tab.getAttribute("data-tab"));
             tab.setAttribute("class", active ? "inspector-tab active" : "inspector-tab");
@@ -736,9 +948,21 @@ public final class DevToolsController {
         return label.toString();
     }
 
-    private void afterTargetEdit(Element target, String toast) {
+    private DevToolsEditHistory.Snapshot editSnapshot(Element target) {
+        return editHistory.snapshot(target, target == null ? Map.of() : disabledStyleMap(target));
+    }
+
+    private void afterTargetEdit(Element target, DevToolsEditHistory.Snapshot before, String toast) {
         if (target == null || target.document == null) return;
         syncRuntimeInlineStyleCache(target);
+        DevToolsEditHistory.Snapshot after = editSnapshot(target);
+        if (!before.equals(after)) {
+            Document document = target.document;
+            UUID elementUuid = target.uuid;
+            editHistory.record(document,
+                    () -> restoreElementSnapshot(document, elementUuid, before),
+                    () -> restoreElementSnapshot(document, elementUuid, after), toast);
+        }
         target.document.markDirty(target, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
         showToast(toast);
         refresh();
@@ -754,6 +978,75 @@ public final class DevToolsController {
     private LinkedHashMap<String, String> disabledStyleMap(Element target) {
         if (target == null) return new LinkedHashMap<>();
         return disabledStyles.computeIfAbsent(target.uuid, ignored -> new LinkedHashMap<>());
+    }
+
+    private boolean canEditRule(Element target, int ruleOrder) {
+        return target != null && target.document != null && target.document == targetDocument
+                && findDebugRule(target.document, ruleOrder) != null;
+    }
+
+    private static CSS.DebugRule findDebugRule(Document document, int ruleOrder) {
+        if (document == null) return null;
+        for (CSS.DebugRule rule : document.CSSDebugRules) {
+            if (rule != null && rule.order() == ruleOrder) return rule;
+        }
+        return null;
+    }
+
+    private LinkedHashMap<RuleDeclarationKey, CSS.Declaration> disabledRuleStyleMap(Document document) {
+        if (document == null) return new LinkedHashMap<>();
+        return disabledRuleStyles.computeIfAbsent(document.getUuid(), ignored -> new LinkedHashMap<>());
+    }
+
+    private StylesheetSnapshot stylesheetSnapshot(Document document) {
+        ArrayList<CSS.DebugRule> rules = new ArrayList<>();
+        if (document != null) {
+            for (CSS.DebugRule rule : document.CSSDebugRules) rules.add(copyDebugRule(rule));
+        }
+        return new StylesheetSnapshot(List.copyOf(rules),
+                Map.copyOf(document == null ? Map.of() : disabledRuleStyleMap(document)));
+    }
+
+    private static CSS.DebugRule copyDebugRule(CSS.DebugRule rule) {
+        return new CSS.DebugRule(rule.selector(), rule.properties(), rule.sourcePath(), rule.order());
+    }
+
+    private void afterStylesheetEdit(Document document, StylesheetSnapshot before, String toast) {
+        if (document == null || before == null) return;
+        rebuildStylesheet(document);
+        StylesheetSnapshot after = stylesheetSnapshot(document);
+        if (!before.equals(after)) {
+            editHistory.record(document,
+                    () -> restoreStylesheetSnapshot(document, before),
+                    () -> restoreStylesheetSnapshot(document, after), toast);
+        }
+        showToast(toast);
+        refresh();
+    }
+
+    private boolean restoreStylesheetSnapshot(Document document, StylesheetSnapshot snapshot) {
+        if (document == null || snapshot == null || !document.isActive()) return false;
+        document.CSSDebugRules.clear();
+        for (CSS.DebugRule rule : snapshot.rules()) document.CSSDebugRules.add(copyDebugRule(rule));
+        LinkedHashMap<RuleDeclarationKey, CSS.Declaration> disabled = disabledRuleStyleMap(document);
+        disabled.clear();
+        disabled.putAll(snapshot.disabled());
+        rebuildStylesheet(document);
+        return true;
+    }
+
+    private static void rebuildStylesheet(Document document) {
+        CSS.rebuildCacheFromDebugRules(document.CSSDebugRules, document.CSSCache);
+        document.rebuildSelectorIndex();
+        document.reapplyStylesFromCache();
+    }
+
+    private static CSS.Declaration parseRuleDeclaration(String raw) {
+        String value = raw == null ? "" : raw.trim();
+        String lower = value.toLowerCase(Locale.ROOT);
+        boolean important = lower.endsWith("!important");
+        if (important) value = value.substring(0, value.length() - "!important".length()).trim();
+        return new CSS.Declaration(value, important);
     }
 
     private static void syncRuntimeInlineStyleCache(Element target) {

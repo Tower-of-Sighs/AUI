@@ -102,11 +102,14 @@ class DevToolsTest {
             documentSelect.dispatchEvent(new Event(documentSelect, "change", true));
             assertEquals("DEVTOOLS", topbar.querySelector(".logo").getTextContent());
             assertTrue(tool.querySelector("#pickBtn").getTextContent().isBlank());
+            assertTrue(tool.querySelector("#saveBtn").getTextContent().isBlank());
             assertTrue(tool.querySelector(".console-btn").getTextContent().isBlank());
             assertEquals("tooltip.apricityui.devtools.inspect",
                     tool.querySelector("#pickBtn").getAttribute("data-tooltip-key"));
             assertEquals("tooltip.apricityui.devtools.console",
                     tool.querySelector(".console-btn").getAttribute("data-tooltip-key"));
+            assertEquals("tooltip.apricityui.devtools.save",
+                    tool.querySelector("#saveBtn").getAttribute("data-tooltip-key"));
             Element dragHandle = tool.querySelector("#panelDragHandle");
             assertNotNull(dragHandle);
             assertEquals("tooltip.apricityui.devtools.move", dragHandle.getAttribute("data-tooltip-key"));
@@ -168,6 +171,13 @@ class DevToolsTest {
             assertTrue(beforeIndex >= 0 && beforeIndex < strongIndex);
             assertTrue(strongIndex < middleIndex && middleIndex < closeStrongIndex);
             assertTrue(closeStrongIndex < afterIndex);
+
+            Element closingStrongRow = closingTreeRow(tool, strong);
+            assertNotNull(closingStrongRow);
+            closingStrongRow.click();
+            assertTrue(treeRow(tool, strong).getClassNames().contains("selected"));
+            assertTrue(closingTreeRow(tool, strong).getClassNames().contains("selected"));
+            assertTrue(tool.querySelector(".attr-block-header").getTextContent().startsWith("STRONG"));
 
             assertNotNull(heading);
             assertTrue(DevTools.selectElement(heading));
@@ -297,6 +307,14 @@ class DevToolsTest {
             bodyTreeRow.dispatchEvent(new Event(bodyTreeRow, "mouseleave", false));
             assertFalse(highlight.getClassNames().contains("show"));
 
+            Element closingBodyTreeRow = closingTreeRow(tool, target.body);
+            assertNotNull(closingBodyTreeRow);
+            closingBodyTreeRow.dispatchEvent(new Event(closingBodyTreeRow, "mouseenter", false));
+            assertTrue(highlight.getClassNames().contains("show"));
+            assertTrue(label.getTextContent().startsWith("body "));
+            closingBodyTreeRow.dispatchEvent(new Event(closingBodyTreeRow, "mouseleave", false));
+            assertFalse(highlight.getClassNames().contains("show"));
+
             pick.click();
             Element.DOMRect panelRect = tool.querySelector(".side-panel").getBoundingClientRect();
             Position overPanel = tool.documentToScreenPosition(new Position(
@@ -397,6 +415,11 @@ class DevToolsTest {
     private static Element treeRow(Document tool, Element target) {
         if (tool == null || target == null) return null;
         return tool.querySelector("#domTree .dom-node[data-node-id=\"" + target.uuid + "\"]");
+    }
+
+    private static Element closingTreeRow(Document tool, Element target) {
+        if (tool == null || target == null) return null;
+        return tool.querySelector("#domTree .dom-node[data-closing-node-id=\"" + target.uuid + "\"]");
     }
 
     private static void toggleTreeNode(Document tool, Element target) {
