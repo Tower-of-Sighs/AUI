@@ -192,8 +192,6 @@ public class Canvas extends Element {
                 drawCanvas(poseStack, rectRenderer);
             }
             case BORDER -> rectRenderer.drawBorder(poseStack);
-            case CONTENT -> {
-            }
         }
     }
 

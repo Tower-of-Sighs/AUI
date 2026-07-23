@@ -172,8 +172,6 @@ public abstract class MinecraftElement extends Element {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> rectRenderer.drawBody(poseStack);
             case BORDER -> rectRenderer.drawBorder(poseStack);
-            case CONTENT -> {
-            }
         }
     }
 }

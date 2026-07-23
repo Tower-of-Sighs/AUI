@@ -1,7 +1,7 @@
-package com.sighs.apricityui.render.item;
+package com.sighs.apricityui.instance.render.item;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.render.ItemDrawer;
+import com.sighs.apricityui.instance.ItemDrawer;
 import com.sighs.apricityui.render.RenderNode;
 
 /**
@@ -15,9 +15,7 @@ public record FloatingItemRenderNode(ItemRenderState state, float x, float y) im
         poseStack.pushPose();
         poseStack.translate(x, y, 0.0F);
         try {
-            ItemDrawer.draw(poseStack, state, context);
-            ItemDrawer.drawGlint(poseStack, state, context);
-            ItemDecorationRenderNode.drawDecorations(poseStack, state, context);
+            ItemDrawer.drawAll(poseStack, state, context);
         } finally {
             poseStack.popPose();
         }

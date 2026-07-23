@@ -8,7 +8,7 @@
             <div class="group-title">覆盖点</div>
             <div class="line">1. container bind="player" 自动生成 36 个 slot。</div>
             <div class="line">2. layout="preset:player" 的背包 / 快捷栏排布。</div>
-            <div class="line">3. slot 的固定字面量、候选轮播、JSON ingredient、尺寸与 render=item。</div>
+            <div class="line">3. slot 背景壳内的单一 item、候选 ingredient、尺寸与 CSS 背景分支。</div>
             <div class="line">4. recipe 的 crafting_shaped / crafting_shapeless / smelting 预览生成。</div>
             <div class="line">5. recipe 生成槽位应保持不可交互。</div>
         </div>
@@ -16,8 +16,8 @@
         <div class="group">
             <div class="group-title">预期观察</div>
             <div class="line">1. Case A 应看到 4 行背包 + 1 行快捷栏，共 36 个槽位。</div>
-            <div class="line">2. Case B 第二、三格应自动轮播候选物品。</div>
-            <div class="line">3. Case B 第四格尺寸更大，第五格无底板只显示物品。</div>
+            <div class="line">2. Case B 第一格显示 Item，第二、三格的 Ingredient 应自动轮播候选物品。</div>
+            <div class="line">3. Case B 第四格尺寸更大，第五格通过 CSS 去除 Slot 底板只显示物品。</div>
             <div class="line">4. Case C 的 shaped / shapeless 应为 3x3 输入区 + 右侧输出。</div>
             <div class="line">5. Case C 的 smelting 应显示输入、燃料、输出三处槽位。</div>
         </div>
@@ -41,34 +41,44 @@
         </div>
 
         <div class="case">
-            <div class="case-title">Case B: slot 虚拟候选 / JSON ingredient / 尺寸 / 渲染分支</div>
-            <div class="hint">预期: 第 1 格固定钻石；第 2 格在三种金属锭间轮播；第 3 格在三种原木间轮播；第 4 格尺寸更大；第
-                5 格仅渲染物品。
+            <div class="case-title">Case B: Item / Ingredient / 尺寸 / CSS 背景分支</div>
+            <div class="hint">预期: 第 1 格为单一 Item；第 2 格在三种金属锭间轮播；第 3 格在三种原木间轮播；第 4 格尺寸更大；第
+                5 格通过 CSS 移除 Slot 底板，仅显示 Item。
             </div>
             <div class="slot-stage">
                 <div class="slot-card">
-                    <div class="slot-label">固定字面量</div>
-                    <slot class="slot-demo" cycle="0">minecraft:diamond</slot>
-                </div>
-                <div class="slot-card">
-                    <div class="slot-label">候选轮播</div>
-                    <slot class="slot-demo" cycle-interval="500">
-                        minecraft:iron_ingot|minecraft:gold_ingot|minecraft:copper_ingot
+                    <div class="slot-label">单一 Item</div>
+                    <slot class="slot-demo">
+                        <item>minecraft:diamond</item>
                     </slot>
                 </div>
                 <div class="slot-card">
-                    <div class="slot-label">JSON ingredient</div>
-                    <slot class="slot-demo" cycle-interval="650">
-                        [{"item":"minecraft:oak_log"},{"item":"minecraft:birch_log"},{"item":"minecraft:spruce_log"}]
+                    <div class="slot-label">候选 Ingredient</div>
+                    <slot class="slot-demo">
+                        <ingredient cycle-interval="500">
+                            minecraft:iron_ingot|minecraft:gold_ingot|minecraft:copper_ingot
+                        </ingredient>
+                    </slot>
+                </div>
+                <div class="slot-card">
+                    <div class="slot-label">JSON Ingredient</div>
+                    <slot class="slot-demo">
+                        <ingredient cycle-interval="650">
+                            [{"item":"minecraft:oak_log"},{"item":"minecraft:birch_log"},{"item":"minecraft:spruce_log"}]
+                        </ingredient>
                     </slot>
                 </div>
                 <div class="slot-card">
                     <div class="slot-label">大尺寸</div>
-                    <slot class="slot-demo slot-large" cycle="0" size="24">minecraft:apple</slot>
+                    <slot class="slot-demo slot-large">
+                        <item>minecraft:apple</item>
+                    </slot>
                 </div>
                 <div class="slot-card">
                     <div class="slot-label">仅物品</div>
-                    <slot class="slot-demo slot-item-only" cycle="0" render="item">minecraft:emerald</slot>
+                    <slot class="slot-demo slot-item-only">
+                        <item>minecraft:emerald</item>
+                    </slot>
                 </div>
             </div>
         </div>
@@ -328,11 +338,11 @@
         for (var index = 0; index < slots.length; index++) {
             var slot = slots[index];
             if (!slot) continue;
-            slot.setAttribute("cycle", "0");
             var slotIndex = slot.getAttribute("slot-index");
             var expression = expressions[slotIndex];
-            if (expression) {
-                slot.innerText = expression;
+            var item = slot.querySelector("item");
+            if (item && expression) {
+                item.innerText = expression;
             }
         }
 

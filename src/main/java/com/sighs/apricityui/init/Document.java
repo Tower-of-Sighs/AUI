@@ -1,12 +1,13 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.canvas.CanvasPath2D;
+import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Head;
 import com.sighs.apricityui.element.Html;
-import com.sighs.apricityui.canvas.CanvasPath2D;
-import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
+import com.sighs.apricityui.instance.dom.SlotContentRules;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
@@ -82,6 +83,7 @@ public class Document {
             head = root.head();
             body = root.body();
             rebuildElementIndexFromBody();
+            SlotContentRules.normalizeTemplate(this);
 
             // First pass: ensure computed styles exist for DOM expanders.
             style.recomputeSubtree(documentElement);

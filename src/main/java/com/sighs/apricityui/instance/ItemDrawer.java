@@ -1,10 +1,9 @@
-package com.sighs.apricityui.render.item;
+package com.sighs.apricityui.instance;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.instance.render.item.*;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.ImageDrawer;
-import com.sighs.apricityui.render.RenderNode;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.network.chat.Component;
@@ -12,10 +11,42 @@ import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * 数量、耐久、冷却、ghost 与覆盖文字的 AUI 内容装饰层。
+ * AUI 物品视觉层的统一绘制、帧内缓存与资源缓存入口。
  */
-public record ItemDecorationRenderNode(Slot slot) implements RenderNode {
-    static void drawDecorations(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
+public final class ItemDrawer {
+    private ItemDrawer() {
+    }
+
+    public static void beginFrame() {
+        ItemMeshCache.beginFrame();
+    }
+
+    public static void endFrame() {
+        ItemMeshCache.endFrame();
+    }
+
+    public static void draw(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
+        AuiItemModelRenderer.render(poseStack, state, context);
+    }
+
+    public static void drawGlint(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
+        AuiItemModelRenderer.renderGlint(poseStack, state, context);
+    }
+
+    /**
+     * 绘制已映射到局部 16×16 坐标的完整物品视觉层。
+     */
+    public static void drawAll(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
+        if (state == null || state.hidden() || state.isEmpty()) return;
+
+        draw(poseStack, state, context);
+        if (state.stack().hasFoil()) {
+            drawGlint(poseStack, state, context);
+        }
+        drawDecorations(poseStack, state, context);
+    }
+
+    private static void drawDecorations(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
         ItemStack stack = state.stack();
         if (stack.isEmpty()) return;
 
@@ -79,10 +110,9 @@ public record ItemDecorationRenderNode(Slot slot) implements RenderNode {
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
     }
 
-    @Override
-    public void render(PoseStack poseStack) {
-        ItemRenderState state = slot == null ? ItemRenderState.EMPTY : slot.getItemRenderState();
-        if (slot == null || !slot.rendersItem() || state.hidden() || state.isEmpty()) return;
-        ItemRenderNode.renderAtContent(poseStack, slot, state, ItemDecorationRenderNode::drawDecorations);
+    public static void clearCache() {
+        ItemMeshCache.clear();
+        ItemRenderTypes.clearCache();
+        AuiItemModelRenderer.clearDiagnostics();
     }
 }

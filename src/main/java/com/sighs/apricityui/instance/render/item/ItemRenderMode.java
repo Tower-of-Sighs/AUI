@@ -1,4 +1,4 @@
-package com.sighs.apricityui.render.item;
+package com.sighs.apricityui.instance.render.item;
 
 import java.util.Locale;
 

@@ -1,5 +1,7 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.instance.dom.SlotContentRules;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -126,6 +128,7 @@ final class ElementTree {
     }
 
     private void moveSubtree(Node child, Node parent, int childIndex) {
+        SlotContentRules.validateRuntimeInsertion(parent, child);
         detachSubtree(child);
 
         int safeIndex = Math.max(0, Math.min(childIndex, parent.childNodes.size()));
@@ -168,6 +171,7 @@ final class ElementTree {
                 owner.markDirty(oldParentElement, Drawer.RELAYOUT | Drawer.REORDER);
             }
             owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(node), previousSibling, nextSibling));
+            SlotContentRules.restoreRequiredContent(oldParent);
         }
 
         List<Node> subtree = flattenSubtree(node);

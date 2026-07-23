@@ -3,7 +3,7 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.instance.element.Item;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Interaction;
@@ -62,18 +62,17 @@ public class ApricityScreen extends Screen {
         List<Element> elements = linkedDocument.getElements();
         for (int index = elements.size() - 1; index >= 0; index--) {
             Element element = elements.get(index);
-            if (!(element instanceof Slot slot)
-                    || slot.isBound()
-                    || !Interaction.isDisplayed(slot)
-                    || !slot.isVisible
-                    || !slot.canShowItemTooltip()
-                    || !slot.containsSlotPoint(mouseX, mouseY)) {
+            if (!(element instanceof Item item)
+                    || !Interaction.isDisplayed(item)
+                    || !item.isVisible
+                    || !item.canShowItemTooltip()
+                    || !item.containsItemPoint(mouseX, mouseY)) {
                 continue;
             }
 
-            ItemStack stack = slot.getTooltipStack();
+            ItemStack stack = item.getTooltipStack();
             if (stack.isEmpty()) continue;
-            slot.renderTooltip(guiGraphics, mouseX, mouseY);
+            item.renderTooltip(guiGraphics, mouseX, mouseY);
             return;
         }
     }

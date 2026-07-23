@@ -83,7 +83,9 @@
         <container id="containerTest">
             <div class="mc-row">
                 <span class="label">虚拟槽位：</span>
-                <slot id="slotVirtual">minecraft:diamond</slot>
+                <slot id="slotVirtual">
+                    <item>minecraft:diamond</item>
+                </slot>
             </div>
             <div class="mc-row">
                 <span class="label">配方预览：</span>
@@ -545,7 +547,7 @@
         gap: 2px;
     }
 
-    slot, recipe, translation {
+    recipe, translation {
         display: block;
         padding-left: 2px;
         padding-right: 2px;

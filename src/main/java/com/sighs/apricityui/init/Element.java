@@ -590,8 +590,6 @@ public class Element extends Node {
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
             }
-            case CONTENT -> {
-            }
         }
     }
 

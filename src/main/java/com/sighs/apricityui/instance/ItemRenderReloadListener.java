@@ -1,6 +1,5 @@
 package com.sighs.apricityui.instance;
 
-import com.sighs.apricityui.render.ItemDrawer;
 import net.minecraft.server.packs.resources.ResourceManager;
 import net.minecraft.server.packs.resources.SimplePreparableReloadListener;
 import net.minecraft.util.profiling.ProfilerFiller;

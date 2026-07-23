@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.element.Item;
 import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;
 import net.minecraft.client.Minecraft;
@@ -138,10 +139,18 @@ public final class RecipeExpander {
         slot.setAttributesBatch(Map.of(
                 "data-role", roleName,
                 "data-i", String.valueOf(Math.max(0, roleIndex)),
-                "data-group", group == null ? "absolute" : group,
-                "interactive", "tooltip"
+                "data-group", group == null ? "absolute" : group
         ), true);
-        slot.innerText = entry.slotExpression();
+        boolean air = "minecraft:air".equals(entry.slotExpression());
+        if (entry.role() == RecipeResolver.PreviewRole.OUTPUT || air) {
+            Item item = new Item(document);
+            item.setTextContent(entry.slotExpression());
+            slot.appendChild(item);
+        } else {
+            com.sighs.apricityui.instance.element.Ingredient ingredient = new com.sighs.apricityui.instance.element.Ingredient(document);
+            ingredient.innerText = entry.slotExpression();
+            slot.appendChild(ingredient);
+        }
         recipe.append(slot);
     }
 

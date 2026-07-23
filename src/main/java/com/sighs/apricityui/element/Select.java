@@ -37,8 +37,6 @@ public class Select extends Element {
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
             }
-            case CONTENT -> {
-            }
         }
     }
 

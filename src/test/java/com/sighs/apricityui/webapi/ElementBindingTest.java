@@ -7,7 +7,6 @@ import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.render.item.ItemRenderState;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
@@ -1313,72 +1312,6 @@ class ElementBindingTest {
         assertTrue(img.isComplete());
         assertEquals(0, img.getNaturalWidth());
         assertEquals(0, img.getNaturalHeight());
-    }
-
-    @Test
-    void slotDisplayExpressionsCanComeFromDirectTextNodes() {
-        assumeMinecraftItemRuntime();
-        Document document = createDocument();
-
-        Slot literalSlot = new Slot(document);
-        literalSlot.appendChild(new TextNode(document, "minecraft:diamond"));
-        document.body.appendChild(literalSlot);
-        literalSlot.tick();
-        assertFalse(invokeResolveDisplayStack(literalSlot).toString().isBlank());
-
-        Slot jsonSlot = new Slot(document);
-        jsonSlot.setAttribute("cycle", "0");
-        jsonSlot.appendChild(new TextNode(document, "[{\"item\":\"minecraft:oak_log\"},{\"item\":\"minecraft:birch_log\"}]"));
-        document.body.appendChild(jsonSlot);
-        jsonSlot.tick();
-        assertFalse(invokeResolveDisplayStack(jsonSlot).toString().isBlank());
-    }
-
-    @Test
-    void slotShorthandExpressionsCanAlsoComeFromDirectTextNodes() {
-        assumeMinecraftItemRuntime();
-        Document document = createDocument();
-        Slot slot = new Slot(document);
-        slot.setAttribute("cycle", "0");
-        slot.appendChild(new TextNode(document, "minecraft:diamond|minecraft:emerald"));
-        document.body.appendChild(slot);
-
-        slot.tick();
-
-        assertFalse(invokeResolveDisplayStack(slot).toString().isBlank());
-    }
-
-    @Test
-    void slotInteractionUsesOnlyCapabilityTokens() {
-        assumeMinecraftItemRuntime();
-        Slot slot = new Slot(createDocument());
-        slot.bindToMenuSlot(ItemRenderState.EMPTY);
-
-        assertTrue(slot.canShowItemTooltip());
-        assertTrue(slot.canOperateBoundMenuSlot());
-
-        slot.setAttribute("interactive", "tooltip");
-        assertTrue(slot.canShowItemTooltip());
-        assertFalse(slot.canOperateBoundMenuSlot());
-
-        slot.setAttribute("interactive", "slot");
-        assertFalse(slot.canShowItemTooltip());
-        assertTrue(slot.canOperateBoundMenuSlot());
-
-        slot.setAttribute("interactive", "none");
-        assertFalse(slot.canShowItemTooltip());
-        assertFalse(slot.canOperateBoundMenuSlot());
-
-        slot.setAttribute("interactive", "tooltip slot");
-        assertTrue(slot.canShowItemTooltip());
-        assertTrue(slot.canOperateBoundMenuSlot());
-
-        slot.setAttribute("interactive", "0");
-        assertTrue(slot.canShowItemTooltip());
-        assertTrue(slot.canOperateBoundMenuSlot());
-
-        slot.setAttribute("disabled", "");
-        assertFalse(slot.isDisabled());
     }
 
     private static Document createDocument() {

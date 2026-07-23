@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.element.Container;
+import com.sighs.apricityui.instance.element.Item;
 import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;
 
@@ -48,13 +49,15 @@ public final class ContainerExpander {
         for (int index = 0; index < safeCount; index++) {
             Slot slot = new Slot(document);
             LinkedHashMap<String, String> attrs = new LinkedHashMap<>();
-            attrs.put("index", String.valueOf(index));
             attrs.put("slot-index", String.valueOf(index));
             attrs.put("data-generated", GENERATED_CONTAINER_AUTO);
             if (playerAuto) {
                 attrs.put("part", index < 27 ? "inv" : "hotbar");
             }
             slot.setAttributesBatch(attrs, true);
+            Item item = new Item(document);
+            item.setTextContent("minecraft:air");
+            slot.appendChild(item);
             container.append(slot);
         }
     }
@@ -103,9 +106,6 @@ public final class ContainerExpander {
     private static void ensureIndexAttributes(Slot slot, int index) {
         if (slot == null || index < 0) return;
         String target = String.valueOf(index);
-        if (!target.equals(slot.getAttribute("index"))) {
-            slot.setAttribute("index", target);
-        }
         if (!target.equals(slot.getAttribute("slot-index"))) {
             slot.setAttribute("slot-index", target);
         }

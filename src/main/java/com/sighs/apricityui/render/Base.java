@@ -9,6 +9,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.FrameScheduler;
 import com.sighs.apricityui.init.StyleFrameCache;
+import com.sighs.apricityui.instance.ItemDrawer;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
@@ -93,8 +94,7 @@ public class Base {
     public enum RenderPhase {
         SHADOW,
         BODY,
-        BORDER,
-        CONTENT
+        BORDER
     }
 
     public static void beginRendering() {

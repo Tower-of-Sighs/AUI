@@ -1,4 +1,4 @@
-package com.sighs.apricityui.render.item;
+package com.sighs.apricityui.instance.render.item;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.systems.RenderSystem;

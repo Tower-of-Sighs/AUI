@@ -1,4 +1,4 @@
-package com.sighs.apricityui.render.item;
+package com.sighs.apricityui.instance.render.item;
 
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.nbt.CompoundTag;

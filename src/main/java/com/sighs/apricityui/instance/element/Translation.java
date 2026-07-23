@@ -31,8 +31,6 @@ public class Translation extends Span {
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
             }
-            case CONTENT -> {
-            }
         }
     }
 }
