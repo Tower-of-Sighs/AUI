@@ -10,8 +10,10 @@ import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.Font;
+import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -35,6 +37,9 @@ class ResourceManagerScrollTest {
         String html = resourceHtml();
         assertFalse(html.toLowerCase().contains("<script"));
         assertFalse(html.contains("const fs"));
+        assertTrue(html.contains(".file-grid .file-card { aspect-ratio: 1 / 1; }"));
+        assertTrue(html.contains("line-clamp: 2;"));
+        assertTrue(html.contains("text-overflow: ellipsis;"));
         assertFalse(Files.exists(LEGACY_TEMPLATE));
     }
 
@@ -124,6 +129,44 @@ class ResourceManagerScrollTest {
             boolean consumed = MouseEvent.tiggerEvent(wheel, document);
             assertTrue(consumed);
             assertTrue(content.getTargetScrollTop() > 0);
+        } finally {
+            ResourceManager.close();
+            Size.clearViewportOverride();
+        }
+    }
+
+    @Test
+    void wrappedFileNamesReserveSpaceBeforeFileMetadata() throws Exception {
+        Assumptions.assumeTrue(isClassPresent("net.minecraft.client.renderer.MultiBufferSource"));
+        Size.setViewportOverride(1463, 843);
+        Document document = createManagerDocument("test://resource-manager-wrapped-file-names", List.of(
+                entry("tests/absolute-pseudo-percent-width.html", "html", 2_400),
+                entry("tests/container-slot-recipe-test.html", "html", 3_200)
+        ));
+        try {
+            Element tests = document.querySelector(".tree-item[data-path=\"tests\"]");
+            assertNotNull(tests);
+            tests.click();
+            document.tickFrame();
+
+            for (Element card : document.querySelectorAll(".file-card")) {
+                Element name = card.querySelector(".file-name");
+                Element metadata = card.querySelector(".file-meta");
+                assertNotNull(name);
+                assertNotNull(metadata);
+
+                Element.DOMRect cardRect = card.getBoundingClientRect();
+                Element.DOMRect nameRect = name.getBoundingClientRect();
+                Element.DOMRect metadataRect = metadata.getBoundingClientRect();
+                Text text = Text.of(name);
+
+                assertTrue(Text.wrap(name).lines().size() > 2);
+                assertEquals(2, Text.resolveLineClamp(name));
+                assertTrue(nameRect.height >= text.lineHeight * 2 - 0.01);
+                assertTrue(metadataRect.y >= nameRect.bottom + 5.9);
+                assertTrue(metadataRect.bottom <= cardRect.bottom);
+                assertEquals(cardRect.width, cardRect.height, 0.01);
+            }
         } finally {
             ResourceManager.close();
             Size.clearViewportOverride();
@@ -283,5 +326,14 @@ class ResourceManagerScrollTest {
 
     private static String resourceHtml() throws Exception {
         return Files.readString(TEMPLATE);
+    }
+
+    private static boolean isClassPresent(String name) {
+        try {
+            Class.forName(name);
+            return true;
+        } catch (ClassNotFoundException exception) {
+            return false;
+        }
     }
 }

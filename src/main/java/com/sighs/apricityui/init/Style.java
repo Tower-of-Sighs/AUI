@@ -55,7 +55,7 @@ public class Style implements Cloneable {
             Map.entry("align-self", "auto"),
             Map.entry("grid-row", "auto"),
             Map.entry("grid-column", "auto"),
-            Map.entry("background-color", "unset"),
+            Map.entry("background-color", "transparent"),
             Map.entry("background-image", "none"),
             Map.entry("background-repeat", "repeat"),
             Map.entry("background-size", "auto"),
@@ -101,6 +101,7 @@ public class Style implements Cloneable {
             Map.entry("text-indent", "0px"),
             Map.entry("white-space", "normal"),
             Map.entry("text-overflow", "clip"),
+            Map.entry("line-clamp", "none"),
             Map.entry("flex-direction", "row"),
             Map.entry("flex-wrap", "nowrap"),
             Map.entry("align-content", "stretch"),
@@ -220,6 +221,7 @@ public class Style implements Cloneable {
     public String textIndent = "unset";
     public String whiteSpace = "unset";
     public String textOverflow = "clip";
+    public String lineClamp = "none";
 
     public String flexDirection = "row";
     public String flexWrap = "nowrap";
@@ -1315,7 +1317,8 @@ public class Style implements Cloneable {
     static Set<String> getTextProp() {
         return Set.of(
                 "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "line-height",
-            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space", "text-overflow"
+            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space", "text-overflow",
+            "line-clamp"
         );
     }
 

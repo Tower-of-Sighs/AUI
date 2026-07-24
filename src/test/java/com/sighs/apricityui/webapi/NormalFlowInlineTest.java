@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class NormalFlowInlineTest {
@@ -190,6 +191,31 @@ class NormalFlowInlineTest {
 
         assertEquals(0, Position.getOffset(outer).x);
         assertEquals(10, Position.getOffset(tail).y);
+    }
+
+    @Test
+    void positionedInlineTextPaintsInItsOwnStackingLayer() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "button");
+        parent.setAttribute("style", "display: block; width: 120px;");
+        document.body.appendChild(parent);
+
+        Element label = new Element(document, "span");
+        label.setAttribute("style", "display: inline; position: relative; z-index: 1;");
+        label.appendChild(new TextNode(document, "COPY"));
+        parent.appendChild(label);
+
+        assertFalse(NormalFlow.isInlineTextPaintedByAncestor(label));
+        assertEquals(0, NormalFlow.computeTextRuns(parent).stream()
+                .filter(run -> run.owner() == label)
+                .count());
+        assertEquals(1, NormalFlow.computeTextRuns(label).stream()
+                .filter(run -> run.owner() == label)
+                .count());
+        assertTrue(Size.box(label).width() > 0);
     }
 
     @Test

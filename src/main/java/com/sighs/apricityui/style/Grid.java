@@ -128,6 +128,16 @@ public final class Grid {
         double finalW = stretchW ? Math.max(0, targetW) : current.width();
         double finalH = stretchH ? Math.max(0, targetH) : current.height();
         Size assigned = new Size(finalW, finalH);
+        boolean containingBlockChanged = Math.abs(finalW - current.width()) > 0.0001
+                || Math.abs(finalH - current.height()) > 0.0001;
+        if (containingBlockChanged) {
+            element.getRenderer().invalidateLayoutVersion();
+            element.getRenderer().text.clear();
+            element.getRenderer().wrappedText.clear();
+            for (Element child : element.getRenderChildren()) {
+                child.getRenderer().invalidateLayoutSubtree();
+            }
+        }
         element.getRenderer().gridAssignedSize.set(assigned);
         element.getRenderer().size.set(assigned);
     }
@@ -242,8 +252,9 @@ public final class Grid {
             while (rows.size() < requiredRows) rows.add(Track.auto());
         }
 
-        int[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true);
-        int[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false);
+        int[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0);
+        int[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false,
+                colW, gaps.colGap);
         return new Layout(flow, placements, cols, rows, colW, rowH, gaps);
     }
 
@@ -306,7 +317,8 @@ public final class Grid {
     }
 
     private static int[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
-                                           int gap, double availableSpace, boolean columnAxis) {
+                                           int gap, double availableSpace, boolean columnAxis,
+                                           int[] resolvedColumns, int columnGap) {
         int count = tracks.size();
         int[] resolved = new int[count];
         boolean[] growable = new boolean[count];
@@ -330,7 +342,9 @@ public final class Grid {
             // creates a feedback loop for auto-sized grids: a collapsed 0fr
             // row assigns 0px to its item, then a later 1fr layout measures that
             // stale 0px and can never grow even when the item now has children.
-            Size naturalSize = Size.natural(el);
+            Size naturalSize = columnAxis || resolvedColumns == null
+                    ? Size.natural(el)
+                    : measureAtGridAreaWidth(el, p, resolvedColumns, columnGap);
             Box itemBox = Box.of(el);
             double outerContribution = columnAxis
                     ? naturalSize.width() + itemBox.getMarginHorizontal()
@@ -372,6 +386,15 @@ public final class Grid {
         }
 
         return resolved;
+    }
+
+    private static Size measureAtGridAreaWidth(Element element, Placement placement,
+                                               int[] resolvedColumns, int columnGap) {
+        double areaWidth = spanSum(resolvedColumns, placement.col, placement.colSpan)
+                + (double) Math.max(0, placement.colSpan - 1) * columnGap;
+        Box box = Box.of(element);
+        double contentWidth = areaWidth - box.getBorderHorizontal() - box.getPaddingHorizontal();
+        return Size.naturalAtContentWidth(element, Math.max(0, contentWidth));
     }
 
     private static void distributeWeightedGrowth(List<Track> tracks, int[] resolved, int remaining, double totalFr) {
