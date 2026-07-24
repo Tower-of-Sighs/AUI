@@ -23,6 +23,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayoutPositionTest {
     @Test
+    void fixedPercentageSizeUsesViewportInsteadOfParentContentSize() {
+        Size.setViewportOverride(640, 360);
+        try {
+            Document document = TestDocumentFactory.createDocument();
+            document.body.setAttribute("style", "width:0;height:0;");
+            Element fixed = new Element(document, "div");
+            fixed.setAttribute("style", "position:fixed;width:100%;height:100%;");
+            document.body.appendChild(fixed);
+
+            assertEquals(640, Math.round(Size.of(fixed).width()));
+            assertEquals(360, Math.round(Size.of(fixed).height()));
+        } finally {
+            Size.clearViewportOverride();
+        }
+    }
+
+    @Test
     void smoothScrollAdvancesOnRenderFramesInsteadOfClientTicks() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");

@@ -4,6 +4,7 @@ import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.style.*;
 
 import java.util.ArrayList;
@@ -72,12 +73,11 @@ public class MouseEvent extends Event implements Cloneable {
     public static boolean tiggerEvent(MouseEvent event) {
         StyleFrameCache.begin();
         try {
-            applyCursorForTopMostDocument(event);
-            List<Document> docs = Document.getAll();
+            Cursor.refreshFromDocuments(new Position(event.clientX, event.clientY));
+            List<Document> docs = DocumentLayerOrder.frontToBack(Document.getAll());
             if (docs == null || docs.isEmpty()) return false;
 
-            for (int i = docs.size() - 1; i >= 0; i--) {
-                Document document = docs.get(i);
+            for (Document document : docs) {
                 if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                 boolean consumed = tiggerEvent(event, document);
                 if (consumed) {
@@ -91,52 +91,6 @@ public class MouseEvent extends Event implements Cloneable {
         } finally {
             StyleFrameCache.end();
         }
-    }
-
-    private static void applyCursorForTopMostDocument(MouseEvent event) {
-        List<Document> docs = Document.getAll();
-        if (docs == null || docs.isEmpty()) {
-            Cursor.resetToDefault();
-            return;
-        }
-
-        Position detectionPos = new Position(event.clientX, event.clientY);
-
-        for (int i = docs.size() - 1; i >= 0; i--) {
-            Document document = docs.get(i);
-            if (document == null || document.inWorld || document.isManuallyRendered()) continue;
-
-            Element target = document.hitTest(document.screenToDocumentPosition(detectionPos));
-            if (target == null) continue;
-            if (target == document.body) continue;
-
-            Cursor.applyCssCursor(document.getPath(), resolveCursor(target));
-            return;
-        }
-
-        Cursor.resetToDefault();
-    }
-
-    private static String resolveCursor(Element target) {
-        if (target == null) return "default";
-
-        String cache = target.getRenderer().cursor.get();
-        if (cache != null) return cache;
-
-        Element e = target;
-        while (e != null) {
-            String c = e.getComputedStyle().cursor;
-            if (c != null) {
-                c = c.trim();
-                if (!c.isEmpty() && !c.equalsIgnoreCase("unset") && !c.equalsIgnoreCase("auto")) {
-                    target.getRenderer().cursor.set(c);
-                    return c;
-                }
-            }
-            e = e.parentElement;
-        }
-        target.getRenderer().cursor.set("default");
-        return "default";
     }
 
     // 触发鼠标事件的主体

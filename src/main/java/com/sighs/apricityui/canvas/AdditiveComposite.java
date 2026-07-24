@@ -50,7 +50,7 @@ final class AdditiveComposite implements Composite {
                     float outPremulR = clamp01(srcPremulR + dstPremulR);
                     float outPremulG = clamp01(srcPremulG + dstPremulG);
                     float outPremulB = clamp01(srcPremulB + dstPremulB);
-                    float outA = clamp01(srcA + dstA - srcA * dstA);
+                    float outA = clamp01(srcA + dstA);
 
                     if (outA <= 1e-6f) {
                         dstPixel[0] = 0;
