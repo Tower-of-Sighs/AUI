@@ -332,17 +332,26 @@ public record Size(double width, double height) {
         double verticalBox = box.getBorderVertical() + box.getPaddingVertical();
 
         boolean borderBox = box.isBorderBox();
-        boolean absolutePositioned = "absolute".equals(style.position) || "fixed".equals(style.position);
+        boolean fixedPositioned = "fixed".equals(style.position);
+        boolean absolutePositioned = "absolute".equals(style.position) || fixedPositioned;
         double contentWidth = contentSize.width;
         double contentHeight = contentSize.height;
         Double cachedParentWidth = absolutePositioned ? getContainingBlockPaddingBoxWidth(element) : null;
         Double explicitParentWidth = absolutePositioned ? getExplicitContainingBlockPaddingBoxWidth(element) : null;
-        Double definiteParentWidth = cachedParentWidth != null ? cachedParentWidth : explicitParentWidth;
-        double parentWidth = absolutePositioned && definiteParentWidth != null ? definiteParentWidth : getScaleWidth(element);
-        Double explicitParentHeight = absolutePositioned ? getExplicitContainingBlockPaddingBoxHeight(element) : getExplicitContainingBlockHeight(element);
         Double cachedParentHeight = absolutePositioned
                 ? getContainingBlockPaddingBoxHeight(element)
                 : getCachedContainingBlockContentHeight(element);
+        Double explicitParentHeight = absolutePositioned
+                ? getExplicitContainingBlockPaddingBoxHeight(element)
+                : getExplicitContainingBlockHeight(element);
+        if (fixedPositioned) {
+            cachedParentWidth = Double.valueOf(Math.max(0, getWindowWidth()));
+            explicitParentWidth = cachedParentWidth;
+            cachedParentHeight = Double.valueOf(Math.max(0, getWindowHeight()));
+            explicitParentHeight = cachedParentHeight;
+        }
+        Double definiteParentWidth = cachedParentWidth != null ? cachedParentWidth : explicitParentWidth;
+        double parentWidth = absolutePositioned && definiteParentWidth != null ? definiteParentWidth : getScaleWidth(element);
         Double definiteParentHeight = cachedParentHeight != null ? cachedParentHeight : explicitParentHeight;
         double parentHeight = definiteParentHeight != null ? definiteParentHeight : 0;
         boolean unsetWidth = tryResolveLength(style.width, parentWidth) == null;

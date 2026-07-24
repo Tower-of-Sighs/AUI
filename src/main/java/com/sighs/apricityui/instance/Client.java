@@ -11,6 +11,7 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
@@ -230,7 +231,7 @@ public class Client {
     }
 
     public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics, Document excludedDocument) {
-        for (Document document : Document.getAll()) {
+        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
             if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
                 continue;
             }
@@ -394,9 +395,7 @@ public class Client {
     private static Document findViewportZoomTargetAtMouse() {
         Position mouse = Operation.getMousePositionDirectly();
         if (mouse == null) return null;
-        ArrayList<Document> candidates = new ArrayList<>(Document.getAll());
-        for (int i = candidates.size() - 1; i >= 0; i--) {
-            Document document = candidates.get(i);
+        for (Document document : DocumentLayerOrder.frontToBack(Document.getAll())) {
             if (document == null || document.inWorld || document.isManuallyRendered() || !document.isActive()) continue;
             if (document.hitTest(document.screenToDocumentPosition(mouse)) != null) {
                 return document;

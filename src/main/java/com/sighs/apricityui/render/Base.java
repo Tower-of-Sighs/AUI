@@ -39,7 +39,7 @@ public class Base {
 
     public static void drawAllDocument(PoseStack poseStack) {
         Mask.resetDepth();
-        for (Document document : Document.getAll()) {
+        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
             if (!document.inWorld && !document.isManuallyRendered()) drawOverlayDocument(poseStack, document);
         }
     }
@@ -148,7 +148,9 @@ public class Base {
     }
 
     private static boolean shouldSkipSubtree(Element target) {
-        if (target == null || target.document == null || target == target.document.body) return false;
+        if (target == null || target.document == null
+                || target == target.document.documentElement
+                || target == target.document.body) return false;
         if (RenderNode.shouldSkip(target)) return true;
 
         AABB currentClip = Mask.getCurrentClip();
