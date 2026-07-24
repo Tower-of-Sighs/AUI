@@ -65,6 +65,7 @@ public class Element extends Node {
     private final DOMStringMap dataset = new DOMStringMap(this);
     private boolean domInitHookInvoked = false;
     private boolean inlineEventHandlersInstalled = false;
+    private boolean topLayer = false;
 
     // DOM 初始化阶段的“一次性钩子”守卫，避免重复执行。
 
@@ -299,6 +300,24 @@ public class Element extends Node {
         if (document != null) {
             document.requestStyleRecalc(this);
         }
+    }
+
+    /**
+     * Marks this element as a root in the document top layer. Top-layer roots
+     * keep their DOM parent for events and lifecycle, but paint after the
+     * document tree and do not inherit ancestor overflow clips.
+     */
+    public void setTopLayer(boolean topLayer) {
+        if (this.topLayer == topLayer) return;
+        this.topLayer = topLayer;
+        if (document != null && isConnected()) {
+            Element root = document.documentElement != null ? document.documentElement : document.body;
+            if (root != null) document.markDirty(root, Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+        }
+    }
+
+    public boolean isTopLayer() {
+        return topLayer;
     }
 
     protected final void requestPseudoStyleRecalc(String pseudoName) {

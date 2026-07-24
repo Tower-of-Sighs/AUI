@@ -52,6 +52,7 @@ public final class DialogWindow {
         height = options.height() > 0 ? options.height() : 0;
         x = Math.max(12, (vw - width) / 2); y = height > 0 ? Math.max(12, (vh - height) / 2) : 48;
         overlay = el("DIV", options.overlayClass());
+        overlay.setTopLayer(true);
         overlay.setAttribute("style", "position:fixed;inset:0;z-index:9000;");
         window = el("DIV", options.windowClass()); applyBounds();
         Element heading = el("DIV", options.headingClass());

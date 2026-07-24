@@ -5,6 +5,7 @@ import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
 import com.sighs.apricityui.dev.resource.ResourceFontAsset;
 import com.sighs.apricityui.dev.resource.ResourcePath;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
+import com.sighs.apricityui.dev.resource.ResourceReferenceDialog;
 import com.sighs.apricityui.ui.toast.ToastManager;
 import com.sighs.apricityui.ui.menu.ContextMenu;
 import com.sighs.apricityui.init.Document;
@@ -54,6 +55,7 @@ public final class ResourceManager {
     private static final ResourceCreateDialog createDialog = new ResourceCreateDialog();
     private static final ResourcePreviewDialog previewDialog = new ResourcePreviewDialog();
     private static final ResourceMetaDialog metaDialog = new ResourceMetaDialog();
+    private static final ResourceReferenceDialog referenceDialog = new ResourceReferenceDialog();
 
     private ResourceManager() {
     }
@@ -85,6 +87,7 @@ public final class ResourceManager {
         createDialog.close();
         previewDialog.close();
         metaDialog.close();
+        referenceDialog.close();
         if (toolDocument != null && !toolDocument.isDisposed()) {
             toolDocument.remove();
         }
@@ -527,6 +530,10 @@ public final class ResourceManager {
             ContextMenu.Item preview = ContextMenu.Item.action(
                     "PREVIEW", ContextMenu.Icons.OPEN, "DBL-CLK", () -> openPreview(item.entry));
             items.add(previewable ? preview : preview.disabled());
+            if (ResourceReferenceDialog.supports(item.entry)) {
+                items.add(ContextMenu.Item.action("REFERENCE", ContextMenu.Icons.REFERENCE,
+                        () -> referenceDialog.open(toolDocument, item.entry)));
+            }
             if ("html".equalsIgnoreCase(safe(item.entry.extension()))) {
                 Path localPath = resolveLocalPath(item.entry);
                 ContextMenu.Item editMeta = ContextMenu.Item.action(

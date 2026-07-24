@@ -132,6 +132,7 @@ final class SelectPopup {
         Tooltip.hide(document);
         Element.DOMRect initialAnchor = select.getBoundingClientRect();
         panel = element("DIV", "aui-select-popup");
+        panel.setTopLayer(true);
         panel.setAttribute("role", "listbox");
         panel.setAttribute("aria-multiselectable", Boolean.toString(select.isMultiple()));
         panel.addEventListener("mousedown", event -> {

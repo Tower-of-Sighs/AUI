@@ -120,6 +120,7 @@ public final class ContextMenu {
     public static final class Icons {
         public static final String OPEN = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M2 3h4l1.5 1.5H12v7H2V3zm1 1v6h8V5H7l-1.5-1.5H3z\"/></svg>";
         public static final String COPY = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><rect x=\"4\" y=\"4\" width=\"8\" height=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/><path d=\"M2 10V3h6v1H3v6H2z\"/></svg>";
+        public static final String REFERENCE = "<svg viewBox=\"0 0 14 14\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"><path d=\"M5.5 8.5l3-3\"/><path d=\"M4.5 10.5H3a2.5 2.5 0 010-5h2M9.5 3.5H11a2.5 2.5 0 010 5H9\"/></svg>";
         public static final String PROPERTIES = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><circle cx=\"7\" cy=\"7\" r=\"5\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/><path d=\"M7 4v3.5M7 9v.5\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\"/></svg>";
         public static final String NEW_FILE = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M3 1h5l3 3v8H3V1zm5 1v3h3M7 6v2H5v1h2v2h1V9h2V8H8V6H7z\"/></svg>";
         public static final String NEW_FOLDER = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M1 3h4.5L7 4.5H13v7H1V3zm6 3v1.5H5.5v1H7V10h1V8.5H9.5v-1H8V6H7z\"/></svg>";
@@ -189,6 +190,7 @@ public final class ContextMenu {
         requestedPosition = position;
 
         backdrop = element("DIV", "aui-context-menu-backdrop");
+        backdrop.setTopLayer(true);
         backdrop.setAttribute("style", BACKDROP_STYLE);
         backdrop.addEventListener("mousedown", Event::stopPropagation);
         backdrop.addEventListener("click", event -> {

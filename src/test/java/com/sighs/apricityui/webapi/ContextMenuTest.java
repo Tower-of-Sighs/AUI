@@ -36,6 +36,7 @@ class ContextMenuTest {
             Element rendered = document.querySelector(".ctx-menu");
             assertNotNull(root);
             assertNotNull(rendered);
+            assertTrue(root.isTopLayer());
             assertEquals(1, document.querySelectorAll(".ctx-header").size());
             assertEquals(2, document.querySelectorAll(".ctx-item").size());
             assertEquals(1, document.querySelectorAll(".ctx-sep").size());

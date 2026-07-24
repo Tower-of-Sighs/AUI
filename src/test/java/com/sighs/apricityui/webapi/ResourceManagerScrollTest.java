@@ -6,6 +6,7 @@ import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.Font;
@@ -60,7 +61,38 @@ class ResourceManagerScrollTest {
             imageCard.dispatchEvent(new MouseEvent("contextmenu", Position.ZERO, 1, false));
             assertTrue(hasContextAction(document, "COPY PATH"));
             assertTrue(hasContextAction(document, "PREVIEW"));
+            assertTrue(hasContextAction(document, "REFERENCE"));
             assertTrue(hasContextAction(document, "COPY SOURCE"));
+
+            Element referenceAction = contextAction(document, "REFERENCE");
+            assertNotNull(referenceAction);
+            referenceAction.click();
+            assertNotNull(document.querySelector(".resource-reference-dialog"));
+            assertEquals(2, document.querySelectorAll(".resource-reference-option").size());
+            assertEquals("background-image: url(\"/devtools/bear.png\");",
+                    document.querySelector(".resource-reference-code").getValue());
+            document.querySelectorAll(".resource-reference-option").get(1).click();
+            assertEquals("<img src=\"/devtools/bear.png\" alt=\"bear\">",
+                    document.querySelector(".resource-reference-code").getValue());
+            document.querySelector(".resource-reference-dialog .dialog-close").click();
+
+            Element htmlCard = document.querySelector(
+                    ".file-card[data-resource-key=\"devtools/index.html|DEV_FOLDER\"]");
+            assertNotNull(htmlCard);
+            htmlCard.dispatchEvent(new MouseEvent("contextmenu", Position.ZERO, 1, false));
+            assertTrue(hasContextAction(document, "REFERENCE"));
+            contextAction(document, "REFERENCE").click();
+            assertEquals(4, document.querySelectorAll(".resource-reference-option").size());
+            assertEquals("java", document.querySelector(".resource-reference-language-select").getValue());
+            assertEquals("ApricityUI.screen(\"devtools/index.html\");",
+                    document.querySelector(".resource-reference-code").getValue());
+            Element language = document.querySelector(".resource-reference-language-select");
+            language.setValue("kjs");
+            language.dispatchEvent(new Event(language, "change", true));
+            document.querySelectorAll(".resource-reference-option").get(2).click();
+            assertEquals("let overlay = ApricityUI.createDocument(\"devtools/index.html\")",
+                    document.querySelector(".resource-reference-code").getValue());
+            document.querySelector(".resource-reference-dialog .dialog-close").click();
 
             document.querySelector("#upButton").click();
             assertEquals("ROOT", document.querySelector("#contentTitle").getTextContent());
@@ -168,6 +200,25 @@ class ResourceManagerScrollTest {
             assertTrue(Font.isRegistered(family));
             assertTrue(glyph.getAttribute("style").contains("font-family:'" + family + "'"));
 
+            card.dispatchEvent(new MouseEvent("contextmenu", Position.ZERO, 1, false));
+            assertTrue(hasContextAction(document, "REFERENCE"));
+            Element referenceAction = contextAction(document, "REFERENCE");
+            assertNotNull(referenceAction);
+            referenceAction.click();
+            Element familyInput = document.querySelector(".resource-reference-family-input");
+            assertNotNull(familyInput);
+            assertEquals("lxgw3500", familyInput.getValue());
+            assertEquals(2, document.querySelectorAll(".resource-reference-option").size());
+            assertTrue(document.querySelector(".resource-reference-code").getValue().contains("@font-face"));
+            familyInput.value = "Custom Display";
+            familyInput.dispatchEvent(new Event(familyInput, "input", true));
+            assertTrue(document.querySelector(".resource-reference-code").getValue()
+                    .contains("font-family: \"Custom Display\""));
+            document.querySelectorAll(".resource-reference-option").get(1).click();
+            assertEquals("font-family: \"Custom Display\", sans-serif;",
+                    document.querySelector(".resource-reference-code").getValue());
+            document.querySelector(".resource-reference-dialog .dialog-close").click();
+
             card.dispatchEvent(new MouseEvent("dblclick", Position.ZERO, 0, false));
             Element sample = document.querySelector(".resource-preview-font-sample");
             assertNotNull(sample);
@@ -220,10 +271,14 @@ class ResourceManagerScrollTest {
     }
 
     private static boolean hasContextAction(Document document, String label) {
+        return contextAction(document, label) != null;
+    }
+
+    private static Element contextAction(Document document, String label) {
         for (Element action : document.querySelectorAll(".ctx-label")) {
-            if (label.equals(action.getTextContent())) return true;
+            if (label.equals(action.getTextContent())) return action.parentElement;
         }
-        return false;
+        return null;
     }
 
     private static String resourceHtml() throws Exception {
