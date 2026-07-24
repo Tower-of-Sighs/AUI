@@ -273,7 +273,8 @@ public class RenderElement {
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
             "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke",
-            "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace", "textOverflow"
+            "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace", "textOverflow",
+            "lineClamp"
     );
 
     private static final Set<String> STRUCTURAL_PROPS = Set.of(

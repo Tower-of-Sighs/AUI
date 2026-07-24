@@ -12,6 +12,7 @@ public final class LayoutMeasureCache {
     public static final int LAYOUT_FLEX = 4;
     public static final int LAYOUT_NORMAL_FLOW = 5;
     public static final int FLEX_ASSIGNED_MAIN_SIZES = 6;
+    public static final int SIZE_NATURAL_CONSTRAINED = 7;
 
     private static final ThreadLocal<State> STATE = new ThreadLocal<>();
 

@@ -62,6 +62,7 @@ public final class NormalFlow {
             Style currentStyle = current.getComputedStyle();
             if (!"inline".equals(normalizeDisplay(currentStyle.display))) return false;
             if (isReplacedLikeElement(current)) return false;
+            if (requiresIndependentInlinePaint(currentStyle)) return false;
 
             Style parentStyle = parent.getComputedStyle();
             if (Layout.isFlexDisplay(parentStyle.display) || Layout.isGridDisplay(parentStyle.display)) {
@@ -77,7 +78,8 @@ public final class NormalFlow {
 
     private static double resolveLineLimit(Element element) {
         Style style = element.getComputedStyle();
-        if (Size.isNaturalMeasurementContext() && Size.parseNumber(style.width) == null) {
+        if (Size.isNaturalMeasurementContext() && Size.parseNumber(style.width) == null
+                && !Size.hasNaturalWidthConstraint(element)) {
             return 0;
         }
         Double explicitWidth = Size.parseNumber(style.width);
@@ -129,7 +131,7 @@ public final class NormalFlow {
         if (!Layout.isInFlow(style)) return;
 
         if (isInlineLevel(style.display)) {
-            if (shouldFragmentInlineElement(childElement)) {
+            if (!requiresIndependentInlinePaint(style) && shouldFragmentInlineElement(childElement)) {
                 state.childPositions.put(childElement, new Position(state.cursorX, state.cursorY));
                 if (state.target != null && childElement == state.target) {
                     state.targetX = state.cursorX;
@@ -216,7 +218,7 @@ public final class NormalFlow {
         Box childBox = Box.of(childElement);
         Size blockSize;
         if (Size.isNaturalMeasurementContext()) {
-            Size naturalSize = Size.natural(childElement);
+            Size naturalSize = measureNaturalBlockSize(childElement, childBox, state.lineLimit);
             blockSize = new Size(
                     naturalSize.width() + childBox.getMarginHorizontal(),
                     naturalSize.height() + childBox.getMarginVertical()
@@ -249,6 +251,18 @@ public final class NormalFlow {
         state.maxLineWidth = Math.max(state.maxLineWidth, blockOuterWidth);
         state.previousBlockMarginBottom = childBox.getMarginBottom();
         state.previousFlowWasBlock = true;
+    }
+
+    private static Size measureNaturalBlockSize(Element childElement, Box childBox, double containingBlockWidth) {
+        if (containingBlockWidth <= 0 || !Size.hasNaturalWidthConstraint(childElement)) {
+            return Size.natural(childElement);
+        }
+
+        double availableOuterWidth = Math.max(0, containingBlockWidth - childBox.getMarginHorizontal());
+        double availableContentWidth = Math.max(0, availableOuterWidth
+                - childBox.getBorderHorizontal()
+                - childBox.getPaddingHorizontal());
+        return Size.naturalAtContentWidth(childElement, availableContentWidth);
     }
 
     private static HorizontalBlockMargins resolveHorizontalBlockMargins(Box childBox, double containingBlockWidth) {
@@ -456,6 +470,18 @@ public final class NormalFlow {
     }
 
     private record FlowMetrics(double targetX, double targetY, Size contentSize) {
+    }
+
+    /**
+     * Positioned inline boxes participate in the positioned painting order.
+     * Their content therefore cannot be folded into an ancestor's text run,
+     * because that would paint it before the element's own stacking layer.
+     */
+    private static boolean requiresIndependentInlinePaint(Style style) {
+        if (style == null) return false;
+        String position = style.position == null ? "static" : style.position.trim().toLowerCase();
+        String zIndex = style.zIndex == null ? "auto" : style.zIndex.trim().toLowerCase();
+        return !"static".equals(position) || !"auto".equals(zIndex);
     }
 
     private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions, List<TextRunLayout> textRuns) {

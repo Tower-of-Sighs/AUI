@@ -231,24 +231,24 @@ public interface Transform {
             Transform start = startTransforms.get(i);
             Transform end = endTransforms.get(i);
             if (start instanceof Translate startTranslate && end instanceof Translate endTranslate) {
-                if (!startTranslate.equals(endTranslate)) {
-                    result.add(new Transition("transform-translatex", startTranslate.x(), endTranslate.x(), duration, delay, time));
-                    result.add(new Transition("transform-translatey", startTranslate.y(), endTranslate.y(), duration, delay, time));
-                    result.add(new Transition("transform-translatez", startTranslate.z(), endTranslate.z(), duration, delay, time));
-                }
+                addTransitionIfChanged(result, "transform-translatex", startTranslate.x(), endTranslate.x(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-translatey", startTranslate.y(), endTranslate.y(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-translatez", startTranslate.z(), endTranslate.z(), duration, delay, time);
             } else if (start instanceof Rotate startRotate && end instanceof Rotate endRotate) {
-                if (!startRotate.equals(endRotate)) {
-                    result.add(new Transition("transform-rotatex", startRotate.x(), endRotate.x(), duration, delay, time));
-                    result.add(new Transition("transform-rotatey", startRotate.y(), endRotate.y(), duration, delay, time));
-                    result.add(new Transition("transform-rotatez", startRotate.z(), endRotate.z(), duration, delay, time));
-                }
+                addTransitionIfChanged(result, "transform-rotatex", startRotate.x(), endRotate.x(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-rotatey", startRotate.y(), endRotate.y(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-rotatez", startRotate.z(), endRotate.z(), duration, delay, time);
             } else if (start instanceof Scale startScale && end instanceof Scale endScale) {
-                if (!startScale.equals(endScale)) {
-                    result.add(new Transition("transform-scalex", startScale.x(), endScale.x(), duration, delay, time));
-                    result.add(new Transition("transform-scaley", startScale.y(), endScale.y(), duration, delay, time));
-                }
+                addTransitionIfChanged(result, "transform-scalex", startScale.x(), endScale.x(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-scaley", startScale.y(), endScale.y(), duration, delay, time);
             }
         }
+    }
+
+    private static void addTransitionIfChanged(List<Transition> result, String name, double start, double end,
+                                               double duration, double delay, long time) {
+        if (Math.abs(start - end) <= 0.0001) return;
+        result.add(new Transition(name, start, end, duration, delay, time));
     }
 
     static void readTransition(List<Transition.Change> changeList, Style originStyle) {
@@ -265,26 +265,45 @@ public interface Transform {
 
         if (vals.isEmpty()) return;
 
+        Translate baseTranslate = Translate.DEFAULT;
+        Rotate baseRotate = Rotate.DEFAULT;
+        Scale baseScale = Scale.DEFAULT;
+        boolean hasBaseTranslate = false;
+        boolean hasBaseRotate = false;
+        boolean hasBaseScale = false;
+        for (Transform transform : parse(originStyle.transform)) {
+            if (transform instanceof Translate value) {
+                baseTranslate = value;
+                hasBaseTranslate = true;
+            } else if (transform instanceof Rotate value) {
+                baseRotate = value;
+                hasBaseRotate = true;
+            } else if (transform instanceof Scale value) {
+                baseScale = value;
+                hasBaseScale = true;
+            }
+        }
+
         StringBuilder sb = new StringBuilder();
 
-        if (vals.containsKey("transform-translatex") || vals.containsKey("transform-translatey") || vals.containsKey("transform-translatez")) {
+        if (hasBaseTranslate || vals.containsKey("transform-translatex") || vals.containsKey("transform-translatey") || vals.containsKey("transform-translatez")) {
             sb.append(String.format("translate3d(%.2fpx, %.2fpx, %.2fpx) ",
-                    vals.getOrDefault("transform-translatex", 0d),
-                    vals.getOrDefault("transform-translatey", 0d),
-                    vals.getOrDefault("transform-translatez", 0d)));
+                    vals.getOrDefault("transform-translatex", baseTranslate.x()),
+                    vals.getOrDefault("transform-translatey", baseTranslate.y()),
+                    vals.getOrDefault("transform-translatez", baseTranslate.z())));
         }
 
-        if (vals.containsKey("transform-rotatex") || vals.containsKey("transform-rotatey") || vals.containsKey("transform-rotatez")) {
+        if (hasBaseRotate || vals.containsKey("transform-rotatex") || vals.containsKey("transform-rotatey") || vals.containsKey("transform-rotatez")) {
             sb.append(String.format("rotateX(%.2fdeg) rotateY(%.2fdeg) rotateZ(%.2fdeg) ",
-                    vals.getOrDefault("transform-rotatex", 0d),
-                    vals.getOrDefault("transform-rotatey", 0d),
-                    vals.getOrDefault("transform-rotatez", 0d)));
+                    vals.getOrDefault("transform-rotatex", baseRotate.x()),
+                    vals.getOrDefault("transform-rotatey", baseRotate.y()),
+                    vals.getOrDefault("transform-rotatez", baseRotate.z())));
         }
 
-        if (vals.containsKey("transform-scalex") || vals.containsKey("transform-scaley")) {
+        if (hasBaseScale || vals.containsKey("transform-scalex") || vals.containsKey("transform-scaley")) {
             sb.append(String.format("scale(%.2f, %.2f) ",
-                    vals.getOrDefault("transform-scalex", 1.0d),
-                    vals.getOrDefault("transform-scaley", 1.0d)));
+                    vals.getOrDefault("transform-scalex", baseScale.x()),
+                    vals.getOrDefault("transform-scaley", baseScale.y())));
         }
 
         String result = sb.toString().trim();

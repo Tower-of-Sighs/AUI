@@ -181,6 +181,7 @@ public record Transition(String name, double start, double end, double duration,
     public static void applyChanges(Style style, List<Change> changes) {
         Transform.readTransition(changes, style);
         Filter.readTransition(changes, style);
+        Box.readShadowTransition(changes, style);
         changes.forEach(c -> {
             if (c.name.equals("opacity")) style.opacity = String.valueOf(c.value);
             else merge(style, c.name, c.value);
@@ -224,7 +225,8 @@ public record Transition(String name, double start, double end, double duration,
         if (name == null) return false;
         return isLayoutProperty(name)
                 || name.equals("background-color")
-                || name.equals("border-radius");
+                || name.equals("border-radius")
+                || name.startsWith("box-shadow-");
     }
 
     private static void primeCurrentFrameStyle(Element element, Style endStyle) {
@@ -235,6 +237,10 @@ public record Transition(String name, double start, double end, double duration,
         element.getRenderer().transform.clear();
         element.getRenderer().filter.clear();
         element.getRenderer().backdropFilter.clear();
+        if (!Objects.equals(animated.boxShadow, endStyle.boxShadow)) {
+            element.getRenderer().box.clear();
+            element.getRenderer().invalidateStyleVersion();
+        }
         if (element.document != null && !stillActive) {
             element.document.setTransitionActive(element, false);
         }
@@ -423,6 +429,7 @@ public record Transition(String name, double start, double end, double duration,
         int first = res.size();
         if (name.equals("transform")) Transform.createTransition(sS, eS, res, dur, del);
         else if (name.equals("filter")) Filter.createTransition(sS, eS, res, dur, del);
+        else if (name.equals("box-shadow")) Box.createShadowTransition(sS, eS, res, dur, del);
         else if (Box.matchStyleName(name)) Box.createTransition(sS, eS, res, name, dur, del);
         else {
             Double s = parseInterpolableStyle(element, name, sS.get(name));
@@ -527,7 +534,7 @@ public record Transition(String name, double start, double end, double duration,
             "margin-top", "margin-right", "margin-bottom", "margin-left",
             "padding-top", "padding-right", "padding-bottom", "padding-left",
             "border-top-width", "border-right-width", "border-bottom-width", "border-left-width",
-            "border-radius"
+            "border-radius", "box-shadow"
     );
 
     private static boolean isAnimatable(String name) {

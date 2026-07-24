@@ -369,7 +369,9 @@ public class Text {
 
         if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text, lineHeight);
         WrappedText wrapped = wrap(element, text);
-        text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
+        int lineClamp = resolveLineClamp(element);
+        int measuredLines = lineClamp > 0 ? Math.min(lineClamp, wrapped.lines().size()) : wrapped.lines().size();
+        text.size = new Size(wrapped.width(), Math.max(text.lineHeight, measuredLines * text.lineHeight));
 
         if (!naturalMeasurement) {
             element.getRenderer().text.set(text);
@@ -795,7 +797,8 @@ public class Text {
         if (element instanceof AbstractText input && !input.isMultiline()) return 0;
         Style style = element.getRawComputedStyle();
         Double explicitWidth = Size.parseNumber(style.width);
-        if (explicitWidth == null && Size.isNaturalMeasurementContext()) {
+        if (explicitWidth == null && Size.isNaturalMeasurementContext()
+                && !Size.hasNaturalWidthConstraint(element)) {
             String display = style.display == null ? "block" : style.display.trim().toLowerCase(Locale.ROOT);
             if (!"inline".equals(display) && !"inline-block".equals(display)) {
                 return 0;
@@ -890,6 +893,21 @@ public class Text {
             emitted = true;
         }
         return sb.toString();
+    }
+
+    public static int resolveLineClamp(Element element) {
+        if (element == null) return 0;
+        String raw = element.getComputedStyle().lineClamp;
+        if (raw == null) return 0;
+        String value = raw.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty() || "none".equals(value) || "unset".equals(value)) return 0;
+        int separator = value.indexOf(' ');
+        if (separator >= 0) value = value.substring(0, separator);
+        try {
+            return Math.max(0, Integer.parseInt(value));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private static String collapseSpacesPreserveNewlines(String content) {

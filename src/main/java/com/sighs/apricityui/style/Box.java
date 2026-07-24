@@ -4,8 +4,11 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public class Box {
@@ -439,24 +442,31 @@ public class Box {
 
         for (String shadowToken : Background.splitTopLevelComma(string)) {
             String[] res = splitWhitespace(shadowToken, 8);
-            if (res.length < 3) continue;
+            if (res.length < 2) continue;
 
             Double x = Size.parseNumber(res[0]);
             Double y = Size.parseNumber(res[1]);
-            Double blur = Size.parseNumber(res[2]);
-            if (x == null || y == null || blur == null) continue;
+            if (x == null || y == null) continue;
 
+            double blur = 0;
             double spread = 0;
-            int colorIndex = 3;
-            if (res.length >= 4) {
-                Double parsedSpread = Size.parseNumber(res[3]);
+            int colorIndex = 2;
+            if (res.length > colorIndex) {
+                Double parsedBlur = Size.parseNumber(res[colorIndex]);
+                if (parsedBlur != null) {
+                    blur = Math.max(0, parsedBlur);
+                    colorIndex++;
+                }
+            }
+            if (res.length > colorIndex) {
+                Double parsedSpread = Size.parseNumber(res[colorIndex]);
                 if (parsedSpread != null) {
                     spread = parsedSpread;
-                    colorIndex = 4;
+                    colorIndex++;
                 }
             }
             String color = res.length > colorIndex ? res[colorIndex] : "#000";
-            result.add(new Shadow(x, y, Math.max(0, blur), spread, new Color(color)));
+            result.add(new Shadow(x, y, blur, spread, new Color(color)));
         }
         return result;
     }
@@ -465,11 +475,18 @@ public class Box {
         if (value == null || value.isBlank() || maxTokens <= 0) return new String[0];
         ArrayList<String> tokens = new ArrayList<>(Math.min(4, maxTokens));
         int index = 0;
+        int depth = 0;
         while (index < value.length() && tokens.size() < maxTokens) {
             while (index < value.length() && Character.isWhitespace(value.charAt(index))) index++;
             if (index >= value.length()) break;
             int start = index;
-            while (index < value.length() && !Character.isWhitespace(value.charAt(index))) index++;
+            while (index < value.length()) {
+                char current = value.charAt(index);
+                if (current == '(') depth++;
+                else if (current == ')' && depth > 0) depth--;
+                else if (Character.isWhitespace(current) && depth == 0) break;
+                index++;
+            }
             tokens.add(value.substring(start, index));
         }
         return tokens.toArray(String[]::new);
@@ -604,6 +621,142 @@ public class Box {
 
     public static boolean matchStyleName(String name) {
         return Set.of("margin", "padding", "border-width").contains(name);
+    }
+
+    public static void createShadowTransition(Style startStyle, Style endStyle, List<Transition> result,
+                                              double duration, double delay) {
+        List<Shadow> start = parseShadowList(startStyle.boxShadow);
+        List<Shadow> end = parseShadowList(endStyle.boxShadow);
+        int count = Math.max(start.size(), end.size());
+        for (int i = 0; i < count; i++) {
+            Shadow startShadow = i < start.size() ? start.get(i) : transparentShadow(end.get(i));
+            Shadow endShadow = i < end.size() ? end.get(i) : transparentShadow(start.get(i));
+            addShadowTransition(result, i, "x", startShadow.x(), endShadow.x(), duration, delay);
+            addShadowTransition(result, i, "y", startShadow.y(), endShadow.y(), duration, delay);
+            addShadowTransition(result, i, "blur", startShadow.size(), endShadow.size(), duration, delay);
+            addShadowTransition(result, i, "spread", startShadow.spread(), endShadow.spread(), duration, delay);
+            addShadowTransition(result, i, "color", startShadow.color().getValue(), endShadow.color().getValue(), duration, delay);
+        }
+    }
+
+    public static void interpolateShadow(List<Transition.Change> changes, String startValue, String endValue,
+                                         double progress) {
+        List<Shadow> start = parseShadowList(startValue);
+        List<Shadow> end = parseShadowList(endValue);
+        int count = Math.max(start.size(), end.size());
+        for (int i = 0; i < count; i++) {
+            Shadow startShadow = i < start.size() ? start.get(i) : transparentShadow(end.get(i));
+            Shadow endShadow = i < end.size() ? end.get(i) : transparentShadow(start.get(i));
+            changes.add(new Transition.Change(shadowTransitionName(i, "x"),
+                    Transition.getOffset("x", startShadow.x(), endShadow.x(), progress)));
+            changes.add(new Transition.Change(shadowTransitionName(i, "y"),
+                    Transition.getOffset("y", startShadow.y(), endShadow.y(), progress)));
+            changes.add(new Transition.Change(shadowTransitionName(i, "blur"),
+                    Transition.getOffset("blur", startShadow.size(), endShadow.size(), progress)));
+            changes.add(new Transition.Change(shadowTransitionName(i, "spread"),
+                    Transition.getOffset("spread", startShadow.spread(), endShadow.spread(), progress)));
+            changes.add(new Transition.Change(shadowTransitionName(i, "color"),
+                    Transition.getOffset("color", startShadow.color().getValue(), endShadow.color().getValue(), progress)));
+        }
+    }
+
+    public static void readShadowTransition(List<Transition.Change> changes, Style style) {
+        if (changes == null || changes.isEmpty() || style == null) return;
+        Map<Integer, ShadowComponents> animated = new HashMap<>();
+        for (Iterator<Transition.Change> iterator = changes.iterator(); iterator.hasNext(); ) {
+            Transition.Change change = iterator.next();
+            ShadowComponent component = parseShadowComponent(change.name());
+            if (component == null) continue;
+            animated.computeIfAbsent(component.index(), ignored -> new ShadowComponents())
+                    .set(component.name(), change.value());
+            iterator.remove();
+        }
+        if (animated.isEmpty()) return;
+
+        List<Shadow> target = new ArrayList<>(parseShadowList(style.boxShadow));
+        int count = Math.max(target.size(), animated.keySet().stream().mapToInt(Integer::intValue).max().orElse(-1) + 1);
+        while (target.size() < count) target.add(new Shadow(0, 0, 0, 0, new Color(0)));
+        for (Map.Entry<Integer, ShadowComponents> entry : animated.entrySet()) {
+            int index = entry.getKey();
+            Shadow base = target.get(index);
+            target.set(index, entry.getValue().apply(base));
+        }
+        style.boxShadow = serializeShadows(target);
+    }
+
+    private static void addShadowTransition(List<Transition> result, int index, String component,
+                                            double start, double end, double duration, double delay) {
+        if (Math.abs(start - end) <= 0.0001) return;
+        result.add(new Transition(shadowTransitionName(index, component), start, end,
+                duration, delay, System.currentTimeMillis()));
+    }
+
+    private static String shadowTransitionName(int index, String component) {
+        return "box-shadow-" + index + "-" + component;
+    }
+
+    private static Shadow transparentShadow(Shadow reference) {
+        int transparentColor = reference == null ? 0 : reference.color().getValue() & 0x00FFFFFF;
+        return new Shadow(0, 0, 0, 0, new Color(transparentColor));
+    }
+
+    private static ShadowComponent parseShadowComponent(String name) {
+        String prefix = "box-shadow-";
+        if (name == null || !name.startsWith(prefix)) return null;
+        int separator = name.indexOf('-', prefix.length());
+        if (separator < 0) return null;
+        try {
+            int index = Integer.parseInt(name.substring(prefix.length(), separator));
+            String component = name.substring(separator + 1);
+            if (!Set.of("x", "y", "blur", "spread", "color").contains(component)) return null;
+            return new ShadowComponent(index, component);
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static String serializeShadows(List<Shadow> shadows) {
+        if (shadows == null || shadows.isEmpty()) return "none";
+        ArrayList<String> values = new ArrayList<>(shadows.size());
+        for (Shadow shadow : shadows) {
+            Color color = shadow.color();
+            values.add(String.format(Locale.ROOT,
+                    "%.3fpx %.3fpx %.3fpx %.3fpx rgba(%d,%d,%d,%.3f)",
+                    shadow.x(), shadow.y(), shadow.size(), shadow.spread(),
+                    color.getR(), color.getG(), color.getB(), color.getA() / 255.0));
+        }
+        return String.join(", ", values);
+    }
+
+    private record ShadowComponent(int index, String name) {
+    }
+
+    private static final class ShadowComponents {
+        private Double x;
+        private Double y;
+        private Double blur;
+        private Double spread;
+        private Double color;
+
+        private void set(String name, double value) {
+            switch (name) {
+                case "x" -> x = value;
+                case "y" -> y = value;
+                case "blur" -> blur = value;
+                case "spread" -> spread = value;
+                case "color" -> color = value;
+            }
+        }
+
+        private Shadow apply(Shadow base) {
+            return new Shadow(
+                    x == null ? base.x() : x,
+                    y == null ? base.y() : y,
+                    Math.max(0, blur == null ? base.size() : blur),
+                    spread == null ? base.spread() : spread,
+                    color == null ? base.color() : new Color(color.intValue())
+            );
+        }
     }
 
     public static void createTransition(Style sS, Style eS, List<Transition> res, String name, double dur, double del) {

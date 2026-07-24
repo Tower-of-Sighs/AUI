@@ -2,11 +2,18 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.dev.resource.ResourceCreateDialog;
 import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
+import com.sighs.apricityui.dev.resource.ResourceReferenceDialog;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Selector;
+import com.sighs.apricityui.init.StyleFrameCache;
 import com.sighs.apricityui.instance.ApricityViewport;
+import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.style.Background;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -14,6 +21,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -97,6 +105,81 @@ class ResourceDialogStyleTest {
         } finally {
             createDialog.close();
         }
+    }
+
+    @Test
+    void confirmButtonLabelPaintsAboveItsHoverFill() throws Exception {
+        Document document = styledDocument();
+        ResourceReferenceDialog dialog = new ResourceReferenceDialog();
+        dialog.open(document, new Loader.StaticResourceEntry(
+                "tests/example.html", "html", Loader.ResourceLayer.DEV_FOLDER, "", "", 1));
+        try {
+            Element button = document.querySelector(".resource-reference-copy");
+            assertNotNull(button);
+            button.setHover(true);
+            document.flushPendingStyleUpdates();
+
+            List<Element> children = button.getRenderChildren();
+            Element fill = children.stream().filter(Element::isPseudoElement).findFirst().orElseThrow();
+            Element label = button.querySelector(".dialog-btn-label");
+            assertNotNull(label);
+            assertEquals("0", fill.getRawComputedStyle().zIndex);
+            assertEquals("1", label.getRawComputedStyle().zIndex);
+
+            List<RenderNode> paint = Drawer.createPaintList(document.body);
+            int fillIndex = bodyIndex(paint, fill);
+            int labelIndex = bodyIndex(paint, label);
+            assertTrue(fillIndex < labelIndex, "the z-index:1 label must paint after the z-index:0 fill");
+        } finally {
+            dialog.close();
+        }
+    }
+
+    @Test
+    void navigationRootReturnsToTransparentAfterHover() throws Exception {
+        Document document = styledDocument();
+        Element navigation = document.createElement("div");
+        navigation.setAttribute("class", "nav-path");
+        Element root = document.createElement("span");
+        root.setTextContent("ROOT");
+        root.setAttribute("style", "transition: all 1ms linear;");
+        navigation.appendChild(root);
+        document.body.appendChild(navigation);
+
+        assertEquals("transparent", root.getComputedStyle().backgroundColor);
+
+        root.setHover(true);
+        document.flushPendingStyleUpdates();
+        sampleMotionFrame(document, root);
+
+        root.setHover(false);
+        document.flushPendingStyleUpdates();
+        sampleMotionFrame(document, root);
+        Thread.sleep(10L);
+
+        Background settled = sampleMotionFrame(document, root);
+        assertEquals(0, settled.color == null ? 0 : new com.sighs.apricityui.style.Color(settled.color).getA());
+        assertFalse(root.isHover);
+    }
+
+    private static Background sampleMotionFrame(Document document, Element element) {
+        StyleFrameCache.begin();
+        try {
+            document.stepMotionRender();
+            return Background.of(element);
+        } finally {
+            StyleFrameCache.end();
+        }
+    }
+
+    private static int bodyIndex(List<RenderNode> paint, Element target) {
+        for (int i = 0; i < paint.size(); i++) {
+            RenderNode node = paint.get(i);
+            if (node instanceof RenderNode.ElementPhaseNode phase
+                    && phase.target() == target
+                    && phase.phase() == Base.RenderPhase.BODY) return i;
+        }
+        throw new AssertionError("BODY render node missing for " + target.tagName);
     }
 
     private static Document styledDocument() throws Exception {

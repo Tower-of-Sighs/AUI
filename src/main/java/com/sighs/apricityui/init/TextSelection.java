@@ -156,14 +156,14 @@ final class TextSelection {
         double contentWidth = Box.of(owner).innerSize().width();
         double contentHeight = Box.of(owner).innerSize().height();
         Text.WrappedText wrapped = Text.wrapCached(owner, text);
-        List<String> lines = wrapped.lines();
+        List<String> lines = owner.resolveRenderedLines(text, contentWidth, contentHeight);
         int[] starts = wrapped.starts();
-        double textHeight = wrapped.height(text.lineHeight);
+        double textHeight = Math.max(text.lineHeight, lines.size() * text.lineHeight);
         boolean flexLike = com.sighs.apricityui.style.Layout.isFlexDisplay(owner.getComputedStyle().display)
                 || com.sighs.apricityui.style.Layout.isGridDisplay(owner.getComputedStyle().display);
         Position flexTextOffset = flexLike ? owner.getFlexTextOffset() : Position.ZERO;
         double drawY = contentPos.y + (flexLike ? flexTextOffset.y : Element.computeVerticalOffset(text, contentHeight, textHeight));
-        boolean drawSelectionText = canSelectInnerText() && hasInnerTextSelection();
+        boolean drawSelectionText = lines.equals(wrapped.lines()) && canSelectInnerText() && hasInnerTextSelection();
         int min = Math.max(0, Math.min(start, end));
         int max = Math.min(text.content.length(), Math.max(start, end));
         Position linePos = new Position(0, 0);

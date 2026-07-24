@@ -792,6 +792,19 @@ class LayoutPositionTest {
     }
 
     @Test
+    void constrainedBorderBoxAspectRatioUsesTheOuterBox() {
+        Document document = TestDocumentFactory.createDocument();
+        Element child = new Element(document, "div");
+        child.setAttribute("style", "box-sizing: border-box; padding: 20px 16px; border: 2px solid #000; aspect-ratio: 1 / 1;");
+        document.body.appendChild(child);
+
+        Size measured = Size.naturalAtContentWidth(child, 115);
+
+        assertEquals(151, measured.width());
+        assertEquals(151, measured.height());
+    }
+
+    @Test
     void aspectRatioHeightUsesWidthAfterMaxWidthClamp() {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");

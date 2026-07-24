@@ -188,6 +188,7 @@ public class Animation {
 
             if (p.equals("transform")) Transform.interpolateTransform(changes, vS, vE, fraction);
             else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
+            else if (p.equals("box-shadow")) Box.interpolateShadow(changes, vS, vE, fraction);
             else {
                 double val = Transition.getOffset(p, parseAnimationStyle(element, p, vS), parseAnimationStyle(element, p, vE), fraction);
                 changes.add(new Transition.Change(p, val));

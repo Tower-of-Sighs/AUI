@@ -25,6 +25,9 @@ public record Size(double width, double height) {
     private static final ThreadLocal<Set<Element>> NATURAL_TOUCHED = ThreadLocal.withInitial(
             () -> Collections.newSetFromMap(new java.util.IdentityHashMap<>())
     );
+    private static final ThreadLocal<Map<Element, Double>> NATURAL_CONTENT_WIDTHS = ThreadLocal.withInitial(
+            java.util.IdentityHashMap::new
+    );
     private static final int NUMBER_CACHE_LIMIT = 4096;
     private static final Map<String, Double> NUMBER_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
         @Override
@@ -224,15 +227,34 @@ public record Size(double width, double height) {
     }
 
     public static Size natural(Element element) {
+        return measureNatural(element, LayoutMeasureCache.SIZE_NATURAL, Double.NaN);
+    }
+
+    public static Size naturalAtContentWidth(Element element, double contentWidth) {
         if (element == null) return ZERO;
-        Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element, Double.NaN, Double.NaN, true);
+        double constrainedWidth = Math.max(0, contentWidth);
+        Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
+        boolean hadPrevious = constraints.containsKey(element);
+        Double previous = constraints.put(element, constrainedWidth);
+        try {
+            return measureNatural(element, LayoutMeasureCache.SIZE_NATURAL_CONSTRAINED, constrainedWidth);
+        } finally {
+            if (hadPrevious) constraints.put(element, previous);
+            else constraints.remove(element);
+            if (constraints.isEmpty()) NATURAL_CONTENT_WIDTHS.remove();
+        }
+    }
+
+    private static Size measureNatural(Element element, int cacheMode, double availableWidth) {
+        if (element == null) return ZERO;
+        Size cached = LayoutMeasureCache.getSize(cacheMode, element, availableWidth, Double.NaN, true);
         if (cached != null) return cached;
         int depth = NATURAL_MEASURE_DEPTH.get();
         NATURAL_MEASURE_DEPTH.set(depth + 1);
         NATURAL_NO_CACHE.get().add(element);
         try {
             Size result = computeSize(element, false);
-            LayoutMeasureCache.putSize(LayoutMeasureCache.SIZE_NATURAL, element, Double.NaN, Double.NaN, true, result);
+            LayoutMeasureCache.putSize(cacheMode, element, availableWidth, Double.NaN, true, result);
             return result;
         } finally {
             Set<Element> noCache = NATURAL_NO_CACHE.get();
@@ -252,6 +274,17 @@ public record Size(double width, double height) {
 
     public static boolean isNaturalMeasurementContext() {
         return NATURAL_MEASURE_DEPTH.get() > 0;
+    }
+
+    public static boolean hasNaturalWidthConstraint(Element element) {
+        if (element == null) return false;
+        Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
+        Element current = element;
+        while (current != null) {
+            if (constraints.containsKey(current)) return true;
+            current = current.parentElement;
+        }
+        return false;
     }
 
     public static boolean isResolving(Element element) {
@@ -314,6 +347,7 @@ public record Size(double width, double height) {
         double parentHeight = definiteParentHeight != null ? definiteParentHeight : 0;
         boolean unsetWidth = tryResolveLength(style.width, parentWidth) == null;
         boolean unsetHeight = tryResolveLength(style.height, parentHeight) == null;
+        Double naturalWidthConstraint = NATURAL_CONTENT_WIDTHS.get().get(element);
         boolean hasLeft = isInsetSet(style.left);
         boolean hasRight = isInsetSet(style.right);
         boolean hasTop = isInsetSet(style.top);
@@ -340,6 +374,8 @@ public record Size(double width, double height) {
         if (!unsetWidth) {
             double resolved = resolveLength(style.width, parentWidth, contentWidth);
             contentWidth = borderBox ? Math.max(0, resolved - horizontalBox) : Math.max(0, resolved);
+        } else {
+            if (naturalWidthConstraint != null) contentWidth = Math.max(0, naturalWidthConstraint);
         }
         if (!unsetHeight && (!isPercent(style.height) || definiteParentHeight != null)) {
             double resolved = resolveLength(style.height, parentHeight, contentHeight);
@@ -348,10 +384,10 @@ public record Size(double width, double height) {
 
         Double aspectRatio = parseAspectRatio(style.aspectRatio);
         if (aspectRatio != null && aspectRatio > 0) {
-            if (!unsetWidth && unsetHeight) {
-                contentHeight = contentWidth / aspectRatio;
+            if ((!unsetWidth || naturalWidthConstraint != null) && unsetHeight) {
+                contentHeight = aspectHeightFromWidth(contentWidth, aspectRatio, borderBox, horizontalBox, verticalBox);
             } else if (unsetWidth && !unsetHeight) {
-                contentWidth = contentHeight * aspectRatio;
+                contentWidth = aspectWidthFromHeight(contentHeight, aspectRatio, borderBox, horizontalBox, verticalBox);
             }
         }
 
@@ -399,11 +435,13 @@ public record Size(double width, double height) {
         double constrainedContentWidth = clampContentExtent(contentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
         double constrainedContentHeight = clampContentExtent(contentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
         if (aspectRatio != null && aspectRatio > 0) {
-            if (!unsetWidth && unsetHeight) {
-                constrainedContentHeight = constrainedContentWidth / aspectRatio;
+            if ((!unsetWidth || naturalWidthConstraint != null) && unsetHeight) {
+                constrainedContentHeight = aspectHeightFromWidth(
+                        constrainedContentWidth, aspectRatio, borderBox, horizontalBox, verticalBox);
                 constrainedContentHeight = clampContentExtent(constrainedContentHeight, verticalBox, style.minHeight, style.maxHeight, parentHeight, definiteParentHeight != null);
             } else if (unsetWidth && !unsetHeight) {
-                constrainedContentWidth = constrainedContentHeight * aspectRatio;
+                constrainedContentWidth = aspectWidthFromHeight(
+                        constrainedContentHeight, aspectRatio, borderBox, horizontalBox, verticalBox);
                 constrainedContentWidth = clampContentExtent(constrainedContentWidth, horizontalBox, style.minWidth, style.maxWidth, parentWidth, true);
             }
         }
@@ -438,6 +476,20 @@ public record Size(double width, double height) {
             if (isNaturalMeasurementContext()) NATURAL_TOUCHED.get().add(element);
         }
         return resultSize;
+    }
+
+    private static double aspectHeightFromWidth(double contentWidth, double ratio, boolean borderBox,
+                                                double horizontalBox, double verticalBox) {
+        double ratioWidth = borderBox ? contentWidth + horizontalBox : contentWidth;
+        double ratioHeight = ratioWidth / ratio;
+        return Math.max(0, borderBox ? ratioHeight - verticalBox : ratioHeight);
+    }
+
+    private static double aspectWidthFromHeight(double contentHeight, double ratio, boolean borderBox,
+                                                double horizontalBox, double verticalBox) {
+        double ratioHeight = borderBox ? contentHeight + verticalBox : contentHeight;
+        double ratioWidth = ratioHeight * ratio;
+        return Math.max(0, borderBox ? ratioWidth - horizontalBox : ratioWidth);
     }
 
     private static double clampContentExtent(double contentExtent, double boxExtent,
@@ -490,6 +542,8 @@ public record Size(double width, double height) {
     }
 
     public static double getScaleWidth(Element element) {
+        Double constrainedWidth = NATURAL_CONTENT_WIDTHS.get().get(element);
+        if (constrainedWidth != null) return Math.max(0, constrainedWidth);
         Element parent = element.parentElement;
         if (parent != null) {
             Size cachedParentSize = parent.getRenderer().size.get();

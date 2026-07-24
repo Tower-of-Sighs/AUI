@@ -29,6 +29,17 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CssCompatibilityTest {
     @Test
+    void lineClampIsAFirstClassComputedTextProperty() {
+        Style style = new Style();
+        style.merge("line-clamp: 2; overflow: hidden; text-overflow: ellipsis;");
+        style.finalizeComputedValues(null);
+
+        assertEquals("2", style.lineClamp);
+        assertEquals("hidden", style.overflow);
+        assertEquals("ellipsis", style.textOverflow);
+    }
+
+    @Test
     void multipleBoxShadowsRetainCssOrderAndSpreadRadius() {
         List<Box.Shadow> shadows = Box.parseShadowList(
                 "10px 10px 0 rgba(139,92,246,0.25), 10px 10px 0 3px #1a1a1a");
@@ -45,6 +56,10 @@ class CssCompatibilityTest {
         assertEquals(6, colorlessSpread.size());
         assertEquals(8, colorlessSpread.spread());
         assertEquals(0xFF000000, colorlessSpread.color().getValue());
+
+        Box.Shadow spacedRgba = Box.parseShadowList("2px 4px rgba(26, 42, 58, 0.5)").get(0);
+        assertEquals(0, spacedRgba.size());
+        assertEquals(0x801A2A3A, spacedRgba.color().getValue());
     }
 
     @Test
@@ -81,6 +96,18 @@ class CssCompatibilityTest {
 
         child.setAttribute("style", "color: inherit;");
         assertEquals("#abcdef", child.getComputedStyle().color);
+    }
+
+    @Test
+    void backgroundColorDefaultsToTransparent() {
+        Document document = TestDocumentFactory.createDocument();
+        Element element = document.createElement("span");
+        document.body.appendChild(element);
+
+        assertEquals("transparent", element.getComputedStyle().backgroundColor);
+
+        element.setAttribute("style", "background-color: unset;");
+        assertEquals("transparent", element.getComputedStyle().backgroundColor);
     }
 
     @Test

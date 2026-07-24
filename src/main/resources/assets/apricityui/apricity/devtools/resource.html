@@ -361,6 +361,8 @@
             overflow: hidden;
         }
 
+        .file-grid .file-card { aspect-ratio: 1 / 1; }
+
         .file-card.entering {
             animation: cardIn 0.4s cubic-bezier(0.4,0,0.2,1) backwards;
         }
@@ -462,6 +464,12 @@
             transition: color 0.2s ease;
         }
 
+        .file-grid .file-name {
+            line-clamp: 2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .file-card:hover .file-name { color: var(--purple); }
 
         .file-meta {
@@ -470,6 +478,14 @@
             text-align: center;
             margin-top: 6px;
             letter-spacing: 0.5px;
+        }
+
+        .file-grid .file-meta {
+            position: absolute;
+            right: 16px;
+            bottom: 12px;
+            left: 16px;
+            margin-top: 0;
         }
 
         /* ===== Detail ===== */

@@ -2177,19 +2177,25 @@ public class Element extends Node {
         return false;
     }
 
-    private List<String> resolveRenderedLines(Text text, double contentWidth, double contentHeight) {
+    List<String> resolveRenderedLines(Text text, double contentWidth, double contentHeight) {
         Text.WrappedText wrapped = Text.wrap(this, text);
         List<String> lines = new ArrayList<>(wrapped.lines());
         if (lines.isEmpty()) return lines;
 
-        int visibleLineCount = Math.max(1, (int) Math.floor(contentHeight / Math.max(1.0, text.lineHeight)));
+        int heightLineCount = Math.max(1, (int) Math.floor(contentHeight / Math.max(1.0, text.lineHeight)));
+        int lineClamp = Text.resolveLineClamp(this);
+        int visibleLineCount = lineClamp > 0 ? Math.min(heightLineCount, lineClamp) : heightLineCount;
+        boolean truncated = visibleLineCount < lines.size();
         if (visibleLineCount < lines.size()) {
             lines = new ArrayList<>(lines.subList(0, visibleLineCount));
         }
 
-        if (shouldApplyEllipsis(text, contentWidth)) {
+        if (shouldApplyClampedEllipsis(contentWidth, lineClamp, truncated)) {
+            int last = lines.size() - 1;
+            lines.set(last, ellipsize(text, lines.get(last), contentWidth, true));
+        } else if (shouldApplyEllipsis(text, contentWidth)) {
             String line = lines.get(0);
-            lines.set(0, ellipsize(text, line, Math.max(0, contentWidth - Math.abs(text.textIndent))));
+            lines.set(0, ellipsize(text, line, Math.max(0, contentWidth - Math.abs(text.textIndent)), false));
             if (lines.size() > 1) {
                 lines = new ArrayList<>(lines.subList(0, 1));
             }
@@ -2207,14 +2213,22 @@ public class Element extends Node {
         return true;
     }
 
-    private static String ellipsize(Text text, String content, double maxWidth) {
+    private boolean shouldApplyClampedEllipsis(double contentWidth, int lineClamp, boolean truncated) {
+        if (contentWidth <= 0 || lineClamp <= 0 || !truncated) return false;
+        Style style = getComputedStyle();
+        return Interaction.clipsOverflow(style.overflow)
+                && "ellipsis".equalsIgnoreCase(style.textOverflow);
+    }
+
+    private static String ellipsize(Text text, String content, double maxWidth, boolean forceEllipsis) {
         if (content == null || content.isEmpty()) return "";
         if (maxWidth <= 0) return "";
-        if (Text.measureLine(text, content) <= maxWidth) return content;
 
         String ellipsis = "...";
         double ellipsisWidth = Text.measureLine(text, ellipsis);
         if (ellipsisWidth >= maxWidth) return "";
+        if (!forceEllipsis && Text.measureLine(text, content) <= maxWidth) return content;
+        if (forceEllipsis && Text.measureLine(text, content + ellipsis) <= maxWidth) return content + ellipsis;
 
         int end = content.length();
         while (end > 0) {
