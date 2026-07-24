@@ -64,7 +64,24 @@ public class Drawer {
     public static ArrayList<RenderNode> createPaintList(Element body) {
         ArrayList<RenderNode> paintList = new ArrayList<>();
         processStackingContext(body, paintList);
+        for (Element topLayer : collectTopLayerRoots(body)) {
+            processStackingContext(topLayer, paintList);
+        }
         return paintList;
+    }
+
+    private static List<Element> collectTopLayerRoots(Element root) {
+        if (root == null) return List.of();
+        ArrayList<Element> result = new ArrayList<>();
+        collectTopLayerRoots(root, result);
+        return result;
+    }
+
+    private static void collectTopLayerRoots(Element parent, List<Element> result) {
+        for (Element child : parent.getRenderChildren()) {
+            if (child.isTopLayer()) result.add(child);
+            collectTopLayerRoots(child, result);
+        }
     }
 
     private static void updatePaintList(Document document, Set<Element> reorderRoots) {
@@ -157,8 +174,18 @@ public class Drawer {
 
         List<Element> children = contextRoot.getRenderChildren();
         if (children.isEmpty()) {
-            appendBodyRenderNodes(contextRoot, paintList);
-            paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+            boolean needsMask = Interaction.clipsOverflow(rootStyle);
+            if (needsMask) {
+                // CSS overflow clips an element's own content, but not its
+                // shadow or border. The padding box is the overflow clip edge.
+                paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+                paintList.add(new RenderNode.MaskPushNode(contextRoot));
+                appendBodyRenderNodes(contextRoot, paintList);
+                paintList.add(new RenderNode.MaskPopNode(contextRoot));
+            } else {
+                appendBodyRenderNodes(contextRoot, paintList);
+                paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+            }
             if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
             if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
             return;
@@ -171,6 +198,9 @@ public class Drawer {
 
         for (int i = 0; i < children.size(); i++) {
             Element child = children.get(i);
+            // Top-layer boxes retain their DOM parent but paint in a separate
+            // root after the normal document, outside ancestor overflow clips.
+            if (child.isTopLayer()) continue;
             Style style = child.getRawComputedStyle();
             if ("none".equals(style.display)) {
                 continue;
@@ -206,17 +236,23 @@ public class Drawer {
         if (autoOrZeroContext.size() > 1) autoOrZeroContext.sort(PAINTABLE_ORDER);
         if (positiveZ.size() > 1) positiveZ.sort(PAINTABLE_ORDER);
 
-        boolean splitContentForNegativeZ = !negativeZ.isEmpty();
-        if (splitContentForNegativeZ) {
-            paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
-        } else {
-            appendBodyRenderNodes(contextRoot, paintList);
-        }
-        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
-
         boolean needsMask = Interaction.clipsOverflow(rootStyle);
+        boolean splitContentForNegativeZ = !negativeZ.isEmpty();
+
         if (needsMask) {
+            if (splitContentForNegativeZ) {
+                paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+            }
+            paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
             paintList.add(new RenderNode.MaskPushNode(contextRoot));
+            if (!splitContentForNegativeZ) appendBodyRenderNodes(contextRoot, paintList);
+        } else {
+            if (splitContentForNegativeZ) {
+                paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+            } else {
+                appendBodyRenderNodes(contextRoot, paintList);
+            }
+            paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         }
 
         for (Paintable p : negativeZ) processStackingContext(p.element, paintList);

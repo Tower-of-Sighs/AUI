@@ -903,6 +903,140 @@
         .resource-import-card .file-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .resource-create-file-input { display: none; }
 
+        .resource-reference-title-icon {
+            width: 18px;
+            height: 18px;
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .resource-reference-title-icon::before,
+        .resource-reference-title-icon::after {
+            content: '';
+            position: absolute;
+            width: 10px;
+            height: 6px;
+            border: 2px solid var(--white);
+        }
+
+        .resource-reference-title-icon::before { left: 0; top: 1px; }
+        .resource-reference-title-icon::after { right: 0; bottom: 1px; }
+
+        .resource-reference-body { gap: 16px; }
+        .resource-reference-family-field { margin-bottom: 0; }
+        .resource-reference-language-field { margin-bottom: 0; }
+
+        .resource-reference-grid {
+            display: flex;
+            flex-direction: row;
+            gap: 16px;
+            flex: 0 0 auto;
+        }
+
+        .resource-reference-option {
+            flex: 1 1 0;
+            min-width: 0;
+            min-height: 116px;
+            padding: 16px;
+            border: 2px solid var(--gray-light);
+            background: var(--white);
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            cursor: pointer;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .resource-reference-option:hover {
+            border-color: var(--purple);
+            background: rgba(139,92,246,0.035);
+        }
+
+        .resource-reference-option.selected {
+            border-color: var(--purple);
+            background: rgba(139,92,246,0.08);
+        }
+
+        .resource-reference-option-icon {
+            width: 52px;
+            height: 52px;
+            flex: 0 0 52px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .resource-reference-option-icon svg { width: 48px; height: 48px; }
+        .resource-reference-option-copy { min-width: 0; }
+
+        .resource-reference-html-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .resource-reference-html-grid .resource-reference-option {
+            min-height: 84px;
+            padding: 12px 14px;
+            gap: 12px;
+        }
+
+        .resource-reference-html-grid .resource-reference-option-icon {
+            width: 42px;
+            height: 42px;
+            flex-basis: 42px;
+        }
+
+        .resource-reference-html-grid .resource-reference-option-icon svg {
+            width: 40px;
+            height: 40px;
+        }
+
+        .resource-reference-option-name {
+            color: var(--black);
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+            margin-bottom: 6px;
+        }
+
+        .resource-reference-option-description {
+            color: var(--gray);
+            font-size: 10px;
+            line-height: 15px;
+            letter-spacing: 0.8px;
+        }
+
+        .resource-reference-code-field {
+            margin: 0;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .resource-reference-code {
+            width: 100%;
+            flex: 1;
+            min-height: 96px;
+            padding: 12px 14px;
+            box-sizing: border-box;
+            resize: none;
+            overflow: auto;
+            background: var(--bg);
+            border: 2px solid var(--gray-light);
+            color: var(--black);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            line-height: 19px;
+            letter-spacing: 0;
+            outline: none;
+            white-space: pre;
+            user-select: text;
+        }
+
+        .resource-reference-code:focus { border-color: var(--purple); }
+
         /* ===== Scrollbar ===== */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: var(--gray-light); }

@@ -174,6 +174,7 @@ public final class Tooltip {
             return;
         }
         element = Element.init(document.createElement("DIV"));
+        element.setTopLayer(true);
         element.setAttribute("class", options.className());
         element.setAttribute("role", "tooltip");
         element.setTextContent(text);
