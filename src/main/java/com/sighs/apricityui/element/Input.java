@@ -36,23 +36,6 @@ public class Input extends AbstractText {
 
     public Input(Document document) {
         super(document, TAG_NAME);
-
-        this.addEventListener("mousedown", event -> {
-            if (!(event instanceof MouseEvent)) return;
-            if (isDisabled()) return;
-            Mode mode = getMode();
-            if (mode == Mode.CHECKBOX) {
-                setChecked(!isChecked());
-                triggerChangeEvent();
-            } else if (mode == Mode.RADIO && !isChecked()) {
-                setChecked(true);
-                triggerChangeEvent();
-            } else if (mode == Mode.FILE) {
-                openFileDialog();
-            } else if (mode == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
-                submitEnclosingForm();
-            }
-        });
     }
 
     private Mode getMode() {
@@ -73,12 +56,20 @@ public class Input extends AbstractText {
     }
 
     @Override
-    public void click() {
-        super.click();
+    public void handleClickDefault() {
         if (isDisabled()) return;
-        if (getMode() == Mode.FILE) {
+        Mode mode = getMode();
+        if (mode == Mode.CHECKBOX) {
+            setChecked(!isChecked());
+            triggerChangeEvent();
+        } else if (mode == Mode.RADIO) {
+            if (!isChecked()) {
+                setChecked(true);
+                triggerChangeEvent();
+            }
+        } else if (mode == Mode.FILE) {
             openFileDialog();
-        } else if (getMode() == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
+        } else if (mode == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
             submitEnclosingForm();
         }
     }
@@ -183,10 +174,10 @@ public class Input extends AbstractText {
         float borderWidth = Math.max(1f, Math.min(2f, controlSize / 8f));
         float radius = mode == Mode.RADIO ? controlSize * 0.5f : Math.min(controlSize * 0.25f, 4f);
 
-        int backgroundColor = "unset".equals(background.color)
-                ? new Color("#133043E6").getValue()
-                : new Color(background.color).getValue();
-        int borderColor = resolveCheckableBorderColor(box);
+        boolean checked = isChecked();
+        int accentColor = resolveAccentColor();
+        int backgroundColor = checked ? accentColor : new Color(isDisabled() ? "#F2F2F2" : "#FFFFFF").getValue();
+        int borderColor = checked ? accentColor : new Color(isDisabled() ? "#B7B7B7" : "#767676").getValue();
 
         Graph.beginBatch();
         Graph.drawUnifiedRoundedRect(
@@ -209,8 +200,8 @@ public class Input extends AbstractText {
                 new int[]{borderColor, borderColor, borderColor, borderColor}
         );
 
-        if (isChecked()) {
-            int indicatorColor = new Color(Text.getFontColor(this)).getValue();
+        if (checked) {
+            int indicatorColor = new Color(isDisabled() ? "#F7F7F7" : "#FFFFFF").getValue();
             if (mode == Mode.RADIO) {
                 float dotSize = Math.max(4f, controlSize * 0.42f);
                 float dotX = x + (controlSize - dotSize) * 0.5f;
@@ -231,18 +222,17 @@ public class Input extends AbstractText {
     }
 
     private void drawCheckboxMark(PoseStack poseStack, float x, float y, float size, int color) {
-        float stroke = Math.max(1f, size * 0.14f);
-        float leftX = x + size * 0.24f;
-        float midX = x + size * 0.43f;
-        float rightX = x + size * 0.76f;
-        float topY = y + size * 0.28f;
-        float midY = y + size * 0.52f;
-        float bottomY = y + size * 0.74f;
-
-        Graph.drawFillRect(poseStack.last().pose(), leftX, midY, leftX + stroke, bottomY, color);
-        Graph.drawFillRect(poseStack.last().pose(), leftX + stroke, midY, midX, midY + stroke, color);
-        Graph.drawFillRect(poseStack.last().pose(), midX, topY, midX + stroke, bottomY, color);
-        Graph.drawFillRect(poseStack.last().pose(), midX + stroke, topY + stroke, rightX, topY + stroke * 2f, color);
+        float pixel = Math.max(1.5f, size * 0.11f);
+        for (int i = 0; i <= 4; i++) {
+            float px = x + size * 0.20f + i * size * 0.055f;
+            float py = y + size * 0.48f + i * size * 0.055f;
+            Graph.drawFillRect(poseStack.last().pose(), px, py, px + pixel, py + pixel, color);
+        }
+        for (int i = 0; i <= 8; i++) {
+            float px = x + size * 0.42f + i * size * 0.045f;
+            float py = y + size * 0.70f - i * size * 0.055f;
+            Graph.drawFillRect(poseStack.last().pose(), px, py, px + pixel, py + pixel, color);
+        }
     }
 
     private int resolveCheckableBorderColor(Box box) {
@@ -304,6 +294,15 @@ public class Input extends AbstractText {
             FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
         }
         drawSingleLineCursor(poseStack, textToShow, drawX, drawY, (float) text.lineHeight);
+    }
+
+    private int resolveAccentColor() {
+        String accent = getComputedStyle().accentColor;
+        if (accent == null || accent.isBlank() || "unset".equalsIgnoreCase(accent)
+                || "auto".equalsIgnoreCase(accent)) {
+            accent = "#0075FF";
+        }
+        return new Color(accent).getValue();
     }
 
     private double singleLineDrawY(Rect rectRenderer, Text text) {

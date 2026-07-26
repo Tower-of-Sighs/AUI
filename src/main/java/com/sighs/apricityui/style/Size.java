@@ -227,7 +227,9 @@ public record Size(double width, double height) {
     }
 
     public static Size natural(Element element) {
-        return measureNatural(element, LayoutMeasureCache.SIZE_NATURAL, Double.NaN);
+        Double contextWidth = getNaturalMeasurementWidthContext(element);
+        return measureNatural(element, LayoutMeasureCache.SIZE_NATURAL,
+                contextWidth == null ? Double.NaN : contextWidth);
     }
 
     public static Size naturalAtContentWidth(Element element, double contentWidth) {
@@ -285,6 +287,22 @@ public record Size(double width, double height) {
             current = current.parentElement;
         }
         return false;
+    }
+
+    static Double getNaturalContentWidthConstraint(Element element) {
+        if (element == null) return null;
+        return NATURAL_CONTENT_WIDTHS.get().get(element);
+    }
+
+    static Double getNaturalMeasurementWidthContext(Element element) {
+        Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
+        Element current = element;
+        while (current != null) {
+            Double width = constraints.get(current);
+            if (width != null) return width;
+            current = current.parentElement;
+        }
+        return null;
     }
 
     public static boolean isResolving(Element element) {
@@ -356,11 +374,14 @@ public record Size(double width, double height) {
         double parentHeight = definiteParentHeight != null ? definiteParentHeight : 0;
         boolean unsetWidth = tryResolveLength(style.width, parentWidth) == null;
         boolean unsetHeight = tryResolveLength(style.height, parentHeight) == null;
+        boolean flexMainHeightAssigned = false;
+        boolean flexCrossHeightStretched = false;
         Double naturalWidthConstraint = NATURAL_CONTENT_WIDTHS.get().get(element);
         boolean hasLeft = isInsetSet(style.left);
         boolean hasRight = isInsetSet(style.right);
         boolean hasTop = isInsetSet(style.top);
         boolean hasBottom = isInsetSet(style.bottom);
+        boolean insetResolvedHeight = false;
 
         if (absolutePositioned && unsetWidth && hasLeft && hasRight) {
             double left = resolveLength(style.left, parentWidth, 0);
@@ -371,6 +392,7 @@ public record Size(double width, double height) {
             double top = resolveLength(style.top, parentHeight, 0);
             double bottom = resolveLength(style.bottom, parentHeight, 0);
             contentHeight = Math.max(0, parentHeight - top - bottom - verticalBox);
+            insetResolvedHeight = true;
         }
 
         if (unsetWidth && shouldFillAvailableBlockWidth(element, style)
@@ -416,12 +438,14 @@ public record Size(double width, double height) {
                     contentWidth = Math.max(0, stretchedOuterWidth - horizontalBox);
                 }
             } else {
-                if (unsetHeight && Flex.shouldStretchCrossAxis(element, parent)) {
+                if (unsetHeight && Flex.shouldStretchCrossAxis(element, parent)
+                        && (!parentResolving || explicitParentHeight != null)) {
                     double parentCrossHeight = parentContentSize.height() > 0
                             ? parentContentSize.height()
-                            : getScaleHeight(element);
+                            : explicitParentHeight != null ? explicitParentHeight : getScaleHeight(element);
                     double stretchedOuterHeight = Math.max(0, parentCrossHeight - box.getMarginVertical());
                     contentHeight = Math.max(0, stretchedOuterHeight - verticalBox);
+                    flexCrossHeightStretched = true;
                 }
             }
 
@@ -431,13 +455,59 @@ public record Size(double width, double height) {
                 double assignedOuterHeight = Flex.resolveAssignedMainSize(element, parent, totalHeight + box.getMarginVertical());
                 double usableOuterHeight = Math.max(0, assignedOuterHeight - box.getMarginVertical());
                 contentHeight = Math.max(0, usableOuterHeight - verticalBox);
+                flexMainHeightAssigned = true;
             }
             if (!parentResolving && parentFlex.flexDirection.isRow()) {
                 if (hasDefiniteAutoResolvedWidth(parent)) {
+                    double preFlexContentWidth = contentWidth;
                     double assignedOuterWidth = Flex.resolveAssignedMainSize(element, parent, totalWidth + box.getMarginHorizontal());
                     double usableOuterWidth = Math.max(0, assignedOuterWidth - box.getMarginHorizontal());
                     contentWidth = Math.max(0, usableOuterWidth - horizontalBox);
+                    if (unsetHeight && !Flex.shouldStretchCrossAxis(element, parent)
+                            && Math.abs(contentWidth - preFlexContentWidth) > 0.0001d) {
+                        element.getRenderer().invalidateLayoutSubtree();
+                        LayoutMeasureCache.invalidateSubtree(element);
+                        Size constrained = naturalAtContentWidth(element, contentWidth);
+                        contentHeight = Math.max(0, constrained.height() - verticalBox);
+                    }
                 }
+            }
+        }
+
+        // Natural flex measurements are also used by the renderer to obtain
+        // the final used size of a control. If the flex container has already
+        // completed its first pass, apply the second-pass cross-axis stretch
+        // here as well; otherwise a cached 42px button can survive beside a
+        // 43.6px input even though the browser stretches both to the line.
+        if (element.parentElement != null && !isResolving(element.parentElement)
+                && Layout.isInFlow(style)
+                && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)
+                && Flex.shouldStretchCrossAxis(element, element.parentElement)) {
+            Element parent = element.parentElement;
+            Flex parentFlex = Flex.of(parent);
+            Box parentBox = Box.of(parent);
+            Size parentInner = parentBox.innerSize();
+            if (parentFlex.flexDirection.isColumn()) {
+                double stretchedOuterWidth = Math.max(0, parentInner.width() - box.getMarginHorizontal());
+                contentWidth = Math.max(0, stretchedOuterWidth - horizontalBox);
+            } else {
+                double stretchedOuterHeight = Math.max(0, parentInner.height() - box.getMarginVertical());
+                contentHeight = Math.max(0, stretchedOuterHeight - verticalBox);
+                flexCrossHeightStretched = true;
+            }
+        }
+
+        boolean parentAssignsColumnMainSize = element.parentElement != null
+                && Layout.isInFlow(style)
+                && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)
+                && Flex.of(element.parentElement).flexDirection.isColumn();
+        if (unsetHeight && !insetResolvedHeight && !flexMainHeightAssigned && !flexCrossHeightStretched
+                && !parentAssignsColumnMainSize
+                && !isNaturalMeasurementContext()
+                && Layout.isFlexDisplay(style.display)) {
+            Flex ownFlex = Flex.of(element);
+            if (ownFlex.flexDirection.isRow() && !ownFlex.flexWrap.canWrap()) {
+                contentHeight = Flex.computeRowCrossSizeAtMainSize(element, contentWidth);
             }
         }
 
@@ -483,9 +553,36 @@ public record Size(double width, double height) {
         if (!noCacheForElement && !shouldDeferSizeCache(element, style, unsetWidth, unsetHeight)) {
             element.getRenderer().size.set(resultSize);
             if (isNaturalMeasurementContext()) NATURAL_TOUCHED.get().add(element);
+            invalidateFlexStretchChildCaches(element, style);
         }
         return resultSize;
     }
+
+    /**
+     * Flex auto cross sizes are provisional while the container is being
+     * measured. Once the container's used size is committed, those children
+     * must be measured again so align-items:stretch can use the final line
+     * cross size (the browser's second layout phase).
+     */
+    private static void invalidateFlexStretchChildCaches(Element parent, Style parentStyle) {
+        if (parent == null || parentStyle == null || !Layout.isFlexDisplay(parentStyle.display)) return;
+        Flex flex = Flex.of(parent);
+        // A wrapped row has one cross size per line; the parent height cannot
+        // be used as a blanket stretch size for every child.
+        if (flex.flexDirection.isRow() && flex.flexWrap.canWrap()) return;
+
+        for (Element child : parent.getRenderChildren()) {
+            if (!Layout.isInFlow(child.getComputedStyle())
+                    || !Flex.shouldStretchCrossAxis(child, parent)) {
+                continue;
+            }
+            child.getRenderer().size.clear();
+            child.getRenderer().position.clear();
+            child.getRenderer().clearCommittedLayout();
+            LayoutMeasureCache.invalidateSubtree(child);
+        }
+    }
+
 
     private static double aspectHeightFromWidth(double contentWidth, double ratio, boolean borderBox,
                                                 double horizontalBox, double verticalBox) {
@@ -555,6 +652,10 @@ public record Size(double width, double height) {
         if (constrainedWidth != null) return Math.max(0, constrainedWidth);
         Element parent = element.parentElement;
         if (parent != null) {
+            Double constrainedParentWidth = NATURAL_CONTENT_WIDTHS.get().get(parent);
+            if (constrainedParentWidth != null) {
+                return Math.max(0, constrainedParentWidth);
+            }
             Size cachedParentSize = parent.getRenderer().size.get();
             if (cachedParentSize != null) {
                 double innerWidth = Box.of(parent).innerSize().width();
@@ -771,7 +872,7 @@ public record Size(double width, double height) {
     private static boolean shouldUseContentBasedAutoWidthForWrappedFlex(Element element) {
         if (element == null) return false;
         Style style = element.getComputedStyle();
-        return Layout.isFlexDisplay(style.display) && Flex.of(element).flexDirection.isRow()
+        return "inline-flex".equalsIgnoreCase(style.display) && Flex.of(element).flexDirection.isRow()
                 && Flex.of(element).flexWrap.canWrap()
                 && parseNumber(style.width) == null;
     }

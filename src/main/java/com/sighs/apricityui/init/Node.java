@@ -1,5 +1,9 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.script.ApricityJS;
+import dev.latvian.mods.rhino.Function;
+import dev.latvian.mods.rhino.util.HideFromJS;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -301,16 +305,32 @@ public abstract class Node {
         return !targetEvent.defaultPrevented;
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener) {
         events.addEventListener(type, listener);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         events.addEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
         events.addEventListener(type, listener, useCapture, once);
+    }
+
+    public void addEventListener(String type, Function listener) {
+        addEventListener(type, listener, false, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) events.addEventListener(type, wrapped, useCapture, once);
     }
 
     protected void addInternalEventListener(String type, Consumer<Event> listener) {
@@ -321,12 +341,23 @@ public abstract class Node {
         events.addInternalEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         events.removeEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, Function listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, Function listener, boolean useCapture) {
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) events.removeEventListener(type, wrapped, useCapture);
     }
 
     public void triggerEvent(Consumer<Event.ListenerRecord> handler) {

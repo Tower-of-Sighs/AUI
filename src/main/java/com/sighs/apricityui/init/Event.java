@@ -9,6 +9,7 @@ import java.util.function.Supplier;
 import java.util.function.Consumer;
 
 public class Event implements Cloneable {
+    private static final System.Logger LOGGER = System.getLogger(Event.class.getName());
     private static final ThreadLocal<Integer> TRUSTED_CONTEXT_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     public static final short NONE = 0;
@@ -271,9 +272,16 @@ public class Event implements Cloneable {
                 consumed.set(true);
             }
 
-            listenerRecord.listener().accept(event);
             if (listenerRecord.once()) {
                 node.removeEventListener(type, listenerRecord.listener(), listenerRecord.useCapture());
+            }
+            try {
+                listenerRecord.listener().accept(event);
+            } catch (RuntimeException exception) {
+                if (listenerRecord.internal()) throw exception;
+                LOGGER.log(System.Logger.Level.ERROR,
+                        "[AUI Event] Uncaught exception in '" + type + "' listener on " + node,
+                        exception);
             }
         });
     }

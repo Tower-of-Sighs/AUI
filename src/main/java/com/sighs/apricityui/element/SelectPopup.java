@@ -227,14 +227,30 @@ final class SelectPopup {
         boolean disabled = option.isOptionEffectivelyDisabled();
         boolean highlighted = index == activeIndex;
         boolean selected = option.isSelected();
-        String foreground = highlighted ? "#ffffff" : inherited(option.getComputedStyle().color, "#000000");
+        Style optionStyle = option.getComputedStyle();
+        // The popup is a native light surface, not a painted descendant of the
+        // closed SELECT control. Inherited SELECT foreground colors therefore
+        // must not leak onto its white option surface. An OPTION may still
+        // override the system foreground with its own author declaration.
+        String foreground = highlighted
+                ? "#ffffff"
+                : hasAuthorOptionColor(option)
+                ? inherited(optionStyle.color, "#000000")
+                : "#000000";
         String background = highlighted
                 ? "#1967d2"
-                : selected ? "#e8f0fe" : inherited(option.getComputedStyle().backgroundColor, "transparent");
+                : selected ? "#e8f0fe" : inherited(optionStyle.backgroundColor, "transparent");
         String state = "color:" + foreground + ";background-color:" + background + ";"
                 + (disabled ? "opacity:0.45;" : "opacity:1;");
         String groupIndent = optionGroup(option) == null ? "" : "padding-left:20px;";
         rows.get(index).setAttribute("style", ROW_STYLE + groupIndent + inheritedFontStyle(option) + state);
+    }
+
+    private static boolean hasAuthorOptionColor(Element option) {
+        if (option == null) return false;
+        if (option.cssCache.containsKey("color")) return true;
+        String inlineColor = option.getStyle().color;
+        return inlineColor != null && !inlineColor.isBlank() && !"unset".equalsIgnoreCase(inlineColor);
     }
 
     private void positionPanel() {

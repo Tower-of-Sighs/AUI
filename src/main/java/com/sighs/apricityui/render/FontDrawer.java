@@ -382,6 +382,7 @@ public class FontDrawer {
                 g.setColor(new java.awt.Color(color.getR(), color.getG(), color.getB(), color.getA()));
                 drawRuns(g, runs, pad, baseline, rasterLetterSpacing, sourceMode, frcMode);
             }
+            drawTextDecorations(g, text, pad, baseline, textW, metrics);
             g.dispose();
 
             if (!compositeMode.hasOpaqueRasterBackground()) {
@@ -961,6 +962,11 @@ public class FontDrawer {
         int ascent = 0;
         int descent = 0;
         int leading = 0;
+        float underlineOffset = 1.0f;
+        float underlineThickness = 1.0f;
+        float strikethroughOffset = -1.0f;
+        float strikethroughThickness = 1.0f;
+        boolean measuredDecoration = false;
         for (Font.FontRun run : runs) {
             if (run == null || run.font() == null) continue;
             g.setFont(run.font());
@@ -968,11 +974,38 @@ public class FontDrawer {
             ascent = Math.max(ascent, fm.getAscent());
             descent = Math.max(descent, fm.getDescent());
             leading = Math.max(leading, fm.getLeading());
+            if (!measuredDecoration) {
+                java.awt.font.LineMetrics lineMetrics = run.font().getLineMetrics("Hg", g.getFontRenderContext());
+                underlineOffset = lineMetrics.getUnderlineOffset();
+                underlineThickness = lineMetrics.getUnderlineThickness();
+                strikethroughOffset = lineMetrics.getStrikethroughOffset();
+                strikethroughThickness = lineMetrics.getStrikethroughThickness();
+                measuredDecoration = true;
+            }
         }
-        return new LineMetrics(ascent, descent, leading, Math.max(1, ascent + descent + leading));
+        return new LineMetrics(ascent, descent, leading, Math.max(1, ascent + descent + leading),
+                underlineOffset, underlineThickness, strikethroughOffset, strikethroughThickness);
     }
 
-    private record LineMetrics(int ascent, int descent, int leading, int height) {
+    private static void drawTextDecorations(Graphics2D g, Text text, int x, int baseline, int width,
+                                            LineMetrics metrics) {
+        if (text == null || width <= 0 || (!text.isUnderlined() && !text.isStrikethrough())) return;
+        g.setColor(new java.awt.Color(text.color.getR(), text.color.getG(), text.color.getB(), text.color.getA()));
+        if (text.isUnderlined()) {
+            double thickness = Math.max(1.0d, metrics.underlineThickness());
+            g.fill(new java.awt.geom.Rectangle2D.Double(
+                    x, baseline + metrics.underlineOffset(), width, thickness));
+        }
+        if (text.isStrikethrough()) {
+            double thickness = Math.max(1.0d, metrics.strikethroughThickness());
+            g.fill(new java.awt.geom.Rectangle2D.Double(
+                    x, baseline + metrics.strikethroughOffset(), width, thickness));
+        }
+    }
+
+    private record LineMetrics(int ascent, int descent, int leading, int height,
+                               float underlineOffset, float underlineThickness,
+                               float strikethroughOffset, float strikethroughThickness) {
     }
 
     private static TextAntialiasMode resolveTextAntialiasMode() {

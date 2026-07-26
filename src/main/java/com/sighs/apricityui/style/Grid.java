@@ -67,8 +67,8 @@ public final class Grid {
                           List<Placement> placements,
                           List<Track> cols,
                           List<Track> rows,
-                          int[] colW,
-                          int[] rowH,
+                          double[] colW,
+                          double[] rowH,
                           Gaps gaps) {
     }
 
@@ -169,7 +169,7 @@ public final class Grid {
         if (flow.isEmpty()) {
             List<Track> cols0 = parsedCols.tracks().isEmpty() ? makeAutoTracks(1) : parsedCols.tracks();
             List<Track> rows0 = parsedRows.tracks().isEmpty() ? makeAutoTracks(1) : parsedRows.tracks();
-            return new Layout(flow, List.of(), cols0, rows0, new int[]{0}, new int[]{0}, gaps);
+            return new Layout(flow, List.of(), cols0, rows0, new double[]{0}, new double[]{0}, gaps);
         }
 
         List<Track> cols = new ArrayList<>(parsedCols.tracks());
@@ -252,8 +252,8 @@ public final class Grid {
             while (rows.size() < requiredRows) rows.add(Track.auto());
         }
 
-        int[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0);
-        int[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false,
+        double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0);
+        double[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false,
                 colW, gaps.colGap);
         return new Layout(flow, placements, cols, rows, colW, rowH, gaps);
     }
@@ -316,11 +316,11 @@ public final class Grid {
         }
     }
 
-    private static int[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
+    private static double[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
                                            int gap, double availableSpace, boolean columnAxis,
-                                           int[] resolvedColumns, int columnGap) {
+                                           double[] resolvedColumns, int columnGap) {
         int count = tracks.size();
-        int[] resolved = new int[count];
+        double[] resolved = new double[count];
         boolean[] growable = new boolean[count];
         double totalFr = 0;
 
@@ -349,9 +349,9 @@ public final class Grid {
             double outerContribution = columnAxis
                     ? naturalSize.width() + itemBox.getMarginHorizontal()
                     : naturalSize.height() + itemBox.getMarginVertical();
-            int desired = (int) Math.ceil(Math.max(0, outerContribution - internalGaps));
+            double desired = Math.max(0, outerContribution - internalGaps);
 
-            int current = 0;
+            double current = 0;
             int growableCount = 0;
             for (int i = start; i < start + span && i < count; i++) {
                 current += resolved[i];
@@ -359,7 +359,7 @@ public final class Grid {
             }
             if (desired <= current || growableCount <= 0) continue;
 
-            int extra = desired - current;
+            double extra = desired - current;
             double spanFr = 0;
             for (int i = start; i < start + span && i < count; i++) {
                 spanFr += frWeight(tracks.get(i));
@@ -367,12 +367,12 @@ public final class Grid {
 
             for (int i = start; i < start + span && i < count; i++) {
                 if (!growable[i]) continue;
-                int add;
+                double add;
                 double weight = frWeight(tracks.get(i));
                 if (spanFr > 0 && weight > 0) {
-                    add = (int) Math.ceil(extra * (weight / spanFr));
+                    add = extra * (weight / spanFr);
                 } else {
-                    add = (int) Math.ceil(extra / (double) growableCount);
+                    add = extra / growableCount;
                 }
                 resolved[i] = applyGrowthCap(tracks.get(i), resolved[i] + Math.max(0, add));
             }
@@ -381,7 +381,7 @@ public final class Grid {
         double base = sum(resolved);
         double availableTracks = Math.max(0, availableSpace - (double) gap * Math.max(0, count - 1));
         if (availableTracks > base && totalFr > 0) {
-            int remaining = (int) Math.floor(availableTracks - base);
+            double remaining = availableTracks - base;
             distributeWeightedGrowth(tracks, resolved, remaining, totalFr);
         }
 
@@ -389,7 +389,7 @@ public final class Grid {
     }
 
     private static Size measureAtGridAreaWidth(Element element, Placement placement,
-                                               int[] resolvedColumns, int columnGap) {
+                                               double[] resolvedColumns, int columnGap) {
         double areaWidth = spanSum(resolvedColumns, placement.col, placement.colSpan)
                 + (double) Math.max(0, placement.colSpan - 1) * columnGap;
         Box box = Box.of(element);
@@ -397,20 +397,20 @@ public final class Grid {
         return Size.naturalAtContentWidth(element, Math.max(0, contentWidth));
     }
 
-    private static void distributeWeightedGrowth(List<Track> tracks, int[] resolved, int remaining, double totalFr) {
+    private static void distributeWeightedGrowth(List<Track> tracks, double[] resolved, double remaining, double totalFr) {
         if (remaining <= 0 || totalFr <= 0) return;
-        int assigned = 0;
+        double assigned = 0;
         int lastFlexible = -1;
         for (int i = 0; i < tracks.size(); i++) {
             double weight = frWeight(tracks.get(i));
             if (weight <= 0) continue;
             lastFlexible = i;
-            int add = (int) Math.floor(remaining * (weight / totalFr));
+            double add = remaining * (weight / totalFr);
             resolved[i] = applyGrowthCap(tracks.get(i), resolved[i] + Math.max(0, add));
             assigned += Math.max(0, add);
         }
-        int leftover = remaining - assigned;
-        if (leftover > 0 && lastFlexible >= 0) {
+        double leftover = remaining - assigned;
+        if (leftover > 0.000001 && lastFlexible >= 0) {
             resolved[lastFlexible] = applyGrowthCap(tracks.get(lastFlexible), resolved[lastFlexible] + leftover);
         }
     }
@@ -459,13 +459,13 @@ public final class Grid {
         };
     }
 
-    private static int applyGrowthCap(Track track, int candidate) {
+    private static double applyGrowthCap(Track track, double candidate) {
         return switch (track.type) {
             case FIXED -> track.px;
             case AUTO, FR -> Math.max(0, candidate);
             case MINMAX -> {
-                int min = minimumTrackSize(track.minTrack);
-                int capped = Math.max(min, candidate);
+                double min = minimumTrackSize(track.minTrack);
+                double capped = Math.max(min, candidate);
                 if (track.maxTrack != null && track.maxTrack.type == TrackType.FIXED) {
                     capped = Math.min(capped, track.maxTrack.px);
                 }
@@ -765,19 +765,19 @@ public final class Grid {
         }
     }
 
-    private static double sum(int[] arr) {
+    private static double sum(double[] arr) {
         double s = 0;
-        for (int v : arr) s += v;
+        for (double v : arr) s += v;
         return s;
     }
 
-    private static double prefixSum(int[] arr, int count) {
+    private static double prefixSum(double[] arr, int count) {
         double s = 0;
         for (int i = 0; i < count && i < arr.length; i++) s += arr[i];
         return s;
     }
 
-    private static double spanSum(int[] arr, int start, int span) {
+    private static double spanSum(double[] arr, int start, int span) {
         double s = 0;
         int end = Math.min(arr.length, start + span);
         for (int i = Math.max(0, start); i < end; i++) s += arr[i];

@@ -110,13 +110,17 @@ public class Cursor {
             Element target = document.hitTest(document.screenToDocumentPosition(mousePosition));
             if (target == null || target == document.body) continue;
 
-            applyCssCursor(document.getPath(), resolveCssCursor(target));
+            applyCssCursor(document.getPath(), resolveCssCursor(target, document.screenToDocumentPosition(mousePosition)));
             return;
         }
         resetToDefault();
     }
 
-    private static String resolveCssCursor(Element target) {
+    private static String resolveCssCursor(Element target, Position mousePosition) {
+        if (target instanceof com.sighs.apricityui.element.TextArea textArea
+                && textArea.isResizeHandleAt(mousePosition)) {
+            return textArea.getResizeCursor();
+        }
         String cached = target.getRenderer().cursor.get();
         if (cached != null) return cached;
 
@@ -226,6 +230,7 @@ public class Cursor {
             case "crosshair" -> GLFW.GLFW_CROSSHAIR_CURSOR;
             case "ew-resize" -> GLFW.GLFW_HRESIZE_CURSOR;
             case "ns-resize" -> GLFW.GLFW_VRESIZE_CURSOR;
+            case "se-resize", "nwse-resize" -> GLFW.GLFW_RESIZE_NWSE_CURSOR;
             default -> GLFW.GLFW_ARROW_CURSOR;
         };
     }

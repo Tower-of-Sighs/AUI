@@ -1,6 +1,8 @@
 package com.sighs.apricityui.script;
 
 import dev.latvian.mods.kubejs.KubeJS;
+import dev.latvian.mods.rhino.Context;
+import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.Scriptable;
 import com.sighs.apricityui.init.Event;
 import net.minecraftforge.fml.ModList;
@@ -9,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.function.Consumer;
 
 public class ApricityJS {
     // KubeJS 自带的 Rhino 版本不支持部分 ES6 语法（数组展开、默认参数等）。
@@ -165,6 +168,49 @@ public class ApricityJS {
     public static void reload() {
         if (!ModList.get().isLoaded("kubejs")) return;
         KubeJS.PROXY.reloadClientInternal();
+    }
+
+    public static Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
+        if (!(listener instanceof Function function)) return null;
+        return new RhinoEventListener(function, currentTarget);
+    }
+
+    private static final class RhinoEventListener implements Consumer<Event> {
+        private final Function function;
+        private final Object currentTarget;
+
+        private RhinoEventListener(Function function, Object currentTarget) {
+            this.function = function;
+            this.currentTarget = currentTarget;
+        }
+
+        @Override
+        public void accept(Event event) {
+            var manager = KubeJS.getClientScriptManager();
+            var context = manager.context;
+            var scope = manager.topLevelScope;
+            Object eventArgument = Context.javaToJS(context, event, scope);
+            Scriptable scriptTarget = context.toObject(currentTarget, scope);
+            Object previousCurrentTarget = event.currentTarget;
+            event.currentTarget = scriptTarget;
+            try {
+                context.callSync(function, scope, scriptTarget, new Object[]{eventArgument});
+            } finally {
+                event.currentTarget = previousCurrentTarget;
+            }
+        }
+
+        @Override
+        public boolean equals(Object object) {
+            return object instanceof RhinoEventListener other
+                    && function == other.function
+                    && currentTarget == other.currentTarget;
+        }
+
+        @Override
+        public int hashCode() {
+            return 31 * System.identityHashCode(function) + System.identityHashCode(currentTarget);
+        }
     }
 
     /**

@@ -30,12 +30,23 @@ public class CSS {
     }
 
     public static void readCSS(String css, Map<String, Map<String, Declaration>> targetCache, String contextPath) {
-        Parser.parse(css, targetCache, null, contextPath, 0);
+        Parser.parse(css, targetCache, null, contextPath, 0, null);
+    }
+
+    public static void readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
+                               String contextPath, Size viewport) {
+        Parser.parse(css, targetCache, null, contextPath, 0, viewport);
     }
 
     public static int readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
                               List<DebugRule> debugRules, String contextPath, int orderStart) {
-        return Parser.parse(css, targetCache, debugRules, contextPath, orderStart);
+        return Parser.parse(css, targetCache, debugRules, contextPath, orderStart, null);
+    }
+
+    public static int readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
+                              List<DebugRule> debugRules, String contextPath, int orderStart,
+                              Size viewport) {
+        return Parser.parse(css, targetCache, debugRules, contextPath, orderStart, viewport);
     }
 
     /** Rebuilds the selector cache from the author declarations exposed to DevTools. */
@@ -143,7 +154,7 @@ public class CSS {
 
     static class Parser {
         private static final Pattern COMMENT_PATTERN = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
-        private static final Pattern RULE_PATTERN = Pattern.compile("(.*?)\\s*\\{([^}]*)}");
+        private static final Pattern RULE_PATTERN = Pattern.compile("(.*?)\\s*\\{([^}]*)}", Pattern.DOTALL);
         private static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
         private static final Pattern KEYFRAMES_HEAD_PATTERN = Pattern.compile(
                 "(?i)@(?:-webkit-)?keyframes\\s+((?:\"[^\"]+\"|'[^']+'|[\\w-]+))\\s*\\{"
@@ -202,9 +213,10 @@ public class CSS {
         }
 
         public static int parse(String css, Map<String, Map<String, Declaration>> targetCache,
-                                List<DebugRule> debugRules, String contextPath, int orderStart) {
+                                List<DebugRule> debugRules, String contextPath, int orderStart,
+                                Size viewport) {
             if (css == null || css.isBlank()) return orderStart;
-            String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath));
+            String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath), viewport);
 
             Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
             int order = orderStart;
@@ -234,7 +246,7 @@ public class CSS {
             return order;
         }
 
-        private static String evaluateMediaRules(String css) {
+        private static String evaluateMediaRules(String css, Size viewport) {
             if (css == null || css.isBlank()) return "";
             StringBuilder output = new StringBuilder();
             int index = 0;
@@ -258,7 +270,7 @@ public class CSS {
                 }
                 String query = css.substring(headerStart, openBrace).trim();
                 String body = css.substring(openBrace + 1, closeBrace);
-                if (matchesMediaQuery(query)) {
+                if (matchesMediaQuery(query, viewport)) {
                     output.append(body);
                 }
                 index = closeBrace + 1;
@@ -283,14 +295,18 @@ public class CSS {
             return -1;
         }
 
-        private static boolean matchesMediaQuery(String query) {
+        private static boolean matchesMediaQuery(String query, Size viewport) {
             if (query == null || query.isBlank()) return true;
             String normalized = query.trim().toLowerCase(Locale.ROOT);
             if ("all".equals(normalized)) return true;
             if ("screen".equals(normalized) || "only screen".equals(normalized)) return true;
 
-            int width = resolveViewportLength("aui.test.viewport.width", 1024, true);
-            int height = resolveViewportLength("aui.test.viewport.height", 768, false);
+            int width = viewport == null
+                    ? resolveViewportLength("aui.test.viewport.width", 1024, true)
+                    : (int) Math.round(viewport.width());
+            int height = viewport == null
+                    ? resolveViewportLength("aui.test.viewport.height", 768, false)
+                    : (int) Math.round(viewport.height());
 
             String[] andParts = normalized.split("\\band\\b");
             for (String rawPart : andParts) {

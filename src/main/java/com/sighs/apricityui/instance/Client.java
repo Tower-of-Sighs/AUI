@@ -553,6 +553,8 @@ public class Client {
         MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
+        if (text.isUnderlined()) renderText = renderText.withStyle(ChatFormatting.UNDERLINE);
+        if (text.isStrikethrough()) renderText = renderText.withStyle(ChatFormatting.STRIKETHROUGH);
         int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
         if (stroke > 0) {
             int strokeColor = text.strokeColor.getValue();

@@ -34,12 +34,13 @@ public class Text {
     public double strokeWidth = 0;
     public Color strokeColor = null;
     public Color color = null;
+    public String textDecoration = "none";
     public String fontFamily = "unset";
     public String content = "";
     public double lineHeight = -1;
     public String direction = "ltr";
     public String textAlign = "start";
-    public String verticalAlign = "top";
+    public String verticalAlign = "baseline";
     public String whiteSpace = "normal";
     public double textIndent = 0;
     public double letterSpacing = 0;
@@ -258,8 +259,10 @@ public class Text {
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
         String lineHeight = null;
+        boolean resolvedLineHeight = false;
         boolean resolvedFontStyle = false;
         boolean resolvedTextStroke = false;
+        boolean resolvedTextDecoration = false;
         boolean resolvedDirection = false;
         boolean resolvedTextAlign = false;
         boolean resolvedVerticalAlign = false;
@@ -305,9 +308,19 @@ public class Text {
                 shouldBreak = false;
                 if (!style.color.equals("unset")) text.color = new Color(style.color);
             }
-            if (text.lineHeight == -1) {
+            if (!resolvedLineHeight) {
                 shouldBreak = false;
-                if (!style.lineHeight.equals("unset")) lineHeight = style.lineHeight;
+                if (!style.lineHeight.equals("unset")) {
+                    lineHeight = style.lineHeight;
+                    resolvedLineHeight = true;
+                }
+            }
+            if (!resolvedTextDecoration) {
+                shouldBreak = false;
+                if (!style.textDecoration.equals("unset")) {
+                    text.textDecoration = normalizeTextDecoration(style.textDecoration);
+                    resolvedTextDecoration = true;
+                }
             }
             if (!resolvedDirection) {
                 shouldBreak = false;
@@ -368,15 +381,22 @@ public class Text {
         text.rasterBackgroundColor = resolveRasterBackgroundColor(element);
 
         if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text, lineHeight);
-        WrappedText wrapped = wrap(element, text);
-        int lineClamp = resolveLineClamp(element);
-        int measuredLines = lineClamp > 0 ? Math.min(lineClamp, wrapped.lines().size()) : wrapped.lines().size();
-        text.size = new Size(wrapped.width(), Math.max(text.lineHeight, measuredLines * text.lineHeight));
+        text.size = measureSize(element, text);
 
         if (!naturalMeasurement) {
             element.getRenderer().text.set(text);
         }
         return text;
+    }
+
+    public static Size measureSize(Element element, Text text) {
+        if (text == null) return Size.ZERO;
+        WrappedText wrapped = wrap(element, text);
+        int lineClamp = resolveLineClamp(element);
+        int measuredLines = lineClamp > 0 ? Math.min(lineClamp, wrapped.lines().size()) : wrapped.lines().size();
+        Size measured = new Size(wrapped.width(), Math.max(text.lineHeight, measuredLines * text.lineHeight));
+        text.size = measured;
+        return measured;
     }
 
     private static String resolveElementTextContent(Element element) {
@@ -445,6 +465,23 @@ public class Text {
         return Math.max(normalLineHeight(text.fontSize), capped);
     }
 
+    public static double baselineOffset(Text text) {
+        if (text == null) return 0;
+        double ascent = text.fontSize * 0.8d;
+        if (text.fontFamily != null && !text.fontFamily.equals("unset")) {
+            int fontStyle = java.awt.Font.PLAIN;
+            if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
+            if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+            java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
+            if (base != null) {
+                java.awt.Font measured = base.deriveFont(fontStyle, (float) text.fontSize);
+                ascent = METRICS_CANVAS.getFontMetrics(measured).getAscent();
+            }
+        }
+        double halfLeading = (text.lineHeight - text.fontSize) / 2.0d;
+        return Math.floor(Math.max(0, halfLeading + ascent) + 1.0e-6d);
+    }
+
 
     public static double measureText(Element element, String content) {
         Text text = Text.of(element);
@@ -466,6 +503,7 @@ public class Text {
         if (text == null) return 0;
         if (line == null || line.isEmpty()) return 0;
         LineMeasureKey cacheKey = new LineMeasureKey(
+                Font.getMetricsRevision(),
                 text.fontSize,
                 text.fontWeight,
                 text.oblique,
@@ -520,6 +558,7 @@ public class Text {
         h = 31 * h + (int) Math.round(strokeWidth * 1000);
         h = 31 * h + (strokeColor == null ? 0 : strokeColor.getValue());
         h = 31 * h + (color == null ? 0 : color.getValue());
+        h = 31 * h + (textDecoration == null ? 0 : textDecoration.hashCode());
         h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
         h = 31 * h + (content == null ? 0 : content.hashCode());
         h = 31 * h + (direction == null ? 0 : direction.hashCode());
@@ -539,6 +578,7 @@ public class Text {
                 .append(strokeWidth).append('/')
                 .append(strokeColor == null ? 0 : strokeColor.getValue()).append('/')
                 .append(color == null ? 0 : color.getValue()).append('/')
+                .append(textDecoration == null ? "" : textDecoration).append('/')
                 .append(fontFamily == null ? "" : fontFamily).append('/')
                 .append(content == null ? "" : content).append('/')
                 .append(direction == null ? "" : direction).append('/')
@@ -552,6 +592,30 @@ public class Text {
         cachedKey = sb.toString();
         cachedKeyHash = h;
         return cachedKey;
+    }
+
+    public boolean isUnderlined() {
+        return hasDecorationLine("underline");
+    }
+
+    public boolean isStrikethrough() {
+        return hasDecorationLine("line-through");
+    }
+
+    private boolean hasDecorationLine(String line) {
+        if (textDecoration == null || textDecoration.isBlank()) return false;
+        for (String token : textDecoration.trim().toLowerCase(Locale.ROOT).split("\\s+")) {
+            if (token.equals("none")) return false;
+            if (token.equals(line)) return true;
+        }
+        return false;
+    }
+
+    private static String normalizeTextDecoration(String raw) {
+        if (raw == null || raw.isBlank()) return "none";
+        String normalized = raw.trim().toLowerCase(Locale.ROOT);
+        if (normalized.equals("unset") || normalized.equals("initial")) return "none";
+        return normalized;
     }
 
     public boolean isBold() {
@@ -601,15 +665,21 @@ public class Text {
     private static String getDeclaredFontSize(Element element) {
         if (element == null) return "unset";
         Style inline = element.getStyle();
-        if (inline != null && inline.fontSize != null && !inline.fontSize.equals("unset")) {
-            return inline.fontSize;
+        String declared = inline == null ? null : inline.fontSize;
+        if (declared == null || declared.equals("unset")) {
+            declared = element.cssCache.get("font-size");
+            if (declared == null) declared = element.cssCache.get("fontSize");
         }
-        String cssFontSize = element.cssCache.get("font-size");
-        if (cssFontSize == null) cssFontSize = element.cssCache.get("fontSize");
-        if (cssFontSize != null && !cssFontSize.isBlank()) {
-            return cssFontSize;
+        if (declared == null || declared.isBlank() || declared.equals("unset")) {
+            return "unset";
         }
-        return "unset";
+        if (declared.contains("var(")) {
+            Style computed = element.getComputedStyle();
+            if (computed != null && computed.fontSize != null && !computed.fontSize.equals("unset")) {
+                return computed.fontSize;
+            }
+        }
+        return declared;
     }
 
     public static List<String> splitLines(String content) {
@@ -667,6 +737,8 @@ public class Text {
     private static int wrapMetricsHash(Text text) {
         if (text == null) return 0;
         int h = 1;
+        long fontRevision = Font.getMetricsRevision();
+        h = 31 * h + (int) (fontRevision ^ (fontRevision >>> 32));
         h = 31 * h + (int) Math.round(text.fontSize * 1000);
         h = 31 * h + text.fontWeight;
         h = 31 * h + (text.oblique ? 1 : 0);
@@ -806,7 +878,11 @@ public class Text {
         }
         Box box = Box.of(element);
         double resolved;
-        if (explicitWidth != null) {
+        Double naturalContentWidth = Size.getNaturalContentWidthConstraint(element);
+        if (naturalContentWidth != null) {
+            // naturalAtContentWidth already supplies a content-box constraint.
+            resolved = naturalContentWidth;
+        } else if (explicitWidth != null) {
             resolved = Size.resolveLength(style.width, Size.getScaleWidth(element), explicitWidth);
             if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(style.boxSizing))) {
                 resolved -= box.getBorderHorizontal() + box.getPaddingHorizontal();
@@ -838,8 +914,8 @@ public class Text {
     private static String normalizeVerticalAlign(String raw) {
         String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
         return switch (value) {
-            case "top", "middle", "center", "bottom", "text-top", "text-bottom" -> value;
-            default -> "top";
+            case "baseline", "sub", "super", "top", "middle", "center", "bottom", "text-top", "text-bottom" -> value;
+            default -> "baseline";
         };
     }
 
@@ -956,7 +1032,7 @@ public class Text {
         return c == ' ' || c == '\t' || c == '\u000B' || c == '\f';
     }
 
-    private record LineMeasureKey(double fontSize, int fontWeight, boolean oblique, double strokeWidth,
+    private record LineMeasureKey(long fontRevision, double fontSize, int fontWeight, boolean oblique, double strokeWidth,
                                   double letterSpacing, Document.FontMode fontMode, String fontFamily, String line) {
     }
 

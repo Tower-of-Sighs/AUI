@@ -12,10 +12,13 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
+import dev.latvian.mods.rhino.Function;
+import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraft.client.Minecraft;
 
 import java.util.*;
@@ -209,6 +212,7 @@ public class Document {
         setViewportTransform(viewport.renderScale(), viewport.renderScale(), 0.0d, 0.0d);
         if (!viewport.equals(previous)) {
             viewportVersion++;
+            StyleAsyncHandler.INSTANCE.handleViewportChange(this);
         }
         if (relayout) {
             markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
@@ -590,6 +594,16 @@ public class Document {
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
+    /**
+     * Invalidates used text and intrinsic sizes after a web font becomes available.
+     * Browsers reflow font-dependent layout when a FontFace finishes loading.
+     */
+    public void invalidateFontMetrics() {
+        if (documentElement == null) return;
+        documentElement.getRenderer().invalidateLayoutSubtree();
+        markDirty(documentElement, Drawer.RELAYOUT | Drawer.REPAINT);
+    }
+
     public void invalidateSelectorIndex() {
         style.invalidateSelectorIndex();
     }
@@ -751,28 +765,57 @@ public class Document {
         return element;
     }
 
+    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener) {
         if (body == null) return;
         body.addEventListener(type, listener);
     }
 
+    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.addEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture, boolean once) {
         if (body == null) return;
         body.addEventListener(type, listener, useCapture, once);
     }
 
+    public void addEventListener(String type, Function listener) {
+        addEventListener(type, listener, false, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
+        if (body == null) return;
+        java.util.function.Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) body.addEventListener(type, wrapped, useCapture, once);
+    }
+
+    @HideFromJS
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.removeEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, Function listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, Function listener, boolean useCapture) {
+        if (body == null) return;
+        java.util.function.Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) body.removeEventListener(type, wrapped, useCapture);
     }
 
     public boolean dispatchEvent(Object event) {
@@ -819,6 +862,7 @@ public class Document {
         Document document = new Document(path, false);
         documents.add(document);
         try {
+            document.applyViewport(false);
             document.refresh();
             document.applyViewport(false);
             return document;

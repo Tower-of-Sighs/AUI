@@ -8,6 +8,7 @@ import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.style.Size;
@@ -44,6 +45,7 @@ public class Select extends Element {
                 double drawY = contentPosition.y + (contentHeight - text.lineHeight) / 2.0d;
                 FontDrawer.drawFont(poseStack, text,
                         new com.sighs.apricityui.style.Position(contentPosition.x, drawY));
+                drawNativeArrow(poseStack, rectRenderer);
             }
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
@@ -59,7 +61,22 @@ public class Select extends Element {
     public Size getIntrinsicSize() {
         Text text = Text.of(this);
         String label = selectedLabel();
-        return new Size(Size.measureText(this, label), Math.max(0, text.lineHeight));
+        double nativeLineHeight = Text.calculateLineHeight(text.fontSize, "normal");
+        return new Size(Size.measureText(this, label) + 20, Math.max(0, nativeLineHeight));
+    }
+
+    private void drawNativeArrow(PoseStack poseStack, Rect rectRenderer) {
+        double right = rectRenderer.position.x + rectRenderer.box.elementSize().width()
+                - rectRenderer.box.getBorderRight() - rectRenderer.box.getPaddingRight();
+        double centerY = rectRenderer.position.y + rectRenderer.box.getMarginTop()
+                + rectRenderer.box.elementSize().height() / 2.0d;
+        float x = (float) (right - 7);
+        float y = (float) (centerY - 2);
+        int color = new com.sighs.apricityui.style.Color(isDisabled() ? "#797A7D" : "#D8D8D8").getValue();
+        Graph.drawFillRect(poseStack.last().pose(), x, y, x + 7, y + 1, color);
+        Graph.drawFillRect(poseStack.last().pose(), x + 1, y + 1, x + 6, y + 2, color);
+        Graph.drawFillRect(poseStack.last().pose(), x + 2, y + 2, x + 5, y + 3, color);
+        Graph.drawFillRect(poseStack.last().pose(), x + 3, y + 3, x + 4, y + 4, color);
     }
 
     private String selectedLabel() {
@@ -83,6 +100,7 @@ public class Select extends Element {
         if (popup != null) popup.close();
     }
 
+    @Override
     public void handleClickDefault() {
         if (isDisabled()) return;
         if (isPopupOpen()) closePopup();
