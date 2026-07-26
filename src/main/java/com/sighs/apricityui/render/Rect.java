@@ -59,6 +59,7 @@ public class Rect {
         double maxExtendX = 0;
         double maxExtendY = 0;
         for (Box.Shadow shadow : box.shadows) {
+            if (shadow.inset()) continue;
             if ((shadow.color().getValue() >>> 24) == 0) continue;
             double extent = shadow.size() + shadow.spread();
             minExtendX = Math.min(minExtendX, shadow.x() - extent);
@@ -150,6 +151,7 @@ public class Rect {
 
     public void drawBody(PoseStack poseStack) {
         drawBody(poseStack, getBodyRectSize());
+        drawInsetShadow(poseStack);
     }
 
     public void drawBody(PoseStack poseStack, Size s) {
@@ -207,10 +209,10 @@ public class Rect {
         Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
         for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
             for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
-                boolean drawn = Graph.drawAxisAlignedStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                boolean drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
                         tile.width(), tile.height(), scaled);
                 if (!drawn) {
-                    drawn = Graph.drawAxisAlignedHardStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
+                    drawn = Graph.drawAxisAlignedStopGradientRect(poseStack.last().pose(), (float) p.x + ix, (float) p.y + iy,
                             tile.width(), tile.height(), scaled);
                 }
                 if (!drawn) {
@@ -243,7 +245,9 @@ public class Rect {
     public void drawShadow(PoseStack poseStack) {
         if (box.shadows.isEmpty()) return;
         Size s = getShadowSize();
-        boolean layered = box.shadows.size() > 1;
+        long outerShadowCount = box.shadows.stream().filter(shadow -> !shadow.inset()).count();
+        if (outerShadowCount == 0) return;
+        boolean layered = outerShadowCount > 1;
         if (layered) Graph.beginLayeredBatch();
         else Graph.beginBatch();
         double sourceX = position.x + box.getMarginLeft();
@@ -251,6 +255,7 @@ public class Rect {
         // CSS paints the first shadow on top, so layers are submitted back-to-front.
         for (int i = box.shadows.size() - 1; i >= 0; i--) {
             Box.Shadow shadow = box.shadows.get(i);
+            if (shadow.inset()) continue;
             if ((shadow.color().getValue() >>> 24) == 0) continue;
             double spread = shadow.spread();
             double x = sourceX + shadow.x() - spread;
@@ -277,6 +282,50 @@ public class Rect {
             }
         }
         if (layered) Graph.endBatch();
+    }
+
+    private void drawInsetShadow(PoseStack poseStack) {
+        if (box.shadows.stream().noneMatch(Box.Shadow::inset)) return;
+        Position p = getBodyRectPosition();
+        Size s = getBodyRectSize();
+        float width = (float) Math.max(0, s.width());
+        float height = (float) Math.max(0, s.height());
+        if (width <= 0 || height <= 0) return;
+
+        Graph.endBatch();
+        Mask.pushMask(poseStack, (float) p.x, (float) p.y, width, height, getBodyRadius());
+        Graph.beginLayeredBatch();
+        for (int i = box.shadows.size() - 1; i >= 0; i--) {
+            Box.Shadow shadow = box.shadows.get(i);
+            if (!shadow.inset() || (shadow.color().getValue() >>> 24) == 0) continue;
+            drawInsetShadowLayer(poseStack, p, width, height, shadow);
+        }
+        Graph.endBatch();
+        Mask.popMask(poseStack, (float) p.x, (float) p.y, width, height, getBodyRadius());
+        Graph.beginBatch();
+    }
+
+    private void drawInsetShadowLayer(PoseStack poseStack, Position p, float width, float height,
+                                      Box.Shadow shadow) {
+        double blurExtent = Math.max(0, shadow.size()) * 0.5;
+        double spread = shadow.spread() + blurExtent;
+        float top = (float) Math.min(height, Math.max(0, spread + shadow.y()));
+        float bottom = (float) Math.min(height - top, Math.max(0, spread - shadow.y()));
+        float left = (float) Math.min(width, Math.max(0, spread + shadow.x()));
+        float right = (float) Math.min(width - left, Math.max(0, spread - shadow.x()));
+        int color = shadow.color().getValue();
+        float x0 = (float) p.x;
+        float y0 = (float) p.y;
+        float x1 = x0 + width;
+        float y1 = y0 + height;
+
+        if (top > 0) Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y0 + top, color);
+        if (bottom > 0) Graph.drawFillRect(poseStack.last().pose(), x0, y1 - bottom, x1, y1, color);
+        float middleTop = y0 + top;
+        float middleBottom = y1 - bottom;
+        if (middleBottom <= middleTop) return;
+        if (left > 0) Graph.drawFillRect(poseStack.last().pose(), x0, middleTop, x0 + left, middleBottom, color);
+        if (right > 0) Graph.drawFillRect(poseStack.last().pose(), x1 - right, middleTop, x1, middleBottom, color);
     }
 
     private void drawZeroBlurOuterShadow(PoseStack poseStack,

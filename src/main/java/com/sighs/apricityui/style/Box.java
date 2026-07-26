@@ -444,13 +444,22 @@ public class Box {
             String[] res = splitWhitespace(shadowToken, 8);
             if (res.length < 2) continue;
 
-            Double x = Size.parseNumber(res[0]);
-            Double y = Size.parseNumber(res[1]);
+            boolean inset = false;
+            int valueStart = 0;
+            if ("inset".equalsIgnoreCase(res[0])) {
+                inset = true;
+                valueStart = 1;
+            } else if (res.length > 2 && "inset".equalsIgnoreCase(res[res.length - 1])) {
+                inset = true;
+            }
+            if (res.length <= valueStart + 1) continue;
+            Double x = Size.parseNumber(res[valueStart]);
+            Double y = Size.parseNumber(res[valueStart + 1]);
             if (x == null || y == null) continue;
 
             double blur = 0;
             double spread = 0;
-            int colorIndex = 2;
+            int colorIndex = valueStart + 2;
             if (res.length > colorIndex) {
                 Double parsedBlur = Size.parseNumber(res[colorIndex]);
                 if (parsedBlur != null) {
@@ -466,7 +475,7 @@ public class Box {
                 }
             }
             String color = res.length > colorIndex ? res[colorIndex] : "#000";
-            result.add(new Shadow(x, y, blur, spread, new Color(color)));
+            result.add(new Shadow(x, y, blur, spread, new Color(color), inset));
         }
         return result;
     }
@@ -505,8 +514,8 @@ public class Box {
         }
     }
 
-    public record Shadow(double x, double y, double size, double spread, Color color) {
-        private static final Shadow DEFAULT = new Shadow(0, 0, 0, 0, Color.BLACK);
+    public record Shadow(double x, double y, double size, double spread, Color color, boolean inset) {
+        private static final Shadow DEFAULT = new Shadow(0, 0, 0, 0, Color.BLACK, false);
 
         public static Shadow getDefault() {
             return DEFAULT;
@@ -675,7 +684,7 @@ public class Box {
 
         List<Shadow> target = new ArrayList<>(parseShadowList(style.boxShadow));
         int count = Math.max(target.size(), animated.keySet().stream().mapToInt(Integer::intValue).max().orElse(-1) + 1);
-        while (target.size() < count) target.add(new Shadow(0, 0, 0, 0, new Color(0)));
+        while (target.size() < count) target.add(new Shadow(0, 0, 0, 0, new Color(0), false));
         for (Map.Entry<Integer, ShadowComponents> entry : animated.entrySet()) {
             int index = entry.getKey();
             Shadow base = target.get(index);
@@ -697,7 +706,7 @@ public class Box {
 
     private static Shadow transparentShadow(Shadow reference) {
         int transparentColor = reference == null ? 0 : reference.color().getValue() & 0x00FFFFFF;
-        return new Shadow(0, 0, 0, 0, new Color(transparentColor));
+        return new Shadow(0, 0, 0, 0, new Color(transparentColor), reference != null && reference.inset());
     }
 
     private static ShadowComponent parseShadowComponent(String name) {
@@ -721,7 +730,8 @@ public class Box {
         for (Shadow shadow : shadows) {
             Color color = shadow.color();
             values.add(String.format(Locale.ROOT,
-                    "%.3fpx %.3fpx %.3fpx %.3fpx rgba(%d,%d,%d,%.3f)",
+                    "%s%.3fpx %.3fpx %.3fpx %.3fpx rgba(%d,%d,%d,%.3f)",
+                    shadow.inset() ? "inset " : "",
                     shadow.x(), shadow.y(), shadow.size(), shadow.spread(),
                     color.getR(), color.getG(), color.getB(), color.getA() / 255.0));
         }
@@ -754,7 +764,8 @@ public class Box {
                     y == null ? base.y() : y,
                     Math.max(0, blur == null ? base.size() : blur),
                     spread == null ? base.spread() : spread,
-                    color == null ? base.color() : new Color(color.intValue())
+                    color == null ? base.color() : new Color(color.intValue()),
+                    base.inset()
             );
         }
     }

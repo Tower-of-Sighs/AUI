@@ -148,6 +148,35 @@ class SelectCompatibilityTest {
     }
 
     @Test
+    void lightPopupDoesNotInheritSelectForegroundUnlessOptionDeclaresOne() {
+        Document document = TestDocumentFactory.createDocument();
+        Select select = new Select(document);
+        select.setAttribute("style", "color:#ffffff;");
+        Option selected = option(document, "Selected", "a");
+        Option inherited = option(document, "Inherited", "b");
+        Option authored = option(document, "Authored", "c");
+        authored.setAttribute("style", "color:#c01020;");
+        document.body.appendChild(select);
+        select.appendChild(selected);
+        select.appendChild(inherited);
+        select.appendChild(authored);
+        setSelectTestGeometry(select);
+
+        try {
+            select.openPopup();
+            List<Element> rows = document.querySelectorAll(".aui-select-option");
+            assertEquals(3, rows.size());
+            assertEquals("#000000", rows.get(1).getComputedStyle().color,
+                    "The native light popup must not reuse an inherited SELECT foreground");
+            assertEquals("#c01020", rows.get(2).getComputedStyle().color,
+                    "An OPTION's own author color remains supported");
+        } finally {
+            select.closePopup();
+            document.remove();
+        }
+    }
+
+    @Test
     void keyboardNavigationSkipsDisabledOptionsAndEscapeCancelsPopupChoice() {
         Document document = TestDocumentFactory.createDocument();
         Select select = new Select(document);

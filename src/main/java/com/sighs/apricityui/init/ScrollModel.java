@@ -52,21 +52,29 @@ final class ScrollModel {
     }
 
     boolean canScrollVertically() {
+        if (isViewportScroller()) {
+            return allowsViewportUserScroll(resolveViewportOverflowY());
+        }
         return Interaction.allowsUserScrollY(owner.getComputedStyle());
     }
 
     boolean canScrollHorizontally() {
+        if (isViewportScroller()) {
+            return allowsViewportUserScroll(resolveViewportOverflowX());
+        }
         return Interaction.allowsUserScrollX(owner.getComputedStyle());
     }
 
     boolean hasVerticalScrollRange() {
-        if (!Interaction.allowsUserScrollY(owner.getComputedStyle())) return false;
+        if (isViewportScroller() ? !canScrollVertically()
+                : !Interaction.allowsUserScrollY(owner.getComputedStyle())) return false;
         refreshScrollMetrics();
         return getVerticalScrollLimitFromMetrics() > 0.5;
     }
 
     boolean hasHorizontalScrollRange() {
-        if (!Interaction.allowsUserScrollX(owner.getComputedStyle())) return false;
+        if (isViewportScroller() ? !canScrollHorizontally()
+                : !Interaction.allowsUserScrollX(owner.getComputedStyle())) return false;
         refreshScrollMetrics();
         return getHorizontalScrollLimitFromMetrics() > 0.5;
     }
@@ -188,7 +196,7 @@ final class ScrollModel {
     }
 
     private double getHorizontalScrollLimitFromMetrics() {
-        return Math.max(0, owner.scrollWidth - Box.of(owner).innerSize().width());
+        return Math.max(0, owner.scrollWidth - getScrollportWidth());
     }
 
     private double getVerticalScrollLimit() {
@@ -197,12 +205,69 @@ final class ScrollModel {
     }
 
     private double getVerticalScrollLimitFromMetrics() {
-        return Math.max(0, owner.scrollHeight - Box.of(owner).innerSize().height());
+        return Math.max(0, owner.scrollHeight - getScrollportHeight());
+    }
+
+    private double getScrollportWidth() {
+        if (isViewportScroller()) {
+            return Math.max(0, owner.document.getViewport().layoutWidth());
+        }
+        return Box.of(owner).innerSize().width();
+    }
+
+    private double getScrollportHeight() {
+        if (isViewportScroller()) {
+            return Math.max(0, owner.document.getViewport().layoutHeight());
+        }
+        return Box.of(owner).innerSize().height();
+    }
+
+    private boolean isViewportScroller() {
+        return owner.document != null
+                && owner.document.documentElement != null
+                && owner == owner.document.documentElement;
+    }
+
+    private String resolveViewportOverflowX() {
+        return resolveViewportOverflow(true);
+    }
+
+    private String resolveViewportOverflowY() {
+        return resolveViewportOverflow(false);
+    }
+
+    /** CSS Overflow propagates body overflow to the viewport while html remains visible. */
+    private String resolveViewportOverflow(boolean horizontal) {
+        String rootOverflow = horizontal
+                ? Interaction.resolveOverflowX(owner.getComputedStyle())
+                : Interaction.resolveOverflowY(owner.getComputedStyle());
+        if (!"visible".equals(rootOverflow)) return rootOverflow;
+
+        Element body = owner.document.body;
+        if (body == null) return rootOverflow;
+        return horizontal
+                ? Interaction.resolveOverflowX(body.getComputedStyle())
+                : Interaction.resolveOverflowY(body.getComputedStyle());
+    }
+
+    private boolean allowsViewportUserScroll(String overflow) {
+        String normalized = Interaction.normalizeOverflow(overflow);
+        return !"hidden".equals(normalized) && !"clip".equals(normalized);
     }
 
     private void refreshScrollMetrics() {
         if (owner instanceof AbstractText) return;
         Size contentSize = Size.getContentSize(owner);
+        if (isViewportScroller() && owner.document.body != null) {
+            // The viewport scrolling element's scroll area includes the body
+            // box even when the layout tree does not expose it as a normal
+            // child contribution of html.
+            Size bodyContentSize = Size.getContentSize(owner.document.body);
+            contentSize = new Size(
+                    Math.max(contentSize.width(), bodyContentSize.width()),
+                    Math.max(contentSize.height(), bodyContentSize.height())
+            );
+        }
         owner.scrollWidth = contentSize.width();
         owner.scrollHeight = contentSize.height();
     }

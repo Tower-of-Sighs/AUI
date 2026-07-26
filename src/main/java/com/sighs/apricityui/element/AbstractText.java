@@ -415,15 +415,35 @@ public abstract class AbstractText extends Element {
 
         String textBeforeCursor = text.substring(0, cursor);
         double cursorX = Size.measureText(this, textBeforeCursor);
-
-        Size size = Size.getContentSize(this);
-        double visibleWidth = size.width();
-
-        if (cursorX < scrollLeft) setScrollLeft(cursorX);
-        else if (cursorX > scrollLeft + visibleWidth) setScrollLeft(cursorX - visibleWidth + 2);
-
         this.scrollWidth = Size.measureText(this, text);
+        double visibleWidth = Math.max(0, Box.of(this).innerSize().width());
+        double maxScrollLeft = Math.max(0, scrollWidth - visibleWidth);
+        double desiredScrollLeft = scrollLeft;
+
+        if (cursorX < desiredScrollLeft) desiredScrollLeft = cursorX;
+        else if (cursorX > desiredScrollLeft + visibleWidth) desiredScrollLeft = cursorX - visibleWidth + 2;
+
+        // Native text controls keep their internal scroll position synchronous.
+        // Do not route caret visibility through the page scroll model's easing
+        // and overscroll, which causes a one-frame horizontal jump on mousedown.
+        setTextScrollLeftImmediate(Math.max(0, Math.min(maxScrollLeft, desiredScrollLeft)));
         this.addDirtyFlags(Drawer.REPAINT);
+    }
+
+    protected final void setTextScrollLeftImmediate(double value) {
+        double visibleWidth = Math.max(0, Box.of(this).innerSize().width());
+        double maxScrollLeft = Math.max(0, scrollWidth - visibleWidth);
+        double clamped = Math.max(0, Math.min(maxScrollLeft, value));
+        scrollLeft = clamped;
+        targetScrollLeft = clamped;
+    }
+
+    protected final void setTextScrollTopImmediate(double value) {
+        double visibleHeight = Math.max(0, Box.of(this).innerSize().height());
+        double maxScrollTop = Math.max(0, scrollHeight - visibleHeight);
+        double clamped = Math.max(0, Math.min(maxScrollTop, value));
+        scrollTop = clamped;
+        targetScrollTop = clamped;
     }
 
     protected String getRenderText() {

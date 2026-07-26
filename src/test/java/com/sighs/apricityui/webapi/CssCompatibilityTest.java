@@ -5,16 +5,22 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.StyleFrameCache;
+import com.sighs.apricityui.element.Select;
+import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Gradient;
+import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.style.Transform;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +34,57 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CssCompatibilityTest {
+    @Test
+    void verticalAlignInitialValueMatchesBrowserBaseline() {
+        Document document = TestDocumentFactory.createDocument();
+        Element inline = new Element(document, "span");
+        document.body.appendChild(inline);
+
+        assertEquals("baseline", inline.getComputedStyle().verticalAlign);
+        assertEquals("baseline", Text.of(inline).verticalAlign);
+    }
+
+    @Test
+    void browserInlineElementsUseInlineUserAgentDisplay() {
+        Document document = TestDocumentFactory.createDocument();
+        String[] inlineTags = {
+                "a", "abbr", "b", "bdi", "bdo", "cite", "code", "data", "del", "dfn", "em",
+                "i", "ins", "kbd", "label", "mark", "q", "s", "samp", "small", "span", "strong",
+                "sub", "sup", "time", "u", "var"
+        };
+
+        for (String tag : inlineTags) {
+            Element element = new Element(document, tag);
+            document.body.appendChild(element);
+            assertEquals("inline", element.getComputedStyle().display, tag);
+        }
+    }
+
+    @Test
+    void hoverTextDecorationUnderlineIsResolvedAndInvalidatesText() throws Exception {
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        CSS.readCSS(".ore-theme a { text-decoration: none; } .ore-theme a:hover { text-decoration: underline; }",
+                cache, "test://hover-decoration.css");
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Element root = new Element(document, "div");
+        root.setAttribute("class", "ore-theme");
+        document.body.appendChild(root);
+        Element link = new Element(document, "a");
+        link.setAttribute("class", "navbar-brand");
+        root.appendChild(link);
+
+        assertEquals("none", link.getComputedStyle().textDecoration);
+        assertFalse(Text.of(link).isUnderlined());
+
+        link.setHover(true);
+        document.flushPendingStyleUpdates();
+        assertEquals("underline", link.getComputedStyle().textDecoration);
+        assertTrue(Text.of(link).isUnderlined());
+    }
+
     @Test
     void lineClampIsAFirstClassComputedTextProperty() {
         Style style = new Style();
@@ -63,6 +120,23 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void insetBoxShadowsRetainKeywordAndCssLayerOrder() {
+        List<Box.Shadow> shadows = Box.parseShadowList(
+                "inset 0 -6px #1d4d13, inset 3px 3px rgba(255,255,255,0.22), 9px 9px rgba(0,0,0,0.36)");
+
+        assertEquals(3, shadows.size());
+        assertTrue(shadows.get(0).inset());
+        assertEquals(-6, shadows.get(0).y());
+        assertTrue(shadows.get(1).inset());
+        assertEquals(3, shadows.get(1).x());
+        assertFalse(shadows.get(2).inset());
+
+        Box.Shadow trailingKeyword = Box.parseShadowList("2px 4px #123456 inset").get(0);
+        assertTrue(trailingKeyword.inset());
+        assertEquals(0xFF123456, trailingKeyword.color().getValue());
+    }
+
+    @Test
     void inheritedPropertiesCascadeIntoChildrenByDefault() {
         Document document = TestDocumentFactory.createDocument();
         Element parent = new Element(document, "div");
@@ -75,6 +149,39 @@ class CssCompatibilityTest {
         assertEquals("#123456", child.getComputedStyle().color);
         assertEquals("20px", child.getComputedStyle().fontSize);
         assertEquals("2", child.getComputedStyle().lineHeight);
+    }
+
+    @Test
+    void userAgentParagraphStyleDoesNotOverrideAuthorInheritedLineHeight() throws Exception {
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        Path globalStyle = Path.of("src/main/resources/assets/apricityui/apricity/global.css");
+        CSS.readCSS(Files.readString(globalStyle), cache, globalStyle.toString());
+        CSS.readCSS(".theme { line-height: 1.5; }", cache, "test://author.css");
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        document.body.setAttribute("class", "theme");
+        Element paragraph = new Element(document, "p");
+        document.body.appendChild(paragraph);
+
+        assertEquals("1.5", paragraph.getComputedStyle().lineHeight);
+    }
+
+    @Test
+    void userAgentDisabledSelectUsesNativeFadedAppearance() throws Exception {
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        Path globalStyle = Path.of("src/main/resources/assets/apricityui/apricity/global.css");
+        CSS.readCSS(Files.readString(globalStyle), cache, globalStyle.toString());
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        Select select = new Select(document);
+        select.setDisabled(true);
+        document.body.appendChild(select);
+
+        assertEquals("0.72", select.getComputedStyle().opacity);
+        select.setAttribute("style", "opacity: 1;");
+        assertEquals("1", select.getComputedStyle().opacity);
     }
 
     @Test
@@ -283,7 +390,7 @@ class CssCompatibilityTest {
                 .inline-pill,
                 .inline-outer,
                 .inline-inner {
-                  display: inline;
+                  color: #123456;
                 }
                 """;
 
@@ -301,9 +408,77 @@ class CssCompatibilityTest {
         document.body.appendChild(outer);
         document.body.appendChild(inner);
 
-        assertEquals("inline", pill.getComputedStyle().display);
-        assertEquals("inline", outer.getComputedStyle().display);
-        assertEquals("inline", inner.getComputedStyle().display);
+        assertEquals("#123456", pill.getComputedStyle().color);
+        assertEquals("#123456", outer.getComputedStyle().color);
+        assertEquals("#123456", inner.getComputedStyle().color);
+    }
+
+    @Test
+    void generalSiblingSelectorMatchesAnyEarlierSibling() {
+        Document document = TestDocumentFactory.createDocument();
+        Element input = new Input(document);
+        input.setAttribute("type", "radio");
+        input.setAttribute("id", "page-toggle");
+        input.setChecked(true);
+        Element spacer = new Element(document, "nav");
+        Element main = new Element(document, "main");
+        Element panel = new Element(document, "section");
+        panel.setAttribute("class", "panel");
+        document.body.appendChild(input);
+        document.body.appendChild(spacer);
+        document.body.appendChild(main);
+        main.appendChild(panel);
+
+        assertTrue(Selector.matches(panel, "#page-toggle:checked~main .panel"));
+        input.setChecked(false);
+        assertFalse(Selector.matches(panel, "#page-toggle:checked~main .panel"));
+    }
+
+    @Test
+    void checkedGeneralSiblingRuleRecalculatesFollowingSubtree() throws Exception {
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        CSS.readCSS(".panel { display: none; } #page-toggle:checked~main .panel { display: block; }",
+                cache, "test://checked-sibling.css");
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Input input = new Input(document);
+        input.setAttribute("type", "radio");
+        input.setAttribute("id", "page-toggle");
+        Element main = new Element(document, "main");
+        Element panel = new Element(document, "section");
+        panel.setAttribute("class", "panel");
+        document.body.appendChild(input);
+        document.body.appendChild(main);
+        main.appendChild(panel);
+
+        assertEquals("none", panel.getComputedStyle().display);
+        input.setChecked(true);
+        document.flushPendingStyleUpdates();
+        assertEquals("block", panel.getComputedStyle().display);
+    }
+
+    @Test
+    void dynamicCompoundClassSelectorUpdatesDisplay() throws Exception {
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS(".page { display: none; } .page.active { display: block; }", cache,
+                "test://dynamic-page.css");
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Element page = new Element(document, "section");
+        page.setAttribute("class", "page");
+        document.body.appendChild(page);
+
+        assertEquals("none", page.getComputedStyle().display);
+        page.getClassList().add("active");
+        document.flushPendingStyleUpdates();
+        assertEquals("block", page.getComputedStyle().display);
+        page.getClassList().remove("active");
+        document.flushPendingStyleUpdates();
+        assertEquals("none", page.getComputedStyle().display);
     }
 
     @Test
@@ -467,6 +642,23 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void mediaQueriesCanUseTheOwningDocumentsExplicitViewport() {
+        HashMap<String, java.util.Map<String, CSS.Declaration>> cache = new HashMap<>();
+        String css = """
+                @media (min-width: 900px) {
+                  .panel { display: flex; }
+                }
+                @media (max-width: 899px) {
+                  .panel { display: block; }
+                }
+                """;
+
+        CSS.readCSS(css, cache, "test://doc", new Size(1463, 843));
+
+        assertEquals("flex", cache.get(".panel").get("display").value());
+    }
+
+    @Test
     void animationShorthandBackfillsLonghands() {
         Style style = new Style();
         style.merge("animation: pulse 2s ease-in 100ms infinite alternate both paused;");
@@ -619,6 +811,20 @@ class CssCompatibilityTest {
         assertEquals(80f, scaleDownRect.y());
         assertEquals(40f, scaleDownRect.width());
         assertEquals(40f, scaleDownRect.height());
+    }
+
+    @Test
+    void accentColorIsParsedAndInherited() {
+        Document document = TestDocumentFactory.createDocument();
+        Element label = new Element(document, "label");
+        label.setAttribute("style", "accent-color: #3b8526;");
+        Element input = new Element(document, "input");
+        input.setAttribute("type", "checkbox");
+        document.body.appendChild(label);
+        label.appendChild(input);
+
+        assertEquals("#3b8526", label.getComputedStyle().accentColor);
+        assertEquals("#3b8526", input.getComputedStyle().accentColor);
     }
 
     @Test

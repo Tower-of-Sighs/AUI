@@ -5,6 +5,8 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
@@ -17,9 +19,18 @@ import java.util.List;
 @ElementRegister(TextArea.TAG_NAME)
 public class TextArea extends AbstractText {
     public static final String TAG_NAME = "TEXTAREA";
+    private boolean textAreaValueDirty;
+    private boolean resizing;
+    private double resizeStartX;
+    private double resizeStartY;
+    private double resizeStartWidth;
+    private double resizeStartHeight;
 
     public TextArea(Document document) {
         super(document, TAG_NAME);
+        addInternalEventListener("mousedown", this::beginResize);
+        addInternalEventListener("mousemove", this::continueResize);
+        addInternalEventListener("mouseup", event -> resizing = false);
     }
 
     @Override
@@ -32,15 +43,41 @@ public class TextArea extends AbstractText {
         super.onInitFromDom(origin);
 
         if (!hasAttribute("value")) {
-            String inlineText = origin == null ? "" : origin.innerText;
+            String inlineText = origin == null ? "" : origin.getTextContent();
             if (inlineText == null) inlineText = "";
             value = inlineText.replace("\r\n", "\n").replace('\r', '\n');
+            textAreaValueDirty = false;
             cursor = Math.min(cursor, value.length());
+            selectionAnchor = cursor;
+            clearSelection();
+            getRenderer().text.clear();
+        }
+    }
+
+    @Override
+    public String getDefaultValue() {
+        String text = getTextContent();
+        return text == null ? "" : text.replace("\r\n", "\n").replace('\r', '\n');
+    }
+
+    @Override
+    public void setDefaultValue(String value) {
+        String normalized = value == null ? "" : value.replace("\r\n", "\n").replace('\r', '\n');
+        setTextContent(normalized);
+        if (!textAreaValueDirty) {
+            this.value = normalized;
+            cursor = Math.min(cursor, normalized.length());
             selectionAnchor = cursor;
             clearSelection();
             clampScroll();
             getRenderer().text.clear();
         }
+    }
+
+    @Override
+    public void setValue(String value) {
+        super.setValue(value == null ? "" : value.replace("\r\n", "\n").replace('\r', '\n'));
+        textAreaValueDirty = true;
     }
 
     @Override
@@ -98,16 +135,19 @@ public class TextArea extends AbstractText {
         double visibleWidth = Math.max(0, visibleSize.width());
         double visibleHeight = Math.max(0, visibleSize.height());
 
-        if (cursorX < scrollLeft) setScrollLeft(cursorX);
-        else if (cursorX > scrollLeft + visibleWidth) setScrollLeft(cursorX - visibleWidth + 2);
-
-        if (cursorY < scrollTop) setScrollTop(cursorY);
-        else if (cursorY + lineHeight > scrollTop + visibleHeight) {
-            setScrollTop(cursorY + lineHeight - visibleHeight + 2);
-        }
-
         scrollWidth = wrapped.width();
         scrollHeight = wrapped.height(lineHeight);
+        double desiredScrollLeft = scrollLeft;
+        if (cursorX < desiredScrollLeft) desiredScrollLeft = cursorX;
+        else if (cursorX > desiredScrollLeft + visibleWidth) desiredScrollLeft = cursorX - visibleWidth + 2;
+        setTextScrollLeftImmediate(desiredScrollLeft);
+
+        double desiredScrollTop = scrollTop;
+        if (cursorY < desiredScrollTop) desiredScrollTop = cursorY;
+        else if (cursorY + lineHeight > desiredScrollTop + visibleHeight) {
+            desiredScrollTop = cursorY + lineHeight - visibleHeight + 2;
+        }
+        setTextScrollTopImmediate(desiredScrollTop);
         addDirtyFlags(Drawer.REPAINT);
     }
 
@@ -115,7 +155,10 @@ public class TextArea extends AbstractText {
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
         Rect rectRenderer = Rect.of(this);
         if (phase == Base.RenderPhase.SHADOW) rectRenderer.drawShadow(poseStack);
-        if (phase == Base.RenderPhase.BORDER) rectRenderer.drawBorder(poseStack);
+        if (phase == Base.RenderPhase.BORDER) {
+            rectRenderer.drawBorder(poseStack);
+            drawResizeHandle(poseStack, rectRenderer);
+        }
         if (phase != Base.RenderPhase.BODY) return;
 
         rectRenderer.drawBody(poseStack);
@@ -201,6 +244,96 @@ public class TextArea extends AbstractText {
         float cursorX = (float) (baseX + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
         Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
+    }
+
+    public boolean isResizeHandleAt(Position documentPosition) {
+        if (documentPosition == null || !canResize()) return false;
+        Box box = Box.of(this);
+        Position position = Position.of(this);
+        double localX = documentPosition.x - position.x - box.getMarginLeft();
+        double localY = documentPosition.y - position.y - box.getMarginTop();
+        return isResizeHandleOffset(localX, localY);
+    }
+
+    public String getResizeCursor() {
+        String resize = normalizedResize();
+        if ("vertical".equals(resize) || "block".equals(resize)) return "ns-resize";
+        if ("horizontal".equals(resize) || "inline".equals(resize)) return "ew-resize";
+        return "se-resize";
+    }
+
+    private void beginResize(Event event) {
+        if (!(event instanceof MouseEvent mouseEvent) || !isResizeHandleOffset(mouseEvent.offsetX, mouseEvent.offsetY)) return;
+        Box box = Box.of(this);
+        resizing = true;
+        resizeStartX = mouseEvent.clientX;
+        resizeStartY = mouseEvent.clientY;
+        resizeStartWidth = box.elementSize().width();
+        resizeStartHeight = box.elementSize().height();
+        clearSelection();
+        event.preventDefault();
+    }
+
+    private void continueResize(Event event) {
+        if (!resizing || !(event instanceof MouseEvent mouseEvent)) return;
+        String resize = normalizedResize();
+        Box box = Box.of(this);
+        boolean borderBox = box.isBorderBox();
+        if ("both".equals(resize) || "horizontal".equals(resize) || "inline".equals(resize)) {
+            double width = Math.max(16, resizeStartWidth + mouseEvent.clientX - resizeStartX);
+            if (!borderBox) width -= box.getBorderHorizontal() + box.getPaddingHorizontal();
+            setInlineStyleProperty("width", px(Math.max(0, width)));
+        }
+        if ("both".equals(resize) || "vertical".equals(resize) || "block".equals(resize)) {
+            double height = Math.max(16, resizeStartHeight + mouseEvent.clientY - resizeStartY);
+            if (!borderBox) height -= box.getBorderVertical() + box.getPaddingVertical();
+            setInlineStyleProperty("height", px(Math.max(0, height)));
+        }
+        event.preventDefault();
+    }
+
+    private void drawResizeHandle(PoseStack poseStack, Rect rectRenderer) {
+        if (!canResize()) return;
+        Box box = rectRenderer.box;
+        float right = (float) (rectRenderer.position.x + box.getMarginLeft() + box.elementSize().width() - 3);
+        float bottom = (float) (rectRenderer.position.y + box.getMarginTop() + box.elementSize().height() - 3);
+        int color = new Color(isDisabled() ? "#777777" : "#A9A9A9").getValue();
+        for (int i = 0; i < 3; i++) {
+            float length = 3 + i * 3;
+            for (int step = 0; step < length; step += 2) {
+                float x = right - step;
+                // Each stroke terminates on the same bottom/right corner. The
+                // previous extra per-stroke offset shifted the longer strokes
+                // upward, producing a detached triangular mark instead of the
+                // browser's three parallel diagonal grip lines.
+                float y = bottom - (length - step - 1);
+                Graph.drawFillRect(poseStack.last().pose(), x, y, x + 1, y + 1, color);
+            }
+        }
+    }
+
+    private boolean isResizeHandleOffset(double offsetX, double offsetY) {
+        if (!canResize()) return false;
+        Size size = Box.of(this).elementSize();
+        return offsetX >= size.width() - 14 && offsetY >= size.height() - 14;
+    }
+
+    private boolean canResize() {
+        return !isDisabled() && !"none".equals(normalizedResize());
+    }
+
+    private String normalizedResize() {
+        String resize = getComputedStyle().resize;
+        if (resize == null) return "none";
+        resize = resize.trim().toLowerCase(java.util.Locale.ROOT);
+        return switch (resize) {
+            case "both", "horizontal", "vertical", "block", "inline" -> resize;
+            default -> "none";
+        };
+    }
+
+    private static String px(double value) {
+        return String.format(java.util.Locale.ROOT, "%.2fpx", value);
     }
 
     private void drawSelection(PoseStack poseStack, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {

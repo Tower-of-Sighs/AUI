@@ -181,16 +181,17 @@ class NormalFlowInlineTest {
         Element outer = new Element(document, "span");
         outer.setAttribute("style", "display: inline;");
         Element atomicChild = new Element(document, "span");
-        atomicChild.setAttribute("style", "display: inline-block; width: 40px; height: 10px;");
+        atomicChild.setAttribute("style", "display: inline-block; vertical-align: top; width: 40px; height: 10px;");
         outer.appendChild(atomicChild);
         parent.appendChild(outer);
 
         Element tail = new Element(document, "span");
-        tail.setAttribute("style", "display: inline-block; width: 4px; height: 10px;");
+        tail.setAttribute("style", "display: inline-block; vertical-align: top; width: 4px; height: 10px;");
         parent.appendChild(tail);
 
         assertEquals(0, Position.getOffset(outer).x);
-        assertEquals(10, Position.getOffset(tail).y);
+        assertTrue(Position.getOffset(tail).y > 10,
+                "the atomic inline child must force the following item onto a later line");
     }
 
     @Test

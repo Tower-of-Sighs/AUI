@@ -4,6 +4,8 @@ import com.sighs.apricityui.init.Element;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;
+import java.util.Set;
+import java.util.ArrayDeque;
 
 public final class LayoutMeasureCache {
     public static final int SIZE_NATURAL = 1;
@@ -40,7 +42,7 @@ public final class LayoutMeasureCache {
     public static Size getSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
         State state = STATE.get();
         if (state == null || element == null) return null;
-        if (mode == SIZE_NATURAL) {
+        if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             return state.naturalSizes.get(element);
         }
         if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
@@ -52,7 +54,7 @@ public final class LayoutMeasureCache {
     public static void putSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Size size) {
         State state = STATE.get();
         if (state == null || element == null || size == null) return;
-        if (mode == SIZE_NATURAL) {
+        if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             state.naturalSizes.put(element, size);
             return;
         }
@@ -73,6 +75,26 @@ public final class LayoutMeasureCache {
         State state = STATE.get();
         if (state == null || element == null || value == null) return;
         state.objects.put(new Key(mode, element, availableWidth, availableHeight, natural), value);
+    }
+
+    public static void invalidateSubtree(Element root) {
+        State state = STATE.get();
+        if (state == null || root == null) return;
+
+        Set<Element> subtree = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
+        ArrayDeque<Element> pending = new ArrayDeque<>();
+        pending.push(root);
+        while (!pending.isEmpty()) {
+            Element element = pending.pop();
+            if (!subtree.add(element)) continue;
+            for (Element child : element.getRenderChildren()) pending.push(child);
+        }
+
+        state.naturalSizes.keySet().removeIf(subtree::contains);
+        state.flexContentSizes.keySet().removeIf(subtree::contains);
+        state.naturalFlexContentSizes.keySet().removeIf(subtree::contains);
+        state.sizes.keySet().removeIf(key -> subtree.contains(key.element));
+        state.objects.keySet().removeIf(key -> subtree.contains(key.element));
     }
 
     private static final class State {

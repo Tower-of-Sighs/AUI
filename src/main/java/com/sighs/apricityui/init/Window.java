@@ -8,9 +8,12 @@ import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.task.ClientScheduler;
-import com.sighs.apricityui.style.Box;
+import dev.latvian.mods.rhino.Function;
+import dev.latvian.mods.rhino.util.HideFromJS;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -127,14 +130,17 @@ public class Window {
         return new BrowserLocation("");
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Object> listener) {
         addEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Object> listener, boolean useCapture) {
         addEventListener(type, listener, useCapture, false);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Object> listener, boolean useCapture, boolean once) {
         if (type == null || listener == null) return;
         Consumer<Event> wrapped = wrapWindowListener(listener);
@@ -142,16 +148,47 @@ public class Window {
                 .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
     }
 
+    public void addEventListener(String type, Function listener) {
+        addEventListener(type, listener, false, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
+        if (type == null || listener == null) return;
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped == null) return;
+        listeners.computeIfAbsent(type, key -> new CopyOnWriteArrayList<>())
+                .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
+    }
+
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Object> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Object> listener, boolean useCapture) {
         if (type == null || listener == null) return;
         CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
         if (typeListeners == null) return;
         typeListeners.removeIf(candidate ->
                 candidate.useCapture() == useCapture && listener.equals(unwrapWindowListener(candidate.listener())));
+    }
+
+    public void removeEventListener(String type, Function listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, Function listener, boolean useCapture) {
+        if (type == null || listener == null) return;
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
+        if (wrapped == null || typeListeners == null) return;
+        typeListeners.removeIf(candidate ->
+                candidate.useCapture() == useCapture && wrapped.equals(candidate.listener()));
     }
 
     public boolean dispatchEvent(Object event) {
@@ -270,6 +307,9 @@ public class Window {
             Consumer<Object> original = unwrapWindowListener(listener.listener());
             if (original != null) {
                 window.removeEventListener(type, original, listener.useCapture());
+            } else {
+                CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = window.listeners.get(type);
+                if (typeListeners != null) typeListeners.remove(listener);
             }
         }
         return !listener.internal();

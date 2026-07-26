@@ -30,7 +30,6 @@ blockquote {
 p {
     display: block;
     margin: 8px 0;
-    line-height: 1.4;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -101,6 +100,15 @@ input {
 }
 input:focus {
     background-color: #fff;
+}
+
+/* Chromium paints a disabled native select as a faded control even when
+ * author styles provide its border, background and inset shadow. ApricityUI
+ * owns the select renderer, so reproduce that native disabled-state
+ * compositing at the user-agent layer. Author opacity declarations loaded
+ * later can still override this default. */
+select:disabled {
+    opacity: 0.72;
 }
 
 i, em {

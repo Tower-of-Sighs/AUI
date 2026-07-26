@@ -844,6 +844,47 @@ class ElementBindingTest {
     }
 
     @Test
+    void labelForActivatesAssociatedRadioUsingClickDefault() {
+        Document document = createDocument();
+        Input radio = new Input(document);
+        radio.setAttribute("type", "radio");
+        radio.setAttribute("id", "ore-page-actions");
+        Element label = new Element(document, "label");
+        label.setAttribute("for", "ore-page-actions");
+        label.setTextContent("Actions");
+        document.appendChild(radio);
+        document.appendChild(label);
+
+        AtomicInteger inputEvents = new AtomicInteger();
+        AtomicInteger changeEvents = new AtomicInteger();
+        radio.addEventListener("input", event -> inputEvents.incrementAndGet());
+        radio.addEventListener("change", event -> changeEvents.incrementAndGet());
+
+        label.click();
+
+        assertTrue(radio.isChecked());
+        assertEquals(1, inputEvents.get());
+        assertEquals(1, changeEvents.get());
+    }
+
+    @Test
+    void externalListenerExceptionsDoNotEscapeDispatch() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        AtomicInteger laterCalls = new AtomicInteger();
+        target.addEventListener("custom", event -> {
+            throw new IllegalStateException("listener failure");
+        }, false, true);
+        target.addEventListener("custom", event -> laterCalls.incrementAndGet());
+
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertEquals(2, laterCalls.get());
+    }
+
+    @Test
     void mousePrimaryClickDispatchesClickAndDoubleClick() {
         Document document = createDocument();
         Element target = new Element(document, "button");

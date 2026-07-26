@@ -26,7 +26,7 @@ public class Style implements Cloneable {
     private static final Set<String> INHERITED_PROPERTIES = Set.of(
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent",
-            "white-space", "cursor", "visibility"
+            "white-space", "cursor", "visibility", "accent-color"
     );
     private static final Map<String, String> INITIAL_VALUES = Map.ofEntries(
             Map.entry("width", "auto"),
@@ -62,6 +62,7 @@ public class Style implements Cloneable {
             Map.entry("background-position", "0 0"),
             Map.entry("object-fit", "fill"),
             Map.entry("object-position", "50% 50%"),
+            Map.entry("resize", "none"),
             Map.entry("margin", "0px"),
             Map.entry("margin-top", "0px"),
             Map.entry("margin-bottom", "0px"),
@@ -88,6 +89,7 @@ public class Style implements Cloneable {
             Map.entry("border-image-repeat", "stretch"),
             Map.entry("color", "#000000"),
             Map.entry("selection-color", "#0078D7"),
+            Map.entry("accent-color", "auto"),
             Map.entry("font-size", "16px"),
             Map.entry("font-family", "unset"),
             Map.entry("font-weight", "400"),
@@ -97,7 +99,7 @@ public class Style implements Cloneable {
             Map.entry("direction", "ltr"),
             Map.entry("letter-spacing", "normal"),
             Map.entry("text-align", "start"),
-            Map.entry("vertical-align", "top"),
+            Map.entry("vertical-align", "baseline"),
             Map.entry("text-indent", "0px"),
             Map.entry("white-space", "normal"),
             Map.entry("text-overflow", "clip"),
@@ -177,6 +179,7 @@ public class Style implements Cloneable {
     public String backgroundPosition = "unset";
     public String objectFit = "fill";
     public String objectPosition = "50% 50%";
+    public String resize = "none";
 
     public String margin = "unset";
     public String marginTop = "unset";
@@ -208,11 +211,13 @@ public class Style implements Cloneable {
 
     public String color = "unset";
     public String selectionColor = "unset";
+    public String accentColor = "unset";
     public String fontSize = "unset";
     public String fontFamily = "unset";
     public String fontWeight = "unset";
     public String fontStyle = "unset";
     public String textStroke = "unset";
+    public String textDecoration = "unset";
     public String lineHeight = "unset";
     public String direction = "unset";
     public String letterSpacing = "unset";
@@ -1094,7 +1099,10 @@ public class Style implements Cloneable {
         if (element == null || element.tagName == null) return "block";
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
         return switch (tag) {
-            case "A", "SPAN", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS", "SVG", "BUTTON", "LABEL" -> "inline";
+            case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
+                 "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
+                 "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
+                 "SVG", "BUTTON" -> "inline";
             case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
             default -> "block";
         };
@@ -1316,7 +1324,7 @@ public class Style implements Cloneable {
 
     static Set<String> getTextProp() {
         return Set.of(
-                "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "line-height",
+                "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
             "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space", "text-overflow",
             "line-clamp"
         );

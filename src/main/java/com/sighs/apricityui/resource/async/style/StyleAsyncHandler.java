@@ -8,6 +8,7 @@ import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.style.Size;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -109,7 +110,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             boolean loaded = registerFont(fontTask);
             if (loaded) {
                 FontDrawer.clearCache();
-                document.reapplyStylesFromCache();
+                document.invalidateFontMetrics();
             }
             task.handle().completeTask(!loaded);
             return;
@@ -132,11 +133,30 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         document.CSSCache.clear();
         document.CSSDebugRules.clear();
         int order = 0;
+        Size viewport = new Size(
+                document.getViewport().layoutWidth(),
+                document.getViewport().layoutHeight()
+        );
         for (Map.Entry<Integer, StyleHandle.CssEntry> entry : handle.snapshotCssEntries()) {
             StyleHandle.CssEntry cssEntry = entry.getValue();
-            order = CSS.readCSS(cssEntry.cssText(), document.CSSCache, document.CSSDebugRules, cssEntry.contextPath(), order);
+            order = CSS.readCSS(
+                    cssEntry.cssText(),
+                    document.CSSCache,
+                    document.CSSDebugRules,
+                    cssEntry.contextPath(),
+                    order,
+                    viewport
+            );
         }
         document.rebuildSelectorIndex();
+    }
+
+    public void handleViewportChange(Document document) {
+        if (document == null || document.documentElement == null) return;
+        StyleHandle handle = HANDLES.get(document.getUuid());
+        if (handle == null || handle.state() == AsyncState.STALE) return;
+        rebuildCssCache(document, handle);
+        document.reapplyStylesFromCache();
     }
 
     private boolean registerFont(FontTask fontTask) {

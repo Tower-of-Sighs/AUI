@@ -7,6 +7,7 @@ import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.*;
+import dev.latvian.mods.rhino.util.HideFromJS;
 
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -128,6 +129,12 @@ public class Element extends Node {
     public Style getStyle() {
         if (inlineStyle == null) updateInlineStyle();
         return inlineStyle;
+    }
+
+    public void setInlineStyleProperty(String name, String value) {
+        Style next = getStyle().clone();
+        next.update(name, value);
+        setAttribute("style", next.toCss());
     }
 
     public String getCustomProperty(String name) {
@@ -578,12 +585,18 @@ public class Element extends Node {
     }
 
     public void setChecked(boolean checked) {
+        boolean changed = isChecked() != checked;
         checkedState = checked;
         checkedDirty = true;
         if ("INPUT".equalsIgnoreCase(tagName) && checked && "radio".equalsIgnoreCase(getAttribute("type")) && document != null) {
             enforceRadioGroupChecked();
         }
         invalidateStyle();
+        if (changed && document != null && document.documentElement != null) {
+            // :checked may affect following siblings and their descendants via
+            // combinators such as input:checked ~ main .panel.
+            document.requestStyleRecalc(document.documentElement);
+        }
     }
 
     public boolean isDefaultChecked() {
@@ -773,7 +786,7 @@ public class Element extends Node {
             Element element = creator.apply(origin.document, origin.tagName);
             element.id = origin.id;
             element.uuid = origin.uuid;
-            element.innerText = origin.innerText.replace("\n", "");
+            element.innerText = origin.innerText;
             element.attributes = origin.attributes;
             element.parentNode = origin.parentNode;
             element.parentElement = origin.parentElement;
@@ -1406,7 +1419,49 @@ public class Element extends Node {
 
     public void click() {
         if (isDisabled()) return;
-        Event.tiggerEvent(new Event(this, "click", null, false));
+        Event clickEvent = new Event(this, "click", null, false);
+        clickEvent.cancelable = true;
+        Event.tiggerEvent(clickEvent);
+        if (!clickEvent.defaultPrevented) {
+            Element activationTarget = resolveClickActivationTarget();
+            if (activationTarget != null && !activationTarget.isDisabled()) {
+                activationTarget.handleClickDefault();
+            }
+        }
+    }
+
+    /**
+     * HTML activation behavior belongs to the nearest inclusive ancestor that
+     * defines it. This is why clicking text or another inline descendant of a
+     * LABEL/BUTTON still activates the associated control in a browser.
+     */
+    public Element resolveClickActivationTarget() {
+        for (Element current = this; current != null; current = current.parentElement) {
+            if (current.hasClickActivationBehavior()) return current;
+        }
+        return null;
+    }
+
+    protected boolean hasClickActivationBehavior() {
+        if (tagName == null) return false;
+        return switch (tagName.trim().toUpperCase()) {
+            case "LABEL", "INPUT", "SELECT", "BUTTON" -> true;
+            default -> false;
+        };
+    }
+
+    public void handleClickDefault() {
+        if (!"LABEL".equalsIgnoreCase(tagName) || document == null) return;
+        Element control = null;
+        String forId = getAttribute("for");
+        if (forId != null && !forId.isBlank()) {
+            control = document.getElementById(forId.trim());
+        } else {
+            control = querySelector("input, select, textarea, button");
+        }
+        if (control != null && control != this && !control.isDisabled()) {
+            control.click();
+        }
     }
 
     public Element findEnclosingForm() {
@@ -1484,15 +1539,18 @@ public class Element extends Node {
     // 事件部分
 
     @Override
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener) {
         super.addEventListener(type, listener);
     }
 
     @Override
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         super.addEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
         super.addEventListener(type, listener, useCapture, once);
     }
@@ -1506,6 +1564,7 @@ public class Element extends Node {
     }
 
     @Override
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         super.removeEventListener(type, listener, useCapture);
     }
@@ -2249,6 +2308,7 @@ public class Element extends Node {
         copy.strokeWidth = base.strokeWidth;
         copy.strokeColor = base.strokeColor == null ? fallbackStrokeColor : base.strokeColor;
         copy.color = base.color == null ? Color.BLACK : base.color;
+        copy.textDecoration = base.textDecoration;
         copy.fontFamily = base.fontFamily;
         copy.lineHeight = base.lineHeight;
         copy.direction = base.direction;
@@ -2271,6 +2331,7 @@ public class Element extends Node {
         out.strokeWidth = base.strokeWidth;
         out.strokeColor = base.strokeColor;
         out.color = base.color;
+        out.textDecoration = base.textDecoration;
         out.fontFamily = base.fontFamily;
         out.lineHeight = base.lineHeight;
         out.direction = base.direction;

@@ -137,6 +137,14 @@ public class HTML {
     }
 
     static class HtmlTokenizer {
+        private static final Map<String, String> NAMED_CHARACTER_REFERENCES = Map.of(
+                "amp", "&",
+                "apos", "'",
+                "gt", ">",
+                "lt", "<",
+                "nbsp", "\u00A0",
+                "quot", "\""
+        );
         private static final Set<String> VOID_TAGS = Set.of(
                 "area", "base", "br", "col", "embed", "hr", "img", "input",
                 "link", "meta", "param", "source", "track", "wbr"
@@ -217,10 +225,73 @@ public class HTML {
                             val = val.substring(1, val.length() - 1);
                         }
                     }
+                    val = decodeCharacterReferences(val);
                 } else {
                     val = "";
                 }
                 out.put(key, val);
+            }
+        }
+
+        static String decodeCharacterReferences(String value) {
+            if (value == null || value.indexOf('&') < 0) return value;
+
+            StringBuilder decoded = new StringBuilder(value.length());
+            for (int index = 0; index < value.length();) {
+                char current = value.charAt(index);
+                if (current != '&') {
+                    decoded.append(current);
+                    index++;
+                    continue;
+                }
+
+                int end = value.indexOf(';', index + 1);
+                if (end < 0) {
+                    decoded.append(current);
+                    index++;
+                    continue;
+                }
+
+                String reference = value.substring(index + 1, end);
+                String named = NAMED_CHARACTER_REFERENCES.get(reference);
+                if (named != null) {
+                    decoded.append(named);
+                    index = end + 1;
+                    continue;
+                }
+
+                Integer codePoint = parseNumericCharacterReference(reference);
+                if (codePoint != null) {
+                    decoded.appendCodePoint(codePoint);
+                    index = end + 1;
+                    continue;
+                }
+
+                decoded.append(current);
+                index++;
+            }
+            return decoded.toString();
+        }
+
+        private static Integer parseNumericCharacterReference(String reference) {
+            if (reference == null || reference.length() < 2 || reference.charAt(0) != '#') return null;
+            int radix = 10;
+            int start = 1;
+            if (reference.length() > 2 && (reference.charAt(1) == 'x' || reference.charAt(1) == 'X')) {
+                radix = 16;
+                start = 2;
+            }
+            if (start >= reference.length()) return null;
+            try {
+                int codePoint = Integer.parseInt(reference.substring(start), radix);
+                if (!Character.isValidCodePoint(codePoint)
+                        || codePoint == 0
+                        || codePoint >= Character.MIN_SURROGATE && codePoint <= Character.MAX_SURROGATE) {
+                    return 0xFFFD;
+                }
+                return codePoint;
+            } catch (NumberFormatException ignored) {
+                return null;
             }
         }
     }
@@ -268,7 +339,13 @@ public class HTML {
                 }
                 case TEXT -> {
                     if (stack.isEmpty()) continue;
-                    if (!token.content.isBlank()) attachChildFast(stack.peek(), document.createTextNode(token.content));
+                    if (!token.content.isBlank()) {
+                        Element parent = stack.peek();
+                        String content = isRawTextElement(parent)
+                                ? token.content
+                                : HtmlTokenizer.decodeCharacterReferences(token.content);
+                        attachChildFast(parent, document.createTextNode(content));
+                    }
                 }
                 case COMMENT -> {
                     if (stack.isEmpty()) continue;
@@ -295,6 +372,10 @@ public class HTML {
             if (isTag(element, tagName)) return true;
         }
         return false;
+    }
+
+    private static boolean isRawTextElement(Element element) {
+        return isTag(element, "script") || isTag(element, "style");
     }
 
     private static String normalizeDocumentMarkup(String html) {

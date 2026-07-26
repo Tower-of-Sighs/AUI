@@ -39,7 +39,7 @@ public class Selector {
         AFTER
     }
 
-    private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING}
+    private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING, GENERAL_SIBLING}
 
     private record Pseudo(String name, String expression) {
         boolean matches(Element e) {
@@ -62,6 +62,12 @@ public class Selector {
         }
 
         private boolean isChecked(Element e) {
+            if ("INPUT".equalsIgnoreCase(e.tagName)) {
+                String type = e.getAttribute("type");
+                if ("checkbox".equalsIgnoreCase(type) || "radio".equalsIgnoreCase(type)) {
+                    return e.isChecked();
+                }
+            }
             if (e.getAttributes().containsKey("checked")) {
                 String v = e.getAttribute("checked");
                 if (v == null || v.isBlank()) return true;
@@ -456,6 +462,9 @@ public class Selector {
             } else if (comb == Combinator.ADJACENT_SIBLING) {
                 current = previousElementSibling(current);
                 if (!target.matches(current)) return false;
+            } else if (comb == Combinator.GENERAL_SIBLING) {
+                current = previousMatchingElementSibling(current, target);
+                if (current == null) return false;
             } else if (comb == Combinator.DESCENDANT) {
                 boolean found = false;
                 while ((current = current.parentElement) != null) {
@@ -478,6 +487,17 @@ public class Selector {
         return siblings.get(index - 1);
     }
 
+    private static Element previousMatchingElementSibling(Element element, Component target) {
+        if (element == null || target == null || element.parentElement == null) return null;
+        List<Element> siblings = element.parentElement.children;
+        int index = siblings.indexOf(element);
+        for (int i = index - 1; i >= 0; i--) {
+            Element candidate = siblings.get(i);
+            if (target.matches(candidate)) return candidate;
+        }
+        return null;
+    }
+
     private static List<CompiledSelector> parseGroup(String fullSelector) {
         String[] parts = fullSelector.split(",");
         List<CompiledSelector> results = new ArrayList<>();
@@ -488,7 +508,7 @@ public class Selector {
     }
 
     private static CompiledSelector parseSelector(String selector) {
-        String[] tokens = selector.split("(?<=[>+ ])|(?=[>+ ])");
+        String[] tokens = selector.split("(?<=[>+~ ])|(?=[>+~ ])");
         List<Component> components = new ArrayList<>();
         List<Combinator> combinators = new ArrayList<>();
 
@@ -502,6 +522,7 @@ public class Selector {
                 }
                 case ">" -> combinators.add(Combinator.CHILD);
                 case "+" -> combinators.add(Combinator.ADJACENT_SIBLING);
+                case "~" -> combinators.add(Combinator.GENERAL_SIBLING);
                 case " " -> combinators.add(Combinator.DESCENDANT);
                 default -> {
                     if (components.size() > combinators.size()) {

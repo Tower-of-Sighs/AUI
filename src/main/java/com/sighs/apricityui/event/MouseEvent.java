@@ -79,8 +79,10 @@ public class MouseEvent extends Event implements Cloneable {
 
             for (Document document : docs) {
                 if (document == null || document.inWorld || document.isManuallyRendered()) continue;
-                boolean consumed = tiggerEvent(event, document);
-                if (consumed) {
+                boolean passThroughWheel = "wheel".equals(event.type) && !document.interceptsMouseEvents();
+                MouseEvent documentEvent = passThroughWheel ? event.clone() : event;
+                boolean consumed = tiggerEvent(documentEvent, document);
+                if (consumed && !passThroughWheel) {
                     return true;
                 }
                 if (document.interceptsMouseEventsAt(new Position(event.clientX, event.clientY))) {
@@ -347,9 +349,12 @@ public class MouseEvent extends Event implements Cloneable {
             click.target = activationTarget;
             click.cancelable = true;
             consumed |= Event.tiggerEvent(click);
-            if (!click.defaultPrevented && activationTarget instanceof Select select) {
-                select.handleClickDefault();
-                consumed = true;
+            if (!click.defaultPrevented) {
+                Element defaultActionTarget = activationTarget.resolveClickActivationTarget();
+                if (defaultActionTarget != null && !defaultActionTarget.isDisabled()) {
+                    defaultActionTarget.handleClickDefault();
+                    consumed = true;
+                }
             }
 
             if (document.registerClickAndCheckDoubleClick(activationTarget, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {

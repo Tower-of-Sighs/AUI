@@ -9,6 +9,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 public class Font {
@@ -23,6 +24,7 @@ public class Font {
     private static final Map<String, List<java.awt.Font>> SINGLE_FAMILY_CHAIN_CACHE = createLruCache(BASE_FONT_CHAIN_CACHE_LIMIT);
     private static final Map<DerivedFontKey, java.awt.Font> DERIVED_FONT_CACHE = new ConcurrentHashMap<>();
     private static final Map<RunPlanKey, List<FontRun>> RUN_PLAN_CACHE = createLruCache(RUN_PLAN_CACHE_LIMIT);
+    private static final AtomicLong METRICS_REVISION = new AtomicLong(1L);
     private static final Map<String, String> GENERIC_FAMILY_MAPPING = Map.ofEntries(
             Map.entry("serif", java.awt.Font.SERIF),
             Map.entry("sans-serif", java.awt.Font.SANS_SERIF),
@@ -208,10 +210,15 @@ public class Font {
         return BASE_FONT_SIZE;
     }
 
+    public static long getMetricsRevision() {
+        return METRICS_REVISION.get();
+    }
+
     public static void clear() {
         FONTS.clear();
         clearResolutionCaches();
         FONTS.put(DEFAULT_KEY, new java.awt.Font("Microsoft YaHei", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
+        METRICS_REVISION.incrementAndGet();
     }
 
     private static java.awt.Font resolveSingleFamily(String family) {
@@ -392,6 +399,7 @@ public class Font {
         FONTS.put(cleanKey, derived);
         FONTS.put(toLookupKey(cleanKey), derived);
         clearResolutionCaches();
+        METRICS_REVISION.incrementAndGet();
     }
 
     private static boolean isDialogFamily(String family) {

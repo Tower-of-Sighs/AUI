@@ -2,6 +2,7 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.JS;
@@ -86,6 +87,37 @@ class ResourcePipelineTest {
         assertEquals("SPAN", span.getNodeName());
         assertEquals("greeting", span.getAttribute("title"));
         assertEquals("hello", span.getTextContent());
+    }
+
+    @Test
+    void htmlTokenizerDecodesCharacterReferencesInTextAndAttributes() {
+        Document document = TestDocumentFactory.createDocument();
+
+        Element root = HTML.createElement(document, """
+                <div title="A &amp; B &quot;quoted&quot; &#x1F48E;">
+                  &lt;ore&gt; &amp; &#35; &#x23; &apos;quoted&apos;
+                </div>
+                """);
+
+        assertNotNull(root);
+        assertEquals("A & B \"quoted\" \uD83D\uDC8E", root.getAttribute("title"));
+        assertEquals("<ore> & # # 'quoted'", root.getTextContent().trim());
+    }
+
+    @Test
+    void textareaInitialValueComesFromItsTextContent() {
+        Document document = TestDocumentFactory.createDocument();
+        Element.register(TextArea.TAG_NAME, (owner, tag) -> new TextArea(owner));
+
+        Element root = HTML.createElement(document, "<textarea>First line\r\nSecond &amp; final</textarea>");
+
+        TextArea textarea = assertInstanceOf(TextArea.class, root);
+        assertEquals("First line\nSecond & final", textarea.getDefaultValue());
+        assertEquals("First line\nSecond & final", textarea.getValue());
+
+        textarea.setValue("edited");
+        assertEquals("First line\nSecond & final", textarea.getDefaultValue());
+        assertEquals("edited", textarea.getValue());
     }
 
     @Test

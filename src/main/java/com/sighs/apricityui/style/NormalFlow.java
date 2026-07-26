@@ -62,7 +62,7 @@ public final class NormalFlow {
             Style currentStyle = current.getComputedStyle();
             if (!"inline".equals(normalizeDisplay(currentStyle.display))) return false;
             if (isReplacedLikeElement(current)) return false;
-            if (requiresIndependentInlinePaint(currentStyle)) return false;
+            if (requiresIndependentInlinePaint(current)) return false;
 
             Style parentStyle = parent.getComputedStyle();
             if (Layout.isFlexDisplay(parentStyle.display) || Layout.isGridDisplay(parentStyle.display)) {
@@ -131,7 +131,7 @@ public final class NormalFlow {
         if (!Layout.isInFlow(style)) return;
 
         if (isInlineLevel(style.display)) {
-            if (!requiresIndependentInlinePaint(style) && shouldFragmentInlineElement(childElement)) {
+            if (!requiresIndependentInlinePaint(childElement) && shouldFragmentInlineElement(childElement)) {
                 state.childPositions.put(childElement, new Position(state.cursorX, state.cursorY));
                 if (state.target != null && childElement == state.target) {
                     state.targetX = state.cursorX;
@@ -143,7 +143,7 @@ public final class NormalFlow {
                 state.previousFlowWasBlock = false;
                 return;
             }
-            placeAtomicInline(childElement, state);
+            placeAtomicInline(owner, childElement, state);
             return;
         }
 
@@ -190,16 +190,35 @@ public final class NormalFlow {
         layoutChildren(element, element.getRenderChildNodes(), state);
     }
 
-    private static void placeAtomicInline(Element childElement, FlowState state) {
-        Size size = Size.box(childElement);
+    private static void placeAtomicInline(Element owner, Element childElement, FlowState state) {
+        Box childBox = Box.of(childElement);
+        Size size;
+        if (Size.isNaturalMeasurementContext()) {
+            Size natural = Size.natural(childElement);
+            size = new Size(
+                    natural.width() + childBox.getMarginHorizontal(),
+                    natural.height() + childBox.getMarginVertical()
+            );
+        } else {
+            size = childBox.size();
+        }
         if (state.lineLimit > 0 && state.cursorX > 0 && state.cursorX + size.width() > state.lineLimit) {
             commitLineBreak(state);
         }
 
-        state.childPositions.put(childElement, new Position(state.cursorX, state.cursorY));
+        double childY = state.cursorY;
+        if (usesBaselineAlignment(childElement)) {
+            includeLineStrut(owner, state);
+            double childAscent = atomicInlineBaseline(childElement, childBox, size);
+            includeBaselineMetrics(state, childAscent, Math.max(0, size.height() - childAscent));
+            childY += Math.max(0, state.lineAscent - childAscent);
+            state.lineAtomicAscents.put(childElement, childAscent);
+        }
+
+        state.childPositions.put(childElement, new Position(state.cursorX, childY));
         if (state.target != null && childElement == state.target) {
             state.targetX = state.cursorX;
-            state.targetY = state.cursorY;
+            state.targetY = childY;
             state.foundTarget = true;
             return;
         }
@@ -207,6 +226,67 @@ public final class NormalFlow {
         state.cursorX += size.width();
         state.lineHeight = Math.max(state.lineHeight, size.height());
         state.previousFlowWasBlock = false;
+    }
+
+    private static boolean usesBaselineAlignment(Element element) {
+        if (element == null) return false;
+        String value = element.getComputedStyle().verticalAlign;
+        return value == null || value.isBlank() || "unset".equalsIgnoreCase(value)
+                || "baseline".equalsIgnoreCase(value);
+    }
+
+    private static void includeLineStrut(Element owner, FlowState state) {
+        if (owner == null || state.lineStrutIncluded) return;
+        Text text = Text.of(owner);
+        double ascent = Text.baselineOffset(text);
+        includeBaselineMetrics(state, ascent, Math.max(0, text.lineHeight - ascent));
+        state.lineStrutIncluded = true;
+    }
+
+    private static void includeBaselineMetrics(FlowState state, double ascent, double descent) {
+        double previousAscent = state.lineAscent;
+        state.lineAscent = Math.max(state.lineAscent, Math.max(0, ascent));
+        state.lineDescent = Math.max(state.lineDescent, Math.max(0, descent));
+        state.lineHeight = Math.max(state.lineHeight, state.lineAscent + state.lineDescent);
+        if (state.lineAscent <= previousAscent) return;
+        for (var entry : state.lineAtomicAscents.entrySet()) {
+            Position existing = state.childPositions.get(entry.getKey());
+            if (existing == null) continue;
+            state.childPositions.put(entry.getKey(), new Position(
+                    existing.x,
+                    state.cursorY + state.lineAscent - entry.getValue()
+            ));
+        }
+    }
+
+    private static double atomicInlineBaseline(Element element, Box box, Size outerSize) {
+        boolean textControl = isTextBaselineControl(element);
+        if (isReplacedLikeElement(element) && !textControl) {
+            return Math.max(0, outerSize.height());
+        }
+        Text text = Text.of(element);
+        if (textControl || text.content != null && !text.content.isBlank()) {
+            double contentHeight = Math.max(0,
+                    outerSize.height() - box.getMarginVertical() - box.getBorderVertical() - box.getPaddingVertical());
+            double crossOffset = 0;
+            if (Layout.isFlexDisplay(element.getComputedStyle().display)
+                    && Flex.of(element).flexDirection.isRow()
+                    && Flex.of(element).alignItems.isCenter()) {
+                crossOffset = Math.max(0, (contentHeight - text.lineHeight) / 2.0d);
+            }
+            double baseline = box.getMarginTop() + box.getBorderTop() + box.getPaddingTop()
+                    + crossOffset + Text.baselineOffset(text);
+            return Math.max(0, Math.min(outerSize.height(), baseline));
+        }
+        return Math.max(0, outerSize.height());
+    }
+
+    private static boolean isTextBaselineControl(Element element) {
+        if (element == null || element.tagName == null) return false;
+        return switch (element.tagName.trim().toUpperCase()) {
+            case "BUTTON", "INPUT", "SELECT", "TEXTAREA" -> true;
+            default -> false;
+        };
     }
 
     private static void placeBlock(Element childElement, FlowState state) {
@@ -296,6 +376,10 @@ public final class NormalFlow {
         state.cursorY += state.lineHeight;
         state.cursorX = 0;
         state.lineHeight = 0;
+        state.lineAscent = 0;
+        state.lineDescent = 0;
+        state.lineStrutIncluded = false;
+        state.lineAtomicAscents.clear();
     }
 
     private static double collapseAdjacentMargins(double previousBottom, double currentTop) {
@@ -455,11 +539,15 @@ public final class NormalFlow {
         private double cursorX = 0;
         private double cursorY = 0;
         private double lineHeight = 0;
+        private double lineAscent = 0;
+        private double lineDescent = 0;
+        private boolean lineStrutIncluded = false;
         private double maxLineWidth = 0;
         private double targetX = 0;
         private double targetY = 0;
         private boolean foundTarget = false;
         private final IdentityHashMap<Element, Position> childPositions = new IdentityHashMap<>();
+        private final IdentityHashMap<Element, Double> lineAtomicAscents = new IdentityHashMap<>();
         private double previousBlockMarginBottom = 0;
         private boolean previousFlowWasBlock = false;
 
@@ -473,15 +561,49 @@ public final class NormalFlow {
     }
 
     /**
-     * Positioned inline boxes participate in the positioned painting order.
-     * Their content therefore cannot be folded into an ancestor's text run,
-     * because that would paint it before the element's own stacking layer.
+     * An inline element can be folded into an ancestor text run only when it
+     * contributes text styling alone. CSS box decorations belong to the
+     * inline box itself; suppressing that box drops its padding, border,
+     * background and hit area instead of producing the browser's inline box.
      */
-    private static boolean requiresIndependentInlinePaint(Style style) {
-        if (style == null) return false;
+    private static boolean requiresIndependentInlinePaint(Element element) {
+        if (element == null) return false;
+        Style style = element.getComputedStyle();
         String position = style.position == null ? "static" : style.position.trim().toLowerCase();
         String zIndex = style.zIndex == null ? "auto" : style.zIndex.trim().toLowerCase();
-        return !"static".equals(position) || !"auto".equals(zIndex);
+        if (!"static".equals(position) || !"auto".equals(zIndex)) return true;
+
+        Box box = Box.of(element);
+        if (box.getPaddingHorizontal() != 0 || box.getPaddingVertical() != 0
+                || box.getBorderHorizontal() != 0 || box.getBorderVertical() != 0
+                || box.getMarginHorizontal() != 0 || box.getMarginVertical() != 0
+                || box.isMarginAuto("left") || box.isMarginAuto("right")
+                || box.isMarginAuto("top") || box.isMarginAuto("bottom")) {
+            return true;
+        }
+
+        return hasPaintValue(style.backgroundColor, "transparent")
+                || hasPaintValue(style.backgroundImage, "none")
+                || hasPaintValue(style.boxShadow, "none")
+                || hasPaintValue(style.transform, "none")
+                || hasPaintValue(style.rotate, "none")
+                || hasPaintValue(style.filter, "none")
+                || hasPaintValue(style.clipPath, "none")
+                || !isDefaultOpacity(style.opacity);
+    }
+
+    private static boolean hasPaintValue(String raw, String emptyValue) {
+        if (raw == null || raw.isBlank()) return false;
+        String value = raw.trim().toLowerCase();
+        return !"unset".equals(value) && !"initial".equals(value) && !emptyValue.equals(value);
+    }
+
+    private static boolean isDefaultOpacity(String raw) {
+        if (raw == null || raw.isBlank() || "unset".equalsIgnoreCase(raw) || "initial".equalsIgnoreCase(raw)) {
+            return true;
+        }
+        Double opacity = Size.parseNumber(raw);
+        return opacity != null && Math.abs(opacity - 1.0d) < 0.0001d;
     }
 
     private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions, List<TextRunLayout> textRuns) {
