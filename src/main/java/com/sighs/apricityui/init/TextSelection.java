@@ -317,6 +317,7 @@ final class TextSelection {
         copy.strokeWidth = base.strokeWidth;
         copy.strokeColor = base.strokeColor;
         copy.color = base.color;
+        copy.textDecoration = base.textDecoration;
         copy.fontFamily = base.fontFamily;
         copy.lineHeight = base.lineHeight;
         copy.direction = base.direction;

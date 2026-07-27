@@ -334,7 +334,7 @@ public class FontDrawer {
             double rasterLetterSpacing = rasterMode.targetPhysical()
                     ? text.letterSpacing * rasterMode.pixelScale()
                     : text.letterSpacing / rasterMode.drawScale();
-            int textW = Math.max(1, measureRunsWidth(runs, rasterLetterSpacing));
+            int textW = Math.max(1, measureRunsWidth(runs, rasterLetterSpacing, frcMode));
             int textH = Math.max(1, metrics.height());
             int pad = 2 + stroke;
 
@@ -382,7 +382,11 @@ public class FontDrawer {
                 g.setColor(new java.awt.Color(color.getR(), color.getG(), color.getB(), color.getA()));
                 drawRuns(g, runs, pad, baseline, rasterLetterSpacing, sourceMode, frcMode);
             }
-            drawTextDecorations(g, text, pad, baseline, textW, metrics);
+            // Keep the glyph positioning anchor independent from text decorations.
+            // Underlines extend the raster downward; including them in the ink
+            // bounds would move the whole text run upward when :hover adds one.
+            TextureStats glyphTextureStats = computeTextureStats(img);
+            drawTextDecorations(g, text, pad, baseline, textW, metrics, rasterMode);
             g.dispose();
 
             if (!compositeMode.hasOpaqueRasterBackground()) {
@@ -422,7 +426,7 @@ public class FontDrawer {
             Minecraft.getInstance().getTextureManager().register(location, texture);
 
             return new FontEntry(location, nativeImg, texture, imgW, imgH, textureStats,
-                    new RasterLayout(pad, metrics.height()));
+                    new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height())));
 
         } catch (Exception e) {
             return null;
@@ -457,6 +461,13 @@ public class FontDrawer {
                 ink == 0 ? 0 : maxX - minX + 1,
                 ink == 0 ? 0 : maxY - minY + 1
         );
+    }
+
+    private static float glyphAnchor(TextureStats stats, int pad, int lineHeight) {
+        if (stats != null && stats.hasInk()) {
+            return stats.minY() + stats.inkHeight() / 2.0f;
+        }
+        return pad + lineHeight / 2.0f;
     }
 
     private static void applyAlphaGamma(BufferedImage img, AlphaGammaMode mode) {
@@ -646,34 +657,30 @@ public class FontDrawer {
         return Math.max(0, Math.min(255, (int) Math.round(coverage * 255.0d)));
     }
 
-    private static int measureAwtWidthWithSpacing(FontMetrics fm, String content, double spacing) {
-        if (content == null || content.isEmpty()) return 0;
-        if (Math.abs(spacing) <= 1e-6) return fm.stringWidth(content);
+    private static double measureAwtWidthWithSpacing(java.awt.Font font, String content, double spacing,
+                                                     FontRenderContext renderContext) {
+        if (content == null || content.isEmpty() || font == null || renderContext == null) return 0;
+        if (Math.abs(spacing) <= 1e-6) return font.getStringBounds(content, renderContext).getWidth();
         double width = 0;
         int count = 0;
         for (int i = 0; i < content.length(); ) {
             int cp = content.codePointAt(i);
             String glyph = new String(Character.toChars(cp));
-            width += fm.stringWidth(glyph);
+            width += font.getStringBounds(glyph, renderContext).getWidth();
             count++;
             i += Character.charCount(cp);
         }
         if (count > 1) width += spacing * (count - 1);
-        return Math.max(0, (int) Math.ceil(width));
+        return Math.max(0, width);
     }
 
-    private static int measureAwtWidthWithSpacing(Graphics2D g, java.util.List<Font.FontRun> runs, double spacing) {
-        return Math.max(0, (int) Math.ceil(Font.measureFontRuns(runs, font -> {
-            g.setFont(font);
-            return g.getFontMetrics();
-        }, spacing, false)));
-    }
-
-    private static int measureRunsWidth(java.util.List<Font.FontRun> runs, double spacing) {
+    private static int measureRunsWidth(java.util.List<Font.FontRun> runs, double spacing,
+                                        FontRenderContextMode frcMode) {
         BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = tmp.createGraphics();
         try {
-            return measureAwtWidthWithSpacing(g, runs, spacing);
+            FontRenderContext renderContext = fontRenderContext(g, frcMode);
+            return Math.max(0, (int) Math.ceil(Font.measureFontRuns(runs, renderContext, spacing, false)));
         } finally {
             g.dispose();
         }
@@ -695,16 +702,16 @@ public class FontDrawer {
         return new FontRenderContext((AffineTransform) null, mode.antialiasHint(), mode.fractionalMetricsHint());
     }
 
-    private static void drawGlyphVectorWithSpacing(Graphics2D g, FontMetrics fm, String content, double x, int y,
+    private static void drawGlyphVectorWithSpacing(Graphics2D g, java.awt.Font font, String content, double x, int y,
                                                    double spacing, FontRenderContextMode frcMode) {
         double cursor = x;
         FontRenderContext frc = fontRenderContext(g, frcMode);
         for (int i = 0; i < content.length(); ) {
             int cp = content.codePointAt(i);
             String glyph = new String(Character.toChars(cp));
-            GlyphVector glyphVector = fm.getFont().createGlyphVector(frc, glyph);
+            GlyphVector glyphVector = font.createGlyphVector(frc, glyph);
             g.fill(glyphVector.getOutline((float) cursor, y));
-            cursor += fm.stringWidth(glyph) + spacing;
+            cursor += font.getStringBounds(glyph, frc).getWidth() + spacing;
             i += Character.charCount(cp);
         }
     }
@@ -715,24 +722,23 @@ public class FontDrawer {
         for (Font.FontRun run : runs) {
             if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
             g.setFont(run.font());
-            FontMetrics fm = g.getFontMetrics();
+            FontRenderContext frc = fontRenderContext(g, frcMode);
             if (sourceMode == GlyphRasterSourceMode.GLYPH_VECTOR) {
                 g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                FontRenderContext frc = fontRenderContext(g, frcMode);
                 if (Math.abs(spacing) <= 1e-6) {
                     GlyphVector glyphVector = run.font().createGlyphVector(frc, run.text());
                     g.fill(glyphVector.getOutline((float) cursor, baselineY));
-                    cursor += fm.stringWidth(run.text());
+                    cursor += run.font().getStringBounds(run.text(), frc).getWidth();
                 } else {
-                    drawGlyphVectorWithSpacing(g, fm, run.text(), cursor, baselineY, spacing, frcMode);
-                    cursor += measureAwtWidthWithSpacing(fm, run.text(), spacing);
+                    drawGlyphVectorWithSpacing(g, run.font(), run.text(), cursor, baselineY, spacing, frcMode);
+                    cursor += measureAwtWidthWithSpacing(run.font(), run.text(), spacing, frc);
                 }
             } else if (Math.abs(spacing) <= 1e-6) {
                 g.drawString(run.text(), (float) cursor, baselineY);
-                cursor += fm.stringWidth(run.text());
+                cursor += run.font().getStringBounds(run.text(), frc).getWidth();
             } else {
-                drawStringWithSpacing(g, fm, run.text(), cursor, baselineY, spacing);
-                cursor += measureAwtWidthWithSpacing(fm, run.text(), spacing);
+                drawStringWithSpacing(g, g.getFontMetrics(), run.text(), cursor, baselineY, spacing);
+                cursor += measureAwtWidthWithSpacing(run.font(), run.text(), spacing, frc);
             }
         }
     }
@@ -881,19 +887,18 @@ public class FontDrawer {
         for (Font.FontRun run : runs) {
             if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
             g.setFont(run.font());
-            FontMetrics fm = g.getFontMetrics();
             FontRenderContext frc = fontRenderContext(g, frcMode);
             if (Math.abs(spacing) <= 1e-6) {
                 GlyphVector glyphVector = run.font().createGlyphVector(frc, run.text());
                 area.add(new Area(glyphVector.getOutline((float) cursor, baselineY)));
-                cursor += fm.stringWidth(run.text());
+                cursor += run.font().getStringBounds(run.text(), frc).getWidth();
             } else {
                 for (int i = 0; i < run.text().length(); ) {
                     int cp = run.text().codePointAt(i);
                     String glyph = new String(Character.toChars(cp));
                     GlyphVector glyphVector = run.font().createGlyphVector(frc, glyph);
                     area.add(new Area(glyphVector.getOutline((float) cursor, baselineY)));
-                    cursor += fm.stringWidth(glyph) + spacing;
+                    cursor += run.font().getStringBounds(glyph, frc).getWidth() + spacing;
                     i += Character.charCount(cp);
                 }
             }
@@ -988,13 +993,16 @@ public class FontDrawer {
     }
 
     private static void drawTextDecorations(Graphics2D g, Text text, int x, int baseline, int width,
-                                            LineMetrics metrics) {
+                                            LineMetrics metrics, RasterMode rasterMode) {
         if (text == null || width <= 0 || (!text.isUnderlined() && !text.isStrikethrough())) return;
         g.setColor(new java.awt.Color(text.color.getR(), text.color.getG(), text.color.getB(), text.color.getA()));
         if (text.isUnderlined()) {
-            double thickness = Math.max(1.0d, metrics.underlineThickness());
+            double drawScale = rasterMode == null ? 1.0d : Math.max(1.0e-6d, rasterMode.drawScale());
+            double naturalCssThickness = metrics.underlineThickness() * drawScale;
+            double thickness = Math.ceil(Math.max(1.0d, naturalCssThickness)) / drawScale;
+            double offset = Math.max(1.0d, naturalCssThickness) / drawScale;
             g.fill(new java.awt.geom.Rectangle2D.Double(
-                    x, baseline + metrics.underlineOffset(), width, thickness));
+                    x, baseline + offset, width, thickness));
         }
         if (text.isStrikethrough()) {
             double thickness = Math.max(1.0d, metrics.strikethroughThickness());
@@ -1074,7 +1082,7 @@ public class FontDrawer {
             mode = System.getenv("APRICITYUI_FONT_RASTER_FRACTIONAL_METRICS");
         }
         if (mode == null || mode.isBlank()) {
-            return FractionalMetricsMode.DEFAULT;
+            return FractionalMetricsMode.ON;
         }
         String normalized = mode.trim().toLowerCase(java.util.Locale.ROOT);
         return switch (normalized) {
@@ -1333,7 +1341,7 @@ public class FontDrawer {
             mode = System.getenv("APRICITYUI_FONT_RASTER_FRC");
         }
         if (mode == null || mode.isBlank()) {
-            return FontRenderContextMode.GRAPHICS;
+            return FontRenderContextMode.AA_ON_FM_ON;
         }
         String normalized = mode.trim().toLowerCase(java.util.Locale.ROOT);
         return switch (normalized) {
@@ -1591,16 +1599,13 @@ public class FontDrawer {
         }
     }
 
-    private record RasterLayout(int pad, int lineHeight) {
+    private record RasterLayout(int pad, int lineHeight, float glyphAnchorTexel) {
     }
 
     public record FontEntry(ResourceLocation location, NativeImage nativeImage, DynamicTexture dynamicTexture,
                             int width, int height, TextureStats textureStats, RasterLayout rasterLayout) {
         float verticalAnchorTexel() {
-            if (textureStats != null && textureStats.hasInk() && textureStats.ink() < width * height) {
-                return textureStats.minY() + textureStats.inkHeight() / 2.0f;
-            }
-            return rasterLayout.pad() + rasterLayout.lineHeight() / 2.0f;
+            return rasterLayout.glyphAnchorTexel();
         }
     }
 }

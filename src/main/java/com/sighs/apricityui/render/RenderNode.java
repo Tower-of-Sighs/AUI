@@ -40,7 +40,11 @@ public interface RenderNode {
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
                 Position p = rect.getBodyRectPosition();
-                Size s = rect.getBodyRectSize();
+                Size bodySize = rect.getBodyRectSize();
+                Size s = new Size(
+                        Math.max(0, bodySize.width() - target.getVerticalScrollbarGutter()),
+                        Math.max(0, bodySize.height() - target.getHorizontalScrollbarGutter())
+                );
                 if (Boolean.getBoolean("apricityui.test.logRenderPhases") && ElementPhaseNode.shouldLogTarget(target)) {
                     ApricityUI.LOGGER.info(
                             "[AUI Mask] push tag={} class={} bodyPos={} size={}x{} radius={} clipBefore={}",
@@ -63,7 +67,11 @@ public interface RenderNode {
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
                 Position p = rect.getBodyRectPosition();
-                Size s = rect.getBodyRectSize();
+                Size bodySize = rect.getBodyRectSize();
+                Size s = new Size(
+                        Math.max(0, bodySize.width() - target.getVerticalScrollbarGutter()),
+                        Math.max(0, bodySize.height() - target.getHorizontalScrollbarGutter())
+                );
                 if (Boolean.getBoolean("apricityui.test.logRenderPhases") && ElementPhaseNode.shouldLogTarget(target)) {
                     ApricityUI.LOGGER.info(
                             "[AUI Mask] pop tag={} class={} bodyPos={} size={}x{} clipBefore={}",
@@ -166,6 +174,22 @@ public interface RenderNode {
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawContentOnly(poseStack);
+            poseStack.popPose();
+        }
+    }
+
+    /** Paint scrollbars outside the element's content mask, like browser UI chrome. */
+    record ScrollbarNode(Element target) implements RenderNode {
+        @Override
+        public void render(PoseStack poseStack) {
+            ensureRendererLoaded(target);
+            if (shouldSkip(target) || !target.mayRenderScrollbar()) return;
+
+            poseStack.pushPose();
+            Base.applyTransform(poseStack, target);
+            RenderSystem.enableBlend();
+            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            target.drawScrollbar(poseStack, Rect.of(target));
             poseStack.popPose();
         }
     }

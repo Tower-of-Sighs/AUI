@@ -263,26 +263,35 @@ public class Mask {
     public static void enableScissor(double x, double y, double width, double height) {
         Window window = Minecraft.getInstance().getWindow();
         double scale = getScissorScale(window);
-        int windowHeight = window.getHeight();
-
-        // Use floor/ceil on edges to avoid 1px flicker when scrolling with fractional offsets.
         double left = x * scale;
         double top = y * scale;
         double right = (x + width) * scale;
         double bottom = (y + height) * scale;
-
-        int scissorX = (int) Math.floor(left);
-        int scissorY = (int) Math.floor(windowHeight - bottom);
-        int scissorRight = (int) Math.ceil(right);
-        int scissorTop = (int) Math.ceil(windowHeight - top);
-        int scissorW = scissorRight - scissorX;
-        int scissorH = scissorTop - scissorY;
-
-        scissorW = Math.max(0, scissorW);
-        scissorH = Math.max(0, scissorH);
+        DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
 
         GlStateManager._enableScissorTest();
-        GlStateManager._scissorBox(scissorX, scissorY, scissorW, scissorH);
+        GlStateManager._scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
+    }
+
+    /**
+     * Quantizes a CSS clip to the device-pixel centers used by rasterization.
+     * Expanding the minimum edge with floor and the maximum edge with ceil is
+     * only suitable for conservative culling: as an actual clip it exposes an
+     * extra physical row/column whenever an edge is fractional, which makes
+     * off-screen content flash during smooth scrolling.
+     */
+    static DeviceScissor quantizeScissor(double left, double top, double right, double bottom,
+                                         int framebufferHeight) {
+        int x0 = quantizeDeviceEdge(left);
+        int x1 = quantizeDeviceEdge(right);
+        int y0 = quantizeDeviceEdge(framebufferHeight - bottom);
+        int y1 = quantizeDeviceEdge(framebufferHeight - top);
+        return new DeviceScissor(x0, y0, Math.max(0, x1 - x0), Math.max(0, y1 - y0));
+    }
+
+    private static int quantizeDeviceEdge(double value) {
+        if (!Double.isFinite(value)) return 0;
+        return (int) Math.floor(value + 0.5d);
     }
 
     public static void disableScissor() {
@@ -312,13 +321,13 @@ public class Mask {
             double top = (offsetY + rect.y() * scaleY) * guiScale;
             double right = (offsetX + (rect.x() + rect.width()) * scaleX) * guiScale;
             double bottom = (offsetY + (rect.y() + rect.height()) * scaleY) * guiScale;
-            int x = (int) Math.floor(left);
-            int y = (int) Math.floor(window.getHeight() - bottom);
-            int rightEdge = (int) Math.ceil(right);
-            int topEdge = (int) Math.ceil(window.getHeight() - top);
+            DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
             GlStateManager._enableScissorTest();
-            GlStateManager._scissorBox(x, y, Math.max(0, rightEdge - x), Math.max(0, topEdge - y));
+            GlStateManager._scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
         }
+    }
+
+    static record DeviceScissor(int x, int y, int width, int height) {
     }
 
     private static double getScissorScale(Window window) {

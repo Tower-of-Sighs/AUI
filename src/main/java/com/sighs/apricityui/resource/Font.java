@@ -1,6 +1,7 @@
 package com.sighs.apricityui.resource;
 
 import java.awt.*;
+import java.awt.font.FontRenderContext;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -331,6 +332,37 @@ public class Font {
             }
         }
 
+        if (spaced && glyphCount > 0) {
+            int spacingCount = includeTrailingSpacing ? glyphCount : glyphCount - 1;
+            width += letterSpacing * Math.max(0, spacingCount);
+        }
+        return Math.max(0, width);
+    }
+
+    /** Measures web-font advances with the fractional metrics used by browsers. */
+    public static double measureFontRuns(List<FontRun> runs,
+                                         FontRenderContext renderContext,
+                                         double letterSpacing,
+                                         boolean includeTrailingSpacing) {
+        if (runs == null || runs.isEmpty() || renderContext == null) return 0;
+
+        double width = 0;
+        int glyphCount = 0;
+        boolean spaced = Math.abs(letterSpacing) > 1e-6;
+        for (FontRun run : runs) {
+            if (run == null || run.font() == null || run.text() == null || run.text().isEmpty()) continue;
+            if (!spaced) {
+                width += run.font().getStringBounds(run.text(), renderContext).getWidth();
+                continue;
+            }
+            for (int offset = 0; offset < run.text().length(); ) {
+                int codePoint = run.text().codePointAt(offset);
+                String glyph = new String(Character.toChars(codePoint));
+                width += run.font().getStringBounds(glyph, renderContext).getWidth();
+                glyphCount++;
+                offset += Character.charCount(codePoint);
+            }
+        }
         if (spaced && glyphCount > 0) {
             int spacingCount = includeTrailingSpacing ? glyphCount : glyphCount - 1;
             width += letterSpacing * Math.max(0, spacingCount);

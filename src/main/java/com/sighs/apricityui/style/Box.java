@@ -173,6 +173,14 @@ public class Box {
     }
 
     public Size innerSize() {
+        Size raw = rawInnerSize();
+        double resultWidth = Math.max(0, raw.width() - element.getVerticalScrollbarGutter());
+        double resultHeight = Math.max(0, raw.height() - element.getHorizontalScrollbarGutter());
+        return new Size(resultWidth, resultHeight);
+    }
+
+    /** Content-box size before classic scrollbars consume their gutter. */
+    public Size rawInnerSize() {
         Size elementSize = Size.of(element);
         double resultWidth = elementSize.width() - getBorderHorizontal() - getPaddingHorizontal();
         double resultHeight = elementSize.height() - getBorderVertical() - getPaddingVertical();

@@ -5,6 +5,8 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Select;
+import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Layout;
 import com.sighs.apricityui.style.LayoutMeasureCache;
 import com.sighs.apricityui.style.Box;
@@ -443,6 +445,48 @@ class LayoutPositionTest {
         assertTrue(document.stepScrollRender());
         assertTrue(scroller.getScrollTop() > 0);
         assertTrue(scroller.getScrollTop() < scroller.getTargetScrollTop());
+    }
+
+    @Test
+    void nativeScrollbarReservesEightPixelsAndSupportsThumbDragging() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+
+        assertTrue(scroller.hasVerticalScrollRange());
+        assertEquals(8.0, scroller.getVerticalScrollbarGutter(), 0.001);
+        document.commitRenderState();
+
+        Rect rect = Rect.of(scroller);
+        Position body = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+        double x = body.x + size.width() - 4;
+        double thumbY = body.y + 4;
+        double bottomY = body.y + size.height() - 6;
+
+        assertTrue(MouseEvent.tiggerEvent(new MouseEvent("mousedown", new Position(x, thumbY), 0, false), document));
+        assertTrue(MouseEvent.tiggerEvent(new MouseEvent("mousemove", new Position(x, bottomY), -1, false), document));
+        assertTrue(MouseEvent.tiggerEvent(new MouseEvent("mouseup", new Position(x, bottomY), 0, false), document));
+        assertTrue(scroller.getScrollTop() > 150);
+        assertEquals(scroller.getScrollTop(), scroller.getTargetScrollTop(), 0.001);
+    }
+
+    @Test
+    void webFontMeasurementUsesBrowserFractionalAdvances() throws Exception {
+        java.nio.file.Path fontPath = java.nio.file.Path.of(
+                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf");
+        assertTrue(Font.registerFont("OreDisplayFractionalTest", fontPath));
+        Text text = new Text();
+        text.fontFamily = "OreDisplayFractionalTest";
+        text.fontSize = 25;
+        text.fontWeight = 400;
+        text.fontMode = Document.FontMode.WEB;
+        assertEquals(71.7503, Text.measureLine(text, "ORE UI"), 0.001);
     }
 
     @Test

@@ -186,6 +186,9 @@ public class Drawer {
                 appendBodyRenderNodes(contextRoot, paintList);
                 paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
             }
+            if (contextRoot.mayRenderScrollbar()) {
+                paintList.add(new RenderNode.ScrollbarNode(contextRoot));
+            }
             if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
             if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
             return;
@@ -264,6 +267,9 @@ public class Drawer {
         for (Paintable p : positiveZ) processStackingContext(p.element, paintList);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
+        if (contextRoot.mayRenderScrollbar()) {
+            paintList.add(new RenderNode.ScrollbarNode(contextRoot));
+        }
         if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
@@ -315,6 +321,7 @@ public class Drawer {
         if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
+        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
         if (node instanceof RenderNode.FilterPushNode n) return n.target();
