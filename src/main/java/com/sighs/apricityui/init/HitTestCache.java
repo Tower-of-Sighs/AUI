@@ -44,6 +44,10 @@ final class HitTestCache {
         Set<Element> seenElements = Collections.newSetFromMap(new IdentityHashMap<>());
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
+            if (node instanceof RenderNode.ScrollbarNode scrollbarNode) {
+                appendScrollbarEntries(scrollbarNode.target(), clipStack, boundsCache, entries);
+                continue;
+            }
             if (node instanceof RenderNode.MaskPopNode popNode) {
                 Element target = popNode.target();
                 if (target != null) {
@@ -90,6 +94,13 @@ final class HitTestCache {
         ArrayList<Entry> rebuilt = new ArrayList<>();
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
+            if (node instanceof RenderNode.ScrollbarNode scrollbarNode) {
+                Element target = scrollbarNode.target();
+                if (isInAnyRoot(target, roots)) {
+                    appendScrollbarEntries(target, clipStack, boundsCache, rebuilt);
+                }
+                continue;
+            }
             if (node instanceof RenderNode.MaskPopNode popNode) {
                 Element target = popNode.target();
                 if (target != null) {
@@ -177,10 +188,51 @@ final class HitTestCache {
         if (clipStack.isEmpty()) return List.of();
         ArrayList<Bounds> clips = new ArrayList<>(clipStack.size());
         for (Element clip : clipStack) {
-            Bounds clipBounds = resolveCommittedBounds(clip, boundsCache);
+            Rect rect = clip.getRenderer().getCommittedRect();
+            if (rect == null) continue;
+            Position position = rect.getBodyRectPosition();
+            Size size = rect.getBodyRectSize();
+            Bounds clipBounds = new Bounds(
+                    position.x,
+                    position.y,
+                    Math.max(0, size.width() - clip.getVerticalScrollbarGutter()),
+                    Math.max(0, size.height() - clip.getHorizontalScrollbarGutter())
+            );
             if (clipBounds.isValid()) clips.add(clipBounds);
         }
         return clips.isEmpty() ? List.of() : clips;
+    }
+
+    private static void appendScrollbarEntries(Element element,
+                                               ArrayDeque<Element> clipStack,
+                                               Map<Element, Bounds> boundsCache,
+                                               List<Entry> output) {
+        if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
+        Rect rect = element.getRenderer().getCommittedRect();
+        if (rect == null) return;
+        Position position = rect.getBodyRectPosition();
+        Size size = rect.getBodyRectSize();
+        double vertical = element.getVerticalScrollbarGutter();
+        double horizontal = element.getHorizontalScrollbarGutter();
+        List<Bounds> clips = resolveCommittedClipBounds(clipStack, boundsCache);
+        if (vertical > 0) {
+            Bounds bounds = new Bounds(
+                    position.x + size.width() - vertical,
+                    position.y,
+                    vertical,
+                    Math.max(0, size.height() - horizontal)
+            );
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clips));
+        }
+        if (horizontal > 0) {
+            Bounds bounds = new Bounds(
+                    position.x,
+                    position.y + size.height() - horizontal,
+                    Math.max(0, size.width() - vertical),
+                    horizontal
+            );
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clips));
+        }
     }
 
     private void removeEntriesForRoots(Set<Element> roots) {

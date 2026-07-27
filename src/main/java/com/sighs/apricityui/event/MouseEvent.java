@@ -285,6 +285,21 @@ public class MouseEvent extends Event implements Cloneable {
         event.target = target;
 
         if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
+        if (event.type.equals("mousedown") && target != null && target.handleScrollbarMouseDown(event)) {
+            document.setPressedElement(target);
+            return true;
+        }
+        if (event.type.equals("mousemove") && activeElement != null
+                && activeElement.isScrollbarInteractionActive()
+                && activeElement.handleScrollbarMouseMove(event)) {
+            return true;
+        }
+        if (event.type.equals("mouseup") && activeElement != null
+                && activeElement.isScrollbarInteractionActive()
+                && activeElement.handleScrollbarMouseUp(event)) {
+            document.setPressedElement(null);
+            return true;
+        }
         if (event.type.equals("mousedown")) {
             clearGlobalSelectionsOnMouseDown(document, target);
             Event.runWithEventTrust(event, () -> {

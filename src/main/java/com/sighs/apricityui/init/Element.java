@@ -489,6 +489,14 @@ public class Element extends Node {
         return scroll.hasHorizontalScrollRange();
     }
 
+    public double getVerticalScrollbarGutter() {
+        return scroll.getVerticalScrollbarGutter();
+    }
+
+    public double getHorizontalScrollbarGutter() {
+        return scroll.getHorizontalScrollbarGutter();
+    }
+
     public String getDefaultValue() {
         return attributes.getOrDefault("value", "");
     }
@@ -684,7 +692,6 @@ public class Element extends Node {
                         textSelection.drawInnerText(poseStack, rectRenderer);
                     }
                 }
-                scroll.drawScrollbar(poseStack, rectRenderer);
             }
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
@@ -705,7 +712,37 @@ public class Element extends Node {
             textSelection.drawInnerTextSelection(poseStack, rectRenderer);
             textSelection.drawInnerText(poseStack, rectRenderer);
         }
+    }
+
+    /** Draw this element's native scrollbars after its content clip has been popped. */
+    @HideFromJS
+    public void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
         scroll.drawScrollbar(poseStack, rectRenderer);
+    }
+
+    @HideFromJS
+    public boolean mayRenderScrollbar() {
+        return scroll.mayRenderScrollbar();
+    }
+
+    @HideFromJS
+    public boolean handleScrollbarMouseDown(com.sighs.apricityui.event.MouseEvent event) {
+        return scroll.handleMouseDown(event);
+    }
+
+    @HideFromJS
+    public boolean handleScrollbarMouseMove(com.sighs.apricityui.event.MouseEvent event) {
+        return scroll.handleMouseMove(event);
+    }
+
+    @HideFromJS
+    public boolean handleScrollbarMouseUp(com.sighs.apricityui.event.MouseEvent event) {
+        return scroll.handleMouseUp(event);
+    }
+
+    @HideFromJS
+    public boolean isScrollbarInteractionActive() {
+        return scroll.isScrollbarInteractionActive();
     }
 
 
@@ -1513,6 +1550,7 @@ public class Element extends Node {
     }
 
     public void tick() {
+        scroll.tick();
         if (!innerText.equals(lastInnerText)) {
             getRenderer().text.clear();
             getRenderer().wrappedText.clear();

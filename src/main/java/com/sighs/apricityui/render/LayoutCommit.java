@@ -80,6 +80,7 @@ public final class LayoutCommit {
         if (node instanceof RenderNode.ElementContentNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
+        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
         if (node instanceof RenderNode.FilterPushNode n) return n.target();

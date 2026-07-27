@@ -8,6 +8,8 @@ import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.awt.font.FontRenderContext;
+import java.awt.geom.AffineTransform;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -17,6 +19,8 @@ import java.util.Map;
 
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
+    private static final FontRenderContext BROWSER_FONT_RENDER_CONTEXT =
+            new FontRenderContext(new AffineTransform(), true, true);
     private static final double BROWSER_NORMAL_LINE_HEIGHT_LEADING = 1.125;
     private static final double BROWSER_NORMAL_LINE_HEIGHT_MAX = 1.45;
     private static final int LINE_WIDTH_CACHE_LIMIT = 2048;
@@ -546,7 +550,7 @@ public class Text {
         // Font runs are measured at the base size, so CSS letter spacing must be
         // supplied in the same coordinate space before the result is scaled.
         double baseLetterSpacing = text.letterSpacing / scale;
-        double baseWidth = Font.measureFontRuns(runs, METRICS_CANVAS::getFontMetrics, baseLetterSpacing, true);
+        double baseWidth = Font.measureFontRuns(runs, BROWSER_FONT_RENDER_CONTEXT, baseLetterSpacing, true);
         return baseWidth * scale + text.strokeWidth * 2.0;
     }
 
