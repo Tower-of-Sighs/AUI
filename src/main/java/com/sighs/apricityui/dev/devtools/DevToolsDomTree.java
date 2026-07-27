@@ -4,12 +4,18 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.event.MouseEvent;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 final class DevToolsDomTree {
+    private static final Set<String> VOID_ELEMENTS = Set.of(
+            "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
+            "param", "source", "track", "wbr"
+    );
     private final DevToolsController controller;
     private UUID countedDocumentUuid;
     private long countedMutationVersion = -1L;
@@ -22,12 +28,13 @@ final class DevToolsDomTree {
     void render(Element container, Element countLabel, Document targetDocument, Element selected) {
         DevToolsDom.clear(container);
         if (targetDocument == null || targetDocument.documentElement == null) {
-            countLabel.setTextContent("0 nodes");
-            container.append(DevToolsDom.text(container.document, "DIV", "empty-state-text", "No debuggable document"));
+            countLabel.setTextContent(DevToolsTranslations.translate("devtools.apricityui.node_count", 0));
+            container.append(DevToolsDom.text(container.document, "DIV", "empty-state-text",
+                    DevToolsTranslations.translate("devtools.apricityui.no_debuggable_document")));
             return;
         }
         int count = countNodes(targetDocument);
-        countLabel.setTextContent(count + (count == 1 ? " node" : " nodes"));
+        countLabel.setTextContent(DevToolsTranslations.translate("devtools.apricityui.node_count", count));
         appendNode(container, targetDocument.documentElement, selected, 0);
     }
 
@@ -64,12 +71,21 @@ final class DevToolsDomTree {
         bindNodeRow(row, node);
         container.append(row);
 
-        if (collapsed || !hasChildren) return;
+        if (collapsed) return;
+        if (!hasChildren) {
+            appendClosingRow(container, node, selectedNode, depth);
+            return;
+        }
 
         Element children = DevToolsDom.element(container.document, "DIV", "dom-children");
         children.setAttribute("data-parent", node.uuid.toString());
         appendChildren(children, node, selected, depth + 1);
+        appendClosingRow(children, node, selectedNode, depth);
+        container.append(children);
+    }
 
+    private void appendClosingRow(Element container, Element node, boolean selectedNode, int depth) {
+        if (VOID_ELEMENTS.contains(tagName(node))) return;
         Element closeRow = DevToolsDom.element(container.document, "DIV",
                 selectedNode ? "dom-node dom-node-close selected" : "dom-node dom-node-close");
         closeRow.setAttribute("style", "padding-left:" + (14 + depth * 12) + "px;");
@@ -79,8 +95,7 @@ final class DevToolsDomTree {
         closeContent.append(DevToolsDom.text(container.document, "SPAN", "dom-tag", "</" + tagName(node) + ">"));
         closeRow.append(closeContent);
         bindNodeRow(closeRow, node);
-        children.append(closeRow);
-        container.append(children);
+        container.append(closeRow);
     }
 
     private void appendChildren(Element container, Element parent, Element selected, int depth) {
@@ -120,6 +135,13 @@ final class DevToolsDomTree {
         row.addEventListener("click", event -> {
             event.stopPropagation();
             controller.selectFromView(target);
+        });
+        row.addEventListener("contextmenu", event -> {
+            event.preventDefault();
+            event.stopPropagation();
+            if (event instanceof MouseEvent mouseEvent) {
+                controller.showElementContextMenu(target, mouseEvent);
+            }
         });
     }
 

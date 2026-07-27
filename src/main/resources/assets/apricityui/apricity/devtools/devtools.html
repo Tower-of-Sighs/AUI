@@ -1063,13 +1063,45 @@
             transform: translate(0, 0);
             box-shadow: 0 0 0 var(--black);
         }
+
+        .create-element-dialog .dialog-body { padding-bottom: 18px; }
+
+        .create-element-label {
+            display: block;
+            margin-bottom: 8px;
+            color: var(--gray-dark);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1.5px;
+        }
+
+        .create-element-input {
+            width: 100%;
+            height: 36px;
+            padding: 0 10px;
+            border: 2px solid var(--gray-light);
+            color: var(--black);
+            background: var(--white);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .create-element-input:focus { border-color: var(--purple); }
+
+        .create-element-hint {
+            margin-top: 8px;
+            color: var(--gray);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+        }
     </style>
 </head>
 <body>
 
 <div class="side-panel">
         <div class="topbar">
-            <div class="logo">DEVTOOLS</div>
+            <div class="logo"><translation>devtools.apricityui.title</translation></div>
             <div class="topbar-spacer"></div>
             <button class="top-btn drag-handle" id="panelDragHandle" aria-label="Move DevTools horizontally" data-tooltip-key="tooltip.apricityui.devtools.move">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 8 4 4-4 4M2 12h20M6 8l-4 4 4 4"/></svg>
@@ -1091,7 +1123,7 @@
         <!-- DOM Tree -->
         <div class="dom-section" id="domSection">
             <div class="panel-header">
-                <span>Elements</span>
+                <translation id="elementsTitle">devtools.apricityui.elements</translation>
                 <span class="count" id="nodeCount">0 nodes</span>
             </div>
             <div class="dom-tree" id="domTree"></div>
@@ -1103,15 +1135,15 @@
             <div class="inspector-tabs">
                 <div class="inspector-tab active" data-tab="attributes">
                     <svg viewBox="0 0 14 14" fill="currentColor"><path d="M3 2h8v2H3zm0 4h8v2H3zm0 4h5v2H3z"/></svg>
-                    ATTRS
+                    <translation class="inspector-tab-label">devtools.apricityui.attributes</translation>
                 </div>
                 <div class="inspector-tab" data-tab="styles">
                     <svg viewBox="0 0 14 14" fill="currentColor"><path d="M2 2h10v10H2zm1 1v8h8V3z"/></svg>
-                    STYLES
+                    <translation class="inspector-tab-label">devtools.apricityui.styles</translation>
                 </div>
                 <div class="inspector-tab" data-tab="boxmodel">
                     <svg viewBox="0 0 14 14" fill="none" stroke="currentColor"><rect x="2" y="2" width="10" height="10"/><rect x="4" y="4" width="6" height="6"/></svg>
-                    BOX
+                    <translation class="inspector-tab-label">devtools.apricityui.box_model</translation>
                 </div>
             </div>
             <div class="inspector-body">

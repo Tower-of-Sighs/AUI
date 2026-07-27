@@ -7,6 +7,8 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.FrameTaskScheduler;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import com.sighs.apricityui.instance.ApricityScreen;
@@ -18,6 +20,8 @@ import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.ui.tooltip.Tooltip;
+import com.sighs.apricityui.ui.menu.ContextMenu;
+import com.sighs.apricityui.ui.dialog.DialogWindow;
 import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
@@ -92,6 +96,7 @@ public final class DevToolsController {
     private boolean refreshQueued;
     private boolean skipSaveConfirmation;
     private long toastTicket;
+    private DialogWindow createElementDialog;
 
     public synchronized boolean isOpen() {
         return toolDocument != null && toolDocument.isActive() && Document.get(PATH).contains(toolDocument);
@@ -273,10 +278,215 @@ public final class DevToolsController {
         hideInspectHighlight();
     }
 
+    void showElementContextMenu(Element element, MouseEvent event) {
+        if (element == null || event == null || element.document != targetDocument || !element.isConnected()) return;
+        selectFromView(element);
+        boolean canChangeStructure = canChangeStructure(element);
+        List<ContextMenu.Item> items = new ArrayList<>();
+        items.add(ContextMenu.Item.header(DevToolsTranslations.translate("devtools.apricityui.element_menu", element.tagName.toLowerCase(Locale.ROOT))));
+        items.add(ContextMenu.Item.action(DevToolsTranslations.translate("devtools.apricityui.copy_outer_html"), ContextMenu.Icons.COPY, "Ctrl+C",
+                () -> copyElementOuterHtml(element)));
+        items.add(ContextMenu.Item.action(DevToolsTranslations.translate("devtools.apricityui.copy_selector"), ContextMenu.Icons.REFERENCE,
+                () -> copyElementSelector(element)));
+        items.add(ContextMenu.Item.separator());
+        items.add(structureItem(DevToolsTranslations.translate("devtools.apricityui.add_child_element"), ContextMenu.Icons.NEW_FILE, canChangeStructure,
+                () -> openCreateElementDialog(element)));
+        items.add(structureItem(DevToolsTranslations.translate("devtools.apricityui.hide_element"), ContextMenu.Icons.PROPERTIES, canChangeStructure,
+                () -> hideElement(element)));
+        items.add(structureItem(DevToolsTranslations.translate("devtools.apricityui.duplicate_element"), ContextMenu.Icons.NEW_FILE, canChangeStructure,
+                () -> duplicateElement(element)));
+        items.add(ContextMenu.Item.separator());
+        items.add(structureItem(DevToolsTranslations.translate("devtools.apricityui.delete_element"), ContextMenu.Icons.DELETE, canChangeStructure,
+                () -> deleteElement(element)).dangerous());
+        ContextMenu.show(toolDocument, new Position(event.clientX, event.clientY), items);
+    }
+
     void hoverFromView(Element element) {
         if (element == null || element.document != targetDocument || !element.isConnected()) return;
         treeHoverElementUuid = element.uuid;
         showInspectHighlight(element);
+    }
+
+    private ContextMenu.Item structureItem(String label, String icon, boolean enabled, Runnable action) {
+        ContextMenu.Item item = ContextMenu.Item.action(label, icon, action);
+        return enabled ? item : item.disabled();
+    }
+
+    private void copyElementOuterHtml(Element element) {
+        if (!isCurrentTarget(element)) return;
+        Operation.setClipboardText(DevToolsHtmlSerializer.serializeElement(element));
+        showToast(DevToolsTranslations.translate("devtools.apricityui.outer_html_copied"));
+    }
+
+    private void copyElementSelector(Element element) {
+        if (!isCurrentTarget(element)) return;
+        Operation.setClipboardText(cssSelector(element));
+        showToast(DevToolsTranslations.translate("devtools.apricityui.selector_copied"));
+    }
+
+    private void hideElement(Element element) {
+        if (!canChangeStructure(element)) return;
+        applyInlineStyle(element, "display", "none");
+    }
+
+    private void openCreateElementDialog(Element parent) {
+        if (!canChangeStructure(parent) || toolDocument == null) return;
+        closeCreateElementDialog();
+        DialogWindow dialog = DialogWindow.open(toolDocument, new DialogWindow.Options(
+                DevToolsTranslations.translate("devtools.apricityui.add_child_element"), 360, 0, false,
+                "dialog-overlay show", "dialog create-element-dialog", "dialog-header", "dialog-title",
+                "dialog-close", "dialog-body", ""
+        ), () -> createElementDialog = null);
+        createElementDialog = dialog;
+
+        Element content = dialog.content();
+        Element label = DevToolsDom.text(toolDocument, "LABEL", "create-element-label",
+                DevToolsTranslations.translate("devtools.apricityui.tag_name"));
+        label.setAttribute("for", "createElementTag");
+        content.append(label);
+        Element input = DevToolsDom.input(toolDocument, "create-element-input", "div", "div");
+        input.setAttribute("id", "createElementTag");
+        input.addEventListener("keydown", event -> {
+            if (isCommitKey(event)) createElement(parent, DevToolsDom.value(input), dialog);
+        });
+        content.append(input);
+        content.append(DevToolsDom.text(toolDocument, "DIV", "create-element-hint",
+                DevToolsTranslations.translate("devtools.apricityui.add_child_hint")));
+
+        Element footer = DevToolsDom.element(toolDocument, "DIV", "dialog-footer");
+        Element cancel = DevToolsDom.text(toolDocument, "BUTTON", "dialog-btn dialog-btn-cancel",
+                DevToolsTranslations.translate("devtools.apricityui.cancel"));
+        cancel.addEventListener("click", event -> dialog.close());
+        footer.append(cancel);
+        Element create = DevToolsDom.text(toolDocument, "BUTTON", "dialog-btn dialog-btn-confirm",
+                DevToolsTranslations.translate("devtools.apricityui.create"));
+        create.addEventListener("click", event -> createElement(parent, DevToolsDom.value(input), dialog));
+        footer.append(create);
+        dialog.window().append(footer);
+        DevToolsDom.markDirty(toolDocument);
+    }
+
+    private void createElement(Element parent, String tagName, DialogWindow dialog) {
+        if (!canChangeStructure(parent)) return;
+        String tag = tagName == null ? "" : tagName.trim().toLowerCase(Locale.ROOT);
+        if (!tag.matches("[a-z][a-z0-9-]*")) {
+            showToast(DevToolsTranslations.translate("devtools.apricityui.invalid_tag_name"));
+            return;
+        }
+        Element child = Element.init(targetDocument.createElement(tag));
+        parent.append(child);
+        expandedNodes.add(parent.uuid);
+        selectedElementUuid = child.uuid;
+        editHistory.record(targetDocument,
+                () -> removeElementFromHistory(child),
+                () -> appendElementFromHistory(parent, child),
+                DevToolsTranslations.translate("devtools.apricityui.element_created", tag));
+        if (dialog != null) dialog.close();
+        targetDocument.markDirty(targetDocument.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+        showToast(DevToolsTranslations.translate("devtools.apricityui.element_created", tag));
+        refresh();
+    }
+
+    private void duplicateElement(Element element) {
+        if (!canChangeStructure(element)) return;
+        Element duplicate = element.cloneNode(true);
+        if (duplicate == null) return;
+        element.after(duplicate);
+        selectedElementUuid = duplicate.uuid;
+        editHistory.record(targetDocument,
+                () -> removeElementFromHistory(duplicate),
+                () -> insertAfterFromHistory(element, duplicate),
+                DevToolsTranslations.translate("devtools.apricityui.element_duplicated"));
+        targetDocument.markDirty(targetDocument.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+        showToast(DevToolsTranslations.translate("devtools.apricityui.element_duplicated"));
+        refresh();
+    }
+
+    private void deleteElement(Element element) {
+        if (!canChangeStructure(element)) return;
+        Element parent = element.parentElement;
+        Node nextSibling = element.getNextSibling();
+        if (parent == null) return;
+        element.remove();
+        selectedElementUuid = parent.uuid;
+        editHistory.record(targetDocument,
+                () -> insertBeforeFromHistory(parent, element, nextSibling),
+                () -> removeElementFromHistory(element),
+                DevToolsTranslations.translate("devtools.apricityui.element_deleted"));
+        targetDocument.markDirty(targetDocument.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
+        showToast(DevToolsTranslations.translate("devtools.apricityui.element_deleted"));
+        refresh();
+    }
+
+    private boolean removeElementFromHistory(Element element) {
+        if (element == null || !element.isConnected()) return false;
+        element.remove();
+        refresh();
+        return true;
+    }
+
+    private boolean insertAfterFromHistory(Element reference, Element element) {
+        if (!isCurrentTarget(reference) || element == null || element.isConnected()) return false;
+        reference.after(element);
+        refresh();
+        return true;
+    }
+
+    private boolean appendElementFromHistory(Element parent, Element element) {
+        if (!isCurrentTarget(parent) || element == null || element.isConnected()) return false;
+        parent.append(element);
+        expandedNodes.add(parent.uuid);
+        refresh();
+        return true;
+    }
+
+    private boolean insertBeforeFromHistory(Element parent, Element element, Node nextSibling) {
+        if (!isCurrentTarget(parent) || element == null || element.isConnected()) return false;
+        if (nextSibling != null && nextSibling.isConnected() && nextSibling.parentNode == parent) {
+            parent.insertBefore(element, nextSibling);
+        } else {
+            parent.append(element);
+        }
+        refresh();
+        return true;
+    }
+
+    private boolean canChangeStructure(Element element) {
+        return isCurrentTarget(element) && element != targetDocument.documentElement && element.parentElement != null;
+    }
+
+    private boolean isCurrentTarget(Element element) {
+        return element != null && element.document == targetDocument && element.isConnected();
+    }
+
+    private static String cssSelector(Element element) {
+        if (element.id != null && !element.id.isBlank()) return "#" + escapeSelectorToken(element.id);
+        ArrayList<String> parts = new ArrayList<>();
+        for (Element current = element; current != null && current.document != null; current = current.parentElement) {
+            String tag = current.tagName.toLowerCase(Locale.ROOT);
+            if (current.id != null && !current.id.isBlank()) {
+                parts.add("#" + escapeSelectorToken(current.id));
+                break;
+            }
+            StringBuilder part = new StringBuilder(tag);
+            for (String className : current.getClassNames()) part.append('.').append(escapeSelectorToken(className));
+            if (current.parentElement != null) {
+                int index = 1;
+                for (Element sibling : current.parentElement.children) {
+                    if (sibling == current) break;
+                    if (tag.equalsIgnoreCase(sibling.tagName)) index++;
+                }
+                part.append(":nth-of-type(").append(index).append(')');
+            }
+            parts.add(part.toString());
+            if (current == current.document.documentElement) break;
+        }
+        java.util.Collections.reverse(parts);
+        return String.join(" > ", parts);
+    }
+
+    private static String escapeSelectorToken(String value) {
+        return value.replaceAll("[^a-zA-Z0-9_-]", "\\\\$0");
     }
 
     void clearHoverFromView(Element element) {
@@ -488,6 +698,7 @@ public final class DevToolsController {
     private void close() {
         disconnectTargetObserver();
         saveDialog.close();
+        closeCreateElementDialog();
         Document closing = toolDocument;
         Tooltip.hide(closing);
         toolDocument = null;
@@ -505,6 +716,12 @@ public final class DevToolsController {
         resizingInspector = false;
         refreshQueued = false;
         if (closing != null) closing.remove();
+    }
+
+    private void closeCreateElementDialog() {
+        DialogWindow dialog = createElementDialog;
+        createElementDialog = null;
+        if (dialog != null) dialog.close();
     }
 
     private void bindTarget(Document target) {
@@ -546,12 +763,13 @@ public final class DevToolsController {
         Element consoleButton = toolDocument.querySelector(".console-btn");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
         Element documentSelect = toolDocument.querySelector("#documentSelect");
+        localizeAccessibility();
         bindOnce(pickButton, event -> {
             if (!isDebuggable(targetDocument)) {
                 pickMode = false;
                 hideInspectHighlight();
                 updateShellState();
-                showToast("Select a document first");
+                showToast(DevToolsTranslations.translate("devtools.apricityui.select_document_first"));
                 return;
             }
             pickMode = !pickMode;
@@ -560,10 +778,11 @@ public final class DevToolsController {
                 Cursor.resetToDefault();
             }
             updateShellState();
-            showToast(pickMode ? "Inspect mode \u00b7 ON" : "Inspect mode \u00b7 OFF");
+            showToast(DevToolsTranslations.translate(pickMode
+                    ? "devtools.apricityui.inspect_mode_on" : "devtools.apricityui.inspect_mode_off"));
         });
         bindOnce(saveButton, event -> requestSave());
-        bindOnce(consoleButton, event -> showToast("Console \u00b7 Coming soon"));
+        bindOnce(consoleButton, event -> showToast(DevToolsTranslations.translate("devtools.apricityui.console_coming_soon")));
         bindTooltipOnce(pickButton, "tooltip.apricityui.devtools.inspect");
         bindTooltipOnce(saveButton, "tooltip.apricityui.devtools.save");
         bindTooltipOnce(consoleButton, "tooltip.apricityui.devtools.console");
@@ -603,6 +822,18 @@ public final class DevToolsController {
         if (element == null || "1".equals(element.getAttribute("data-java-bound"))) return;
         element.setAttribute("data-java-bound", "1");
         element.addEventListener("click", listener);
+    }
+
+    private void localizeAccessibility() {
+        setAttribute("#panelDragHandle", "aria-label", "devtools.apricityui.move");
+        setAttribute("#saveBtn", "aria-label", "devtools.apricityui.save_current_html");
+        setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
+        setAttribute(".console-btn", "aria-label", "devtools.apricityui.console");
+    }
+
+    private void setAttribute(String selector, String attribute, String key) {
+        Element element = toolDocument.querySelector(selector);
+        if (element != null) element.setAttribute(attribute, DevToolsTranslations.translate(key));
     }
 
     private void bindTooltipOnce(Element element, String translationKey) {
@@ -658,25 +889,25 @@ public final class DevToolsController {
 
     private void saveDocument(Document document, DevToolsDocumentStore.SaveTarget target) {
         if (document == null || target == null || !document.isActive()) {
-            showToast("The inspected document is no longer available");
+            showToast(DevToolsTranslations.translate("devtools.apricityui.document_unavailable"));
             return;
         }
         String original = DevToolsDocumentStore.read(target);
         if (original == null) {
-            showToast("Could not read the source HTML file");
+            showToast(DevToolsTranslations.translate("devtools.apricityui.source_read_failed"));
             return;
         }
         String html = DevToolsHtmlSerializer.serialize(document, original);
         DevToolsDocumentStore.SaveResult result = DevToolsDocumentStore.save(target, html);
-        showToast(result.success() ? "Saved " + target.relativePath() : result.message());
+        showToast(result.success() ? DevToolsTranslations.translate("devtools.apricityui.saved", target.relativePath()) : result.message());
     }
 
     boolean undoEdit() {
-        return finishHistoryAction(editHistory.undo(targetDocument), "Undo");
+        return finishHistoryAction(editHistory.undo(targetDocument), DevToolsTranslations.translate("devtools.apricityui.undo"));
     }
 
     boolean redoEdit() {
-        return finishHistoryAction(editHistory.redo(targetDocument), "Redo");
+        return finishHistoryAction(editHistory.redo(targetDocument), DevToolsTranslations.translate("devtools.apricityui.redo"));
     }
 
     private boolean finishHistoryAction(DevToolsEditHistory.Applied applied, String action) {

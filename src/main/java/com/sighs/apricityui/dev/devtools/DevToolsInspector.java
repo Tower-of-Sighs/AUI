@@ -48,8 +48,10 @@ final class DevToolsInspector {
         Document tool = pane.document;
         Element empty = DevToolsDom.element(tool, "DIV", "empty-state");
         empty.append(DevToolsDom.text(tool, "DIV", "empty-state-icon", "<>"));
-        empty.append(DevToolsDom.text(tool, "DIV", "empty-state-text", "No element selected"));
-        empty.append(DevToolsDom.text(tool, "DIV", "empty-state-sub", "Click an element in the tree"));
+        empty.append(DevToolsDom.text(tool, "DIV", "empty-state-text",
+                DevToolsTranslations.translate("devtools.apricityui.no_element_selected")));
+        empty.append(DevToolsDom.text(tool, "DIV", "empty-state-sub",
+                DevToolsTranslations.translate("devtools.apricityui.select_element_hint")));
         pane.append(empty);
     }
 
@@ -57,10 +59,11 @@ final class DevToolsInspector {
         Document tool = pane.document;
         Element block = DevToolsDom.element(tool, "DIV", "attr-block");
         block.append(DevToolsDom.text(tool, "DIV", "attr-block-header",
-                target.tagName.toUpperCase(Locale.ROOT) + " \u00b7 ATTRIBUTES"));
+                DevToolsTranslations.translate("devtools.apricityui.element_attributes", target.tagName.toUpperCase(Locale.ROOT))));
 
         if (target.getAttributes().isEmpty()) {
-            Element empty = DevToolsDom.text(tool, "DIV", "attr-row", "No attributes");
+            Element empty = DevToolsDom.text(tool, "DIV", "attr-row",
+                    DevToolsTranslations.translate("devtools.apricityui.no_attributes"));
             empty.setAttribute("style", "color:var(--gray);font-size:10px;letter-spacing:0.5px;");
             block.append(empty);
         } else {
@@ -69,13 +72,15 @@ final class DevToolsInspector {
             }
         }
 
-        Element add = DevToolsDom.text(tool, "DIV", "attr-add", "+ ADD ATTRIBUTE");
+        Element add = DevToolsDom.text(tool, "DIV", "attr-add",
+                DevToolsTranslations.translate("devtools.apricityui.add_attribute"));
         add.addEventListener("click", event -> showAttributeAdder(block, add, target));
         block.append(add);
         pane.append(block);
 
         Element info = DevToolsDom.element(tool, "DIV", "attr-block");
-        info.append(DevToolsDom.text(tool, "DIV", "attr-block-header", "ELEMENT INFO"));
+        info.append(DevToolsDom.text(tool, "DIV", "attr-block-header",
+                DevToolsTranslations.translate("devtools.apricityui.element_info")));
         info.append(infoRow(tool, "tag", target.tagName.toLowerCase(Locale.ROOT), "var(--tag)"));
         String id = target.getAttribute("id");
         info.append(infoRow(tool, "id", id == null || id.isBlank() ? shortUuid(target) : "#" + id, "var(--gray-dark)"));
@@ -97,7 +102,7 @@ final class DevToolsInspector {
         });
         row.append(editor);
         Element remove = DevToolsDom.text(tool, "DIV", "attr-delete", "\u00d7");
-        remove.setAttribute("title", "Delete");
+        remove.setAttribute("title", DevToolsTranslations.translate("devtools.apricityui.delete"));
         remove.addEventListener("click", event -> controller.deleteAttribute(target, key));
         row.append(remove);
         return row;
@@ -150,7 +155,8 @@ final class DevToolsInspector {
         } else {
             declarations.forEach((property, value) -> body.append(stylePropertyRow(target, property, value)));
         }
-        Element add = DevToolsDom.text(tool, "DIV", "style-add", "+ ADD PROPERTY");
+        Element add = DevToolsDom.text(tool, "DIV", "style-add",
+                DevToolsTranslations.translate("devtools.apricityui.add_property"));
         add.addEventListener("click", event -> showStyleAdder(body, add, target));
         body.append(add);
         inline.append(body);
@@ -174,7 +180,8 @@ final class DevToolsInspector {
             Element ruleBody = DevToolsDom.element(tool, "DIV", "style-body");
             controller.stylesheetStyles(matched).forEach((property, declaration) ->
                     ruleBody.append(stylesheetPropertyRow(target, matched.ruleOrder(), property, declaration)));
-            Element ruleAdd = DevToolsDom.text(tool, "DIV", "style-add", "+ ADD PROPERTY");
+            Element ruleAdd = DevToolsDom.text(tool, "DIV", "style-add",
+                    DevToolsTranslations.translate("devtools.apricityui.add_property"));
             ruleAdd.addEventListener("click", event ->
                     showStylesheetAdder(ruleBody, ruleAdd, target, matched.ruleOrder()));
             ruleBody.append(ruleAdd);
@@ -380,10 +387,10 @@ final class DevToolsInspector {
         visual.append(margin);
 
         Element legend = DevToolsDom.element(tool, "DIV", "boxmodel-legend");
-        legend.append(legend(tool, "rgba(249,115,22,0.3)", "#f97316", "dashed", "MARGIN"));
-        legend.append(legend(tool, "rgba(139,92,246,0.3)", "#8b5cf6", "solid", "BORDER"));
-        legend.append(legend(tool, "rgba(34,197,94,0.3)", "#22c55e", "dashed", "PADDING"));
-        legend.append(legend(tool, "rgba(59,130,246,0.3)", "#3b82f6", "solid", "CONTENT"));
+        legend.append(legend(tool, "rgba(249,115,22,0.3)", "#f97316", "dashed", DevToolsTranslations.translate("devtools.apricityui.margin")));
+        legend.append(legend(tool, "rgba(139,92,246,0.3)", "#8b5cf6", "solid", DevToolsTranslations.translate("devtools.apricityui.border")));
+        legend.append(legend(tool, "rgba(34,197,94,0.3)", "#22c55e", "dashed", DevToolsTranslations.translate("devtools.apricityui.padding")));
+        legend.append(legend(tool, "rgba(59,130,246,0.3)", "#3b82f6", "solid", DevToolsTranslations.translate("devtools.apricityui.content")));
         visual.append(legend);
         model.append(visual);
         pane.append(model);
@@ -422,7 +429,7 @@ final class DevToolsInspector {
     }
 
     private static String sourceName(String source) {
-        if (source == null || source.isBlank()) return "inline stylesheet";
+        if (source == null || source.isBlank()) return DevToolsTranslations.translate("devtools.apricityui.inline_stylesheet");
         int slash = Math.max(source.lastIndexOf('/'), source.lastIndexOf('\\'));
         return slash >= 0 && slash < source.length() - 1 ? source.substring(slash + 1) : source;
     }
