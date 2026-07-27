@@ -48,6 +48,13 @@ final class DevToolsHtmlSerializer {
         return output.toString();
     }
 
+    static String serializeElement(Element element) {
+        if (element == null) return "";
+        StringBuilder output = new StringBuilder(256);
+        serializeElement(element, output, List.of());
+        return output.toString();
+    }
+
     private static void serializeElement(Element element, StringBuilder output, List<SourceBlock> blocks) {
         String tag = element.tagName.toLowerCase(Locale.ROOT);
         output.append('<').append(tag);

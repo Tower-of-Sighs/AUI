@@ -227,14 +227,18 @@ public class Operation {
             });
             cancel |= documentCanceled[0];
         }
-        if (!repeat && handleFrameworkShortcut(key)) {
+        if (!repeat && handleFrameworkShortcut(key, modifiers)) {
             return true;
         }
         return cancel;
     }
 
-    private static boolean handleFrameworkShortcut(int key) {
-        if (key == GLFW.GLFW_KEY_F12) {
+    private static boolean handleFrameworkShortcut(int key, int modifiers) {
+        boolean devToolsShortcut = key == GLFW.GLFW_KEY_F12
+                || (key == GLFW.GLFW_KEY_I
+                && (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT))
+                == (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT));
+        if (devToolsShortcut) {
             DevTools.toggle();
             return true;
         }

@@ -14,14 +14,14 @@ final class DevToolsSaveDialog {
         close();
         if (document == null || document.body == null) return;
         dialog = DialogWindow.open(document, new DialogWindow.Options(
-                "SAVE HTML", 440, 0, false,
+                DevToolsTranslations.translate("devtools.apricityui.save_html"), 440, 0, false,
                 "dialog-overlay show", "dialog",
                 "dialog-header", "dialog-title", "dialog-close", "dialog-body", "save-dialog-title-icon"
         ), () -> dialog = null);
 
         Element content = dialog.content();
         Element message = DevToolsDom.text(document, "DIV", "save-dialog-message",
-                "Overwrite the source file with the current document?");
+                DevToolsTranslations.translate("devtools.apricityui.save_confirm"));
         Element file = DevToolsDom.text(document, "DIV", "save-dialog-path", path);
         content.append(message);
         content.append(file);
@@ -32,7 +32,8 @@ final class DevToolsSaveDialog {
         Element checkmark = DevToolsDom.element(document, "SPAN", "save-dialog-checkmark");
         reminder.append(checkbox);
         reminder.append(checkmark);
-        reminder.append(DevToolsDom.text(document, "SPAN", "save-dialog-reminder-text", "本次启动不再提醒"));
+        reminder.append(DevToolsDom.text(document, "SPAN", "save-dialog-reminder-text",
+                DevToolsTranslations.translate("devtools.apricityui.do_not_ask_again")));
         reminder.addEventListener("click", event -> {
             if (event.target == checkbox) return;
             checkbox.setChecked(!checkbox.isChecked());
@@ -42,8 +43,8 @@ final class DevToolsSaveDialog {
         content.append(reminder);
 
         Element footer = DevToolsDom.element(document, "DIV", "dialog-footer");
-        Element cancel = button(document, "CANCEL", "dialog-btn dialog-btn-cancel");
-        Element save = button(document, "SAVE", "dialog-btn dialog-btn-confirm");
+        Element cancel = button(document, DevToolsTranslations.translate("devtools.apricityui.cancel"), "dialog-btn dialog-btn-cancel");
+        Element save = button(document, DevToolsTranslations.translate("devtools.apricityui.save"), "dialog-btn dialog-btn-confirm");
         cancel.addEventListener("click", event -> close());
         save.addEventListener("click", event -> {
             boolean skipNextTime = checkbox.isChecked();
