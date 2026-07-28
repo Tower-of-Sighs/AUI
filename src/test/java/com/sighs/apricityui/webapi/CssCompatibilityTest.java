@@ -762,6 +762,25 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void resolveLengthSupportsMinMaxAndClampFunctions() {
+        assertEquals(900.0, com.sighs.apricityui.style.Size.resolveLength("min(900px, 100%)", 1600, 0));
+        assertEquals(1600.0, com.sighs.apricityui.style.Size.resolveLength("max(900px, 100%)", 1600, 0));
+        assertEquals(600.0, com.sighs.apricityui.style.Size.resolveLength("clamp(360px, 50%, 600px)", 1600, 0));
+        assertEquals(500.0, com.sighs.apricityui.style.Size.resolveLength("min(900px, calc(100% - 20px))", 520, 0));
+    }
+
+    @Test
+    void flexShorthandKeepsFixedFlexBasisAndDisablesShrink() {
+        Style style = new Style();
+        style.merge("flex: 0 0 250px;");
+        style.finalizeComputedValues(null);
+
+        assertEquals("0", style.flexGrow);
+        assertEquals("0", style.flexShrink);
+        assertEquals("250px", style.flexBasis);
+    }
+
+    @Test
     void transformTranslateSupportsCalcSyntax() {
         List<Transform> transforms = Transform.parse("translateX(calc(100% + 2rem))");
 

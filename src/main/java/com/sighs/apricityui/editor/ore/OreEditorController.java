@@ -9,6 +9,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.ui.tooltip.Tooltip;
 import com.sighs.apricityui.ui.toast.ToastManager;
+import com.sighs.apricityui.ui.translation.UiTranslations;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.editor.ore.canvas.OreCanvasHitTester;
 import com.sighs.apricityui.editor.ore.canvas.OreCanvasRenderer;
@@ -185,6 +186,15 @@ final class OreEditorController {
     }
 
     synchronized boolean openHtml(Path path, String source) {
+        if (session.dirty() && isOpen()) {
+            showDiscardConfirmation("ore_editor.apricityui.dialog.open_html.title",
+                    "ore_editor.apricityui.dialog.open_html.message", () -> openHtmlNow(path, source));
+            return false;
+        }
+        return openHtmlNow(path, source);
+    }
+
+    private boolean openHtmlNow(Path path, String source) {
         try {
             if (path == null || !Files.isRegularFile(path)) return false;
             project = htmlImporter.read(source);
@@ -234,6 +244,7 @@ final class OreEditorController {
 
     private void bindShell() {
         if (document == null || document.body == null) return;
+        bindAccessibilityLabels();
         bindClick("#closeButton", this::close);
         bindClick("#undoButton", this::undo);
         bindClick("#redoButton", this::redo);
@@ -286,6 +297,13 @@ final class OreEditorController {
         if (!"1".equals(document.body.getAttribute("data-editor-key-bound"))) {
             document.body.setAttribute("data-editor-key-bound", "1");
             document.body.addEventListener("keydown", this::handleEditorShortcut);
+        }
+    }
+
+    private void bindAccessibilityLabels() {
+        for (Element element : document.querySelectorAll("[data-aria-label-key]")) {
+            String key = element.getAttribute("data-aria-label-key");
+            if (key != null && !key.isBlank()) element.setAttribute("aria-label", UiTranslations.translate(key));
         }
     }
 
@@ -352,7 +370,7 @@ final class OreEditorController {
         discard.setAttribute("type", "button");
         discard.appendChild(OreEditorDom.translation(document, "ore_editor.apricityui.action.discard_changes", null));
         discard.addEventListener("click", event -> {
-            unsavedChangesDialog = null;
+            closeUnsavedChangesDialog();
             discardAction.run();
         });
         actions.appendChild(cancel);
@@ -537,7 +555,7 @@ final class OreEditorController {
             body.appendChild(OreEditorDom.translation(document, "ore_editor.apricityui.empty.inspect", null));
             return;
         }
-        if (node.locked()) {
+        if (node.locked() && node != project.root()) {
             appendNodeActions(body, node);
             return;
         }
@@ -758,7 +776,7 @@ final class OreEditorController {
 
     private void duplicateNode(OreCanvasNode node) {
         OreContainerNode parent = node.parent();
-        if (node.locked() || parent == null || parent.locked()) return;
+        if (node.locked() || parent == null || structureLocked(parent)) return;
         OreCanvasNode copy = copyNode(node);
         int index = parent.children().indexOf(node) + 1;
         parent.insert(index, copy);
@@ -772,7 +790,7 @@ final class OreEditorController {
 
     private void deleteNode(OreCanvasNode node) {
         OreContainerNode parent = node.parent();
-        if (node.locked() || parent == null || parent.locked()) return;
+        if (node.locked() || parent == null || structureLocked(parent)) return;
         int index = parent.children().indexOf(node);
         parent.remove(node);
         session.select(parent.id());
@@ -785,7 +803,7 @@ final class OreEditorController {
 
     private void moveNodeSibling(OreCanvasNode node, int offset) {
         OreContainerNode parent = node == null ? null : node.parent();
-        if (node == null || node.locked() || parent == null || parent.locked()) return;
+        if (node == null || node.locked() || parent == null || structureLocked(parent)) return;
         int beforeIndex = parent.children().indexOf(node);
         int afterIndex = beforeIndex + offset;
         if (beforeIndex < 0 || afterIndex < 0 || afterIndex >= parent.children().size()) return;
@@ -803,7 +821,8 @@ final class OreEditorController {
     private void moveNodeOut(OreCanvasNode node) {
         OreContainerNode source = node == null ? null : node.parent();
         OreContainerNode target = source == null ? null : source.parent();
-        if (node == null || node.locked() || source == null || source.locked() || target == null || target.locked()) return;
+        if (node == null || node.locked() || source == null || structureLocked(source)
+                || target == null || structureLocked(target)) return;
         int sourceIndex = source.children().indexOf(node);
         int targetIndex = target.children().indexOf(source) + 1;
         if (sourceIndex < 0 || targetIndex <= 0) return;
@@ -822,6 +841,7 @@ final class OreEditorController {
         OreCanvasNode copy;
         if (node instanceof OreContainerNode source) {
             OreContainerNode container = new OreContainerNode(false);
+            container.setTag(source.tag());
             container.flex().setDirection(source.flex().direction());
             container.flex().setWrap(source.flex().wrap());
             container.flex().setJustifyContent(source.flex().justifyContent());
@@ -841,6 +861,7 @@ final class OreEditorController {
             copy = component;
         } else throw new IllegalArgumentException("Unknown canvas node");
         node.style().properties().forEach(copy.style()::set);
+        node.attributes().forEach(copy::setAttribute);
         copy.setLocked(node.locked());
         return copy;
     }
@@ -1617,7 +1638,7 @@ final class OreEditorController {
     private void redo() { applyHistory(history.redo()); }
     private void applyHistory(OreEditorHistory.Result result) {
         if (!result.changed()) return;
-        setDirty(true);
+        setDirty(!history.isAtSavedRevision());
         session.select(result.selection() == null ? project.root().id() : result.selection());
         renderCanvas();
         renderMode();
@@ -1643,6 +1664,7 @@ final class OreEditorController {
                 ? documentStore.saveProject(projectCodec.write(project)).success()
                 : saveOpenedHtml();
         if (saved) {
+            history.markSaved();
             setDirty(false);
             ToastManager.showTranslation("ore_editor.apricityui.notice.saved");
         } else ToastManager.showTranslation("ore_editor.apricityui.notice.save_failed");
@@ -1946,7 +1968,8 @@ final class OreEditorController {
         OreFlexInsertionResolver.Insertion insertion = dropInsertion;
         movingNode = null;
         clearDropFeedback();
-        if (node == null || node.locked() || node.parent() == null || target == null || target.locked()) return;
+        if (node == null || node.locked() || node.parent() == null || target == null
+                || structureLocked(node.parent()) || structureLocked(target)) return;
         OreContainerNode source = node.parent();
         int index = insertionIndex(target, insertion);
         int sourceIndex = source.children().indexOf(node);
@@ -1985,7 +2008,7 @@ final class OreEditorController {
 
     private void addPaletteNode(OreComponentDefinition definition, OreContainerNode target,
                                 OreFlexInsertionResolver.Insertion insertion) {
-        if (target == null || target.locked()) return;
+        if (target == null || structureLocked(target)) return;
         OreCanvasNode node = definition.createNode();
         int index = insertionIndex(target, insertion);
         target.insert(index, node);
@@ -2041,17 +2064,23 @@ final class OreEditorController {
         if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
         UUID hit = hitTester.hit(canvasRenderer.elements(), x, y);
         OreCanvasNode node = hit == null ? project.root() : project.find(hit);
-        while (node != null && (!(node instanceof OreContainerNode) || node.locked())) node = node.parent();
+        while (node != null && (!(node instanceof OreContainerNode container) || structureLocked(container))) node = node.parent();
         return node instanceof OreContainerNode container ? container : project.root();
     }
 
     private boolean canMoveTo(UUID nodeId, OreContainerNode target) {
         OreCanvasNode node = project.find(nodeId);
-        if (node == null || node.locked() || node == project.root() || target == null || target.locked()) return false;
+        if (node == null || node.locked() || node == project.root() || node.parent() == null
+                || structureLocked(node.parent()) || target == null || structureLocked(target)) return false;
         for (OreContainerNode current = target; current != null; current = current.parent()) {
             if (current == node) return false;
         }
         return true;
+    }
+
+    /** The root is locked against structural deletion, but remains the editable canvas drop target. */
+    private static boolean structureLocked(OreContainerNode container) {
+        return container != null && !container.acceptsStructuralChildren();
     }
 
     private void removeDragGhost() {

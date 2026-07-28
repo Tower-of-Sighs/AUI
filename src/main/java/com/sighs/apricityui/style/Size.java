@@ -9,6 +9,7 @@ import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -192,6 +193,7 @@ public record Size(double width, double height) {
         if (value == null) return null;
         String trimmed = value.trim();
         if (trimmed.isEmpty() || "unset".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) return null;
+        if (isMathFunction(trimmed)) return resolveMathFunction(trimmed, percentBasis, getRootFontSize());
         if (trimmed.regionMatches(true, 0, "calc(", 0, 5) && trimmed.endsWith(")")) {
             return resolveCalc(trimmed.substring(5, trimmed.length() - 1), percentBasis, getRootFontSize());
         }
@@ -202,6 +204,7 @@ public record Size(double width, double height) {
         if (value == null) return null;
         String trimmed = value.trim();
         if (trimmed.isEmpty() || "unset".equalsIgnoreCase(trimmed) || "auto".equalsIgnoreCase(trimmed)) return null;
+        if (isMathFunction(trimmed)) return resolveMathFunction(trimmed, percentBasis, emBasis);
         if (trimmed.regionMatches(true, 0, "calc(", 0, 5) && trimmed.endsWith(")")) {
             return resolveCalc(trimmed.substring(5, trimmed.length() - 1), percentBasis, emBasis);
         }
@@ -1020,6 +1023,65 @@ public record Size(double width, double height) {
 
     public static double getRootFontSize() {
         return getRootFontSize(Document.getContextDocument());
+    }
+
+    private static boolean isMathFunction(String value) {
+        return (value.regionMatches(true, 0, "min(", 0, 4)
+                || value.regionMatches(true, 0, "max(", 0, 4)
+                || value.regionMatches(true, 0, "clamp(", 0, 6)) && value.endsWith(")");
+    }
+
+    private static Double resolveMathFunction(String value, double percentBasis, double emBasis) {
+        int opening = value.indexOf('(');
+        if (opening < 0 || value.length() <= opening + 1) return null;
+        String name = value.substring(0, opening).trim().toLowerCase(Locale.ROOT);
+        String[] arguments = splitFunctionArguments(value.substring(opening + 1, value.length() - 1));
+        if (arguments == null || arguments.length == 0) return null;
+
+        double[] resolved = new double[arguments.length];
+        for (int index = 0; index < arguments.length; index++) {
+            Double length = tryResolveLength(arguments[index], percentBasis, emBasis);
+            if (length == null) return null;
+            resolved[index] = length;
+        }
+        return switch (name) {
+            case "min" -> {
+                double result = resolved[0];
+                for (int index = 1; index < resolved.length; index++) result = Math.min(result, resolved[index]);
+                yield result;
+            }
+            case "max" -> {
+                double result = resolved[0];
+                for (int index = 1; index < resolved.length; index++) result = Math.max(result, resolved[index]);
+                yield result;
+            }
+            case "clamp" -> resolved.length == 3
+                    ? Math.max(resolved[0], Math.min(resolved[1], resolved[2])) : null;
+            default -> null;
+        };
+    }
+
+    private static String[] splitFunctionArguments(String value) {
+        ArrayList<String> arguments = new ArrayList<>();
+        int depth = 0;
+        int start = 0;
+        for (int index = 0; index < value.length(); index++) {
+            char character = value.charAt(index);
+            if (character == '(') depth++;
+            else if (character == ')') {
+                if (depth-- == 0) return null;
+            } else if (character == ',' && depth == 0) {
+                String argument = value.substring(start, index).trim();
+                if (argument.isEmpty()) return null;
+                arguments.add(argument);
+                start = index + 1;
+            }
+        }
+        if (depth != 0) return null;
+        String argument = value.substring(start).trim();
+        if (argument.isEmpty()) return null;
+        arguments.add(argument);
+        return arguments.toArray(String[]::new);
     }
 
     public static double getRootFontSize(Document preferredDocument) {

@@ -828,8 +828,8 @@ public final class DevToolsController {
             showToast(DevToolsTranslations.translate("devtools.apricityui.ore_editor.unsaved"));
             return;
         }
-        FilePicker.pick(FilePicker.Options.html(
-                DevToolsTranslations.translate("devtools.apricityui.ore_editor.select_html"), false
+        FilePicker.pick(FilePicker.Options.htmlTranslation(
+                "devtools.apricityui.ore_editor.select_html", false
         )).thenAccept(selection -> selection.ifPresent(file -> {
             if (!OreEditor.openHtml(file.localPath())) {
                 showToast(DevToolsTranslations.translate("devtools.apricityui.ore_editor.open_failed"));

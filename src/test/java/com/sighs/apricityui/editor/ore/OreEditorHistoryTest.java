@@ -88,4 +88,66 @@ class OreEditorHistoryTest {
         history.redo();
         assertEquals("12px", value[0]);
     }
+
+    @Test
+    void savedCursorTracksUndoAndRedoBackToThePersistedRevision() {
+        OreEditorHistory history = new OreEditorHistory();
+        String[] value = {"initial"};
+        history.reset();
+        value[0] = "saved";
+        history.recordExecuted(OreEditorHistory.stringValue("UpdateContent", null, null, null,
+                "initial", "saved", next -> value[0] = next));
+        history.markSaved();
+
+        value[0] = "changed";
+        history.recordExecuted(OreEditorHistory.stringValue("UpdateContent", null, null, null,
+                "saved", "changed", next -> value[0] = next));
+        assertFalse(history.isAtSavedRevision());
+
+        history.undo();
+        assertEquals("saved", value[0]);
+        assertTrue(history.isAtSavedRevision());
+        history.redo();
+        assertEquals("changed", value[0]);
+        assertFalse(history.isAtSavedRevision());
+    }
+
+    @Test
+    void savedCursorIsDiscardedWhenRedoHistoryIsReplaced() {
+        OreEditorHistory history = new OreEditorHistory();
+        String[] value = {"initial"};
+        history.reset();
+        value[0] = "saved";
+        history.recordExecuted(OreEditorHistory.stringValue("UpdateContent", null, null, null,
+                "initial", "saved", next -> value[0] = next));
+        history.markSaved();
+        history.undo();
+
+        value[0] = "replacement";
+        history.recordExecuted(OreEditorHistory.stringValue("UpdateContent", null, null, null,
+                "initial", "replacement", next -> value[0] = next));
+
+        assertFalse(history.isAtSavedRevision());
+    }
+
+    @Test
+    void inputMergeCannotMutateTheCommandAtTheSavedRevision() {
+        OreEditorHistory history = new OreEditorHistory();
+        String[] value = {"initial"};
+        history.reset();
+        value[0] = "saved";
+        history.recordExecuted(OreEditorHistory.stringValue("UpdateContent", "content", null, null,
+                "initial", "saved", next -> value[0] = next));
+        history.markSaved();
+        history.beginMerge("content");
+
+        value[0] = "edited";
+        history.recordExecuted(OreEditorHistory.stringValue("UpdateContent", "content", null, null,
+                "saved", "edited", next -> value[0] = next));
+
+        assertFalse(history.isAtSavedRevision());
+        history.undo();
+        assertEquals("saved", value[0]);
+        assertTrue(history.isAtSavedRevision());
+    }
 }

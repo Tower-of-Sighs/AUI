@@ -113,6 +113,7 @@ public final class OreCanvasRenderer {
         seen.add(node.id());
         Element element = elements.computeIfAbsent(node.id(), ignored -> createElement(node));
         element.setAttribute("data-ore-node-id", node.id().toString());
+        element.setAttribute("data-ore-node-type", node instanceof OreContainerNode ? "container" : "component");
         element.setAttribute("style", styleFor(node, element));
         if (node instanceof OreContainerNode container) {
             if (container.children().isEmpty()) {
@@ -136,9 +137,12 @@ public final class OreCanvasRenderer {
     }
 
     private Element createElement(OreCanvasNode node) {
-        String tag = node instanceof OreComponentNode component ? component.type() : "DIV";
+        String tag = node instanceof OreComponentNode component ? component.type() : ((OreContainerNode) node).tag();
         Element element = Element.init(document.createElement(tag));
-        element.setAttribute("class", node instanceof OreContainerNode ? "ore-editor-container" : componentClass((OreComponentNode) node));
+        node.attributes().forEach(element::setAttribute);
+        String editorClass = node instanceof OreContainerNode ? "ore-editor-container" : componentClass((OreComponentNode) node);
+        String sourceClass = element.getAttribute("class").trim();
+        element.setAttribute("class", sourceClass.isEmpty() ? editorClass : sourceClass + " " + editorClass);
         element.addEventListener("click", event -> {
             event.preventDefault();
             event.stopPropagation();

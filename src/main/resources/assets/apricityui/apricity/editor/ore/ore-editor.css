@@ -18,7 +18,7 @@
 .editor-toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 
 .editor-workspace { display: flex; height: calc(100vh - 58px); min-height: 0; }
-.canvas-region { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: column; background: #202124; }
+.canvas-region { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: column; background: var(--ore-surface-deep); }
 .editor-breadcrumb { flex: 0 0 auto; min-height: 30px; padding: 6px 12px; border-bottom: 2px solid var(--ore-edge); color: var(--ore-ink-muted); }
 .canvas-scroll { flex: 1 1 auto; width: 100%; min-height: 0; overflow: auto; padding: 24px; }
 .editor-canvas { position: relative; min-width: 640px; min-height: 480px; background-color: var(--ore-canvas); }

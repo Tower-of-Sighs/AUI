@@ -25,6 +25,19 @@ public final class OreEditorProjectCodec {
         JsonObject theme = new JsonObject();
         if (project != null) project.theme().overrides().forEach(theme::addProperty);
         document.add("theme", theme);
+        JsonObject metadata = new JsonObject();
+        metadata.addProperty("doctype", project == null ? "<!DOCTYPE html>" : project.documentMetadata().doctype());
+        metadata.addProperty("head", project == null ? "" : project.documentMetadata().headContent());
+        metadata.addProperty("bodyScripts", project == null ? "" : project.documentMetadata().bodyScriptContent());
+        JsonObject htmlAttributes = new JsonObject();
+        JsonObject bodyAttributes = new JsonObject();
+        if (project != null) {
+            project.documentMetadata().htmlAttributes().forEach(htmlAttributes::addProperty);
+            project.documentMetadata().bodyAttributes().forEach(bodyAttributes::addProperty);
+        }
+        metadata.add("htmlAttributes", htmlAttributes);
+        metadata.add("bodyAttributes", bodyAttributes);
+        document.add("documentMetadata", metadata);
         return document.toString();
     }
 
@@ -41,6 +54,20 @@ public final class OreEditorProjectCodec {
         if (theme != null) for (Map.Entry<String, JsonElement> entry : theme.entrySet()) {
             if (entry.getValue().isJsonPrimitive()) project.theme().set(entry.getKey(), entry.getValue().getAsString());
         }
+        JsonObject metadata = object(document, "documentMetadata");
+        if (metadata != null) {
+            project.documentMetadata().setDoctype(string(metadata, "doctype"));
+            project.documentMetadata().setHeadContent(string(metadata, "head"));
+            project.documentMetadata().setBodyScriptContent(string(metadata, "bodyScripts"));
+            JsonObject htmlAttributes = object(metadata, "htmlAttributes");
+            if (htmlAttributes != null) for (Map.Entry<String, JsonElement> entry : htmlAttributes.entrySet()) {
+                if (entry.getValue().isJsonPrimitive()) project.documentMetadata().setHtmlAttribute(entry.getKey(), entry.getValue().getAsString());
+            }
+            JsonObject bodyAttributes = object(metadata, "bodyAttributes");
+            if (bodyAttributes != null) for (Map.Entry<String, JsonElement> entry : bodyAttributes.entrySet()) {
+                if (entry.getValue().isJsonPrimitive()) project.documentMetadata().setBodyAttribute(entry.getKey(), entry.getValue().getAsString());
+            }
+        }
         return project;
     }
 
@@ -52,7 +79,11 @@ public final class OreEditorProjectCodec {
         JsonObject style = new JsonObject();
         node.style().properties().forEach(style::addProperty);
         value.add("style", style);
+        JsonObject attributes = new JsonObject();
+        node.attributes().forEach(attributes::addProperty);
+        value.add("attributes", attributes);
         if (node instanceof OreContainerNode container) {
+            value.addProperty("tag", container.tag());
             JsonObject flex = new JsonObject();
             flex.addProperty("direction", container.flex().direction());
             flex.addProperty("wrap", container.flex().wrap());
@@ -94,6 +125,7 @@ public final class OreEditorProjectCodec {
         OreCanvasNode node;
         if ("container".equals(string(value, "kind"))) {
             OreContainerNode container = new OreContainerNode(root, id);
+            container.setTag(string(value, "tag"));
             JsonObject flex = object(value, "flex");
             if (flex != null) {
                 container.flex().setDirection(string(flex, "direction"));
@@ -119,6 +151,10 @@ public final class OreEditorProjectCodec {
             node = component;
         } else throw new IllegalArgumentException("Unknown Ore node kind");
         if (value.has("locked") && value.get("locked").isJsonPrimitive()) node.setLocked(value.get("locked").getAsBoolean());
+        JsonObject attributes = object(value, "attributes");
+        if (attributes != null) for (Map.Entry<String, JsonElement> entry : attributes.entrySet()) {
+            if (entry.getValue().isJsonPrimitive()) node.setAttribute(entry.getKey(), entry.getValue().getAsString());
+        }
         JsonObject style = object(value, "style");
         if (style != null) for (Map.Entry<String, JsonElement> entry : style.entrySet()) {
             if (entry.getValue().isJsonPrimitive()) node.style().set(entry.getKey(), entry.getValue().getAsString());

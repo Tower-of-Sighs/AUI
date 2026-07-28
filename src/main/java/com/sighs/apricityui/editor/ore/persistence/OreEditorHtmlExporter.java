@@ -4,6 +4,7 @@ import com.sighs.apricityui.editor.ore.model.OreCanvasNode;
 import com.sighs.apricityui.editor.ore.model.OreComponentNode;
 import com.sighs.apricityui.editor.ore.model.OreContainerNode;
 import com.sighs.apricityui.editor.ore.model.OreEditorProject;
+import com.sighs.apricityui.editor.ore.model.OreDocumentMetadata;
 import com.sighs.apricityui.editor.ore.model.OreNodeStyle;
 
 import java.util.EnumMap;
@@ -16,31 +17,75 @@ public final class OreEditorHtmlExporter {
         Map<OreComponentNode.VisualState, StringBuilder> stateRules = new EnumMap<>(OreComponentNode.VisualState.class);
         StringBuilder body = new StringBuilder();
         writeNode(body, source.root(), true, stateRules);
-        StringBuilder html = new StringBuilder("<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n")
-                .append("  <meta charset=\"UTF-8\">\n")
-                .append("  <link rel=\"stylesheet\" href=\"apricityui/theme/ore/ore-edit.css\">\n");
+        OreDocumentMetadata metadata = source.documentMetadata();
+        StringBuilder html = new StringBuilder(metadata.doctype()).append("\n<html");
+        appendRawAttributes(html, metadata.htmlAttributes(), null);
+        if (!metadata.htmlAttributes().containsKey("lang")) html.append(" lang=\"en\"");
+        html.append(">\n<head>\n");
+        String head = metadata.headContent();
+        if (head.isBlank()) html.append("  <meta charset=\"UTF-8\">\n");
+        else html.append(head).append('\n');
+        if (!head.toLowerCase(java.util.Locale.ROOT).contains("ore-edit.css")) {
+            html.append("  <link rel=\"stylesheet\" href=\"apricityui/theme/ore/ore-edit.css\">\n");
+        }
         appendStateStyles(html, stateRules);
-        html.append("</head>\n<body class=\"ore-theme\"");
+        html.append("</head>\n<body");
+        appendRawAttributes(html, metadata.bodyAttributes(), "class");
+        String bodyClass = metadata.bodyAttributes().get("class");
+        html.append(" class=\"").append(attribute(bodyClass == null || bodyClass.isBlank() ? "ore-theme" : bodyClass + " ore-theme"))
+                .append('\"');
         String theme = source.theme().toCss();
-        if (!theme.isBlank()) html.append(" style=\"").append(attribute(theme)).append('\"');
+        String sourceStyle = metadata.bodyAttributes().get("style");
+        String normalizedSourceStyle = sourceStyle == null ? "" : sourceStyle.trim();
+        String bodyStyle = normalizedSourceStyle + (normalizedSourceStyle.isBlank() || normalizedSourceStyle.endsWith(";") ? "" : ";") + theme;
+        if (!bodyStyle.isBlank()) html.append(" style=\"").append(attribute(bodyStyle)).append('\"');
         html.append(">\n");
         html.append(body);
+        if (!metadata.bodyScriptContent().isBlank()) html.append('\n').append(metadata.bodyScriptContent());
         return html.append("\n</body>\n</html>\n").toString();
     }
 
     private void writeNode(StringBuilder html, OreCanvasNode node, boolean root,
                            Map<OreComponentNode.VisualState, StringBuilder> stateRules) {
         if (node instanceof OreContainerNode container) {
-            html.append("<div style=\"").append(attribute(containerStyle(container, root))).append("\">");
+            html.append('<').append(safeTag(container.tag()));
+            appendAttributes(html, container, null);
+            html.append(" style=\"").append(attribute(containerStyle(container, root))).append("\">");
             for (OreCanvasNode child : container.children()) writeNode(html, child, false, stateRules);
-            html.append("</div>");
+            html.append("</").append(safeTag(container.tag())).append('>');
         } else if (node instanceof OreComponentNode component) {
             String tag = safeTag(component.type());
             String stateClass = appendStateRules(component, stateRules);
             html.append('<').append(tag);
-            if (stateClass != null) html.append(" class=\"").append(stateClass).append('\"');
+            appendAttributes(html, component, stateClass);
             html.append(" style=\"").append(attribute(style(component))).append("\">")
                     .append(text(component.content())).append("</").append(tag).append('>');
+        }
+    }
+
+    private void appendAttributes(StringBuilder html, OreCanvasNode node, String appendedClass) {
+        boolean wroteClass = false;
+        for (Map.Entry<String, String> entry : node.attributes().entrySet()) {
+            String name = entry.getKey();
+            if ("class".equals(name)) {
+                wroteClass = true;
+                String value = entry.getValue();
+                if (appendedClass != null) value = (value == null || value.isBlank()) ? appendedClass : value + " " + appendedClass;
+                html.append(" class=\"").append(attribute(value)).append('\"');
+            } else {
+                html.append(' ').append(name).append("=\"").append(attribute(entry.getValue())).append('\"');
+            }
+        }
+        if (!wroteClass && appendedClass != null) html.append(" class=\"").append(appendedClass).append('\"');
+    }
+
+    private void appendRawAttributes(StringBuilder html, Map<String, String> attributes, String skipped) {
+        if (attributes == null) return;
+        for (Map.Entry<String, String> entry : attributes.entrySet()) {
+            String name = entry.getKey();
+            if (name == null || name.isBlank() || name.equals(skipped)
+                    || (skipped != null && "style".equals(name))) continue;
+            html.append(' ').append(name).append("=\"").append(attribute(entry.getValue())).append('\"');
         }
     }
 

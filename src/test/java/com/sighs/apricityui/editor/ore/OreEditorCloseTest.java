@@ -3,17 +3,37 @@ package com.sighs.apricityui.editor.ore;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.ui.translation.UiTranslations;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OreEditorCloseTest {
     private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/editor/ore/ore-editor.html");
+
+    @Test
+    void shellBindsAccessibilityLabelsFromTranslationKeys() throws Exception {
+        OreEditorController controller = OreEditorController.INSTANCE;
+        controller.close();
+        HTML.putTemple(OreEditorController.PATH, Files.readString(TEMPLATE));
+        assertTrue(controller.open());
+        try {
+            Element tabs = controller.getDocument().querySelector(".editor-tabs");
+            assertNotNull(tabs);
+            assertTrue("ore_editor.apricityui.accessibility.tabs".equals(tabs.getAttribute("data-aria-label-key")));
+            assertEquals(UiTranslations.translate("ore_editor.apricityui.accessibility.tabs"), tabs.getAttribute("aria-label"));
+            assertFalse("ore_editor.apricityui.accessibility.tabs".equals(tabs.getAttribute("aria-label")));
+            assertFalse("ore-editor-tabs".equals(tabs.getAttribute("aria-label")));
+        } finally {
+            controller.close();
+        }
+    }
 
     @Test
     void dirtyProjectRequiresConfirmationBeforeClosing() throws Exception {

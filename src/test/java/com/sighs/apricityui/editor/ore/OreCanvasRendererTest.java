@@ -29,6 +29,8 @@ class OreCanvasRendererTest {
 
             renderer.render(project, project.root().id());
 
+            assertEquals("container", renderer.elementFor(project.root().id()).getAttribute("data-ore-node-type"));
+
             Element hint = canvas.querySelector("[data-ore-editor-ui=\"empty-container\"]");
             assertNotNull(hint);
             assertEquals("TRANSLATION", hint.tagName);
@@ -36,6 +38,7 @@ class OreCanvasRendererTest {
 
             project.root().add(new OreComponentNode("div", "Content"));
             renderer.render(project, project.root().id());
+            assertEquals("component", renderer.elementFor(project.root().children().get(0).id()).getAttribute("data-ore-node-type"));
             assertFalse(canvas.querySelectorAll("[data-ore-editor-ui=\"empty-container\"]").size() > 0);
         } finally {
             document.remove();
