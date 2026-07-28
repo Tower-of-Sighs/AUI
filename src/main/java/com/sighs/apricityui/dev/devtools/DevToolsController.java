@@ -22,6 +22,8 @@ import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.ui.tooltip.Tooltip;
 import com.sighs.apricityui.ui.menu.ContextMenu;
 import com.sighs.apricityui.ui.dialog.DialogWindow;
+import com.sighs.apricityui.ui.file.FilePicker;
+import com.sighs.apricityui.editor.ore.OreEditor;
 import net.minecraft.client.Minecraft;
 
 import java.util.ArrayList;
@@ -761,6 +763,7 @@ public final class DevToolsController {
         Element pickButton = toolDocument.querySelector("#pickBtn");
         Element saveButton = toolDocument.querySelector("#saveBtn");
         Element consoleButton = toolDocument.querySelector(".console-btn");
+        Element oreEditorButton = toolDocument.querySelector("#oreEditorButton");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
         Element documentSelect = toolDocument.querySelector("#documentSelect");
         localizeAccessibility();
@@ -783,9 +786,11 @@ public final class DevToolsController {
         });
         bindOnce(saveButton, event -> requestSave());
         bindOnce(consoleButton, event -> showToast(DevToolsTranslations.translate("devtools.apricityui.console_coming_soon")));
+        bindOnce(oreEditorButton, event -> openOreEditorFilePicker());
         bindTooltipOnce(pickButton, "tooltip.apricityui.devtools.inspect");
         bindTooltipOnce(saveButton, "tooltip.apricityui.devtools.save");
         bindTooltipOnce(consoleButton, "tooltip.apricityui.devtools.console");
+        bindTooltipOnce(oreEditorButton, "tooltip.apricityui.ore_editor.open");
         bindPanelDrag(dragHandle);
         bindTooltipOnce(dragHandle, "tooltip.apricityui.devtools.move");
         bindDocumentSelector(documentSelect);
@@ -818,6 +823,20 @@ public final class DevToolsController {
         }
     }
 
+    private void openOreEditorFilePicker() {
+        if (OreEditor.isOpen() && OreEditor.getSession().dirty()) {
+            showToast(DevToolsTranslations.translate("devtools.apricityui.ore_editor.unsaved"));
+            return;
+        }
+        FilePicker.pick(FilePicker.Options.html(
+                DevToolsTranslations.translate("devtools.apricityui.ore_editor.select_html"), false
+        )).thenAccept(selection -> selection.ifPresent(file -> {
+            if (!OreEditor.openHtml(file.localPath())) {
+                showToast(DevToolsTranslations.translate("devtools.apricityui.ore_editor.open_failed"));
+            }
+        }));
+    }
+
     private void bindOnce(Element element, java.util.function.Consumer<Event> listener) {
         if (element == null || "1".equals(element.getAttribute("data-java-bound"))) return;
         element.setAttribute("data-java-bound", "1");
@@ -825,10 +844,13 @@ public final class DevToolsController {
     }
 
     private void localizeAccessibility() {
+        Element logo = toolDocument.querySelector(".logo");
+        if (logo != null) logo.setTextContent(DevToolsTranslations.translate("devtools.apricityui.title"));
         setAttribute("#panelDragHandle", "aria-label", "devtools.apricityui.move");
         setAttribute("#saveBtn", "aria-label", "devtools.apricityui.save_current_html");
         setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
         setAttribute(".console-btn", "aria-label", "devtools.apricityui.console");
+        setAttribute("#oreEditorButton", "aria-label", "tooltip.apricityui.ore_editor.open");
     }
 
     private void setAttribute(String selector, String attribute, String key) {

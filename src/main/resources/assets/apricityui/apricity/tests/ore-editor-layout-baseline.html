@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-mouse-events" content="intercept">
+    <title>Ore Editor Layout Baseline</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { margin: 0; padding: 24px; color: #f4f5f7; background: #202124; font: 16px sans-serif; }
+        h1 { margin: 0 0 20px; font-size: 24px; }
+        .case { margin: 0 0 20px; padding: 16px; border: 2px solid #1e1e1f; background: #48494a; }
+        .case > strong { display: block; margin-bottom: 12px; }
+        .flex-row { display: flex; flex-wrap: wrap; align-content: flex-start; gap: 8px 12px; width: 210px; min-height: 86px; padding: 8px; border: 2px dashed #f0b92d; }
+        .item { width: 72px; min-height: 28px; padding: 5px; color: #191a1c; background: #d0d1d4; text-align: center; }
+        .item.tall { min-height: 48px; }
+        .item.ordered { order: -1; background: #69ad45; }
+        .absolute-parent { position: relative; width: 210px; height: 108px; padding: 14px; border: 3px solid #7345e5; }
+        .absolute-flow { width: 100px; min-height: 34px; padding: 8px; color: #191a1c; background: #d0d1d4; }
+        .absolute-child { position: absolute; right: 12px; bottom: 10px; width: 72px; height: 36px; padding: 9px 4px; color: #191a1c; background: #f0b92d; text-align: center; }
+        .drag-stage { position: relative; width: 300px; height: 112px; overflow: hidden; border: 3px solid #1e1e1f; background: #313233; }
+        .drop-target { position: absolute; inset: 18px 18px 18px 132px; border: 2px dashed #f0b92d; }
+        .drag-source { position: absolute; left: 18px; top: 34px; width: 84px; height: 38px; padding: 10px 6px; color: #191a1c; background: #69ad45; text-align: center; }
+        .drag-ghost { position: absolute; left: 156px; top: 42px; width: 84px; height: 38px; padding: 10px 6px; border: 2px solid #ffffff; color: #191a1c; background: #58a6d2; opacity: 0.8; pointer-events: none; text-align: center; }
+    </style>
+</head>
+<body>
+<h1>Ore Editor Layout Baseline</h1>
+<section class="case" data-testid="flex-case">
+    <strong>Flex wrap, gap, order</strong>
+    <div class="flex-row">
+        <div class="item tall">A</div>
+        <div class="item">B</div>
+        <div class="item ordered">C</div>
+        <div class="item">D</div>
+    </div>
+</section>
+<section class="case" data-testid="absolute-case">
+    <strong>Relative containing block and absolute child</strong>
+    <div class="absolute-parent">
+        <div class="absolute-flow">Flow child</div>
+        <div class="absolute-child">ABS</div>
+    </div>
+</section>
+<section class="case" data-testid="drag-case">
+    <strong>Drag ghost does not participate in layout or hit testing</strong>
+    <div class="drag-stage">
+        <div class="drag-source">Source</div>
+        <div class="drop-target"></div>
+        <div class="drag-ghost">Ghost</div>
+    </div>
+</section>
+</body>
+</html>

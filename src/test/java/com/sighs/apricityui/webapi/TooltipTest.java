@@ -101,6 +101,28 @@ class TooltipTest {
         }
     }
 
+    @Test
+    void translationTooltipMountsATranslationDomNode() throws Exception {
+        Size.setViewportOverride(320, 200);
+        Document document = TestDocumentFactory.createDocument();
+        setViewport(document, 320, 200);
+        Element target = Element.init(document.createElement("BUTTON"));
+        document.body.append(target);
+        Tooltip.Binding binding = Tooltip.bindTranslation(target, "tooltip.apricityui.devtools.inspect");
+        try {
+            move(document, target, 40, 50);
+            Element tooltip = document.querySelector(".aui-tooltip");
+            assertNotNull(tooltip);
+            assertEquals("TRANSLATION", tooltip.children.get(0).tagName);
+            assertEquals("tooltip.apricityui.devtools.inspect", tooltip.children.get(0).getTextContent());
+        } finally {
+            binding.close();
+            Tooltip.hide();
+            document.remove();
+            Size.clearViewportOverride();
+        }
+    }
+
     private static void move(Document document, Element target, double x, double y) {
         MouseEvent.dispatchToTarget(mouse("mousemove", x, y), document, target);
     }

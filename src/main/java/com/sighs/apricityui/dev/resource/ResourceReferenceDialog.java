@@ -109,6 +109,7 @@ public final class ResourceReferenceDialog {
         field.append(text("LABEL", "LANGUAGE", "dialog-label"));
         Element selectWrap = element("DIV", "dialog-select-wrap");
         languageSelect = element("SELECT", "dialog-select resource-reference-language-select");
+        languageSelect.setAttribute("data-native-arrow", "false");
         languageSelect.append(option("JAVA", "java"));
         languageSelect.append(option("KUBEJS / KJS", "kjs"));
         languageSelect.setValue("java");

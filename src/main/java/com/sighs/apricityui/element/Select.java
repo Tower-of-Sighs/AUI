@@ -45,7 +45,7 @@ public class Select extends Element {
                 double drawY = contentPosition.y + (contentHeight - text.lineHeight) / 2.0d;
                 FontDrawer.drawFont(poseStack, text,
                         new com.sighs.apricityui.style.Position(contentPosition.x, drawY));
-                drawNativeArrow(poseStack, rectRenderer);
+                if (showsNativeArrow()) drawNativeArrow(poseStack, rectRenderer);
             }
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
@@ -77,6 +77,10 @@ public class Select extends Element {
         Graph.drawFillRect(poseStack.last().pose(), x + 1, y + 1, x + 6, y + 2, color);
         Graph.drawFillRect(poseStack.last().pose(), x + 2, y + 2, x + 5, y + 3, color);
         Graph.drawFillRect(poseStack.last().pose(), x + 3, y + 3, x + 4, y + 4, color);
+    }
+
+    private boolean showsNativeArrow() {
+        return !"false".equalsIgnoreCase(getAttribute("data-native-arrow"));
     }
 
     private String selectedLabel() {

@@ -498,7 +498,7 @@ public class Style implements Cloneable {
 
         boolean replaced = false;
         for (int i = 0; i < tokens.length; i++) {
-            if (looksLikeCssLength(tokens[i])) {
+            if (looksLikeCssLength(tokens[i]) || isBorderWidthVariable(tokens, i)) {
                 tokens[i] = normalizedWidth;
                 replaced = true;
                 break;
@@ -520,7 +520,8 @@ public class Style implements Cloneable {
 
         boolean replaced = false;
         for (int i = 0; i < tokens.size(); i++) {
-            if (looksLikeColorToken(tokens.get(i))) {
+            if (looksLikeColorToken(tokens.get(i)) && !isVarToken(tokens.get(i))
+                    || isBorderColorVariable(tokens, i)) {
                 tokens.set(i, normalizedColor);
                 replaced = true;
                 break;
@@ -528,6 +529,30 @@ public class Style implements Cloneable {
         }
         if (!replaced) tokens.add(normalizedColor);
         return String.join(" ", tokens);
+    }
+
+    private boolean isBorderWidthVariable(String[] tokens, int index) {
+        if (!isVarToken(tokens[index])) return false;
+        for (int i = 0; i < index; i++) {
+            if (isBorderStyleToken(tokens[i])) return false;
+        }
+        return true;
+    }
+
+    private boolean isBorderColorVariable(List<String> tokens, int index) {
+        if (!isVarToken(tokens.get(index))) return false;
+        for (int i = 0; i < index; i++) {
+            if (isBorderStyleToken(tokens.get(i))) return true;
+        }
+        return false;
+    }
+
+    private boolean isBorderStyleToken(String token) {
+        if (token == null || token.isBlank()) return false;
+        return switch (token.trim().toLowerCase(Locale.ROOT)) {
+            case "none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset" -> true;
+            default -> false;
+        };
     }
 
     private boolean looksLikeCssLength(String token) {

@@ -100,7 +100,7 @@ class DevToolsTest {
             assertEquals(alternate.getUuid().toString(), documentSelect.getValue());
             documentSelect.setValue(target.getUuid().toString());
             documentSelect.dispatchEvent(new Event(documentSelect, "change", true));
-            assertEquals("DEVTOOLS", topbar.querySelector(".logo").getTextContent());
+            assertEquals("DevTools", topbar.querySelector(".logo").getTextContent());
             assertTrue(tool.querySelector("#pickBtn").getTextContent().isBlank());
             assertTrue(tool.querySelector("#saveBtn").getTextContent().isBlank());
             assertTrue(tool.querySelector(".console-btn").getTextContent().isBlank());

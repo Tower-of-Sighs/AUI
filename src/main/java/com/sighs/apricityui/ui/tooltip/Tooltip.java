@@ -8,8 +8,6 @@ import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
-import net.minecraft.network.chat.Component;
-
 import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -55,8 +53,18 @@ public final class Tooltip {
 
         private Binding(Element target, Supplier<String> text, Options options) {
             this.target = target;
-            enterListener = event -> showForEvent(target, text, options, event);
-            moveListener = event -> showForEvent(target, text, options, event);
+            enterListener = event -> showForEvent(target, text, null, options, event);
+            moveListener = event -> showForEvent(target, text, null, options, event);
+            leaveListener = event -> hideOwnedBy(target);
+            target.addEventListener("mouseenter", enterListener);
+            target.addEventListener("mousemove", moveListener);
+            target.addEventListener("mouseleave", leaveListener);
+        }
+
+        private Binding(Element target, String translationKey, Options options) {
+            this.target = target;
+            enterListener = event -> showForEvent(target, null, translationKey, options, event);
+            moveListener = event -> showForEvent(target, null, translationKey, options, event);
             leaveListener = event -> hideOwnedBy(target);
             target.addEventListener("mouseenter", enterListener);
             target.addEventListener("mousemove", moveListener);
@@ -78,19 +86,21 @@ public final class Tooltip {
     private final Options options;
     private final Element owner;
     private final String text;
+    private final String translationKey;
     private final Size measuredSize;
     private Element element;
     private Position pointer;
     private boolean closed;
 
-    private Tooltip(Document document, Element owner, Position pointer, String text, Options options) {
+    private Tooltip(Document document, Element owner, Position pointer, String text, String translationKey, Options options) {
         this.document = document;
         this.owner = owner;
         this.pointer = pointer == null ? Position.ZERO : pointer;
         this.options = (options == null ? Options.defaults() : options).normalize();
         this.text = text == null ? "" : text;
-        this.measuredSize = estimateSize(this.text, this.options.maxWidth());
-        mount(text);
+        this.translationKey = translationKey == null ? "" : translationKey;
+        this.measuredSize = estimateSize(this.translationKey.isBlank() ? this.text : this.translationKey, this.options.maxWidth());
+        mount();
     }
 
     public static Tooltip show(Document document, Position pointer, String text) {
@@ -98,7 +108,11 @@ public final class Tooltip {
     }
 
     public static synchronized Tooltip show(Document document, Position pointer, String text, Options options) {
-        return replace(document, null, pointer, text, options);
+        return replace(document, null, pointer, text, null, options);
+    }
+
+    public static synchronized Tooltip showTranslation(Document document, Position pointer, String translationKey, Options options) {
+        return replace(document, null, pointer, null, translationKey, options);
     }
 
     public static Binding bind(Element target, String text) {
@@ -121,7 +135,8 @@ public final class Tooltip {
 
     public static Binding bindTranslation(Element target, String translationKey, Options options) {
         String key = translationKey == null ? "" : translationKey;
-        return bind(target, () -> translate(key), options);
+        if (target == null) throw new IllegalArgumentException("Tooltip target cannot be null");
+        return new Binding(target, key, options == null ? Options.defaults() : options);
     }
 
     public static synchronized void hide() {
@@ -168,8 +183,8 @@ public final class Tooltip {
         markDirty(document == null ? null : document.body);
     }
 
-    private void mount(String text) {
-        if (document == null || document.body == null || text == null || text.isBlank()) {
+    private void mount() {
+        if (document == null || document.body == null || (text.isBlank() && translationKey.isBlank())) {
             closed = true;
             return;
         }
@@ -177,7 +192,13 @@ public final class Tooltip {
         element.setTopLayer(true);
         element.setAttribute("class", options.className());
         element.setAttribute("role", "tooltip");
-        element.setTextContent(text);
+        if (translationKey.isBlank()) {
+            element.setTextContent(text);
+        } else {
+            Element translation = Element.init(document.createElement("TRANSLATION"));
+            translation.setTextContent(translationKey);
+            element.appendChild(translation);
+        }
         document.body.append(element);
         applyStyle(pointer.x + options.offsetX(), pointer.y + options.offsetY());
         position();
@@ -243,13 +264,15 @@ public final class Tooltip {
                 || script == Character.UnicodeScript.HANGUL;
     }
 
-    private static void showForEvent(Element owner, Supplier<String> supplier, Options options, Event event) {
+    private static void showForEvent(Element owner, Supplier<String> supplier, String translationKey, Options options, Event event) {
         if (!(event instanceof MouseEvent mouseEvent) || owner == null || owner.document == null) return;
-        String text;
-        try {
-            text = supplier.get();
-        } catch (RuntimeException ignored) {
-            text = "";
+        String text = "";
+        if (supplier != null) {
+            try {
+                text = supplier.get();
+            } catch (RuntimeException ignored) {
+                text = "";
+            }
         }
         Position pointer = new Position(mouseEvent.clientX, mouseEvent.clientY);
         synchronized (Tooltip.class) {
@@ -257,29 +280,20 @@ public final class Tooltip {
                 activeTooltip.move(pointer);
                 return;
             }
-            replace(owner.document, owner, pointer, text, options);
+            replace(owner.document, owner, pointer, text, translationKey, options);
         }
     }
 
     private static synchronized Tooltip replace(Document document, Element owner, Position pointer,
-                                                String text, Options options) {
+                                                String text, String translationKey, Options options) {
         if (activeTooltip != null) activeTooltip.close();
-        Tooltip tooltip = new Tooltip(document, owner, pointer, text, options);
+        Tooltip tooltip = new Tooltip(document, owner, pointer, text, translationKey, options);
         if (tooltip.isVisible()) activeTooltip = tooltip;
         return tooltip;
     }
 
     private static synchronized void hideOwnedBy(Element owner) {
         if (activeTooltip != null && activeTooltip.owner == owner) activeTooltip.close();
-    }
-
-    private static String translate(String key) {
-        if (key.isBlank()) return "";
-        try {
-            return Component.translatable(key).getString();
-        } catch (RuntimeException | LinkageError ignored) {
-            return key;
-        }
     }
 
     private static void markDirty(Element target) {

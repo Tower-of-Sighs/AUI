@@ -243,6 +243,17 @@
             position: relative;
         }
 
+        /* A file tree is intentionally a compact, single-line control.  The
+           explicit flex minimum is required by CSS for ellipsis to constrain
+           the label instead of increasing the row's block size. */
+        .tree-item > span {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
         .tree-item:hover {
             background: rgba(139,92,246,0.05);
             border-left-color: var(--purple-light);

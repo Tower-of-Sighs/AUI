@@ -8,7 +8,11 @@ import org.junit.jupiter.api.Test;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DevToolsSaveDialogTest {
     @Test
@@ -22,9 +26,10 @@ class DevToolsSaveDialogTest {
             AtomicReference<Boolean> skip = new AtomicReference<>();
             dialog.open(document, "pages/example.html", skip::set);
 
-            assertEquals("SAVE HTML", document.querySelector(".aui-dialog-title-text").getTextContent());
+            assertEquals("Save HTML", document.querySelector(".aui-dialog-title-text").getTextContent());
             assertEquals("pages/example.html", document.querySelector(".save-dialog-path").getTextContent());
-            assertEquals("本次启动不再提醒", document.querySelector(".save-dialog-reminder-text").getTextContent());
+            assertEquals("Do not ask again this session",
+                    document.querySelector(".save-dialog-reminder-text").getTextContent());
             Element checkbox = document.querySelector(".save-dialog-checkbox");
             assertNotNull(checkbox);
             assertFalse(checkbox.isChecked());
