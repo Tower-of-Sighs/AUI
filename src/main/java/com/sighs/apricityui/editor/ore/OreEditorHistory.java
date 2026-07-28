@@ -23,11 +23,14 @@ final class OreEditorHistory {
 
     private final List<Command> commands = new ArrayList<>();
     private int cursor;
+    /** Cursor that corresponds to the last successfully persisted project, or -1 when discarded. */
+    private int savedCursor;
     private String activeMergeKey;
 
     void reset() {
         commands.clear();
         cursor = 0;
+        savedCursor = 0;
         activeMergeKey = null;
     }
 
@@ -36,10 +39,12 @@ final class OreEditorHistory {
     String activeMergeKey() { return activeMergeKey; }
     boolean canUndo() { return cursor > 0; }
     boolean canRedo() { return cursor < commands.size(); }
+    void markSaved() { savedCursor = cursor; }
+    boolean isAtSavedRevision() { return savedCursor >= 0 && cursor == savedCursor; }
 
     void recordExecuted(Command command) {
         if (command == null) return;
-        if (activeMergeKey != null && cursor > 0 && cursor == commands.size()) {
+        if (activeMergeKey != null && cursor > 0 && cursor == commands.size() && cursor != savedCursor) {
             Command previous = commands.get(cursor - 1);
             if (activeMergeKey.equals(previous.mergeKey())) {
                 Command merged = previous.merge(command);
@@ -50,8 +55,12 @@ final class OreEditorHistory {
             }
         }
         while (commands.size() > cursor) commands.remove(commands.size() - 1);
+        if (savedCursor > cursor) savedCursor = -1;
         commands.add(command);
-        if (commands.size() > LIMIT) commands.remove(0);
+        if (commands.size() > LIMIT) {
+            commands.remove(0);
+            savedCursor = savedCursor <= 0 ? -1 : savedCursor - 1;
+        }
         else cursor++;
         if (commands.size() == LIMIT) cursor = commands.size();
     }

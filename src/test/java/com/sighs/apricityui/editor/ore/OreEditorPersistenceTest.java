@@ -23,13 +23,20 @@ class OreEditorPersistenceTest {
         column.flex().setRowGap("12px");
         column.flex().setColumnGap("6px");
         column.style().set("padding", "8px");
+        column.setTag("section");
+        column.setAttribute("class", "layout");
         OreComponentNode button = new OreComponentNode("button", "Use <Ore>");
         button.style().set("position", "absolute");
         button.enterAbsolute(0);
         button.stateStyle(OreComponentNode.VisualState.HOVER).set("background", "#654321");
+        button.setAttribute("data-action", "use");
         column.add(button);
         project.root().add(column);
         project.theme().set("--ore-purple", "#123456");
+        project.documentMetadata().setHtmlAttribute("lang", "zh-CN");
+        project.documentMetadata().setBodyAttribute("data-page", "editor");
+        project.documentMetadata().setHeadContent("<title>Ore</title>");
+        project.documentMetadata().setBodyScriptContent("<script>window.ore = true;</script>");
 
         OreEditorProject restored = new OreEditorProjectCodec().read(new OreEditorProjectCodec().write(project));
         OreContainerNode restoredColumn = (OreContainerNode) restored.root().children().get(0);
@@ -37,6 +44,8 @@ class OreEditorPersistenceTest {
 
         assertEquals(project.root().id(), restored.root().id());
         assertEquals("column", restoredColumn.flex().direction());
+        assertEquals("section", restoredColumn.tag());
+        assertEquals("layout", restoredColumn.attributes().get("class"));
         assertEquals("space-between", restoredColumn.flex().alignContent());
         assertEquals("12px", restoredColumn.flex().rowGap());
         assertEquals("6px", restoredColumn.flex().columnGap());
@@ -44,10 +53,15 @@ class OreEditorPersistenceTest {
         assertEquals("8px", restoredColumn.style().get("padding"));
         assertEquals(button.id(), restoredButton.id());
         assertEquals("Use <Ore>", restoredButton.content());
+        assertEquals("use", restoredButton.attributes().get("data-action"));
         assertTrue(restoredButton.absolute());
         assertEquals(0, restoredButton.flowIndex());
         assertEquals("#654321", restoredButton.stateStyle(OreComponentNode.VisualState.HOVER).get("background"));
         assertEquals("#123456", restored.theme().get("--ore-purple"));
+        assertEquals("zh-CN", restored.documentMetadata().htmlAttributes().get("lang"));
+        assertEquals("editor", restored.documentMetadata().bodyAttributes().get("data-page"));
+        assertEquals("<title>Ore</title>", restored.documentMetadata().headContent());
+        assertEquals("<script>window.ore = true;</script>", restored.documentMetadata().bodyScriptContent());
     }
 
     @Test
@@ -56,6 +70,9 @@ class OreEditorPersistenceTest {
         project.root().flex().setRowGap("12px");
         project.root().flex().setColumnGap("6px");
         OreComponentNode button = new OreComponentNode("button", "<Build & Run>");
+        button.setAttribute("class", "primary");
+        button.setAttribute("data-action", "run");
+        button.setAttribute("data-ore-node-id", "discarded");
         button.stateStyle(OreComponentNode.VisualState.HOVER).set("background", "#654321");
         project.root().add(button);
 
@@ -63,6 +80,9 @@ class OreEditorPersistenceTest {
 
         assertTrue(html.contains("&lt;Build &amp; Run&gt;"));
         assertTrue(html.contains("ore-edit.css"));
+        assertTrue(html.contains("class=\"primary ore-state-"));
+        assertTrue(html.contains("data-action=\"run\""));
+        assertFalse(html.contains("discarded"));
         assertTrue(html.contains("row-gap:12px;column-gap:6px;"));
         assertTrue(html.contains(".ore-state-" + button.id().toString().replace("-", "") + ":hover {background:#654321;}"));
         assertFalse(html.contains("data-ore-editor-ui"));

@@ -119,6 +119,13 @@ public class Mask {
         Graph.endBatch();
         ImageDrawer.flushBatch();
 
+        // Keep the logical clip stack balanced with the stencil stack.  A
+        // stencil mask can be nested in a scissor mask (for example, a
+        // transformed scroll container inside an overflow-hidden dialog).
+        // popMask always restores this stack, so it must be pushed here too.
+        clipStack.push(currentClip);
+        currentClip = currentClip.intersection(new AABB(x, y, width, height));
+
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
             currentTarget.enableStencil();

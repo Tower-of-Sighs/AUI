@@ -16,6 +16,10 @@ class OreEditorModelTest {
         OreEditorProject project = new OreEditorProject();
 
         assertTrue(project.root().isRoot());
+        assertTrue(project.root().locked());
+        project.root().setLocked(false);
+        assertTrue(project.root().locked());
+        assertTrue(project.root().acceptsStructuralChildren());
         assertEquals("row", project.root().flex().direction());
         assertEquals("nowrap", project.root().flex().wrap());
         assertEquals("flex-start", project.root().flex().justifyContent());
@@ -72,8 +76,10 @@ class OreEditorModelTest {
         component.style().set("color", "#fff");
 
         component.setLocked(true);
+        parent.setLocked(true);
 
         assertTrue(component.locked());
+        assertTrue(!parent.acceptsStructuralChildren());
         assertSame(parent, component.parent());
         assertEquals("#fff", component.style().get("color"));
     }

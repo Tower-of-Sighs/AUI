@@ -8,10 +8,26 @@ public final class OreContainerNode extends OreCanvasNode {
     private final List<OreCanvasNode> children = new ArrayList<>();
     private final OreFlexStyle flex = new OreFlexStyle();
     private final boolean root;
+    private String tag = "div";
 
-    public OreContainerNode(boolean root) { this.root = root; }
-    public OreContainerNode(boolean root, UUID id) { super(id); this.root = root; }
+    public OreContainerNode(boolean root) {
+        this.root = root;
+        if (root) super.setLocked(true);
+    }
+    public OreContainerNode(boolean root, UUID id) {
+        super(id);
+        this.root = root;
+        if (root) super.setLocked(true);
+    }
     public boolean isRoot() { return root; }
+    /** Root remains the canvas insertion target even though it is structurally non-removable. */
+    public boolean acceptsStructuralChildren() { return root || !locked(); }
+    public String tag() { return tag; }
+    public void setTag(String tag) {
+        if (tag != null && tag.matches("[A-Za-z][A-Za-z0-9-]*")) this.tag = tag.toLowerCase(java.util.Locale.ROOT);
+    }
+    @Override
+    public void setLocked(boolean locked) { super.setLocked(root || locked); }
     public OreFlexStyle flex() { return flex; }
     public List<OreCanvasNode> children() { return List.copyOf(children); }
 

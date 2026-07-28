@@ -67,6 +67,55 @@ class FilePickerTest {
         }
     }
 
+    @Test
+    void rendersTranslatedTitleAndSharedLabelsAsTranslationNodes() {
+        Document document = TestDocumentFactory.createDocument();
+        try {
+            FilePicker.pickIn(document, FilePicker.Options.htmlTranslation(
+                    "devtools.apricityui.ore_editor.select_html", false), List.of());
+
+            assertEquals("TRANSLATION", document.querySelector(".aui-file-picker-title").children.get(0).tagName);
+            assertEquals("devtools.apricityui.ore_editor.select_html",
+                    document.querySelector(".aui-file-picker-title").children.get(0).getTextContent());
+            assertEquals("TRANSLATION", document.querySelector(".aui-file-picker-cancel").children.get(0).children.get(0).tagName);
+            assertEquals("TRANSLATION", document.querySelector(".aui-file-picker-empty").children.get(0).tagName);
+            assertEquals("TRANSLATION", document.querySelector(".aui-file-picker-select").children.get(0).children.get(0).tagName);
+        } finally {
+            FilePicker.closeActive();
+            document.remove();
+        }
+    }
+
+    @Test
+    void usesALocalizedTitleWhenTheCallerDoesNotProvideOne() {
+        Document document = TestDocumentFactory.createDocument();
+        try {
+            FilePicker.pickIn(document, FilePicker.Options.any(null, true), List.of());
+
+            Element title = document.querySelector(".aui-file-picker-title");
+            assertEquals("TRANSLATION", title.children.get(0).tagName);
+            assertEquals("file_picker.apricityui.title", title.children.get(0).getTextContent());
+        } finally {
+            FilePicker.closeActive();
+            document.remove();
+        }
+    }
+
+    @Test
+    void onlyOffersHtmlCreationWhenTheExtensionFilterAllowsHtml() {
+        Document document = TestDocumentFactory.createDocument();
+        try {
+            FilePicker.pickIn(document, FilePicker.Options.html("Select HTML", true), List.of());
+            assertNotNull(document.querySelector(".aui-file-picker-create"));
+
+            FilePicker.pickIn(document, new FilePicker.Options("Select CSS", Set.of("css"), true), List.of());
+            assertTrue(document.querySelector(".aui-file-picker-create") == null);
+        } finally {
+            FilePicker.closeActive();
+            document.remove();
+        }
+    }
+
     private static Loader.StaticResourceEntry entry(String path, String extension, Loader.ResourceLayer layer) {
         return new Loader.StaticResourceEntry(path, extension, layer, "", "", 1L);
     }
