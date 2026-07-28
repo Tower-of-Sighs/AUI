@@ -18,6 +18,7 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraftforge.client.ForgeHooksClient;
 import net.minecraftforge.client.extensions.common.IClientItemExtensions;
+import org.joml.Matrix4f;
 
 import java.util.*;
 
@@ -91,14 +92,19 @@ public final class AuiItemModelRenderer {
                 fallback = true;
                 fallbackReason = "resolved model is null";
             } else {
-                // 对齐 GuiGraphics.renderItem 的局部 16x16 GUI 投影：模型坐标 [0,1] 映射到 16 像素。
-                restoreGuiLighting = resolved.context().guiLighting() && !sourceModel.usesBlockLight();
-                if (restoreGuiLighting) {
-                    Lighting.setupForFlatItems();
+                // 对齐 GuiGraphics.renderItem：平面物品临时使用 flat 光照，方块模型必须使用 GUI 3D 光照。
+                boolean guiLighting = resolved.context().guiLighting();
+                restoreGuiLighting = guiLighting && !sourceModel.usesBlockLight();
+                if (guiLighting) {
+                    if (restoreGuiLighting) {
+                        Lighting.setupForFlatItems();
+                    } else {
+                        Lighting.setupFor3DItems();
+                    }
                 }
                 poseStack.translate(0.0F, 0.0F, ItemRenderContext.GUI_MODEL_Z);
                 poseStack.translate(8.0F, 8.0F, 0.0F);
-                poseStack.scale(1.0F, -1.0F, 1.0F);
+                poseStack.mulPoseMatrix(new Matrix4f().scaling(1.0F, -1.0F, 1.0F));
                 poseStack.scale(16.0F, 16.0F, 16.0F);
                 BakedModel transformedModel = ForgeHooksClient.handleCameraTransforms(
                         poseStack,
