@@ -11,6 +11,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 /** Resource-browser dialog for editing the meta elements in an HTML head. */
 public final class ResourceMetaDialog {
@@ -40,6 +41,7 @@ public final class ResourceMetaDialog {
     private Document document;
     private Path target;
     private Runnable afterSave;
+    private Consumer<String> templateSave;
     private String charset = "";
     private List<String> preservedMeta = List.of();
 
@@ -51,12 +53,27 @@ public final class ResourceMetaDialog {
             ToastManager.show(loaded.message());
             return;
         }
+        openEditor(document, "EDIT META / " + ResourcePath.fileName(resourcePath).toUpperCase(java.util.Locale.ROOT),
+                target, afterSave, HtmlMetaEditor.parseSettings(loaded.metaMarkup()), null);
+    }
+
+    /** Opens the same editor for a not-yet-created document and returns its meta markup. */
+    public void openTemplate(Document document, Consumer<String> onSave) {
+        close();
+        if (document == null || document.body == null) return;
+        HtmlMetaEditor.MetaSettings browserDefaults = new HtmlMetaEditor.MetaSettings(
+                "UTF-8", "web", "mode=browser", "intercept", List.of());
+        openEditor(document, "NEW HTML META", null, null, browserDefaults, onSave);
+    }
+
+    private void openEditor(Document document, String title, Path target, Runnable afterSave,
+                            HtmlMetaEditor.MetaSettings settings, Consumer<String> templateSave) {
         this.document = document;
         this.target = target;
         this.afterSave = afterSave;
+        this.templateSave = templateSave;
         this.dialog = DialogWindow.open(document, new DialogWindow.Options(
-                "EDIT META / " + ResourcePath.fileName(resourcePath).toUpperCase(java.util.Locale.ROOT),
-                720, 520, true,
+                title, 720, 520, true,
                 "dialog-overlay show", "dialog",
                 "dialog-header", "dialog-title", "dialog-close", "dialog-body", "dialog-title-icon"
         ), this::clearReferences);
@@ -65,7 +82,6 @@ public final class ResourceMetaDialog {
         root.setAttribute("style", "position:relative;flex:1;min-height:0;display:flex;flex-direction:column;");
         Element fields = element("DIV", "resource-meta-fields");
         fields.setAttribute("style", "margin-top:16px;flex:1;min-height:0;overflow:auto;");
-        HtmlMetaEditor.MetaSettings settings = HtmlMetaEditor.parseSettings(loaded.metaMarkup());
         charset = settings.charset();
         preservedMeta = settings.preservedMeta();
         viewportSelect = appendSelectField(fields, "VIEWPORT", "tooltip.apricityui.meta.viewport", VIEWPORT_CHOICES, settings.viewport());
@@ -94,6 +110,12 @@ public final class ResourceMetaDialog {
         String markup = HtmlMetaEditor.toMetaMarkup(new HtmlMetaEditor.MetaSettings(
                 charset, valueOf(fontModeSelect), valueOf(viewportSelect),
                 valueOf(mouseEventsSelect), preservedMeta));
+        Consumer<String> templateCallback = templateSave;
+        if (templateCallback != null) {
+            close();
+            templateCallback.accept(markup);
+            return;
+        }
         HtmlMetaEditor.EditResult result = HtmlMetaEditor.save(target, markup);
         if (!result.success()) {
             ToastManager.show(result.message());
@@ -162,6 +184,7 @@ public final class ResourceMetaDialog {
         document = null;
         target = null;
         afterSave = null;
+        templateSave = null;
         charset = "";
         preservedMeta = List.of();
     }

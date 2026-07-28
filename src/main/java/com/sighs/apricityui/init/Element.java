@@ -995,7 +995,7 @@ public class Element extends Node {
         boolean hasAfter = getGeneratedPseudoElement(Selector.PseudoElement.AFTER) != null;
 
         if ((hadBefore != hasBefore || hadAfter != hasAfter) && document != null) {
-            document.markDirty(this, Drawer.REORDER | Drawer.REPAINT);
+            invalidatePseudoElementHostLayout();
         }
     }
 
@@ -1053,6 +1053,22 @@ public class Element extends Node {
         pseudoElementPreviousStyle = style.clone();
         innerText = parsePseudoContentText(style.content);
         isPointerEnabled = false;
+        invalidatePseudoElementHostLayout();
+    }
+
+    /**
+     * Generated boxes are layout children even though they are not present in
+     * {@link #children}. A flex layout cached before a pseudo box is created
+     * otherwise falls back to cross-start when the box is later painted.
+     */
+    private void invalidatePseudoElementHostLayout() {
+        Element host = pseudoElement ? pseudoElementHost : this;
+        if (host == null) return;
+        host.getRenderer().invalidateLayoutSubtree();
+        LayoutMeasureCache.invalidateSubtree(host);
+        if (host.document != null) {
+            host.document.markDirty(host, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+        }
     }
 
     private static boolean samePseudoStyles(HashMap<String, String> current, HashMap<String, String> next) {
