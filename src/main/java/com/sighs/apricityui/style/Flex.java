@@ -157,7 +157,11 @@ public class Flex {
             }
             if (participant.element() != null) {
                 Element child = participant.element();
-                Size childSize = Size.box(child);
+                // Use the flex item's measured outer size from this layout pass.
+                // Re-measuring here can observe a different resolving context,
+                // causing a generated flex item to use a line-height-sized cross
+                // box for alignment but paint with its declared height.
+                Size childSize = participant.size();
                 double childX = cursorX;
                 double childY = cursorY;
                 double availableCross = flex.flexDirection.isColumn()
@@ -397,18 +401,18 @@ public class Flex {
         if (!flex.flexDirection.isRow() || flex.flexWrap.canWrap()) return 0;
 
         List<Element> items = getFlowItems(parent.getRenderChildren());
-        if (items.isEmpty()) {
-            List<FlexParticipant> directText = buildParticipants(parent, items);
-            double textCrossSize = 0;
-            for (FlexParticipant participant : directText) {
-                if (participant.element() == null) {
-                    textCrossSize = Math.max(textCrossSize, participant.size().height());
-                }
-            }
-            return textCrossSize;
-        }
-        double[] assigned = computeAssignedMainSizes(parent, items, Math.max(0, availableMain), flex);
+        // Direct text in a flex container becomes an anonymous flex item. It
+        // remains a participant when generated elements are present, so its
+        // line box must contribute to the automatic cross size alongside
+        // concrete child boxes.
         double crossSize = 0;
+        for (FlexParticipant participant : buildParticipants(parent, items)) {
+            if (participant.element() == null) {
+                crossSize = Math.max(crossSize, participant.size().height());
+            }
+        }
+        if (items.isEmpty()) return crossSize;
+        double[] assigned = computeAssignedMainSizes(parent, items, Math.max(0, availableMain), flex);
         for (int i = 0; i < items.size(); i++) {
             Element item = items.get(i);
             Box box = Box.of(item);
@@ -760,6 +764,25 @@ public class Flex {
             if (child instanceof TextNode textNode) {
                 String normalized = Text.normalizeWhiteSpaceContent(textNode.getTextContent(), Text.getWhiteSpace(parent));
                 if (normalized == null || normalized.isBlank()) continue;
+                Text base = Text.of(parent);
+                Text text = new Text();
+                Element.copyTextForRun(base, text);
+                text.color = base.color == null ? Color.BLACK : base.color;
+                text.strokeColor = base.strokeColor == null ? Color.BLACK : base.strokeColor;
+                text.content = normalized;
+                text.flexDirect = true;
+                Text.WrappedText wrapped = Text.wrap(text, 0);
+                text.size = new Size(wrapped.width(), wrapped.height(text.lineHeight));
+                participants.add(new FlexParticipant(null, text, text.size, -1));
+            }
+        }
+        // setTextContent stores direct text on innerText until a concrete text
+        // node is needed. Generated boxes must not make that anonymous flex item
+        // disappear during the host's initial intrinsic-size pass.
+        if (participants.stream().noneMatch(participant -> participant.text() != null)
+                && parent.innerText != null && !parent.innerText.isBlank()) {
+            String normalized = Text.normalizeWhiteSpaceContent(parent.innerText, Text.getWhiteSpace(parent));
+            if (normalized != null && !normalized.isBlank()) {
                 Text base = Text.of(parent);
                 Text text = new Text();
                 Element.copyTextForRun(base, text);

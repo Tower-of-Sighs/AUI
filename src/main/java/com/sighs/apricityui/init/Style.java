@@ -1127,7 +1127,7 @@ public class Style implements Cloneable {
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
                  "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
-                 "SVG", "BUTTON" -> "inline";
+                 "SVG", "BUTTON", "TRANSLATION" -> "inline";
             case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
             default -> "block";
         };

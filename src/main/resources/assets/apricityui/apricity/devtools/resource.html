@@ -922,8 +922,8 @@
             box-shadow: none !important;
         }
 
-        .resource-import-grid { display: flex; flex-direction: row; justify-content: space-between; gap: 16px; }
-        .resource-import-card { width: 328px; height: 190px; display: flex; flex-direction: column; justify-content: center; }
+        .resource-import-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+        .resource-import-card { width: auto; height: 190px; display: flex; flex-direction: column; justify-content: center; }
         .resource-import-card.imported { border-color: var(--purple); background: rgba(139,92,246,0.05); }
         .resource-import-icon { width: 100%; height: 48px; margin: 0 0 12px; display: flex; align-items: center; justify-content: center; }
         .resource-import-icon svg { width: 48px; height: 48px; }

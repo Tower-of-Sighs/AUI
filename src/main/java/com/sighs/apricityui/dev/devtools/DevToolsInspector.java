@@ -355,7 +355,9 @@ final class DevToolsInspector {
         String content = DevToolsDom.value(input);
         if (content == null || content.isEmpty()) content = input.getAttribute("placeholder");
         double textWidth = Size.measureText(input, content == null ? "" : content);
-        input.setAttribute("style", "width:" + Math.max(8, Math.ceil(textWidth + 1)) + "px;");
+        Box box = Box.of(input);
+        double borderBoxWidth = textWidth + box.getPaddingHorizontal() + box.getBorderHorizontal() + 1;
+        input.setAttribute("style", "width:" + Math.max(8, Math.ceil(borderBoxWidth)) + "px;");
     }
 
     private void renderBoxModel(Element pane, Element target) {

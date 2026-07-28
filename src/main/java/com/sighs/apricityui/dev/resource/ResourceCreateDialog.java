@@ -13,11 +13,14 @@ import java.util.Locale;
 public final class ResourceCreateDialog {
     private static final String LOCAL_FILE_ICON = "<svg viewBox=\"0 0 48 48\" fill=\"none\"><path d=\"M12 5h16l8 8v30H12z\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><path d=\"M28 5v10h8\" stroke=\"#8b5cf6\" stroke-width=\"2\"/><path d=\"M17 24h14M17 30h14M17 36h9\" stroke=\"#8b5cf6\" stroke-width=\"2\"/></svg>";
     private static final String CLIPBOARD_ICON = "<svg viewBox=\"0 0 48 48\" fill=\"none\"><rect x=\"11\" y=\"9\" width=\"26\" height=\"34\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><rect x=\"17\" y=\"4\" width=\"14\" height=\"9\" fill=\"#8b5cf6\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><path d=\"M17 23h14M17 30h14M17 37h9\" stroke=\"#8b5cf6\" stroke-width=\"2\"/></svg>";
+    private static final String BLANK_TEMPLATE_ICON = "<svg viewBox=\"0 0 48 48\" fill=\"none\"><path d=\"M12 5h16l8 8v30H12z\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><path d=\"M28 5v10h8\" stroke=\"#8b5cf6\" stroke-width=\"2\"/><path d=\"M17 24h14M17 30h14\" stroke=\"#8b5cf6\" stroke-width=\"2\"/><path d=\"M20 37h8\" stroke=\"#8b5cf6\" stroke-width=\"2\"/></svg>";
+    private final ResourceMetaDialog templateMetaDialog = new ResourceMetaDialog();
     private String importedContent = "";
     private Element pathInput;
     private Element localFileInput;
     private Element localCard;
     private Element clipboardCard;
+    private Element blankTemplateCard;
     private Element submitButton;
     private DialogWindow dialog;
 
@@ -28,12 +31,14 @@ public final class ResourceCreateDialog {
     }
 
     public void close() {
+        templateMetaDialog.close();
         if (dialog != null) dialog.close();
         dialog = null;
         pathInput = null;
         localFileInput = null;
         localCard = null;
         clipboardCard = null;
+        blankTemplateCard = null;
         submitButton = null;
         importedContent = "";
     }
@@ -63,7 +68,9 @@ public final class ResourceCreateDialog {
         localCard.addEventListener("click", event -> localFileInput.click());
         clipboardCard = importCard(document, "CLIPBOARD", "IMPORT HTML TEXT", CLIPBOARD_ICON, "resource-import-clipboard");
         clipboardCard.addEventListener("click", event -> importClipboard(document));
-        importGrid.append(localCard); importGrid.append(clipboardCard); root.append(importGrid); root.append(localFileInput);
+        blankTemplateCard = importCard(document, "BLANK TEMPLATE", "CONFIGURE META", BLANK_TEMPLATE_ICON, "resource-import-template");
+        blankTemplateCard.addEventListener("click", event -> openBlankTemplate(document));
+        importGrid.append(localCard); importGrid.append(clipboardCard); importGrid.append(blankTemplateCard); root.append(importGrid); root.append(localFileInput);
         Element submitRow = element(document, "DIV", "dialog-footer");
         submitButton = element(document, "BUTTON", "dialog-btn dialog-btn-confirm");
         submitButton.append(text(document, "SPAN", "CREATE", "dialog-btn-label"));
@@ -101,6 +108,24 @@ public final class ResourceCreateDialog {
         importedContent = content;
         updateCard(clipboardCard, "CLIPBOARD READY", ResourcePath.formatSize(content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length));
         refreshSubmit(document);
+    }
+
+    private void openBlankTemplate(Document document) {
+        templateMetaDialog.openTemplate(document, metaMarkup -> {
+            importedContent = blankHtml(metaMarkup);
+            updateCard(blankTemplateCard, "BLANK TEMPLATE READY", "BROWSER META");
+            refreshSubmit(document);
+        });
+    }
+
+    private static String blankHtml(String metaMarkup) {
+        String meta = metaMarkup == null ? "" : metaMarkup.trim();
+        StringBuilder html = new StringBuilder("<!DOCTYPE html>\n<html>\n<head>");
+        if (!meta.isBlank()) {
+            for (String line : meta.split("\\R")) html.append("\n    ").append(line);
+            html.append('\n');
+        }
+        return html.append("</head>\n<body></body>\n</html>\n").toString();
     }
 
     private void submit(Runnable afterCreate) {

@@ -4,6 +4,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.instance.element.Translation;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -183,6 +184,10 @@ public final class NormalFlow {
 
     private static void layoutInlineContent(Element element, FlowState state) {
         if (element == null) return;
+        if (element instanceof Translation translation) {
+            placeInlineText(element, translation.getTranslatedText(), state);
+            return;
+        }
         if (element.getRenderChildNodes().isEmpty()) {
             placeInlineText(element, element.innerText, state);
             return;

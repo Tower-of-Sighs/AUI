@@ -507,6 +507,7 @@ public record Size(double width, double height) {
         if (unsetHeight && !insetResolvedHeight && !flexMainHeightAssigned && !flexCrossHeightStretched
                 && !parentAssignsColumnMainSize
                 && !isNaturalMeasurementContext()
+                && !(element instanceof AbstractText)
                 && Layout.isFlexDisplay(style.display)) {
             Flex ownFlex = Flex.of(element);
             if (ownFlex.flexDirection.isRow() && !ownFlex.flexWrap.canWrap()) {
