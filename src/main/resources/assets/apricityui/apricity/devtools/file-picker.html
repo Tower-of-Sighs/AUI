@@ -1,0 +1,34 @@
+<head>
+  <meta name="aui-viewport" content="mode=browser">
+  <meta name="aui-font-mode" content="web">
+</head>
+<body></body>
+<style>
+  html, body { width:100%; height:100%; margin:0; font-family:default; }
+  .aui-file-picker-overlay { position:fixed; inset:0; z-index:9000; display:flex; align-items:center; justify-content:center; padding:24px; background:rgba(0,0,0,.48); }
+  .aui-file-picker { width:min(900px,100%); height:min(600px,100%); display:flex; flex-direction:column; background:#fafafa; color:#1a1a1a; border:3px solid #1a1a1a; box-shadow:8px 8px 0 #1a1a1a; }
+  .aui-file-picker-heading, .aui-file-picker-toolbar, .aui-file-picker-footer { display:flex; align-items:center; gap:10px; padding:12px 16px; border-bottom:2px solid #1a1a1a; }
+  .aui-file-picker-title { flex:1; font-size:16px; font-weight:700; letter-spacing:1px; }
+  .aui-file-picker-cancel, .aui-file-picker-create, .aui-file-picker-select, .aui-file-picker-create-submit { border:2px solid #1a1a1a; background:#fff; color:#1a1a1a; padding:7px 10px; font:inherit; font-size:12px; font-weight:700; cursor:pointer; }
+  .aui-file-picker-select, .aui-file-picker-create-submit { background:#8b5cf6; color:#fff; }
+  .aui-file-picker-cancel:hover, .aui-file-picker-create:hover, .aui-file-picker-select:hover, .aui-file-picker-create-submit:hover { background:#6d28d9; color:#fff; }
+  .aui-file-picker-select:disabled { opacity:.45; cursor:not-allowed; }
+  .aui-file-picker-body { display:flex; flex:1; min-height:0; }
+  .aui-file-picker-paths { flex:0 0 250px; min-width:180px; overflow:auto; background:#fff; border-right:2px solid #1a1a1a; padding:10px 0; }
+  .aui-file-picker-section-label { padding:0 12px 8px; color:#6d28d9; font-size:11px; font-weight:700; letter-spacing:1px; }
+  .aui-file-picker-path { display:block; width:100%; min-height:30px; border:0; border-left:4px solid transparent; background:transparent; color:#1a1a1a; text-align:left; font:inherit; font-size:12px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .aui-file-picker-path:hover, .aui-file-picker-path.active { background:#eee8ff; border-left-color:#8b5cf6; }
+  .aui-file-picker-details { display:flex; flex:1; min-width:0; min-height:0; flex-direction:column; }
+  .aui-file-picker-toolbar { flex:0 0 auto; }
+  .aui-file-picker-current-path { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; }
+  .aui-file-picker-list { flex:1; min-height:0; overflow:auto; padding:10px; display:flex; flex-direction:column; gap:4px; }
+  .aui-file-picker-folder, .aui-file-picker-file { display:flex; align-items:center; gap:12px; width:100%; min-height:36px; border:1px solid #d5d5d5; background:#fff; color:#1a1a1a; text-align:left; padding:6px 10px; font:inherit; cursor:pointer; }
+  .aui-file-picker-folder:hover, .aui-file-picker-file:hover, .aui-file-picker-file.active { border-color:#8b5cf6; background:#eee8ff; }
+  .aui-file-picker-file-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .aui-file-picker-file-source { color:#6d28d9; font-size:10px; font-weight:700; }
+  .aui-file-picker-empty { color:#777; padding:18px 10px; font-size:12px; }
+  .aui-file-picker-footer { flex:0 0 auto; border-top:2px solid #1a1a1a; border-bottom:0; }
+  .aui-file-picker-selection { flex:1; min-width:0; color:#777; font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .aui-file-picker-create-form { display:flex; gap:8px; padding:10px; border-bottom:1px solid #d5d5d5; }
+  .aui-file-picker-create-input { flex:1; min-width:0; border:2px solid #1a1a1a; padding:7px 8px; font:inherit; }
+</style>

@@ -1,6 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.instance.element.Translation;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
@@ -405,6 +406,7 @@ public class Text {
 
     private static String resolveElementTextContent(Element element) {
         if (element == null) return "";
+        if (element instanceof Translation translation) return translation.getTranslatedText();
         if (element.childNodes.isEmpty()) return element.innerText == null ? "" : element.innerText;
         StringBuilder builder = new StringBuilder();
         for (com.sighs.apricityui.init.Node child : element.childNodes) {
@@ -850,8 +852,18 @@ public class Text {
 
     private static boolean isPreferredBreakChar(String whiteSpace, char c) {
         String value = whiteSpace == null ? "normal" : whiteSpace;
-        if ("normal".equals(value) || "pre-line".equals(value)) return c == ' ';
-        return c == ' ' || c == '\t';
+        boolean collapsesSpaces = "normal".equals(value) || "pre-line".equals(value);
+        boolean whitespaceBreak = collapsesSpaces ? c == ' ' : c == ' ' || c == '\t';
+        // CSS normal line breaking permits a break after a visible hyphen.  Keep
+        // the character on the preceding line; unlike a collapsed space it is
+        // part of the rendered text.  Without this, a hyphenated filename falls
+        // through to the character-by-character emergency-break path.
+        return whitespaceBreak || isHyphenBreakOpportunity(c);
+    }
+
+    private static boolean isHyphenBreakOpportunity(char c) {
+        // U+2011 is a non-breaking hyphen and must deliberately stay excluded.
+        return c == '-' || c == '\u2010';
     }
 
     private static boolean consumesBreakChar(String whiteSpace, char c) {

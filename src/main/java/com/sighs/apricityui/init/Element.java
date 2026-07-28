@@ -150,6 +150,9 @@ public class Element extends Node {
             return cached.getCustomProperty(name);
         }
 
+        // Variable lookup may reach an ancestor before that ancestor is rendered.
+        // Build its selector cache here so inheritance is independent of render order.
+        ensureCssCacheReady();
         Style rawStyle = new Style();
         cssCache.forEach(rawStyle::update);
         rawStyle.merge(getAttribute("style"));

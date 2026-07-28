@@ -46,6 +46,15 @@ public final class ToastManager {
     }
 
     public static String show(String message, ToastOptions options) {
+        return show(message, null, options);
+    }
+
+    /** Shows a message that remains a live translation DOM node. */
+    public static String showTranslation(String translationKey) {
+        return show(null, translationKey, ToastOptions.defaults());
+    }
+
+    private static String show(String message, String translationKey, ToastOptions options) {
         String content = (message == null || message.isBlank()) ? " " : message.trim();
         ToastOptions safe = options == null ? ToastOptions.defaults() : options.normalize();
         Overlay overlay = ensureOverlay();
@@ -61,7 +70,10 @@ public final class ToastManager {
         Element contentBox = Element.init(overlay.document().createElement("div"));
         contentBox.setAttribute("style", CONTENT_STYLE);
         contentBox.append(createPart(overlay.document(), "span", "AUI // NOTICE", LABEL_STYLE));
-        contentBox.append(createPart(overlay.document(), "span", content, MESSAGE_STYLE));
+        Element messagePart = translationKey == null || translationKey.isBlank()
+                ? createPart(overlay.document(), "span", content, MESSAGE_STYLE)
+                : createTranslationMessagePart(overlay.document(), translationKey);
+        contentBox.append(messagePart);
         item.append(contentBox);
         if (safe.dismissOnClick()) {
             Element close = createPart(overlay.document(), "span", "x", CLOSE_STYLE);
@@ -183,6 +195,14 @@ public final class ToastManager {
         element.innerText = text;
         element.setAttribute("style", style);
         return element;
+    }
+
+    static Element createTranslationMessagePart(Document document, String translationKey) {
+        Element messagePart = createPart(document, "span", " ", MESSAGE_STYLE);
+        Element translation = Element.init(document.createElement("TRANSLATION"));
+        translation.setTextContent(translationKey == null ? "" : translationKey);
+        messagePart.appendChild(translation);
+        return messagePart;
     }
 
     private static void markDirty(Document document) {

@@ -22,6 +22,7 @@ import java.awt.Canvas;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Duration;
+import java.util.List;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -142,6 +143,21 @@ class LayoutPositionTest {
         double displayWidth = Text.measureLine(text, "MMMMMMMMMMMM");
 
         assertNotEquals(regularWidth, displayWidth, 0.01);
+    }
+
+    @Test
+    void normalWhiteSpaceBreaksAfterVisibleHyphensBeforeEmergencyCharacterBreaking() {
+        Text text = new Text();
+        text.fontMode = Document.FontMode.WEB;
+        text.fontFamily = "sans-serif";
+        text.fontSize = 20;
+        text.whiteSpace = "normal";
+        text.content = "alpha-beta";
+
+        double wrapWidth = Text.measureLine(text, "alpha-") + 0.1;
+        Text.WrappedText wrapped = Text.wrap(text, wrapWidth);
+
+        assertEquals(List.of("alpha-", "beta"), wrapped.lines());
     }
 
     @Test

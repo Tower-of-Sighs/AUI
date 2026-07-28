@@ -119,6 +119,7 @@ public final class ResourceMetaDialog {
         field.append(text("LABEL", label, "dialog-label"));
         Element selectWrap = element("DIV", "dialog-select-wrap");
         Element select = element("SELECT", "dialog-select resource-meta-select");
+        select.setAttribute("data-native-arrow", "false");
         select.setAttribute("data-tooltip-key", tooltipKey);
         Tooltip.bindTranslation(select, tooltipKey);
         List<Choice> available = new ArrayList<>(choices);
