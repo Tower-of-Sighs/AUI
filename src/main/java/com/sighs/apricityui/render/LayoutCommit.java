@@ -32,6 +32,9 @@ public final class LayoutCommit {
                 if (target == null || target.document != document || !visited.add(target)) continue;
                 commitElement(target);
             }
+            for (Element element : visited) {
+                if (element.mayRenderScrollbar()) element.commitScrollMetricsFromLayout();
+            }
         } finally {
             LayoutMeasureCache.end();
             TransformFrameCache.enableCommittedFallback();

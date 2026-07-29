@@ -7,7 +7,7 @@ import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.ui.tooltip.Tooltip;
+import com.sighs.apricityui.ui.Tooltip;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;

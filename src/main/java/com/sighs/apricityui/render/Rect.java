@@ -201,8 +201,25 @@ public class Rect {
         if (layer == null || layer.gradient == null) return;
         ImageDrawer.GradientTile tile = ImageDrawer.resolveGradientTile(layer, (float) s.width(), (float) s.height());
         if (!tile.repeats()) {
-            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) p.x + tile.x(), (float) p.y + tile.y(),
-                    tile.width(), tile.height(), radii, layer.gradient.scaledTo(tile.width(), tile.height()));
+            float x = (float) p.x + tile.x();
+            float y = (float) p.y + tile.y();
+            Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
+            if (!Graph.requiresStopGeometry(scaled)) {
+                Graph.drawUnifiedRoundedRect(poseStack.last().pose(), x, y, tile.width(), tile.height(), radii, scaled);
+                return;
+            }
+
+            // Complex stop geometry is emitted as clipped triangles.  Reuse the
+            // normal background mask so hard stops remain correct at rounded corners.
+            Graph.endBatch();
+            Mask.pushMask(poseStack, x, y, tile.width(), tile.height(), radii);
+            if (layered) Graph.beginLayeredBatch();
+            else Graph.beginBatch();
+            Graph.drawGradientRect(poseStack.last().pose(), x, y, tile.width(), tile.height(), scaled);
+            Graph.endBatch();
+            Mask.popMask(poseStack, x, y, tile.width(), tile.height(), radii);
+            if (layered) Graph.beginLayeredBatch();
+            else Graph.beginBatch();
             return;
         }
 

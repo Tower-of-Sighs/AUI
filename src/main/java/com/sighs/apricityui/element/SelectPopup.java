@@ -6,7 +6,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.init.Style;
-import com.sighs.apricityui.ui.tooltip.Tooltip;
+import com.sighs.apricityui.ui.Tooltip;
 
 import java.util.ArrayList;
 import java.util.List;

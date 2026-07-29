@@ -9,6 +9,9 @@ import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Gradient;
 import org.joml.Matrix4f;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Graph {
     private static final int SEGMENTS = 12;
     private static final int TOTAL_STEPS = SEGMENTS * 4;
@@ -155,43 +158,24 @@ public class Graph {
         drawUnifiedRoundedRect(mat, x, y, w, h, radii, (px, py) -> gradient.getColorAt(px, py, x, y, w, h));
     }
 
-    public static void drawSampledGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient, float step) {
+    public static void drawGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
         if (gradient == null || w <= 0 || h <= 0) return;
-        float cell = Math.max(0.5f, step);
-        ColorResolver colorRes = (px, py) -> gradient.getColorAt(px, py, x, y, w, h);
         if (batchActive) {
             BufferBuilder buf = Base.getBuffer();
-            addSampledGradientRectVertices(buf, mat, x, y, w, h, cell, colorRes);
+            addLinearGradientVertices(buf, mat, x, y, w, h, gradient);
             return;
         }
         BufferBuilder buf = Base.getBuffer();
         Base.beginRendering();
         prepare(buf);
-        addSampledGradientRectVertices(buf, mat, x, y, w, h, cell, colorRes);
+        addLinearGradientVertices(buf, mat, x, y, w, h, gradient);
         BufferUploader.drawWithShader(buf.end());
         Base.finishRendering();
     }
 
-    public static void drawGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
-        if (gradient == null || w <= 0 || h <= 0) return;
-        // A four-vertex quad interpolates across CSS hard stops. Sample those
-        // gradients so diagonal transparent stops remain sharp.
-        if (gradient.hasHardStops()) {
-            drawSampledGradientRect(mat, x, y, w, h, gradient, 0.5f);
-            return;
-        }
-        ColorResolver colorRes = (px, py) -> gradient.getColorAt(px, py, x, y, w, h);
-        if (batchActive) {
-            BufferBuilder buf = Base.getBuffer();
-            addRect(buf, mat, x, y, x + w, y + h, colorRes);
-            return;
-        }
-        BufferBuilder buf = Base.getBuffer();
-        Base.beginRendering();
-        prepare(buf);
-        addRect(buf, mat, x, y, x + w, y + h, colorRes);
-        BufferUploader.drawWithShader(buf.end());
-        Base.finishRendering();
+    /** A single continuous interval can be represented by a rounded quad. */
+    public static boolean requiresStopGeometry(Gradient gradient) {
+        return gradient != null && (gradient.hasHardStops() || gradient.stops().size() > 2);
     }
 
     public static boolean drawAxisAlignedHardStopGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
@@ -317,18 +301,112 @@ public class Graph {
         return Math.max(0f, Math.min(1f, value));
     }
 
-    private static void addSampledGradientRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
-                                                       float step, ColorResolver colorRes) {
-        float maxX = x + w;
-        float maxY = y + h;
-        for (float yy = y; yy < maxY - 0.001f; yy += step) {
-            float y1 = Math.min(maxY, yy + step);
-            for (float xx = x; xx < maxX - 0.001f; xx += step) {
-                float x1 = Math.min(maxX, xx + step);
-                int color = colorRes.resolve((xx + x1) * 0.5f, (yy + y1) * 0.5f);
-                addRect(buf, mat, xx, yy, x1, y1, color);
-            }
+    /**
+     * Emits one clipped polygon for every CSS color-stop interval.  The old
+     * implementation sampled hard stops in 0.5px cells, making vertex count
+     * proportional to pixel area.  A linear gradient is affine, so clipping
+     * the rectangle against each stop interval preserves the same result with
+     * O(number of stops) vertices, including diagonal and hard-stop gradients.
+     */
+    private static void addLinearGradientVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+                                                  Gradient gradient) {
+        List<Gradient.Stop> stops = gradient.stops();
+        if (stops.isEmpty()) return;
+        if (stops.size() == 1) {
+            addRect(buf, mat, x, y, x + w, y + h, stops.get(0).color);
+            return;
         }
+
+        GradientVertex[] rectangle = gradientRectangle(x, y, w, h, gradient.angle());
+        Gradient.Stop first = stops.get(0);
+        float firstPosition = clamp01(first.position);
+        addGradientBand(buf, mat, rectangle, 0f, firstPosition, first.color, first.color);
+
+        for (int i = 0; i < stops.size() - 1; i++) {
+            Gradient.Stop start = stops.get(i);
+            Gradient.Stop end = stops.get(i + 1);
+            addGradientBand(buf, mat, rectangle, clamp01(start.position), clamp01(end.position), start.color, end.color);
+        }
+
+        Gradient.Stop last = stops.get(stops.size() - 1);
+        addGradientBand(buf, mat, rectangle, clamp01(last.position), 1f, last.color, last.color);
+    }
+
+    private static GradientVertex[] gradientRectangle(float x, float y, float w, float h, float angle) {
+        double radians = Math.toRadians(90f - angle);
+        float cos = (float) Math.cos(radians);
+        float sin = (float) Math.sin(radians);
+        float centerX = x + w * 0.5f;
+        float centerY = y + h * 0.5f;
+        float maxDistance = Math.abs(w * 0.5f * cos) + Math.abs(h * 0.5f * sin);
+        if (maxDistance <= 0.0001f) maxDistance = 1f;
+        return new GradientVertex[]{
+                gradientVertex(x, y, centerX, centerY, cos, sin, maxDistance),
+                gradientVertex(x, y + h, centerX, centerY, cos, sin, maxDistance),
+                gradientVertex(x + w, y + h, centerX, centerY, cos, sin, maxDistance),
+                gradientVertex(x + w, y, centerX, centerY, cos, sin, maxDistance)
+        };
+    }
+
+    private static GradientVertex gradientVertex(float x, float y, float centerX, float centerY,
+                                                 float cos, float sin, float maxDistance) {
+        float projection = (x - centerX) * cos + (y - centerY) * -sin;
+        float t = 0.5f + projection / (maxDistance * 2f);
+        return new GradientVertex(x, y, clamp01(t));
+    }
+
+    private static void addGradientBand(BufferBuilder buf, Matrix4f mat, GradientVertex[] rectangle,
+                                        float from, float to, int fromColor, int toColor) {
+        if (to - from <= 0.0001f) return;
+        List<GradientVertex> polygon = new ArrayList<>(6);
+        for (GradientVertex vertex : rectangle) polygon.add(vertex);
+        polygon = clipGradientPolygon(polygon, from, true);
+        polygon = clipGradientPolygon(polygon, to, false);
+        if (polygon.size() < 3) return;
+
+        GradientVertex anchor = polygon.get(0);
+        for (int i = 1; i < polygon.size() - 1; i++) {
+            addGradientTriangle(buf, mat, anchor, polygon.get(i), polygon.get(i + 1), from, to, fromColor, toColor);
+        }
+    }
+
+    private static List<GradientVertex> clipGradientPolygon(List<GradientVertex> source, float boundary, boolean keepAbove) {
+        if (source.isEmpty()) return source;
+        List<GradientVertex> clipped = new ArrayList<>(source.size() + 1);
+        GradientVertex previous = source.get(source.size() - 1);
+        boolean previousInside = keepAbove ? previous.t >= boundary : previous.t <= boundary;
+        for (GradientVertex current : source) {
+            boolean currentInside = keepAbove ? current.t >= boundary : current.t <= boundary;
+            if (currentInside != previousInside) {
+                float delta = current.t - previous.t;
+                float ratio = Math.abs(delta) <= 0.000001f ? 0f : (boundary - previous.t) / delta;
+                clipped.add(new GradientVertex(
+                        previous.x + (current.x - previous.x) * ratio,
+                        previous.y + (current.y - previous.y) * ratio,
+                        boundary
+                ));
+            }
+            if (currentInside) clipped.add(current);
+            previous = current;
+            previousInside = currentInside;
+        }
+        return clipped;
+    }
+
+    private static void addGradientTriangle(BufferBuilder buf, Matrix4f mat,
+                                            GradientVertex a, GradientVertex b, GradientVertex c,
+                                            float from, float to, int fromColor, int toColor) {
+        vtx(buf, mat, a.x, a.y, gradientBandColor(a.t, from, to, fromColor, toColor));
+        vtx(buf, mat, b.x, b.y, gradientBandColor(b.t, from, to, fromColor, toColor));
+        vtx(buf, mat, c.x, c.y, gradientBandColor(c.t, from, to, fromColor, toColor));
+    }
+
+    private static int gradientBandColor(float t, float from, float to, int fromColor, int toColor) {
+        if (fromColor == toColor) return fromColor;
+        return lerpColor(fromColor, toColor, clamp01((t - from) / Math.max(0.000001f, to - from)));
+    }
+
+    private record GradientVertex(float x, float y, float t) {
     }
 
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {

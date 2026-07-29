@@ -19,10 +19,10 @@ import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Position;
 import com.sighs.apricityui.style.Size;
 import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.ui.tooltip.Tooltip;
-import com.sighs.apricityui.ui.menu.ContextMenu;
-import com.sighs.apricityui.ui.dialog.DialogWindow;
-import com.sighs.apricityui.ui.file.FilePicker;
+import com.sighs.apricityui.ui.Tooltip;
+import com.sighs.apricityui.ui.ContextMenu;
+import com.sighs.apricityui.ui.DialogWindow;
+import com.sighs.apricityui.ui.FilePicker;
 import com.sighs.apricityui.editor.ore.OreEditor;
 import net.minecraft.client.Minecraft;
 

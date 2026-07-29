@@ -1,4 +1,4 @@
-package com.sighs.apricityui.ui.file;
+package com.sighs.apricityui.ui;
 
 import com.sighs.apricityui.dev.resource.ResourceFileWriter;
 import com.sighs.apricityui.dev.resource.ResourcePath;
@@ -7,7 +7,6 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.ui.tooltip.Tooltip;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

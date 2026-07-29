@@ -1,19 +1,18 @@
 package com.sighs.apricityui.dev.resource;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.ui.toast.ToastManager;
+import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.ui.dialog.DialogWindow;
+import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Position;
 
 /** Owns the resource-browser preview window and renders its document into its content viewport. */
 public final class ResourcePreviewDialog {

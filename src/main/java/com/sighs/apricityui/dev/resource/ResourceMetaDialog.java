@@ -3,9 +3,9 @@ package com.sighs.apricityui.dev.resource;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.ui.dialog.DialogWindow;
-import com.sighs.apricityui.ui.toast.ToastManager;
-import com.sighs.apricityui.ui.tooltip.Tooltip;
+import com.sighs.apricityui.ui.DialogWindow;
+import com.sighs.apricityui.ui.ToastManager;
+import com.sighs.apricityui.ui.Tooltip;
 
 import java.nio.file.Path;
 import java.util.ArrayList;

@@ -3,7 +3,7 @@ package com.sighs.apricityui.instance;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.debug.ExternalDebugServer;
-import com.sighs.apricityui.ui.toast.ToastManager;
+import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.FrameTaskScheduler;

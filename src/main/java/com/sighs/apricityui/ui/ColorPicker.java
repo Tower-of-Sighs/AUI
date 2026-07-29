@@ -1,4 +1,4 @@
-package com.sighs.apricityui.ui.color;
+package com.sighs.apricityui.ui;
 
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
@@ -6,8 +6,6 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Operation;
-import com.sighs.apricityui.ui.tooltip.Tooltip;
-import com.sighs.apricityui.ui.toast.ToastManager;
 
 import java.util.ArrayList;
 import java.util.Locale;

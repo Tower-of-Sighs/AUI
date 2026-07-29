@@ -5,8 +5,8 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.ui.dialog.DialogWindow;
-import com.sighs.apricityui.ui.toast.ToastManager;
+import com.sighs.apricityui.ui.DialogWindow;
+import com.sighs.apricityui.ui.ToastManager;
 
 import java.util.List;
 import java.util.Locale;

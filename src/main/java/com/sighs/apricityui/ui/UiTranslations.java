@@ -1,4 +1,4 @@
-package com.sighs.apricityui.ui.translation;
+package com.sighs.apricityui.ui;
 
 import java.io.IOException;
 import java.io.InputStream;
