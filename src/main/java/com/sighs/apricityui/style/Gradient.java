@@ -25,6 +25,14 @@ public class Gradient {
         return repeating;
     }
 
+    /** Consecutive equal stop positions are CSS hard color stops. */
+    public boolean hasHardStops() {
+        for (int i = 1; i < stops.size(); i++) {
+            if (Math.abs(stops.get(i).position - stops.get(i - 1).position) < 0.0001f) return true;
+        }
+        return false;
+    }
+
     public float repeatLengthPx() {
         if (!repeating) return 0;
         float max = 0;

@@ -157,7 +157,9 @@ public class Rect {
     public void drawBody(PoseStack poseStack, Size s) {
         Position p = getBodyRectPosition();
         float[] radii = getBodyRadius();
-        Graph.beginBatch();
+        boolean layeredBackground = background.getLayers().size() > 1;
+        if (layeredBackground) Graph.beginLayeredBatch();
+        else Graph.beginBatch();
         if (!background.color.equals("unset")) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii, new Color(background.color).getValue());
         }
@@ -167,12 +169,13 @@ public class Rect {
                 Background.Layer layer = background.getLayers().get(i);
                 if (layer == null) continue;
                 if (layer.gradient != null) {
-                    drawGradientLayer(poseStack, p, s, radii, layer);
+                    drawGradientLayer(poseStack, p, s, radii, layer, layeredBackground);
                 }
                 if (!"unset".equals(layer.imagePath)) {
                     Graph.endBatch();
                     ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), layer, element);
-                    Graph.beginBatch();
+                    if (layeredBackground) Graph.beginLayeredBatch();
+                    else Graph.beginBatch();
                 }
             }
             return;
@@ -185,7 +188,7 @@ public class Rect {
             legacyLayer.repeat = background.repeat;
             legacyLayer.size = background.size;
             legacyLayer.position = background.position;
-            drawGradientLayer(poseStack, p, s, radii, legacyLayer);
+            drawGradientLayer(poseStack, p, s, radii, legacyLayer, false);
         }
         if (!background.imagePath.equals("unset")) {
             Graph.endBatch();
@@ -194,7 +197,7 @@ public class Rect {
         }
     }
 
-    private void drawGradientLayer(PoseStack poseStack, Position p, Size s, float[] radii, Background.Layer layer) {
+    private void drawGradientLayer(PoseStack poseStack, Position p, Size s, float[] radii, Background.Layer layer, boolean layered) {
         if (layer == null || layer.gradient == null) return;
         ImageDrawer.GradientTile tile = ImageDrawer.resolveGradientTile(layer, (float) s.width(), (float) s.height());
         if (!tile.repeats()) {
@@ -205,7 +208,8 @@ public class Rect {
 
         Graph.endBatch();
         Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
-        Graph.beginBatch();
+        if (layered) Graph.beginLayeredBatch();
+        else Graph.beginBatch();
         Gradient scaled = layer.gradient.scaledTo(tile.width(), tile.height());
         for (float ix = tile.startX(); ix < tile.endX(); ix += tile.width()) {
             for (float iy = tile.startY(); iy < tile.endY(); iy += tile.height()) {
@@ -223,7 +227,8 @@ public class Rect {
         }
         Graph.endBatch();
         Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii);
-        Graph.beginBatch();
+        if (layered) Graph.beginLayeredBatch();
+        else Graph.beginBatch();
     }
 
     public Position getShadowPosition() {

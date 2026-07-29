@@ -762,6 +762,14 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void singleAxisTranslatePercentagesUseTheirOwnAxis() {
+        List<Transform> transforms = Transform.parse("translateX(-50%) translateY(-50%)", 120, 20);
+
+        assertEquals(-60, ((Transform.Translate) transforms.get(0)).x(), 0.001);
+        assertEquals(-10, ((Transform.Translate) transforms.get(1)).y(), 0.001);
+    }
+
+    @Test
     void resolveLengthSupportsMinMaxAndClampFunctions() {
         assertEquals(900.0, com.sighs.apricityui.style.Size.resolveLength("min(900px, 100%)", 1600, 0));
         assertEquals(1600.0, com.sighs.apricityui.style.Size.resolveLength("max(900px, 100%)", 1600, 0));

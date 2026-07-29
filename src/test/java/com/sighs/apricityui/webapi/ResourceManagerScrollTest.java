@@ -184,7 +184,7 @@ class ResourceManagerScrollTest {
             assertNotNull(document.querySelector(".dialog-overlay.show"));
             assertNotNull(document.querySelector(".dialog-input"));
             assertNotNull(document.querySelector(".resource-create-file-input"));
-            assertEquals(2, document.querySelectorAll(".resource-import-card").size());
+            assertEquals(3, document.querySelectorAll(".resource-import-card").size());
             assertNotNull(document.querySelector(".dialog-btn-confirm"));
         } finally {
             ResourceManager.close();

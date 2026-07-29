@@ -1236,6 +1236,20 @@ public class Element extends Node {
         getRenderer().wrappedText.clear();
         getRenderer().size.clear();
         if (document != null && !Objects.equals(oldValue, normalized)) {
+            // Text contributes intrinsic size. Its ancestors and following siblings
+            // therefore need the same layout invalidation as a normal-flow resize.
+            getRenderer().invalidateLayoutSubtree();
+            LayoutMeasureCache.invalidateSubtree(this);
+            forEachRoute(element -> {
+                RenderElement renderer = element.getRenderer();
+                renderer.invalidateLayoutVersion();
+                renderer.size.clear();
+                renderer.box.clear();
+            });
+            if (parentElement != null) {
+                parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
+            }
+            document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }
     }

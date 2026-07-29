@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.style.Box;
 import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.ui.color.ColorPicker;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -221,6 +222,8 @@ final class DevToolsInspector {
         if (isColorValue(value)) {
             Element swatch = DevToolsDom.element(tool, "SPAN", "style-color-swatch");
             swatch.setAttribute("style", "background:" + value + ";");
+            swatch.addEventListener("click", event -> ColorPicker.pickIn(tool, swatch, DevToolsDom.value(editor))
+                    .thenAccept(selected -> selected.ifPresent(next -> controller.updateStyle(target, property, next))));
             row.append(swatch);
         }
         row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
@@ -306,6 +309,8 @@ final class DevToolsInspector {
         if (isColorValue(declaration.value())) {
             Element swatch = DevToolsDom.element(tool, "SPAN", "style-color-swatch");
             swatch.setAttribute("style", "background:" + declaration.value() + ";");
+            swatch.addEventListener("click", event -> ColorPicker.pickIn(tool, swatch, DevToolsDom.value(value))
+                    .thenAccept(selected -> selected.ifPresent(next -> controller.updateStylesheetStyle(target, ruleOrder, property, next))));
             row.append(swatch);
         }
         row.append(DevToolsDom.text(tool, "SPAN", "style-semicolon", ";"));
