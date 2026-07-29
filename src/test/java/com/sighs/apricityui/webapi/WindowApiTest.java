@@ -1,7 +1,7 @@
 package com.sighs.apricityui.webapi;
 
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.LocalStorage;

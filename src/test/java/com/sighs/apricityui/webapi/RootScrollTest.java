@@ -5,7 +5,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.resource.HTML;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;

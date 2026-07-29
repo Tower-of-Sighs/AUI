@@ -1,4 +1,6 @@
-package com.sighs.apricityui.style;
+package com.sighs.apricityui.layout;
+
+import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.AbstractText;
@@ -292,7 +294,7 @@ public record Size(double width, double height) {
         return false;
     }
 
-    static Double getNaturalContentWidthConstraint(Element element) {
+    public static Double getNaturalContentWidthConstraint(Element element) {
         if (element == null) return null;
         return NATURAL_CONTENT_WIDTHS.get().get(element);
     }

@@ -123,7 +123,7 @@ public class Container extends MinecraftElement {
     public int resolveSlotSizePx(int fallback) {
         int safeFallback = Math.max(1, fallback);
         String rawSlotSize = getAttribute("slot-size");
-        int parsedSize = com.sighs.apricityui.style.Size.parse(rawSlotSize);
+        int parsedSize = com.sighs.apricityui.layout.Size.parse(rawSlotSize);
         return parsedSize > 0 ? parsedSize : safeFallback;
     }
 

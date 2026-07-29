@@ -6,8 +6,8 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.FrameTaskScheduler;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 
 import java.util.List;
 import java.util.Locale;

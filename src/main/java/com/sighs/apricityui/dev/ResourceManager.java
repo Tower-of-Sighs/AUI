@@ -16,7 +16,7 @@ import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import net.minecraft.Util;
 
 import java.nio.file.Files;

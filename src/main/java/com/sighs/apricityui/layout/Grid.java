@@ -1,4 +1,6 @@
-package com.sighs.apricityui.style;
+package com.sighs.apricityui.layout;
+
+import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;

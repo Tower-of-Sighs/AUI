@@ -1,10 +1,10 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.element.Body;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.NormalFlow;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.NormalFlow;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.CommentNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.DocumentFragment;

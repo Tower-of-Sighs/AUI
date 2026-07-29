@@ -6,6 +6,8 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;

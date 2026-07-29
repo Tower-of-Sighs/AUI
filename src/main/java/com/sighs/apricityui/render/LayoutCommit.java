@@ -3,7 +3,7 @@ package com.sighs.apricityui.render;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.LayoutMeasureCache;
+import com.sighs.apricityui.layout.LayoutMeasureCache;
 import org.joml.Matrix4f;
 
 import java.util.Collections;

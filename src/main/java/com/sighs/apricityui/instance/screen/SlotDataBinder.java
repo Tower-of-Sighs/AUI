@@ -6,7 +6,7 @@ import com.sighs.apricityui.instance.ApricityContainerMenu;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.*;

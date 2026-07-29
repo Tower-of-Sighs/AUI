@@ -3,6 +3,9 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.*;
 
 public class Rect {

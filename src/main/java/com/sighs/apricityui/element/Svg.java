@@ -9,10 +9,10 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Color;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 
 import java.awt.BasicStroke;
 import java.awt.Graphics2D;

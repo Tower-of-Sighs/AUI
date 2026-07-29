@@ -10,7 +10,7 @@ import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.ui.Tooltip;
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.ui.UiTranslations;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.editor.ore.canvas.OreCanvasHitTester;
 import com.sighs.apricityui.editor.ore.canvas.OreCanvasRenderer;
 import com.sighs.apricityui.editor.ore.canvas.OreFlexInsertionResolver;

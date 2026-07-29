@@ -4,10 +4,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
 
 import java.util.List;
@@ -159,8 +159,8 @@ final class TextSelection {
         List<String> lines = owner.resolveRenderedLines(text, contentWidth, contentHeight);
         int[] starts = wrapped.starts();
         double textHeight = Math.max(text.lineHeight, lines.size() * text.lineHeight);
-        boolean flexLike = com.sighs.apricityui.style.Layout.isFlexDisplay(owner.getComputedStyle().display)
-                || com.sighs.apricityui.style.Layout.isGridDisplay(owner.getComputedStyle().display);
+        boolean flexLike = com.sighs.apricityui.layout.Layout.isFlexDisplay(owner.getComputedStyle().display)
+                || com.sighs.apricityui.layout.Layout.isGridDisplay(owner.getComputedStyle().display);
         Position flexTextOffset = flexLike ? owner.getFlexTextOffset() : Position.ZERO;
         double drawY = contentPos.y + (flexLike ? flexTextOffset.y : Element.computeVerticalOffset(text, contentHeight, textHeight));
         boolean drawSelectionText = lines.equals(wrapped.lines()) && canSelectInnerText() && hasInnerTextSelection();

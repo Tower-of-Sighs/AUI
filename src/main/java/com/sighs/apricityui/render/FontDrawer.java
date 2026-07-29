@@ -6,7 +6,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Color;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;

@@ -1,5 +1,8 @@
 package com.sighs.apricityui.element;
 
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;

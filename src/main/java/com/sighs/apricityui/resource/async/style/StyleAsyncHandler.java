@@ -8,7 +8,7 @@ import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;

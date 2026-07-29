@@ -23,121 +23,12 @@ public class ApricityJS {
 
     // 框架目前只给元素桥接了 textContent，页面脚本常用 innerText 来设置文本。
     // 在页面脚本执行前，动态装饰器上补一个 innerText 的 getter/setter。
-    private static final String INNER_TEXT_POLYFILL = """
-            (function() {
-              var orig = __auiDecorateNode;
-              function fmt(v) {
-                if (v == null) return '';
-                if (typeof v === 'string') {
-                  if (/^-?\\d+\\.0+$/.test(v)) return v.replace(/\\.0+$/, '');
-                  return v;
-                }
-                var n = Number(v);
-                if (!isNaN(n) && isFinite(n)) {
-                  if (Math.floor(n) === n) return String(Math.floor(n));
-                  return String(n);
-                }
-                var s = String(v);
-                if (/^-?\\d+\\.0+$/.test(s)) return s.replace(/\\.0+$/, '');
-                return s;
-              }
-              function bridge(el) {
-                if (!el || el.__auiTextContentSet || typeof el.getTextContent !== 'function') return;
-                try {
-                  Object.defineProperty(el, 'textContent', {
-                    get: function() { return el.getTextContent(); },
-                    set: function(v) { el.setTextContent(fmt(v)); },
-                    enumerable: true,
-                    configurable: true
-                  });
-                  Object.defineProperty(el, 'innerText', {
-                    get: function() { return el.getTextContent(); },
-                    set: function(v) { el.setTextContent(fmt(v)); },
-                    enumerable: true,
-                    configurable: true
-                  });
-                  el.__auiTextContentSet = true;
-                } catch (e) {}
-              }
-              __auiDecorateNode = function(el) {
-                el = orig(el);
-                bridge(el);
-                return el;
-              };
-              try {
-                var all = document.querySelectorAll('*');
-                for (var i = 0; i < all.length; i++) bridge(all[i]);
-              } catch (e) {}
-            })();
-            """;
-
-    private static final String PROMPT_POLYFILL = """
-            (function() {
-              var root = (typeof globalThis !== 'undefined') ? globalThis : this;
-              if (typeof root.window === 'undefined') root.window = root;
-              function syncWindowPrompt() {
-                try {
-                  if (root.window && typeof root.window.prompt !== 'function') root.window.prompt = root.prompt;
-                } catch (e) {}
-              }
-              if (typeof root.prompt === 'function') {
-                syncWindowPrompt();
-                return;
-              }
-              function fmt(v) {
-                if (v == null) return '';
-                return String(v);
-              }
-              function testPromptResponse() {
-                try {
-                  if (root.window && typeof root.window.getTestPromptResponse === 'function') {
-                    var windowValue = root.window.getTestPromptResponse();
-                    if (windowValue != null) return String(windowValue);
-                  }
-                  var SystemClass = null;
-                  if (typeof Java !== 'undefined' && Java.type) {
-                    SystemClass = Java.type('java.lang.System');
-                  } else if (typeof Packages !== 'undefined') {
-                    SystemClass = Packages.java.lang.System;
-                  }
-                  if (SystemClass) {
-                    var propertyValue = SystemClass.getProperty('apricityui.test.promptResponse');
-                    if (propertyValue != null) return String(propertyValue);
-                    var envValue = SystemClass.getenv('APRICITYUI_TEST_PROMPT_RESPONSE');
-                    if (envValue != null) return String(envValue);
-                  }
-                } catch (e) {}
-                return null;
-              }
-              root.prompt = function(message, defaultValue) {
-                var fallback = (typeof defaultValue === 'undefined') ? '' : fmt(defaultValue);
-                var testValue = testPromptResponse();
-                if (testValue != null) return testValue;
-                try {
-                  var JOptionPane = null;
-                  if (typeof Java !== 'undefined' && Java.type) {
-                    JOptionPane = Java.type('javax.swing.JOptionPane');
-                  } else if (typeof Packages !== 'undefined') {
-                    JOptionPane = Packages.javax.swing.JOptionPane;
-                  }
-                  if (JOptionPane) {
-                    var result = JOptionPane.showInputDialog(null, fmt(message), fallback);
-                    return result == null ? null : String(result);
-                  }
-                } catch (e) {}
-                return fallback;
-              };
-              syncWindowPrompt();
-            })();
-            """;
-
     public static void eval(String code) {
         eval(code, null);
     }
 
     public static void eval(String code, Event event) {
         if (!ModList.get().isLoaded("kubejs")) return;
-        code = INNER_TEXT_POLYFILL + "\n" + PROMPT_POLYFILL + "\n" + code;
         code = ARRAY_SPREAD_PATTERN.matcher(code).replaceAll("$1.slice()");
         code = rewriteDefaultParameters(code);
         code = Pattern.compile("\\.innerText\\b").matcher(code).replaceAll(".textContent");

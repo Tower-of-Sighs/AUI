@@ -9,7 +9,7 @@ import com.sighs.apricityui.instance.slot.SlotExpressionCompiler;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 

@@ -6,7 +6,7 @@ import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.JS;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 

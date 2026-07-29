@@ -15,8 +15,8 @@ import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.instance.ApricityViewport;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraft.client.Minecraft;
@@ -299,12 +299,12 @@ public class Document {
                 ImageAsyncHandler.prefetchImages(this);
                 enterInteractive();
 
+                String globalJS = Loader.readGlobalJS();
+                if (globalJS != null && !globalJS.isBlank()) {
+                    ApricityJS.eval(globalJS.replace("__AUI_DOCUMENT_UUID__", uuid.toString()));
+                }
                 for (String js : JSCache) {
-                    String head = Loader.readGlobalJS();
-                    if (head == null) head = "";
-                    else head = head.replace("__AUI_DOCUMENT_UUID__", uuid.toString());
-                    if (!head.isEmpty() && !head.endsWith("\n")) head += "\n";
-                    ApricityJS.eval(head + js);
+                    ApricityJS.eval(js);
                 }
                 fireLifecycleEvent("DOMContentLoaded", false);
                 enterComplete();
