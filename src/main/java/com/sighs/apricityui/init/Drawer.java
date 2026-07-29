@@ -5,7 +5,7 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.style.Transition;
 

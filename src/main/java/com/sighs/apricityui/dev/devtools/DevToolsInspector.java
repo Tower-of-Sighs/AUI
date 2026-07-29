@@ -4,8 +4,8 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Selector;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.ui.ColorPicker;
 
 import java.util.LinkedHashMap;

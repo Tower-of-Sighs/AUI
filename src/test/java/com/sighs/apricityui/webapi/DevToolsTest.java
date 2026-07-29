@@ -9,8 +9,8 @@ import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;

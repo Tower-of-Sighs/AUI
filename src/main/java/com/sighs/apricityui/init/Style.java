@@ -2,7 +2,7 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -26,7 +26,7 @@ public class Style implements Cloneable {
     private static final Set<String> INHERITED_PROPERTIES = Set.of(
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent",
-            "white-space", "cursor", "visibility", "accent-color"
+            "white-space", "cursor", "visibility", "accent-color", "text-stroke"
     );
     private static final Map<String, String> INITIAL_VALUES = Map.ofEntries(
             Map.entry("width", "auto"),
@@ -899,7 +899,8 @@ public class Style implements Cloneable {
         return normalized.equals("inherit")
                 || normalized.equals("initial")
                 || normalized.equals("unset")
-                || normalized.equals("revert");
+                || normalized.equals("revert")
+                || normalized.equals("revert-layer");
     }
 
     private static String[] expandFourSideTokens(String raw) {
@@ -1151,8 +1152,9 @@ public class Style implements Cloneable {
         if ("initial".equals(normalized)) {
             return initialValue(cssName);
         }
-        if ("revert".equals(normalized)) {
-            // The engine currently only models a single author origin, so revert degrades to unset semantics.
+        if ("revert".equals(normalized) || "revert-layer".equals(normalized)) {
+            // The engine currently has one author origin and no cascade layers,
+            // so both keywords use the defined inherited/initial fallback here.
             return isInheritedProperty(cssName) ? inheritOrInitial(cssName, parentStyle) : initialValue(cssName);
         }
         return isInheritedProperty(cssName) ? inheritOrInitial(cssName, parentStyle) : initialValue(cssName);

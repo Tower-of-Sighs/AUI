@@ -1,5 +1,6 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.Style;
 
 import java.util.*;

@@ -135,7 +135,7 @@ final class RenderQueue {
         return globalDirtyMask;
     }
 
-    Element hitTest(com.sighs.apricityui.style.Position position) {
+    Element hitTest(com.sighs.apricityui.layout.Position position) {
         return hitTestCache.hitTest(position, paintList);
     }
 

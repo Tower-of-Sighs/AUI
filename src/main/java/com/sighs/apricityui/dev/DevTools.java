@@ -3,7 +3,7 @@ package com.sighs.apricityui.dev;
 import com.sighs.apricityui.dev.devtools.DevToolsController;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 
 /** Public facade for the built-in F12 inspector. */
 public final class DevTools {

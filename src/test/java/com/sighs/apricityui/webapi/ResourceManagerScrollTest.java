@@ -11,8 +11,8 @@ import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 

@@ -6,7 +6,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.NormalFlow;
+import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.network.chat.Component;
 

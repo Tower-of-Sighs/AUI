@@ -6,7 +6,7 @@ import com.google.gson.JsonObject;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -175,7 +175,7 @@ final class DebugDom {
     }
 
     private static JsonObject screenRect(Document document, double x, double y, double width, double height) {
-        var position = document.documentToScreenPosition(new com.sighs.apricityui.style.Position(x, y));
+        var position = document.documentToScreenPosition(new com.sighs.apricityui.layout.Position(x, y));
         JsonObject rect = new JsonObject();
         rect.addProperty("x", position.x);
         rect.addProperty("y", position.y);

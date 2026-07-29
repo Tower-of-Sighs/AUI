@@ -41,6 +41,72 @@ try {
   Object.defineProperty(sessionStorage, 'length', { get: () => sessionStorage.getLength() });
 } catch (e) {}
 
+// Runtime polyfills shared by every document.  Keep these in this resource so
+// the Java bridge contains no embedded browser-side scripts.
+var __auiInstallTextBridge = function() {
+  var orig = __auiDecorateNode;
+  function formatText(v) {
+    if (v == null) return '';
+    if (typeof v === 'string') return /^-?\d+\.0+$/.test(v) ? v.replace(/\.0+$/, '') : v;
+    var n = Number(v);
+    if (!isNaN(n) && isFinite(n)) return Math.floor(n) === n ? String(Math.floor(n)) : String(n);
+    var s = String(v);
+    return /^-?\d+\.0+$/.test(s) ? s.replace(/\.0+$/, '') : s;
+  }
+  function bridgeTextContent(el) {
+    if (!el || el.__auiTextContentSet || typeof el.getTextContent !== 'function') return;
+    try {
+      Object.defineProperty(el, 'textContent', { get: function() { return el.getTextContent(); }, set: function(v) { el.setTextContent(formatText(v)); }, enumerable: true, configurable: true });
+      Object.defineProperty(el, 'innerText', { get: function() { return el.getTextContent(); }, set: function(v) { el.setTextContent(formatText(v)); }, enumerable: true, configurable: true });
+      el.__auiTextContentSet = true;
+    } catch (e) {}
+  }
+  __auiDecorateNode = function(el) { el = orig(el); bridgeTextContent(el); return el; };
+  try {
+    var all = document.querySelectorAll('*');
+    for (var i = 0; i < all.length; i++) bridgeTextContent(all[i]);
+  } catch (e) {}
+};
+
+(function() {
+  var root = typeof globalThis !== 'undefined' ? globalThis : this;
+  if (typeof root.window === 'undefined') root.window = root;
+  function syncWindowPrompt() {
+    try { if (root.window && typeof root.window.prompt !== 'function') root.window.prompt = root.prompt; } catch (e) {}
+  }
+  if (typeof root.prompt === 'function') { syncWindowPrompt(); return; }
+  function testPromptResponse() {
+    try {
+      if (root.window && typeof root.window.getTestPromptResponse === 'function') {
+        var windowValue = root.window.getTestPromptResponse();
+        if (windowValue != null) return String(windowValue);
+      }
+      var systemClass = typeof Java !== 'undefined' && Java.type ? Java.type('java.lang.System') : (typeof Packages !== 'undefined' ? Packages.java.lang.System : null);
+      if (systemClass) {
+        var propertyValue = systemClass.getProperty('apricityui.test.promptResponse');
+        if (propertyValue != null) return String(propertyValue);
+        var environmentValue = systemClass.getenv('APRICITYUI_TEST_PROMPT_RESPONSE');
+        if (environmentValue != null) return String(environmentValue);
+      }
+    } catch (e) {}
+    return null;
+  }
+  root.prompt = function(message, defaultValue) {
+    var fallback = typeof defaultValue === 'undefined' ? '' : String(defaultValue == null ? '' : defaultValue);
+    var testValue = testPromptResponse();
+    if (testValue != null) return testValue;
+    try {
+      var dialog = typeof Java !== 'undefined' && Java.type ? Java.type('javax.swing.JOptionPane') : (typeof Packages !== 'undefined' ? Packages.javax.swing.JOptionPane : null);
+      if (dialog) {
+        var result = dialog.showInputDialog(null, String(message == null ? '' : message), fallback);
+        return result == null ? null : String(result);
+      }
+    } catch (e) {}
+    return fallback;
+  };
+  syncWindowPrompt();
+})();
+
 function Event(type, init) {
   init = init || {};
   return window.createEvent(type, !!init.bubbles);
@@ -628,3 +694,4 @@ try {
   };
   __auiDecorateElement(document.body);
 } catch (e) {}
+__auiInstallTextBridge();

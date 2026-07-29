@@ -2,10 +2,10 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;

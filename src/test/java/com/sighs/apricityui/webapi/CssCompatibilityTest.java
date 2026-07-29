@@ -12,9 +12,9 @@ import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Gradient;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.style.Transform;
 import org.junit.jupiter.api.Test;
@@ -23,6 +23,7 @@ import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -620,6 +621,54 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void cascadeSpecificityFollowsFunctionalPseudoAndAttributeSelectorRules() {
+        Document document = TestDocumentFactory.createDocument();
+        Element element = new Element(document, "div");
+        element.setAttribute("id", "target");
+        element.setAttribute("class", "box notice");
+        element.setAttribute("data-state", "ready");
+        document.body.appendChild(element);
+
+        LinkedHashMap<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS("""
+                #target { color: #111111; }
+                .box:where(#target) { color: #222222; }
+                .box.notice { background-color: #111111; }
+                .box:is(#target, .other) { background-color: #222222; }
+                .box.notice { border-color: #111111; }
+                .box:not(#other) { border-color: #222222; }
+                div { opacity: 0.1; }
+                [data-state] { opacity: 0.2; }
+                """, cache, "test://cascade-specificity.css");
+        document.CSSCache.putAll(cache);
+
+        assertEquals("#111111", element.getComputedStyle().color,
+                ":where() must contribute zero specificity");
+        assertEquals("#222222", element.getComputedStyle().backgroundColor,
+                ":is() must use its most-specific argument");
+        assertEquals("#222222", element.getComputedStyle().borderColor,
+                ":not() must use its most-specific argument");
+        assertEquals("0.2", element.getComputedStyle().opacity,
+                "attribute selectors belong to the class specificity column");
+    }
+
+    @Test
+    void revertLayerUsesTheCurrentNoLayerFallbackAndTextStrokeInherits() {
+        Document document = TestDocumentFactory.createDocument();
+        Element parent = new Element(document, "div");
+        Element child = new Element(document, "span");
+        document.body.appendChild(parent);
+        parent.appendChild(child);
+
+        parent.setAttribute("style", "color: #135790; text-stroke: 1px #2468ac;");
+        child.setAttribute("style", "color: revert-layer; display: revert-layer;");
+
+        assertEquals("#135790", child.getComputedStyle().color);
+        assertEquals("1px #2468ac", child.getComputedStyle().textStroke);
+        assertEquals("block", child.getComputedStyle().display);
+    }
+
+    @Test
     void mediaQueriesFilterRulesAgainstCurrentViewport() throws Exception {
         HashMap<String, java.util.Map<String, CSS.Declaration>> cache = new HashMap<>();
         String css = """
@@ -768,9 +817,9 @@ class CssCompatibilityTest {
 
     @Test
     void resolveLengthSupportsRemAndCalcSyntax() {
-        assertEquals(32.0, com.sighs.apricityui.style.Size.resolveLength("2rem", 0, 0));
-        assertEquals(132.0, com.sighs.apricityui.style.Size.resolveLength("calc(100% + 2rem)", 100, 0));
-        assertEquals(84.0, com.sighs.apricityui.style.Size.resolveLength("calc(100% - 16px)", 100, 0));
+        assertEquals(32.0, com.sighs.apricityui.layout.Size.resolveLength("2rem", 0, 0));
+        assertEquals(132.0, com.sighs.apricityui.layout.Size.resolveLength("calc(100% + 2rem)", 100, 0));
+        assertEquals(84.0, com.sighs.apricityui.layout.Size.resolveLength("calc(100% - 16px)", 100, 0));
     }
 
     @Test
@@ -783,10 +832,10 @@ class CssCompatibilityTest {
 
     @Test
     void resolveLengthSupportsMinMaxAndClampFunctions() {
-        assertEquals(900.0, com.sighs.apricityui.style.Size.resolveLength("min(900px, 100%)", 1600, 0));
-        assertEquals(1600.0, com.sighs.apricityui.style.Size.resolveLength("max(900px, 100%)", 1600, 0));
-        assertEquals(600.0, com.sighs.apricityui.style.Size.resolveLength("clamp(360px, 50%, 600px)", 1600, 0));
-        assertEquals(500.0, com.sighs.apricityui.style.Size.resolveLength("min(900px, calc(100% - 20px))", 520, 0));
+        assertEquals(900.0, com.sighs.apricityui.layout.Size.resolveLength("min(900px, 100%)", 1600, 0));
+        assertEquals(1600.0, com.sighs.apricityui.layout.Size.resolveLength("max(900px, 100%)", 1600, 0));
+        assertEquals(600.0, com.sighs.apricityui.layout.Size.resolveLength("clamp(360px, 50%, 600px)", 1600, 0));
+        assertEquals(500.0, com.sighs.apricityui.layout.Size.resolveLength("min(900px, calc(100% - 20px))", 520, 0));
     }
 
     @Test
@@ -884,6 +933,36 @@ class CssCompatibilityTest {
         assertEquals("0.25", timeline.get(0d).get("opacity"));
         assertEquals("0.25", timeline.get(50d).get("opacity"));
         assertEquals("1", timeline.get(100d).get("opacity"));
+    }
+
+    @Test
+    void functionalPseudoClassesAndAttributeOperatorsMatchBrowserStyleSelectors() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        Element list = new Element(document, "ul");
+        Element first = new Element(document, "li");
+        first.setAttribute("class", "notice active");
+        first.setAttribute("data-state", "warning critical");
+        first.setAttribute("lang", "en-US");
+        Element divider = new Element(document, "div");
+        Element second = new Element(document, "li");
+        second.setAttribute("class", "notice muted");
+        document.body.appendChild(list);
+        list.appendChild(first);
+        list.appendChild(divider);
+        list.appendChild(second);
+
+        assertTrue(Selector.matches(first, "li:first-of-type:nth-of-type(2n+1)"));
+        assertTrue(Selector.matches(second, "li:last-of-type:nth-last-of-type(1)"));
+        assertTrue(Selector.matches(first, ".notice:is(.active,.selected):not(.muted)"));
+        assertTrue(Selector.matches(second, ":where(.notice,.card).muted"));
+        assertTrue(Selector.matches(first, "[data-state~=critical][lang|=en][data-state^=warn][data-state$=critical][data-state*=ning]"));
+        assertTrue(Selector.matches(first, "[lang=EN-us i]"));
+        assertFalse(Selector.matches(second, "li:only-of-type"));
+
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        CSS.readCSS(".notice:is(.active,.selected), .fallback { color: #123456; }", cache, "test://selector-functions.css");
+        assertTrue(cache.containsKey(".notice:is(.active,.selected)"));
+        assertTrue(cache.containsKey(".fallback"));
     }
 
     @SuppressWarnings("unchecked")

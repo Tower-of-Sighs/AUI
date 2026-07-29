@@ -11,7 +11,7 @@ import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -40,11 +40,11 @@ public class Select extends Element {
                 rectRenderer.drawBody(poseStack);
                 Text text = Text.of(this);
                 text.content = selectedLabel();
-                com.sighs.apricityui.style.Position contentPosition = rectRenderer.getContentPosition();
+                com.sighs.apricityui.layout.Position contentPosition = rectRenderer.getContentPosition();
                 double contentHeight = Math.max(0, rectRenderer.box.innerSize().height());
                 double drawY = contentPosition.y + (contentHeight - text.lineHeight) / 2.0d;
                 FontDrawer.drawFont(poseStack, text,
-                        new com.sighs.apricityui.style.Position(contentPosition.x, drawY));
+                        new com.sighs.apricityui.layout.Position(contentPosition.x, drawY));
                 if (showsNativeArrow()) drawNativeArrow(poseStack, rectRenderer);
             }
             case BORDER -> {

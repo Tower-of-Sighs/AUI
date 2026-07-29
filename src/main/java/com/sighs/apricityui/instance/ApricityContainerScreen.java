@@ -10,7 +10,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;

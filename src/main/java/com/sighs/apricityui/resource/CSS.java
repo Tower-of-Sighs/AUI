@@ -1,10 +1,11 @@
 package com.sighs.apricityui.resource;
 
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -227,7 +228,7 @@ public class CSS {
                 if (selector.isEmpty() || selector.startsWith("@")) continue;
 
                 String rules = matcher.group(2).trim();
-                String[] selectors = selector.split("\\s*,\\s*");
+                List<String> selectors = Selector.splitSelectorList(selector);
                 Map<String, Declaration> authoredProperties = parseProperties(rules, contextPath, false);
                 Map<String, Declaration> properties = expandAuthorProperties(authoredProperties);
 

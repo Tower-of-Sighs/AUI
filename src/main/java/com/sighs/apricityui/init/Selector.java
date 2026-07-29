@@ -41,6 +41,53 @@ public class Selector {
 
     private enum Combinator {DESCENDANT, CHILD, ADJACENT_SIBLING, GENERAL_SIBLING}
 
+    private record AttributeSelector(String name, String operator, String expected, boolean caseInsensitive) {
+        boolean matches(Element element) {
+            String actual = null;
+            boolean present = false;
+            for (Map.Entry<String, String> entry : element.getAttributes().entrySet()) {
+                if (entry.getKey().equalsIgnoreCase(name)) {
+                    present = true;
+                    actual = entry.getValue();
+                    break;
+                }
+            }
+            if (!present) return false;
+            if (operator == null) return true;
+            String value = actual == null ? "" : actual;
+            String target = expected == null ? "" : expected;
+            if (caseInsensitive) {
+                value = value.toLowerCase(Locale.ROOT);
+                target = target.toLowerCase(Locale.ROOT);
+            }
+            return switch (operator) {
+                case "=" -> value.equals(target);
+                case "~=" -> Arrays.stream(value.trim().split("\\s+")).anyMatch(target::equals);
+                case "|=" -> value.equals(target) || value.startsWith(target + "-");
+                case "^=" -> value.startsWith(target);
+                case "$=" -> value.endsWith(target);
+                case "*=" -> value.contains(target);
+                default -> false;
+            };
+        }
+    }
+
+    /** The three selector-specificity columns, excluding source order. */
+    private record SpecificityParts(int ids, int classes, int tags) implements Comparable<SpecificityParts> {
+        private static final SpecificityParts ZERO = new SpecificityParts(0, 0, 0);
+
+        SpecificityParts plus(SpecificityParts other) {
+            return new SpecificityParts(ids + other.ids, classes + other.classes, tags + other.tags);
+        }
+
+        @Override
+        public int compareTo(SpecificityParts other) {
+            if (ids != other.ids) return Integer.compare(ids, other.ids);
+            if (classes != other.classes) return Integer.compare(classes, other.classes);
+            return Integer.compare(tags, other.tags);
+        }
+    }
+
     private record Pseudo(String name, String expression) {
         boolean matches(Element e) {
             if (e == null) return false;
@@ -49,16 +96,56 @@ public class Selector {
                 case "root" -> e.parentElement == null;
                 case "first-child" -> isSiblingIndex(e, 0);
                 case "last-child" -> isSiblingIndex(e, -1);
-                case "nth-child" -> matchNth(e, expression);
+                case "only-child" -> e.parentElement != null && e.parentElement.children.size() == 1;
+                case "nth-child" -> matchNth(e, expression, false, false);
+                case "nth-last-child" -> matchNth(e, expression, true, false);
+                case "first-of-type" -> isTypeSiblingIndex(e, 0);
+                case "last-of-type" -> isTypeSiblingIndex(e, -1);
+                case "only-of-type" -> countSameTypeSiblings(e) == 1;
+                case "nth-of-type" -> matchNth(e, expression, false, true);
+                case "nth-last-of-type" -> matchNth(e, expression, true, true);
                 case "hover" -> e.isHover;
                 case "active" -> e.isActive;
                 case "focus" -> e.isFocus;
+                // Input-modality tracking does not exist yet; focus is the
+                // closest safe baseline for :focus-visible.
+                case "focus-visible" -> e.isFocus;
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
+                case "enabled" -> !e.isDisabled();
                 case "empty" -> e.children.isEmpty();
                 case "checked" -> isChecked(e);
+                case "not" -> !matchesAny(e, expression);
+                case "is", "where" -> matchesAny(e, expression);
                 default -> false;
             };
+        }
+
+        private boolean matchesAny(Element element, String selectorList) {
+            if (selectorList == null || selectorList.isBlank()) return false;
+            for (CompiledSelector selector : parseGroup(selectorList)) {
+                if (selector.pseudoElement == null && isMatch(element, selector)) return true;
+            }
+            return false;
+        }
+
+        /**
+         * Selectors Level 4 gives :is() and :not() the specificity of their
+         * most-specific argument, while :where() is intentionally always zero.
+         */
+        SpecificityParts specificity() {
+            if ("where".equals(name)) return SpecificityParts.ZERO;
+            if ("is".equals(name) || "not".equals(name)) {
+                SpecificityParts result = SpecificityParts.ZERO;
+                if (expression == null || expression.isBlank()) return result;
+                for (CompiledSelector selector : parseGroup(expression)) {
+                    SpecificityParts candidate = new SpecificityParts(
+                            selector.ids, selector.classesAndPseudos, selector.tags);
+                    if (candidate.compareTo(result) > 0) result = candidate;
+                }
+                return result;
+            }
+            return new SpecificityParts(0, 1, 0);
         }
 
         private boolean isChecked(Element e) {
@@ -94,21 +181,52 @@ public class Selector {
             return target == -1 ? idx == siblings.size() - 1 : idx == target;
         }
 
-        private boolean matchNth(Element e, String expr) {
+        private boolean isTypeSiblingIndex(Element e, int target) {
             if (e.parentElement == null) return false;
-            int pos = e.parentElement.children.indexOf(e) + 1;
-            if ("odd".equals(expr)) return pos % 2 != 0;
-            if ("even".equals(expr)) return pos % 2 == 0;
+            List<Element> siblings = sameTypeSiblings(e);
+            int index = siblings.indexOf(e);
+            return target == -1 ? index == siblings.size() - 1 : index == target;
+        }
+
+        private int countSameTypeSiblings(Element e) {
+            return e.parentElement == null ? 0 : sameTypeSiblings(e).size();
+        }
+
+        private List<Element> sameTypeSiblings(Element e) {
+            ArrayList<Element> result = new ArrayList<>();
+            if (e.parentElement == null) return result;
+            for (Element sibling : e.parentElement.children) {
+                if (sibling.tagName.equalsIgnoreCase(e.tagName)) result.add(sibling);
+            }
+            return result;
+        }
+
+        private boolean matchNth(Element e, String expr, boolean fromEnd, boolean ofType) {
+            if (e.parentElement == null) return false;
+            List<Element> siblings = ofType ? sameTypeSiblings(e) : e.parentElement.children;
+            int index = siblings.indexOf(e);
+            if (index < 0) return false;
+            int pos = fromEnd ? siblings.size() - index : index + 1;
+            String normalized = expr == null ? "" : expr.replaceAll("\\s+", "").toLowerCase(Locale.ROOT);
+            if ("odd".equals(normalized)) return pos % 2 != 0;
+            if ("even".equals(normalized)) return pos % 2 == 0;
             try {
-                return Integer.parseInt(expr) == pos;
-            } catch (Exception ex) {
-                return false;
+                return Integer.parseInt(normalized) == pos;
+            } catch (NumberFormatException ignored) {
+                Matcher matcher = Pattern.compile("([+-]?\\d*)n(?:([+-]\\d+))?").matcher(normalized);
+                if (!matcher.matches()) return false;
+                String coefficient = matcher.group(1);
+                int a = coefficient.isEmpty() || "+".equals(coefficient) ? 1 : "-".equals(coefficient) ? -1 : Integer.parseInt(coefficient);
+                int b = matcher.group(2) == null ? 0 : Integer.parseInt(matcher.group(2));
+                if (a == 0) return pos == b;
+                int delta = pos - b;
+                return a > 0 ? delta >= 0 && delta % a == 0 : delta <= 0 && delta % a == 0;
             }
         }
     }
 
     private record Component(String tag, String id, Set<String> classes, Map<String, String> attrs,
-                             List<Pseudo> pseudos) {
+                             List<AttributeSelector> attributeSelectors, List<Pseudo> pseudos) {
         boolean matches(Element e) {
             if (e == null) return false;
             if (tag != null && !tag.equals("*") && !tag.equalsIgnoreCase(e.tagName)) return false;
@@ -132,6 +250,11 @@ public class Selector {
 
                     if (!present) return false;
                     if (!expected.equals(actual)) return false;
+                }
+            }
+            if (attributeSelectors != null) {
+                for (AttributeSelector attributeSelector : attributeSelectors) {
+                    if (!attributeSelector.matches(e)) return false;
                 }
             }
             if (pseudos != null) {
@@ -224,6 +347,13 @@ public class Selector {
                 }
                 return;
             }
+            if (last.attributeSelectors != null && !last.attributeSelectors.isEmpty()) {
+                for (AttributeSelector attribute : last.attributeSelectors) {
+                    if (attribute.name == null || attribute.name.isBlank()) continue;
+                    byAttr.computeIfAbsent(attribute.name, ignored -> new ArrayList<>()).add(rule);
+                }
+                return;
+            }
 
             always.add(rule);
         }
@@ -273,6 +403,7 @@ public class Selector {
             if (element.isHover) addCandidates(byPseudo.get("hover"));
             if (element.isActive) addCandidates(byPseudo.get("active"));
             if (element.isFocus) addCandidates(byPseudo.get("focus"));
+            if (element.isFocus) addCandidates(byPseudo.get("focus-visible"));
             if (isFocusWithin(element)) addCandidates(byPseudo.get("focus-within"));
             if (element.isDisabled()) addCandidates(byPseudo.get("disabled"));
             if (element.children.isEmpty()) addCandidates(byPseudo.get("empty"));
@@ -281,7 +412,18 @@ public class Selector {
                 addCandidates(byPseudo.get("first-child"));
                 addCandidates(byPseudo.get("last-child"));
                 addCandidates(byPseudo.get("nth-child"));
+                addCandidates(byPseudo.get("nth-last-child"));
+                addCandidates(byPseudo.get("only-child"));
+                addCandidates(byPseudo.get("first-of-type"));
+                addCandidates(byPseudo.get("last-of-type"));
+                addCandidates(byPseudo.get("only-of-type"));
+                addCandidates(byPseudo.get("nth-of-type"));
+                addCandidates(byPseudo.get("nth-last-of-type"));
             }
+            if (!element.isDisabled()) addCandidates(byPseudo.get("enabled"));
+            addCandidates(byPseudo.get("not"));
+            addCandidates(byPseudo.get("is"));
+            addCandidates(byPseudo.get("where"));
             if (element.getAttributes().containsKey("checked")
                     || "OPTION".equalsIgnoreCase(element.tagName)
                     || element.getAttributes().containsKey("selected")) {
@@ -499,20 +641,25 @@ public class Selector {
     }
 
     private static List<CompiledSelector> parseGroup(String fullSelector) {
-        String[] parts = fullSelector.split(",");
         List<CompiledSelector> results = new ArrayList<>();
-        for (String p : parts) {
-            results.add(parseSelector(p.trim()));
+        for (String p : splitSelectorList(fullSelector)) {
+            if (!p.isBlank()) results.add(parseSelector(p.trim()));
         }
         return results;
     }
 
+    /** Splits a selector list without treating commas inside [] or () as groups. */
+    public static List<String> splitSelectorList(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        return splitTopLevel(value, ',');
+    }
+
     private static CompiledSelector parseSelector(String selector) {
-        String[] tokens = selector.split("(?<=[>+~ ])|(?=[>+~ ])");
+        List<String> tokens = splitSelectorTokens(selector);
         List<Component> components = new ArrayList<>();
         List<Combinator> combinators = new ArrayList<>();
 
-        int ids = 0, classesAndPseudos = 0, tags = 0;
+        SpecificityParts specificity = SpecificityParts.ZERO;
         PseudoElement pseudoElement = null;
 
         for (String token : tokens) {
@@ -535,14 +682,60 @@ public class Selector {
                     Component comp = parsedAtom.component();
                     components.add(comp);
 
-                    if (comp.id != null) ids++;
-                    if (comp.classes != null) classesAndPseudos += comp.classes.size();
-                    if (comp.pseudos != null) classesAndPseudos += comp.pseudos.size();
-                    if (comp.tag != null && !comp.tag.equals("*")) tags++;
+                    int ids = comp.id == null ? 0 : 1;
+                    int classes = (comp.classes == null ? 0 : comp.classes.size())
+                            + (comp.attrs == null ? 0 : comp.attrs.size())
+                            + (comp.attributeSelectors == null ? 0 : comp.attributeSelectors.size());
+                    int tags = comp.tag == null || comp.tag.equals("*") ? 0 : 1;
+                    if (comp.pseudos != null) {
+                        for (Pseudo pseudo : comp.pseudos) {
+                            SpecificityParts pseudoSpecificity = pseudo.specificity();
+                            ids += pseudoSpecificity.ids;
+                            classes += pseudoSpecificity.classes;
+                            tags += pseudoSpecificity.tags;
+                        }
+                    }
+                    // ::before and ::after are pseudo-elements and therefore
+                    // contribute to the type-selector specificity column.
+                    if (parsedAtom.pseudoElement() != null) tags++;
+                    specificity = specificity.plus(new SpecificityParts(ids, classes, tags));
                 }
             }
         }
-        return new CompiledSelector(components, combinators, pseudoElement, ids, classesAndPseudos, tags);
+        return new CompiledSelector(components, combinators, pseudoElement,
+                specificity.ids, specificity.classes, specificity.tags);
+    }
+
+    private static List<String> splitSelectorTokens(String selector) {
+        ArrayList<String> tokens = new ArrayList<>();
+        StringBuilder atom = new StringBuilder();
+        int brackets = 0, parentheses = 0;
+        char quote = 0;
+        for (int i = 0; i < selector.length(); i++) {
+            char ch = selector.charAt(i);
+            if (quote != 0) {
+                atom.append(ch);
+                if (ch == quote && (i == 0 || selector.charAt(i - 1) != '\\')) quote = 0;
+                continue;
+            }
+            if (ch == '\'' || ch == '"') { quote = ch; atom.append(ch); continue; }
+            if (ch == '[') { brackets++; atom.append(ch); continue; }
+            if (ch == ']') { brackets = Math.max(0, brackets - 1); atom.append(ch); continue; }
+            if (ch == '(') { parentheses++; atom.append(ch); continue; }
+            if (ch == ')') { parentheses = Math.max(0, parentheses - 1); atom.append(ch); continue; }
+            if (brackets == 0 && parentheses == 0 && Character.isWhitespace(ch)) {
+                if (!atom.isEmpty()) { tokens.add(atom.toString()); atom.setLength(0); }
+                continue;
+            }
+            if (brackets == 0 && parentheses == 0 && (ch == '>' || ch == '+' || ch == '~')) {
+                if (!atom.isEmpty()) { tokens.add(atom.toString()); atom.setLength(0); }
+                tokens.add(String.valueOf(ch));
+                continue;
+            }
+            atom.append(ch);
+        }
+        if (!atom.isEmpty()) tokens.add(atom.toString());
+        return tokens;
     }
 
     private record ParsedAtom(Component component, PseudoElement pseudoElement) {
@@ -553,6 +746,7 @@ public class Selector {
         String id = null;
         Set<String> classes = new HashSet<>();
         Map<String, String> attrs = new HashMap<>();
+        List<AttributeSelector> attributeSelectors = new ArrayList<>();
         List<Pseudo> pseudos = new ArrayList<>();
         PseudoElement pseudoElement = null;
 
@@ -580,7 +774,7 @@ public class Selector {
         Pattern token = Pattern.compile(
                 "(#(?<id>(?:\\\\.|[\\w-])+))" +
                         "|(\\.(?<cls>(?:\\\\.|[\\w-])+))" +
-                        "|(\\[(?<attrName>[\\w-]+)(?:\\s*=\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
+                        "|(\\[(?<attrName>[\\w-]+)(?:\\s*(?<attrOperator>~=|\\|=|\\^=|\\$=|\\*=|=)\\s*(?<attrValue>\"[^\"]*\"|'[^']*'|[^]]+))?])" +
                         "|(?<pseudoColon>::?)(?<pseudoName>[\\w-]+)(?:\\((?<pseudoExpr>[^)]*)\\))?"
         );
 
@@ -599,6 +793,7 @@ public class Selector {
             String attrName = m.group("attrName");
             if (attrName != null) {
                 String v = m.group("attrValue");
+                String operator = m.group("attrOperator");
                 if (v != null) {
                     v = v.trim();
                     // 去掉引号
@@ -607,7 +802,14 @@ public class Selector {
                     }
                 }
                 // v == null 表示 [attr]，由 matches() 中的 presence 逻辑处理
-                attrs.put(attrName, v);
+                boolean insensitive = false;
+                if (operator != null && v != null && v.matches("(?s).*\\s+[iI]$")) {
+                    insensitive = true;
+                    v = v.substring(0, v.length() - 1).trim();
+                } else if (operator != null && v != null && v.matches("(?s).*\\s+[sS]$")) {
+                    v = v.substring(0, v.length() - 1).trim();
+                }
+                attributeSelectors.add(new AttributeSelector(attrName, operator, v, insensitive));
                 continue;
             }
             String pseudoName = m.group("pseudoName");
@@ -623,7 +825,32 @@ public class Selector {
         return new ParsedAtom(new Component(tag, id,
                 classes.isEmpty() ? null : classes,
                 attrs.isEmpty() ? null : attrs,
+                attributeSelectors.isEmpty() ? null : attributeSelectors,
                 pseudos.isEmpty() ? null : pseudos), pseudoElement);
+    }
+
+    private static List<String> splitTopLevel(String value, char delimiter) {
+        ArrayList<String> result = new ArrayList<>();
+        int start = 0, bracketDepth = 0, parenDepth = 0;
+        char quote = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (quote != 0) {
+                if (ch == quote && (i == 0 || value.charAt(i - 1) != '\\')) quote = 0;
+                continue;
+            }
+            if (ch == '\'' || ch == '"') { quote = ch; continue; }
+            if (ch == '[') bracketDepth++;
+            else if (ch == ']') bracketDepth--;
+            else if (ch == '(') parenDepth++;
+            else if (ch == ')') parenDepth--;
+            else if (ch == delimiter && bracketDepth == 0 && parenDepth == 0) {
+                result.add(value.substring(start, i));
+                start = i + 1;
+            }
+        }
+        result.add(value.substring(start));
+        return result;
     }
 
     private static String unescapeCssIdentifier(String value) {

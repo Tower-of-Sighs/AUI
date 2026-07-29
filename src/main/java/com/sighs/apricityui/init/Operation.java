@@ -1,4 +1,5 @@
 package com.sighs.apricityui.init;
+
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
@@ -10,7 +11,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.registry.Keybindings;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 

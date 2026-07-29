@@ -5,10 +5,10 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 
 final class ScrollModel {
     private static final double SCROLL_EASING_FACTOR = 0.2;

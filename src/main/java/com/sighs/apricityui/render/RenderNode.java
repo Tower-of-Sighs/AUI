@@ -7,8 +7,8 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Transform;
 import org.lwjgl.opengl.GL11;
 

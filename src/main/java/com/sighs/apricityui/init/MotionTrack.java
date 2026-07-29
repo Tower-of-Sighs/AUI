@@ -1,9 +1,10 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Layout;
+import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.style.Transition;
 
+import java.util.ArrayDeque;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Map;
@@ -124,11 +125,32 @@ final class MotionTrack {
             );
             StyleFrameCache.put(element, animated);
 
+            // CSS color is inherited.  A parent's transition is composited after
+            // its base style is resolved, so descendants must sample that frame
+            // value too.  Leaving them with the value inherited while the
+            // transition was primed freezes text such as <translation> at white
+            // after :hover has ended.
+            Style inheritedBefore = previousMotionStyle == null ? base : previousMotionStyle;
+            if (!Objects.equals(inheritedBefore.color, animated.color)) {
+                refreshInheritedColorSubtree(element);
+            }
+
             if (!flags.containsKey(element)) {
                 lastMotionStyles.remove(element);
             }
         }
         return requiresGeometryCommit;
+    }
+
+    private void refreshInheritedColorSubtree(Element root) {
+        if (root == null) return;
+        ArrayDeque<Element> pending = new ArrayDeque<>(root.children);
+        while (!pending.isEmpty()) {
+            Element element = pending.removeFirst();
+            if (element.document != owner) continue;
+            element.recomputeStyleSelf();
+            pending.addAll(element.children);
+        }
     }
 
     Set<Element> drainHitTestRoots() {

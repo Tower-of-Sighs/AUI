@@ -106,8 +106,8 @@ class DevToolsStylesheetEditingTest {
             Element longPropertyName = longCustomRow.querySelector(".style-name");
             assertNotNull(shortPropertyName);
             assertNotNull(longPropertyName);
-            assertTrue(com.sighs.apricityui.style.Size.parse(longPropertyName.getComputedStyle().width)
-                            > com.sighs.apricityui.style.Size.parse(shortPropertyName.getComputedStyle().width),
+            assertTrue(com.sighs.apricityui.layout.Size.parse(longPropertyName.getComputedStyle().width)
+                            > com.sighs.apricityui.layout.Size.parse(shortPropertyName.getComputedStyle().width),
                     "Each property name must be sized from its own rendered text");
             assertEquals("0", longPropertyName.getComputedStyle().flexGrow);
             assertEquals("0", longPropertyName.getComputedStyle().flexShrink);

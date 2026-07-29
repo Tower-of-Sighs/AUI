@@ -4,8 +4,8 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.ui.ContextMenu;
 import org.junit.jupiter.api.Test;
 
