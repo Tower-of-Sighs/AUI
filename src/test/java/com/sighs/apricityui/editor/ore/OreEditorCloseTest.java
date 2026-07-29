@@ -3,7 +3,7 @@ package com.sighs.apricityui.editor.ore;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.resource.HTML;
-import com.sighs.apricityui.ui.translation.UiTranslations;
+import com.sighs.apricityui.ui.UiTranslations;
 import org.junit.jupiter.api.Test;
 
 import java.nio.file.Files;

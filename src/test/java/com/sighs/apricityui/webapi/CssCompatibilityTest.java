@@ -7,6 +7,7 @@ import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.StyleFrameCache;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.element.Input;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
@@ -320,6 +321,17 @@ class CssCompatibilityTest {
 
         assertTrue(((beforeStop >>> 24) & 0xFF) > 0);
         assertEquals(0, (afterStop >>> 24) & 0xFF);
+    }
+
+    @Test
+    void complexGradientStopsUseConstantSizeGeometryInsteadOfPixelSampling() {
+        Gradient simple = Gradient.parse("linear-gradient(90deg, #111111 0%, #eeeeee 100%)");
+        Gradient multiStop = Gradient.parse("linear-gradient(45deg, #111111 0%, #777777 50%, #eeeeee 100%)");
+        Gradient hardStop = Gradient.parse("linear-gradient(45deg, #111111 50%, #eeeeee 50%)");
+
+        assertFalse(Graph.requiresStopGeometry(simple));
+        assertTrue(Graph.requiresStopGeometry(multiStop));
+        assertTrue(Graph.requiresStopGeometry(hardStop));
     }
 
     @Test

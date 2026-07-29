@@ -1,30 +1,23 @@
 #version 150
 
 uniform sampler2D Sampler0;
-uniform vec2 InSize;
-uniform vec2 GuiSize;
-uniform float BlurRadius;
+uniform sampler2D Sampler1;
 uniform float Brightness;
 uniform float Grayscale;
 uniform float Invert;
 uniform float HueRotate;
 uniform float Opacity;
 uniform vec2 ShadowOffset;
-uniform float ShadowBlur;
 uniform vec4 ShadowColor;
 uniform float ForceAlpha;
 uniform vec4 ClipRect;
 uniform vec4 ClipRadii;
 uniform float ClipEnabled;
+uniform vec2 UvPerGuiPixel;
 
 in vec2 texCoord;
+in vec2 screenPos;
 out vec4 fragColor;
-
-int getBlurStep(int radius) {
-    if (radius <= 24) return 1;
-    if (radius <= 32) return 2;
-    return max(1, radius / 16);
-}
 
 vec3 applyHue(vec3 color, float angle) {
     float h = angle * 0.01745329251;
@@ -35,7 +28,7 @@ vec3 applyHue(vec3 color, float angle) {
 
 void main() {
     if (ClipEnabled > 0.5) {
-        vec2 pos = vec2(texCoord.x, 1.0 - texCoord.y) * GuiSize;
+        vec2 pos = screenPos;
         vec2 rectPos = ClipRect.xy;
         vec2 rectSize = ClipRect.zw;
         vec2 local = pos - rectPos;
@@ -74,75 +67,17 @@ void main() {
     }
     if (rawColor.a <= 0.001 && ShadowColor.a <= 0.001) discard;
 
-    vec4 color;
-    if (BlurRadius >= 1) {
-        ivec2 texSize = textureSize(Sampler0, 0);
-        vec2 texelSize = vec2(1.0 / texSize.x, 1.0 / texSize.y);
-
-        int radius = int(BlurRadius);
-        int step = getBlurStep(radius);
-        float sigma = max(0.001, float(radius) / 3.0);
-        float twoSigmaSq = 2.0 * sigma * sigma;
-
-        vec3 blurSumLinear = vec3(0.0);
-        float totalAlphaWeight = 0.0;
-        float totalWeight = 0.0;
-
-        for (int x = -radius; x <= radius; x += step) {
-            for (int y = -radius; y <= radius; y += step) {
-                vec2 offset = vec2(x, y) * texelSize;
-                vec4 sampleCol = texture(Sampler0, texCoord + offset);
-                float sampleAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
-
-                vec3 linearColor = pow(sampleCol.rgb, vec3(2.2));
-                float weight = exp(-float(x*x + y*y) / twoSigmaSq);
-
-                blurSumLinear += linearColor * sampleAlpha * weight;
-                totalAlphaWeight += sampleAlpha * weight;
-                totalWeight += weight;
-            }
-        }
-
-        if (totalAlphaWeight > 0.0) {
-            color.rgb = pow(blurSumLinear / totalAlphaWeight, vec3(1.0/2.2));
-        } else {
-            color.rgb = vec3(0.0);
-        }
-
-        color.a = (totalWeight > 0.0) ? (totalAlphaWeight / totalWeight) : 0.0;
-    } else {
-        color = rawColor;
-    }
+    // Blur is performed by filter_blur in horizontal and vertical passes.
+    // Keeping it out of this composite shader avoids an O(radius^2) loop for
+    // every output pixel.
+    vec4 color = rawColor;
 
     vec4 shadow = vec4(0.0);
     if (ShadowColor.a > 0.001) {
-        ivec2 texSize = textureSize(Sampler0, 0);
-        vec2 texelSize = vec2(1.0 / texSize.x, 1.0 / texSize.y);
-        vec2 shadowBaseUv = texCoord + vec2(-ShadowOffset.x, ShadowOffset.y) / InSize;
-
-        float shadowAlpha = 0.0;
-        if (ShadowBlur >= 1.0) {
-            int radius = int(ShadowBlur);
-            int step = getBlurStep(radius);
-            float sigma = max(0.001, float(radius) / 3.0);
-            float twoSigmaSq = 2.0 * sigma * sigma;
-            float totalWeight = 0.0;
-
-            for (int x = -radius; x <= radius; x += step) {
-                for (int y = -radius; y <= radius; y += step) {
-                    vec2 offset = vec2(x, y) * texelSize;
-                    vec4 sampleCol = texture(Sampler0, shadowBaseUv + offset);
-                    float sampleAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
-                    float weight = exp(-float(x*x + y*y) / twoSigmaSq);
-                    shadowAlpha += sampleAlpha * weight;
-                    totalWeight += weight;
-                }
-            }
-            shadowAlpha = (totalWeight > 0.0) ? (shadowAlpha / totalWeight) : 0.0;
-        } else {
-            vec4 sampleCol = texture(Sampler0, shadowBaseUv);
-            shadowAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
-        }
+        vec2 shadowBaseUv = texCoord + vec2(-ShadowOffset.x * UvPerGuiPixel.x,
+                                             ShadowOffset.y * UvPerGuiPixel.y);
+        vec4 sampleCol = texture(Sampler1, shadowBaseUv);
+        float shadowAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;
         shadow = vec4(ShadowColor.rgb, ShadowColor.a * shadowAlpha);
     }
 

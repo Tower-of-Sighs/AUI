@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>Filter and Backdrop Filter Lab</title>
+    <style>
+        * { box-sizing: border-box; }
+        html, body { margin: 0; min-height: 100%; background: #101522; color: #edf2ff; font-family: sans-serif; }
+        body { overflow: auto; }
+
+        .page { width: 100%; min-height: 100vh; padding: 30px; }
+        .header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+        .eyebrow { color: #7dd3fc; font-size: 12px; font-weight: 700; letter-spacing: 2px; }
+        h1 { margin: 6px 0 0; font-size: 28px; letter-spacing: 1px; }
+        .status { color: #b9c7e8; font-size: 12px; text-align: right; }
+        .toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 22px; }
+        button { min-width: 120px; padding: 9px 13px; border: 1px solid #7dd3fc; background: #17243a; color: #eef7ff; font: inherit; font-size: 12px; cursor: pointer; }
+        button:hover, button.active { background: #0e7490; color: #ffffff; }
+
+        .grid { display: grid; grid-template-columns: repeat(2, minmax(300px, 1fr)); gap: 18px; }
+        .panel { min-height: 360px; border: 1px solid #304260; background: #151c2c; overflow: hidden; position: relative; }
+        .panel-head { position: relative; z-index: 10; padding: 13px 15px; border-bottom: 1px solid #304260; background: rgba(14, 20, 34, .88); }
+        .panel-title { font-size: 15px; font-weight: 700; }
+        .panel-note { margin-top: 4px; color: #aebbd6; font-size: 11px; line-height: 16px; }
+
+        .scene { height: 300px; position: relative; overflow: hidden; background: #141a2a; }
+        .grid-lines { position: absolute; inset: 0; background: repeating-linear-gradient(90deg, transparent, transparent 27px, rgba(125,211,252,.12) 28px), repeating-linear-gradient(0deg, transparent, transparent 27px, rgba(167,139,250,.12) 28px); }
+        .orb { position: absolute; width: 148px; height: 148px; border-radius: 74px; }
+        .orb.one { left: 8%; top: 17%; background: #f97316; animation: drift-one 4.2s ease-in-out infinite alternate; }
+        .orb.two { right: 11%; top: 12%; background: #22c55e; animation: drift-two 5.1s ease-in-out infinite alternate; }
+        .orb.three { left: 38%; bottom: -40px; width: 190px; height: 190px; border-radius: 0; background: #8b5cf6; transform: rotate(22deg); animation: spin-square 7s linear infinite; }
+        .ticker { position: absolute; left: -28%; right: -28%; bottom: 25px; padding: 9px 0; text-align: center; background: #facc15; color: #111827; font-size: 15px; font-weight: 700; letter-spacing: 3px; transform: rotate(-7deg); animation: ticker-slide 3s ease-in-out infinite alternate; }
+
+        .backdrop-stack { position: absolute; inset: 30px; display: flex; align-items: center; justify-content: center; }
+        .glass { width: 72%; min-height: 170px; padding: 20px; border: 1px solid rgba(255,255,255,.56); background: rgba(13, 20, 38, .42); backdrop-filter: blur(7px) brightness(1.18) hue-rotate(8deg); box-shadow: 10px 10px 0 rgba(0,0,0,.22); }
+        .glass h2 { margin: 0; font-size: 22px; }
+        .glass p { margin: 9px 0 0; color: #eff6ff; font-size: 12px; line-height: 18px; }
+        .glass .metric { display: inline-block; margin-top: 14px; padding: 5px 8px; background: rgba(255,255,255,.18); font-size: 11px; }
+        .backdrop-stack.high .glass { backdrop-filter: blur(14px) brightness(.78) grayscale(.35) hue-rotate(35deg); background: rgba(18, 12, 42, .52); }
+        .nested-glass { width: 52%; margin: 18px auto 0; padding: 9px; border: 1px solid rgba(255,255,255,.45); background: rgba(255,255,255,.10); backdrop-filter: blur(3px) invert(.08); color: #fff; font-size: 11px; text-align: center; }
+
+        .filter-stage { height: 300px; position: relative; overflow: hidden; padding: 28px; background: linear-gradient(135deg, #1d4ed8 0%, #db2777 50%, #f59e0b 100%); }
+        .filter-stage::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(45deg, rgba(255,255,255,.26), rgba(255,255,255,.26) 10px, transparent 10px, transparent 20px); animation: scan 2.2s linear infinite; }
+        .subject { position: relative; width: 230px; height: 190px; margin: 14px auto; padding: 18px; background: #f8fafc; color: #18233b; border: 5px solid #111827; box-shadow: 12px 12px 0 rgba(15,23,42,.48); filter: blur(0px) brightness(1) grayscale(0) hue-rotate(0deg) opacity(1) drop-shadow(0px 0px 0px rgba(0,0,0,0)); animation: subject-filter 4.5s ease-in-out infinite alternate; }
+        .subject .badge { display: inline-block; padding: 4px 7px; background: #0f766e; color: #fff; font-size: 11px; font-weight: 700; }
+        .subject h2 { margin: 24px 0 7px; font-size: 23px; }
+        .subject p { margin: 0; font-size: 12px; line-height: 17px; }
+        .filter-stage.paused .subject, .filter-stage.paused::before, .scene.paused .orb, .scene.paused .ticker { animation-play-state: paused; }
+
+        .case-row { display: flex; gap: 12px; align-items: center; padding: 14px 15px; border-top: 1px solid #304260; background: #121827; }
+        .mini { flex: 1; min-height: 74px; padding: 12px; position: relative; overflow: hidden; background: linear-gradient(120deg, #0ea5e9, #a855f7, #f43f5e); }
+        .mini::before { content: 'FILTER'; position: absolute; left: 12px; top: 22px; font-size: 25px; font-weight: 700; letter-spacing: 2px; color: white; }
+        .mini.filter-on { filter: brightness(1.25) grayscale(.25) hue-rotate(110deg) drop-shadow(6px 6px 3px rgba(0,0,0,.7)); }
+        .case-copy { width: 44%; color: #b9c7e8; font-size: 11px; line-height: 16px; }
+
+        @keyframes drift-one { from { transform: translate(0, 0) scale(.78); } to { transform: translate(260px, 92px) scale(1.2); } }
+        @keyframes drift-two { from { transform: translate(0, 0) rotate(0deg); } to { transform: translate(-250px, 120px) rotate(170deg); } }
+        @keyframes spin-square { from { transform: rotate(22deg) scale(.72); } to { transform: rotate(382deg) scale(1.12); } }
+        @keyframes ticker-slide { from { transform: translateX(-8%) rotate(-7deg); } to { transform: translateX(12%) rotate(-7deg); } }
+        @keyframes scan { from { transform: translateX(-28px); } to { transform: translateX(28px); } }
+        @keyframes subject-filter {
+            0% { filter: blur(0px) brightness(1) grayscale(0) hue-rotate(0deg) opacity(1) drop-shadow(0px 0px 0px rgba(0,0,0,0)); transform: rotate(-2deg) scale(.94); }
+            48% { filter: blur(1.8px) brightness(1.42) grayscale(.45) hue-rotate(130deg) opacity(.84) drop-shadow(8px 9px 5px rgba(8,15,35,.72)); transform: rotate(3deg) scale(1.04); }
+            100% { filter: blur(.4px) brightness(.86) grayscale(.12) hue-rotate(280deg) opacity(1) drop-shadow(-7px 7px 3px rgba(8,15,35,.62)); transform: rotate(-1deg) scale(.98); }
+        }
+        @media (max-width: 760px) { .page { padding: 16px; } .header { align-items: start; flex-direction: column; } .status { text-align: left; } .grid { grid-template-columns: 1fr; } .glass { width: 88%; } }
+    </style>
+</head>
+<body>
+<main class="page">
+    <header class="header">
+        <div><div class="eyebrow">APRICITYUI RENDER REGRESSION</div><h1>Filter + Backdrop Filter Animation Lab</h1></div>
+        <div class="status" id="status">Animations running | backdrop: base</div>
+    </header>
+    <div class="toolbar">
+        <button id="toggleBackdrop">Backdrop intensity</button>
+        <button id="togglePause">Pause animation</button>
+        <button id="toggleFilter">Toggle static filter</button>
+        <button id="toggleOverlay">Toggle overlay</button>
+    </div>
+
+    <section class="grid">
+        <article class="panel">
+            <div class="panel-head"><div class="panel-title">Animated backdrop stack</div><div class="panel-note">Moving shapes, transparent panel, blur, brightness, saturation, nested backdrop and clipping.</div></div>
+            <div class="scene" id="backdropScene">
+                <div class="grid-lines"></div><div class="orb one"></div><div class="orb two"></div><div class="orb three"></div><div class="ticker">BACKDROP SAMPLE</div>
+                <div class="backdrop-stack" id="backdropStack"><div class="glass"><h2>Glass surface</h2><p>Background motion must remain visible through the filter, while this content stays sharp and correctly layered.</p><div class="metric">blur + brightness + hue rotation</div><div class="nested-glass">Nested backdrop-filter boundary</div></div></div>
+            </div>
+            <div class="case-row"><div class="case-copy">Check animated source sampling, alpha compositing, nested capture ordering and rectangular clipping.</div></div>
+        </article>
+
+        <article class="panel">
+            <div class="panel-head"><div class="panel-title">Animated element filter chain</div><div class="panel-note">blur, brightness, grayscale, hue rotation, opacity, drop shadow and transform run together.</div></div>
+            <div class="filter-stage" id="filterStage"><div class="subject"><span class="badge">FILTER TARGET</span><h2>Chromatic card</h2><p>The element and its descendants are rendered into the filter target before compositing.</p></div></div>
+            <div class="case-row"><div class="mini" id="staticFilter"></div><div class="case-copy">Static comparison target checks non-animated filter invalidation and drop-shadow bounds.</div></div>
+        </article>
+    </section>
+</main>
+<script>
+    const backdropScene = document.getElementById('backdropScene');
+    const backdropStack = document.getElementById('backdropStack');
+    const filterStage = document.getElementById('filterStage');
+    const staticFilter = document.getElementById('staticFilter');
+    const status = document.getElementById('status');
+    let paused = false;
+    let intense = false;
+    let overlay = false;
+    function updateStatus() { status.textContent = 'Animations ' + (paused ? 'paused' : 'running') + ' | backdrop: ' + (intense ? 'high' : 'base') + ' | static filter: ' + (staticFilter.classList.contains('filter-on') ? 'on' : 'off'); }
+    document.getElementById('toggleBackdrop').addEventListener('click', () => { intense = !intense; backdropStack.classList.toggle('high', intense); updateStatus(); });
+    document.getElementById('togglePause').addEventListener('click', () => { paused = !paused; backdropScene.classList.toggle('paused', paused); filterStage.classList.toggle('paused', paused); updateStatus(); });
+    document.getElementById('toggleFilter').addEventListener('click', () => { staticFilter.classList.toggle('filter-on'); updateStatus(); });
+    document.getElementById('toggleOverlay').addEventListener('click', () => { overlay = !overlay; document.body.style.filter = overlay ? 'brightness(.78) hue-rotate(18deg)' : 'none'; updateStatus(); });
+    updateStatus();
+</script>
+</body>
+</html>

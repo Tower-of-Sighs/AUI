@@ -1,4 +1,4 @@
-package com.sighs.apricityui.ui.tooltip;
+package com.sighs.apricityui.ui;
 
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;

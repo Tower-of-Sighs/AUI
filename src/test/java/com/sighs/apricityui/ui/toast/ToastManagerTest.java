@@ -2,6 +2,7 @@ package com.sighs.apricityui.ui.toast;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.ui.ToastManager;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;

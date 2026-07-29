@@ -1,4 +1,4 @@
-package com.sighs.apricityui.ui.menu;
+package com.sighs.apricityui.ui;
 
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.init.Document;

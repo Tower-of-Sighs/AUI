@@ -79,14 +79,12 @@ final class ScrollModel {
     boolean hasVerticalScrollRange() {
         if (isViewportScroller() ? !canScrollVertically()
                 : !Interaction.allowsUserScrollY(owner.getComputedStyle())) return false;
-        refreshScrollMetrics();
         return getVerticalScrollLimitFromMetrics() > 0.5;
     }
 
     boolean hasHorizontalScrollRange() {
         if (isViewportScroller() ? !canScrollHorizontally()
                 : !Interaction.allowsUserScrollX(owner.getComputedStyle())) return false;
-        refreshScrollMetrics();
         return getHorizontalScrollLimitFromMetrics() > 0.5;
     }
 
@@ -135,7 +133,6 @@ final class ScrollModel {
     boolean handleMouseDown(MouseEvent event) {
         if (event == null || event.button != 0) return false;
         if (!mayRenderScrollbar()) return false;
-        refreshScrollMetrics();
 
         Rect rect = Rect.of(owner);
         AxisGeometry vertical = verticalScrollbarVisible ? verticalGeometry(rect) : null;
@@ -170,7 +167,6 @@ final class ScrollModel {
     boolean handleMouseMove(MouseEvent event) {
         if (event == null || !scrollbarPointerActive) return false;
         if (dragAxis == DragAxis.NONE) return true;
-        refreshScrollMetrics();
         AxisGeometry geometry = dragAxis == DragAxis.VERTICAL
                 ? verticalGeometry(Rect.of(owner))
                 : horizontalGeometry(Rect.of(owner));
@@ -202,7 +198,6 @@ final class ScrollModel {
             setScrollbarVisibility(false, false);
             return;
         }
-        refreshScrollMetrics();
         if (!verticalScrollbarVisible && !horizontalScrollbarVisible) return;
 
         Position bodyPos = rectRenderer.getBodyRectPosition();
@@ -282,7 +277,6 @@ final class ScrollModel {
     }
 
     private double getHorizontalScrollLimit() {
-        refreshScrollMetrics();
         return getHorizontalScrollLimitFromMetrics();
     }
 
@@ -291,7 +285,6 @@ final class ScrollModel {
     }
 
     private double getVerticalScrollLimit() {
-        refreshScrollMetrics();
         return getVerticalScrollLimitFromMetrics();
     }
 
@@ -346,14 +339,15 @@ final class ScrollModel {
         return !"hidden".equals(normalized) && !"clip".equals(normalized);
     }
 
-    private void refreshScrollMetrics() {
+    /** Commits the scroll area from used layout boxes, never from paint bounds. */
+    void commitLayoutMetrics() {
         if (!(owner instanceof AbstractText)) {
-            Size contentSize = Size.getContentSize(owner);
+            Size contentSize = measureLayoutScrollArea();
             if (isViewportScroller() && owner.document.body != null) {
                 // The viewport scrolling element's scroll area includes the body
                 // box even when the layout tree does not expose it as a normal
                 // child contribution of html.
-                Size bodyContentSize = Size.getContentSize(owner.document.body);
+                Size bodyContentSize = measureLayoutScrollArea(owner.document.body);
                 contentSize = new Size(
                         Math.max(contentSize.width(), bodyContentSize.width()),
                         Math.max(contentSize.height(), bodyContentSize.height())
@@ -363,6 +357,29 @@ final class ScrollModel {
             owner.scrollHeight = contentSize.height();
         }
         updateScrollbarVisibility();
+    }
+
+    private Size measureLayoutScrollArea() {
+        return measureLayoutScrollArea(owner);
+    }
+
+    private static Size measureLayoutScrollArea(Element scrollport) {
+        if (scrollport == null) return Size.ZERO;
+        Box box = Box.of(scrollport);
+        double contentOriginX = box.offset("left");
+        double contentOriginY = box.offset("top");
+        double width = 0;
+        double height = 0;
+        for (Element child : scrollport.getRenderChildren()) {
+            Style style = child.getRawComputedStyle();
+            if ("none".equals(style.display) || "fixed".equals(style.position)) continue;
+
+            Position offset = Position.getOffset(child);
+            Size outerSize = Box.of(child).size();
+            width = Math.max(width, offset.x - contentOriginX + outerSize.width());
+            height = Math.max(height, offset.y - contentOriginY + outerSize.height());
+        }
+        return new Size(Math.max(0, width), Math.max(0, height));
     }
 
     private void updateScrollbarVisibility() {

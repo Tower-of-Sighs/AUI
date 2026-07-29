@@ -500,6 +500,12 @@ public class Element extends Node {
         return scroll.getHorizontalScrollbarGutter();
     }
 
+    /** Commits scroll extents from the element's used layout boxes. */
+    @HideFromJS
+    public void commitScrollMetricsFromLayout() {
+        scroll.commitLayoutMetrics();
+    }
+
     public String getDefaultValue() {
         return attributes.getOrDefault("value", "");
     }

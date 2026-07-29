@@ -2,7 +2,7 @@ package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.ui.dialog.DialogWindow;
+import com.sighs.apricityui.ui.DialogWindow;
 
 import java.util.function.Consumer;
 
