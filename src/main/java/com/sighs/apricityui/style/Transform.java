@@ -48,11 +48,11 @@ public interface Transform {
                     result.add(new Translate(x, y, z));
                 }
                 case "translatex" -> {
-                    double x = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
+                    double x = parseLength(args, 0, percentBasisWidth);
                     result.add(new Translate(x, translate.y(), translate.z()));
                 }
                 case "translatey" -> {
-                    double y = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
+                    double y = parseLength(args, 0, percentBasisHeight);
                     result.add(new Translate(translate.x(), y, translate.z()));
                 }
                 case "translatez" -> {
@@ -200,8 +200,13 @@ public interface Transform {
 
     private static double parseLength(List<String> args, int index, double percentBasisWidth, double percentBasisHeight) {
         if (args == null || index < 0 || index >= args.size()) return 0;
-        String raw = args.get(index);
         double percentBasis = index == 1 ? percentBasisHeight : percentBasisWidth;
+        return parseLength(args, index, percentBasis);
+    }
+
+    private static double parseLength(List<String> args, int index, double percentBasis) {
+        if (args == null || index < 0 || index >= args.size()) return 0;
+        String raw = args.get(index);
         Double parsed = Size.tryResolveLength(raw, percentBasis);
         return parsed == null ? 0 : parsed;
     }

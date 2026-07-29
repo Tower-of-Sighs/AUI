@@ -405,6 +405,10 @@ public class Style implements Cloneable {
 
     public void applyUserAgentDefaults(Element element) {
         display = defaultDisplayFor(element);
+        if (element != null && "BUTTON".equalsIgnoreCase(element.tagName)) {
+            // HTML's user-agent stylesheet centers button labels unless author CSS overrides it.
+            textAlign = "center";
+        }
         if (element != null && "SELECT".equalsIgnoreCase(element.tagName)) {
             boxSizing = "border-box";
             whiteSpace = "nowrap";

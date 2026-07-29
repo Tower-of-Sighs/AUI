@@ -174,6 +174,12 @@ public class Graph {
 
     public static void drawGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
         if (gradient == null || w <= 0 || h <= 0) return;
+        // A four-vertex quad interpolates across CSS hard stops. Sample those
+        // gradients so diagonal transparent stops remain sharp.
+        if (gradient.hasHardStops()) {
+            drawSampledGradientRect(mat, x, y, w, h, gradient, 0.5f);
+            return;
+        }
         ColorResolver colorRes = (px, py) -> gradient.getColorAt(px, py, x, y, w, h);
         if (batchActive) {
             BufferBuilder buf = Base.getBuffer();
