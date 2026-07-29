@@ -294,6 +294,73 @@ public class Flex {
         return parsed == null ? 1 : Math.max(0, parsed);
     }
 
+    public static ItemUsedSize resolveItemUsedSize(Element element, Box box,
+                                                   double contentWidth, double contentHeight,
+                                                   boolean widthAuto, boolean heightAuto,
+                                                   double horizontalBox, double verticalBox,
+                                                   Double explicitParentHeight,
+                                                   boolean allowMainAxisAdjustment) {
+        Element parent = element == null ? null : element.parentElement;
+        if (parent == null || !Layout.isInFlow(element.getComputedStyle())
+                || !Layout.isFlexDisplay(parent.getComputedStyle().display)) {
+            return new ItemUsedSize(contentWidth, contentHeight, false, false);
+        }
+
+        Flex flex = Flex.of(parent);
+        boolean parentResolving = Size.isResolving(parent);
+        boolean mainSizeAssigned = false;
+        boolean crossSizeStretched = false;
+
+        if (allowMainAxisAdjustment) {
+            Size parentContentSize = parentResolving ? Size.ZERO : Box.of(parent).innerSize();
+            if (flex.flexDirection.isColumn() && widthAuto && shouldStretchCrossAxis(element, parent)) {
+                double parentCrossWidth = parentContentSize.width() > 0
+                        ? parentContentSize.width() : Size.getScaleWidth(element);
+                contentWidth = Math.max(0, parentCrossWidth - box.getMarginHorizontal() - horizontalBox);
+            } else if (flex.flexDirection.isRow() && heightAuto && shouldStretchCrossAxis(element, parent)
+                    && (!parentResolving || explicitParentHeight != null)) {
+                double parentCrossHeight = parentContentSize.height() > 0
+                        ? parentContentSize.height()
+                        : explicitParentHeight != null ? explicitParentHeight : Size.getScaleHeight(element);
+                contentHeight = Math.max(0, parentCrossHeight - box.getMarginVertical() - verticalBox);
+                crossSizeStretched = true;
+            }
+
+            if (!parentResolving && flex.flexDirection.isColumn() && heightAuto) {
+                double outer = resolveAssignedMainSize(element, parent,
+                        contentHeight + verticalBox + box.getMarginVertical());
+                contentHeight = Math.max(0, outer - box.getMarginVertical() - verticalBox);
+                mainSizeAssigned = true;
+            } else if (!parentResolving && flex.flexDirection.isRow()
+                    && Size.hasDefiniteAutoResolvedWidth(parent)) {
+                double previousWidth = contentWidth;
+                double outer = resolveAssignedMainSize(element, parent,
+                        contentWidth + horizontalBox + box.getMarginHorizontal());
+                contentWidth = Math.max(0, outer - box.getMarginHorizontal() - horizontalBox);
+                if (heightAuto && !shouldStretchCrossAxis(element, parent)
+                        && Math.abs(contentWidth - previousWidth) > 0.0001d) {
+                    Size constrained = Size.naturalAtContentWidth(element, contentWidth);
+                    contentHeight = Math.max(0, constrained.height() - verticalBox);
+                }
+            }
+        }
+
+        if (!parentResolving && shouldStretchCrossAxis(element, parent)) {
+            Size parentInner = Box.of(parent).innerSize();
+            if (flex.flexDirection.isColumn()) {
+                contentWidth = Math.max(0, parentInner.width() - box.getMarginHorizontal() - horizontalBox);
+            } else {
+                contentHeight = Math.max(0, parentInner.height() - box.getMarginVertical() - verticalBox);
+                crossSizeStretched = true;
+            }
+        }
+        return new ItemUsedSize(contentWidth, contentHeight, mainSizeAssigned, crossSizeStretched);
+    }
+
+    public record ItemUsedSize(double contentWidth, double contentHeight,
+                               boolean mainSizeAssigned, boolean crossSizeStretched) {
+    }
+
     public static double resolveAssignedMainSize(Element child, Element parent, double naturalOuterMainSize) {
         if (child == null || parent == null) return naturalOuterMainSize;
         List<Element> flowItems = getFlowItems(parent.getRenderChildren());
@@ -419,9 +486,18 @@ public class Flex {
             Element item = items.get(i);
             Box box = Box.of(item);
             double borderBoxWidth = Math.max(0, assigned[i] - box.getMarginHorizontal());
-            double contentWidth = Math.max(0,
-                    borderBoxWidth - box.getBorderHorizontal() - box.getPaddingHorizontal());
-            Size constrained = Size.naturalAtContentWidth(item, contentWidth);
+            Size natural = Size.natural(item);
+            Size constrained;
+            if (borderBoxWidth + 0.0001d >= natural.width()) {
+                // The item did not shrink below its max-content contribution.
+                // Re-wrapping at an arithmetically equivalent width can turn
+                // an exact-fit glyph run into two lines through FP roundoff.
+                constrained = natural;
+            } else {
+                double contentWidth = Math.max(0,
+                        borderBoxWidth - box.getBorderHorizontal() - box.getPaddingHorizontal());
+                constrained = Size.naturalAtContentWidth(item, contentWidth);
+            }
             crossSize = Math.max(crossSize, constrained.height() + box.getMarginVertical());
         }
         return crossSize;

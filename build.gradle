@@ -44,10 +44,10 @@ legacyForge {
             if (project.hasProperty('auiLogStyles')) {
                 systemProperty 'apricityui.test.logStyles', project.property('auiLogStyles')
             }
-            if (project.hasProperty('auiVerboseLogs')) {
-                systemProperty 'apricityui.test.verboseLogs', project.property('auiVerboseLogs')
-            }
-            if (project.hasProperty('auiLogRenderPhases')) {
+                        if (project.hasProperty('auiVerboseLogs')) {
+                            systemProperty 'apricityui.test.verboseLogs', project.property('auiVerboseLogs')
+                        }
+                        if (project.hasProperty('auiLogRenderPhases')) {
                 systemProperty 'apricityui.test.logRenderPhases', project.property('auiLogRenderPhases')
             }
             if (project.hasProperty('auiWindowWidth')) {
@@ -61,6 +61,11 @@ legacyForge {
             if (!project.hasProperty('auiWindowWidth') && !project.hasProperty('auiWindowHeight')) {
                 programArgument '--earlywindow.maximized'
             }
+        }
+
+        wptClient {
+            client()
+            gameDirectory = file('wpt/runtime')
         }
 
         server {
@@ -144,8 +149,6 @@ dependencies {
     modRuntimeOnly ("curse.maven:rubidium-extra-654373:6101745")
 
     // modImplementation ("curse.maven:accelerated-rendering-1314021:7342975")
-
-    modImplementation ("curse.maven:baeffect-1521891:7968488")
 
 }
 
@@ -244,6 +247,12 @@ tasks.withType(JavaCompile).configureEach {
 
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+    ['aui.wpt.input', 'aui.wpt.output'].each { key ->
+        def value = System.getProperty(key)
+        if (value != null && !value.isBlank()) {
+            systemProperty key, value
+        }
+    }
 }
 
 jacoco {

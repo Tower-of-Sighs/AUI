@@ -1078,7 +1078,6 @@ public class Element extends Node {
         Element host = pseudoElement ? pseudoElementHost : this;
         if (host == null) return;
         host.getRenderer().invalidateLayoutSubtree();
-        LayoutMeasureCache.invalidateSubtree(host);
         if (host.document != null) {
             host.document.markDirty(host, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
         }
@@ -1252,7 +1251,6 @@ public class Element extends Node {
             // Text contributes intrinsic size. Its ancestors and following siblings
             // therefore need the same layout invalidation as a normal-flow resize.
             getRenderer().invalidateLayoutSubtree();
-            LayoutMeasureCache.invalidateSubtree(this);
             forEachRoute(element -> {
                 RenderElement renderer = element.getRenderer();
                 renderer.invalidateLayoutVersion();
