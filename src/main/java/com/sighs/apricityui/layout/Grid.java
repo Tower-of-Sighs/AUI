@@ -6,8 +6,11 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Global Grid layout (MVP + alignment + placement/span)
@@ -22,6 +25,10 @@ import java.util.Locale;
  * - grid-row / grid-column with span (basic)
  */
 public final class Grid {
+    private static final ThreadLocal<Set<Element>> RESOLVING = ThreadLocal.withInitial(
+            () -> Collections.newSetFromMap(new IdentityHashMap<>())
+    );
+
     private Grid() {
     }
 
@@ -65,7 +72,7 @@ public final class Grid {
     private record Placement(int col, int row, int colSpan, int rowSpan) {
     }
 
-    private record Layout(List<Element> flow,
+    private record GridLayout(List<Element> flow,
                           List<Placement> placements,
                           List<Track> cols,
                           List<Track> rows,
@@ -76,7 +83,7 @@ public final class Grid {
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
         Box parentBox = Box.of(parent);
-        Layout layout = computeLayout(parent, siblings);
+        GridLayout layout = getOrComputeLayout(parent, siblings);
 
         int idx = layout.flow.indexOf(element);
         if (idx < 0) {
@@ -90,8 +97,8 @@ public final class Grid {
         double cellW = spanSum(layout.colW, p.col, p.colSpan) + (double) (p.colSpan - 1) * layout.gaps.colGap;
         double cellH = spanSum(layout.rowH, p.row, p.rowSpan) + (double) (p.rowSpan - 1) * layout.gaps.rowGap;
 
-        applyGridStretchSize(element, parent, cellW, cellH);
-        Size itemSize = Size.box(element);
+        Size assignedSize = resolveAssignedSize(element, parent, layout, p, cellW, cellH);
+        Size itemSize = assignedSize != null ? assignedSize : Size.box(element);
         double dx = computeJustifyOffset(element, parent, cellW, itemSize.width());
         double dy = computeAlignOffset(element, parent, cellH, itemSize.height());
         return new Position(baseX + dx, baseY + dy);
@@ -101,47 +108,86 @@ public final class Grid {
      * 如果网格项在对应轴上为 stretch（grid 默认），把它的大小设为网格区域大小。
      * 这样网格项不会溢出单元格，也符合浏览器默认行为。
      */
-    private static void applyGridStretchSize(Element element, Element parent, double cellW, double cellH) {
+    public static Size resolveAssignedSize(Element element) {
+        if (element == null || element.parentElement == null) return null;
+        Element parent = element.parentElement;
+        if (!Layout.isGridDisplay(parent.getComputedStyle().display)
+                || RESOLVING.get().contains(parent)) return null;
+        GridLayout layout = getOrComputeLayout(parent, parent.getRenderChildren());
+        int index = layout.flow.indexOf(element);
+        if (index < 0) return null;
+        Placement placement = layout.placements.get(index);
+        double cellW = spanSum(layout.colW, placement.col, placement.colSpan)
+                + (double) Math.max(0, placement.colSpan - 1) * layout.gaps.colGap;
+        double cellH = spanSum(layout.rowH, placement.row, placement.rowSpan)
+                + (double) Math.max(0, placement.rowSpan - 1) * layout.gaps.rowGap;
+        return resolveAssignedSize(element, parent, layout, placement, cellW, cellH);
+    }
+
+    private static Size resolveAssignedSize(Element element, Element parent, GridLayout layout,
+                                            Placement placement, double cellW, double cellH) {
         Style parentStyle = parent.getComputedStyle();
         Style selfStyle = element.getComputedStyle();
         boolean stretchW = isGridStretch(parentStyle.justifyItems, selfStyle.justifySelf);
         boolean stretchH = isGridStretch(parentStyle.alignItems, selfStyle.alignSelf);
-        if (!stretchW && !stretchH) return;
+        if (!stretchW && !stretchH) return null;
 
         // 如果元素在对应轴上有明确尺寸，保持其显式大小，不做拉伸。
         boolean hasExplicitWidth = Size.parseNumber(selfStyle.width) != null;
         boolean hasExplicitHeight = Size.parseNumber(selfStyle.height) != null;
         if (stretchW && hasExplicitWidth) stretchW = false;
         if (stretchH && hasExplicitHeight) stretchH = false;
-        if (!stretchW && !stretchH) return;
+        if (!stretchW && !stretchH) return null;
 
-        Size current = Size.of(element);
+        Size current = Size.natural(element);
         Box box = Box.of(element);
-        double targetW = stretchW ? cellW : current.width();
-        double targetH = stretchH ? cellH : current.height();
+        double targetW = stretchW ? Math.max(0, cellW - box.getMarginHorizontal()) : current.width();
+        double targetH = stretchH ? Math.max(0, cellH - box.getMarginVertical()) : current.height();
 
-        // Size 缓存存储的是元素总大小（content + border + padding）。
-        // border-box 时总大小直接等于网格区域大小；content-box 时需要加上边框内边距。
-        if (!box.isBorderBox()) {
-            if (stretchW) targetW += box.getBorderHorizontal() + box.getPaddingHorizontal();
-            if (stretchH) targetH += box.getBorderVertical() + box.getPaddingVertical();
+        // Stretch fills the grid area's margin box. Size stores the item's
+        // used border-box size, independent of box-sizing.
+        if (stretchW && hasContentBasedAutomaticMinimum(selfStyle, layout.cols,
+                placement.col, placement.colSpan, true)) {
+            targetW = Math.max(targetW, current.width());
+        }
+        if (stretchH && hasContentBasedAutomaticMinimum(selfStyle, layout.rows,
+                placement.row, placement.rowSpan, false)) {
+            targetH = Math.max(targetH, current.height());
         }
 
         double finalW = stretchW ? Math.max(0, targetW) : current.width();
         double finalH = stretchH ? Math.max(0, targetH) : current.height();
-        Size assigned = new Size(finalW, finalH);
-        boolean containingBlockChanged = Math.abs(finalW - current.width()) > 0.0001
-                || Math.abs(finalH - current.height()) > 0.0001;
-        if (containingBlockChanged) {
-            element.getRenderer().invalidateLayoutVersion();
-            element.getRenderer().text.clear();
-            element.getRenderer().wrappedText.clear();
-            for (Element child : element.getRenderChildren()) {
-                child.getRenderer().invalidateLayoutSubtree();
-            }
+        return new Size(finalW, finalH);
+    }
+
+    private static boolean hasContentBasedAutomaticMinimum(Style style, List<Track> tracks,
+                                                            int start, int span, boolean horizontal) {
+        String minimum = horizontal ? style.minWidth : style.minHeight;
+        if (Size.tryResolveLength(minimum, 0) != null) return false;
+        String overflow = horizontal
+                ? Interaction.resolveOverflowX(style)
+                : Interaction.resolveOverflowY(style);
+        if (!"visible".equals(Interaction.normalizeOverflow(overflow))) return false;
+
+        boolean spansAutoMinimum = false;
+        boolean spansFlexible = false;
+        int resolvedSpan = Math.max(1, span);
+        int end = Math.min(tracks.size(), start + resolvedSpan);
+        for (int i = Math.max(0, start); i < end; i++) {
+            Track track = tracks.get(i);
+            spansAutoMinimum |= hasAutoMinimum(track);
+            spansFlexible |= frWeight(track) > 0;
         }
-        element.getRenderer().gridAssignedSize.set(assigned);
-        element.getRenderer().size.set(assigned);
+        return spansAutoMinimum && (resolvedSpan <= 1 || !spansFlexible);
+    }
+
+    private static boolean hasAutoMinimum(Track track) {
+        if (track == null) return false;
+        return switch (track.type) {
+            case AUTO, FR -> true;
+            case FIXED -> false;
+            case MINMAX -> track.minTrack != null && track.minTrack.type == TrackType.AUTO;
+        };
     }
 
     private static boolean isGridStretch(String containerValue, String selfValue) {
@@ -151,7 +197,7 @@ public final class Grid {
     }
 
     public static Size computeContentSize(Element gridContainer) {
-        Layout layout = computeLayout(gridContainer, gridContainer.getRenderChildren());
+        GridLayout layout = getOrComputeLayout(gridContainer, gridContainer.getRenderChildren());
         if (layout.flow.isEmpty()) return Size.ZERO;
 
         double gridW = sum(layout.colW) + (double) layout.gaps.colGap * Math.max(0, layout.colW.length - 1);
@@ -159,19 +205,40 @@ public final class Grid {
         return new Size(gridW, gridH);
     }
 
-    private static Layout computeLayout(Element gridContainer, List<Element> siblings) {
+    private static GridLayout getOrComputeLayout(Element gridContainer, List<Element> siblings) {
+        Size available = resolveAvailableTrackSpace(gridContainer);
+        boolean natural = Size.isNaturalMeasurementContext();
+        GridLayout cached = (GridLayout) LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_GRID, gridContainer,
+                available.width(), available.height(), natural);
+        if (cached != null) return cached;
+
+        Set<Element> resolving = RESOLVING.get();
+        if (!resolving.add(gridContainer)) {
+            return new GridLayout(List.of(), List.of(), List.of(), List.of(), new double[]{0}, new double[]{0}, new Gaps(0, 0));
+        }
+        try {
+            GridLayout result = computeLayout(gridContainer, siblings, available);
+            LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_GRID, gridContainer,
+                    available.width(), available.height(), natural, result);
+            return result;
+        } finally {
+            resolving.remove(gridContainer);
+            if (resolving.isEmpty()) RESOLVING.remove();
+        }
+    }
+
+    private static GridLayout computeLayout(Element gridContainer, List<Element> siblings, Size availableSize) {
         Style ps = gridContainer.getComputedStyle();
         Gaps gaps = parseGaps(ps);
         List<Element> flow = collectFlowChildren(siblings);
 
-        Size availableSize = resolveAvailableTrackSpace(gridContainer);
         ParsedTracks parsedCols = parseTracks(ps.gridTemplateColumns, 1, availableSize.width(), gaps.colGap);
         ParsedTracks parsedRows = parseTracks(ps.gridTemplateRows, 0, availableSize.height(), gaps.rowGap);
 
         if (flow.isEmpty()) {
             List<Track> cols0 = parsedCols.tracks().isEmpty() ? makeAutoTracks(1) : parsedCols.tracks();
             List<Track> rows0 = parsedRows.tracks().isEmpty() ? makeAutoTracks(1) : parsedRows.tracks();
-            return new Layout(flow, List.of(), cols0, rows0, new double[]{0}, new double[]{0}, gaps);
+            return new GridLayout(flow, List.of(), cols0, rows0, new double[]{0}, new double[]{0}, gaps);
         }
 
         List<Track> cols = new ArrayList<>(parsedCols.tracks());
@@ -257,7 +324,7 @@ public final class Grid {
         double[] colW = computeTrackSizes(cols, placements, flow, gaps.colGap, availableSize.width(), true, null, 0);
         double[] rowH = computeTrackSizes(rows, placements, flow, gaps.rowGap, availableSize.height(), false,
                 colW, gaps.colGap);
-        return new Layout(flow, placements, cols, rows, colW, rowH, gaps);
+        return new GridLayout(flow, placements, cols, rows, colW, rowH, gaps);
     }
 
     private static int spanRequirement(SpanSpec spec) {
@@ -340,7 +407,7 @@ public final class Grid {
             int span = Math.max(1, columnAxis ? p.colSpan : p.rowSpan);
             int internalGaps = Math.max(0, span - 1) * gap;
             // Track sizing must use the item's intrinsic contribution, not the
-            // size previously assigned by this grid.  Reusing gridAssignedSize
+            // size assigned by this grid's resolved track layout. Reusing it
             // creates a feedback loop for auto-sized grids: a collapsed 0fr
             // row assigns 0px to its item, then a later 1fr layout measures that
             // stale 0px and can never grow even when the item now has children.

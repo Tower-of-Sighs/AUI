@@ -15,12 +15,15 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.resource.Font;
+import com.sighs.apricityui.resource.CSS;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.awt.Canvas;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +36,36 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LayoutPositionTest {
+
+    @Test
+    void layoutMeasurementCacheRejectsEntriesFromAnOlderLayoutDependency() {
+        Document document = TestDocumentFactory.createDocument();
+        Element parent = new Element(document, "div");
+        Element element = new Element(document, "div");
+        document.body.appendChild(parent);
+        parent.appendChild(element);
+
+        LayoutMeasureCache.begin();
+        try {
+            Size measured = new Size(24, 12);
+            LayoutMeasureCache.putSize(LayoutMeasureCache.SIZE_NATURAL, element,
+                    Double.NaN, Double.NaN, true, measured);
+            assertEquals(measured, LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element,
+                    Double.NaN, Double.NaN, true));
+
+            element.getRenderer().invalidateLayoutVersion();
+            assertNull(LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element,
+                    Double.NaN, Double.NaN, true));
+
+            LayoutMeasureCache.putSize(LayoutMeasureCache.SIZE_NATURAL, element,
+                    Double.NaN, Double.NaN, true, measured);
+            parent.getRenderer().size.set(new Size(320, 200));
+            assertNull(LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element,
+                    Double.NaN, Double.NaN, true));
+        } finally {
+            LayoutMeasureCache.end();
+        }
+    }
     @Test
     void inlineFlexDirectTextKeepsItsContentHeightAboveMinHeight() {
         assumeMinecraftClientTextRuntime();
@@ -418,6 +451,96 @@ class LayoutPositionTest {
         assertEquals(340, Size.naturalAtContentWidth(stack, 468).height(), 0.01);
         Position.getOffset(secondCard);
         assertEquals(170, Size.of(secondCard).height(), 0.01);
+    }
+
+    @Test
+    void gridStretchFillsTheAreaWithTheItemsMarginBoxForContentBoxSizing() {
+        Document document = TestDocumentFactory.createDocument();
+        Element grid = new Element(document, "div");
+        grid.setAttribute("style", "display: grid; width: 200px; height: 200px; "
+                + "grid-template-columns: 200px; grid-template-rows: 200px;");
+        Element item = new Element(document, "div");
+        item.setAttribute("style", "box-sizing: content-box; margin: 10px; "
+                + "padding: 12px; border: 2px solid black;");
+        document.body.appendChild(grid);
+        grid.appendChild(item);
+
+        assertEquals(180, Size.of(item).width(), 0.01);
+        assertEquals(180, Size.of(item).height(), 0.01);
+        assertEquals(200, Box.of(item).size().width(), 0.01);
+        assertEquals(200, Box.of(item).size().height(), 0.01);
+    }
+
+    @Test
+    void oreThemeContractRowsRemainInsideTheStretchedGridCard() throws IOException {
+        Document document = TestDocumentFactory.createDocument();
+        document.setFontMode(Document.FontMode.WEB);
+        Path stylesheet = Path.of(
+                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
+        assertTrue(Font.registerFont("OreRegular", Path.of(
+                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-regular.otf")));
+        assertTrue(Font.registerFont("OreDisplay", Path.of(
+                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf")));
+        document.body.setAttribute("class", "ore-theme");
+        document.body.setAttribute("style", "width: 1150px; font-family: OreRegular;");
+
+        Element grid = new Element(document, "div");
+        grid.setAttribute("class", "grid");
+        Element shortCard = createOreContractCard(document, 3);
+        Element contractCard = createOreContractCard(document, 5);
+        document.body.appendChild(grid);
+        grid.appendChild(shortCard);
+        grid.appendChild(contractCard);
+
+        Size.of(grid);
+        CSS.readCSS(Files.readString(stylesheet), document.CSSCache, stylesheet.toString());
+        document.rebuildSelectorIndex();
+        document.reapplyStylesFromCache();
+        document.commitStyleRecalc();
+
+        Element license = contractCard.querySelector("li:last-child");
+        double licenseBottom = Position.of(license).y + Box.of(license).size().height();
+        double cardPaddingBottom = Position.of(contractCard).y + Size.of(contractCard).height()
+                - Box.of(contractCard).getBorderBottom();
+
+        assertTrue(licenseBottom <= cardPaddingBottom + 0.01,
+                "the auto grid row must include the complete intrinsic block contribution");
+        assertEquals(Size.of(contractCard).height(), Size.of(shortCard).height(), 0.01);
+        List<Element> rows = contractCard.querySelectorAll(".list-group-item");
+        assertEquals(52, Size.of(rows.get(0)).height(), 0.01);
+        assertEquals(52, Size.of(rows.get(1)).height(), 0.01);
+        assertEquals(52, Size.of(rows.get(2)).height(), 0.01);
+        assertEquals(52, Size.of(rows.get(3)).height(), 0.01);
+        assertEquals(50, Size.of(rows.get(4)).height(), 0.01);
+    }
+
+    private static Element createOreContractCard(Document document, int rowCount) {
+        Element card = new Element(document, "div");
+        card.setAttribute("class", "col-6 card card-accent-purple");
+        Element header = new Element(document, "div");
+        header.setAttribute("class", "card-header");
+        header.setTextContent("Theme contract");
+        Element body = new Element(document, "div");
+        body.setAttribute("class", "card-body");
+        Element list = new Element(document, "ul");
+        list.setAttribute("class", "list-group");
+        card.appendChild(header);
+        card.appendChild(body);
+        body.appendChild(list);
+        String[] labels = {"Theme scope", "Variables", "Display font", "Body font", "License"};
+        String[] values = {".ore-theme", "--ore-*", "OreDisplay", "OreRegular", "MPL-2.0"};
+        for (int i = 0; i < rowCount; i++) {
+            Element row = new Element(document, "li");
+            row.setAttribute("class", "list-group-item");
+            Element label = new Element(document, "span");
+            label.setTextContent(labels[i]);
+            Element value = new Element(document, "code");
+            value.setTextContent(values[i]);
+            row.appendChild(label);
+            row.appendChild(value);
+            list.appendChild(row);
+        }
+        return card;
     }
 
     @Test

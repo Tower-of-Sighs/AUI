@@ -197,7 +197,7 @@ public final class ToastManager {
         return element;
     }
 
-    static Element createTranslationMessagePart(Document document, String translationKey) {
+    public static Element createTranslationMessagePart(Document document, String translationKey) {
         Element messagePart = createPart(document, "span", " ", MESSAGE_STYLE);
         Element translation = Element.init(document.createElement("TRANSLATION"));
         translation.setTextContent(translationKey == null ? "" : translationKey);

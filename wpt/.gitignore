@@ -1,0 +1,5 @@
+# Upstream corpus and generated results are local test inputs/outputs.
+/corpus/
+/output/
+/cache/
+/runtime/

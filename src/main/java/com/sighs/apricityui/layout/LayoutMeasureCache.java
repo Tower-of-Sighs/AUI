@@ -6,17 +6,15 @@ import com.sighs.apricityui.init.Element;
 
 import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.Set;
-import java.util.ArrayDeque;
 
 public final class LayoutMeasureCache {
     public static final int SIZE_NATURAL = 1;
     public static final int CONTENT_FLEX = 2;
-    public static final int CONTENT_NORMAL_FLOW = 3;
     public static final int LAYOUT_FLEX = 4;
     public static final int LAYOUT_NORMAL_FLOW = 5;
     public static final int FLEX_ASSIGNED_MAIN_SIZES = 6;
     public static final int SIZE_NATURAL_CONSTRAINED = 7;
+    public static final int LAYOUT_GRID = 8;
 
     private static final ThreadLocal<State> STATE = new ThreadLocal<>();
 
@@ -45,10 +43,10 @@ public final class LayoutMeasureCache {
         State state = STATE.get();
         if (state == null || element == null) return null;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            return state.naturalSizes.get(element);
+            return state.getVersioned(state.naturalSizes, element);
         }
         if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            return (natural ? state.naturalFlexContentSizes : state.flexContentSizes).get(element);
+            return state.getVersioned(natural ? state.naturalFlexContentSizes : state.flexContentSizes, element);
         }
         return state.sizes.get(new Key(mode, element, availableWidth, availableHeight, natural));
     }
@@ -57,11 +55,11 @@ public final class LayoutMeasureCache {
         State state = STATE.get();
         if (state == null || element == null || size == null) return;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            state.naturalSizes.put(element, size);
+            state.putVersioned(state.naturalSizes, element, size);
             return;
         }
         if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
-            (natural ? state.naturalFlexContentSizes : state.flexContentSizes).put(element, size);
+            state.putVersioned(natural ? state.naturalFlexContentSizes : state.flexContentSizes, element, size);
             return;
         }
         state.sizes.put(new Key(mode, element, availableWidth, availableHeight, natural), size);
@@ -79,33 +77,26 @@ public final class LayoutMeasureCache {
         state.objects.put(new Key(mode, element, availableWidth, availableHeight, natural), value);
     }
 
-    public static void invalidateSubtree(Element root) {
-        State state = STATE.get();
-        if (state == null || root == null) return;
-
-        Set<Element> subtree = java.util.Collections.newSetFromMap(new IdentityHashMap<>());
-        ArrayDeque<Element> pending = new ArrayDeque<>();
-        pending.push(root);
-        while (!pending.isEmpty()) {
-            Element element = pending.pop();
-            if (!subtree.add(element)) continue;
-            for (Element child : element.getRenderChildren()) pending.push(child);
-        }
-
-        state.naturalSizes.keySet().removeIf(subtree::contains);
-        state.flexContentSizes.keySet().removeIf(subtree::contains);
-        state.naturalFlexContentSizes.keySet().removeIf(subtree::contains);
-        state.sizes.keySet().removeIf(key -> subtree.contains(key.element));
-        state.objects.keySet().removeIf(key -> subtree.contains(key.element));
-    }
-
     private static final class State {
         private int depth = 0;
-        private final IdentityHashMap<Element, Size> naturalSizes = new IdentityHashMap<>();
-        private final IdentityHashMap<Element, Size> flexContentSizes = new IdentityHashMap<>();
-        private final IdentityHashMap<Element, Size> naturalFlexContentSizes = new IdentityHashMap<>();
+        private final IdentityHashMap<Element, VersionedSize> naturalSizes = new IdentityHashMap<>();
+        private final IdentityHashMap<Element, VersionedSize> flexContentSizes = new IdentityHashMap<>();
+        private final IdentityHashMap<Element, VersionedSize> naturalFlexContentSizes = new IdentityHashMap<>();
         private final HashMap<Key, Size> sizes = new HashMap<>();
         private final HashMap<Key, Object> objects = new HashMap<>();
+
+        private Size getVersioned(IdentityHashMap<Element, VersionedSize> entries, Element element) {
+            VersionedSize entry = entries.get(element);
+            return entry != null && entry.dependency == element.getRenderer().layoutDependency()
+                    ? entry.value : null;
+        }
+
+        private void putVersioned(IdentityHashMap<Element, VersionedSize> entries, Element element, Size value) {
+            entries.put(element, new VersionedSize(element.getRenderer().layoutDependency(), value));
+        }
+    }
+
+    private record VersionedSize(long dependency, Size value) {
     }
 
     private static final class Key {
@@ -114,6 +105,7 @@ public final class LayoutMeasureCache {
         private final long availableWidth;
         private final long availableHeight;
         private final boolean natural;
+        private final long dependency;
         private final int hash;
 
         private Key(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
@@ -122,11 +114,13 @@ public final class LayoutMeasureCache {
             this.availableWidth = bits(availableWidth);
             this.availableHeight = bits(availableHeight);
             this.natural = natural;
+            this.dependency = element.getRenderer().layoutDependency();
             int result = mode;
             result = 31 * result + System.identityHashCode(element);
             result = 31 * result + Long.hashCode(this.availableWidth);
             result = 31 * result + Long.hashCode(this.availableHeight);
             result = 31 * result + Boolean.hashCode(natural);
+            result = 31 * result + Long.hashCode(this.dependency);
             this.hash = result;
         }
 
@@ -142,7 +136,8 @@ public final class LayoutMeasureCache {
                     && element == other.element
                     && availableWidth == other.availableWidth
                     && availableHeight == other.availableHeight
-                    && natural == other.natural;
+                    && natural == other.natural
+                    && dependency == other.dependency;
         }
 
         @Override

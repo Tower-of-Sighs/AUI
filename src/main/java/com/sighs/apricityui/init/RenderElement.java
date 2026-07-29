@@ -50,12 +50,29 @@ public class RenderElement {
         }
     };
     public Cache<Size> size = new Cache<>() {
+        private long dependency = Long.MIN_VALUE;
+
+        @Override
+        public Size get() {
+            if (value == null) return null;
+            if (dependency != usedSizeDependency()) {
+                value = null;
+                return null;
+            }
+            return value;
+        }
+
+        @Override
+        public void set(Size value) {
+            this.value = value;
+            this.dependency = usedSizeDependency();
+        }
+
         @Override
         void expandClear() {
             clearCommittedLayout();
         }
     };
-    public Cache<Size> gridAssignedSize = new Cache<>();
     public Cache<Box> box = new Cache<>() {
         @Override
         void expandClear() {
@@ -130,6 +147,33 @@ public class RenderElement {
     }
 
     /**
+     * Version of all geometry inputs that can affect this element's used size.
+     * Layout caches use this stamp instead of requiring every mutation path to
+     * know which cache table must be cleared.
+     */
+    public long layoutDependency() {
+        return usedSizeDependency();
+    }
+
+    private long usedSizeDependency() {
+        long value = 17L;
+        if (element.document != null) value = mix(value, element.document.getViewportVersion());
+        Element[] route = element.getRouteArray();
+        for (int i = 0; i < route.length; i++) {
+            RenderElement renderer = route[i].getRenderer();
+            value = mix(value, renderer.styleVersion);
+            value = mix(value, renderer.layoutVersion);
+            if (i == 0) continue;
+            Size ancestorSize = renderer.size.value;
+            if (ancestorSize != null) {
+                value = mix(value, Double.doubleToLongBits(ancestorSize.width()));
+                value = mix(value, Double.doubleToLongBits(ancestorSize.height()));
+            }
+        }
+        return value;
+    }
+
+    /**
      * Invalidates cached used values whose containing block may have changed.
      * Descendant percentages, flex/grid assignments, text wrapping and
      * percentage transforms all depend on ancestor geometry.
@@ -142,7 +186,6 @@ public class RenderElement {
             RenderElement renderer = current.getRenderer();
             renderer.layoutVersion++;
             renderer.size.value = null;
-            renderer.gridAssignedSize.value = null;
             renderer.box.value = null;
             renderer.position.value = null;
             renderer.text.value = null;
@@ -374,7 +417,6 @@ public class RenderElement {
         boolean layoutChanged = check.test(LAYOUT_PROPS);
 
         if (paddingOrBorderChanged) {
-            renderer.gridAssignedSize.clear();
             element.forEachRoute(e -> e.getRenderer().size.clear());
             element.forEachRoute(e -> e.getRenderer().box.clear());
             if (element.parentElement != null) {
@@ -386,7 +428,6 @@ public class RenderElement {
         }
 
         if (layoutChanged) {
-            renderer.gridAssignedSize.clear();
             element.forEachRoute(e -> e.getRenderer().size.clear());
             renderer.box.clear();
             if (element.parentElement != null) {

@@ -34,12 +34,9 @@ public final class NormalFlow {
 
     public static Size computeContentSize(Element element) {
         double lineLimit = resolveLineLimit(element);
-        boolean natural = Size.isNaturalMeasurementContext();
-        Size cached = LayoutMeasureCache.getSize(LayoutMeasureCache.CONTENT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural);
-        if (cached != null) return cached;
-        Size result = getOrComputeFlowLayout(element, lineLimit).metrics().contentSize();
-        LayoutMeasureCache.putSize(LayoutMeasureCache.CONTENT_NORMAL_FLOW, element, lineLimit, Double.NaN, natural, result);
-        return result;
+        // FlowResult owns both line placement and content extents. Keeping a
+        // second size-only cache made those two views invalidate separately.
+        return getOrComputeFlowLayout(element, lineLimit).metrics().contentSize();
     }
 
     public static List<TextRunLayout> computeTextRuns(Element element) {

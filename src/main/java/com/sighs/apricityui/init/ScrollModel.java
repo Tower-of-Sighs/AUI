@@ -79,12 +79,14 @@ final class ScrollModel {
     boolean hasVerticalScrollRange() {
         if (isViewportScroller() ? !canScrollVertically()
                 : !Interaction.allowsUserScrollY(owner.getComputedStyle())) return false;
+        commitLayoutMetrics();
         return getVerticalScrollLimitFromMetrics() > 0.5;
     }
 
     boolean hasHorizontalScrollRange() {
         if (isViewportScroller() ? !canScrollHorizontally()
                 : !Interaction.allowsUserScrollX(owner.getComputedStyle())) return false;
+        commitLayoutMetrics();
         return getHorizontalScrollLimitFromMetrics() > 0.5;
     }
 
