@@ -112,8 +112,13 @@ public class Graph {
             BufferBuilder buf = Base.getBuffer();
             BufferUploader.drawWithShader(buf.end());
             if (!batchDepthTest) {
-                GlStateManager._enableDepthTest();
-                GlStateManager._depthMask(true);
+                if (Base.isDepthTestEnabled()) {
+                    GlStateManager._enableDepthTest();
+                    GlStateManager._depthMask(true);
+                } else {
+                    GlStateManager._disableDepthTest();
+                    GlStateManager._depthMask(false);
+                }
             }
             Base.finishRendering();
             RenderBatchStats.recordGraphFlush();

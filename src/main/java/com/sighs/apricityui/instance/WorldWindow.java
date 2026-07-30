@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.WorldPaintDepth;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.client.Minecraft;
@@ -31,27 +32,68 @@ public class WorldWindow {
 
     public Document document;
     private Vec3 position;
-    private float yRot;
-    private float xRot;
-    private float scale; // 缩放比例: 1px 对应多少 Block
-    private final float width;
-    private final float height;
+    private final Quaternionf rotation;
+    /** World units represented by one logical CSS pixel. */
+    private float scale;
+    private boolean depthTest = true;
+    private Float widthOverride;
+    private Float heightOverride;
     private final int maxDistance;
     private float nearDepthStep = DEFAULT_NEAR_DEPTH_STEP;
     private float farDepthStep = DEFAULT_FAR_DEPTH_STEP;
     private float depthNearDistance = DEFAULT_DEPTH_NEAR_DISTANCE;
     private float depthFarDistance;
 
-    public WorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
+    /** Creates a world window whose logical size comes from the document viewport. */
+    public WorldWindow(String documentPath, Vec3 position, int maxDistance) {
         this.document = Document.createInWorld(documentPath);
         this.position = position;
-        this.width = width;
-        this.height = height;
-        this.yRot = 0;
-        this.xRot = 0;
-        this.scale = 0.02f; // 默认缩放: 50px = 1 block
+        this.widthOverride = null;
+        this.heightOverride = null;
+        this.rotation = new Quaternionf().rotationY((float) Math.toRadians(180.0f));
+        this.scale = 0.02f;
         this.maxDistance = maxDistance;
         this.depthFarDistance = Math.max(DEFAULT_DEPTH_NEAR_DISTANCE + 1.0f, maxDistance);
+    }
+
+    public WorldWindow(String documentPath, double x, double y, double z, int maxDistance) {
+        this(documentPath, new Vec3(x, y, z), maxDistance);
+    }
+
+    /** Creates a world window with an explicit fixed orientation. */
+    public WorldWindow(String documentPath, Vec3 position, int maxDistance, float yaw, float pitch) {
+        this(documentPath, position, maxDistance);
+        setRotation(yaw, pitch);
+    }
+
+    public WorldWindow(String documentPath, Vec3 position, int maxDistance,
+                       float yaw, float pitch, float roll) {
+        this(documentPath, position, maxDistance);
+        setRotation(yaw, pitch, roll);
+    }
+
+    /** Creates a world window from Euler angles in degrees: {@code (pitch, yaw, roll)}. */
+    public WorldWindow(String documentPath, Vec3 position, int maxDistance, Vec3 eulerDegrees) {
+        this(documentPath, position, maxDistance);
+        setRotation(eulerDegrees);
+    }
+
+    /** Creates a world window from a JOML orientation quaternion. */
+    public WorldWindow(String documentPath, Vec3 position, int maxDistance, Quaternionf orientation) {
+        this(documentPath, position, maxDistance);
+        setOrientation(orientation);
+    }
+
+    /**
+     * @deprecated The document viewport is the single source of logical width and height.
+     *             Use {@link #WorldWindow(String, Vec3, int)} and configure the viewport in
+     *             {@code <meta name="aui-viewport">}.
+     */
+    @Deprecated
+    public WorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
+        this(documentPath, position, maxDistance);
+        this.widthOverride = sanitizeDimension(width);
+        this.heightOverride = sanitizeDimension(height);
     }
 
     public void setPosition(Vec3 position) {
@@ -63,12 +105,54 @@ public class WorldWindow {
     }
 
     public void setRotation(float yRot, float xRot) {
-        this.yRot = yRot;
-        this.xRot = xRot;
+        setRotation(yRot, xRot, 0.0f);
     }
 
+    /** Sets Euler angles in degrees: yaw, pitch, roll. */
+    public void setRotation(float yaw, float pitch, float roll) {
+        float safeYaw = Float.isFinite(yaw) ? yaw : 0.0f;
+        float safePitch = Float.isFinite(pitch) ? pitch : 0.0f;
+        float safeRoll = Float.isFinite(roll) ? roll : 0.0f;
+        rotation.identity()
+                .rotateY((float) Math.toRadians(180.0f - safeYaw))
+                .rotateX((float) Math.toRadians(safePitch))
+                .rotateZ((float) Math.toRadians(safeRoll));
+    }
+
+    /** Sets Euler angles in degrees as {@code (pitch, yaw, roll)}. */
+    public void setRotation(Vec3 eulerDegrees) {
+        if (eulerDegrees == null) {
+            setRotation(0.0f, 0.0f, 0.0f);
+            return;
+        }
+        setRotation((float) eulerDegrees.y, (float) eulerDegrees.x, (float) eulerDegrees.z);
+    }
+
+    /** Replaces the world orientation with a copy of the supplied quaternion. */
+    public void setOrientation(Quaternionf orientation) {
+        if (orientation == null) {
+            setRotation(0.0f, 0.0f, 0.0f);
+            return;
+        }
+        rotation.set(orientation);
+    }
+
+    public Quaternionf getOrientation() {
+        return new Quaternionf(rotation);
+    }
+
+    /** Sets the world transform scale without changing the document viewport. */
     public void setScale(float scale) {
-        this.scale = scale;
+        if (Float.isFinite(scale) && scale > 0.0f) this.scale = scale;
+    }
+
+    /** Enables or disables occlusion by world geometry for this window. */
+    public void setDepthTest(boolean depthTest) {
+        this.depthTest = depthTest;
+    }
+
+    public boolean isDepthTestEnabled() {
+        return depthTest;
     }
 
     public void setDynamicDepthStep(float nearDepthStep, float farDepthStep, float nearDistance, float farDistance) {
@@ -79,11 +163,13 @@ public class WorldWindow {
     }
 
     public float getWidth() {
-        return width;
+        if (widthOverride != null) return widthOverride;
+        return documentViewportWidth();
     }
 
     public float getHeight() {
-        return height;
+        if (heightOverride != null) return heightOverride;
+        return documentViewportHeight();
     }
 
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
@@ -97,19 +183,26 @@ public class WorldWindow {
                 position.z - cameraPos.z
         );
 
-        poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(180.0F - this.yRot)));
-        poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(this.xRot)));
+        poseStack.mulPose(new Quaternionf(rotation));
 
         poseStack.scale(scale, -scale, scale);
-        poseStack.translate(-width / 2.0f, -height / 2.0f, 0);
+        poseStack.translate(-getWidth() / 2.0f, -getHeight() / 2.0f, 0);
 
         MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
 
         poseStack.last().pose().set(poseStack.last().pose());
         poseStack.last().normal().set(poseStack.last().normal());
 
-        RenderSystem.enableDepthTest();
-        RenderSystem.depthFunc(GL11.GL_LEQUAL);
+        boolean previousDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+        boolean previousDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        if (depthTest) {
+            RenderSystem.enableDepthTest();
+            RenderSystem.depthFunc(GL11.GL_LEQUAL);
+            GL11.glDepthMask(true);
+        } else {
+            RenderSystem.disableDepthTest();
+            GL11.glDepthMask(false);
+        }
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
         // Depth bias to avoid z-fighting with world geometry.
@@ -122,11 +215,16 @@ public class WorldWindow {
         if (localStep > 0.2f) localStep = 0.2f;
         Base.pushDepthStep(localStep);
         Base.pushDepthMode(true);
+        Base.pushDepthTest(depthTest);
         WorldPaintDepth.pushFlatTransforms(true);
+        Mask.resetDepth();
+        Mask.pushForceStencil();
         try {
             Base.drawDocument(poseStack, document);
         } finally {
+            Mask.popForceStencil();
             WorldPaintDepth.popFlatTransforms();
+            Base.popDepthTest();
             Base.popDepthMode();
             Base.popDepthStep();
         }
@@ -134,6 +232,9 @@ public class WorldWindow {
         bufferSource.endBatch();
         RenderSystem.polygonOffset(0.0f, 0.0f);
         RenderSystem.disablePolygonOffset();
+        if (previousDepthTest) RenderSystem.enableDepthTest();
+        else RenderSystem.disableDepthTest();
+        GL11.glDepthMask(previousDepthMask);
 
         poseStack.popPose();
     }
@@ -182,8 +283,7 @@ public class WorldWindow {
 
         Matrix4f modelMatrix = new Matrix4f();
         modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
-        modelMatrix.rotate((float) Math.toRadians(180.0F - this.yRot), 0, 1, 0);
-        modelMatrix.rotate((float) Math.toRadians(this.xRot), 1, 0, 0);
+        modelMatrix.rotate(rotation);
         modelMatrix.scale(scale, -scale, scale);
 
         Vector4f centerWorld = modelMatrix.transform(new Vector4f(0, 0, 0, 1));
@@ -206,13 +306,27 @@ public class WorldWindow {
         Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
         inverseMatrix.transform(localHit);
 
-        double localX = localHit.x + width / 2.0;
-        double localY = localHit.y + height / 2.0;
+        double localX = localHit.x + getWidth() / 2.0;
+        double localY = localHit.y + getHeight() / 2.0;
 
-        if (localX >= 0 && localX <= width && localY >= 0 && localY <= height) {
+        if (localX >= 0 && localX <= getWidth() && localY >= 0 && localY <= getHeight()) {
             return new Position(localX, localY);
         }
 
         return null;
+    }
+
+    private float documentViewportWidth() {
+        if (document == null || document.getViewport() == null) return 1.0f;
+        return Math.max(1.0f, document.getViewport().layoutWidth());
+    }
+
+    private float documentViewportHeight() {
+        if (document == null || document.getViewport() == null) return 1.0f;
+        return Math.max(1.0f, document.getViewport().layoutHeight());
+    }
+
+    private static float sanitizeDimension(float value) {
+        return Float.isFinite(value) && value > 0.0f ? value : 1.0f;
     }
 }

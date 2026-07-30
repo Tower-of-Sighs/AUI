@@ -26,6 +26,7 @@ import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
+import org.joml.Quaternionf;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -128,14 +129,71 @@ public class ApricityUI {
         ApricityScreenNetworkHandler.requestCloseScreen();
     }
 
+    /**
+     * @deprecated Configure the logical size through {@code aui-viewport} and use
+     *             {@link #createWorldWindow(String, Vec3, int)}.
+     */
+    @Deprecated
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
         WorldWindow window = new WorldWindow(documentPath, position, width, height, maxDistance);
         WorldWindow.addWindow(window);
         return window;
     }
 
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position, int maxDistance) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath,
+                                                double x, double y, double z, int maxDistance) {
+        WorldWindow window = new WorldWindow(documentPath, x, y, z, maxDistance);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, float yaw, float pitch) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, yaw, pitch);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, float yaw, float pitch, float roll) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, yaw, pitch, roll);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, Vec3 eulerDegrees) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, eulerDegrees);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, Quaternionf orientation) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, orientation);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    /**
+     * @deprecated Configure the logical size through {@code aui-viewport} and use
+     *             {@link #createFollowFacingWorldWindow(String, Vec3, int, float)}.
+     */
+    @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, width, height, maxDistance, followFactor);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, int maxDistance, float followFactor) {
+        FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, maxDistance, followFactor);
         WorldWindow.addWindow(window);
         return window;
     }

@@ -35,7 +35,8 @@ public class Operation {
         if (DevTools.handleInspectMouseDown(mousePosition, button)) return true;
         MouseEvent event = new MouseEvent("mousedown", mousePosition, button);
         event.setTrusted(true);
-        return MouseEvent.tiggerEvent(event);
+        MouseEvent.tiggerEvent(event);
+        return event.isNativeConsumed();
     }
 
     public static boolean onMouseUp() {
@@ -47,7 +48,8 @@ public class Operation {
         if (DevTools.handleInspectMouseUp(button)) return true;
         MouseEvent event = new MouseEvent("mouseup", getMousePositionDirectly(), button);
         event.setTrusted(true);
-        return MouseEvent.tiggerEvent(event);
+        MouseEvent.tiggerEvent(event);
+        return event.isNativeConsumed();
     }
 
     public static void onMouseMove(Position currentMousePosition) {
@@ -77,7 +79,8 @@ public class Operation {
         mouseEvent.scrollDelta = mouseEvent.deltaY;
         mouseEvent.cancelable = true;
         mouseEvent.setTrusted(true);
-        return MouseEvent.tiggerEvent(mouseEvent);
+        MouseEvent.tiggerEvent(mouseEvent);
+        return mouseEvent.isNativeConsumed();
     }
 
     public static int getMouseButtons() {

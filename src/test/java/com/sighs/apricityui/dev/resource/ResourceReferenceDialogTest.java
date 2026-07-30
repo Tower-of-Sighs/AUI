@@ -62,7 +62,7 @@ class ResourceReferenceDialogTest {
                 var worldWindow = ApricityUI.createWorldWindow(
                     "screens/inventory.html",
                     new Vec3(0.0, 64.0, 0.0),
-                    180.0f, 100.0f, 16
+                    16
                 );""", options.get(3).snippet());
     }
 
@@ -83,7 +83,7 @@ class ResourceReferenceDialogTest {
                 let worldWindow = ApricityUI.createWorldWindow(
                     "screens/inventory.html",
                     0, 64, 0,
-                    180, 100, 16
+                    16
                 )""", options.get(3).snippet());
     }
 

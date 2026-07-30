@@ -209,14 +209,12 @@ public class Client {
         if (Minecraft.getInstance().screen == null) {
             FrameTimingHud.beginFrame();
             try {
-                Base.drawAllDocument(event.getGuiGraphics().pose());
-                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
-                // Shared item render pass for DOM <slot> (createDocument path).
-                for (Document document : Document.getAll()) {
-                    if (!document.inWorld && !document.isManuallyRendered()) {
-                        renderOverlaySlotItems(event.getGuiGraphics(), document);
-                    }
+                for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
+                    if (document == null || document.inWorld || document.isManuallyRendered()) continue;
+                    Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
+                    renderOverlaySlotItems(event.getGuiGraphics(), document);
                 }
+                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 Cursor.drawPseudoCursor(event.getGuiGraphics());
             } finally {
                 FrameTimingHud.endFrame(event.getGuiGraphics());
@@ -262,7 +260,7 @@ public class Client {
             event.setCanceled(true);
             return;
         }
-        boolean consumed = Operation.scroll(event.getScrollDelta());
+        boolean nativeConsumed = Operation.scroll(event.getScrollDelta());
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
@@ -270,10 +268,11 @@ public class Client {
                 mouseEvent.deltaY = -event.getScrollDelta() * 50;
                 mouseEvent.scrollDelta = mouseEvent.deltaY;
                 mouseEvent.cancelable = true;
-                consumed |= MouseEvent.tiggerEvent(mouseEvent, window.document);
+                MouseEvent.tiggerEvent(mouseEvent, window.document);
+                nativeConsumed |= mouseEvent.isNativeConsumed();
             }
         }
-        if (consumed || CursorReleaseController.isActive()) event.setCanceled(true);
+        if (nativeConsumed || CursorReleaseController.isActive()) event.setCanceled(true);
     }
 
     @SubscribeEvent
@@ -296,24 +295,27 @@ public class Client {
 
     @SubscribeEvent
     public static void mouseButton(InputEvent.MouseButton.Pre event) {
-        boolean consumed = false;
-        if (event.getAction() == InputConstants.PRESS) consumed = Operation.onMouseDown(event.getButton());
-        if (event.getAction() == InputConstants.RELEASE) consumed = Operation.onMouseUp(event.getButton());
+        boolean nativeConsumed = false;
+        if (event.getAction() == InputConstants.PRESS) nativeConsumed = Operation.onMouseDown(event.getButton());
+        if (event.getAction() == InputConstants.RELEASE) nativeConsumed = Operation.onMouseUp(event.getButton());
         if (Minecraft.getInstance().screen != null) {
-            if (consumed) event.setCanceled(true);
+            if (nativeConsumed) event.setCanceled(true);
             return;
         }
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
+                MouseEvent mouseEvent;
                 if (event.getAction() == InputConstants.PRESS) {
-                    consumed |= MouseEvent.tiggerEvent(new MouseEvent("mousedown", realPos, event.getButton()), window.document);
+                    mouseEvent = new MouseEvent("mousedown", realPos, event.getButton());
                 } else {
-                    consumed |= MouseEvent.tiggerEvent(new MouseEvent("mouseup", realPos, event.getButton()), window.document);
+                    mouseEvent = new MouseEvent("mouseup", realPos, event.getButton());
                 }
+                MouseEvent.tiggerEvent(mouseEvent, window.document);
+                nativeConsumed |= mouseEvent.isNativeConsumed();
             }
         }
-        if (consumed || CursorReleaseController.isActive()) event.setCanceled(true);
+        if (nativeConsumed || CursorReleaseController.isActive()) event.setCanceled(true);
     }
 
     @SubscribeEvent

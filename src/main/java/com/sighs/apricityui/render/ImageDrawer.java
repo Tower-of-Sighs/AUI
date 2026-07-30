@@ -38,6 +38,7 @@ public class ImageDrawer {
     }
 
     private static RenderType getRenderType(ResourceLocation texture, boolean blur, boolean depthTest) {
+        depthTest = depthTest && Base.isDepthTestEnabled();
         return RENDER_TYPE_CACHE.computeIfAbsent(
                 new RenderKey(texture, blur, depthTest),
                 key -> CustomRenderType.createSmooth(key.location(), key.blur(), key.depthTest())

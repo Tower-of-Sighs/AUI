@@ -250,7 +250,7 @@ public final class ResourceReferenceDialog {
                                 "let worldWindow = ApricityUI.createWorldWindow(\n"
                                         + "    \"" + path + "\",\n"
                                         + "    0, 64, 0,\n"
-                                        + "    180, 100, 16\n"
+                                        + "    16\n"
                                         + ")")
                 );
             }
@@ -266,7 +266,7 @@ public final class ResourceReferenceDialog {
                             "var worldWindow = ApricityUI.createWorldWindow(\n"
                                     + "    \"" + path + "\",\n"
                                     + "    new Vec3(0.0, 64.0, 0.0),\n"
-                                    + "    180.0f, 100.0f, 16\n"
+                                    + "    16\n"
                                     + ");")
             );
         }

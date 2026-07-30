@@ -19,6 +19,7 @@ public class Mask {
     private static final Stack<Boolean> maskScissorStack = new Stack<>();
     private static final Stack<SurfaceClipState> surfaceClipStack = new Stack<>();
     private static final ThreadLocal<ArrayDeque<Double>> scissorScaleStack = ThreadLocal.withInitial(ArrayDeque::new);
+    private static final ThreadLocal<Integer> forceStencilDepth = ThreadLocal.withInitial(() -> 0);
     private static AABB currentScissor = null;
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
     private static SurfaceScissorTransform surfaceScissorTransform = null;
@@ -65,6 +66,16 @@ public class Mask {
         }
     }
 
+    public static void pushForceStencil() {
+        forceStencilDepth.set(forceStencilDepth.get() + 1);
+    }
+
+    public static void popForceStencil() {
+        int depth = forceStencilDepth.get();
+        if (depth <= 1) forceStencilDepth.remove();
+        else forceStencilDepth.set(depth - 1);
+    }
+
     public static boolean isActive() {
         return depth > 0;
     }
@@ -102,7 +113,7 @@ public class Mask {
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii, boolean forceStencil) {
-        boolean useScissor = !forceStencil && isRectMask(radii);
+        boolean useScissor = !forceStencil && forceStencilDepth.get() == 0 && isRectMask(radii);
         maskScissorStack.push(useScissor);
         if (useScissor) {
             Graph.endBatch();

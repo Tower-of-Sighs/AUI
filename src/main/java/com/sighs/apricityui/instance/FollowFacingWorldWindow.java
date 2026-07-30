@@ -10,6 +10,14 @@ public class FollowFacingWorldWindow extends WorldWindow {
 
     private final float followFactor;
 
+    public FollowFacingWorldWindow(String documentPath, Vec3 position, int maxDistance, float followFactor) {
+        super(documentPath, position, maxDistance);
+        this.basePosition = position;
+        this.followFactor = Mth.clamp(followFactor, 0.0f, 1.0f);
+    }
+
+    /** @deprecated Use the viewport defined by the document meta tag. */
+    @Deprecated
     public FollowFacingWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance, float followFactor) {
         super(documentPath, position, width, height, maxDistance);
         this.basePosition = position;

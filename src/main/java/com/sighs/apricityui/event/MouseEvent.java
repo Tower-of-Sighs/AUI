@@ -21,6 +21,7 @@ public class MouseEvent extends Event implements Cloneable {
     public static final int DOM_DELTA_PIXEL = 0;
     public static final int PRIMARY_POINTER_ID = 1;
     private static final long DOUBLE_CLICK_WINDOW_NS = 500_000_000L;
+    private NativeDispatchState nativeDispatchState = new NativeDispatchState();
     public double clientX = 0;
     public double clientY = 0;
     public double pageX = 0;
@@ -73,6 +74,15 @@ public class MouseEvent extends Event implements Cloneable {
         this.button = button;
     }
 
+    /** Prevents the originating Minecraft input event after AUI dispatch completes. */
+    public void consumeNative() {
+        nativeDispatchState.consumed = true;
+    }
+
+    public boolean isNativeConsumed() {
+        return nativeDispatchState.consumed;
+    }
+
     public static boolean tiggerEvent(MouseEvent event) {
         StyleFrameCache.begin();
         try {
@@ -85,6 +95,9 @@ public class MouseEvent extends Event implements Cloneable {
                 boolean passThroughWheel = "wheel".equals(event.type) && !document.interceptsMouseEvents();
                 MouseEvent documentEvent = passThroughWheel ? event.clone() : event;
                 boolean consumed = tiggerEvent(documentEvent, document);
+                if (documentEvent.isNativeConsumed()) {
+                    return true;
+                }
                 if (consumed && !passThroughWheel) {
                     return true;
                 }
@@ -106,11 +119,14 @@ public class MouseEvent extends Event implements Cloneable {
             double originalClientX = event == null ? 0 : event.clientX;
             double originalClientY = event == null ? 0 : event.clientY;
             event = adaptToDocumentViewport(event, document);
-            boolean consumed = false;
             Element activeElement = document.getPressedElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
             Element target = document.hitTest(detectionPos);
-            return triggerResolvedEvent(event, document, target, activeElement, true);
+            boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
+            if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
+                event.consumeNative();
+            }
+            return consumed;
             }
         } finally {
             StyleFrameCache.end();
@@ -524,7 +540,12 @@ public class MouseEvent extends Event implements Cloneable {
         copy.pointerId = pointerId;
         copy.pointerType = pointerType;
         copy.isPrimary = isPrimary;
+        copy.nativeDispatchState = nativeDispatchState;
         return copy;
+    }
+
+    private static final class NativeDispatchState {
+        private boolean consumed;
     }
 
     private static boolean isModifierPressed(String key) {

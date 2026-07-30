@@ -38,11 +38,12 @@ public class Base {
     private static float depthStep = DEFAULT_DEPTH_STEP;
     private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<Float> DEPTH_CURSOR_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<Boolean> DEPTH_TEST_STACK = new java.util.ArrayDeque<>();
     private static boolean accumulateDepth = false;
     private static float depthCursor = 0.0f;
+    private static boolean depthTestEnabled = true;
 
     public static void drawAllDocument(PoseStack poseStack) {
-        Mask.resetDepth();
         for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
             if (!document.inWorld && !document.isManuallyRendered()) drawOverlayDocument(poseStack, document);
         }
@@ -52,6 +53,7 @@ public class Base {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
             ApricityViewport viewport = document.getViewport();
+            Mask.resetDepth();
             poseStack.pushPose();
             Mask.pushScissorScale(viewport.scissorScale());
             try {
@@ -68,7 +70,6 @@ public class Base {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
             // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
-            Mask.resetDepth();
             Mask.resetDepth();
             drawDocument(poseStack, document);
         }
@@ -189,8 +190,13 @@ public class Base {
     }
 
     public static void beginRendering() {
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
+        if (depthTestEnabled) {
+            GlStateManager._enableDepthTest();
+            GlStateManager._depthMask(true);
+        } else {
+            GlStateManager._disableDepthTest();
+            GlStateManager._depthMask(false);
+        }
         GlStateManager._disableCull();
         GlStateManager._enableBlend();
         GlStateManager._blendFuncSeparate(
@@ -409,6 +415,19 @@ public class Base {
         DEPTH_CURSOR_STACK.push(depthCursor);
         accumulateDepth = accumulate;
         depthCursor = 0.0f;
+    }
+
+    public static void pushDepthTest(boolean enabled) {
+        DEPTH_TEST_STACK.push(depthTestEnabled);
+        depthTestEnabled = enabled;
+    }
+
+    public static void popDepthTest() {
+        depthTestEnabled = DEPTH_TEST_STACK.isEmpty() ? true : DEPTH_TEST_STACK.pop();
+    }
+
+    public static boolean isDepthTestEnabled() {
+        return depthTestEnabled;
     }
 
     public static void popDepthMode() {

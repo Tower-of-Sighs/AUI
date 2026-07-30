@@ -200,7 +200,6 @@ public class Document {
     }
 
     public void applyViewport(boolean relayout) {
-        if (inWorld) return;
         ApricityViewport previous = viewport;
         try {
             viewport = viewportState.resolve(Minecraft.getInstance().getWindow());
@@ -876,6 +875,9 @@ public class Document {
         if (HTML.getTemple(path) == null) return null;
         Document document = new Document(path, true);
         documents.add(document);
+        // World documents use the same viewport contract as screen documents.
+        // Their world transform is applied by WorldWindow, not by layout.
+        document.applyViewport(false);
         document.refresh();
         return document;
     }
