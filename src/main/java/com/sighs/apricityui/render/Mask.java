@@ -25,6 +25,12 @@ public class Mask {
     private static SurfaceScissorTransform surfaceScissorTransform = null;
 
     public static void resetDepth() {
+        Size window = Size.getWindowSize();
+        resetDepth(window.width(), window.height());
+    }
+
+    /** Resets mask state for a document-local surface such as a WorldWindow. */
+    public static void resetDepth(double width, double height) {
         depth = 0;
         clipStack.clear();
         scissorStack.clear();
@@ -33,9 +39,9 @@ public class Mask {
         currentScissor = null;
         surfaceScissorTransform = null;
         disableScissor();
-        int screenWidth = (int) Size.getWindowSize().width();
-        int screenHeight = (int) Size.getWindowSize().height();
-        currentClip = new AABB(0, 0, screenWidth, screenHeight);
+        currentClip = new AABB(0, 0,
+                (float) Math.max(1.0d, width),
+                (float) Math.max(1.0d, height));
     }
 
     public static AABB getCurrentClip() {

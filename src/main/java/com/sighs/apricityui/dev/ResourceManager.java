@@ -16,7 +16,6 @@ import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.ApricityUIConfig;
-import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.layout.Position;
@@ -39,7 +38,6 @@ public final class ResourceManager {
     private static final String PATH = "devtools/resource.html";
     private static final String INTERNAL_IMAGE_PREVIEW_PATH = "devtools/resource-preview-image.html";
     private static final String ROOT_PATH = "";
-    private static final float RESOURCE_WORLD_WIDTH_BLOCKS = 3.6f;
     private static final int TREE_ANIMATION_LIMIT = 32;
 
     private static final String FOLDER_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"4\" y=\"12\" width=\"32\" height=\"22\" fill=\"#8b5cf6\"/><rect x=\"4\" y=\"8\" width=\"14\" height=\"6\" fill=\"#6d28d9\"/><rect x=\"4\" y=\"14\" width=\"32\" height=\"2\" fill=\"#6d28d9\"/></svg>";
@@ -113,10 +111,11 @@ public final class ResourceManager {
             Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
             Vec3 look = minecraft.player.getViewVector(minecraft.getPartialTick());
             Vec3 position = camera.add(look.scale(3.0d));
-            worldWindow = new FollowFacingWorldWindow(PATH, position, 16, 1.0f);
-            // Keep the debug panel's physical width stable while its logical size
-            // comes from the document viewport contract.
-            worldWindow.setScale(RESOURCE_WORLD_WIDTH_BLOCKS / Math.max(1.0f, worldWindow.getWidth()));
+            Vec3 toCamera = camera.subtract(position);
+            double horizontal = Math.sqrt(toCamera.x * toCamera.x + toCamera.z * toCamera.z);
+            float yaw = (float) (Math.toDegrees(Math.atan2(toCamera.z, toCamera.x)) + 90.0d);
+            float pitch = (float) -Math.toDegrees(Math.atan2(toCamera.y, horizontal));
+            worldWindow = new WorldWindow(PATH, position, 16, yaw, pitch);
             WorldWindow.addWindow(worldWindow);
         }
         toolDocument = worldWindow.document;

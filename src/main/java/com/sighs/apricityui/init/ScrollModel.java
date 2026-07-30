@@ -3,6 +3,7 @@ package com.sighs.apricityui.init;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Box;
@@ -20,6 +21,7 @@ final class ScrollModel {
     private static final double SCROLLBAR_EPSILON = 0.5;
     private static final double SCROLLBAR_TRACK_SIZE = 6.0;
     private static final double SCROLLBAR_TRACK_INSET = 1.0;
+    private static final float SCROLLBAR_THUMB_DEPTH_FRACTION = 0.5f;
 
     private final Element owner;
     private long lastRenderStepNs;
@@ -555,10 +557,16 @@ final class ScrollModel {
                                             float thumbX, float thumbY, float thumbWidth, float thumbHeight) {
         float trackRadius = Math.min(trackWidth, trackHeight) / 2f;
         float thumbRadius = Math.min(thumbWidth, thumbHeight) / 2f;
-        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, trackY, trackWidth, trackHeight,
-                new float[]{trackRadius, trackRadius, trackRadius, trackRadius}, 0x18B96A91);
-        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), thumbX, thumbY, thumbWidth, thumbHeight,
-                new float[]{thumbRadius, thumbRadius, thumbRadius, thumbRadius}, 0xB39F9F9F);
+        poseStack.pushPose();
+        try {
+            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), trackX, trackY, trackWidth, trackHeight,
+                    new float[]{trackRadius, trackRadius, trackRadius, trackRadius}, 0x18B96A91);
+            Base.offsetPaintDepth(poseStack, SCROLLBAR_THUMB_DEPTH_FRACTION);
+            Graph.drawUnifiedRoundedRect(poseStack.last().pose(), thumbX, thumbY, thumbWidth, thumbHeight,
+                    new float[]{thumbRadius, thumbRadius, thumbRadius, thumbRadius}, 0xB39F9F9F);
+        } finally {
+            poseStack.popPose();
+        }
     }
 
     private boolean isScrollSettled(double current, double target) {
