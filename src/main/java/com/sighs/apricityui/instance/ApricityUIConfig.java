@@ -19,6 +19,7 @@ public final class ApricityUIConfig {
         public final ForgeConfigSpec.BooleanValue frameTimingHud;
         public final ForgeConfigSpec.BooleanValue remoteDebug;
         public final ForgeConfigSpec.BooleanValue resourceManagerWorldWindow;
+        public final ForgeConfigSpec.DoubleValue worldWindowDepthOffsetScale;
 
         private Client(ForgeConfigSpec.Builder builder) {
             builder.push("debug");
@@ -38,6 +39,16 @@ public final class ApricityUIConfig {
                     .comment("Open the debug resource manager as a world window while in-game.")
                     .define("resourceManagerWorldWindow", false);
             builder.pop();
+
+            builder.push("worldWindow");
+            worldWindowDepthOffsetScale = builder
+                    .comment("Scale applied to WorldWindow's distance-based depth offset.")
+                    .defineInRange("depthOffsetScale", 0.0005d, 0.0d, 1.0d);
+            builder.pop();
+        }
+
+        public float worldWindowDepthOffsetScale() {
+            return worldWindowDepthOffsetScale.get().floatValue();
         }
     }
 

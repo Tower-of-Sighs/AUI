@@ -34,6 +34,7 @@ public class Base {
 
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
     private static final float GLOBAL_DOCUMENT_Z_OFFSET = 1.0f;
+    private static final java.util.ArrayDeque<Float> DOCUMENT_Z_OFFSET_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
     private static float depthStep = DEFAULT_DEPTH_STEP;
     private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
@@ -42,6 +43,7 @@ public class Base {
     private static boolean accumulateDepth = false;
     private static float depthCursor = 0.0f;
     private static boolean depthTestEnabled = true;
+    private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
 
     public static void drawAllDocument(PoseStack poseStack) {
         for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
@@ -115,7 +117,7 @@ public class Base {
                 LayoutCommit.commit(document);
                 document.commitMotionHitTest();
             }
-            poseStack.translate(0, 0, GLOBAL_DOCUMENT_Z_OFFSET);
+            poseStack.translate(0, 0, documentZOffset);
             Element skippedSubtree = null;
             Set<Element> enteredSubtrees = Collections.newSetFromMap(new IdentityHashMap<>());
             for (RenderNode node : document.getPaintList()) {
@@ -397,6 +399,12 @@ public class Base {
         return depthCursor;
     }
 
+    /** Moves within the current paint layer without consuming another paint-list slot. */
+    public static void offsetPaintDepth(PoseStack poseStack, float fraction) {
+        if (!accumulateDepth || poseStack == null || !Float.isFinite(fraction)) return;
+        poseStack.translate(0, 0, depthStep * fraction);
+    }
+
     public static void pushDepthStep(float step) {
         DEPTH_STEP_STACK.push(depthStep);
         depthStep = step;
@@ -415,6 +423,18 @@ public class Base {
         DEPTH_CURSOR_STACK.push(depthCursor);
         accumulateDepth = accumulate;
         depthCursor = 0.0f;
+    }
+
+    /** Overrides the document-level Z offset for a nested render surface. */
+    public static void pushDocumentZOffset(float offset) {
+        DOCUMENT_Z_OFFSET_STACK.push(documentZOffset);
+        documentZOffset = Float.isFinite(offset) ? offset : GLOBAL_DOCUMENT_Z_OFFSET;
+    }
+
+    public static void popDocumentZOffset() {
+        documentZOffset = DOCUMENT_Z_OFFSET_STACK.isEmpty()
+                ? GLOBAL_DOCUMENT_Z_OFFSET
+                : DOCUMENT_Z_OFFSET_STACK.pop();
     }
 
     public static void pushDepthTest(boolean enabled) {

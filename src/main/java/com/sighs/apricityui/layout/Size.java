@@ -43,7 +43,7 @@ public record Size(double width, double height) {
 
     public static Size getWindowSize() {
         Document context = Document.getContextDocument();
-        if (context != null && !context.inWorld && context.isActive()) {
+        if (context != null && context.isActive()) {
             com.sighs.apricityui.instance.ApricityViewport viewport = context.getViewport();
             return new Size(viewport.layoutWidth(), viewport.layoutHeight());
         }
@@ -69,7 +69,7 @@ public record Size(double width, double height) {
 
     public static double getWindowWidth() {
         Document context = Document.getContextDocument();
-        if (context != null && !context.inWorld && context.isActive()) {
+        if (context != null && context.isActive()) {
             return context.getViewport().layoutWidth();
         }
         Size override = viewportOverride;
@@ -90,7 +90,7 @@ public record Size(double width, double height) {
 
     public static double getWindowHeight() {
         Document context = Document.getContextDocument();
-        if (context != null && !context.inWorld && context.isActive()) {
+        if (context != null && context.isActive()) {
             return context.getViewport().layoutHeight();
         }
         Size override = viewportOverride;

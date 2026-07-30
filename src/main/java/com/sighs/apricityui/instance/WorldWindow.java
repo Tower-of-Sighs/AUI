@@ -10,6 +10,10 @@ import com.sighs.apricityui.render.WorldPaintDepth;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.util.Mth;
+import net.minecraft.world.level.ClipContext;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
@@ -29,16 +33,24 @@ public class WorldWindow {
     private static final float DEFAULT_NEAR_DEPTH_STEP = 0.00035f;
     private static final float DEFAULT_FAR_DEPTH_STEP = 0.0030f;
     private static final float DEFAULT_DEPTH_NEAR_DISTANCE = 2.0f;
+    private static final float DEFAULT_DEPTH_OFFSET_SCALE = 0.0005f;
+    private static final float POLYGON_OFFSET = -1.0f;
+    private static final float DEFAULT_VIEWPORT_FILL = 0.8f;
+    private static final float FALLBACK_WORLD_SCALE = 0.02f;
+    private static final double OCCLUSION_DISTANCE_EPSILON = 1.0e-4d;
 
     public Document document;
     private Vec3 position;
     private final Quaternionf rotation;
-    /** World units represented by one logical CSS pixel. */
-    private float scale;
+    /** Legacy explicit world units represented by one logical CSS pixel. */
+    private Float scaleOverride;
+    /** Scale used by rendering and interaction hit testing. */
+    private float resolvedScale = FALLBACK_WORLD_SCALE;
+    private long resolvedViewportVersion = Long.MIN_VALUE;
     private boolean depthTest = true;
     private Float widthOverride;
     private Float heightOverride;
-    private final int maxDistance;
+    private int maxDistance;
     private float nearDepthStep = DEFAULT_NEAR_DEPTH_STEP;
     private float farDepthStep = DEFAULT_FAR_DEPTH_STEP;
     private float depthNearDistance = DEFAULT_DEPTH_NEAR_DISTANCE;
@@ -51,9 +63,9 @@ public class WorldWindow {
         this.widthOverride = null;
         this.heightOverride = null;
         this.rotation = new Quaternionf().rotationY((float) Math.toRadians(180.0f));
-        this.scale = 0.02f;
-        this.maxDistance = maxDistance;
-        this.depthFarDistance = Math.max(DEFAULT_DEPTH_NEAR_DISTANCE + 1.0f, maxDistance);
+        this.scaleOverride = null;
+        this.maxDistance = sanitizeDistance(maxDistance);
+        this.depthFarDistance = Math.max(DEFAULT_DEPTH_NEAR_DISTANCE + 1.0f, this.maxDistance);
     }
 
     public WorldWindow(String documentPath, double x, double y, double z, int maxDistance) {
@@ -94,10 +106,12 @@ public class WorldWindow {
         this(documentPath, position, maxDistance);
         this.widthOverride = sanitizeDimension(width);
         this.heightOverride = sanitizeDimension(height);
+        this.scaleOverride = FALLBACK_WORLD_SCALE;
     }
 
     public void setPosition(Vec3 position) {
         this.position = position;
+        if (scaleOverride == null) resolvedViewportVersion = Long.MIN_VALUE;
     }
 
     protected Vec3 getPosition() {
@@ -141,9 +155,15 @@ public class WorldWindow {
         return new Quaternionf(rotation);
     }
 
-    /** Sets the world transform scale without changing the document viewport. */
+    /**
+     * Sets an explicit legacy world scale without changing the document viewport.
+     * New windows normally fit their document viewport to the camera automatically.
+     */
     public void setScale(float scale) {
-        if (Float.isFinite(scale) && scale > 0.0f) this.scale = scale;
+        if (Float.isFinite(scale) && scale > 0.0f) {
+            this.scaleOverride = scale;
+            this.resolvedScale = scale;
+        }
     }
 
     /** Enables or disables occlusion by world geometry for this window. */
@@ -153,6 +173,16 @@ public class WorldWindow {
 
     public boolean isDepthTestEnabled() {
         return depthTest;
+    }
+
+    public int getMaxDistance() {
+        return maxDistance;
+    }
+
+    /** Updates the maximum ray distance used by world-window interaction. */
+    public void setMaxDistance(int maxDistance) {
+        this.maxDistance = sanitizeDistance(maxDistance);
+        this.depthFarDistance = Math.max(this.depthNearDistance + 0.001f, this.maxDistance);
     }
 
     public void setDynamicDepthStep(float nearDepthStep, float farDepthStep, float nearDistance, float farDistance) {
@@ -175,6 +205,10 @@ public class WorldWindow {
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
         Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
+        float documentScale = worldDocumentScale();
+        float worldScale = resolveRenderScale(cameraPos, projectionMatrix);
+        float renderScale = worldScale * documentScale;
+        resolvedScale = worldScale;
 
         poseStack.pushPose();
         poseStack.translate(
@@ -185,7 +219,7 @@ public class WorldWindow {
 
         poseStack.mulPose(new Quaternionf(rotation));
 
-        poseStack.scale(scale, -scale, scale);
+        poseStack.scale(renderScale, -renderScale, renderScale);
         poseStack.translate(-getWidth() / 2.0f, -getHeight() / 2.0f, 0);
 
         MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
@@ -207,17 +241,19 @@ public class WorldWindow {
         RenderSystem.defaultBlendFunc();
         // Depth bias to avoid z-fighting with world geometry.
         RenderSystem.enablePolygonOffset();
-        RenderSystem.polygonOffset(-1.0f, -1.0f);
+        RenderSystem.polygonOffset(POLYGON_OFFSET, POLYGON_OFFSET);
 
-        float desiredWorldStep = computeDepthStep(cameraPos);
-        float safeScale = Math.max(1.0e-4f, scale);
-        float localStep = desiredWorldStep / safeScale;
+        float documentDepthBudget = computeDepthStep(cameraPos);
+        float safeScale = Math.max(1.0e-4f, renderScale);
+        int paintNodeCount = document == null ? 1 : Math.max(1, document.getPaintList().size());
+        float localStep = documentDepthBudget / paintNodeCount / safeScale;
         if (localStep > 0.2f) localStep = 0.2f;
         Base.pushDepthStep(localStep);
         Base.pushDepthMode(true);
         Base.pushDepthTest(depthTest);
+        Base.pushDocumentZOffset(documentDepthBudget / safeScale);
         WorldPaintDepth.pushFlatTransforms(true);
-        Mask.resetDepth();
+        Mask.resetDepth(getWidth(), getHeight());
         Mask.pushForceStencil();
         try {
             Base.drawDocument(poseStack, document);
@@ -227,6 +263,7 @@ public class WorldWindow {
             Base.popDepthTest();
             Base.popDepthMode();
             Base.popDepthStep();
+            Base.popDocumentZOffset();
         }
 
         bufferSource.endBatch();
@@ -239,12 +276,12 @@ public class WorldWindow {
         poseStack.popPose();
     }
 
+    /** Returns the total world-space depth budget for this document. */
     private float computeDepthStep(Vec3 cameraPos) {
         double distance = cameraPos.distanceTo(position);
-        float t = (float) ((distance - depthNearDistance) / (depthFarDistance - depthNearDistance));
-        t = Math.max(0.0f, Math.min(1.0f, t));
-        t = t * t * (3.0f - 2.0f * t);
-        return nearDepthStep + (farDepthStep - nearDepthStep) * t;
+        double t = Mth.inverseLerp(distance, depthNearDistance, depthFarDistance);
+        float depth = (float) Mth.clampedLerp(nearDepthStep, farDepthStep, t);
+        return depth * ApricityUIConfig.CLIENT.worldWindowDepthOffsetScale() / DEFAULT_DEPTH_OFFSET_SCALE;
     }
 
     public static void addWindow(WorldWindow window) {
@@ -275,7 +312,6 @@ public class WorldWindow {
 
     public Position getRealPos() {
         Minecraft mc = Minecraft.getInstance();
-        Position invalid = new Position(-1, -1);
         if (mc.player == null) return null;
 
         Vec3 rayOrigin = mc.player.getEyePosition(mc.getPartialTick());
@@ -284,7 +320,8 @@ public class WorldWindow {
         Matrix4f modelMatrix = new Matrix4f();
         modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
         modelMatrix.rotate(rotation);
-        modelMatrix.scale(scale, -scale, scale);
+        float documentScale = worldDocumentScale();
+        modelMatrix.scale(resolvedScale * documentScale, -resolvedScale * documentScale, resolvedScale * documentScale);
 
         Vector4f centerWorld = modelMatrix.transform(new Vector4f(0, 0, 0, 1));
         Vector4f normalWorld = new Vector4f(0, 0, 1, 0);
@@ -299,9 +336,13 @@ public class WorldWindow {
         Vec3 toCenter = planeCenter.subtract(rayOrigin);
         double t = toCenter.dot(planeNormal) / denominator;
 
-        if (t < 0 || t > maxDistance) return null;
+        if (t < 0) return null;
 
         Vec3 intersection = rayOrigin.add(rayDir.scale(t));
+        double windowDistance = rayOrigin.distanceTo(intersection);
+        if (windowDistance > maxDistance) return null;
+        if (depthTest && isOccluded(mc, rayOrigin, intersection, windowDistance)) return null;
+
         Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
         Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
         inverseMatrix.transform(localHit);
@@ -310,10 +351,26 @@ public class WorldWindow {
         double localY = localHit.y + getHeight() / 2.0;
 
         if (localX >= 0 && localX <= getWidth() && localY >= 0 && localY <= getHeight()) {
-            return new Position(localX, localY);
+            return document.documentToScreenPosition(new Position(localX, localY));
         }
 
         return null;
+    }
+
+    private boolean isOccluded(Minecraft minecraft, Vec3 rayOrigin, Vec3 intersection, double windowDistance) {
+        if (minecraft.level == null || minecraft.player == null) return true;
+
+        BlockHitResult blockHit = minecraft.level.clip(new ClipContext(
+                rayOrigin,
+                intersection,
+                ClipContext.Block.VISUAL,
+                ClipContext.Fluid.NONE,
+                minecraft.player
+        ));
+        if (blockHit.getType() == HitResult.Type.MISS) return false;
+
+        double blockDistance = rayOrigin.distanceTo(blockHit.getLocation());
+        return blockDistance + OCCLUSION_DISTANCE_EPSILON < windowDistance;
     }
 
     private float documentViewportWidth() {
@@ -326,7 +383,77 @@ public class WorldWindow {
         return Math.max(1.0f, document.getViewport().layoutHeight());
     }
 
+    private float resolveRenderScale(Vec3 cameraPos, Matrix4f projectionMatrix) {
+        if (scaleOverride != null) return scaleOverride;
+
+        long viewportVersion = document == null ? 0L : document.getViewportVersion();
+        // Fit once for this world placement. A world object must keep its physical size
+        // while the camera moves; only a viewport change or repositioning invalidates it.
+        if (resolvedViewportVersion == viewportVersion) return resolvedScale;
+
+        // Use the actual camera-to-window distance. Camera look-vector conventions
+        // differ between Minecraft's render and entity cameras; distance is stable
+        // for fitting and cannot incorrectly trigger the legacy fallback scale.
+        double viewDepth = cameraPos.distanceTo(position);
+        float fittedScale = computeViewportScale(
+                getWidth() * worldDocumentScale(),
+                getHeight() * worldDocumentScale(),
+                viewDepth,
+                projectionMatrix.m00(),
+                projectionMatrix.m11(),
+                resolvedScale
+        );
+        if (viewDepth > 0.0d && Double.isFinite(viewDepth)) {
+            resolvedViewportVersion = viewportVersion;
+        }
+        return fittedScale;
+    }
+
+    private float documentRenderScale() {
+        if (document == null || document.getViewport() == null) return 1.0f;
+        float scale = document.getViewport().renderScale();
+        return Float.isFinite(scale) && scale > 0.0f ? scale : 1.0f;
+    }
+
+    private float worldDocumentScale() {
+        if (scaleOverride != null) return 1.0f;
+        Minecraft minecraft = Minecraft.getInstance();
+        double guiScale = minecraft.getWindow().getGuiScale();
+        if (!(guiScale > 0.0d) || !Double.isFinite(guiScale)) guiScale = 1.0d;
+        return (float) Math.max(0.0001d, documentRenderScale() * guiScale);
+    }
+
+    static float computeViewportScale(float viewportWidth, float viewportHeight,
+                                      double viewDepth, float projectionX, float projectionY,
+                                      float fallbackScale) {
+        if (!(viewportWidth > 0.0f) || !(viewportHeight > 0.0f)
+                || !(viewDepth > 0.0d) || !Double.isFinite(viewDepth)
+                || !Float.isFinite(projectionX) || !Float.isFinite(projectionY)
+                || Math.abs(projectionX) < 1.0e-6f || Math.abs(projectionY) < 1.0e-6f) {
+            return sanitizeScale(fallbackScale);
+        }
+
+        double visibleWorldWidth = 2.0d * viewDepth / Math.abs(projectionX);
+        double visibleWorldHeight = 2.0d * viewDepth / Math.abs(projectionY);
+        double fittedScale = Math.min(
+                visibleWorldWidth * DEFAULT_VIEWPORT_FILL / viewportWidth,
+                visibleWorldHeight * DEFAULT_VIEWPORT_FILL / viewportHeight
+        );
+        if (!(fittedScale > 0.0d) || !Double.isFinite(fittedScale)) {
+            return sanitizeScale(fallbackScale);
+        }
+        return (float) fittedScale;
+    }
+
+    private static float sanitizeScale(float value) {
+        return Float.isFinite(value) && value > 0.0f ? value : FALLBACK_WORLD_SCALE;
+    }
+
     private static float sanitizeDimension(float value) {
         return Float.isFinite(value) && value > 0.0f ? value : 1.0f;
+    }
+
+    private static int sanitizeDistance(int value) {
+        return Math.max(0, value);
     }
 }
