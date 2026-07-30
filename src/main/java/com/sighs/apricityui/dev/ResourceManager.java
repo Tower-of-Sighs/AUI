@@ -15,9 +15,14 @@ import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.ClientLoader;
+import com.sighs.apricityui.instance.ApricityUIConfig;
+import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.layout.Position;
+import net.minecraft.client.Minecraft;
 import net.minecraft.Util;
+import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,6 +39,7 @@ public final class ResourceManager {
     private static final String PATH = "devtools/resource.html";
     private static final String INTERNAL_IMAGE_PREVIEW_PATH = "devtools/resource-preview-image.html";
     private static final String ROOT_PATH = "";
+    private static final float RESOURCE_WORLD_WIDTH_BLOCKS = 3.6f;
     private static final int TREE_ANIMATION_LIMIT = 32;
 
     private static final String FOLDER_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"4\" y=\"12\" width=\"32\" height=\"22\" fill=\"#8b5cf6\"/><rect x=\"4\" y=\"8\" width=\"14\" height=\"6\" fill=\"#6d28d9\"/><rect x=\"4\" y=\"14\" width=\"32\" height=\"2\" fill=\"#6d28d9\"/></svg>";
@@ -56,6 +62,7 @@ public final class ResourceManager {
     private static final ResourcePreviewDialog previewDialog = new ResourcePreviewDialog();
     private static final ResourceMetaDialog metaDialog = new ResourceMetaDialog();
     private static final ResourceReferenceDialog referenceDialog = new ResourceReferenceDialog();
+    private static WorldWindow worldWindow;
 
     private ResourceManager() {
     }
@@ -73,6 +80,11 @@ public final class ResourceManager {
     }
 
     public static void open() {
+        if (shouldOpenWorldWindow()) {
+            openWorldWindow();
+            return;
+        }
+        if (worldWindow != null) closeWorldWindow();
         if (!isOpen()) {
             List<Document> existing = Document.get(PATH);
             toolDocument = existing.isEmpty() ? Document.create(PATH) : existing.get(existing.size() - 1);
@@ -82,12 +94,53 @@ public final class ResourceManager {
         refresh();
     }
 
+    private static boolean shouldOpenWorldWindow() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return ApricityUIConfig.CLIENT.resourceManagerWorldWindow.get()
+                && minecraft != null
+                && minecraft.level != null
+                && minecraft.screen == null
+                && minecraft.player != null;
+    }
+
+    private static void openWorldWindow() {
+        if (toolDocument != null && !toolDocument.isDisposed() && !toolDocument.inWorld) {
+            toolDocument.remove();
+            toolDocument = null;
+        }
+        if (worldWindow == null || worldWindow.document == null || worldWindow.document.isDisposed()) {
+            Minecraft minecraft = Minecraft.getInstance();
+            Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
+            Vec3 look = minecraft.player.getViewVector(minecraft.getPartialTick());
+            Vec3 position = camera.add(look.scale(3.0d));
+            worldWindow = new FollowFacingWorldWindow(PATH, position, 16, 1.0f);
+            // Keep the debug panel's physical width stable while its logical size
+            // comes from the document viewport contract.
+            worldWindow.setScale(RESOURCE_WORLD_WIDTH_BLOCKS / Math.max(1.0f, worldWindow.getWidth()));
+            WorldWindow.addWindow(worldWindow);
+        }
+        toolDocument = worldWindow.document;
+        if (toolDocument != null) {
+            toolDocument.setReloadPersistent(true);
+            refresh();
+        }
+    }
+
+    private static void closeWorldWindow() {
+        if (worldWindow != null) {
+            WorldWindow.removeWindow(worldWindow);
+            worldWindow = null;
+        }
+        if (toolDocument != null && toolDocument.isDisposed()) toolDocument = null;
+    }
+
     public static void close() {
         ContextMenu.closeActive();
         createDialog.close();
         previewDialog.close();
         metaDialog.close();
         referenceDialog.close();
+        if (worldWindow != null) closeWorldWindow();
         if (toolDocument != null && !toolDocument.isDisposed()) {
             toolDocument.remove();
         }

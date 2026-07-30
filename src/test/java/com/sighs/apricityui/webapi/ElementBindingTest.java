@@ -1288,6 +1288,36 @@ class ElementBindingTest {
     }
 
     @Test
+    void nativeMouseConsumptionIsExplicitAndSurvivesCloning() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        target.addEventListener("mousedown", event -> {
+            MouseEvent mouseEvent = (MouseEvent) event;
+            assertFalse(mouseEvent.isNativeConsumed());
+            mouseEvent.consumeNative();
+        });
+
+        MouseEvent event = new MouseEvent("mousedown", new Position(0, 0), 0, false);
+        assertTrue(MouseEvent.dispatchToTarget(event, document, target));
+        assertTrue(event.isNativeConsumed());
+        assertTrue(event.clone().isNativeConsumed());
+    }
+
+    @Test
+    void mouseListenersDoNotConsumeNativeInputByDefault() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+        target.addEventListener("mousedown", event -> { });
+
+        MouseEvent event = new MouseEvent("mousedown", new Position(0, 0), 0, false);
+        assertTrue(MouseEvent.dispatchToTarget(event, document, target));
+        assertFalse(event.isNativeConsumed());
+    }
+
+    @Test
     void scriptDispatchedEventsRemainUntrustedAndKeepTimestamp() {
         Document document = createDocument();
         Element target = new Element(document, "div");

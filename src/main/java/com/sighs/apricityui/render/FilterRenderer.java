@@ -206,7 +206,8 @@ public class FilterRenderer {
         BufferUploader.drawWithShader(bufferbuilder.end());
 
         GlStateManager._depthMask(true);
-        GlStateManager._enableDepthTest();
+        if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
+        else GlStateManager._disableDepthTest();
         Base.setProjectionMatrix(oldProjection);
     }
 
@@ -277,7 +278,8 @@ public class FilterRenderer {
         BufferUploader.drawWithShader(bufferbuilder.end());
 
         GlStateManager._depthMask(true);
-        GlStateManager._enableDepthTest();
+        if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
+        else GlStateManager._disableDepthTest();
         Base.setProjectionMatrix(oldProjection);
     }
 
@@ -424,7 +426,8 @@ public class FilterRenderer {
         BufferUploader.drawWithShader(builder.end());
 
         GlStateManager._depthMask(true);
-        GlStateManager._enableDepthTest();
+        if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
+        else GlStateManager._disableDepthTest();
         Base.setProjectionMatrix(oldProjection);
     }
 

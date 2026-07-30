@@ -89,14 +89,46 @@ public class ApricityUIClientUtil {
         ApricityScreenNetworkHandler.requestCloseScreen();
     }
 
+    /** @deprecated Configure the logical size with the document's {@code aui-viewport} meta. */
+    @Deprecated
     public static WorldWindow createWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance) {
         WorldWindow window = new WorldWindow(path, new Vec3(x, y, z), width, height, maxDistance);
         WorldWindow.addWindow(window);
         return window;
     }
 
+    public static WorldWindow createWorldWindow(String path, double x, double y, double z, int maxDistance) {
+        WorldWindow window = new WorldWindow(path, new Vec3(x, y, z), maxDistance);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String path, double x, double y, double z,
+                                                int maxDistance, float yaw, float pitch) {
+        WorldWindow window = new WorldWindow(path, new Vec3(x, y, z),
+                maxDistance, yaw, pitch);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String path, double x, double y, double z,
+                                                int maxDistance, float yaw, float pitch, float roll) {
+        WorldWindow window = new WorldWindow(path, new Vec3(x, y, z), maxDistance,
+                new Vec3(pitch, yaw, roll));
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    /** @deprecated Configure the logical size with the document's {@code aui-viewport} meta. */
+    @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(path, new Vec3(x, y, z), width, height, maxDistance, followFactor);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, int maxDistance, float followFactor) {
+        FollowFacingWorldWindow window = new FollowFacingWorldWindow(path, new Vec3(x, y, z), maxDistance, followFactor);
         WorldWindow.addWindow(window);
         return window;
     }

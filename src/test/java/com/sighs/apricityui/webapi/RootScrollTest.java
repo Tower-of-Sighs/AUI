@@ -78,6 +78,7 @@ class RootScrollTest {
             MouseEvent wheel = wheelAtViewportCenter(40);
 
             assertTrue(MouseEvent.tiggerEvent(wheel));
+            assertTrue(wheel.isNativeConsumed());
             assertEquals(40, foreground.documentElement.getTargetScrollTop());
             assertEquals(0, background.documentElement.getTargetScrollTop());
         } finally {
