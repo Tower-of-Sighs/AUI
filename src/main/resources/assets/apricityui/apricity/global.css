@@ -11,7 +11,7 @@ body {
     --aui-slot-cycle-interval: 1000;
 }
 
-img {
+img, texture {
     overflow: hidden;
 }
 

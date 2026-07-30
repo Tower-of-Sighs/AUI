@@ -62,6 +62,7 @@ public class Style implements Cloneable {
             Map.entry("background-position", "0 0"),
             Map.entry("object-fit", "fill"),
             Map.entry("object-position", "50% 50%"),
+            Map.entry("appearance", "auto"),
             Map.entry("resize", "none"),
             Map.entry("margin", "0px"),
             Map.entry("margin-top", "0px"),
@@ -179,6 +180,7 @@ public class Style implements Cloneable {
     public String backgroundPosition = "unset";
     public String objectFit = "fill";
     public String objectPosition = "50% 50%";
+    public String appearance = "auto";
     public String resize = "none";
 
     public String margin = "unset";
@@ -326,6 +328,7 @@ public class Style implements Cloneable {
             customProperties.put(normalizeCustomPropertyName(name), value);
             return;
         }
+        if ("-webkit-appearance".equalsIgnoreCase(name)) name = "appearance";
         String styleName = transformStyleName(name);
         if ("background".equals(styleName)) {
             applyBackgroundShorthand(value);
@@ -941,6 +944,7 @@ public class Style implements Cloneable {
         if (name.startsWith("--")) {
             return customProperties.get(normalizeCustomPropertyName(name));
         }
+        if ("-webkit-appearance".equalsIgnoreCase(name)) name = "appearance";
         String styleName = transformStyleName(name);
         Field field = FIELD_CACHE.get(styleName);
         if (field == null) return null;
@@ -1132,7 +1136,7 @@ public class Style implements Cloneable {
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",
                  "SUP", "TIME", "U", "VAR", "WBR", "IMG", "INPUT", "SELECT", "TEXTAREA", "CANVAS",
-                 "SVG", "BUTTON", "TRANSLATION" -> "inline";
+                 "SVG", "TEXTURE", "BUTTON", "TRANSLATION" -> "inline";
             case "HEAD", "SCRIPT", "STYLE", "TITLE", "META", "LINK", "OPTION", "OPTGROUP" -> "none";
             default -> "block";
         };

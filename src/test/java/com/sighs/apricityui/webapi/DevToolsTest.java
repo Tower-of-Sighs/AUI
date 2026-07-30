@@ -34,6 +34,12 @@ class DevToolsTest {
         assertTrue(template.contains("<meta name=\"aui-font-mode\" content=\"web\">"));
         assertTrue(template.contains("<meta name=\"aui-viewport\" content=\"mode=browser\">"));
         assertTrue(template.contains("<meta name=\"aui-mouse-events\" content=\"intercept\">"));
+        assertTrue(template.indexOf("id=\"closeDocumentBtn\"") < template.indexOf("id=\"documentSelect\""));
+        assertTrue(template.contains("data-tooltip-key=\"tooltip.apricityui.devtools.close_document\""));
+        assertTrue(template.contains("width: 40px;"));
+        assertTrue(template.contains("height: 40px;"));
+        assertTrue(template.contains("background: var(--danger);"));
+        assertTrue(template.contains("color: var(--white);"));
         assertFalse(Files.exists(LEGACY));
     }
 
@@ -78,8 +84,17 @@ class DevToolsTest {
             assertTrue(tool.querySelector("#pane-boxmodel").children.isEmpty());
             Element documentSelect = tool.querySelector("#documentSelect");
             assertNotNull(documentSelect);
-            assertEquals(sidePanel, documentSelect.parentElement.parentElement);
-            assertEquals(documentSelect.parentElement, sidePanel.children.get(1));
+            Element documentSelectorBar = tool.querySelector(".document-selector-bar");
+            Element closeDocumentButton = tool.querySelector("#closeDocumentBtn");
+            assertNotNull(documentSelectorBar);
+            assertNotNull(closeDocumentButton);
+            assertEquals(sidePanel, documentSelectorBar.parentElement);
+            assertEquals(documentSelectorBar, sidePanel.children.get(1));
+            assertEquals(closeDocumentButton, documentSelectorBar.children.get(0));
+            assertEquals(documentSelect.parentElement, documentSelectorBar.children.get(1));
+            assertEquals("tooltip.apricityui.devtools.close_document",
+                    closeDocumentButton.getAttribute("data-tooltip-key"));
+            assertEquals("1", closeDocumentButton.getAttribute("data-tooltip-bound"));
             assertEquals("▾", tool.querySelector(".document-select-arrow").getTextContent());
             assertEquals(target.getUuid().toString(), documentSelect.getValue());
             assertEquals(documentLabel(target), documentSelect.querySelector("option[value=\""
@@ -205,6 +220,11 @@ class DevToolsTest {
             assertTrue(pick.getClassNames().contains("active"));
             pick.click();
             assertFalse(pick.getClassNames().contains("active"));
+            closeDocumentButton.click();
+            assertFalse(target.isActive());
+            assertEquals(duplicate.getUuid().toString(), documentSelect.getValue());
+            assertNotNull(tool.querySelector("#domTree [data-node-id=\""
+                    + duplicate.body.uuid + "\"]"));
         } finally {
             if (DevTools.isOpen()) DevTools.toggle();
             duplicate.remove();

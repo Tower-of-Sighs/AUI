@@ -38,6 +38,7 @@ Minecraft 专属标签是这些：
 - `slot`
 - `recipe`
 - `translation`
+- `texture`
 
 另外还有一批标签虽然没做浏览器级别专门逻辑，但 `global.css` 已经给了默认样式，平时可以直接用：
 
@@ -240,6 +241,7 @@ window.setTimeout(() => {
 3. `recipe` 现在是 `<recipe type="..."></recipe>` 这种风格，配方 id 读 innerText，不再读 `recipe-id`。
 4. `translation` 的 innerText 就是翻译 key。
 5. `sprite` 用 `src + steps + duration + direction` 这一套参数，别再用旧时代切图思路硬塞浏览器插件写法。
+6. `texture` 的 `src` 是 Minecraft `ResourceLocation`（例如 `minecraft:textures/gui/icons.png`），它不走 `img` 的相对路径或网络图片加载流程。
 
 ---
 

@@ -28,6 +28,8 @@
             --attr: #db2777;
             --str: #059669;
             --num: #d97706;
+            --danger: #dc2626;
+            --danger-dark: #b91c1c;
         }
 
         html, body {
@@ -146,9 +148,49 @@
             border-color: var(--purple);
         }
 
+        .document-selector-bar {
+            display: flex;
+            align-items: stretch;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .document-close-btn {
+            width: 40px;
+            height: 40px;
+            flex: 0 0 40px;
+            padding: 0;
+            border: 2px solid var(--danger);
+            background: var(--danger);
+            color: var(--white);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+        }
+
+        .document-close-btn svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .document-close-btn:hover,
+        .document-close-btn:focus {
+            background: var(--danger-dark);
+            border-color: var(--danger-dark);
+            outline: none;
+        }
+
+        .document-close-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
         .document-select-wrap {
             position: relative;
-            flex-shrink: 0;
+            flex: 1;
+            min-width: 0;
         }
 
         .document-select {
@@ -1138,9 +1180,14 @@
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="10.5"/><path d="M4 6l2 2-2 2M8 10h3"/></svg>
             </button>
         </div>
-        <div class="document-select-wrap">
-            <select class="document-select" id="documentSelect" aria-label="Inspected document"></select>
-            <div class="document-select-arrow">▾</div>
+        <div class="document-selector-bar">
+            <button type="button" class="document-close-btn" id="closeDocumentBtn" aria-label="Close inspected document" data-tooltip-key="tooltip.apricityui.devtools.close_document">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+            </button>
+            <div class="document-select-wrap">
+                <select class="document-select" id="documentSelect" aria-label="Inspected document"></select>
+                <div class="document-select-arrow">▾</div>
+            </div>
         </div>
         <!-- DOM Tree -->
         <div class="dom-section" id="domSection">

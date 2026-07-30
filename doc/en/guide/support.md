@@ -38,6 +38,7 @@ Minecraft-specific tags:
 - `slot`
 - `recipe`
 - `translation`
+- `texture`
 
 There is also a group of tags that do not have browser-level built-in logic, but `global.css` already provides reasonable default styles for them:
 
@@ -240,6 +241,7 @@ Only the essentials here. For full details, see the dedicated sections.
 3. `recipe` now uses `<recipe type="..."></recipe>`, with the recipe id read from `innerText`, not `recipe-id`.
 4. `translation` uses `innerText` as the translation key.
 5. `sprite` uses the `src + steps + duration + direction` style of parameters. Do not force old image-slicing workflows into it.
+6. `texture` takes a Minecraft `ResourceLocation` in `src`, such as `minecraft:textures/gui/icons.png`. It does not use the relative-path or network-image pipeline used by `img`.
 
 ---
 

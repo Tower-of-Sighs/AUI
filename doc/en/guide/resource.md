@@ -35,6 +35,14 @@ For example, if an image is in the same directory as the HTML file:
 <img src="loading.gif" />
 ```
 
+To render a texture already registered by Minecraft or another mod, use `texture` with a complete `ResourceLocation`:
+
+```html
+<texture src="minecraft:textures/gui/icons.png" style="width: 32px; height: 32px;">
+```
+
+`texture` does not resolve `src` relative to the HTML document and does not use the network-image pipeline.
+
 If CSS references a font in a child folder:
 
 ```css

@@ -40,7 +40,7 @@
 ### 4.1 已注册标签
 
 - 通用：`body` `div` `span` `pre` `img` `a` `input` `textarea` `select` `option` `sprite`
-- Minecraft：`container` `slot` `recipe` `translation`
+- Minecraft：`container` `slot` `recipe` `translation` `texture`
 
 ### 4.2 依赖 global.css 才比较像样的标签
 
@@ -112,6 +112,16 @@ innerText 就是翻译 key。
 - `fit`
 
 不要要求额外提供 `frameW`、`frameH`。当前实现会根据图片尺寸和 `steps` 推导帧信息。
+
+### 5.6 `texture`
+
+`src` 必须是 Minecraft `ResourceLocation`，例如：
+
+```html
+<texture src="minecraft:textures/gui/icons.png" style="width: 32px; height: 32px;">
+```
+
+`texture` 直接渲染 Minecraft 纹理管理器中的资源；相对路径、HTTP 图片和需要 AUI 解码的图片继续使用 `img`。
 
 ---
 

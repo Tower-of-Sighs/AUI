@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.init.StyleFrameCache;
+import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.render.Graph;
@@ -869,6 +870,32 @@ class CssCompatibilityTest {
 
         assertEquals("contain", element.getComputedStyle().objectFit);
         assertEquals("right bottom", element.getComputedStyle().objectPosition);
+    }
+
+    @Test
+    void appearanceAndWebkitAliasSurviveComputedStyle() {
+        Document document = TestDocumentFactory.createDocument();
+        Element standard = new Element(document, "select");
+        Element prefixed = new Element(document, "select");
+        Element cascaded = new Element(document, "select");
+        document.body.appendChild(standard);
+        document.body.appendChild(prefixed);
+        document.body.appendChild(cascaded);
+
+        standard.setAttribute("style", "appearance: none;");
+        prefixed.setAttribute("style", "-webkit-appearance: none;");
+        cascaded.setAttribute("style", "appearance: none; -webkit-appearance: auto;");
+
+        assertEquals("none", standard.getComputedStyle().appearance);
+        assertEquals("none", prefixed.getComputedStyle().appearance);
+        assertEquals("auto", cascaded.getComputedStyle().appearance);
+        assertEquals("none", new Window().getComputedStyle(standard).getPropertyValue("appearance"));
+        assertEquals("none", new Window().getComputedStyle(prefixed).getPropertyValue("-webkit-appearance"));
+
+        HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
+        CSS.readCSS(".control { -webkit-appearance: auto; appearance: none; }", cache, "test://appearance.css");
+        assertEquals("none", cache.get(".control").get("appearance").value());
+        assertFalse(cache.get(".control").containsKey("-webkit-appearance"));
     }
 
     @Test

@@ -13,6 +13,14 @@ import org.lwjgl.glfw.GLFW;
 
 @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, value = Dist.CLIENT, modid = ApricityUI.MODID)
 public class Keybindings {
+    public static final KeyMapping RELEASE_MOUSE = new KeyMapping("key.apricityui.release_mouse",
+            KeyConflictContext.IN_GAME,
+            KeyModifier.NONE,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_LEFT_ALT,
+            "key.categories.apricityui"
+    );
+
     public static final KeyMapping RELOAD = new KeyMapping("key.apricityui.reload",
             KeyConflictContext.GUI,
             KeyModifier.NONE,
@@ -23,6 +31,7 @@ public class Keybindings {
 
     @SubscribeEvent
     public static void registerKeyMapping(RegisterKeyMappingsEvent event) {
+        event.register(RELEASE_MOUSE);
         event.register(RELOAD);
     }
 }

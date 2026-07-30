@@ -147,7 +147,7 @@ public class HTML {
         );
         private static final Set<String> VOID_TAGS = Set.of(
                 "area", "base", "br", "col", "embed", "hr", "img", "input",
-                "link", "meta", "param", "source", "track", "wbr"
+                "link", "meta", "param", "source", "texture", "track", "wbr"
         );
 
         private static final Pattern TOKEN_PATTERN =

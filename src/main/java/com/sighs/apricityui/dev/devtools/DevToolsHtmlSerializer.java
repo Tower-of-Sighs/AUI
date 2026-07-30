@@ -19,7 +19,7 @@ import java.util.regex.Pattern;
 final class DevToolsHtmlSerializer {
     private static final Set<String> VOID_ELEMENTS = Set.of(
             "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "img",
-            "input", "keygen", "link", "meta", "param", "source", "track", "wbr"
+            "input", "keygen", "link", "meta", "param", "source", "texture", "track", "wbr"
     );
     private static final Set<String> RAW_TEXT_ELEMENTS = Set.of(
             "iframe", "noembed", "noframes", "plaintext", "script", "style", "xmp"

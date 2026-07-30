@@ -110,7 +110,7 @@ public class Color {
         if (getA() == 255) {
             return String.format("#%06X", (value & 0x00FFFFFF));
         }
-        return String.format("#%08X", value);
+        return String.format("#%02X%02X%02X%02X", getR(), getG(), getB(), getA());
     }
 
     public int getA() {
@@ -134,21 +134,23 @@ public class Color {
 
         String cleanHex = hex.startsWith("#") ? hex.substring(1) : hex;
 
-        if (cleanHex.length() == 3) {
-            cleanHex = "" + cleanHex.charAt(0) + cleanHex.charAt(0) +
-                    cleanHex.charAt(1) + cleanHex.charAt(1) +
-                    cleanHex.charAt(2) + cleanHex.charAt(2);
+        if (cleanHex.length() == 3 || cleanHex.length() == 4) {
+            StringBuilder expanded = new StringBuilder(cleanHex.length() * 2);
+            for (int i = 0; i < cleanHex.length(); i++) {
+                expanded.append(cleanHex.charAt(i)).append(cleanHex.charAt(i));
+            }
+            cleanHex = expanded.toString();
         }
 
-        if (cleanHex.length() == 6) {
-            cleanHex = "FF" + cleanHex;
-        }
+        if (cleanHex.length() != 6 && cleanHex.length() != 8) return 0;
 
-        if (cleanHex.length() != 8) {
-            return parseHex("#00000000");
+        try {
+            long rgba = Long.parseLong(cleanHex, 16);
+            if (cleanHex.length() == 6) return (int) (0xFF000000L | rgba);
+            return (int) (((rgba & 0xFFL) << 24) | (rgba >>> 8));
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
-
-        return (int) Long.parseLong(cleanHex, 16);
     }
 
     private static int parseRgba(String input) {

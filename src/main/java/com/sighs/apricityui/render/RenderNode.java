@@ -17,6 +17,11 @@ import java.util.function.Consumer;
 public interface RenderNode {
     void render(PoseStack poseStack);
 
+    /** Whether this node emits a visible layer in the final CSS paint order. */
+    default boolean advancesPaintDepth() {
+        return true;
+    }
+
     static void applyWithTransform(PoseStack poseStack, Element target, Consumer<Rect> action) {
         poseStack.pushPose();
         Base.applyTransform(poseStack, target);
@@ -36,6 +41,11 @@ public interface RenderNode {
     }
 
     record MaskPushNode(Element target) implements RenderNode {
+        @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
         @Override
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
@@ -63,6 +73,11 @@ public interface RenderNode {
     }
 
     record MaskPopNode(Element target) implements RenderNode {
+        @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
         @Override
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
@@ -196,6 +211,11 @@ public interface RenderNode {
 
     record ClipPathPushNode(Element target) implements RenderNode {
         @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
+        @Override
         public void render(PoseStack poseStack) {
             String clip = target.getComputedStyle().clipPath;
             if (clip == null || clip.equals("none")) return;
@@ -214,6 +234,11 @@ public interface RenderNode {
 
     record ClipPathPopNode(Element target) implements RenderNode {
         @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
+        @Override
         public void render(PoseStack poseStack) {
             String clip = target.getComputedStyle().clipPath;
             if (clip == null || clip.equals("none")) return;
@@ -231,6 +256,11 @@ public interface RenderNode {
     }
 
     record FilterPushNode(Element target) implements RenderNode {
+        @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
         @Override
         public void render(PoseStack poseStack) {
             if (!Filter.isDisabled(target)) FilterRenderer.pushFilter();
