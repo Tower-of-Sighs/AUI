@@ -34,6 +34,14 @@
 <img src="loading.gif" />
 ```
 
+如果要直接使用 Minecraft 或其他模组已注册的纹理，使用 `texture` 和完整的 `ResourceLocation`：
+
+```html
+<texture src="minecraft:textures/gui/icons.png" style="width: 32px; height: 32px;">
+```
+
+`texture` 不会按 HTML 所在目录解析 `src`，也不走网络图片加载流程。
+
 CSS 同目录下引用字体：
 
 ```css

@@ -427,7 +427,9 @@ public class CSS {
 
         private static String normalizePropertyName(String raw) {
             String property = raw == null ? "" : raw.trim();
-            return property.startsWith("--") ? property : property.toLowerCase(Locale.ROOT);
+            if (property.startsWith("--")) return property;
+            String normalized = property.toLowerCase(Locale.ROOT);
+            return "-webkit-appearance".equals(normalized) ? "appearance" : normalized;
         }
 
         private static Map<String, Declaration> expandAuthorProperties(Map<String, Declaration> authored) {

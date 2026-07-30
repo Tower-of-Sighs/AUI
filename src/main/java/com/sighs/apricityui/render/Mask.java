@@ -136,12 +136,12 @@ public class Mask {
         }
 
         pose.pushPose();
-        setupStencilStatePush();
+        StencilDepthState state = setupStencilStatePush();
 
         drawToStencil(pose.last().pose(), x, y, width, height, radii);
 
         depth++;
-        restoreRenderState();
+        restoreRenderState(state);
 
         GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
         GL11.glStencilMask(0x00);
@@ -163,12 +163,13 @@ public class Mask {
         Graph.endBatch();
         ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
+        pose.pushPose();
+        StencilDepthState state = setupStencilStatePop();
+        drawToStencil(pose.last().pose(), x, y, width, height, radii);
         depth--;
-        if (depth > 0) {
-            GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
-        } else {
-            GL11.glDisable(GL11.GL_STENCIL_TEST);
-        }
+        restoreRenderState(state);
+        finishStencilPop();
+        pose.popPose();
     }
 
     private static void drawToStencil(Matrix4f matrix, float x, float y, float width, float height, float[] radii) {
@@ -182,28 +183,45 @@ public class Mask {
         tess.end();
     }
 
-    private static void setupStencilStatePush() {
+    private static StencilDepthState setupStencilStatePush() {
+        StencilDepthState state = captureStencilDepthState();
         GL11.glColorMask(false, false, false, false);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDepthMask(false);
         GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glStencilFunc(GL11.GL_ALWAYS, depth, 0xFF);
+        GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
         GL11.glStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_INCR);
         GL11.glStencilMask(0xFF);
+        return state;
     }
 
-    private static void setupStencilStatePop() {
+    private static StencilDepthState setupStencilStatePop() {
+        StencilDepthState state = captureStencilDepthState();
         GL11.glColorMask(false, false, false, false);
+        GL11.glDisable(GL11.GL_DEPTH_TEST);
         GL11.glDepthMask(false);
         GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glStencilFunc(GL11.GL_ALWAYS, depth, 0xFF);
+        GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
         GL11.glStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_DECR);
         GL11.glStencilMask(0xFF);
+        return state;
     }
 
-    private static void restoreRenderState() {
+    private static StencilDepthState captureStencilDepthState() {
+        return new StencilDepthState(
+                GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
+                GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK),
+                GL11.glIsEnabled(GL11.GL_CULL_FACE)
+        );
+    }
+
+    private static void restoreRenderState(StencilDepthState state) {
         GL11.glColorMask(true, true, true, true);
-        GL11.glDepthMask(true);
-        GL11.glDisable(GL11.GL_CULL_FACE);
+        GL11.glDepthMask(state.depthWriteEnabled());
+        if (state.depthTestEnabled()) GL11.glEnable(GL11.GL_DEPTH_TEST);
+        else GL11.glDisable(GL11.GL_DEPTH_TEST);
+        if (state.cullEnabled()) GL11.glEnable(GL11.GL_CULL_FACE);
+        else GL11.glDisable(GL11.GL_CULL_FACE);
     }
 
     public static void pushClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
@@ -223,12 +241,12 @@ public class Mask {
         }
 
         pose.pushPose();
-        setupStencilStatePush();
+        StencilDepthState state = setupStencilStatePush();
 
         drawClipToStencil(pose.last().pose(), x, y, width, height, clipPathValue);
 
         depth++;
-        restoreRenderState();
+        restoreRenderState(state);
 
         GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
         GL11.glStencilMask(0x00);
@@ -240,20 +258,24 @@ public class Mask {
         ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
         pose.pushPose();
-        setupStencilStatePop();
+        StencilDepthState state = setupStencilStatePop();
 
         drawClipToStencil(pose.last().pose(), x, y, width, height, clipPathValue);
 
         depth--;
-        restoreRenderState();
+        restoreRenderState(state);
+        finishStencilPop();
+        pose.popPose();
+    }
 
+    private static void finishStencilPop() {
         if (depth > 0) {
             GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
-        } else {
-            GL11.glDisable(GL11.GL_STENCIL_TEST);
+            GL11.glStencilMask(0x00);
+            return;
         }
-        GL11.glStencilMask(0x00);
-        pose.popPose();
+        GL11.glDisable(GL11.GL_STENCIL_TEST);
+        GL11.glStencilMask(0xFF);
     }
 
     private static void drawClipToStencil(Matrix4f matrix, float x, float y, float width, float height, String clipPath) {
@@ -318,6 +340,9 @@ public class Mask {
     }
 
     private record SurfaceClipState(AABB clip, AABB scissor, SurfaceScissorTransform transform) {
+    }
+
+    private record StencilDepthState(boolean depthTestEnabled, boolean depthWriteEnabled, boolean cullEnabled) {
     }
 
     private record SurfaceScissorTransform(double offsetX, double offsetY, double scaleX, double scaleY) {

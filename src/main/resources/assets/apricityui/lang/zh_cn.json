@@ -1,5 +1,6 @@
 {
   "key.categories.apricityui": "晴雪UI",
+  "key.apricityui.release_mouse": "呼出鼠标",
   "key.apricityui.reload": "重载",
   "tooltip.apricityui.meta.viewport": "控制此文档布局所使用的坐标空间和缩放方式。",
   "tooltip.apricityui.meta.viewport.not_set": "使用 ApricityUI 默认的视窗行为。",
@@ -21,6 +22,7 @@
   "tooltip.apricityui.devtools.console": "打开开发者控制台",
   "tooltip.apricityui.devtools.move": "水平移动 DevTools",
   "tooltip.apricityui.devtools.save": "保存当前 HTML 文档",
+  "tooltip.apricityui.devtools.close_document": "关闭当前受检文档",
   "devtools.apricityui.title": "开发者工具",
   "devtools.apricityui.elements": "元素",
   "devtools.apricityui.attributes": "属性",

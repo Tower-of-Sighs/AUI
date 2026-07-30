@@ -79,8 +79,9 @@ public class Select extends Element {
         Graph.drawFillRect(poseStack.last().pose(), x + 3, y + 3, x + 4, y + 4, color);
     }
 
-    private boolean showsNativeArrow() {
-        return !"false".equalsIgnoreCase(getAttribute("data-native-arrow"));
+    boolean showsNativeArrow() {
+        return !"none".equalsIgnoreCase(getComputedStyle().appearance)
+                && !"false".equalsIgnoreCase(getAttribute("data-native-arrow"));
     }
 
     private String selectedLabel() {

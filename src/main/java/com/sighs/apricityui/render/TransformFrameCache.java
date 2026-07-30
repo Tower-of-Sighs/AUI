@@ -46,11 +46,15 @@ public final class TransformFrameCache {
     }
 
     public static Matrix4f get(Element element) {
-        Map<Element, Matrix4f> map = CACHE.get();
-        Matrix4f cached = map == null ? null : map.get(element);
+        Matrix4f cached = getFrame(element);
         if (cached != null) return cached;
         if (COMMITTED_FALLBACK_DISABLED.get() > 0) return null;
         return element == null ? null : element.getRenderer().getCommittedWorldTransformIfValid();
+    }
+
+    static Matrix4f getFrame(Element element) {
+        Map<Element, Matrix4f> map = CACHE.get();
+        return map == null ? null : map.get(element);
     }
 
     public static void put(Element element, Matrix4f matrix) {

@@ -132,7 +132,7 @@ public class Base {
                     continue;
                 }
                 poseStack.pushPose();
-                Base.resolveOffset(poseStack);
+                Base.resolvePaintOffset(poseStack, node);
                 node.render(poseStack);
                 poseStack.popPose();
             }
@@ -217,7 +217,12 @@ public class Base {
     }
 
     public static Matrix4f prepareWorldTransform(Element element) {
-        Matrix4f cached = TransformFrameCache.get(element);
+        // A committed transform may have been produced by a normal screen
+        // layout pass. WorldWindow has different translateZ semantics, so it
+        // may only reuse transforms computed inside the current flat scope.
+        Matrix4f cached = WorldPaintDepth.canReuseCommittedTransforms()
+                ? TransformFrameCache.get(element)
+                : TransformFrameCache.getFrame(element);
         if (cached != null) return cached;
         Matrix4f matrix = computeWorldTransform(element);
         TransformFrameCache.put(element, matrix);
@@ -281,7 +286,10 @@ public class Base {
 
                 for (Transform transform : functions) {
                     if (transform instanceof Transform.Translate t) {
-                        matrix.translate((float) t.x(), (float) t.y(), (float) t.z());
+                        // WorldWindow uses the paint-depth cursor for CSS stacking.
+                        // Keep translateZ as a stacking-order input, but do not turn
+                        // ordinary flat DOM content into physically separated planes.
+                        matrix.translate((float) t.x(), (float) t.y(), WorldPaintDepth.effectiveTranslateZ(t.z()));
                     } else if (transform instanceof Transform.Rotate r) {
                         matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
                         if (r.x() != 0) matrix.rotate(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
@@ -358,11 +366,29 @@ public class Base {
 
     public static void resolveOffset(PoseStack poseStack) {
         if (accumulateDepth) {
-            depthCursor += depthStep;
-            poseStack.translate(0, 0, depthCursor);
-        } else {
-            poseStack.translate(0, 0, depthStep);
+            // A renderer-internal draw belongs to its enclosing RenderNode.
+            // Advancing here would let images and placeholders perturb every
+            // subsequent node's CSS paint depth.
+            return;
         }
+        poseStack.translate(0, 0, depthStep);
+    }
+
+    private static void resolvePaintOffset(PoseStack poseStack, RenderNode node) {
+        if (!accumulateDepth) {
+            poseStack.translate(0, 0, depthStep);
+            return;
+        }
+        poseStack.translate(0, 0, advancePaintDepth(node));
+    }
+
+    private static float advancePaintDepth(RenderNode node) {
+        depthCursor = WorldPaintDepth.advance(
+                depthCursor,
+                depthStep,
+                node == null || node.advancesPaintDepth()
+        );
+        return depthCursor;
     }
 
     public static void pushDepthStep(float step) {

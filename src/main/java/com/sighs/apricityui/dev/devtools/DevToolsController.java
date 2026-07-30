@@ -765,6 +765,7 @@ public final class DevToolsController {
         Element consoleButton = toolDocument.querySelector(".console-btn");
         Element oreEditorButton = toolDocument.querySelector("#oreEditorButton");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
+        Element closeDocumentButton = toolDocument.querySelector("#closeDocumentBtn");
         Element documentSelect = toolDocument.querySelector("#documentSelect");
         localizeAccessibility();
         bindOnce(pickButton, event -> {
@@ -787,10 +788,12 @@ public final class DevToolsController {
         bindOnce(saveButton, event -> requestSave());
         bindOnce(consoleButton, event -> showToast(DevToolsTranslations.translate("devtools.apricityui.console_coming_soon")));
         bindOnce(oreEditorButton, event -> openOreEditorFilePicker());
+        bindOnce(closeDocumentButton, event -> closeTargetDocument());
         bindTooltipOnce(pickButton, "tooltip.apricityui.devtools.inspect");
         bindTooltipOnce(saveButton, "tooltip.apricityui.devtools.save");
         bindTooltipOnce(consoleButton, "tooltip.apricityui.devtools.console");
         bindTooltipOnce(oreEditorButton, "tooltip.apricityui.ore_editor.open");
+        bindTooltipOnce(closeDocumentButton, "tooltip.apricityui.devtools.close_document");
         bindPanelDrag(dragHandle);
         bindTooltipOnce(dragHandle, "tooltip.apricityui.devtools.move");
         bindDocumentSelector(documentSelect);
@@ -851,6 +854,7 @@ public final class DevToolsController {
         setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
         setAttribute(".console-btn", "aria-label", "devtools.apricityui.console");
         setAttribute("#oreEditorButton", "aria-label", "tooltip.apricityui.ore_editor.open");
+        setAttribute("#closeDocumentBtn", "aria-label", "tooltip.apricityui.devtools.close_document");
     }
 
     private void setAttribute(String selector, String attribute, String key) {
@@ -869,6 +873,27 @@ public final class DevToolsController {
         select.setAttribute("data-document-bound", "1");
         select.addEventListener("click", event -> syncDocumentSelector(select));
         select.addEventListener("change", event -> selectDocumentByUuid(select.getValue()));
+    }
+
+    private synchronized void closeTargetDocument() {
+        Document closing = targetDocument;
+        if (!isDebuggable(closing)) {
+            refresh();
+            return;
+        }
+        disconnectTargetObserver();
+        saveDialog.close();
+        closeCreateElementDialog();
+        Tooltip.hide(toolDocument);
+        Cursor.resetToDefault();
+        consumeInspectMouseUp = false;
+        closing.remove();
+        disabledStyles.clear();
+        disabledRuleStyles.clear();
+        editHistory.clear();
+        bindTarget(resolvePreferredTarget());
+        selectedElementUuid = targetDocument == null ? null : targetDocument.body.uuid;
+        refresh();
     }
 
     private void bindHistoryShortcuts() {
@@ -1056,6 +1081,16 @@ public final class DevToolsController {
             } else {
                 saveButton.setAttribute("disabled", "disabled");
                 saveButton.setAttribute("aria-disabled", "true");
+            }
+        }
+        Element closeDocumentButton = toolDocument.querySelector("#closeDocumentBtn");
+        if (closeDocumentButton != null) {
+            if (isDebuggable(targetDocument)) {
+                closeDocumentButton.removeAttribute("disabled");
+                closeDocumentButton.setAttribute("aria-disabled", "false");
+            } else {
+                closeDocumentButton.setAttribute("disabled", "disabled");
+                closeDocumentButton.setAttribute("aria-disabled", "true");
             }
         }
         for (Element tab : toolDocument.querySelectorAll(".inspector-tab")) {

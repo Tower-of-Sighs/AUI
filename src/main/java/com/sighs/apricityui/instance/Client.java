@@ -273,7 +273,7 @@ public class Client {
                 consumed |= MouseEvent.tiggerEvent(mouseEvent, window.document);
             }
         }
-        if (consumed) event.setCanceled(true);
+        if (consumed || CursorReleaseController.isActive()) event.setCanceled(true);
     }
 
     @SubscribeEvent
@@ -313,7 +313,7 @@ public class Client {
                 }
             }
         }
-        if (consumed) event.setCanceled(true);
+        if (consumed || CursorReleaseController.isActive()) event.setCanceled(true);
     }
 
     @SubscribeEvent
@@ -436,6 +436,7 @@ public class Client {
     @SubscribeEvent
     public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
+            CursorReleaseController.tick();
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             Runtime.tick();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();

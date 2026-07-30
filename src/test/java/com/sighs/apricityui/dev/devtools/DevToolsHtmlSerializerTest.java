@@ -11,6 +11,18 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DevToolsHtmlSerializerTest {
     @Test
+    void serializesTextureAsVoidElement() {
+        Document document = new Document("test://serializer", false);
+        Element texture = new Element(document, "texture");
+        texture.setAttribute("src", "minecraft:textures/gui/icons.png");
+
+        assertEquals(
+                "<texture src=\"minecraft:textures/gui/icons.png\">",
+                DevToolsHtmlSerializer.serializeElement(texture)
+        );
+    }
+
+    @Test
     void preservesExtractedSourceBlocksAndSerializesLiveDomWithHtmlRules() {
         String path = "tests/serializer-" + UUID.randomUUID() + ".html";
         String original = """
@@ -33,6 +45,9 @@ class DevToolsHtmlSerializerTest {
             Element image = Element.init(document.createElement("img"));
             image.setAttribute("src", "old.png");
             document.body.append(image);
+            Element texture = Element.init(document.createElement("texture"));
+            texture.setAttribute("src", "minecraft:textures/gui/icons.png");
+            document.body.append(texture);
             Element main = Element.init(document.createElement("main"));
             main.setAttribute("id", "app");
             document.body.append(main);
@@ -53,6 +68,8 @@ class DevToolsHtmlSerializerTest {
             assertTrue(saved.contains("<script src=\"app.js\"></script>"));
             assertFalse(saved.contains("</meta>"));
             assertFalse(saved.contains("</img>"));
+            assertTrue(saved.contains("<texture src=\"minecraft:textures/gui/icons.png\">"));
+            assertFalse(saved.contains("</texture>"));
             assertTrue(saved.indexOf("theme.css") < saved.indexOf(".card { color: red; }"));
         } finally {
             document.remove();

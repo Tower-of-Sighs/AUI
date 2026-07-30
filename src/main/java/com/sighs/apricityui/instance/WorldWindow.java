@@ -5,6 +5,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.WorldPaintDepth;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -121,9 +122,11 @@ public class WorldWindow {
         if (localStep > 0.2f) localStep = 0.2f;
         Base.pushDepthStep(localStep);
         Base.pushDepthMode(true);
+        WorldPaintDepth.pushFlatTransforms(true);
         try {
             Base.drawDocument(poseStack, document);
         } finally {
+            WorldPaintDepth.popFlatTransforms();
             Base.popDepthMode();
             Base.popDepthStep();
         }
