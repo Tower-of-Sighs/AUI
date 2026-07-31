@@ -84,6 +84,20 @@ public class TextArea extends AbstractText {
     }
 
     @Override
+    protected void restoreFormValue(String restored) {
+        String normalized = restored == null ? "" : restored.replace("\r\n", "\n").replace('\r', '\n');
+        value = normalized;
+        textAreaValueDirty = false;
+        cursor = Math.min(cursor, normalized.length());
+        selectionAnchor = cursor;
+        clearSelection();
+        clampScroll();
+        getRenderer().text.clear();
+        getRenderer().wrappedText.clear();
+        invalidateStyle();
+    }
+
+    @Override
     protected void locateCursor(double mouseOffsetX, double mouseOffsetY) {
         String renderText = getRenderText();
         Text text = Text.of(this);

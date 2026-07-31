@@ -113,6 +113,15 @@ public class Selector {
                 case "focus-within" -> isFocusWithin(e);
                 case "disabled" -> e.isDisabled();
                 case "enabled" -> !e.isDisabled();
+                case "required" -> e.hasAttribute("required");
+                case "optional" -> !e.hasAttribute("required");
+                case "valid" -> e.isValid();
+                case "invalid" -> e.isWillValidate() && !e.isValid();
+                case "in-range" -> e.isWillValidate() && !e.getValidity().rangeUnderflow && !e.getValidity().rangeOverflow;
+                case "out-of-range" -> e.isWillValidate() && (e.getValidity().rangeUnderflow || e.getValidity().rangeOverflow);
+                case "read-only" -> e.hasAttribute("readonly");
+                case "read-write" -> !e.hasAttribute("readonly") && e.isWillValidate();
+                case "placeholder-shown" -> e.hasAttribute("placeholder") && e.getValue().isEmpty();
                 case "empty" -> e.children.isEmpty();
                 case "checked" -> isChecked(e);
                 case "not" -> !matchesAny(e, expression);
@@ -421,6 +430,20 @@ public class Selector {
                 addCandidates(byPseudo.get("nth-last-of-type"));
             }
             if (!element.isDisabled()) addCandidates(byPseudo.get("enabled"));
+            if (element.hasAttribute("required")) addCandidates(byPseudo.get("required"));
+            else addCandidates(byPseudo.get("optional"));
+            if (element.isValid()) addCandidates(byPseudo.get("valid"));
+            if (element.isWillValidate() && !element.isValid()) addCandidates(byPseudo.get("invalid"));
+            if (element.isWillValidate()) {
+                ValidityState validity = element.getValidity();
+                if (!validity.rangeUnderflow && !validity.rangeOverflow) addCandidates(byPseudo.get("in-range"));
+                if (validity.rangeUnderflow || validity.rangeOverflow) addCandidates(byPseudo.get("out-of-range"));
+            }
+            if (element.hasAttribute("readonly")) addCandidates(byPseudo.get("read-only"));
+            else if (element.isWillValidate()) addCandidates(byPseudo.get("read-write"));
+            if (element.hasAttribute("placeholder") && element.getValue().isEmpty()) {
+                addCandidates(byPseudo.get("placeholder-shown"));
+            }
             addCandidates(byPseudo.get("not"));
             addCandidates(byPseudo.get("is"));
             addCandidates(byPseudo.get("where"));

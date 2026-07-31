@@ -137,7 +137,7 @@ public class Position {
         double originX = 0;
         double originY = 0;
         if ("fixed".equals(positionType)) {
-            Size window = Size.getWindowSize();
+            Size window = fixedContainingBlockSize(element);
             containerW = window.width();
             containerH = window.height();
         } else {
@@ -179,6 +179,26 @@ public class Position {
         }
 
         return new Position(originX + x, originY + y);
+    }
+
+    /**
+     * Fixed positioning is relative to the owning document's viewport. Using
+     * the thread-local global window size here is incorrect when layout is
+     * queried from a keyboard/default-action callback without a document
+     * context (for example, a browser-sized DevTools document).
+     */
+    private static Size fixedContainingBlockSize(Element element) {
+        if (element != null && element.document != null) {
+            Size viewport = new Size(
+                    element.document.getViewport().layoutWidth(),
+                    element.document.getViewport().layoutHeight()
+            );
+            // Test/headless documents may still carry the constructor's 1x1
+            // placeholder viewport. Keep the existing global fallback until
+            // the owning document has a usable viewport.
+            if (viewport.width() > 1 && viewport.height() > 1) return viewport;
+        }
+        return Size.getWindowSize();
     }
 
     @Override

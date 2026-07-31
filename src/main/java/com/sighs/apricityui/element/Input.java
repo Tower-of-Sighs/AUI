@@ -5,7 +5,6 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.Style;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
@@ -16,11 +15,14 @@ import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.ui.ColorPicker;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
+import java.util.Objects;
 import java.util.Locale;
+import java.util.ArrayList;
 
 @ElementRegister(Input.TAG_NAME)
 public class Input extends AbstractText {
@@ -28,37 +30,83 @@ public class Input extends AbstractText {
 
     private enum Mode {
         TEXT,
+        NUMBER,
+        COLOR,
         BUTTON,
         CHECKBOX,
         RADIO,
-        FILE
+        FILE,
+        RANGE,
+        HIDDEN
     }
 
     public Input(Document document) {
         super(document, TAG_NAME);
+        addInternalEventListener("mousedown", event -> {
+            if (!(event instanceof MouseEvent mouse) || isDisabled()) return;
+            if (getMode() == Mode.RANGE) {
+                double width = Math.max(1d, Box.of(this).innerSize().width());
+                setValueFromPointer(mouse.offsetX / width);
+                triggerChangeEvent();
+                return;
+            }
+            if (getMode() == Mode.NUMBER) {
+                handleNumberSpinner(mouse);
+            }
+        });
+        addInternalEventListener("wheel", event -> {
+            if (!(event instanceof MouseEvent mouse)) return;
+            if (handleNumberWheel(mouse)) {
+                event.preventDefault();
+                mouse.consumeNative();
+            }
+        });
+    }
+
+    @Override
+    public String getValue() {
+        if (getMode() == Mode.RANGE && !hasAttribute("value") && (value == null || value.isEmpty())) {
+            double min = parseNumberAttribute("min", 0d);
+            double max = parseNumberAttribute("max", 100d);
+            return Double.toString(min + (max - min) * 0.5d);
+        }
+        if ("color".equalsIgnoreCase(getType()) && !hasAttribute("value") && (value == null || value.isEmpty())) {
+            return "#000000";
+        }
+        return super.getValue();
     }
 
     private Mode getMode() {
-        String type = getAttribute("type");
+        String type = getType();
         if (type == null || type.isBlank()) return Mode.TEXT;
         return switch (type.toLowerCase(Locale.ROOT)) {
-            case "button", "submit", "reset" -> Mode.BUTTON;
+            case "button", "submit", "reset", "image" -> Mode.BUTTON;
             case "checkbox" -> Mode.CHECKBOX;
             case "radio" -> Mode.RADIO;
             case "file" -> Mode.FILE;
+            case "range" -> Mode.RANGE;
+            case "number" -> Mode.NUMBER;
+            case "color" -> Mode.COLOR;
+            case "hidden" -> Mode.HIDDEN;
             default -> Mode.TEXT;
         };
     }
 
     @Override
     public boolean canEditText() {
-        return getMode() == Mode.TEXT;
+        return getMode() == Mode.TEXT || getMode() == Mode.NUMBER;
+    }
+
+    @Override
+    public boolean canFocus() {
+        return getMode() != Mode.HIDDEN && super.canFocus();
     }
 
     @Override
     public void handleClickDefault() {
         if (isDisabled()) return;
         Mode mode = getMode();
+        if (mode == Mode.HIDDEN) return;
         if (mode == Mode.CHECKBOX) {
             setChecked(!isChecked());
             triggerChangeEvent();
@@ -69,14 +117,23 @@ public class Input extends AbstractText {
             }
         } else if (mode == Mode.FILE) {
             openFileDialog();
-        } else if (mode == Mode.BUTTON && "submit".equalsIgnoreCase(getAttribute("type"))) {
+        } else if (mode == Mode.COLOR) {
+            openColorPicker();
+        } else if (mode == Mode.RANGE) {
+            // Range input is updated by its mousedown position; the click
+            // activation itself does not apply a second synthetic value.
+        } else if (mode == Mode.BUTTON && ("submit".equalsIgnoreCase(getAttribute("type"))
+                || "image".equalsIgnoreCase(getAttribute("type")))) {
             submitEnclosingForm();
+        } else if (mode == Mode.BUTTON && "reset".equalsIgnoreCase(getAttribute("type"))) {
+            Element form = getFormOwner();
+            if (form != null) form.reset();
         }
     }
 
     @Override
     public boolean canSelectText() {
-        return getMode() == Mode.TEXT && super.canSelectText();
+        return (getMode() == Mode.TEXT || getMode() == Mode.NUMBER) && super.canSelectText();
     }
 
     private void triggerChangeEvent() {
@@ -91,23 +148,89 @@ public class Input extends AbstractText {
 
     private void openFileDialog() {
         String accept = getAttribute("accept");
-        String pattern = accept != null && accept.toLowerCase(Locale.ROOT).contains("html") ? "*.html" : "*.*";
+        String pattern = resolveFilePattern(accept);
         String description = "*.html".equals(pattern) ? "HTML files" : "Files";
         try (MemoryStack stack = MemoryStack.stackPush()) {
             PointerBuffer filters = stack.mallocPointer(1);
             filters.put(stack.UTF8(pattern)).flip();
-            String selected = TinyFileDialogs.tinyfd_openFileDialog("Choose file", "", filters, description, false);
+            String selected = TinyFileDialogs.tinyfd_openFileDialog("Choose file", "", filters, description, isMultiple());
             if (selected == null || selected.isBlank()) return;
-            setValue(selected);
-            setAttribute("value", selected);
+            ArrayList<String> files = new ArrayList<>();
+            for (String path : selected.split("[\\r\\n;]+")) {
+                if (!path.isBlank() && acceptsFile(path.trim(), accept)) files.add(path.trim());
+            }
+            if (files.isEmpty()) return;
+            if (!isMultiple() && files.size() > 1) files.subList(1, files.size()).clear();
+            setFileList(files);
             triggerChangeEvent();
         } catch (Exception ignored) {
         }
     }
 
+    private static String resolveFilePattern(String accept) {
+        if (accept != null && accept.toLowerCase(Locale.ROOT).contains("html")) return "*.html";
+        if (accept != null && accept.trim().startsWith(".")) {
+            String extension = accept.trim().split("[, ]", 2)[0];
+            return "*" + extension;
+        }
+        return "*.*";
+    }
+
+    private static boolean acceptsFile(String path, String accept) {
+        if (accept == null || accept.isBlank()) return true;
+        String lowerPath = path.toLowerCase(Locale.ROOT);
+        for (String token : accept.split(",")) {
+            String candidate = token.trim().toLowerCase(Locale.ROOT);
+            int parameter = candidate.indexOf(';');
+            if (parameter >= 0) candidate = candidate.substring(0, parameter).trim();
+            if (candidate.isEmpty()) continue;
+            if (candidate.startsWith(".")) {
+                if (lowerPath.endsWith(candidate)) return true;
+            } else if (candidate.endsWith("/*")) {
+                String media = candidate.substring(0, candidate.length() - 2);
+                String mime = mimeForPath(lowerPath);
+                if (!mime.isEmpty() && mime.startsWith(media + "/")) return true;
+            } else if (candidate.contains("/")) {
+                if (candidate.equals(mimeForPath(lowerPath))) return true;
+            }
+        }
+        return false;
+    }
+
+    private static String mimeForPath(String lowerPath) {
+        if (lowerPath == null) return "";
+        int dot = lowerPath.lastIndexOf('.');
+        if (dot < 0 || dot + 1 >= lowerPath.length()) return "";
+        return switch (lowerPath.substring(dot + 1)) {
+            case "html", "htm" -> "text/html";
+            case "txt", "text" -> "text/plain";
+            case "csv" -> "text/csv";
+            case "css" -> "text/css";
+            case "js", "mjs" -> "text/javascript";
+            case "json" -> "application/json";
+            case "xml" -> "application/xml";
+            case "pdf" -> "application/pdf";
+            case "zip" -> "application/zip";
+            case "doc" -> "application/msword";
+            case "docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xls" -> "application/vnd.ms-excel";
+            case "xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "png" -> "image/png";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "gif" -> "image/gif";
+            case "bmp" -> "image/bmp";
+            case "webp" -> "image/webp";
+            case "svg" -> "image/svg+xml";
+            case "mp3", "wav", "ogg" -> "audio/*";
+            case "mp4", "webm", "mov" -> "video/*";
+            default -> "";
+        };
+    }
+
     public boolean handleSpaceKey() {
         if (isDisabled()) return false;
         Mode mode = getMode();
+        if (mode == Mode.HIDDEN) return false;
         if (mode == Mode.CHECKBOX) {
             setChecked(!isChecked());
             triggerChangeEvent();
@@ -120,6 +243,13 @@ public class Input extends AbstractText {
             }
             return true;
         }
+        if (mode == Mode.RANGE) {
+            return true;
+        }
+        if (mode == Mode.COLOR) {
+            handleClickDefault();
+            return true;
+        }
         return false;
     }
 
@@ -129,6 +259,7 @@ public class Input extends AbstractText {
         if (phase == Base.RenderPhase.SHADOW) rectRenderer.drawShadow(poseStack);
 
         Mode mode = getMode();
+        if (mode == Mode.HIDDEN) return;
         if (mode == Mode.CHECKBOX || mode == Mode.RADIO) {
             if (phase == Base.RenderPhase.BODY) {
                 drawCheckableInput(poseStack, rectRenderer, mode);
@@ -140,8 +271,20 @@ public class Input extends AbstractText {
         if (phase != Base.RenderPhase.BODY) return;
 
         rectRenderer.drawBody(poseStack);
+        if (mode == Mode.RANGE) {
+            drawRangeInput(poseStack, rectRenderer);
+            return;
+        }
+        if (mode == Mode.COLOR) {
+            drawColorInput(poseStack, rectRenderer);
+            return;
+        }
         if (mode == Mode.BUTTON) {
             drawButtonInput(poseStack, rectRenderer);
+            return;
+        }
+        if (mode == Mode.NUMBER) {
+            drawNumberInput(poseStack, rectRenderer);
             return;
         }
         drawTextInput(poseStack, rectRenderer);
@@ -249,6 +392,9 @@ public class Input extends AbstractText {
 
     private void drawTextInput(PoseStack poseStack, Rect rectRenderer) {
         String textToShow = getRenderText();
+        if ("password".equalsIgnoreCase(getAttribute("type")) && !textToShow.isEmpty()) {
+            textToShow = "*".repeat(textToShow.length());
+        }
         boolean isPlaceholder = textToShow.isEmpty() && !placeholder.isEmpty();
         String renderContent = isPlaceholder ? placeholder : textToShow;
 
@@ -294,6 +440,199 @@ public class Input extends AbstractText {
             FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
         }
         drawSingleLineCursor(poseStack, textToShow, drawX, drawY, (float) text.lineHeight);
+    }
+
+    private void drawNumberInput(PoseStack poseStack, Rect rectRenderer) {
+        drawTextInput(poseStack, rectRenderer);
+
+        Box box = rectRenderer.box;
+        Position contentPos = rectRenderer.getContentPosition();
+        double width = Math.max(0d, box.innerSize().width());
+        double height = Math.max(0d, box.innerSize().height());
+        double spinnerWidth = numberSpinnerWidth(width);
+        if (width <= 0 || height <= 0 || spinnerWidth <= 0) return;
+
+        float left = (float) (contentPos.x + width - spinnerWidth);
+        float top = (float) contentPos.y;
+        float right = (float) (contentPos.x + width);
+        float bottom = (float) (contentPos.y + height);
+        boolean spinnerDisabled = isDisabled() || hasAttribute("readonly");
+        int background = new Color(spinnerDisabled ? "#D5D5D5" : (isHover ? "#E8E8E8" : "#F4F4F4")).getValue();
+        int separator = new Color(spinnerDisabled ? "#B7B7B7" : "#C8C8C8").getValue();
+        int arrow = new Color(spinnerDisabled ? "#929292" : "#4F4F4F").getValue();
+
+        Graph.beginBatch();
+        Graph.drawFillRect(poseStack.last().pose(), left, top, right, bottom, background);
+        Graph.drawFillRect(poseStack.last().pose(), left, (float) (top + height / 2d - 0.5d), right,
+                (float) (top + height / 2d + 0.5d), separator);
+        drawSpinnerTriangle(poseStack, left + (float) spinnerWidth / 2f, top + (float) height / 4f, true, arrow);
+        drawSpinnerTriangle(poseStack, left + (float) spinnerWidth / 2f, top + (float) (height * 3d / 4d), false, arrow);
+    }
+
+    private void drawColorInput(PoseStack poseStack, Rect rectRenderer) {
+        Box box = rectRenderer.box;
+        Position contentPos = rectRenderer.getContentPosition();
+        double width = Math.max(0d, box.innerSize().width());
+        double height = Math.max(0d, box.innerSize().height());
+        if (width <= 0 || height <= 0) return;
+
+        float left = (float) contentPos.x;
+        float top = (float) contentPos.y;
+        float right = (float) (contentPos.x + width);
+        float bottom = (float) (contentPos.y + height);
+        int color = new Color(getValue()).getValue();
+        int alpha = (color >>> 24) & 0xFF;
+
+        Graph.beginBatch();
+        if (alpha < 255) {
+            int light = new Color("#E6E6E6").getValue();
+            int dark = new Color("#BDBDBD").getValue();
+            float tile = Math.max(3f, Math.min(6f, (float) Math.min(width, height) / 3f));
+            for (float y = top; y < bottom; y += tile) {
+                for (float x = left; x < right; x += tile) {
+                    boolean alternate = ((int) Math.floor((x - left) / tile) + (int) Math.floor((y - top) / tile)) % 2 == 0;
+                    Graph.drawFillRect(poseStack.last().pose(), x, y, Math.min(right, x + tile),
+                            Math.min(bottom, y + tile), alternate ? light : dark);
+                }
+            }
+        }
+        Graph.drawFillRect(poseStack.last().pose(), left, top, right, bottom, color);
+    }
+
+    private static void drawSpinnerTriangle(PoseStack poseStack, float centerX, float centerY,
+                                            boolean up, int color) {
+        for (int row = 0; row < 5; row++) {
+            int distance = up ? row : 4 - row;
+            float halfWidth = 1f + distance * 0.85f;
+            float y = centerY - 2f + row;
+            Graph.drawFillRect(poseStack.last().pose(), centerX - halfWidth, y,
+                    centerX + halfWidth + 1f, y + 1f, color);
+        }
+    }
+
+    private static double numberSpinnerWidth(double width) {
+        return Math.max(0d, Math.min(width, Math.max(14d, Math.min(18d, width * 0.25d))));
+    }
+
+    private int numberSpinnerDirection(MouseEvent event) {
+        if (event == null || getMode() != Mode.NUMBER || isDisabled() || hasAttribute("readonly")) return 0;
+        Element.DOMRect rect = getBoundingClientRect();
+        if (rect == null || rect.width <= 0 || rect.height <= 0) return 0;
+        double spinnerWidth = numberSpinnerWidth(rect.width);
+        if (event.clientX < rect.right - spinnerWidth || event.clientX > rect.right
+                || event.clientY < rect.top || event.clientY > rect.bottom) return 0;
+        return event.clientY < rect.top + rect.height / 2d ? 1 : -1;
+    }
+
+    /** Handles a click in the number input's up/down spinner area. */
+    public boolean handleNumberSpinner(MouseEvent event) {
+        int direction = numberSpinnerDirection(event);
+        return direction != 0 && adjustNumber(direction);
+    }
+
+    /** Handles a wheel event while this number control is the hit target. */
+    public boolean handleNumberWheel(MouseEvent event) {
+        if (event == null || getMode() != Mode.NUMBER || isDisabled() || hasAttribute("readonly")) return false;
+        double delta = event.deltaY;
+        if (!Double.isFinite(delta) || Math.abs(delta) < 0.000001d) delta = event.scrollDelta;
+        if (!Double.isFinite(delta) || Math.abs(delta) < 0.000001d) return false;
+        return adjustNumber(delta < 0d ? 1 : -1);
+    }
+
+    private boolean adjustNumber(int direction) {
+        if (getMode() != Mode.NUMBER || direction == 0 || isDisabled() || hasAttribute("readonly")) return false;
+        String before = getValue();
+        if (direction > 0) stepUp(1);
+        else stepDown(1);
+
+        double next = getValueAsNumber();
+        if (Double.isFinite(next)) {
+            double min = parseNumberAttribute("min", Double.NEGATIVE_INFINITY);
+            double max = parseNumberAttribute("max", Double.POSITIVE_INFINITY);
+            double clamped = Math.max(min, Math.min(max, next));
+            if (Double.compare(next, clamped) != 0) setValueAsNumber(clamped);
+        }
+
+        String after = getValue();
+        if (Objects.equals(before, after)) return false;
+        triggerChangeEvent();
+        return true;
+    }
+
+    private void openColorPicker() {
+        if (document == null) return;
+        // Keep the picker out of the page that is currently dispatching the
+        // input click.  Mounting its full DOM tree there forces a synchronous
+        // relayout/repaint during activation and can re-enter hit testing.
+        ColorPicker.pick(getValue()).thenAccept(selected -> selected.ifPresent(next ->
+                Document.runWithContext(document, () -> Event.runTrustedAction(() -> {
+                    if (Objects.equals(getValue(), next)) return;
+                    setValue(next);
+                    triggerChangeEvent();
+                }))));
+    }
+
+    private void drawRangeInput(PoseStack poseStack, Rect rectRenderer) {
+        double width = rectRenderer.box.innerSize().width();
+        double centerY = rectRenderer.getContentPosition().y + rectRenderer.box.innerSize().height() / 2.0d;
+        double left = rectRenderer.getContentPosition().x;
+        double right = left + Math.max(0d, width);
+        double fraction = rangeFraction();
+        int track = new Color(isDisabled() ? "#A5A5A5" : "#777777").getValue();
+        int accent = resolveAccentColor();
+        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1f, (float) right, (float) centerY + 1f, track);
+        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1f,
+                (float) (left + (right - left) * fraction), (float) centerY + 1f, accent);
+        float knobX = (float) (left + (right - left) * fraction - 5f);
+        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), knobX, (float) centerY - 5f, 10f, 10f,
+                uniformRadii(5f), isDisabled() ? new Color("#B7B7B7").getValue() : accent);
+    }
+
+    public boolean handleRangeKey(int key) {
+        if (getMode() == Mode.NUMBER) {
+            if (isDisabled() || hasAttribute("readonly")) return false;
+            boolean down = key == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT || key == org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN;
+            boolean up = key == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT || key == org.lwjgl.glfw.GLFW.GLFW_KEY_UP;
+            if (!down && !up) return false;
+            adjustNumber(up ? 1 : -1);
+            return true;
+        }
+        if (getMode() != Mode.RANGE || isDisabled()) return false;
+        String type = key == org.lwjgl.glfw.GLFW.GLFW_KEY_LEFT || key == org.lwjgl.glfw.GLFW.GLFW_KEY_DOWN ? "down" :
+                (key == org.lwjgl.glfw.GLFW.GLFW_KEY_RIGHT || key == org.lwjgl.glfw.GLFW.GLFW_KEY_UP ? "up" : "");
+        if (type.isEmpty()) return false;
+        double current = getValueAsNumber();
+        if (!Double.isFinite(current)) current = rangeMin();
+        double step = rangeStep();
+        setValueAsNumber(current + ("up".equals(type) ? step : -step));
+        triggerChangeEvent();
+        return true;
+    }
+
+    public void setValueFromPointer(double fraction) {
+        double min = rangeMin();
+        double max = rangeMax();
+        double value = min + Math.max(0d, Math.min(1d, fraction)) * (max - min);
+        double step = rangeStep();
+        if (step > 0) value = min + Math.round((value - min) / step) * step;
+        setValueAsNumber(Math.max(min, Math.min(max, value)));
+    }
+
+    private double rangeMin() { return parseNumberAttribute("min", 0d); }
+    private double rangeMax() { return parseNumberAttribute("max", 100d); }
+    private double rangeStep() { return parseNumberAttribute("step", 1d); }
+    private double parseNumberAttribute(String name, double fallback) {
+        try {
+            double value = Double.parseDouble(getAttribute(name));
+            return Double.isFinite(value) ? value : fallback;
+        } catch (Exception ignored) { return fallback; }
+    }
+    private double rangeFraction() {
+        double min = rangeMin();
+        double max = rangeMax();
+        double value = getValueAsNumber();
+        if (!Double.isFinite(value) || max <= min) return 0.5d;
+        return Math.max(0d, Math.min(1d, (value - min) / (max - min)));
     }
 
     private int resolveAccentColor() {

@@ -19,6 +19,7 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
+import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
@@ -1489,6 +1490,22 @@ class ElementBindingTest {
         slot.tick();
 
         assertFalse(invokeResolveDisplayStack(slot).toString().isBlank());
+    }
+
+    @Test
+    void slotInteractiveCustomPropertyDoesNotRecurseDuringSelectorMatching() {
+        assumeMinecraftItemRuntime();
+        Document document = createDocument();
+        Slot slot = new Slot(document);
+        slot.setAttribute("class", "inventory-slot");
+        document.body.appendChild(slot);
+        CSS.readCSS(".inventory-slot { --aui-slot-interactive: true; }"
+                        + ".inventory-slot:disabled { color: red; }"
+                        + ".inventory-slot:enabled { color: green; }",
+                document.CSSCache, "test://slot-interactive.css");
+
+        assertDoesNotThrow(slot::getComputedStyle);
+        assertFalse(slot.isDisabled());
     }
 
     private static Document createDocument() {

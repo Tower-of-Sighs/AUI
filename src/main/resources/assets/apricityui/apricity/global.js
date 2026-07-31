@@ -222,6 +222,24 @@ function __auiCreateLocation(href) {
 
 function FormData(form) {
   this.__pairs = [];
+  if (form && typeof form.getFormDataEntries === 'function') {
+    try {
+      let submitter = arguments.length > 1 ? arguments[1] : null;
+      let nativeEntries = submitter == null
+        ? form.getFormDataEntries()
+        : form.getFormDataEntries(submitter);
+      let nativeSize = nativeEntries && typeof nativeEntries.size === 'function'
+        ? nativeEntries.size() : (nativeEntries && nativeEntries.length || 0);
+      for (let nativeIndex = 0; nativeIndex < nativeSize; nativeIndex++) {
+        let entry = typeof nativeEntries.get === 'function' ? nativeEntries.get(nativeIndex) : nativeEntries[nativeIndex];
+        if (!entry) continue;
+        let entryName = typeof entry.name === 'function' ? entry.name() : entry.name;
+        let entryValue = typeof entry.value === 'function' ? entry.value() : entry.value;
+        this.__pairs.push([String(entryName == null ? '' : entryName), String(entryValue == null ? '' : entryValue)]);
+      }
+      return;
+    } catch (e) {}
+  }
   if (form && (form.getElementsByTagName || form.querySelectorAll)) {
     let appendSelectPairs = (field, fieldName) => {
       if (!field || !fieldName) return;
@@ -307,6 +325,31 @@ function FormData(form) {
 
 FormData.prototype = {
   append: function(key, value) { this.__pairs.push([String(key), String(value)]); },
+  set: function(key, value) {
+    key = String(key);
+    let next = [];
+    let replaced = false;
+    for (let i = 0; i < this.__pairs.length; i++) {
+      if (this.__pairs[i][0] !== key) next.push(this.__pairs[i]);
+      else if (!replaced) { next.push([key, String(value)]); replaced = true; }
+    }
+    if (!replaced) next.push([key, String(value)]);
+    this.__pairs = next;
+  },
+  delete: function(key) {
+    key = String(key);
+    this.__pairs = this.__pairs.filter(function(pair) { return pair[0] !== key; });
+  },
+  get: function(key) {
+    key = String(key);
+    for (let i = 0; i < this.__pairs.length; i++) if (this.__pairs[i][0] === key) return this.__pairs[i][1];
+    return null;
+  },
+  has: function(key) {
+    key = String(key);
+    for (let i = 0; i < this.__pairs.length; i++) if (this.__pairs[i][0] === key) return true;
+    return false;
+  },
   getAll: function(key) {
     key = String(key);
     let out = [];
@@ -316,6 +359,17 @@ FormData.prototype = {
   forEach: function(callback, thisArg) {
     for (let i = 0; i < this.__pairs.length; i++) callback.call(thisArg, this.__pairs[i][1], this.__pairs[i][0], this);
   },
+  keys: function() {
+    let out = [];
+    for (let i = 0; i < this.__pairs.length; i++) out.push(this.__pairs[i][0]);
+    return out;
+  },
+  values: function() {
+    let out = [];
+    for (let i = 0; i < this.__pairs.length; i++) out.push(this.__pairs[i][1]);
+    return out;
+  },
+  entries: function() { return this.__pairs.slice(); },
   toString: function() {
     let out = [];
     for (let i = 0; i < this.__pairs.length; i++) {
@@ -364,6 +418,19 @@ function __auiDecorateList(list) {
     let item = typeof list.get === 'function' ? list.get(i) : list[i];
     out.push(__auiDecorateElement(item));
   }
+  return out;
+}
+
+function __auiDecorateCollection(list) {
+  let out = __auiDecorateList(list);
+  out.item = function(index) { return index >= 0 && index < out.length ? out[index] : null; };
+  out.namedItem = function(name) {
+    name = String(name == null ? '' : name);
+    for (let i = 0; i < out.length; i++) {
+      if (out[i] && (out[i].id === name || out[i].name === name)) return out[i];
+    }
+    return null;
+  };
   return out;
 }
 
@@ -540,9 +607,63 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'dataset', () => __auiDecorateDataset(el.getDataset()));
       __auiInstallValueBridge(el, 'name', () => el.getAttribute('name'), (v) => el.setAttribute('name', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'type', () => el.getType(), (v) => el.setType(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'form', () => __auiDecorateElement(el.getForm ? el.getForm() : null));
       __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
       __auiInstallValueBridge(el, 'multiple', () => !!el.hasAttribute('multiple'), (v) => el.toggleAttribute('multiple', !!v));
       __auiInstallValueBridge(el, 'value', () => el.getValue(), (v) => el.setValue(v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'defaultValue', () => el.getDefaultValue ? el.getDefaultValue() : el.getAttribute('value'),
+        (v) => { if (el.setDefaultValue) el.setDefaultValue(v == null ? '' : String(v)); });
+      __auiInstallValueBridge(el, 'defaultChecked', () => !!(el.isDefaultChecked && el.isDefaultChecked()),
+        (v) => { if (el.setDefaultChecked) el.setDefaultChecked(!!v); });
+      __auiInstallValueBridge(el, 'required', () => !!el.hasAttribute('required'), (v) => el.toggleAttribute('required', !!v));
+      __auiInstallValueBridge(el, 'readOnly', () => !!el.hasAttribute('readonly'), (v) => el.toggleAttribute('readonly', !!v));
+      __auiInstallValueBridge(el, 'pattern', () => el.getAttribute('pattern'), (v) => el.setAttribute('pattern', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'min', () => el.getAttribute('min'), (v) => el.setAttribute('min', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'max', () => el.getAttribute('max'), (v) => el.setAttribute('max', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'step', () => el.getAttribute('step'), (v) => el.setAttribute('step', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'minLength', () => Number(el.getAttribute('minlength') || -1), (v) => el.setAttribute('minlength', String(Number(v))));
+      __auiInstallValueBridge(el, 'maxLength', () => Number(el.getAttribute('maxlength') || -1), (v) => el.setAttribute('maxlength', String(Number(v))));
+      __auiInstallValueBridge(el, 'placeholder', () => el.getPlaceholder ? el.getPlaceholder() : el.getAttribute('placeholder'),
+        (v) => { if (el.setPlaceholder) el.setPlaceholder(v == null ? '' : String(v)); });
+      __auiInstallValueBridge(el, 'accept', () => el.getAttribute('accept'), (v) => el.setAttribute('accept', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'autocomplete', () => {
+        let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+        return el.getAttribute('autocomplete') || (nodeName === 'FORM' ? 'on' : '');
+      }, (v) => el.setAttribute('autocomplete', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'inputMode', () => el.getAttribute('inputmode'), (v) => el.setAttribute('inputmode', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formNoValidate', () => !!el.hasAttribute('formnovalidate'), (v) => el.toggleAttribute('formnovalidate', !!v));
+      __auiInstallValueBridge(el, 'noValidate', () => !!el.hasAttribute('novalidate'), (v) => el.toggleAttribute('novalidate', !!v));
+      __auiInstallValueBridge(el, 'action', () => {
+        let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+        if (nodeName !== 'FORM') return el.getAttribute('action');
+        return el.getAttribute('action') || (document.getBaseURI ? document.getBaseURI() : '');
+      }, (v) => el.setAttribute('action', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'method', () => {
+        let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+        return nodeName === 'FORM' ? (el.getAttribute('method') || 'get').toLowerCase() : el.getAttribute('method');
+      }, (v) => el.setAttribute('method', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'target', () => el.getAttribute('target'), (v) => el.setAttribute('target', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'enctype', () => {
+        let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+        return nodeName === 'FORM'
+          ? (el.getAttribute('enctype') || 'application/x-www-form-urlencoded')
+          : el.getAttribute('enctype');
+      }, (v) => el.setAttribute('enctype', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'encoding', () => el.getAttribute('enctype') || 'application/x-www-form-urlencoded',
+        (v) => el.setAttribute('enctype', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'acceptCharset', () => el.getAttribute('accept-charset') || 'UTF-8',
+        (v) => el.setAttribute('accept-charset', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formAction', () => el.getAttribute('formaction'), (v) => el.setAttribute('formaction', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formMethod', () => el.getAttribute('formmethod'), (v) => el.setAttribute('formmethod', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formTarget', () => el.getAttribute('formtarget'), (v) => el.setAttribute('formtarget', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formEnctype', () => el.getAttribute('formenctype'), (v) => el.setAttribute('formenctype', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'rows', () => Number(el.getAttribute('rows') || 2), (v) => el.setAttribute('rows', String(Number(v) || 0)));
+      __auiInstallValueBridge(el, 'cols', () => Number(el.getAttribute('cols') || 20), (v) => el.setAttribute('cols', String(Number(v) || 0)));
+      __auiInstallValueBridge(el, 'wrap', () => el.getAttribute('wrap') || 'soft', (v) => el.setAttribute('wrap', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'list', () => {
+        let id = el.getAttribute('list');
+        return id && typeof document.getElementById === 'function' ? __auiDecorateElement(document.getElementById(id)) : null;
+      }, (v) => el.setAttribute('list', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'checked', () => el.isChecked(), (v) => el.setChecked(!!v));
       __auiInstallValueBridge(el, 'selected', () => el.isSelected(), (v) => el.setSelected(!!v));
       __auiInstallValueBridge(el, 'defaultSelected', () => el.isDefaultSelected(), (v) => el.setDefaultSelected(!!v));
@@ -550,8 +671,18 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'text', () => el.getOptionText(), (v) => el.setOptionText(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'index', () => el.getOptionIndex());
       __auiInstallValueBridge(el, 'selectedIndex', () => el.getSelectedIndex(), (v) => el.setSelectedIndex(v == null ? -1 : Number(v)));
-      __auiInstallValueBridge(el, 'length', () => el.getSelectLength());
-      __auiInstallValueBridge(el, 'size', () => el.getSelectSize(), (v) => el.setSelectSize(v == null ? 0 : Number(v)));
+      __auiInstallValueBridge(el, 'length', () => {
+        let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+        return nodeName === 'FORM' && el.getFormLength ? el.getFormLength() : el.getSelectLength();
+      });
+      __auiInstallValueBridge(el, 'size', () => {
+        let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+        return nodeName === 'SELECT' ? el.getSelectSize() : Number(el.getAttribute('size') || 20);
+      }, (v) => {
+        let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
+        if (nodeName === 'SELECT') el.setSelectSize(v == null ? 0 : Number(v));
+        else el.setAttribute('size', String(Number(v) || 0));
+      });
       __auiInstallValueBridge(el, 'scrollTop', () => el.getScrollTop(), (v) => el.setScrollTop(Number(v) || 0));
       __auiInstallValueBridge(el, 'scrollLeft', () => el.getScrollLeft(), (v) => el.setScrollLeft(Number(v) || 0));
       __auiInstallValueBridge(el, 'currentSrc', () => el.getCurrentSrc ? el.getCurrentSrc() : '');
@@ -559,8 +690,51 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'naturalHeight', () => el.getNaturalHeight ? el.getNaturalHeight() : 0);
       __auiInstallValueBridge(el, 'complete', () => el.isComplete ? !!el.isComplete() : false);
       __auiInstallValueBridge(el, 'children', () => __auiDecorateList(el.getChildren()));
-      __auiInstallValueBridge(el, 'options', () => __auiDecorateList(el.getOptions()));
-      __auiInstallValueBridge(el, 'selectedOptions', () => __auiDecorateList(el.getSelectedOptions()));
+      __auiInstallValueBridge(el, 'elements', () => __auiDecorateCollection(el.getFormControls ? el.getFormControls() : []));
+      __auiInstallValueBridge(el, 'options', () => __auiDecorateCollection(el.getOptions()));
+      __auiInstallValueBridge(el, 'selectedOptions', () => __auiDecorateCollection(el.getSelectedOptions()));
+      __auiInstallValueBridge(el, 'labels', () => __auiDecorateList(el.getLabels ? el.getLabels() : []));
+      __auiInstallValueBridge(el, 'willValidate', () => !!(el.isWillValidate && el.isWillValidate()));
+      __auiInstallValueBridge(el, 'validationMessage', () => el.getValidationMessage ? el.getValidationMessage() : '');
+      __auiInstallValueBridge(el, 'validity', () => {
+        let state = el.getValidity ? el.getValidity() : null;
+        if (!state) return { valid: true };
+        return {
+          badInput: !!state.badInput, customError: !!state.customError,
+          patternMismatch: !!state.patternMismatch, rangeOverflow: !!state.rangeOverflow,
+          rangeUnderflow: !!state.rangeUnderflow, stepMismatch: !!state.stepMismatch,
+          tooLong: !!state.tooLong, tooShort: !!state.tooShort,
+          typeMismatch: !!state.typeMismatch, valueMissing: !!state.valueMissing,
+          valid: !!state.valid
+        };
+      });
+      __auiInstallValueBridge(el, 'valueAsNumber', () => el.getValueAsNumber ? el.getValueAsNumber() : NaN,
+        (v) => { if (el.setValueAsNumber) el.setValueAsNumber(Number(v)); });
+      __auiInstallValueBridge(el, 'selectionStart', () => el.getSelectionStart ? el.getSelectionStart() : null,
+        (v) => { if (el.setSelectionRange) el.setSelectionRange(Number(v), el.getSelectionEnd ? el.getSelectionEnd() : Number(v)); });
+      __auiInstallValueBridge(el, 'selectionEnd', () => el.getSelectionEnd ? el.getSelectionEnd() : null,
+        (v) => { if (el.setSelectionRange) el.setSelectionRange(el.getSelectionStart ? el.getSelectionStart() : Number(v), Number(v)); });
+      __auiInstallValueBridge(el, 'selectionDirection', () => el.getSelectionDirection ? el.getSelectionDirection() : 'none');
+      __auiInstallValueBridge(el, 'files', () => {
+        let values = el.getFileList ? el.getFileList() : [];
+        let raw = __auiDecorateList(values);
+        let out = [];
+        for (let fileIndex = 0; fileIndex < raw.length; fileIndex++) {
+          let path = String(raw[fileIndex] == null ? '' : raw[fileIndex]);
+          let slash = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+          let name = slash < 0 ? path : path.substring(slash + 1);
+          let dot = name.lastIndexOf('.');
+          let extension = dot >= 0 ? name.substring(dot + 1).toLowerCase() : '';
+          let type = extension === 'html' || extension === 'htm' ? 'text/html'
+            : extension === 'json' ? 'application/json'
+            : extension === 'png' ? 'image/png'
+            : extension === 'jpg' || extension === 'jpeg' ? 'image/jpeg'
+            : extension === 'gif' ? 'image/gif' : '';
+          out.push({ name: name, type: type, size: 0, lastModified: 0, path: path });
+        }
+        out.item = function(index) { return index >= 0 && index < out.length ? out[index] : null; };
+        return out;
+      });
       __auiInstallValueBridge(el, 'firstElementChild', () => __auiDecorateNode(el.getFirstElementChild()));
       __auiInstallValueBridge(el, 'lastElementChild', () => __auiDecorateNode(el.getLastElementChild()));
       __auiInstallValueBridge(el, 'nextElementSibling', () => __auiDecorateNode(el.getNextElementSibling()));
@@ -590,6 +764,51 @@ function __auiDecorateNode(el) {
       el.click = function() { return click.call(el); };
       let submit = el.submit;
       if (typeof submit === 'function') el.submit = function() { return submit.call(el); };
+      let requestSubmit = el.requestSubmit;
+      if (typeof requestSubmit === 'function') el.requestSubmit = function(submitter) {
+        return submitter == null ? requestSubmit.call(el) : requestSubmit.call(el, submitter);
+      };
+      let reset = el.reset;
+      if (typeof reset === 'function') el.reset = function() { return reset.call(el); };
+      let checkValidity = el.checkValidity;
+      if (typeof checkValidity === 'function') el.checkValidity = function() { return checkValidity.call(el); };
+      let reportValidity = el.reportValidity;
+      if (typeof reportValidity === 'function') el.reportValidity = function() { return reportValidity.call(el); };
+      let setCustomValidity = el.setCustomValidity;
+      if (typeof setCustomValidity === 'function') el.setCustomValidity = function(message) {
+        return setCustomValidity.call(el, message == null ? '' : String(message));
+      };
+      let selectText = el.select;
+      if (typeof selectText === 'function') el.select = function() { return selectText.call(el); };
+      let setSelectionRange = el.setSelectionRange;
+      if (typeof setSelectionRange === 'function') el.setSelectionRange = function(start, end, direction) {
+        return setSelectionRange.call(el, Number(start) || 0, Number(end) || 0, direction == null ? 'none' : String(direction));
+      };
+      let setRangeText = el.setRangeText;
+      if (typeof setRangeText === 'function') el.setRangeText = function(value, start, end, mode) {
+        if (arguments.length < 2) return setRangeText.call(el, value == null ? '' : String(value));
+        return setRangeText.call(el, value == null ? '' : String(value), Number(start) || 0, Number(end) || 0, mode == null ? 'preserve' : String(mode));
+      };
+      let stepUp = el.stepUp;
+      if (typeof stepUp === 'function') el.stepUp = function(count) {
+        return arguments.length ? stepUp.call(el, Number(count) || 0) : stepUp.call(el);
+      };
+      let stepDown = el.stepDown;
+      if (typeof stepDown === 'function') el.stepDown = function(count) {
+        return arguments.length ? stepDown.call(el, Number(count) || 0) : stepDown.call(el);
+      };
+      let beginComposition = el.beginComposition;
+      if (typeof beginComposition === 'function') el.beginComposition = function(data) {
+        return beginComposition.call(el, data == null ? '' : String(data));
+      };
+      let updateComposition = el.updateComposition;
+      if (typeof updateComposition === 'function') el.updateComposition = function(data) {
+        return updateComposition.call(el, data == null ? '' : String(data));
+      };
+      let endComposition = el.endComposition;
+      if (typeof endComposition === 'function') el.endComposition = function(data) {
+        return endComposition.call(el, data == null ? '' : String(data));
+      };
       let scrollTo = el.scrollTo;
       el.scrollTo = function(x, y) {
         if (typeof x === 'object' && x) return scrollTo.call(el, Number(x.left || 0), Number(x.top || 0));

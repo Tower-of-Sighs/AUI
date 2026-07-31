@@ -13,8 +13,11 @@ import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 槽位 DOM 元素。
@@ -35,6 +38,8 @@ public class Slot extends MinecraftElement {
     private String compiledSignature = "";
     private int candidateIndex = 0;
     private long nextRotateAtMillis = 0L;
+    private static final ThreadLocal<Set<Slot>> INTERACTIVE_RESOLUTION =
+            ThreadLocal.withInitial(() -> Collections.newSetFromMap(new IdentityHashMap<>()));
 
     public Slot(Document document) {
         super(document, TAG_NAME);
@@ -251,9 +256,25 @@ public class Slot extends MinecraftElement {
     }
 
     private boolean resolveInteractive() {
+        Set<Slot> resolving = INTERACTIVE_RESOLUTION.get();
+        // Selector matching asks isDisabled() while this element's computed
+        // style is being built. Resolving the CSS custom property again would
+        // re-enter Selector.matchCSS indefinitely, especially after a select
+        // control changes state. Use the non-CSS fallback for that re-entry.
+        if (!resolving.add(this)) return resolveInteractiveWithoutCss();
+        try {
+            if (isRecipeSlot()) return false;
+            Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-interactive"));
+            if (cssFlag != null) return cssFlag;
+            return resolveInteractiveWithoutCss();
+        } finally {
+            resolving.remove(this);
+            if (resolving.isEmpty()) INTERACTIVE_RESOLUTION.remove();
+        }
+    }
+
+    private boolean resolveInteractiveWithoutCss() {
         if (isRecipeSlot()) return false;
-        Boolean cssFlag = parseBooleanLike(getCustomPropertyInherit("--aui-slot-interactive"));
-        if (cssFlag != null) return cssFlag;
         Boolean attrFlag = parseBooleanLike(getAttribute("interactive"));
         if (attrFlag != null) return attrFlag;
         Boolean pointerFlag = parseBooleanLike(getAttribute("pointer"));
