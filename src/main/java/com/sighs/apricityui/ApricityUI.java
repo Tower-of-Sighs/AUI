@@ -1,6 +1,7 @@
 package com.sighs.apricityui;
 
 import com.mojang.logging.LogUtils;
+import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.ApricityUIConfig;
@@ -49,6 +50,7 @@ public class ApricityUI {
         ApricityNetwork.register();
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            DevToolsLogBridge.install(LOGGER);
             ApricityUIRegistry.register();
             modEventBus.addListener(this::onRegisterShaders);
         }

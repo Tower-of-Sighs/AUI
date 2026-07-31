@@ -1,5 +1,6 @@
 package com.sighs.apricityui.resource.async.style;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.ClientLoader;
@@ -9,6 +10,7 @@ import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.util.AuiLog;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -36,7 +38,10 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     }
 
     public void attach(Document document, String contextPath, List<String> externalStyleSrcs, List<String> inlineStyles) {
-        if (document == null) return;
+        if (document == null) {
+            ApricityUI.LOGGER.error("[AUI CSS] cannot attach styles without document path={}", AuiLog.source(contextPath));
+            return;
+        }
 
         long generation = currentGeneration();
         StyleHandle handle = new StyleHandle(document.getUuid(), generation);
@@ -65,7 +70,14 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             for (String src : externalStyleSrcs) {
                 if (src == null || src.isBlank()) continue;
                 String resolved = Loader.resolve(contextPath, src);
-                if (resolved == null || resolved.isBlank()) continue;
+                if (resolved == null || resolved.isBlank()) {
+                    ApricityUI.LOGGER.error(
+                            "[AUI CSS] external stylesheet resolved to an empty path document={} src={}",
+                            AuiLog.source(contextPath),
+                            src
+                    );
+                    continue;
+                }
                 int currentOrder = order++;
                 handle.queueTask();
                 submitWorker(() -> {
@@ -74,9 +86,15 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                         ParsedCss parsed = parseCss(merged, resolved);
                         enqueueApplyTask(new CssTask(handle, currentOrder, resolved, parsed.cssText, parsed.fontTasks));
                     } catch (Exception exception) {
-                        enqueueApplyTask(new FailedTask(handle));
+                        ApricityUI.LOGGER.error(
+                                "[AUI CSS] external stylesheet load/parse failed document={} path={}",
+                                AuiLog.source(contextPath),
+                                resolved,
+                                exception
+                        );
+                        enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet", exception));
                     }
-                }, rejected -> enqueueApplyTask(new FailedTask(handle)));
+                }, rejected -> enqueueApplyTask(new FailedTask(handle, resolved, "stylesheet-worker", rejected)));
             }
         }
 
@@ -98,11 +116,22 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
         task.handle().markApplying();
         if (task instanceof CssTask cssTask) {
-            task.handle().putCssEntry(cssTask.order, new StyleHandle.CssEntry(cssTask.contextPath, cssTask.cssText));
-            enqueueFontLoads(task.handle(), cssTask.fontTasks);
-            rebuildCssCache(document, task.handle());
-            document.reapplyStylesFromCache();
-            task.handle().completeTask(false);
+            try {
+                task.handle().putCssEntry(cssTask.order, new StyleHandle.CssEntry(cssTask.contextPath, cssTask.cssText));
+                enqueueFontLoads(task.handle(), cssTask.fontTasks);
+                rebuildCssCache(document, task.handle());
+                document.reapplyStylesFromCache();
+                task.handle().completeTask(false);
+            } catch (RuntimeException exception) {
+                ApricityUI.LOGGER.error(
+                        "[AUI CSS] applying stylesheet failed document={} path={}",
+                        document.getPath(),
+                        cssTask.contextPath,
+                        exception
+                );
+                task.handle().completeTask(true);
+                throw exception;
+            }
             return;
         }
 
@@ -111,12 +140,26 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             if (loaded) {
                 FontDrawer.clearCache();
                 document.invalidateFontMetrics();
+            } else {
+                ApricityUI.LOGGER.error(
+                        "[AUI CSS] web font registration failed document={} family={} path={}",
+                        document.getPath(),
+                        fontTask.family,
+                        fontTask.path
+                );
             }
             task.handle().completeTask(!loaded);
             return;
         }
 
-        if (task instanceof FailedTask) {
+        if (task instanceof FailedTask failedTask) {
+            ApricityUI.LOGGER.error(
+                    "[AUI CSS] async style task failed document={} kind={} path={}",
+                    document.getPath(),
+                    failedTask.kind,
+                    failedTask.path,
+                    failedTask.error
+            );
             task.handle().completeTask(true);
         }
     }
@@ -163,6 +206,12 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         try (ByteArrayInputStream stream = new ByteArrayInputStream(fontTask.bytes)) {
             return Font.registerFont(fontTask.family, stream);
         } catch (IOException exception) {
+            ApricityUI.LOGGER.error(
+                    "[AUI CSS] failed to close/load web font family={} path={}",
+                    fontTask.family,
+                    fontTask.path,
+                    exception
+            );
             return false;
         }
     }
@@ -181,16 +230,32 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                     byte[] bytes = fetchBytes(source.path);
                     enqueueApplyTask(new FontTask(handle, source.family, source.path, bytes));
                 } catch (Exception exception) {
-                    enqueueApplyTask(new FailedTask(handle));
+                    ApricityUI.LOGGER.error(
+                            "[AUI CSS] web font resource load failed family={} path={}",
+                            source.family,
+                            source.path,
+                            exception
+                    );
+                    enqueueApplyTask(new FailedTask(handle, source.path, "font", exception));
                 }
-            }, rejected -> enqueueApplyTask(new FailedTask(handle)));
+            }, rejected -> enqueueApplyTask(new FailedTask(handle, source.path, "font-worker", rejected)));
         }
     }
 
     private String loadCssWithImports(String path, int depth, Set<String> visited) throws IOException {
-        if (path == null || path.isBlank() || depth > MAX_IMPORT_DEPTH) return "";
+        if (path == null || path.isBlank()) {
+            ApricityUI.LOGGER.error("[AUI CSS] @import resolved to an empty path depth={}", depth);
+            return "";
+        }
+        if (depth > MAX_IMPORT_DEPTH) {
+            ApricityUI.LOGGER.warn("[AUI CSS] @import depth limit reached path={} depth={}", path, depth);
+            return "";
+        }
         String normalized = path.trim();
-        if (!visited.add(normalized)) return "";
+        if (!visited.add(normalized)) {
+            ApricityUI.LOGGER.warn("[AUI CSS] cyclic @import ignored path={}", normalized);
+            return "";
+        }
 
         byte[] bytes = fetchBytes(normalized);
         String css = new String(bytes, StandardCharsets.UTF_8);
@@ -205,7 +270,13 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                 try {
                     String imported = loadCssWithImports(resolved, depth + 1, visited);
                     if (!imported.isBlank()) merged.append(imported).append('\n');
-                } catch (IOException ignored) {
+                } catch (IOException exception) {
+                    ApricityUI.LOGGER.error(
+                            "[AUI CSS] imported stylesheet failed parent={} import={}",
+                            normalized,
+                            resolved,
+                            exception
+                    );
                 }
             }
         }
@@ -218,13 +289,18 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             return NetworkAsyncHandler.INSTANCE.fetchBytes(path);
         }
         try (InputStream stream = ClientLoader.getResourceStream(path)) {
-            if (stream == null) throw new IOException("未找到样式资源: " + path);
+            if (stream == null) {
+                throw new IOException("stylesheet resource not found: " + path);
+            }
             return stream.readAllBytes();
         }
     }
 
     private ParsedCss parseCss(String css, String contextPath) {
-        if (css == null || css.isBlank()) return new ParsedCss("", List.of());
+        if (css == null || css.isBlank()) {
+            ApricityUI.LOGGER.warn("[AUI CSS] stylesheet is empty path={}", AuiLog.source(contextPath));
+            return new ParsedCss("", List.of());
+        }
         String clean = COMMENT_PATTERN.matcher(css).replaceAll("");
 
         Matcher matcher = FONT_FACE_PATTERN.matcher(clean);
@@ -251,15 +327,36 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
         String family = cleanQuote(values.get("font-family"));
         String src = values.get("src");
-        if (family == null || family.isBlank() || src == null || src.isBlank()) return null;
+        if (family == null || family.isBlank() || src == null || src.isBlank()) {
+            ApricityUI.LOGGER.warn(
+                    "[AUI CSS] invalid @font-face declaration path={} family={} src={}",
+                    AuiLog.source(contextPath),
+                    family,
+                    AuiLog.compact(src)
+            );
+            return null;
+        }
 
         Matcher matcher = URL_PATTERN.matcher(src);
-        if (!matcher.find()) return null;
+        if (!matcher.find()) {
+            ApricityUI.LOGGER.warn("[AUI CSS] @font-face src has no url() path={} family={}", AuiLog.source(contextPath), family);
+            return null;
+        }
         String rawPath = cleanQuote(matcher.group(1));
-        if (rawPath == null || rawPath.isBlank()) return null;
+        if (rawPath == null || rawPath.isBlank()) {
+            ApricityUI.LOGGER.warn("[AUI CSS] @font-face url() is empty path={} family={}", AuiLog.source(contextPath), family);
+            return null;
+        }
 
         String resolvedPath = Loader.resolve(contextPath, rawPath);
-        if (resolvedPath == null || resolvedPath.isBlank()) return null;
+        if (resolvedPath == null || resolvedPath.isBlank()) {
+            ApricityUI.LOGGER.warn(
+                    "[AUI CSS] @font-face path could not be resolved path={} raw={}",
+                    AuiLog.source(contextPath),
+                    rawPath
+            );
+            return null;
+        }
         return new FontSource(family, resolvedPath);
     }
 
@@ -306,7 +403,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     ) implements ApplyTask {
     }
 
-    private record FailedTask(StyleHandle handle) implements ApplyTask {
+    private record FailedTask(StyleHandle handle, String path, String kind, Throwable error) implements ApplyTask {
     }
 
     private record ParsedCss(String cssText, List<FontSource> fontTasks) {

@@ -1,10 +1,12 @@
 package com.sighs.apricityui.script;
 
+import com.sighs.apricityui.ApricityUI;
 import dev.latvian.mods.kubejs.KubeJS;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.Scriptable;
 import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.util.AuiLog;
 import net.minecraftforge.fml.ModList;
 
 import java.util.ArrayList;
@@ -24,11 +26,23 @@ public class ApricityJS {
     // 框架目前只给元素桥接了 textContent，页面脚本常用 innerText 来设置文本。
     // 在页面脚本执行前，动态装饰器上补一个 innerText 的 getter/setter。
     public static void eval(String code) {
-        eval(code, null);
+        eval(code, null, "<global>");
     }
 
     public static void eval(String code, Event event) {
+        eval(code, event, "<inline>");
+    }
+
+    public static void eval(String code, Event event, String source) {
         if (!ModList.get().isLoaded("kubejs")) return;
+        if (code == null || code.isBlank()) {
+            ApricityUI.LOGGER.warn("[AUI JS] empty script skipped source={}", AuiLog.source(source));
+            return;
+        }
+
+        if (event != null) {
+            // Event scripts get a stable source label while preserving the existing event binding.
+        }
         code = ARRAY_SPREAD_PATTERN.matcher(code).replaceAll("$1.slice()");
         code = rewriteDefaultParameters(code);
         code = Pattern.compile("\\.innerText\\b").matcher(code).replaceAll(".textContent");
@@ -44,7 +58,16 @@ public class ApricityJS {
             top.put(context, "event", top, event);
         }
         try {
-            context.evaluateString(top, code, "eval", 1, null);
+            context.evaluateString(top, code, AuiLog.source(source), 1, null);
+        } catch (RuntimeException exception) {
+            ApricityUI.LOGGER.error(
+                    "[AUI JS] script execution failed source={} event={} code={}",
+                    AuiLog.source(source),
+                    event == null ? "<none>" : event.type,
+                    AuiLog.compact(code),
+                    exception
+            );
+            throw exception;
         } finally {
             if (event != null) {
                 if (hadEvent) {
@@ -58,7 +81,12 @@ public class ApricityJS {
 
     public static void reload() {
         if (!ModList.get().isLoaded("kubejs")) return;
-        KubeJS.PROXY.reloadClientInternal();
+        try {
+            KubeJS.PROXY.reloadClientInternal();
+        } catch (RuntimeException exception) {
+            ApricityUI.LOGGER.error("[AUI JS] KubeJS client script reload failed", exception);
+            throw exception;
+        }
     }
 
     public static Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
@@ -86,6 +114,17 @@ public class ApricityJS {
             event.currentTarget = scriptTarget;
             try {
                 context.callSync(function, scope, scriptTarget, new Object[]{eventArgument});
+            } catch (RuntimeException exception) {
+                String documentPath = event != null && event.target instanceof com.sighs.apricityui.init.Node node
+                        && node.document != null ? node.document.getPath() : "<unknown>";
+                ApricityUI.LOGGER.error(
+                        "[AUI JS] event listener failed document={} event={} target={}",
+                        AuiLog.source(documentPath),
+                        event == null ? "<unknown>" : event.type,
+                        event == null ? "<null>" : String.valueOf(event.currentTarget),
+                        exception
+                );
+                throw exception;
             } finally {
                 event.currentTarget = previousCurrentTarget;
             }

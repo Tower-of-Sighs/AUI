@@ -82,6 +82,7 @@ public final class DevToolsController {
     private final Map<UUID, LinkedHashMap<RuleDeclarationKey, CSS.Declaration>> disabledRuleStyles = new LinkedHashMap<>();
     private final DevToolsDomTree tree = new DevToolsDomTree(this);
     private final DevToolsInspector inspector = new DevToolsInspector(this);
+    private final DevToolsConsole console = new DevToolsConsole(this);
     private final DevToolsEditHistory editHistory = new DevToolsEditHistory();
     private final DevToolsSaveDialog saveDialog = new DevToolsSaveDialog();
 
@@ -96,10 +97,14 @@ public final class DevToolsController {
     private boolean draggingPanel;
     private double panelDragOffsetX;
     private boolean resizingInspector;
+    private boolean consoleMode;
     private boolean refreshQueued;
     private boolean skipSaveConfirmation;
     private long toastTicket;
     private DialogWindow createElementDialog;
+    private Tooltip.Binding consoleTooltipBinding;
+    private Element consoleTooltipTarget;
+    private String consoleTooltipKey;
 
     public synchronized boolean isOpen() {
         return toolDocument != null && toolDocument.isActive() && Document.get(PATH).contains(toolDocument);
@@ -264,6 +269,50 @@ public final class DevToolsController {
 
     boolean isPickMode() {
         return pickMode;
+    }
+
+    boolean isConsoleMode() {
+        return consoleMode;
+    }
+
+    public synchronized void drainExternalLogs() {
+        if (!isOpen() || !consoleMode) return;
+        console.drainExternalLogs();
+    }
+
+    void toggleConsoleMode() {
+        consoleMode = !consoleMode;
+        if (consoleMode && pickMode) {
+            pickMode = false;
+            Cursor.resetToDefault();
+            hideInspectHighlight();
+        }
+        if (!consoleMode && toolDocument != null && toolDocument.getFocusedElement() != null) {
+            clearToolFocus();
+        }
+        updateShellState();
+        if (consoleMode) {
+            console.bind();
+            Element input = toolDocument == null ? null : toolDocument.querySelector("#consoleInput");
+            if (input != null) input.focus();
+        }
+        DevToolsDom.markDirty(toolDocument);
+    }
+
+    void togglePickModeFromConsole() {
+        if (!isDebuggable(targetDocument)) {
+            pickMode = false;
+            hideInspectHighlight();
+            showToast(DevToolsTranslations.translate("devtools.apricityui.select_document_first"));
+            updateShellState();
+            return;
+        }
+        pickMode = !pickMode;
+        if (!pickMode) {
+            hideInspectHighlight();
+            Cursor.resetToDefault();
+        }
+        updateShellState();
     }
 
     void toggleCollapsed(Element element) {
@@ -704,6 +753,10 @@ public final class DevToolsController {
         closeCreateElementDialog();
         Document closing = toolDocument;
         Tooltip.hide(closing);
+        if (consoleTooltipBinding != null) consoleTooltipBinding.close();
+        consoleTooltipBinding = null;
+        consoleTooltipTarget = null;
+        consoleTooltipKey = null;
         toolDocument = null;
         targetDocument = null;
         selectedElementUuid = null;
@@ -712,6 +765,7 @@ public final class DevToolsController {
         disabledRuleStyles.clear();
         editHistory.clear();
         pickMode = false;
+        consoleMode = false;
         treeHoverElementUuid = null;
         consumeInspectMouseUp = false;
         draggingPanel = false;
@@ -788,13 +842,13 @@ public final class DevToolsController {
                     ? "devtools.apricityui.inspect_mode_on" : "devtools.apricityui.inspect_mode_off"));
         });
         bindOnce(saveButton, event -> requestSave());
-        bindOnce(consoleButton, event -> showToast(DevToolsTranslations.translate("devtools.apricityui.console_coming_soon")));
+        bindOnce(consoleButton, event -> toggleConsoleMode());
         bindOnce(oreEditorButton, event -> openOreEditorFilePicker());
         bindOnce(closeDevToolsButton, event -> close());
         bindOnce(closeDocumentButton, event -> closeTargetDocument());
         bindTooltipOnce(pickButton, "tooltip.apricityui.devtools.inspect");
         bindTooltipOnce(saveButton, "tooltip.apricityui.devtools.save");
-        bindTooltipOnce(consoleButton, "tooltip.apricityui.devtools.console");
+        bindConsoleTooltip(consoleButton);
         bindTooltipOnce(oreEditorButton, "tooltip.apricityui.ore_editor.open");
         bindTooltipOnce(closeDevToolsButton, "tooltip.apricityui.devtools.close");
         bindTooltipOnce(closeDocumentButton, "tooltip.apricityui.devtools.close_document");
@@ -828,6 +882,7 @@ public final class DevToolsController {
                 DevToolsDom.markDirty(toolDocument);
             });
         }
+        console.bind();
     }
 
     private void openOreEditorFilePicker() {
@@ -856,7 +911,8 @@ public final class DevToolsController {
         setAttribute("#panelDragHandle", "aria-label", "devtools.apricityui.move");
         setAttribute("#saveBtn", "aria-label", "devtools.apricityui.save_current_html");
         setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
-        setAttribute(".console-btn", "aria-label", "devtools.apricityui.console");
+        setAttribute(".console-btn", "aria-label",
+                consoleMode ? "devtools.apricityui.inspect_elements" : "devtools.apricityui.console");
         setAttribute("#oreEditorButton", "aria-label", "tooltip.apricityui.ore_editor.open");
         setAttribute("#closeDevToolsBtn", "aria-label", "tooltip.apricityui.devtools.close");
         setAttribute("#closeDocumentBtn", "aria-label", "tooltip.apricityui.devtools.close_document");
@@ -871,6 +927,20 @@ public final class DevToolsController {
         if (element == null || "1".equals(element.getAttribute("data-tooltip-bound"))) return;
         element.setAttribute("data-tooltip-bound", "1");
         Tooltip.bindTranslation(element, translationKey);
+    }
+
+    private void bindConsoleTooltip(Element element) {
+        if (element == null) return;
+        String key = consoleMode
+                ? "tooltip.apricityui.devtools.inspect"
+                : "tooltip.apricityui.devtools.console";
+        if (element == consoleTooltipTarget && key.equals(consoleTooltipKey)) return;
+        if (consoleTooltipBinding != null) consoleTooltipBinding.close();
+        element.setAttribute("data-tooltip-key", key);
+        element.setAttribute("data-tooltip-bound", "1");
+        consoleTooltipBinding = Tooltip.bindTranslation(element, key);
+        consoleTooltipTarget = element;
+        consoleTooltipKey = key;
     }
 
     private void bindDocumentSelector(Element select) {
@@ -1075,6 +1145,19 @@ public final class DevToolsController {
 
     private void updateShellState() {
         if (toolDocument == null) return;
+        Element consoleButton = toolDocument.querySelector(".console-btn");
+        if (consoleButton != null) {
+            consoleButton.setAttribute("class", consoleMode
+                    ? "top-btn console-btn mode-console" : "top-btn console-btn");
+            consoleButton.setAttribute("aria-pressed", Boolean.toString(consoleMode));
+            consoleButton.setAttribute("aria-label", DevToolsTranslations.translate(consoleMode
+                    ? "devtools.apricityui.inspect_elements" : "devtools.apricityui.console"));
+            bindConsoleTooltip(consoleButton);
+        }
+        setPanelVisibility(".document-selector-bar", !consoleMode);
+        setPanelVisibility("#domSection", !consoleMode);
+        setPanelVisibility("#inspectorSection", !consoleMode);
+        setPanelVisibility("#consoleContent", consoleMode);
         Element pickButton = toolDocument.querySelector("#pickBtn");
         if (pickButton != null) pickButton.setAttribute("class", pickMode ? "top-btn active" : "top-btn");
         Element saveButton = toolDocument.querySelector("#saveBtn");
@@ -1106,6 +1189,19 @@ public final class DevToolsController {
             boolean active = ("pane-" + inspectorTab.id).equals(pane.id);
             pane.setAttribute("class", active ? "inspector-pane active" : "inspector-pane");
         }
+    }
+
+    private void setPanelVisibility(String selector, boolean visible) {
+        Element element = toolDocument.querySelector(selector);
+        if (element == null) return;
+        String current = element.getAttribute("class");
+        String[] tokens = current == null ? new String[0] : current.trim().split("\\s+");
+        LinkedHashSet<String> next = new LinkedHashSet<>();
+        for (String token : tokens) {
+            if (!token.isBlank() && !"hidden".equals(token)) next.add(token);
+        }
+        if (!visible) next.add("hidden");
+        element.setAttribute("class", String.join(" ", next));
     }
 
     private Element inspectHit(Position screenPosition) {

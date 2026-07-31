@@ -1,5 +1,7 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
+
 import java.util.Map;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -52,6 +54,12 @@ public abstract class AbstractAsyncHandler<TApplyTask> {
         try {
             workers.execute(task);
         } catch (RejectedExecutionException ex) {
+            ApricityUI.LOGGER.error(
+                    "[AUI Async] worker queue rejected task handler={} queued={}",
+                    id,
+                    workers.getQueue().size(),
+                    ex
+            );
             if (onRejected != null) onRejected.accept(ex);
         }
     }
@@ -64,7 +72,12 @@ public abstract class AbstractAsyncHandler<TApplyTask> {
             TApplyTask task = applyQueue.poll();
             if (task == null) break;
             processed++;
-            applyOnMainThread(task, currentGeneration());
+            try {
+                applyOnMainThread(task, currentGeneration());
+            } catch (RuntimeException exception) {
+                ApricityUI.LOGGER.error("[AUI Async] apply task failed handler={} processed={}", id, processed, exception);
+                throw exception;
+            }
         }
     }
 

@@ -941,7 +941,10 @@ public class Element extends Node {
             if (name.length() <= 2 || !name.startsWith("on")) continue;
             String type = name.substring(2).trim().toLowerCase(Locale.ROOT);
             if (type.isEmpty()) continue;
-            addEventListener(type, event -> ApricityJS.eval(code, event));
+            String source = document == null
+                    ? "<inline-event>"
+                    : document.getPath() + "#" + type + "@" + tagName;
+            addEventListener(type, event -> ApricityJS.eval(code, event, source));
         }
     }
 

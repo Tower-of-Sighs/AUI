@@ -12,6 +12,7 @@ import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.task.ClientScheduler;
+import com.sighs.apricityui.util.AuiLog;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
@@ -442,6 +443,12 @@ public class Window {
                 try {
                     return loadResponse(url, contextPath);
                 } catch (IOException exception) {
+                    ApricityUI.LOGGER.error(
+                            "[AUI Fetch] request failed url={} context={}",
+                            url,
+                            contextPath,
+                            exception
+                    );
                     throw new RuntimeException(exception);
                 }
             });
@@ -483,6 +490,7 @@ public class Window {
 
         private static FetchResponse loadResponse(String rawUrl, String contextPath) throws IOException {
             if (rawUrl == null || rawUrl.isBlank()) {
+                ApricityUI.LOGGER.error("[AUI Fetch] fetch URL is blank context={}", contextPath);
                 throw new IOException("fetch url is blank");
             }
             String resolved = Loader.resolve(contextPath == null ? "" : contextPath, rawUrl);
@@ -492,6 +500,7 @@ public class Window {
             } else {
                 try (InputStream stream = ClientLoader.getResourceStream(resolved)) {
                     if (stream == null) {
+                        ApricityUI.LOGGER.error("[AUI Fetch] local resource is missing resolved={}", resolved);
                         throw new IOException("resource not found: " + resolved);
                     }
                     bytes = stream.readAllBytes();
@@ -509,6 +518,7 @@ public class Window {
                 try {
                     return task.call();
                 } catch (Exception exception) {
+                    ApricityUI.LOGGER.error("[AUI Canvas] image bitmap task failed", exception);
                     throw new RuntimeException(exception);
                 }
             });
@@ -575,7 +585,12 @@ public class Window {
         }
 
         public Object json() {
-            return new SimpleJsonParser(text()).parse();
+            try {
+                return new SimpleJsonParser(text()).parse();
+            } catch (RuntimeException exception) {
+                ApricityUI.LOGGER.error("[AUI Fetch] JSON parse failed url={} body={}", url, AuiLog.compact(text()), exception);
+                throw exception;
+            }
         }
 
         public byte[] bytes() {

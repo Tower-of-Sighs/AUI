@@ -1,5 +1,8 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.util.AuiLog;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -9,7 +12,6 @@ import java.util.function.Supplier;
 import java.util.function.Consumer;
 
 public class Event implements Cloneable {
-    private static final System.Logger LOGGER = System.getLogger(Event.class.getName());
     private static final ThreadLocal<Integer> TRUSTED_CONTEXT_DEPTH = ThreadLocal.withInitial(() -> 0);
 
     public static final short NONE = 0;
@@ -284,10 +286,17 @@ public class Event implements Cloneable {
             try {
                 listenerRecord.listener().accept(event);
             } catch (RuntimeException exception) {
+                ApricityUI.LOGGER.error(
+                        "[AUI Event] listener failed type={} phase={} capture={} internal={} target={} document={}",
+                        type,
+                        phase,
+                        capturePhase,
+                        listenerRecord.internal(),
+                        AuiLog.node(node),
+                        node.document == null ? "<unknown>" : AuiLog.source(node.document.getPath()),
+                        exception
+                );
                 if (listenerRecord.internal()) throw exception;
-                LOGGER.log(System.Logger.Level.ERROR,
-                        "[AUI Event] Uncaught exception in '" + type + "' listener on " + node,
-                        exception);
             }
         });
     }

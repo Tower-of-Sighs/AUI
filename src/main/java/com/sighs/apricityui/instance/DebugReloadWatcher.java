@@ -59,10 +59,12 @@ public final class DebugReloadWatcher {
                         LAST_MODIFIED.put(path, lastModified);
                         triggerReload(path, now);
                     }
-                } catch (IOException ignored) {
+                } catch (IOException exception) {
+                    ApricityUI.LOGGER.warn("[DebugReload] failed to inspect file={}", path, exception);
                 }
             });
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[DebugReload] failed to scan root={}", root, exception);
         }
     }
 

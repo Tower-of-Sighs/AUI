@@ -1,5 +1,6 @@
 package com.sighs.apricityui.dev.resource;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Font;
@@ -33,9 +34,19 @@ public final class ResourceFontAsset {
         if (!isFont(entry)) return false;
         String family = familyName(entry);
         if (Font.isRegistered(family)) return true;
-        try (InputStream stream = ClientLoader.getResourceStream(safe(entry.path()))) {
-            return stream != null && Font.registerFont(family, stream);
-        } catch (IOException ignored) {
+        String path = safe(entry.path());
+        try (InputStream stream = ClientLoader.getResourceStream(path)) {
+            if (stream == null) {
+                ApricityUI.LOGGER.warn("[AUI Font] preview font resource is missing path={}", path);
+                return false;
+            }
+            boolean loaded = Font.registerFont(family, stream);
+            if (!loaded) {
+                ApricityUI.LOGGER.error("[AUI Font] preview font registration failed family={} path={}", family, path);
+            }
+            return loaded;
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.error("[AUI Font] preview font read failed family={} path={}", family, path, exception);
             return false;
         }
     }

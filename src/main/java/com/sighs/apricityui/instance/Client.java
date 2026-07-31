@@ -455,6 +455,7 @@ public class Client {
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();
+            DevTools.drainLogs();
             Window mcWindow = Minecraft.getInstance().getWindow();
             int w = mcWindow.getScreenWidth();
             int h = mcWindow.getScreenHeight();
