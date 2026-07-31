@@ -5,7 +5,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
 
-/** Public facade for the built-in F12 inspector. */
+/** Public facade for the built-in inspector. */
 public final class DevTools {
     private static final DevToolsController CONTROLLER = new DevToolsController();
 

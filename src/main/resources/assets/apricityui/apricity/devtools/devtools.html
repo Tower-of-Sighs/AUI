@@ -148,6 +148,12 @@
             border-color: var(--purple);
         }
 
+        .top-btn.close-devtools-btn:hover {
+            color: var(--white);
+            background: var(--danger);
+            border-color: var(--danger);
+        }
+
         .document-selector-bar {
             display: flex;
             align-items: stretch;
@@ -1178,6 +1184,9 @@
             </button>
             <button class="top-btn console-btn" aria-label="Console" data-tooltip-key="tooltip.apricityui.devtools.console">
                 <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="10.5"/><path d="M4 6l2 2-2 2M8 10h3"/></svg>
+            </button>
+            <button type="button" class="top-btn close-devtools-btn" id="closeDevToolsBtn" aria-label="Close DevTools" data-tooltip-key="tooltip.apricityui.devtools.close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
             </button>
         </div>
         <div class="document-selector-bar">

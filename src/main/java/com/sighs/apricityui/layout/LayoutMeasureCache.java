@@ -4,10 +4,12 @@ import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.init.Element;
 
-import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.WeakHashMap;
 
 public final class LayoutMeasureCache {
+    private static final int MAX_PARAMETERIZED_ENTRIES = 4096;
     public static final int SIZE_NATURAL = 1;
     public static final int CONTENT_FLEX = 2;
     public static final int LAYOUT_FLEX = 4;
@@ -33,15 +35,12 @@ public final class LayoutMeasureCache {
     public static void end() {
         State state = STATE.get();
         if (state == null) return;
-        state.depth--;
-        if (state.depth <= 0) {
-            STATE.remove();
-        }
+        state.depth = Math.max(0, state.depth - 1);
     }
 
     public static Size getSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
         State state = STATE.get();
-        if (state == null || element == null) return null;
+        if (state == null || state.depth <= 0 || element == null) return null;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             return state.getVersioned(state.naturalSizes, element);
         }
@@ -53,7 +52,7 @@ public final class LayoutMeasureCache {
 
     public static void putSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Size size) {
         State state = STATE.get();
-        if (state == null || element == null || size == null) return;
+        if (state == null || state.depth <= 0 || element == null || size == null) return;
         if (mode == SIZE_NATURAL && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             state.putVersioned(state.naturalSizes, element, size);
             return;
@@ -67,36 +66,50 @@ public final class LayoutMeasureCache {
 
     public static Object getObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
         State state = STATE.get();
-        if (state == null || element == null) return null;
+        if (state == null || state.depth <= 0 || element == null) return null;
         return state.objects.get(new Key(mode, element, availableWidth, availableHeight, natural));
     }
 
     public static void putObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Object value) {
         State state = STATE.get();
-        if (state == null || element == null || value == null) return;
+        if (state == null || state.depth <= 0 || element == null || value == null) return;
         state.objects.put(new Key(mode, element, availableWidth, availableHeight, natural), value);
     }
 
     private static final class State {
         private int depth = 0;
-        private final IdentityHashMap<Element, VersionedSize> naturalSizes = new IdentityHashMap<>();
-        private final IdentityHashMap<Element, VersionedSize> flexContentSizes = new IdentityHashMap<>();
-        private final IdentityHashMap<Element, VersionedSize> naturalFlexContentSizes = new IdentityHashMap<>();
-        private final HashMap<Key, Size> sizes = new HashMap<>();
-        private final HashMap<Key, Object> objects = new HashMap<>();
+        private final Map<Element, VersionedSize> naturalSizes = new WeakHashMap<>();
+        private final Map<Element, VersionedSize> flexContentSizes = new WeakHashMap<>();
+        private final Map<Element, VersionedSize> naturalFlexContentSizes = new WeakHashMap<>();
+        private final Map<Key, Size> sizes = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
+        private final Map<Key, Object> objects = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
 
-        private Size getVersioned(IdentityHashMap<Element, VersionedSize> entries, Element element) {
+        private Size getVersioned(Map<Element, VersionedSize> entries, Element element) {
             VersionedSize entry = entries.get(element);
             return entry != null && entry.dependency == element.getRenderer().layoutDependency()
                     ? entry.value : null;
         }
 
-        private void putVersioned(IdentityHashMap<Element, VersionedSize> entries, Element element, Size value) {
+        private void putVersioned(Map<Element, VersionedSize> entries, Element element, Size value) {
             entries.put(element, new VersionedSize(element.getRenderer().layoutDependency(), value));
         }
     }
 
     private record VersionedSize(long dependency, Size value) {
+    }
+
+    private static final class BoundedCache<K, V> extends LinkedHashMap<K, V> {
+        private final int capacity;
+
+        private BoundedCache(int capacity) {
+            super(256, 0.75f, true);
+            this.capacity = capacity;
+        }
+
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+            return size() > capacity;
+        }
     }
 
     private static final class Key {

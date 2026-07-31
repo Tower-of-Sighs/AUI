@@ -180,6 +180,11 @@ public class Mask {
         Graph.endBatch();
         ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
+        if (depth <= 1) {
+            depth = 0;
+            finishStencilPop();
+            return;
+        }
         pose.pushPose();
         StencilDepthState state = setupStencilStatePop();
         drawToStencil(pose.last().pose(), x, y, width, height, radii);
@@ -274,6 +279,11 @@ public class Mask {
         Graph.endBatch();
         ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
+        if (depth <= 1) {
+            depth = 0;
+            finishStencilPop();
+            return;
+        }
         pose.pushPose();
         StencilDepthState state = setupStencilStatePop();
 

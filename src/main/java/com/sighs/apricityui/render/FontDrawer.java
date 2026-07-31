@@ -18,6 +18,7 @@ import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
@@ -209,12 +210,7 @@ public class FontDrawer {
 
     private static FontEntry textureEntry(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
         String key = toCacheKey(text, content, rasterMode, quadMode);
-        FontEntry entry = CACHE.get(key);
-        if (entry == null) {
-            entry = rebuildTextureEntry(text, content, key, rasterMode, quadMode);
-            if (entry != null) CACHE.put(key, entry);
-        }
-        return entry;
+        return CACHE.computeIfAbsent(key, ignored -> rebuildTextureEntry(text, content, key, rasterMode, quadMode));
     }
 
     private static boolean drawRuntimeRightFracCutoff(PoseStack poseStack, Text text, String content, Position position,
@@ -402,12 +398,13 @@ public class FontDrawer {
             imgH = img.getHeight();
 
             TextureStats textureStats = computeTextureStats(img);
+            int[] pixels = readPixels(img);
 
             NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, imgW, imgH, true);
 
             for (int y = 0; y < imgH; y++) {
                 for (int x = 0; x < imgW; x++) {
-                    int argb = img.getRGB(x, y);
+                    int argb = pixels[y * imgW + x];
                     if (compositeMode.solidBackground()) {
                         argb = uncomposeSolidBackground(argb, color, compositeMode);
                     }
@@ -437,6 +434,7 @@ public class FontDrawer {
         if (img == null) return TextureStats.empty();
         int width = img.getWidth();
         int height = img.getHeight();
+        int[] pixels = readPixels(img);
         int ink = 0;
         int minX = width;
         int minY = height;
@@ -444,7 +442,7 @@ public class FontDrawer {
         int maxY = -1;
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int argb = img.getRGB(x, y);
+                int argb = pixels[y * width + x];
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0) continue;
                 ink++;
@@ -463,6 +461,13 @@ public class FontDrawer {
         );
     }
 
+    private static int[] readPixels(BufferedImage image) {
+        if (image.getRaster().getDataBuffer() instanceof DataBufferInt pixels) {
+            return pixels.getData();
+        }
+        return image.getRGB(0, 0, image.getWidth(), image.getHeight(), null, 0, image.getWidth());
+    }
+
     private static float glyphAnchor(TextureStats stats, int pad, int lineHeight) {
         if (stats != null && stats.hasInk()) {
             return stats.minY() + stats.inkHeight() / 2.0f;
@@ -475,15 +480,17 @@ public class FontDrawer {
         double gamma = mode.gamma();
         int width = img.getWidth();
         int height = img.getHeight();
+        int[] pixels = readPixels(img);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int argb = img.getRGB(x, y);
+                int index = y * width + x;
+                int argb = pixels[index];
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0 || alpha >= 255) continue;
                 double normalized = alpha / 255.0d;
                 int transformed = Math.max(0, Math.min(255, (int) Math.round(Math.pow(normalized, gamma) * 255.0d)));
                 if (transformed == alpha) continue;
-                img.setRGB(x, y, (transformed << 24) | (argb & 0x00FFFFFF));
+                pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
             }
         }
     }
@@ -493,14 +500,16 @@ public class FontDrawer {
         double scale = mode.scale();
         int width = img.getWidth();
         int height = img.getHeight();
+        int[] pixels = readPixels(img);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int argb = img.getRGB(x, y);
+                int index = y * width + x;
+                int argb = pixels[index];
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0) continue;
                 int transformed = Math.max(0, Math.min(255, (int) Math.round(alpha * scale)));
                 if (transformed == alpha) continue;
-                img.setRGB(x, y, (transformed << 24) | (argb & 0x00FFFFFF));
+                pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
             }
         }
     }
@@ -510,12 +519,14 @@ public class FontDrawer {
         int cap = mode.cap();
         int width = img.getWidth();
         int height = img.getHeight();
+        int[] pixels = readPixels(img);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int argb = img.getRGB(x, y);
+                int index = y * width + x;
+                int argb = pixels[index];
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0 || alpha <= cap) continue;
-                img.setRGB(x, y, (cap << 24) | (argb & 0x00FFFFFF));
+                pixels[index] = (cap << 24) | (argb & 0x00FFFFFF);
             }
         }
     }
@@ -524,14 +535,16 @@ public class FontDrawer {
         if (img == null || mode == null || !mode.enabled()) return;
         int width = img.getWidth();
         int height = img.getHeight();
+        int[] pixels = readPixels(img);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int argb = img.getRGB(x, y);
+                int index = y * width + x;
+                int argb = pixels[index];
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0) continue;
                 int transformed = mode.map(alpha);
                 if (transformed == alpha) continue;
-                img.setRGB(x, y, (transformed << 24) | (argb & 0x00FFFFFF));
+                pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
             }
         }
     }
@@ -557,9 +570,10 @@ public class FontDrawer {
         int height = img.getHeight();
         int minX = width;
         int maxX = -1;
+        int[] pixels = readPixels(img);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int alpha = (img.getRGB(x, y) >>> 24) & 0xFF;
+                int alpha = (pixels[y * width + x] >>> 24) & 0xFF;
                 if (alpha <= 0) continue;
                 if (x < minX) minX = x;
                 if (x > maxX) maxX = x;
@@ -576,11 +590,12 @@ public class FontDrawer {
                 default -> 0.5d;
             };
             for (int y = 0; y < height; y++) {
-                int argb = img.getRGB(x, y);
+                int index = y * width + x;
+                int argb = pixels[index];
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0) continue;
                 int transformed = Math.max(0, Math.min(255, (int) Math.round(alpha * scale)));
-                img.setRGB(x, y, (transformed << 24) | (argb & 0x00FFFFFF));
+                pixels[index] = (transformed << 24) | (argb & 0x00FFFFFF);
             }
         }
     }
@@ -590,9 +605,10 @@ public class FontDrawer {
         int width = img.getWidth();
         int height = img.getHeight();
         int maxX = -1;
+        int[] pixels = readPixels(img);
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                int alpha = (img.getRGB(x, y) >>> 24) & 0xFF;
+                int alpha = (pixels[y * width + x] >>> 24) & 0xFF;
                 if (alpha > 0 && x > maxX) maxX = x;
             }
         }
@@ -602,10 +618,11 @@ public class FontDrawer {
         int firstCutoffX = maxX - columns + 1;
         for (int y = 0; y < height; y++) {
             for (int x = firstCutoffX; x <= maxX; x++) {
-                int argb = img.getRGB(x, y);
+                int index = y * width + x;
+                int argb = pixels[index];
                 int alpha = (argb >>> 24) & 0xFF;
                 if (alpha <= 0) continue;
-                img.setRGB(x, y, argb & 0x00FFFFFF);
+                pixels[index] = argb & 0x00FFFFFF;
             }
         }
     }
@@ -856,9 +873,10 @@ public class FontDrawer {
         } finally {
             bg.dispose();
         }
+        int[] pixels = readPixels(baseline);
         for (int y = 0; y < height; y++) {
             for (int px = 0; px < width; px++) {
-                if (((baseline.getRGB(px, y) >>> 24) & 0xff) > 0) {
+                if (((pixels[y * width + px] >>> 24) & 0xff) > 0) {
                     rows[y] = true;
                     break;
                 }
@@ -914,6 +932,8 @@ public class FontDrawer {
         int maxX = Math.min(target.getWidth(), bounds.x + bounds.width + 2);
         int maxY = Math.min(target.getHeight(), bounds.y + bounds.height + 2);
         int total = samples * samples;
+        int targetWidth = target.getWidth();
+        int[] pixels = readPixels(target);
         for (int y = minY; y < maxY; y++) {
             if (allowedRows != null && (y < 0 || y >= allowedRows.length || !allowedRows[y])) continue;
             for (int x = minX; x < maxX; x++) {
@@ -927,7 +947,8 @@ public class FontDrawer {
                 }
                 if (covered <= 0) continue;
                 int sourceAlpha = clamp255((int) Math.round(color.getA() * (covered / (double) total)));
-                target.setRGB(x, y, sourceOver(target.getRGB(x, y), color, sourceAlpha));
+                int index = y * targetWidth + x;
+                pixels[index] = sourceOver(pixels[index], color, sourceAlpha);
             }
         }
     }

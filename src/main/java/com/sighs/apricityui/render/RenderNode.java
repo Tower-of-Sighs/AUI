@@ -23,10 +23,8 @@ public interface RenderNode {
     }
 
     static void applyWithTransform(PoseStack poseStack, Element target, Consumer<Rect> action) {
-        poseStack.pushPose();
         Base.applyTransform(poseStack, target);
         action.accept(Rect.of(target));
-        poseStack.popPose();
     }
 
     static boolean shouldSkip(Element target) {
@@ -122,7 +120,6 @@ public interface RenderNode {
             Rect rect = Rect.of(target);
             if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
 
-            poseStack.pushPose();
             Base.applyTransform(poseStack, target);
 
             RenderSystem.enableBlend();
@@ -144,7 +141,6 @@ public interface RenderNode {
                 );
             }
             target.drawPhase(poseStack, phase);
-            poseStack.popPose();
         }
 
         static boolean shouldLogTarget(Element target) {
@@ -166,12 +162,10 @@ public interface RenderNode {
             Rect rect = Rect.of(target);
             if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
 
-            poseStack.pushPose();
             Base.applyTransform(poseStack, target);
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawBackgroundOnly(poseStack);
-            poseStack.popPose();
         }
     }
 
@@ -184,12 +178,10 @@ public interface RenderNode {
             Rect rect = Rect.of(target);
             if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
 
-            poseStack.pushPose();
             Base.applyTransform(poseStack, target);
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawContentOnly(poseStack);
-            poseStack.popPose();
         }
     }
 
@@ -200,12 +192,10 @@ public interface RenderNode {
             ensureRendererLoaded(target);
             if (shouldSkip(target) || !target.mayRenderScrollbar()) return;
 
-            poseStack.pushPose();
             Base.applyTransform(poseStack, target);
             RenderSystem.enableBlend();
             RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawScrollbar(poseStack, Rect.of(target));
-            poseStack.popPose();
         }
     }
 

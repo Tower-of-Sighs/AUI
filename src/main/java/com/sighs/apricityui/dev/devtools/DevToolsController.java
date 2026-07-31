@@ -765,6 +765,7 @@ public final class DevToolsController {
         Element consoleButton = toolDocument.querySelector(".console-btn");
         Element oreEditorButton = toolDocument.querySelector("#oreEditorButton");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
+        Element closeDevToolsButton = toolDocument.querySelector("#closeDevToolsBtn");
         Element closeDocumentButton = toolDocument.querySelector("#closeDocumentBtn");
         Element documentSelect = toolDocument.querySelector("#documentSelect");
         localizeAccessibility();
@@ -788,11 +789,13 @@ public final class DevToolsController {
         bindOnce(saveButton, event -> requestSave());
         bindOnce(consoleButton, event -> showToast(DevToolsTranslations.translate("devtools.apricityui.console_coming_soon")));
         bindOnce(oreEditorButton, event -> openOreEditorFilePicker());
+        bindOnce(closeDevToolsButton, event -> close());
         bindOnce(closeDocumentButton, event -> closeTargetDocument());
         bindTooltipOnce(pickButton, "tooltip.apricityui.devtools.inspect");
         bindTooltipOnce(saveButton, "tooltip.apricityui.devtools.save");
         bindTooltipOnce(consoleButton, "tooltip.apricityui.devtools.console");
         bindTooltipOnce(oreEditorButton, "tooltip.apricityui.ore_editor.open");
+        bindTooltipOnce(closeDevToolsButton, "tooltip.apricityui.devtools.close");
         bindTooltipOnce(closeDocumentButton, "tooltip.apricityui.devtools.close_document");
         bindPanelDrag(dragHandle);
         bindTooltipOnce(dragHandle, "tooltip.apricityui.devtools.move");
@@ -854,6 +857,7 @@ public final class DevToolsController {
         setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
         setAttribute(".console-btn", "aria-label", "devtools.apricityui.console");
         setAttribute("#oreEditorButton", "aria-label", "tooltip.apricityui.ore_editor.open");
+        setAttribute("#closeDevToolsBtn", "aria-label", "tooltip.apricityui.devtools.close");
         setAttribute("#closeDocumentBtn", "aria-label", "tooltip.apricityui.devtools.close_document");
     }
 
