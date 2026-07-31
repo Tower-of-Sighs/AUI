@@ -24,15 +24,20 @@ public class Operation {
     private static int lastScanCode = -1;
     private static int lastAction = -1;
     private static int lastModifiers = -1;
+    private static boolean lastDevToolsInspectConsumed;
 
     public static boolean onMouseDown() {
         return onMouseDown(-1);
     }
 
     public static boolean onMouseDown(int button) {
+        lastDevToolsInspectConsumed = false;
         mouseButtons |= buttonMask(button);
         Position mousePosition = getMousePositionDirectly();
-        if (DevTools.handleInspectMouseDown(mousePosition, button)) return true;
+        if (DevTools.handleInspectMouseDown(mousePosition, button)) {
+            lastDevToolsInspectConsumed = true;
+            return true;
+        }
         MouseEvent event = new MouseEvent("mousedown", mousePosition, button);
         event.setTrusted(true);
         MouseEvent.tiggerEvent(event);
@@ -44,12 +49,21 @@ public class Operation {
     }
 
     public static boolean onMouseUp(int button) {
+        lastDevToolsInspectConsumed = false;
         mouseButtons &= ~buttonMask(button);
-        if (DevTools.handleInspectMouseUp(button)) return true;
+        if (DevTools.handleInspectMouseUp(button)) {
+            lastDevToolsInspectConsumed = true;
+            return true;
+        }
         MouseEvent event = new MouseEvent("mouseup", getMousePositionDirectly(), button);
         event.setTrusted(true);
         MouseEvent.tiggerEvent(event);
         return event.isNativeConsumed();
+    }
+
+    /** Returns whether the most recent mouse press/release was consumed by DevTools picking. */
+    public static boolean wasDevToolsInspectConsumed() {
+        return lastDevToolsInspectConsumed;
     }
 
     public static void onMouseMove(Position currentMousePosition) {
