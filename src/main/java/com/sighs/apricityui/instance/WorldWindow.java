@@ -23,7 +23,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
-import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
@@ -67,6 +66,14 @@ public class WorldWindow {
     private float farDepthStep = DEFAULT_FAR_DEPTH_STEP;
     private float depthNearDistance = DEFAULT_DEPTH_NEAR_DISTANCE;
     private float depthFarDistance;
+
+    /**
+     * The last transform used to paint this window. World rendering happens before
+     * input events, so keeping the exact frame transform makes picking agree with
+     * the pixels on screen even for rotated and perspective-projected windows.
+     */
+    private Matrix4f interactionClipMatrix;
+    private Matrix4f interactionWorldMatrix;
 
     /** Creates a world window whose logical size comes from the document viewport. */
     public WorldWindow(String documentPath, Vec3 position, int maxDistance) {
@@ -301,6 +308,7 @@ public class WorldWindow {
     }
 
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
+        clearInteractionTransform();
         Minecraft mc = Minecraft.getInstance();
         Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
         if (!isWithinDisplayDistance(cameraPos)) return;
@@ -359,11 +367,13 @@ public class WorldWindow {
         Base.pushDepthStep(localStep);
         Base.pushDepthMode(true);
         Base.pushDepthTest(depthTest);
-        Base.pushDocumentZOffset(documentDepthBudget / safeScale);
+        float documentZOffset = documentDepthBudget / safeScale;
+        Base.pushDocumentZOffset(documentZOffset);
         WorldPaintDepth.pushFlatTransforms(true);
         Mask.resetDepth(getWidth(), getHeight());
         Mask.pushForceStencil();
         try {
+            captureInteractionTransform(projectionMatrix, poseStack.last().pose(), renderScale, documentZOffset);
             try (WorldWindowRenderContext.Scope ignored = WorldWindowRenderContext.push(precision)) {
                 Base.drawDocument(poseStack, document);
             }
@@ -420,55 +430,158 @@ public class WorldWindow {
         }
     }
 
-    public Position getRealPos() {
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null) return null;
+    /**
+     * Converts a GUI mouse position to this window's document coordinates and
+     * applies the same distance/occlusion checks as normal world interaction.
+     */
+    public Position getDocumentPositionAtScreen(Position screenPosition) {
+        if (screenPosition == null || !Double.isFinite(screenPosition.x) || !Double.isFinite(screenPosition.y)
+                || interactionClipMatrix == null || interactionWorldMatrix == null) return null;
 
-        // The render camera differs from the player eye in third person.
-        Camera camera = mc.gameRenderer.getMainCamera();
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.gameRenderer == null) return null;
+        Camera camera = minecraft.gameRenderer.getMainCamera();
+        if (camera == null) return null;
         Vec3 rayOrigin = camera.getPosition();
         if (!isWithinDisplayDistance(rayOrigin)) return null;
-        Vector3f lookVector = camera.getLookVector();
-        Vec3 rayDir = new Vec3(lookVector.x, lookVector.y, lookVector.z).normalize();
 
-        Matrix4f modelMatrix = new Matrix4f();
-        modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
-        modelMatrix.rotate(rotation);
-        float documentScale = worldDocumentScale();
-        modelMatrix.scale(resolvedScale * documentScale, -resolvedScale * documentScale, resolvedScale * documentScale);
+        Position localHit = unprojectToDocument(screenPosition);
+        if (localHit == null) return null;
+        double width = getWidth();
+        double height = getHeight();
+        if (localHit.x < 0.0 || localHit.x > width || localHit.y < 0.0 || localHit.y > height) return null;
 
-        Vector4f centerWorld = modelMatrix.transform(new Vector4f(0, 0, 0, 1));
-        Vector4f normalWorld = new Vector4f(0, 0, 1, 0);
-        modelMatrix.transform(normalWorld);
-        Vec3 planeNormal = new Vec3(normalWorld.x, normalWorld.y, normalWorld.z).normalize();
-        Vec3 planeCenter = new Vec3(centerWorld.x, centerWorld.y, centerWorld.z);
-
-        double denominator = planeNormal.dot(rayDir);
-
-        if (Math.abs(denominator) < 1e-6) return null;
-
-        Vec3 toCenter = planeCenter.subtract(rayOrigin);
-        double t = toCenter.dot(planeNormal) / denominator;
-
-        if (t < 0) return null;
-
-        Vec3 intersection = rayOrigin.add(rayDir.scale(t));
+        Vector4f worldHit = interactionWorldMatrix.transform(
+                new Vector4f((float) localHit.x, (float) localHit.y, 0.0f, 1.0f));
+        if (!Float.isFinite(worldHit.x) || !Float.isFinite(worldHit.y) || !Float.isFinite(worldHit.z)) return null;
+        Vec3 intersection = new Vec3(worldHit.x, worldHit.y, worldHit.z);
         double windowDistance = rayOrigin.distanceTo(intersection);
-        if (windowDistance > maxDistance) return null;
-        if (depthTest && isOccluded(mc, rayOrigin, intersection, windowDistance)) return null;
+        if (!Double.isFinite(windowDistance) || windowDistance > maxDistance) return null;
+        if (depthTest && isOccluded(minecraft, rayOrigin, intersection, windowDistance)) return null;
+        return localHit;
+    }
 
-        Matrix4f inverseMatrix = new Matrix4f(modelMatrix).invert();
-        Vector4f localHit = new Vector4f((float) intersection.x, (float) intersection.y, (float) intersection.z, 1.0f);
-        inverseMatrix.transform(localHit);
+    /** Returns the GUI-space projection of a document-local point, or null if it is not visible. */
+    public Position projectDocumentPosition(Position documentPosition) {
+        if (documentPosition == null || !Double.isFinite(documentPosition.x) || !Double.isFinite(documentPosition.y)
+                || interactionClipMatrix == null) return null;
+        Vector4f clip = interactionClipMatrix.transform(
+                new Vector4f((float) documentPosition.x, (float) documentPosition.y, 0.0f, 1.0f));
+        if (!Float.isFinite(clip.x) || !Float.isFinite(clip.y)
+                || !Float.isFinite(clip.w) || clip.w <= 1.0e-6f) return null;
+        double ndcX = clip.x / clip.w;
+        double ndcY = clip.y / clip.w;
+        if (!Double.isFinite(ndcX) || !Double.isFinite(ndcY)) return null;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.getWindow() == null) return null;
+        double guiWidth = Math.max(1.0, minecraft.getWindow().getGuiScaledWidth());
+        double guiHeight = Math.max(1.0, minecraft.getWindow().getGuiScaledHeight());
+        return new Position((ndcX + 1.0) * 0.5 * guiWidth,
+                (1.0 - ndcY) * 0.5 * guiHeight);
+    }
 
-        double localX = localHit.x + getWidth() / 2.0;
-        double localY = localHit.y + getHeight() / 2.0;
-
-        if (localX >= 0 && localX <= getWidth() && localY >= 0 && localY <= getHeight()) {
-            return document.documentToScreenPosition(new Position(localX, localY));
+    /** Projects a document-local rectangle into a conservative GUI-space bounding box. */
+    public ScreenRect projectDocumentRect(double x, double y, double width, double height) {
+        if (!Double.isFinite(x) || !Double.isFinite(y)
+                || !Double.isFinite(width) || !Double.isFinite(height)
+                || width <= 0.0 || height <= 0.0) return null;
+        Position[] corners = {
+                projectDocumentPosition(new Position(x, y)),
+                projectDocumentPosition(new Position(x + width, y)),
+                projectDocumentPosition(new Position(x + width, y + height)),
+                projectDocumentPosition(new Position(x, y + height))
+        };
+        double left = Double.POSITIVE_INFINITY;
+        double top = Double.POSITIVE_INFINITY;
+        double right = Double.NEGATIVE_INFINITY;
+        double bottom = Double.NEGATIVE_INFINITY;
+        for (Position corner : corners) {
+            if (corner == null) return null;
+            left = Math.min(left, corner.x);
+            top = Math.min(top, corner.y);
+            right = Math.max(right, corner.x);
+            bottom = Math.max(bottom, corner.y);
         }
+        return new ScreenRect(left, top, Math.max(0.0, right - left), Math.max(0.0, bottom - top));
+    }
 
+    /** Returns the window associated with a world document, if it is currently registered. */
+    public static WorldWindow findByDocument(Document document) {
+        if (document == null) return null;
+        for (WorldWindow window : windows) {
+            if (window != null && window.document == document) return window;
+        }
         return null;
+    }
+
+    /** Returns the current mouse position mapped to document coordinates for world events. */
+    public Position getRealPos() {
+        return getRealPos(Client.getMousePositionDirectly());
+    }
+
+    /** Returns a screen position mapped to this window's event coordinate space. */
+    public Position getRealPos(Position screenPosition) {
+        Position documentPosition = getDocumentPositionAtScreen(screenPosition);
+        return documentPosition == null || document == null
+                ? null : document.documentToScreenPosition(documentPosition);
+    }
+
+    private Position unprojectToDocument(Position screenPosition) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.getWindow() == null) return null;
+        double guiWidth = Math.max(1.0, minecraft.getWindow().getGuiScaledWidth());
+        double guiHeight = Math.max(1.0, minecraft.getWindow().getGuiScaledHeight());
+        float ndcX = (float) (screenPosition.x / guiWidth * 2.0 - 1.0);
+        float ndcY = (float) (1.0 - screenPosition.y / guiHeight * 2.0);
+
+        Matrix4f inverse;
+        try {
+            inverse = new Matrix4f(interactionClipMatrix).invert();
+        } catch (RuntimeException invalidMatrix) {
+            return null;
+        }
+        Vector4f near = inverse.transform(new Vector4f(ndcX, ndcY, -1.0f, 1.0f));
+        Vector4f far = inverse.transform(new Vector4f(ndcX, ndcY, 1.0f, 1.0f));
+        if (!perspectiveDivide(near) || !perspectiveDivide(far)) return null;
+
+        double dz = far.z - near.z;
+        if (!Double.isFinite(dz) || Math.abs(dz) < 1.0e-7) return null;
+        double amount = -near.z / dz;
+        if (!Double.isFinite(amount) || amount < 0.0 || amount > 1.0) return null;
+        return new Position(
+                near.x + (far.x - near.x) * amount,
+                near.y + (far.y - near.y) * amount
+        );
+    }
+
+    private static boolean perspectiveDivide(Vector4f point) {
+        if (point == null || !Float.isFinite(point.w) || Math.abs(point.w) < 1.0e-6f) return false;
+        point.x /= point.w;
+        point.y /= point.w;
+        point.z /= point.w;
+        point.w = 1.0f;
+        return Float.isFinite(point.x) && Float.isFinite(point.y) && Float.isFinite(point.z);
+    }
+
+    private void captureInteractionTransform(Matrix4f projectionMatrix, Matrix4f modelViewMatrix,
+                                              float renderScale, float documentZOffset) {
+        if (projectionMatrix == null || modelViewMatrix == null || position == null) return;
+        Matrix4f documentModelView = new Matrix4f(modelViewMatrix).translate(0.0f, 0.0f, documentZOffset);
+        interactionClipMatrix = new Matrix4f(projectionMatrix).mul(documentModelView);
+        interactionWorldMatrix = new Matrix4f()
+                .translate((float) position.x, (float) position.y, (float) position.z)
+                .rotate(rotation)
+                .scale(renderScale, -renderScale, renderScale)
+                .translate(-getWidth() / 2.0f, -getHeight() / 2.0f, 0.0f)
+                .translate(0.0f, 0.0f, documentZOffset);
+    }
+
+    private void clearInteractionTransform() {
+        interactionClipMatrix = null;
+        interactionWorldMatrix = null;
+    }
+
+    public record ScreenRect(double x, double y, double width, double height) {
     }
 
     private boolean isOccluded(Minecraft minecraft, Vec3 rayOrigin, Vec3 intersection, double windowDistance) {

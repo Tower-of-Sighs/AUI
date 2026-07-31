@@ -12,6 +12,7 @@ import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import com.sighs.apricityui.instance.ApricityScreen;
+import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.resource.CSS;
@@ -1109,6 +1110,12 @@ public final class DevToolsController {
 
     private Element inspectHit(Position screenPosition) {
         if (screenPosition == null || !isDebuggable(targetDocument)) return null;
+        if (targetDocument.inWorld) {
+            WorldWindow worldWindow = WorldWindow.findByDocument(targetDocument);
+            Position documentPosition = worldWindow == null
+                    ? null : worldWindow.getDocumentPositionAtScreen(screenPosition);
+            return documentPosition == null ? null : targetDocument.hitTest(documentPosition);
+        }
         return targetDocument.hitTest(targetDocument.screenToDocumentPosition(screenPosition));
     }
 
@@ -1161,8 +1168,12 @@ public final class DevToolsController {
                 Math.max(0, paddingBoxWidth - paddingLeft - paddingRight),
                 Math.max(0, paddingBoxHeight - paddingTop - paddingBottom));
 
-        Position outerScreen = targetDocument.documentToScreenPosition(
+        Position outerScreen = projectTargetPosition(
                 new Position(rect.x - marginLeft, rect.y - marginTop));
+        if (outerScreen == null) {
+            hideInspectHighlight();
+            return;
+        }
         Position outerLocal = toolDocument.screenToDocumentPosition(outerScreen);
         double labelTop = outerLocal.y < 20 ? outerLocal.y : outerLocal.y - 20;
         String labelStyle = String.format(Locale.ROOT, "left:%.2fpx;top:%.2fpx;", outerLocal.x, labelTop);
@@ -1197,14 +1208,39 @@ public final class DevToolsController {
         if (width <= 0 || height <= 0) {
             style = "left:0px;top:0px;width:0px;height:0px;";
         } else {
-            Position screen = targetDocument.documentToScreenPosition(new Position(x, y));
+            WorldWindow worldWindow = targetDocument != null && targetDocument.inWorld
+                    ? WorldWindow.findByDocument(targetDocument) : null;
+            WorldWindow.ScreenRect projected = worldWindow == null
+                    ? null : worldWindow.projectDocumentRect(x, y, width, height);
+            if (worldWindow != null && projected == null) {
+                style = "left:0px;top:0px;width:0px;height:0px;";
+                if (!style.equals(region.getAttribute("style"))) region.setAttribute("style", style);
+                return;
+            }
+            Position screen = projected == null
+                    ? projectTargetPosition(new Position(x, y)) : new Position(projected.x(), projected.y());
+            if (screen == null) {
+                style = "left:0px;top:0px;width:0px;height:0px;";
+                if (!style.equals(region.getAttribute("style"))) region.setAttribute("style", style);
+                return;
+            }
             Position local = toolDocument.screenToDocumentPosition(screen);
-            double scaleX = targetDocument.getViewportScaleX() / toolDocument.getViewportScaleX();
-            double scaleY = targetDocument.getViewportScaleY() / toolDocument.getViewportScaleY();
+            double screenWidth = projected == null ? width * targetDocument.getViewportScaleX() : projected.width();
+            double screenHeight = projected == null ? height * targetDocument.getViewportScaleY() : projected.height();
             style = String.format(Locale.ROOT, "left:%.2fpx;top:%.2fpx;width:%.2fpx;height:%.2fpx;",
-                    local.x, local.y, width * scaleX, height * scaleY);
+                    local.x, local.y, screenWidth / toolDocument.getViewportScaleX(),
+                    screenHeight / toolDocument.getViewportScaleY());
         }
         if (!style.equals(region.getAttribute("style"))) region.setAttribute("style", style);
+    }
+
+    private Position projectTargetPosition(Position documentPosition) {
+        if (targetDocument == null || documentPosition == null) return null;
+        if (targetDocument.inWorld) {
+            WorldWindow worldWindow = WorldWindow.findByDocument(targetDocument);
+            return worldWindow == null ? null : worldWindow.projectDocumentPosition(documentPosition);
+        }
+        return targetDocument.documentToScreenPosition(documentPosition);
     }
 
     private void hideInspectHighlight() {

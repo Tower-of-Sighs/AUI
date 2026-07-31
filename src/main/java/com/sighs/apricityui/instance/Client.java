@@ -207,6 +207,9 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
+            // RenderGuiEvent is also emitted for the in-world HUD. Keep DevTools'
+            // world-window hover state in sync even when no Minecraft Screen exists.
+            DevTools.handleInspectMouseMove(getMousePositionDirectly());
             FrameTimingHud.beginFrame();
             try {
                 for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
@@ -298,8 +301,14 @@ public class Client {
         boolean nativeConsumed = false;
         if (event.getAction() == InputConstants.PRESS) nativeConsumed = Operation.onMouseDown(event.getButton());
         if (event.getAction() == InputConstants.RELEASE) nativeConsumed = Operation.onMouseUp(event.getButton());
+        boolean devToolsInspectConsumed = Operation.wasDevToolsInspectConsumed();
         if (Minecraft.getInstance().screen != null) {
             if (nativeConsumed) event.setCanceled(true);
+            return;
+        }
+        // DevTools picking is an inspection gesture, not an application click.
+        if (devToolsInspectConsumed) {
+            event.setCanceled(true);
             return;
         }
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
