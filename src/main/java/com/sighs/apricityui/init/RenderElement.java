@@ -161,7 +161,6 @@ public class RenderElement {
         Element[] route = element.getRouteArray();
         for (int i = 0; i < route.length; i++) {
             RenderElement renderer = route[i].getRenderer();
-            value = mix(value, renderer.styleVersion);
             value = mix(value, renderer.layoutVersion);
             if (i == 0) continue;
             Size ancestorSize = renderer.size.value;
@@ -251,6 +250,11 @@ public class RenderElement {
     public void clearCommittedWorldTransform() {
         committedWorldTransform = null;
         committedTransformDependency = Long.MIN_VALUE;
+    }
+
+    /** Clears visual box parsing without invalidating the unchanged hit-test geometry. */
+    public void clearVisualBoxCache() {
+        box.value = null;
     }
 
     public void clearCommittedLayoutSubtree() {
@@ -453,13 +457,13 @@ public class RenderElement {
         if (check.test(BACKGROUND_PROPS)) {
             renderer.background.clear();
             renderer.invalidateStyleVersion();
-            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT;
+            dirtyMask |= Drawer.REPAINT;
         }
 
         if (check.test(VISUAL_BOX_PROPS)) {
-            renderer.box.clear();
+            renderer.clearVisualBoxCache();
             renderer.invalidateStyleVersion();
-            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT;
+            dirtyMask |= Drawer.REPAINT;
         }
 
         if (check.test(CURSOR_PROPS)) {

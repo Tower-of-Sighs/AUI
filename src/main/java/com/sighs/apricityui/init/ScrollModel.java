@@ -17,10 +17,12 @@ final class ScrollModel {
     private static final double SCROLL_STOP_EPSILON = 0.01;
     private static final double BASE_FRAME_MS = 16.6666666667;
     private static final double MAX_FRAME_MS = 50.0;
+    /** Scrollbar dimensions are expressed in device pixels, then converted to document pixels. */
     private static final double SCROLLBAR_GUTTER = 8.0;
     private static final double SCROLLBAR_EPSILON = 0.5;
     private static final double SCROLLBAR_TRACK_SIZE = 6.0;
     private static final double SCROLLBAR_TRACK_INSET = 1.0;
+    private static final double SCROLLBAR_MIN_THUMB_LENGTH = 10.0;
     private static final float SCROLLBAR_THUMB_DEPTH_FRACTION = 0.5f;
 
     private final Element owner;
@@ -211,11 +213,11 @@ final class ScrollModel {
     }
 
     double getVerticalScrollbarGutter() {
-        return verticalScrollbarVisible ? SCROLLBAR_GUTTER : 0;
+        return verticalScrollbarVisible ? scrollbarGutter() : 0;
     }
 
     double getHorizontalScrollbarGutter() {
-        return horizontalScrollbarVisible ? SCROLLBAR_GUTTER : 0;
+        return horizontalScrollbarVisible ? scrollbarGutter() : 0;
     }
 
     private boolean stepHorizontalScroll(double frameScale) {
@@ -402,9 +404,10 @@ final class ScrollModel {
 
         boolean nextHorizontal = forceHorizontal;
         boolean nextVertical = forceVertical;
+        double gutter = scrollbarGutter();
         for (int i = 0; i < 3; i++) {
-            double availableWidth = Math.max(0, rawScrollport.width() - (nextVertical ? SCROLLBAR_GUTTER : 0));
-            double availableHeight = Math.max(0, rawScrollport.height() - (nextHorizontal ? SCROLLBAR_GUTTER : 0));
+            double availableWidth = Math.max(0, rawScrollport.width() - (nextVertical ? gutter : 0));
+            double availableHeight = Math.max(0, rawScrollport.height() - (nextHorizontal ? gutter : 0));
             boolean resolvedHorizontal = forceHorizontal
                     || autoHorizontal && owner.scrollWidth > availableWidth + SCROLLBAR_EPSILON;
             boolean resolvedVertical = forceVertical
@@ -477,24 +480,27 @@ final class ScrollModel {
 
     private AxisGeometry verticalGeometry(Position bodyPos, Size bodySize) {
         double scrollportHeight = getScrollportHeight();
-        double trackX = bodyPos.x + bodySize.width() - SCROLLBAR_TRACK_SIZE - SCROLLBAR_TRACK_INSET;
-        double trackY = bodyPos.y + SCROLLBAR_TRACK_INSET;
-        double trackHeight = Math.max(0, bodySize.height() - getHorizontalScrollbarGutter() - SCROLLBAR_TRACK_INSET * 2);
+        double trackSize = scrollbarTrackSize();
+        double trackInset = scrollbarTrackInset();
+        double trackX = bodyPos.x + bodySize.width() - trackSize - trackInset;
+        double trackY = bodyPos.y + trackInset;
+        double trackHeight = Math.max(0, bodySize.height() - getHorizontalScrollbarGutter() - trackInset * 2);
         if (trackHeight <= 0) return null;
         double thumbHeight = owner.scrollHeight <= scrollportHeight + SCROLLBAR_EPSILON
                 ? trackHeight
-                : Math.max(10, trackHeight * (scrollportHeight / Math.max(scrollportHeight, owner.scrollHeight)));
+                : Math.max(scrollbarMinThumbLength(),
+                        trackHeight * (scrollportHeight / Math.max(scrollportHeight, owner.scrollHeight)));
         thumbHeight = Math.min(trackHeight, thumbHeight);
         double maxTravel = Math.max(0, trackHeight - thumbHeight);
         double scrollLimit = Math.max(0, owner.scrollHeight - scrollportHeight);
         double thumbY = trackY + (scrollLimit <= 0 ? 0
                 : Math.max(0, Math.min(getScrollTop(), scrollLimit)) / scrollLimit * maxTravel);
         return new AxisGeometry(true,
-                trackX, trackY, SCROLLBAR_TRACK_SIZE, trackHeight,
-                trackX, thumbY, SCROLLBAR_TRACK_SIZE, thumbHeight,
-                bodyPos.x + bodySize.width() - SCROLLBAR_GUTTER,
+                trackX, trackY, trackSize, trackHeight,
+                trackX, thumbY, trackSize, thumbHeight,
+                bodyPos.x + bodySize.width() - scrollbarGutter(),
                 bodyPos.y,
-                SCROLLBAR_GUTTER,
+                scrollbarGutter(),
                 Math.max(0, bodySize.height() - getHorizontalScrollbarGutter()));
     }
 
@@ -505,25 +511,51 @@ final class ScrollModel {
 
     private AxisGeometry horizontalGeometry(Position bodyPos, Size bodySize) {
         double scrollportWidth = getScrollportWidth();
-        double trackX = bodyPos.x + SCROLLBAR_TRACK_INSET;
-        double trackY = bodyPos.y + bodySize.height() - SCROLLBAR_TRACK_SIZE - SCROLLBAR_TRACK_INSET;
-        double trackWidth = Math.max(0, bodySize.width() - getVerticalScrollbarGutter() - SCROLLBAR_TRACK_INSET * 2);
+        double trackSize = scrollbarTrackSize();
+        double trackInset = scrollbarTrackInset();
+        double trackX = bodyPos.x + trackInset;
+        double trackY = bodyPos.y + bodySize.height() - trackSize - trackInset;
+        double trackWidth = Math.max(0, bodySize.width() - getVerticalScrollbarGutter() - trackInset * 2);
         if (trackWidth <= 0) return null;
         double thumbWidth = owner.scrollWidth <= scrollportWidth + SCROLLBAR_EPSILON
                 ? trackWidth
-                : Math.max(10, trackWidth * (scrollportWidth / Math.max(scrollportWidth, owner.scrollWidth)));
+                : Math.max(scrollbarMinThumbLength(),
+                        trackWidth * (scrollportWidth / Math.max(scrollportWidth, owner.scrollWidth)));
         thumbWidth = Math.min(trackWidth, thumbWidth);
         double maxTravel = Math.max(0, trackWidth - thumbWidth);
         double scrollLimit = Math.max(0, owner.scrollWidth - scrollportWidth);
         double thumbX = trackX + (scrollLimit <= 0 ? 0
                 : Math.max(0, Math.min(getScrollLeft(), scrollLimit)) / scrollLimit * maxTravel);
         return new AxisGeometry(false,
-                trackX, trackY, trackWidth, SCROLLBAR_TRACK_SIZE,
-                thumbX, trackY, thumbWidth, SCROLLBAR_TRACK_SIZE,
+                trackX, trackY, trackWidth, trackSize,
+                thumbX, trackY, thumbWidth, trackSize,
                 bodyPos.x,
-                bodyPos.y + bodySize.height() - SCROLLBAR_GUTTER,
+                bodyPos.y + bodySize.height() - scrollbarGutter(),
                 Math.max(0, bodySize.width() - getVerticalScrollbarGutter()),
-                SCROLLBAR_GUTTER);
+                scrollbarGutter());
+    }
+
+    private double scrollbarGutter() {
+        return devicePixelsToDocumentPixels(SCROLLBAR_GUTTER);
+    }
+
+    private double scrollbarTrackSize() {
+        return devicePixelsToDocumentPixels(SCROLLBAR_TRACK_SIZE);
+    }
+
+    private double scrollbarTrackInset() {
+        return devicePixelsToDocumentPixels(SCROLLBAR_TRACK_INSET);
+    }
+
+    private double scrollbarMinThumbLength() {
+        return devicePixelsToDocumentPixels(SCROLLBAR_MIN_THUMB_LENGTH);
+    }
+
+    private double devicePixelsToDocumentPixels(double devicePixels) {
+        double scale = owner.document == null || owner.document.getViewport() == null
+                ? 1.0d : owner.document.getViewport().scissorScale();
+        if (!(scale > 0) || !Double.isFinite(scale)) scale = 1.0d;
+        return devicePixels / scale;
     }
 
     private static boolean contains(AxisGeometry geometry, double x, double y) {

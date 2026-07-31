@@ -47,7 +47,7 @@ public final class ApricityUIConfig {
             builder.push("worldWindow");
             worldWindowDepthOffsetScale = builder
                     .comment("Scale applied to WorldWindow's distance-based depth offset.")
-                    .defineInRange("depthOffsetScale", 0.0005d, 0.0d, 1.0d);
+                    .defineInRange("depthOffsetScale", 0.01d, 0.0d, 1.0d);
             worldWindowMaxDisplayDistance = builder
                     .comment("Default maximum camera distance for WorldWindow rendering and interaction. Integer.MAX_VALUE means unlimited.")
                     .defineInRange("maxDisplayDistance", 128, 0, Integer.MAX_VALUE);

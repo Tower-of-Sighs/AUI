@@ -109,10 +109,11 @@ public class Base {
             // Layout-affecting motion must also refresh committed bounds before this paint pass.
             boolean motionNeedsGeometryCommit = document.stepMotionRender();
             boolean scrollChanged = document.stepScrollRender();
+            boolean styleNeedsGeometryCommit = false;
             if (styleChanged) {
-                document.commitRenderStateForMotion();
+                styleNeedsGeometryCommit = document.commitRenderStateForMotion();
             }
-            if (styleChanged || motionNeedsGeometryCommit || scrollChanged) {
+            if (styleNeedsGeometryCommit || motionNeedsGeometryCommit || scrollChanged) {
                 LayoutCommit.commit(document);
                 document.commitMotionHitTest();
             }

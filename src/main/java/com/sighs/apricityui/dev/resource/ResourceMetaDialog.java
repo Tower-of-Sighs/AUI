@@ -25,7 +25,7 @@ public final class ResourceMetaDialog {
             new Choice("NOT SET", "", "tooltip.apricityui.meta.viewport.not_set"),
             new Choice("GUI", "mode=gui", "tooltip.apricityui.meta.viewport.gui"),
             new Choice("BROWSER", "mode=browser", "tooltip.apricityui.meta.viewport.browser"),
-            new Choice("SCREEN", "mode=screen", "tooltip.apricityui.meta.viewport.screen"),
+            new Choice("WINDOW", "mode=window", "tooltip.apricityui.meta.viewport.window"),
             new Choice("FIXED / 427 x 249", "mode=fixed,width=427,height=249", "tooltip.apricityui.meta.viewport.fixed_gui"),
             new Choice("FIXED / 1920 x 1080 / FIT", "mode=fixed,width=1920,height=1080,scale=fit", "tooltip.apricityui.meta.viewport.fixed_fit")
     );
@@ -144,10 +144,11 @@ public final class ResourceMetaDialog {
         select.setAttribute("data-native-arrow", "false");
         select.setAttribute("data-tooltip-key", tooltipKey);
         Tooltip.bindTranslation(select, tooltipKey);
+        String selectedValue = canonicalChoiceValue(choices, currentValue);
         List<Choice> available = new ArrayList<>(choices);
-        boolean known = available.stream().anyMatch(choice -> choice.value().equals(currentValue));
-        if (!known && currentValue != null && !currentValue.isBlank()) {
-            available.add(new Choice("CURRENT / " + abbreviate(currentValue).toUpperCase(Locale.ROOT), currentValue,
+        boolean known = available.stream().anyMatch(choice -> choice.value().equals(selectedValue));
+        if (!known && selectedValue != null && !selectedValue.isBlank()) {
+            available.add(new Choice("CURRENT / " + abbreviate(selectedValue).toUpperCase(Locale.ROOT), selectedValue,
                     "tooltip.apricityui.meta.current"));
         }
         for (Choice choice : available) {
@@ -156,7 +157,7 @@ public final class ResourceMetaDialog {
             option.setAttribute("data-tooltip-key", choice.tooltipKey());
             select.append(option);
         }
-        select.setValue(currentValue == null ? "" : currentValue);
+        select.setValue(selectedValue == null ? "" : selectedValue);
         select.addEventListener("input", event -> refreshSaveState());
         select.addEventListener("change", event -> refreshSaveState());
         selectWrap.append(select);
@@ -164,6 +165,15 @@ public final class ResourceMetaDialog {
         field.append(selectWrap);
         parent.append(field);
         return select;
+    }
+
+    private static String canonicalChoiceValue(List<Choice> choices, String value) {
+        String safe = value == null ? "" : value.trim();
+        if (safe.equalsIgnoreCase("mode=screen")
+                && choices.stream().anyMatch(choice -> "mode=window".equals(choice.value()))) {
+            return "mode=window";
+        }
+        return safe;
     }
 
     private static String valueOf(Element select) {

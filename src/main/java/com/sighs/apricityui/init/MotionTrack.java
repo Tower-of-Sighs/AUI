@@ -35,6 +35,7 @@ final class MotionTrack {
     private final ConcurrentHashMap<Element, Integer> flags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Element, Style> lastMotionStyles = new ConcurrentHashMap<>();
     private final Set<Element> hitTestRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    private boolean visualChanges = false;
 
     MotionTrack(Document owner) {
         this.owner = owner;
@@ -44,6 +45,7 @@ final class MotionTrack {
         flags.clear();
         lastMotionStyles.clear();
         hitTestRoots.clear();
+        visualChanges = false;
     }
 
     void removeElement(Element element) {
@@ -62,6 +64,7 @@ final class MotionTrack {
 
     boolean stepRender() {
         hitTestRoots.clear();
+        visualChanges = false;
         if (!StyleFrameCache.isActive()) return false;
         if (flags.isEmpty()) return false;
 
@@ -91,6 +94,8 @@ final class MotionTrack {
             }
 
             if (!hasTransition && !hasAnimationSpec) continue;
+
+            visualChanges = true;
 
             Style animated = base.clone();
             boolean completedLayoutTransition = false;
@@ -142,6 +147,10 @@ final class MotionTrack {
         return requiresGeometryCommit;
     }
 
+    boolean hasVisualChanges() {
+        return visualChanges;
+    }
+
     private void refreshInheritedColorSubtree(Element root) {
         if (root == null) return;
         ArrayDeque<Element> pending = new ArrayDeque<>(root.children);
@@ -169,9 +178,8 @@ final class MotionTrack {
             invalidateLayoutMotion(element, base, animated);
             requiresGeometryCommit = true;
         } else if (differsAny(base, animated, VISUAL_BOX_PROPS)) {
-            renderer.box.clear();
-            renderer.invalidateLayoutVersion();
-            requiresGeometryCommit = true;
+            renderer.clearVisualBoxCache();
+            renderer.invalidateStyleVersion();
         }
 
         // Text.of() is cached independently from the computed style. A color
@@ -198,8 +206,7 @@ final class MotionTrack {
 
         if (differsAny(base, animated, BACKGROUND_PROPS)) {
             renderer.background.clear();
-            renderer.invalidateLayoutVersion();
-            requiresGeometryCommit = true;
+            renderer.invalidateStyleVersion();
         }
         return requiresGeometryCommit;
     }
@@ -247,10 +254,9 @@ final class MotionTrack {
             invalidateLayoutMotion(element, style, style);
             requiresGeometryCommit = true;
         } else if (affectsRect) {
-            renderer.invalidateLayoutVersion();
-            renderer.box.clear();
+            renderer.clearVisualBoxCache();
             renderer.background.clear();
-            requiresGeometryCommit = true;
+            renderer.invalidateStyleVersion();
         }
         if (affectsTransform) {
             renderer.invalidateTransformVersion();

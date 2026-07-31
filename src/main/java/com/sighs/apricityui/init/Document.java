@@ -511,7 +511,9 @@ public class Document {
      * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
      */
     public boolean stepMotionRender() {
-        return motion.stepRender();
+        boolean requiresGeometryCommit = motion.stepRender();
+        if (motion.hasVisualChanges()) render.markVisualDirty();
+        return requiresGeometryCommit;
     }
 
     public void commitMotionHitTest() {
@@ -538,6 +540,7 @@ public class Document {
                 activeScrollElements.remove(element);
             }
         }
+        if (changed) render.markVisualDirty();
         return changed;
     }
 
@@ -566,13 +569,21 @@ public class Document {
      * Render-frame style commits must not commit target geometry before an
      * immediately-created transition has supplied its first interpolated style.
      */
-    public void commitRenderStateForMotion() {
-        if (!isActive()) return;
-        render.commit(false);
+    public boolean commitRenderStateForMotion() {
+        if (!isActive()) return false;
+        return render.commit(false);
     }
 
     public boolean hasPendingRenderState() {
         return render.hasPendingWork();
+    }
+
+    public long getVisualVersion() {
+        return render.getVisualVersion();
+    }
+
+    public boolean hasPendingVisualWork() {
+        return render.hasPendingVisualWork();
     }
 
     public int getGlobalDirtyMask() {

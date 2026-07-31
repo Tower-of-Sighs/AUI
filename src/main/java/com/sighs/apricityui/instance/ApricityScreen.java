@@ -19,6 +19,8 @@ import javax.annotation.Nonnull;
 
 public class ApricityScreen extends Screen {
     private final String templatePath;
+    private boolean pauseGame;
+    private boolean showDefaultBackground;
     private Document linkedDocument;
     private boolean loggedInitState = false;
     private boolean loggedRenderState = false;
@@ -26,6 +28,26 @@ public class ApricityScreen extends Screen {
     public ApricityScreen(String templatePath) {
         super(Component.empty());
         this.templatePath = templatePath;
+    }
+
+    /** Sets whether Minecraft should pause while this screen is open. */
+    public ApricityScreen setPauseGame(boolean pauseGame) {
+        this.pauseGame = pauseGame;
+        return this;
+    }
+
+    /** Sets whether Minecraft's standard screen background should be drawn first. */
+    public ApricityScreen setShowDefaultBackground(boolean showDefaultBackground) {
+        this.showDefaultBackground = showDefaultBackground;
+        return this;
+    }
+
+    public boolean isPauseGame() {
+        return pauseGame;
+    }
+
+    public boolean isShowDefaultBackground() {
+        return showDefaultBackground;
     }
 
     public Document getLinkedDocument() {
@@ -64,6 +86,9 @@ public class ApricityScreen extends Screen {
     public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         FrameTimingHud.beginFrame();
         try {
+            if (showDefaultBackground) {
+                renderBackground(guiGraphics);
+            }
             if (linkedDocument != null) {
                 if (!loggedRenderState) {
                     loggedRenderState = true;
@@ -148,7 +173,7 @@ public class ApricityScreen extends Screen {
 
     @Override
     public boolean isPauseScreen() {
-        return false;
+        return pauseGame;
     }
 
     public boolean handleViewportZoom(boolean zoomIn) {
