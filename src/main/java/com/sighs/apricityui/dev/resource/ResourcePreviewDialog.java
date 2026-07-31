@@ -9,6 +9,7 @@ import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
@@ -83,7 +84,16 @@ public final class ResourcePreviewDialog {
     }
 
     public static void draw(PoseStack poseStack) {
-        if (active != null) active.drawPreview(poseStack);
+        if (active != null && active.owner != null && !active.owner.inWorld) {
+            active.drawPreview(poseStack);
+        }
+    }
+
+    /** Draws the preview in the owning world document's local surface. */
+    public static void drawInWorld(PoseStack poseStack, Document owner) {
+        if (active != null && active.owner == owner && owner != null && owner.inWorld) {
+            active.drawPreview(poseStack);
+        }
     }
 
     private void createWindow() {
@@ -136,7 +146,24 @@ public final class ResourcePreviewDialog {
 
     private void forward(Event event) {
         if (!(event instanceof MouseEvent mouse) || preview == null || preview.isDisposed()) return;
-        MouseEvent.tiggerEvent(mouse, preview);
+        MouseEvent forwarded = mouse;
+        if (owner != null && !owner.inWorld) {
+            // Owner listeners receive document-local coordinates. The preview is
+            // rendered in GUI coordinates, so restore the owner's viewport transform.
+            Position screenPosition = owner.documentToScreenPosition(
+                    new Position(mouse.clientX, mouse.clientY));
+            forwarded = mouse.clone();
+            forwarded.clientX = screenPosition.x;
+            forwarded.clientY = screenPosition.y;
+            forwarded.pageX = screenPosition.x;
+            forwarded.pageY = screenPosition.y;
+            forwarded.movementX = mouse.movementX * owner.getViewportScaleX();
+            forwarded.movementY = mouse.movementY * owner.getViewportScaleY();
+            forwarded.deltaX = mouse.deltaX * owner.getViewportScaleX();
+            forwarded.deltaY = mouse.deltaY * owner.getViewportScaleY();
+            forwarded.scrollDelta = mouse.scrollDelta * owner.getViewportScaleY();
+        }
+        MouseEvent.tiggerEvent(forwarded, preview);
         event.stopPropagation();
     }
 
@@ -153,7 +180,7 @@ public final class ResourcePreviewDialog {
         preview.tickElements();
         AABB rect = Rect.of(viewport).getVisualBounds();
         if (!rect.isValid()) return;
-        double hostScale = owner.getViewport().renderScale();
+        double hostScale = owner.inWorld ? 1.0d : owner.getViewport().renderScale();
         float x = (float) (rect.x() * hostScale);
         float y = (float) (rect.y() * hostScale);
         float w = (float) (rect.width() * hostScale);
@@ -166,6 +193,22 @@ public final class ResourcePreviewDialog {
         double contentY = y + Math.max(0, h - contentHeight) * 0.5d;
         preview.setViewportTransform(scale, scale, contentX, contentY);
         poseStack.pushPose();
+        if (owner.inWorld) {
+            float[] clipRadii = new float[]{0.0f, 0.0f, 0.0f, 0.0f};
+            Mask.pushMask(poseStack, (float) contentX, (float) contentY,
+                    (float) contentWidth, (float) contentHeight, clipRadii);
+            try {
+                poseStack.translate(contentX, contentY, 0);
+                poseStack.scale((float) scale, (float) scale, 1);
+                Base.drawDocument(poseStack, preview);
+            } finally {
+                Mask.popMask(poseStack, (float) contentX, (float) contentY,
+                        (float) contentWidth, (float) contentHeight, clipRadii);
+                poseStack.popPose();
+            }
+            return;
+        }
+
         Mask.pushSurfaceClip(preview.getViewport().layoutWidth(), preview.getViewport().layoutHeight(), contentX, contentY, scale, scale);
         try {
             poseStack.translate(contentX, contentY, 0);

@@ -67,13 +67,13 @@ public final class LayoutMeasureCache {
     public static Object getObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null) return null;
-        return state.objects.get(new Key(mode, element, availableWidth, availableHeight, natural));
+        return state.objects.get(new Key(mode, element, availableWidth, availableHeight, natural, true));
     }
 
     public static void putObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Object value) {
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null || value == null) return;
-        state.objects.put(new Key(mode, element, availableWidth, availableHeight, natural), value);
+        state.objects.put(new Key(mode, element, availableWidth, availableHeight, natural, true), value);
     }
 
     private static final class State {
@@ -119,21 +119,29 @@ public final class LayoutMeasureCache {
         private final long availableHeight;
         private final boolean natural;
         private final long dependency;
+        private final long textDependency;
         private final int hash;
 
         private Key(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
+            this(mode, element, availableWidth, availableHeight, natural, false);
+        }
+
+        private Key(int mode, Element element, double availableWidth, double availableHeight,
+                    boolean natural, boolean includeTextDependency) {
             this.mode = mode;
             this.element = element;
             this.availableWidth = bits(availableWidth);
             this.availableHeight = bits(availableHeight);
             this.natural = natural;
             this.dependency = element.getRenderer().layoutDependency();
+            this.textDependency = includeTextDependency ? element.getRenderer().textDependency() : 0L;
             int result = mode;
             result = 31 * result + System.identityHashCode(element);
             result = 31 * result + Long.hashCode(this.availableWidth);
             result = 31 * result + Long.hashCode(this.availableHeight);
             result = 31 * result + Boolean.hashCode(natural);
             result = 31 * result + Long.hashCode(this.dependency);
+            result = 31 * result + Long.hashCode(this.textDependency);
             this.hash = result;
         }
 
@@ -150,7 +158,8 @@ public final class LayoutMeasureCache {
                     && availableWidth == other.availableWidth
                     && availableHeight == other.availableHeight
                     && natural == other.natural
-                    && dependency == other.dependency;
+                    && dependency == other.dependency
+                    && textDependency == other.textDependency;
         }
 
         @Override

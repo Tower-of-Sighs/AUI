@@ -7,7 +7,6 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
@@ -43,6 +42,9 @@ public class Client {
     public static final HashMap<String, Integer> KEY_MAP = new HashMap<>();
     private static int lastWindowWidth = -1;
     private static int lastWindowHeight = -1;
+    private static int lastFramebufferWidth = -1;
+    private static int lastFramebufferHeight = -1;
+    private static double lastGuiScale = -1.0d;
 
     static {
         KEY_MAP.put("key.keyboard.unknown", -1);
@@ -453,13 +455,26 @@ public class Client {
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();
-            Size current = getWindowSize();
-            int w = (int) current.width();
-            int h = (int) current.height();
-            if (lastWindowWidth != w || lastWindowHeight != h) {
+            Window mcWindow = Minecraft.getInstance().getWindow();
+            int w = mcWindow.getScreenWidth();
+            int h = mcWindow.getScreenHeight();
+            int framebufferWidth = mcWindow.getWidth();
+            int framebufferHeight = mcWindow.getHeight();
+            double guiScale = mcWindow.getGuiScale();
+            if (lastWindowWidth != w || lastWindowHeight != h
+                    || lastFramebufferWidth != framebufferWidth
+                    || lastFramebufferHeight != framebufferHeight
+                    || Double.compare(lastGuiScale, guiScale) != 0) {
                 lastWindowWidth = w;
                 lastWindowHeight = h;
-                Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
+                lastFramebufferWidth = framebufferWidth;
+                lastFramebufferHeight = framebufferHeight;
+                lastGuiScale = guiScale;
+                for (Document document : Document.getAll()) {
+                    if (document != null && !document.isDisposed()) {
+                        document.applyViewport(true);
+                    }
+                }
                 com.sighs.apricityui.init.Window.window.fireResizeEvent();
             }
         }
@@ -483,7 +498,24 @@ public class Client {
         return new Position(mouseX, mouseY);
     }
 
-    /** 通过 GLFW 直接从窗口句柄获取实时坐标 */
+    /**
+     * Returns the pointer position represented by the screen for world-window picking.
+     * A grabbed GLFW cursor has virtual coordinates that track look movement, while
+     * the visible crosshair remains fixed at the center of the GUI viewport.
+     */
+    public static Position getMousePositionForWorldInteraction() {
+        Minecraft mc = Minecraft.getInstance();
+        Window window = mc.getWindow();
+        if (mc.mouseHandler.isMouseGrabbed()) {
+            return new Position(
+                    window.getGuiScaledWidth() * 0.5d,
+                    window.getGuiScaledHeight() * 0.5d
+            );
+        }
+        return getMousePosition();
+    }
+
+    /** Returns the live cursor position directly from the GLFW window handle. */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
         long handle = window.getWindow();

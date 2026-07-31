@@ -6,6 +6,7 @@ import com.sighs.apricityui.webapi.TestDocumentFactory;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
 class LayoutHotspotOptimizationTest {
@@ -60,6 +61,38 @@ class LayoutHotspotOptimizationTest {
             assertEquals(400, Size.getScaleWidth(child), 0.0001);
         } finally {
             Size.clearViewportOverride();
+        }
+    }
+
+    @Test
+    void invalidatesStyleDerivedMeasureObjectsWhenTextStyleChanges() {
+        Document document = TestDocumentFactory.createDocument();
+        Element owner = document.createElement("div");
+        Element textElement = document.createElement("span");
+        textElement.setAttribute("style", "color: #000000;");
+        owner.appendChild(textElement);
+        document.body.appendChild(owner);
+        Object cached = new Object();
+
+        LayoutMeasureCache.begin();
+        try {
+            LayoutMeasureCache.putObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
+                    owner, 100, Double.NaN, false, cached);
+            assertSame(cached, LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
+                    owner, 100, Double.NaN, false));
+        } finally {
+            LayoutMeasureCache.end();
+        }
+
+        LayoutMeasureCache.begin();
+        try {
+            assertSame(cached, LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
+                    owner, 100, Double.NaN, false));
+            textElement.setAttribute("style", "color: #ffffff;");
+            assertNull(LayoutMeasureCache.getObject(LayoutMeasureCache.LAYOUT_NORMAL_FLOW,
+                    owner, 100, Double.NaN, false));
+        } finally {
+            LayoutMeasureCache.end();
         }
     }
 }

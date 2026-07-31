@@ -22,11 +22,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Mode summary:
  * <ul>
  *     <li>{@code gui}: Minecraft GUI-scaled logical viewport.</li>
- *     <li>{@code browser}/{@code css}: browser-like CSS viewport with a fixed monitor-derived
+ *     <li>{@code window}/{@code native}: browser-like CSS viewport with a fixed monitor-derived
  *     width. Its height follows the current window's CSS height while the render scale remains
  *     fixed, so horizontal layout does not change when the Minecraft window is resized.</li>
- *     <li>{@code window}/{@code native}: monitor CSS viewport fitted into the current MC window.
- *     The layout size stays stable while the render scale follows window size.</li>
+ *     <li>{@code browser}/{@code css}: fixed CSS width scaled to the current MC window.
+ *     The CSS height is derived from the window height so both axes fill the available GUI
+ *     viewport.</li>
  *     <li>{@code screen}/{@code fullscreen}: compatibility aliases for {@code window}.</li>
  *     <li>{@code fixed}: explicit logical viewport dimensions.</li>
  * </ul>
@@ -73,8 +74,8 @@ public record ApricityViewport(
     private static ApricityViewport resolveBase(String mode, Map<String, String> options, Window window) {
         double actualGuiScale = Math.max(1.0d, window.getGuiScale());
         return switch (mode) {
-            case "browser", "css", "web" -> browser(window, actualGuiScale, options);
-            case "window", "native", "screen", "fullscreen" -> windowViewport(window, actualGuiScale, options);
+            case "window", "native", "screen", "fullscreen" -> browser(window, actualGuiScale, options);
+            case "browser", "css", "web" -> windowViewport(window, actualGuiScale, options);
             case "fixed" -> fixed(window, actualGuiScale, options);
             case "gui", "mc", "default", "" -> gui(window, actualGuiScale);
             default -> gui(window, actualGuiScale);
@@ -142,13 +143,17 @@ public record ApricityViewport(
     private static ApricityViewport windowViewport(Window window, double actualGuiScale,
                                                    Map<String, String> options) {
         ApricityViewport browserViewport = browserReference(window, actualGuiScale, options);
-        double guiWidth = window.getScreenWidth() / actualGuiScale;
-        double guiHeight = window.getScreenHeight() / actualGuiScale;
-        float renderScale = (float) Math.max(0.0001d, Math.min(
-                guiWidth / browserViewport.layoutWidth(), guiHeight / browserViewport.layoutHeight()));
+        // GuiGraphics uses GUI-scaled coordinates. getScreenWidth()/getScreenHeight() are
+        // GLFW window coordinates and can differ from the framebuffer-backed GUI viewport on
+        // high-DPI windowed displays.
+        double guiWidth = Math.max(1.0d, window.getGuiScaledWidth());
+        double guiHeight = Math.max(1.0d, window.getGuiScaledHeight());
+        float renderScale = (float) Math.max(0.0001d,
+                guiWidth / Math.max(1.0d, browserViewport.layoutWidth()));
+        int layoutHeight = Math.max(1, (int) Math.round(guiHeight / renderScale));
         return new ApricityViewport(
                 browserViewport.layoutWidth(),
-                browserViewport.layoutHeight(),
+                layoutHeight,
                 renderScale,
                 actualGuiScale * renderScale
         );
@@ -291,15 +296,14 @@ public record ApricityViewport(
                     default -> Math.max(0.0001d, parseDouble(scaleOption, 1.0d));
                 };
                 base = new ApricityViewport(width, height, (float) scale, scale);
-            } else if (isBrowserMode(mode)) {
+            } else if (isWindowMode(mode)) {
                 int width = Math.max(1, parseInt(options.get("width"), DEFAULT_BROWSER_WIDTH));
                 int height = Math.max(1, parseInt(options.get("height"), fallbackHeight));
                 base = new ApricityViewport(width, height, 1.0f, 1.0d);
-            } else if (isWindowMode(mode)) {
+            } else if (isBrowserMode(mode)) {
                 int width = Math.max(1, parseInt(options.get("width"), DEFAULT_BROWSER_WIDTH));
-                int height = Math.max(1, parseInt(options.get("height"), DEFAULT_BROWSER_HEIGHT));
-                double scale = Math.max(0.0001d, Math.min(
-                        (double) fallbackWidth / width, (double) fallbackHeight / height));
+                double scale = Math.max(0.0001d, (double) fallbackWidth / width);
+                int height = Math.max(1, (int) Math.round(fallbackHeight / scale));
                 base = new ApricityViewport(width, height, (float) scale, scale);
             } else {
                 base = new ApricityViewport(fallbackWidth, fallbackHeight, 1.0f, 1.0d);

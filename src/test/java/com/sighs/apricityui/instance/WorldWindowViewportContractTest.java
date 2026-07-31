@@ -12,9 +12,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorldWindowViewportContractTest {
     @Test
-    void browserViewportLocksWidthAndTracksAvailableWindowHeight() {
+    void windowViewportLocksWidthAndTracksAvailableWindowHeight() {
         ApricityViewport.Spec spec = new ApricityViewport.Spec(
-                "browser", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
+                "window", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
         );
 
         ApricityViewport large = spec.resolveHeadless(1920, 1080, 1.0d);
@@ -28,9 +28,9 @@ class WorldWindowViewportContractTest {
     }
 
     @Test
-    void windowViewportFitsTheFixedBrowserViewportToAvailableWindow() {
+    void browserViewportScalesFixedCssWidthAndDerivesHeightFromTheWindow() {
         ApricityViewport.Spec spec = new ApricityViewport.Spec(
-                "window", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
+                "browser", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
         );
 
         ApricityViewport large = spec.resolveHeadless(1920, 1080, 1.0d);
@@ -42,6 +42,13 @@ class WorldWindowViewportContractTest {
         assertEquals(0.5f, small.renderScale(), 0.0001f);
         assertEquals(1.0d, large.scissorScale(), 0.0001d);
         assertEquals(0.5d, small.scissorScale(), 0.0001d);
+
+        ApricityViewport nonMatchingAspect = spec.resolveHeadless(1280, 800, 1.0d);
+        assertEquals(1920, nonMatchingAspect.layoutWidth());
+        assertEquals(1200, nonMatchingAspect.layoutHeight());
+        assertEquals(2.0f / 3.0f, nonMatchingAspect.renderScale(), 0.0001f);
+        assertEquals(1280, Math.round(nonMatchingAspect.layoutWidth() * nonMatchingAspect.renderScale()));
+        assertEquals(800, Math.round(nonMatchingAspect.layoutHeight() * nonMatchingAspect.renderScale()));
     }
 
     @Test
