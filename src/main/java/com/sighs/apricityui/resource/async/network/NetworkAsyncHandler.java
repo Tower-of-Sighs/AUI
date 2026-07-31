@@ -1,5 +1,6 @@
 package com.sighs.apricityui.resource.async.network;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.Loader;
 
@@ -51,12 +52,25 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                 if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
                     throw new IOException("下载失败: " + url + " (HTTP " + retryable.statusCode + ")", retryable);
                 }
+                ApricityUI.LOGGER.warn(
+                        "[AUI Network] retrying HTTP request url={} status={} attempt={}/{}",
+                        url,
+                        retryable.statusCode,
+                        attempt + 1,
+                        NetworkPolicy.MAX_RETRY_COUNT
+                );
                 sleepQuietly(retryable.delayMs);
                 attempt++;
             } catch (SocketTimeoutException timeout) {
                 if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
                     throw new IOException("下载超时: " + url, timeout);
                 }
+                ApricityUI.LOGGER.warn(
+                        "[AUI Network] retrying timed out request url={} attempt={}/{}",
+                        url,
+                        attempt + 1,
+                        NetworkPolicy.MAX_RETRY_COUNT
+                );
                 sleepQuietly(NetworkPolicy.RETRY_DELAY_5XX_OR_TIMEOUT_MS);
                 attempt++;
             }
@@ -176,11 +190,13 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             Thread.sleep(delayMs);
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
+            ApricityUI.LOGGER.warn("[AUI Network] retry wait interrupted", interruptedException);
         }
     }
 
     public byte[] fetchBytes(String url) throws IOException {
         if (!Loader.isRemotePath(url)) {
+            ApricityUI.LOGGER.error("[AUI Network] rejected non-HTTPS resource url={}", url);
             throw new IOException("仅允许 HTTPS 远程资源: " + url);
         }
 
@@ -223,6 +239,13 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         } catch (IOException exception) {
             own.complete(null, exception);
             handle.markFailed(exception, System.currentTimeMillis());
+            ApricityUI.LOGGER.error(
+                    "[AUI Network] request failed url={} state={} generation={}",
+                    url,
+                    handle.state(),
+                    generation,
+                    exception
+            );
             throw exception;
         } finally {
             IN_FLIGHT.remove(url, own);
@@ -238,7 +261,8 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             long size = Files.size(file);
             if (size <= 0 || size > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) return null;
             return Files.readAllBytes(file);
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.debug("[AUI Network] disk cache read failed url={}", url, exception);
             return null;
         }
     }
@@ -249,7 +273,8 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             Path file = diskCachePath(url);
             Files.createDirectories(file.getParent());
             Files.write(file, bytes);
-        } catch (Exception ignored) {
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.warn("[AUI Network] disk cache write failed url={}", url, exception);
         }
     }
 
@@ -315,6 +340,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                 latch.await();
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
+                ApricityUI.LOGGER.warn("[AUI Network] waiting for in-flight request was interrupted url={}", url, interruptedException);
                 throw new IOException("等待远程资源结果被中断: " + url, interruptedException);
             }
             if (error != null) throw error;

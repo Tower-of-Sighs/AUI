@@ -1,13 +1,17 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.util.AuiLog;
 
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Selector {
     private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new HashMap<>();
+    private static final Set<String> SELECTOR_DIAGNOSTICS = ConcurrentHashMap.newKeySet();
 
     public record Specificity(int ids, int classes, int tags, int order) implements Comparable<Specificity> {
         @Override
@@ -725,6 +729,12 @@ public class Selector {
                 }
             }
         }
+        if (components.isEmpty()) {
+            logSelectorDiagnostic("empty", selector, "selector has no component");
+        }
+        if (combinators.size() >= components.size() && !components.isEmpty()) {
+            logSelectorDiagnostic("combinator", selector, "selector has too many combinators");
+        }
         return new CompiledSelector(components, combinators, pseudoElement,
                 specificity.ids, specificity.classes, specificity.tags);
     }
@@ -802,7 +812,16 @@ public class Selector {
         );
 
         Matcher m = token.matcher(rest);
+        int cursor = 0;
         while (m.find()) {
+            if (m.start() > cursor && !rest.substring(cursor, m.start()).isBlank()) {
+                logSelectorDiagnostic(
+                        "fragment",
+                        atom,
+                        "unrecognized selector fragment=" + AuiLog.compact(rest.substring(cursor, m.start()))
+                );
+            }
+            cursor = m.end();
             String gid = m.group("id");
             if (gid != null) {
                 id = unescapeCssIdentifier(gid);
@@ -842,14 +861,46 @@ public class Selector {
                     pseudoElement = "before".equals(normalized) ? PseudoElement.BEFORE : PseudoElement.AFTER;
                     continue;
                 }
+                if (!isSupportedPseudo(normalized)) {
+                    logSelectorDiagnostic("pseudo", atom, "unsupported pseudo-class=" + normalized);
+                }
                 pseudos.add(new Pseudo(normalized, m.group("pseudoExpr")));
             }
+        }
+        if (cursor < rest.length() && !rest.substring(cursor).isBlank()) {
+            logSelectorDiagnostic(
+                    "fragment",
+                    atom,
+                    "trailing selector fragment=" + AuiLog.compact(rest.substring(cursor))
+            );
         }
         return new ParsedAtom(new Component(tag, id,
                 classes.isEmpty() ? null : classes,
                 attrs.isEmpty() ? null : attrs,
                 attributeSelectors.isEmpty() ? null : attributeSelectors,
                 pseudos.isEmpty() ? null : pseudos), pseudoElement);
+    }
+
+    private static boolean isSupportedPseudo(String name) {
+        return switch (name) {
+            case "root", "first-child", "last-child", "only-child", "nth-child", "nth-last-child",
+                 "first-of-type", "last-of-type", "only-of-type", "nth-of-type", "nth-last-of-type",
+                 "hover", "active", "focus", "focus-visible", "focus-within", "disabled", "enabled",
+                 "required", "optional", "valid", "invalid", "in-range", "out-of-range", "read-only",
+                 "read-write", "placeholder-shown", "empty", "checked", "not", "is", "where" -> true;
+            default -> false;
+        };
+    }
+
+    private static void logSelectorDiagnostic(String kind, String selector, String detail) {
+        String key = kind + "|" + selector + "|" + detail;
+        if (!SELECTOR_DIAGNOSTICS.add(key)) return;
+        ApricityUI.LOGGER.warn(
+                "[AUI CSS] selector diagnostic kind={} selector={} detail={}",
+                kind,
+                AuiLog.compact(selector),
+                detail
+        );
     }
 
     private static List<String> splitTopLevel(String value, char delimiter) {

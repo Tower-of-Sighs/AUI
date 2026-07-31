@@ -1,5 +1,7 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
+
 import java.util.ArrayDeque;
 import java.util.Comparator;
 import java.util.PriorityQueue;
@@ -43,7 +45,7 @@ public final class FrameTaskScheduler {
                 done = task.runUntil(deadlineNs);
             } catch (Exception exception) {
                 done = true;
-                exception.printStackTrace();
+                ApricityUI.LOGGER.error("[AUI Scheduler] frame task failed frame={}", frameIndex, exception);
             }
             if (done) {
                 tasks.poll();

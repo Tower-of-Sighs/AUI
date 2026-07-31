@@ -49,6 +49,11 @@ public final class DevTools {
         CONTROLLER.refresh();
     }
 
+    /** Drains mirrored logger events on the client thread. */
+    public static void drainLogs() {
+        CONTROLLER.drainExternalLogs();
+    }
+
     public static boolean handleInspectMouseMove(Position screenPosition) {
         return CONTROLLER.handleInspectMouseMove(screenPosition);
     }

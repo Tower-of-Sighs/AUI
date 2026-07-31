@@ -28,6 +28,10 @@
             --attr: #db2777;
             --str: #059669;
             --num: #d97706;
+            --warn: #f59e0b;
+            --error: #ef4444;
+            --info: #8b5cf6;
+            --success: #10b981;
             --danger: #dc2626;
             --danger-dark: #b91c1c;
         }
@@ -135,6 +139,10 @@
             color: var(--white);
             border-color: var(--purple);
         }
+
+        .console-btn .debugger-mode-icon { display: none; }
+        .console-btn.mode-console .console-mode-icon { display: none; }
+        .console-btn.mode-console .debugger-mode-icon { display: block; }
 
         .top-btn.drag-handle {
             color: var(--purple-light);
@@ -1144,6 +1152,360 @@
             font-family: 'JetBrains Mono', monospace;
             font-size: 10px;
         }
+
+        /* ===== Console Panel ===== */
+        .hidden { display: none !important; }
+
+        .console-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--black);
+            color: var(--white);
+        }
+
+        .console-content.hidden { display: none; }
+
+        /* Console Toolbar */
+        .console-toolbar {
+            height: 38px;
+            padding: 0 12px;
+            background: #16161d;
+            border-bottom: 1px solid rgba(139,92,246,0.2);
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
+        .console-filter {
+            height: 24px;
+            padding: 0 10px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--gray);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: uppercase;
+            transition: all 0.15s;
+        }
+
+        .console-filter:hover {
+            color: var(--white);
+            background: rgba(139,92,246,0.1);
+        }
+
+        .console-filter.active {
+            color: var(--white);
+            background: var(--purple);
+            border-color: var(--purple);
+        }
+
+        .console-filter .filter-count {
+            min-width: 14px;
+            height: 12px;
+            padding: 0 3px;
+            background: rgba(255,255,255,0.1);
+            font-size: 9px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            letter-spacing: 0;
+        }
+
+        .console-filter.active .filter-count {
+            background: rgba(0,0,0,0.3);
+        }
+
+        .console-filter.warn.active { background: var(--warn); }
+        .console-filter.error.active { background: var(--error); }
+        .console-filter.info.active { background: var(--info); }
+
+        .console-sep {
+            width: 1px;
+            height: 16px;
+            background: rgba(255,255,255,0.1);
+            margin: 0 4px;
+        }
+
+        .console-search {
+            flex: 1;
+            height: 24px;
+            background: rgba(255,255,255,0.04);
+            border: 1px solid rgba(255,255,255,0.08);
+            color: var(--white);
+            padding: 0 8px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+
+        .console-search:focus {
+            border-color: var(--purple);
+            background: rgba(139,92,246,0.05);
+        }
+
+        .console-search::placeholder { color: var(--gray); }
+
+        .console-icon-btn {
+            width: 24px; height: 24px;
+            background: transparent;
+            border: 1px solid transparent;
+            color: var(--gray);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s;
+        }
+
+        .console-icon-btn:hover {
+            color: var(--white);
+            background: rgba(139,92,246,0.15);
+            border-color: var(--purple);
+        }
+
+        .console-icon-btn svg { width: 12px; height: 12px; }
+
+        /* Console Log List */
+        .console-logs {
+            flex: 1;
+            overflow-y: auto;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 4px 0;
+        }
+
+        .log-entry {
+            padding: 6px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.04);
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+            animation: logIn 0.2s ease;
+            position: relative;
+        }
+
+        @keyframes logIn {
+            from { opacity: 0; transform: translateY(-2px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .log-entry:hover {
+            background: rgba(139,92,246,0.05);
+        }
+
+        .log-entry.warn { background: rgba(245,158,11,0.06); border-left: 2px solid var(--warn); }
+        .log-entry.error { background: rgba(239,68,68,0.08); border-left: 2px solid var(--error); }
+        .log-entry.info { border-left: 2px solid var(--info); }
+        .log-entry.success { border-left: 2px solid var(--success); }
+        .log-entry.command { background: rgba(139,92,246,0.08); border-left: 2px solid var(--purple); }
+        .log-entry.result { background: rgba(255,255,255,0.02); }
+        .log-entry.system {
+            background: rgba(139,92,246,0.04);
+            border-left: 2px solid var(--purple-light);
+            font-style: italic;
+        }
+
+        .log-icon {
+            width: 14px; height: 14px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            font-weight: 700;
+            margin-top: 1px;
+        }
+
+        .log-entry.info .log-icon { color: var(--info); }
+        .log-entry.warn .log-icon { color: var(--warn); }
+        .log-entry.error .log-icon { color: var(--error); }
+        .log-entry.success .log-icon { color: var(--success); }
+        .log-entry.command .log-icon { color: var(--purple-light); }
+        .log-entry.result .log-icon { color: var(--gray); }
+        .log-entry.system .log-icon { color: var(--purple-light); }
+
+        .log-body {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .log-meta {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 2px;
+            font-size: 9px;
+            color: var(--gray);
+            letter-spacing: 0.5px;
+        }
+
+        .log-time {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--gray);
+        }
+
+        .log-source {
+            color: var(--purple-light);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .log-text {
+            color: var(--white);
+            word-break: break-word;
+            line-height: 1.5;
+            white-space: pre-wrap;
+        }
+
+        .log-entry.warn .log-text { color: #fcd34d; }
+        .log-entry.error .log-text { color: #fca5a5; }
+        .log-entry.command .log-text { color: var(--purple-dim); }
+        .log-entry.result .log-text { color: #d1d5db; }
+        .log-entry.system .log-text { color: var(--purple-light); }
+
+        .log-text .str { color: var(--str); }
+        .log-text .num { color: var(--num); }
+        .log-text .key { color: var(--purple-light); }
+        .log-text .undef { color: var(--gray); font-style: italic; }
+
+        .log-stack {
+            margin-top: 4px;
+            padding: 6px 8px;
+            background: rgba(0,0,0,0.3);
+            border-left: 2px solid var(--error);
+            font-size: 10px;
+            color: #fca5a5;
+            line-height: 1.5;
+        }
+
+        .log-group-toggle {
+            cursor: pointer;
+            color: var(--purple-light);
+            user-select: none;
+        }
+
+        .log-group-toggle:hover { text-decoration: underline; }
+
+        .log-children {
+            margin-left: 14px;
+            border-left: 1px dashed rgba(139,92,246,0.3);
+            padding-left: 8px;
+            margin-top: 4px;
+        }
+
+        .log-children.collapsed { display: none; }
+
+        /* Console Input */
+        .console-input-area {
+            border-top: 2px solid var(--purple);
+            background: #0a0a0f;
+            flex-shrink: 0;
+        }
+
+        .console-input-row {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            gap: 8px;
+        }
+
+        .console-prompt {
+            color: var(--purple-light);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .console-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--white);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 12px;
+            caret-color: var(--purple);
+        }
+
+        .console-input::placeholder {
+            color: var(--gray);
+            font-style: italic;
+        }
+
+        .console-input-hints {
+            display: flex;
+            gap: 4px;
+            padding: 0 12px 8px;
+            flex-wrap: wrap;
+        }
+
+        .hint-chip {
+            padding: 2px 8px;
+            background: rgba(139,92,246,0.1);
+            border: 1px solid rgba(139,92,246,0.2);
+            color: var(--purple-light);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            letter-spacing: 0.5px;
+            cursor: pointer;
+            transition: all 0.15s;
+        }
+
+        .hint-chip:hover {
+            background: var(--purple);
+            color: var(--white);
+            border-color: var(--purple);
+        }
+
+        /* Console status bar */
+        .console-status {
+            height: 22px;
+            background: var(--purple-dark);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 9px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+
+        .console-status .status-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            opacity: 0.8;
+        }
+
+        .console-status .status-dot {
+            width: 5px; height: 5px;
+            background: var(--success);
+            animation: dotPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes dotPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
+        }
+
+        .console-status .spacer { flex: 1; }
+
+        .console-logs::-webkit-scrollbar-thumb { background: rgba(139,92,246,0.4); }
+        .console-logs::-webkit-scrollbar-thumb:hover { background: var(--purple); }
+
         /* Global advanced color picker (shared with ColorPicker API). */
         .color-picker { position:fixed; width:288px; box-sizing:border-box; background:var(--white); border:2px solid var(--black); box-shadow:8px 8px 0 rgba(0,0,0,.18); z-index:10000; }
         .cp-header { padding:8px 12px; background:var(--black); color:var(--white); font-size:10px; font-weight:600; letter-spacing:2px; display:flex; align-items:center; justify-content:space-between; }
@@ -1183,7 +1545,8 @@
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             </button>
             <button class="top-btn console-btn" aria-label="Console" data-tooltip-key="tooltip.apricityui.devtools.console">
-                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="10.5"/><path d="M4 6l2 2-2 2M8 10h3"/></svg>
+                <svg class="console-mode-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="10.5"/><path d="M4 6l2 2-2 2M8 10h3"/></svg>
+                <svg class="debugger-mode-icon" viewBox="0 0 14 14" fill="currentColor"><path d="M2 2h10v10H2zm1 1v8h8V3z"/></svg>
             </button>
             <button type="button" class="top-btn close-devtools-btn" id="closeDevToolsBtn" aria-label="Close DevTools" data-tooltip-key="tooltip.apricityui.devtools.close">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -1228,6 +1591,55 @@
                 <div class="inspector-pane active" id="pane-attributes"></div>
                 <div class="inspector-pane" id="pane-styles"></div>
                 <div class="inspector-pane" id="pane-boxmodel"></div>
+            </div>
+        </div>
+
+        <!-- Console -->
+        <div class="console-content hidden" id="consoleContent">
+            <div class="console-toolbar">
+                <button class="console-filter active" data-level="all">
+                    ALL <span class="filter-count" id="count-all">0</span>
+                </button>
+                <button class="console-filter info" data-level="info">
+                    INFO <span class="filter-count" id="count-info">0</span>
+                </button>
+                <button class="console-filter warn" data-level="warn">
+                    WARN <span class="filter-count" id="count-warn">0</span>
+                </button>
+                <button class="console-filter error" data-level="error">
+                    ERROR <span class="filter-count" id="count-error">0</span>
+                </button>
+                <div class="console-sep"></div>
+                <input type="text" class="console-search" id="consoleSearch" placeholder="Filter output..." autocomplete="off" spellcheck="false">
+                <div class="console-sep"></div>
+                <button type="button" class="console-icon-btn" id="consoleWrapBtn" title="Toggle wrap">
+                    <svg viewBox="0 0 14 14" fill="currentColor"><path d="M2 3h10v1.5H2zm0 3h7v1.5H2zm0 3h10v1.5H2z"/></svg>
+                </button>
+                <button type="button" class="console-icon-btn" id="consoleClearBtn" title="Clear">
+                    <svg viewBox="0 0 14 14" fill="currentColor"><path d="M3 3h8v1.5H3zm1 2.5h6l-.5 7h-5l-.5-7zm1.5 1.5v4h1v-4h-1zm2 0v4h1v-4h-1z"/></svg>
+                </button>
+            </div>
+            <div class="console-logs" id="consoleLogs"></div>
+            <div class="console-input-area">
+                <div class="console-input-row">
+                    <span class="console-prompt">›</span>
+                    <input type="text" class="console-input" id="consoleInput" placeholder="Type a command... (try 'help')" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="console-input-hints" id="consoleHints">
+                    <span class="hint-chip" data-hint="help">help</span>
+                    <span class="hint-chip" data-hint="clear">clear</span>
+                    <span class="hint-chip" data-hint="select(">select()</span>
+                    <span class="hint-chip" data-hint="inspect">inspect</span>
+                    <span class="hint-chip" data-hint="$$(">$$(css)</span>
+                    <span class="hint-chip" data-hint="copy(">copy()</span>
+                </div>
+            </div>
+            <div class="console-status">
+                <span class="status-item"><span class="status-dot"></span>CONNECTED</span>
+                <span class="status-item" id="consoleStatusFilter">FILTER: ALL</span>
+                <span class="spacer"></span>
+                <span class="status-item" id="consoleStatusCount">0 ENTRIES</span>
+                <span class="status-item">UTF-8</span>
             </div>
         </div>
 </div>

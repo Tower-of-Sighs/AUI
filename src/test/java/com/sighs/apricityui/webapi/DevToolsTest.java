@@ -46,6 +46,51 @@ class DevToolsTest {
     }
 
     @Test
+    void consoleButtonSwitchesBetweenInspectorAndConsole() throws Exception {
+        Size.setViewportOverride(1600, 900);
+        String targetPath = "test://devtools-console-toggle";
+        HTML.putTemple(DevToolsController.PATH, Files.readString(TEMPLATE));
+        HTML.putTemple(targetPath, "<html><body><main id=\"target\">Console target</main></body></html>");
+        Document target = Document.create(targetPath);
+
+        try {
+            assertTrue(DevTools.selectDocument(target));
+            Document tool = DevTools.getToolDocument();
+            Element consoleButton = tool.querySelector(".console-btn");
+            Element consoleContent = tool.querySelector("#consoleContent");
+            Element domSection = tool.querySelector("#domSection");
+            Element inspectorSection = tool.querySelector("#inspectorSection");
+            Element documentSelector = tool.querySelector(".document-selector-bar");
+            assertNotNull(consoleButton);
+            assertNotNull(consoleContent);
+            assertTrue(consoleContent.getClassNames().contains("hidden"));
+
+            consoleButton.click();
+            assertTrue(consoleButton.getClassNames().contains("mode-console"));
+            assertEquals("true", consoleButton.getAttribute("aria-pressed"));
+            assertTrue(consoleButton.getAttribute("data-tooltip-key").endsWith("inspect"));
+            assertFalse(consoleContent.getClassNames().contains("hidden"));
+            assertTrue(domSection.getClassNames().contains("hidden"));
+            assertTrue(inspectorSection.getClassNames().contains("hidden"));
+            assertTrue(documentSelector.getClassNames().contains("hidden"));
+            assertFalse(tool.querySelector("#consoleLogs").children.isEmpty());
+
+            consoleButton.click();
+            assertFalse(consoleButton.getClassNames().contains("mode-console"));
+            assertEquals("false", consoleButton.getAttribute("aria-pressed"));
+            assertEquals("tooltip.apricityui.devtools.console", consoleButton.getAttribute("data-tooltip-key"));
+            assertTrue(consoleContent.getClassNames().contains("hidden"));
+            assertFalse(domSection.getClassNames().contains("hidden"));
+            assertFalse(inspectorSection.getClassNames().contains("hidden"));
+            assertFalse(documentSelector.getClassNames().contains("hidden"));
+        } finally {
+            if (DevTools.isOpen()) DevTools.toggle();
+            target.remove();
+            Size.clearViewportOverride();
+        }
+    }
+
+    @Test
     void javaControllerPopulatesAndEditsTheInspectedDocument() throws Exception {
         Size.setViewportOverride(1600, 900);
         String targetPath = "test://devtools-target";

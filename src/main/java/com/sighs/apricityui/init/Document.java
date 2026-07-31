@@ -258,6 +258,7 @@ public class Document {
     public void refresh() {
         beginRefreshLifecycle();
         ContextScope contextScope = withContext(this);
+        String stage = "reset";
         try {
             Size.clearRootFontOverride();
             setFontMode(FontMode.WEB_SCALED);
@@ -269,9 +270,13 @@ public class Document {
             motion.clear();
             invalidateSelectorIndex();
             FontMode sourceFontMode = FontMode.parse(HTML.findMetaContent(path, "aui-font-mode"));
+            stage = "html/css/js extraction";
             HTML.DocumentRoot root = HTML.create(this, path);
             try {
-                if (root == null || root.body() == null) return;
+                if (root == null || root.body() == null) {
+                    ApricityUI.LOGGER.error("[AUI Document] refresh produced no body path={} stage={}", path, stage);
+                    return;
+                }
                 if (body != null) root.body().setEventListeners(body.EventListener);
                 documentElement = root.documentElement();
                 head = root.head();
@@ -280,6 +285,7 @@ public class Document {
                 setFontMode(headFontMode == FontMode.WEB_SCALED ? sourceFontMode : headFontMode);
                 rebuildElementIndexFromBody();
 
+                stage = "initial style calculation";
                 // First pass: ensure computed styles exist for DOM expanders.
                 style.recomputeSubtree(documentElement);
                 if (documentElement != null) {
@@ -287,9 +293,11 @@ public class Document {
                     clearRenderCaches(documentElement);
                     style.recomputeSubtree(documentElement);
                 }
+                stage = "document expanders";
                 DocumentExpander.apply(this);
 
                 // Final pass: apply styles once after expansion.
+                stage = "final style calculation";
                 clearRenderCaches(documentElement);
                 style.recomputeSubtree(documentElement);
                 tree.getElements().forEach(Element::clearDirtyFlags);
@@ -298,18 +306,32 @@ public class Document {
                 ImageAsyncHandler.prefetchImages(this);
                 enterInteractive();
 
+                stage = "global javascript";
                 String globalJS = Loader.readGlobalJS();
                 if (globalJS != null && !globalJS.isBlank()) {
-                    ApricityJS.eval(globalJS.replace("__AUI_DOCUMENT_UUID__", uuid.toString()));
+                    ApricityJS.eval(
+                            globalJS.replace("__AUI_DOCUMENT_UUID__", uuid.toString()),
+                            null,
+                            "global.js"
+                    );
                 }
+                stage = "document javascript";
                 for (String js : JSCache) {
-                    ApricityJS.eval(js);
+                    ApricityJS.eval(js, null, path + "#script");
                 }
+                stage = "lifecycle events";
                 fireLifecycleEvent("DOMContentLoaded", false);
                 enterComplete();
                 fireLifecycleEvent("load", false);
+                ApricityUI.LOGGER.info(
+                        "[AUI Document] refresh complete path={} elements={} cssRules={} scripts={}",
+                        path,
+                        tree.getElements().size(),
+                        CSSCache.size(),
+                        JSCache.size()
+                );
             } catch (Exception exception) {
-                ApricityUI.LOGGER.error("[AUI JS] document refresh failed for {}", path, exception);
+                ApricityUI.LOGGER.error("[AUI Document] refresh failed path={} stage={}", path, stage, exception);
             }
         } finally {
             contextScope.close();
@@ -868,7 +890,10 @@ public class Document {
 
     // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
     public static Document create(String path) {
-        if (HTML.getTemple(path) == null) return null;
+        if (HTML.getTemple(path) == null) {
+            ApricityUI.LOGGER.error("[AUI Document] cannot create document: template is missing path={}", path);
+            return null;
+        }
         Document document = new Document(path, false);
         documents.add(document);
         try {
@@ -883,7 +908,10 @@ public class Document {
     }
 
     public static Document createInWorld(String path) {
-        if (HTML.getTemple(path) == null) return null;
+        if (HTML.getTemple(path) == null) {
+            ApricityUI.LOGGER.error("[AUI Document] cannot create world document: template is missing path={}", path);
+            return null;
+        }
         Document document = new Document(path, true);
         documents.add(document);
         // World documents use the same viewport contract as screen documents.

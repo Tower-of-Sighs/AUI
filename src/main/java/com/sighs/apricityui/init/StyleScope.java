@@ -1,5 +1,8 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.util.AuiLog;
+
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,7 +93,7 @@ final class StyleScope {
             Element current = stack.pop();
             if (current == null || current.document != owner) continue;
 
-            current.recomputeStyleSelf();
+            recomputeStyle(current);
 
             List<Element> children = current.children;
             for (int i = children.size() - 1; i >= 0; i--) {
@@ -103,7 +106,7 @@ final class StyleScope {
 
     private void recomputeSelfAndMaybeDescendants(Element element) {
         if (element == null || element.document != owner) return;
-        boolean descendantsAffected = element.recomputeStyleSelf();
+        boolean descendantsAffected = recomputeStyle(element);
         if (!descendantsAffected) return;
 
         List<Element> children = element.children;
@@ -126,6 +129,20 @@ final class StyleScope {
         index = Selector.Index.build(owner.CSSCache);
         selectorIndex = index;
         return index;
+    }
+
+    private boolean recomputeStyle(Element element) {
+        try {
+            return element.recomputeStyleSelf();
+        } catch (RuntimeException exception) {
+            ApricityUI.LOGGER.error(
+                    "[AUI CSS] computed style failed path={} element={}",
+                    owner == null ? "<unknown>" : AuiLog.source(owner.getPath()),
+                    AuiLog.element(element),
+                    exception
+            );
+            throw exception;
+        }
     }
 
     private static boolean isCoveredByAncestor(Element element, Set<Element> selected) {

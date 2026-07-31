@@ -186,6 +186,22 @@ public class WorldWindow {
         }
     }
 
+    /** Returns whether this instance uses an explicit world scale instead of camera fitting. */
+    public boolean hasScaleOverride() {
+        return scaleOverride != null;
+    }
+
+    /** Returns the explicit scale, or the last camera-fitted scale when no override is set. */
+    public float getScale() {
+        return resolvedScale;
+    }
+
+    /** Clears an explicit world scale and lets the next frame fit the viewport to the camera. */
+    public void clearScaleOverride() {
+        scaleOverride = null;
+        resolvedViewportVersion = Long.MIN_VALUE;
+    }
+
     /** Enables or disables occlusion by world geometry for this window. */
     public void setDepthTest(boolean depthTest) {
         this.depthTest = depthTest;
@@ -232,6 +248,11 @@ public class WorldWindow {
 
     public WorldWindowDisplayPrecision getDisplayPrecision() {
         return displayPrecision;
+    }
+
+    /** Returns whether this instance overrides the global LOD policy or thresholds. */
+    public boolean hasDisplayPrecisionOverride() {
+        return displayPrecisionOverride;
     }
 
     /**
@@ -296,6 +317,22 @@ public class WorldWindow {
         this.farDepthStep = Math.max(this.nearDepthStep, farDepthStep);
         this.depthNearDistance = Math.max(0.0f, nearDistance);
         this.depthFarDistance = Math.max(this.depthNearDistance + 0.001f, farDistance);
+    }
+
+    public float getNearDepthStep() {
+        return nearDepthStep;
+    }
+
+    public float getFarDepthStep() {
+        return farDepthStep;
+    }
+
+    public float getDepthNearDistance() {
+        return depthNearDistance;
+    }
+
+    public float getDepthFarDistance() {
+        return depthFarDistance;
     }
 
     public float getWidth() {

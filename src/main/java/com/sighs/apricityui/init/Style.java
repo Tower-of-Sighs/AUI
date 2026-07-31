@@ -1,5 +1,6 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Size;
@@ -12,10 +13,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class Style implements Cloneable {
     public static final Style DEFAULT = new Style();
+    private static final Set<String> UNSUPPORTED_PROPERTIES = ConcurrentHashMap.newKeySet();
     private static final Pattern TIME_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)(?:ms|s)");
     private static final Pattern NUMBER_TOKEN_PATTERN = Pattern.compile("[-+]?(?:\\d*\\.\\d+|\\d+)");
     private static final Set<String> ANIMATION_DIRECTIONS = Set.of("normal", "reverse", "alternate", "alternate-reverse");
@@ -306,6 +309,7 @@ public class Style implements Cloneable {
     }
 
     public void merge(String styleString) {
+        if (styleString == null || styleString.isBlank()) return;
         if (styleString.length() < 3) return;
         if (!styleString.contains(";")) styleString += ";";
         if (styleString.indexOf('\n') >= 0) {
@@ -316,6 +320,8 @@ public class Style implements Cloneable {
             String[] content = entry.split(":", 2);
             if (content.length == 2) {
                 update(content[0].trim(), content[1]);
+            } else if (!entry.isBlank()) {
+                ApricityUI.LOGGER.warn("[AUI CSS] malformed inline declaration ignored declaration={}", entry.trim());
             }
         }
     }
@@ -402,7 +408,16 @@ public class Style implements Cloneable {
                 FIELD_CACHE.put(styleName, field);
             }
             field.set(this, value);
-        } catch (NoSuchFieldException | IllegalAccessException ignored) {
+        } catch (NoSuchFieldException exception) {
+            if (UNSUPPORTED_PROPERTIES.add(styleName)) {
+                ApricityUI.LOGGER.warn(
+                        "[AUI CSS] unsupported property ignored property={} value={}",
+                        name,
+                        value
+                );
+            }
+        } catch (IllegalAccessException exception) {
+            ApricityUI.LOGGER.error("[AUI CSS] failed to apply property={} value={}", name, value, exception);
         }
     }
 

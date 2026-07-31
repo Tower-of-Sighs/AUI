@@ -1,5 +1,7 @@
 package com.sighs.apricityui.resource;
 
+import com.sighs.apricityui.ApricityUI;
+
 import java.awt.*;
 import java.awt.font.FontRenderContext;
 import java.io.File;
@@ -25,6 +27,7 @@ public class Font {
     private static final Map<String, List<java.awt.Font>> SINGLE_FAMILY_CHAIN_CACHE = createLruCache(BASE_FONT_CHAIN_CACHE_LIMIT);
     private static final Map<DerivedFontKey, java.awt.Font> DERIVED_FONT_CACHE = new ConcurrentHashMap<>();
     private static final Map<RunPlanKey, List<FontRun>> RUN_PLAN_CACHE = createLruCache(RUN_PLAN_CACHE_LIMIT);
+    private static final Set<String> UNAVAILABLE_FAMILIES = ConcurrentHashMap.newKeySet();
     private static final AtomicLong METRICS_REVISION = new AtomicLong(1L);
     private static final Map<String, String> GENERIC_FAMILY_MAPPING = Map.ofEntries(
             Map.entry("serif", java.awt.Font.SERIF),
@@ -48,33 +51,42 @@ public class Font {
     }
 
     public static boolean registerFont(String key, InputStream stream) {
-        if (key == null || stream == null) return false;
+        if (key == null || key.isBlank() || stream == null) {
+            ApricityUI.LOGGER.warn("[AUI Font] invalid font registration request family={} streamPresent={}", key, stream != null);
+            return false;
+        }
         try {
             java.awt.Font base = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, stream);
             java.awt.Font derived = base.deriveFont(java.awt.Font.PLAIN, BASE_FONT_SIZE);
             registerResolvedFont(key, derived);
             return true;
         } catch (FontFormatException | IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("[AUI Font] failed to decode font family={}", key, e);
             return false;
         }
     }
 
     public static boolean registerFont(String key, File fontFile) {
-        if (key == null || fontFile == null || !fontFile.exists()) return false;
+        if (key == null || key.isBlank() || fontFile == null || !fontFile.exists()) {
+            ApricityUI.LOGGER.warn("[AUI Font] font file is missing family={} file={}", key, fontFile);
+            return false;
+        }
         try {
             java.awt.Font base = java.awt.Font.createFont(java.awt.Font.TRUETYPE_FONT, fontFile);
             java.awt.Font derived = base.deriveFont(java.awt.Font.PLAIN, BASE_FONT_SIZE);
             registerResolvedFont(key, derived);
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("[AUI Font] failed to load font family={} file={}", key, fontFile, e);
             return false;
         }
     }
 
     public static boolean registerFont(String key, Path path) {
-        if (key == null || path == null || !Files.exists(path)) return false;
+        if (key == null || key.isBlank() || path == null || !Files.exists(path)) {
+            ApricityUI.LOGGER.warn("[AUI Font] font path is missing family={} path={}", key, path);
+            return false;
+        }
         return registerFont(key, path.toFile());
     }
 
@@ -217,6 +229,7 @@ public class Font {
 
     public static void clear() {
         FONTS.clear();
+        UNAVAILABLE_FAMILIES.clear();
         clearResolutionCaches();
         FONTS.put(DEFAULT_KEY, new java.awt.Font("Microsoft YaHei", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
         METRICS_REVISION.incrementAndGet();
@@ -264,6 +277,9 @@ public class Font {
             return systemFont;
         }
         SINGLE_FAMILY_CACHE.put(cleanFamily, Optional.empty());
+        if (UNAVAILABLE_FAMILIES.add(cleanFamily)) {
+            ApricityUI.LOGGER.warn("[AUI Font] font family unavailable, using fallback family={}", cleanFamily);
+        }
         return null;
     }
 

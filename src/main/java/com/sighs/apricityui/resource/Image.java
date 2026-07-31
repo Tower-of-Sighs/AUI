@@ -3,6 +3,7 @@ package com.sighs.apricityui.resource;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.platform.TextureUtil;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
@@ -27,34 +28,57 @@ import java.util.List;
 
 public class Image {
     public static ITexture loadTexture(String cacheKey, InputStream is) {
-        if (is == null) return null;
+        if (is == null) {
+            ApricityUI.LOGGER.warn("[AUI Image] resource stream is missing path={}", cacheKey);
+            return null;
+        }
         try {
             byte[] bytes = is.readAllBytes();
             DecodedImage decodedImage = decode(cacheKey, bytes);
             return uploadDecoded(cacheKey, decodedImage);
         } catch (IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("[AUI Image] failed to read image bytes path={}", cacheKey, e);
             return null;
         }
     }
 
     public static DecodedImage decode(String cacheKey, byte[] data) {
-        if (data == null || data.length == 0) return null;
+        if (data == null || data.length == 0) {
+            ApricityUI.LOGGER.warn("[AUI Image] image data is empty path={}", cacheKey);
+            return null;
+        }
         String fileName = cacheKey == null ? "" : cacheKey.toLowerCase();
+        DecodedImage decoded;
+        String format;
         if (fileName.endsWith(".gif")) {
-            return loadGifTexture(data);
+            format = "gif";
+            decoded = loadGifTexture(data);
+        } else if (fileName.endsWith(".cur")) {
+            format = "cur";
+            decoded = loadCurTexture(data);
+        } else if (fileName.endsWith(".ani")) {
+            format = "ani";
+            decoded = loadAniTexture(data);
+        } else {
+            format = "static";
+            decoded = loadStaticTexture(data);
         }
-        if (fileName.endsWith(".cur")) {
-            return loadCurTexture(data);
+        if (decoded == null) {
+            ApricityUI.LOGGER.warn(
+                    "[AUI Image] image decode returned no result path={} format={} bytes={}",
+                    cacheKey,
+                    format,
+                    data.length
+            );
         }
-        if (fileName.endsWith(".ani")) {
-            return loadAniTexture(data);
-        }
-        return loadStaticTexture(data);
+        return decoded;
     }
 
     public static ITexture uploadDecoded(String cacheKey, DecodedImage decodedImage) {
-        if (decodedImage == null) return null;
+        if (decodedImage == null) {
+            ApricityUI.LOGGER.warn("[AUI Image] cannot upload an undecoded image path={}", cacheKey);
+            return null;
+        }
         try {
             if (decodedImage.isAnimated()) {
                 List<AnimatedTexture.Frame> frames = new ArrayList<>();
@@ -98,7 +122,7 @@ public class Image {
                     decodedImage.getHotspotY()
             );
         } catch (Exception e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("[AUI Image] texture upload failed path={}", cacheKey, e);
             return null;
         } finally {
             decodedImage.close();
@@ -110,7 +134,7 @@ public class Image {
             NativeImage image = NativeImage.read(bis);
             return DecodedImage.ofStatic(image);
         } catch (IOException e) {
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("[AUI Image] static image decode failed bytes={}", data.length, e);
             return null;
         }
     }
@@ -122,7 +146,10 @@ public class Image {
         try (InputStream bis = new ByteArrayInputStream(data);
              ImageInputStream stream = ImageIO.createImageInputStream(bis)) {
             var readers = ImageIO.getImageReadersBySuffix("gif");
-            if (!readers.hasNext()) return null;
+            if (!readers.hasNext()) {
+                ApricityUI.LOGGER.error("[AUI Image] no GIF ImageIO reader is installed");
+                return null;
+            }
 
             ImageReader reader = readers.next();
             try {
@@ -144,7 +171,7 @@ public class Image {
             return decodedImage;
         } catch (Exception e) {
             frames.forEach(NativeImage::close);
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("[AUI Image] GIF decode failed bytes={}", data.length, e);
             return null;
         }
     }
@@ -250,7 +277,7 @@ public class Image {
             return decodedImage;
         } catch (Exception e) {
             frames.forEach(NativeImage::close);
-            e.printStackTrace();
+            ApricityUI.LOGGER.error("[AUI Image] ANI decode failed bytes={}", data.length, e);
             return null;
         }
     }
@@ -321,7 +348,13 @@ public class Image {
             try (InputStream input = new ByteArrayInputStream(imageData)) {
                 return NativeImage.read(input);
             } catch (IOException e) {
-                e.printStackTrace();
+                ApricityUI.LOGGER.error(
+                        "[AUI Image] cursor PNG frame decode failed bytes={} entry={}x{}",
+                        imageData.length,
+                        entryWidth,
+                        entryHeight,
+                        e
+                );
                 return null;
             }
         }

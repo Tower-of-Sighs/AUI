@@ -2,6 +2,7 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.dev.debug.ExternalDebugServer;
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
@@ -37,13 +38,13 @@ public class ClientLoader extends Loader {
     private static List<StaticResourceEntry> cachedFinalStaticResources = null;
     private static boolean reloadQueued;
     private static boolean reloadRequested;
-
     public ClientLoader(String extension) {
         super(extension);
     }
 
     @SubscribeEvent
     public static void setup(FMLClientSetupEvent event) {
+        DevToolsLogBridge.install(ApricityUI.LOGGER);
         // 初始加载时不调用 ApricityJS.reload()，因为此时其他模组的客户端资源
         // （如模型层）可能尚未注册完毕，强制重载 KubeJS 客户端脚本会导致崩溃。
         event.enqueueWork(() -> {
@@ -124,7 +125,8 @@ public class ClientLoader extends Loader {
             ResourceLocation resourceLocation = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
             Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(resourceLocation);
             if (resource.isPresent()) return resource.get().open();
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to open resource-pack resource path={}", path, exception);
         }
         return null;
     }
@@ -155,7 +157,8 @@ public class ClientLoader extends Loader {
     public static String readGlobalCSS() {
         try (InputStream stream = getResourceStream("global.css")) {
             if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to read global.css", exception);
         }
         return null;
     }
@@ -183,9 +186,11 @@ public class ClientLoader extends Loader {
 
     public void loadResources(BiConsumer<String, String> handler) {
         this.handler = handler;
+        loadedResourceCount = 0;
         loadFromResourcePack();
         loadFromLocalFolder();
         loadFromDevFolders();
+        ApricityUI.LOGGER.info("[AUI Resource] scanned extension={} loaded={}", extension, loadedResourceCount);
     }
 
     private void loadFromResourcePack() {
@@ -198,8 +203,14 @@ public class ClientLoader extends Loader {
                 String path = entry.getKey().getPath();
                 if (path.startsWith("apricity/")) path = path.substring(9);
                 handler.accept(path, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+                loadedResourceCount++;
             } catch (IOException exception) {
-                exception.printStackTrace();
+                ApricityUI.LOGGER.error(
+                        "[AUI Resource] failed to read resource-pack {} path={}",
+                        extension,
+                        entry.getKey(),
+                        exception
+                );
             }
         }
     }

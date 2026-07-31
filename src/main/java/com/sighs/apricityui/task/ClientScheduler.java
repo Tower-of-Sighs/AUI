@@ -1,5 +1,7 @@
 package com.sighs.apricityui.task;
 
+import com.sighs.apricityui.ApricityUI;
+
 import java.lang.reflect.Method;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -27,7 +29,7 @@ public class ClientScheduler {
             try {
                 runOnClientThread(() -> action.accept(this));
             } catch (Exception e) {
-                e.printStackTrace();
+                ApricityUI.LOGGER.error("[AUI Scheduler] client timer task failed repeat={}", repeat, e);
             }
 
             if (!repeat) {

@@ -1,11 +1,13 @@
 package com.sighs.apricityui.resource;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Selector;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.util.AuiLog;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -77,6 +79,8 @@ public class CSS {
                 Pattern.compile("(?i)<style\\b([^>]*)>(.*?)</style\\s*>", Pattern.DOTALL);
         private static final Pattern LINK_TAG_PATTERN =
             Pattern.compile("(?i)<link\\b([^>]*?)>", Pattern.DOTALL);
+        private static final Pattern STYLE_OPEN_MARKER = Pattern.compile("(?i)<style\\b");
+        private static final Pattern STYLE_CLOSE_MARKER = Pattern.compile("(?i)</style\\s*>");
 
         private final List<String> cachedStyleSrcs = new ArrayList<>();
         private final List<String> cachedStyleContents = new ArrayList<>();
@@ -89,6 +93,17 @@ public class CSS {
         public String handle(String html) {
             if (html == null || html.isEmpty()) return html;
 
+            int styleOpenCount = countMatches(STYLE_OPEN_MARKER, html);
+            int styleCloseCount = countMatches(STYLE_CLOSE_MARKER, html);
+            if (styleOpenCount != styleCloseCount) {
+                ApricityUI.LOGGER.warn(
+                        "[AUI CSS] unmatched style tag path={} openTags={} closeTags={}",
+                        AuiLog.source(contextPath),
+                        styleOpenCount,
+                        styleCloseCount
+                );
+            }
+
             Matcher matcher = STYLE_TAG_PATTERN.matcher(html);
             StringBuffer sb = new StringBuffer();
 
@@ -97,7 +112,13 @@ public class CSS {
                 String innerCss = matcher.group(2);
 
                 String srcValue = findAttrValue(attrText, "src");
-                if (srcValue != null && !srcValue.isEmpty()) cachedStyleSrcs.add(srcValue);
+                if (srcValue != null && !srcValue.isEmpty()) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI CSS] style tag uses unsupported src attribute path={} src={}",
+                            AuiLog.source(contextPath),
+                            srcValue
+                    );
+                }
 
                 if (innerCss != null && !innerCss.isBlank()) {
                     cachedStyleContents.add(innerCss.trim());
@@ -118,6 +139,12 @@ public class CSS {
                 String hrefValue = findAttrValue(attrText, "href");
                 if (hrefValue != null && !hrefValue.isEmpty()) {
                     cachedStyleSrcs.add(hrefValue);
+                } else {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI CSS] stylesheet link has no href path={} attributes={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(attrText)
+                    );
                 }
                 linkMatcher.appendReplacement(linkFree, "");
             }
@@ -149,7 +176,18 @@ public class CSS {
         }
 
         public void pushToDocument(Document document) {
+            if (document == null) {
+                ApricityUI.LOGGER.error("[AUI CSS] cannot attach styles without a document path={}", AuiLog.source(contextPath));
+                return;
+            }
             StyleAsyncHandler.INSTANCE.attach(document, contextPath, cachedStyleSrcs, cachedStyleContents);
+        }
+
+        private static int countMatches(Pattern pattern, String value) {
+            int count = 0;
+            Matcher matcher = pattern.matcher(value);
+            while (matcher.find()) count++;
+            return count;
         }
     }
 
@@ -170,6 +208,9 @@ public class CSS {
             int offset = 0;
             while (matcher.find(offset)) {
                 String animName = normalizeKeyframeName(matcher.group(1));
+                if (animName == null || animName.isBlank()) {
+                    ApricityUI.LOGGER.error("[AUI CSS] keyframes rule has no name path={}", AuiLog.source(contextPath));
+                }
                 int blockStart = matcher.end();
                 int braceCount = 1;
                 int blockEnd = -1;
@@ -198,7 +239,15 @@ public class CSS {
                         }
                         for (String token : percentStr.split(",")) {
                             Double percent = parseKeyframePercent(token.trim());
-                            if (percent == null) continue;
+                            if (percent == null) {
+                                ApricityUI.LOGGER.warn(
+                                        "[AUI CSS] invalid keyframe selector path={} animation={} selector={}",
+                                        AuiLog.source(contextPath),
+                                        animName,
+                                        AuiLog.compact(token)
+                                );
+                                continue;
+                            }
                             Animation.registerKeyframe(animName, percent, valueMap);
                         }
                     }
@@ -207,6 +256,11 @@ public class CSS {
                     cleanCss.delete(matcher.start(), blockEnd + 1);
                     offset = matcher.start();
                 } else {
+                    ApricityUI.LOGGER.error(
+                            "[AUI CSS] unterminated keyframes block path={} animation={}",
+                            AuiLog.source(contextPath),
+                            animName
+                    );
                     offset = matcher.end();
                 }
             }
@@ -216,8 +270,24 @@ public class CSS {
         public static int parse(String css, Map<String, Map<String, Declaration>> targetCache,
                                 List<DebugRule> debugRules, String contextPath, int orderStart,
                                 Size viewport) {
-            if (css == null || css.isBlank()) return orderStart;
-            String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath), viewport);
+            if (targetCache == null) {
+                ApricityUI.LOGGER.error("[AUI CSS] cannot parse into a null rule cache path={}", AuiLog.source(contextPath));
+                return orderStart;
+            }
+            try {
+                if (css == null || css.isBlank()) return orderStart;
+            String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath), viewport, contextPath);
+            int openBraces = countCharacter(normalizedCss, '{');
+            int closeBraces = countCharacter(normalizedCss, '}');
+            if (openBraces != closeBraces) {
+                ApricityUI.LOGGER.error(
+                        "[AUI CSS] unmatched braces path={} open={} close={} snippet={}",
+                        AuiLog.source(contextPath),
+                        openBraces,
+                        closeBraces,
+                        AuiLog.compact(normalizedCss)
+                );
+            }
 
             Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
             int order = orderStart;
@@ -225,15 +295,32 @@ public class CSS {
             while (matcher.find()) {
                 String selector = matcher.group(1).trim();
                 // 忽略空的或可能是残留的 @ 规则
-                if (selector.isEmpty() || selector.startsWith("@")) continue;
+                if (selector.isEmpty()) continue;
+                if (selector.startsWith("@")) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI CSS] unsupported or leftover at-rule was ignored path={} rule={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(selector)
+                    );
+                    continue;
+                }
 
                 String rules = matcher.group(2).trim();
                 List<String> selectors = Selector.splitSelectorList(selector);
+                if (selectors.isEmpty()) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI CSS] rule has no selector path={} rule={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(selector)
+                    );
+                    continue;
+                }
                 Map<String, Declaration> authoredProperties = parseProperties(rules, contextPath, false);
                 Map<String, Declaration> properties = expandAuthorProperties(authoredProperties);
 
                 for (String sel : selectors) {
                     String normalizedSelector = sel.trim();
+                    if (normalizedSelector.isEmpty()) continue;
                     targetCache.merge(normalizedSelector, new LinkedHashMap<>(properties), (oldMap, newMap) -> {
                         newMap.forEach((property, declaration) -> putDeclaration(oldMap, property, declaration));
                         return oldMap;
@@ -244,10 +331,29 @@ public class CSS {
                     debugRules.add(new DebugRule(selector, authoredProperties, contextPath, ruleOrder));
                 }
             }
-            return order;
+                return order;
+            } catch (RuntimeException exception) {
+                ApricityUI.LOGGER.error(
+                        "[AUI CSS] stylesheet parse failed path={} length={} snippet={}",
+                        AuiLog.source(contextPath),
+                        css == null ? 0 : css.length(),
+                        AuiLog.compact(css),
+                        exception
+                );
+                throw exception;
+            }
         }
 
-        private static String evaluateMediaRules(String css, Size viewport) {
+        private static int countCharacter(String text, char target) {
+            if (text == null || text.isEmpty()) return 0;
+            int count = 0;
+            for (int index = 0; index < text.length(); index++) {
+                if (text.charAt(index) == target) count++;
+            }
+            return count;
+        }
+
+        private static String evaluateMediaRules(String css, Size viewport, String contextPath) {
             if (css == null || css.isBlank()) return "";
             StringBuilder output = new StringBuilder();
             int index = 0;
@@ -261,17 +367,27 @@ public class CSS {
                 int headerStart = mediaIndex + 6;
                 int openBrace = css.indexOf('{', headerStart);
                 if (openBrace < 0) {
+                    ApricityUI.LOGGER.error(
+                            "[AUI CSS] @media rule has no opening brace path={} query={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(css.substring(headerStart))
+                    );
                     output.append(css.substring(mediaIndex));
                     break;
                 }
                 int closeBrace = findMatchingBrace(css, openBrace);
                 if (closeBrace < 0) {
+                    ApricityUI.LOGGER.error(
+                            "[AUI CSS] @media rule is not closed path={} query={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(css.substring(headerStart, openBrace))
+                    );
                     output.append(css.substring(mediaIndex));
                     break;
                 }
                 String query = css.substring(headerStart, openBrace).trim();
                 String body = css.substring(openBrace + 1, closeBrace);
-                if (matchesMediaQuery(query, viewport)) {
+                if (matchesMediaQuery(query, viewport, contextPath)) {
                     output.append(body);
                 }
                 index = closeBrace + 1;
@@ -296,7 +412,7 @@ public class CSS {
             return -1;
         }
 
-        private static boolean matchesMediaQuery(String query, Size viewport) {
+        private static boolean matchesMediaQuery(String query, Size viewport, String contextPath) {
             if (query == null || query.isBlank()) return true;
             String normalized = query.trim().toLowerCase(Locale.ROOT);
             if ("all".equals(normalized)) return true;
@@ -349,6 +465,11 @@ public class CSS {
                     if ("portrait".equals(orientation) && landscape) return false;
                     continue;
                 }
+                ApricityUI.LOGGER.warn(
+                        "[AUI CSS] unsupported media feature ignored path={} feature={}",
+                        AuiLog.source(contextPath),
+                        AuiLog.compact(part)
+                );
                 return false;
             }
             return true;
@@ -404,10 +525,18 @@ public class CSS {
         private static Map<String, Declaration> parseProperties(String rules, String contextPath,
                                                                  boolean expand) {
             Map<String, Declaration> properties = new LinkedHashMap<>();
+            if (rules == null || rules.isBlank()) return properties;
+            int malformedPairs = 0;
+            int emptyDeclarations = 0;
             String[] pairs = rules.split(";");
             for (String pair : pairs) {
+                if (pair == null || pair.isBlank()) continue;
                 String[] kv = pair.split(":", 2);
-                if (kv.length == 2) {
+                if (kv.length != 2) {
+                    malformedPairs++;
+                    continue;
+                }
+                {
                     String key = normalizePropertyName(kv[0]);
                     String rawValue = kv[1].trim();
                     Declaration declaration = stripImportant(rawValue);
@@ -415,12 +544,23 @@ public class CSS {
                     if (value.contains("url(")) {
                         value = normalizeUrlValue(value, contextPath);
                     }
-                    if (!key.isEmpty() && !value.isEmpty()) {
+                    if (!key.isEmpty() && value != null && !value.isEmpty()) {
                         Declaration normalized = new Declaration(value, declaration.important());
                         putDeclaration(properties, key, normalized);
                         if (expand) expandShorthand(properties, key, normalized);
+                    } else {
+                        emptyDeclarations++;
                     }
                 }
+            }
+            if (malformedPairs > 0 || emptyDeclarations > 0) {
+                ApricityUI.LOGGER.warn(
+                        "[AUI CSS] invalid declarations skipped path={} malformedPairs={} emptyDeclarations={} rules={}",
+                        AuiLog.source(contextPath),
+                        malformedPairs,
+                        emptyDeclarations,
+                        AuiLog.compact(rules)
+                );
             }
             return properties;
         }
@@ -550,9 +690,18 @@ public class CSS {
         private static String normalizeUrlValue(String value, String contextPath) {
             Matcher matcher = URL_EXTRACTOR.matcher(value);
             StringBuffer buffer = new StringBuffer();
+            boolean found = false;
             while (matcher.find()) {
+                found = true;
                 String rawPath = matcher.group(1).trim();
-                if (rawPath.isEmpty()) continue;
+                if (rawPath.isEmpty()) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI CSS] empty url() value path={} declaration={}",
+                            AuiLog.source(contextPath),
+                            AuiLog.compact(value)
+                    );
+                    continue;
+                }
                 String resolvedPath = Loader.resolve(contextPath, rawPath);
                 String replacement = Loader.isRemotePath(resolvedPath)
                         ? "url(\"" + resolvedPath + "\")"
@@ -560,6 +709,13 @@ public class CSS {
                 matcher.appendReplacement(buffer, Matcher.quoteReplacement(replacement));
             }
             matcher.appendTail(buffer);
+            if (!found) {
+                ApricityUI.LOGGER.warn(
+                        "[AUI CSS] malformed url() value path={} declaration={}",
+                        AuiLog.source(contextPath),
+                        AuiLog.compact(value)
+                );
+            }
             return buffer.toString();
         }
     }
