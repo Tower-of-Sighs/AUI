@@ -104,6 +104,13 @@ public class ApricityUIClientUtil {
     }
 
     public static WorldWindow createWorldWindow(String path, double x, double y, double z,
+                                                int maxDistance, int maxDisplayDistance) {
+        WorldWindow window = createWorldWindow(path, x, y, z, maxDistance);
+        window.setMaxDisplayDistance(maxDisplayDistance);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String path, double x, double y, double z,
                                                 int maxDistance, float yaw, float pitch) {
         WorldWindow window = new WorldWindow(path, new Vec3(x, y, z),
                 maxDistance, yaw, pitch);
@@ -130,6 +137,17 @@ public class ApricityUIClientUtil {
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(path, new Vec3(x, y, z), maxDistance, followFactor);
         WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path,
+                                                                         double x, double y, double z,
+                                                                         int maxDistance,
+                                                                         int maxDisplayDistance,
+                                                                         float followFactor) {
+        FollowFacingWorldWindow window = createFollowFacingWorldWindow(
+                path, x, y, z, maxDistance, followFactor);
+        window.setMaxDisplayDistance(maxDisplayDistance);
         return window;
     }
 

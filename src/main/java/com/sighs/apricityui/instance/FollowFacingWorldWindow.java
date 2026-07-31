@@ -1,6 +1,7 @@
 package com.sighs.apricityui.instance;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.Camera;
 import net.minecraft.util.Mth;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Vector3f;
@@ -33,10 +34,11 @@ public class FollowFacingWorldWindow extends WorldWindow {
     @Override
     public void render(com.mojang.blaze3d.vertex.PoseStack poseStack, org.joml.Matrix4f projectionMatrix, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
-        Vector3f lookVec = mc.getEntityRenderDispatcher().camera.getLookVector();
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vector3f lookVec = camera.getLookVector();
         Vec3 look = new Vec3(lookVec.x, lookVec.y, lookVec.z);
         if (basePosition == null) basePosition = getPosition();
-        Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
+        Vec3 cameraPos = camera.getPosition();
         Vec3 toBase = basePosition.subtract(cameraPos);
         double depth = toBase.dot(look);
 

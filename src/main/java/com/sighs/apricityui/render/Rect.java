@@ -113,7 +113,7 @@ public class Rect {
         int[] colors = new int[]{topC, rightC, bottomC, leftC};
         Graph.drawComplexRoundedBorder(poseStack.last().pose(), (float) x, (float) y, (float) w, (float) h, radii, borders, colors);
 
-        if (box.borderImage != null) {
+        if (box.borderImage != null && WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
             if (box.borderImage.gradient != null) {
                 Graph.drawUnifiedRoundedRect(poseStack.last().pose(),
                         (float) x, (float) y, (float) w, (float) h,
@@ -154,7 +154,7 @@ public class Rect {
 
     public void drawBody(PoseStack poseStack) {
         drawBody(poseStack, getBodyRectSize());
-        drawInsetShadow(poseStack);
+        if (WorldWindowRenderContext.shouldRenderEffects()) drawInsetShadow(poseStack);
     }
 
     public void drawBody(PoseStack poseStack, Size s) {
@@ -165,6 +165,10 @@ public class Rect {
         else Graph.beginBatch();
         if (!background.color.equals("unset")) {
             Graph.drawUnifiedRoundedRect(poseStack.last().pose(), (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), radii, new Color(background.color).getValue());
+        }
+        if (!WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
+            Graph.endBatch();
+            return;
         }
         if (!background.getLayers().isEmpty()) {
             // CSS: background-image 第一层在最上方，因此按逆序绘制

@@ -167,6 +167,7 @@ ApricityUI.openScreen("demo/index.html");
 
 ```java
 WorldWindow window = ApricityUI.createWorldWindow("demo/world.html", position, 180, 100, 16);
+window.setMaxDisplayDistance(32);
 
 // 需要时移除
 ApricityUI.removeWorldWindow(window);
@@ -176,6 +177,7 @@ ApricityUI.removeWorldWindow(window);
 
 ```javascript
 let window = ApricityUI.createWorldWindow("demo/world.html", 0, 65, 0, 180, 100, 16)
+window.setMaxDisplayDistance(32)
 
 // 需要时移除
 ApricityUI.removeWorldWindow(window)
@@ -187,8 +189,42 @@ ApricityUI.removeWorldWindow(window)
 2. 旋转。
 3. 缩放。
 4. 深度测试和遮挡。
+5. 独立的最大显示距离。
+
+如果没有调用 `setMaxDisplayDistance()`，窗口使用客户端配置文件
+`config/apricityui-client.toml` 中 `[worldWindow] maxDisplayDistance` 的全局默认值；
+默认值为 `128` 格。需要不限制距离时可设置为 `2147483647`。
+实例调用 `setMaxDisplayDistance(distance)` 后会覆盖全局值。调用
+`clearMaxDisplayDistanceOverride()` 可以恢复跟随全局配置。
 
 默认缩放是 `0.02f`，也就是大约 50 像素对应 1 格方块。
+
+LOD 默认关闭。需要全局启用时，在 `config/apricityui-client.toml` 的
+`[worldWindow]` 中设置：
+
+```toml
+lodEnabled = true
+fullDetailDistance = 16
+reducedDetailDistance = 48
+```
+
+启用后，不超过 16 格为 `FULL`，超过 16 且不超过 48 格为 `REDUCED`，
+超过 48 格为 `MINIMAL`。如果场景里只想让某个窗口启用 LOD，可以直接调用：
+
+```java
+window.setDisplayPrecisionDistances(16, 48);
+```
+
+也可以强制指定档位：
+
+```java
+window.setDisplayPrecision(WorldWindowDisplayPrecision.REDUCED);
+// 或 window.setDisplayPrecision("minimal");
+```
+
+`REDUCED` 保留文字和主要内容，但跳过阴影、滤镜、背景滤镜和复杂裁剪；
+`MINIMAL` 只保留基础背景和边框。该设置只影响渲染成本，不改变布局、动画、
+命中检测或 DOM 事件；`maxDisplayDistance` 超出后仍会完全隐藏窗口。
 
 所以你在设计世界内 UI 时，也别拿浏览器那种超大面板尺寸直接套。
 
