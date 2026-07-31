@@ -36,6 +36,7 @@ public class Element extends Node {
     public ArrayList<Element> children = new ArrayList<>();
     private Element beforePseudoElement = null;
     private Element afterPseudoElement = null;
+    private List<Node> renderChildNodesCache = null;
     private TextNode legacyRenderTextNode = null;
     private HashMap<String, String> beforePseudoStyles = null;
     private HashMap<String, String> afterPseudoStyles = null;
@@ -955,20 +956,38 @@ public class Element extends Node {
 
     public List<Node> getRenderChildNodes() {
         if ("SELECT".equalsIgnoreCase(tagName)) return List.of();
-        if (childNodes.isEmpty()
-                && !hasGeneratedPseudoElement(Selector.PseudoElement.BEFORE)
-                && !hasGeneratedPseudoElement(Selector.PseudoElement.AFTER)) {
+        Element before = getGeneratedPseudoElement(Selector.PseudoElement.BEFORE);
+        Element after = getGeneratedPseudoElement(Selector.PseudoElement.AFTER);
+        if (childNodes.isEmpty() && before == null && after == null) {
+            renderChildNodesCache = null;
             return childNodes;
         }
         boolean includeLegacyText = childNodes.isEmpty() && innerText != null && !innerText.isEmpty();
+        TextNode legacyText = includeLegacyText ? getLegacyRenderTextNode() : null;
+        if (matchesRenderChildNodesCache(before, legacyText, after)) {
+            return renderChildNodesCache;
+        }
         ArrayList<Node> result = new ArrayList<>(childNodes.size() + (includeLegacyText ? 3 : 2));
-        Element before = getGeneratedPseudoElement(Selector.PseudoElement.BEFORE);
         if (before != null) result.add(before);
-        if (includeLegacyText) result.add(getLegacyRenderTextNode());
+        if (legacyText != null) result.add(legacyText);
         result.addAll(childNodes);
-        Element after = getGeneratedPseudoElement(Selector.PseudoElement.AFTER);
         if (after != null) result.add(after);
-        return result;
+        renderChildNodesCache = Collections.unmodifiableList(result);
+        return renderChildNodesCache;
+    }
+
+    private boolean matchesRenderChildNodesCache(Element before, TextNode legacyText, Element after) {
+        if (renderChildNodesCache == null) return false;
+        int expectedSize = childNodes.size() + (before == null ? 0 : 1)
+                + (legacyText == null ? 0 : 1) + (after == null ? 0 : 1);
+        if (renderChildNodesCache.size() != expectedSize) return false;
+        int index = 0;
+        if (before != null && renderChildNodesCache.get(index++) != before) return false;
+        if (legacyText != null && renderChildNodesCache.get(index++) != legacyText) return false;
+        for (Node child : childNodes) {
+            if (renderChildNodesCache.get(index++) != child) return false;
+        }
+        return after == null || renderChildNodesCache.get(index) == after;
     }
 
     private TextNode getLegacyRenderTextNode() {

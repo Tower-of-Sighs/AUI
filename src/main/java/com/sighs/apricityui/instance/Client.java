@@ -368,7 +368,7 @@ public class Client {
                 false,
                 com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
         );
-//        if (canceled) event.setCanceled(true);
+        if (canceled) event.setCanceled(true);
     }
 
     private static boolean handleViewportZoomAtMouse(boolean zoomIn) {

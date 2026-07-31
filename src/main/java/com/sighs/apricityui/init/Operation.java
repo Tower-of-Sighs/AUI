@@ -206,6 +206,10 @@ public class Operation {
                     } else if (key == GLFW.GLFW_KEY_ESCAPE) {
                         document.clearFocus();
                         documentCanceled[0] = true;
+                    } else if (shouldConsumeTextEntryKey(focusedElement, key)) {
+                        // Character insertion arrives through CharacterTyped. Consume the
+                        // preceding key press so Minecraft shortcuts do not run first.
+                        documentCanceled[0] = true;
                     }
                 } else if (focusedElement != null) {
                     if (ctrlDown) {
@@ -237,8 +241,31 @@ public class Operation {
         return cancel;
     }
 
+    static boolean shouldConsumeTextEntryKey(Element focusedElement, int key) {
+        if (!(focusedElement instanceof AbstractText textElement) || !textElement.canEditText()) {
+            return false;
+        }
+        return (key >= GLFW.GLFW_KEY_A && key <= GLFW.GLFW_KEY_Z)
+                || (key >= GLFW.GLFW_KEY_0 && key <= GLFW.GLFW_KEY_9)
+                || (key >= GLFW.GLFW_KEY_KP_0 && key <= GLFW.GLFW_KEY_KP_EQUAL)
+                || key == GLFW.GLFW_KEY_SPACE
+                || key == GLFW.GLFW_KEY_APOSTROPHE
+                || key == GLFW.GLFW_KEY_COMMA
+                || key == GLFW.GLFW_KEY_MINUS
+                || key == GLFW.GLFW_KEY_PERIOD
+                || key == GLFW.GLFW_KEY_SLASH
+                || key == GLFW.GLFW_KEY_SEMICOLON
+                || key == GLFW.GLFW_KEY_EQUAL
+                || key == GLFW.GLFW_KEY_LEFT_BRACKET
+                || key == GLFW.GLFW_KEY_BACKSLASH
+                || key == GLFW.GLFW_KEY_RIGHT_BRACKET
+                || key == GLFW.GLFW_KEY_GRAVE_ACCENT
+                || key == GLFW.GLFW_KEY_WORLD_1
+                || key == GLFW.GLFW_KEY_WORLD_2;
+    }
+
     private static boolean handleFrameworkShortcut(int key, int modifiers) {
-        boolean devToolsShortcut = key == GLFW.GLFW_KEY_F12
+        boolean devToolsShortcut = key == Keybindings.DEV_TOOLS.getKey().getValue()
                 || (key == GLFW.GLFW_KEY_I
                 && (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT))
                 == (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT));
@@ -246,7 +273,7 @@ public class Operation {
             DevTools.toggle();
             return true;
         }
-        if (key == GLFW.GLFW_KEY_F10) {
+        if (key == Keybindings.RESOURCE_MANAGER.getKey().getValue()) {
             ResourceManager.toggle();
             return true;
         }

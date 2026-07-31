@@ -66,6 +66,27 @@ class LayoutPositionTest {
             LayoutMeasureCache.end();
         }
     }
+
+    @Test
+    void layoutMeasurementCacheReusesStableEntriesAcrossFrames() {
+        Document document = TestDocumentFactory.createDocument();
+        Element element = new Element(document, "div");
+        document.body.appendChild(element);
+        Size measured = new Size(24, 12);
+
+        LayoutMeasureCache.begin();
+        LayoutMeasureCache.putSize(LayoutMeasureCache.SIZE_NATURAL, element,
+                Double.NaN, Double.NaN, true, measured);
+        LayoutMeasureCache.end();
+
+        LayoutMeasureCache.begin();
+        try {
+            assertEquals(measured, LayoutMeasureCache.getSize(LayoutMeasureCache.SIZE_NATURAL, element,
+                    Double.NaN, Double.NaN, true));
+        } finally {
+            LayoutMeasureCache.end();
+        }
+    }
     @Test
     void inlineFlexDirectTextKeepsItsContentHeightAboveMinHeight() {
         assumeMinecraftClientTextRuntime();

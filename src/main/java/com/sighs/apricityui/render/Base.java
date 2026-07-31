@@ -93,7 +93,6 @@ public class Base {
         // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
         // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
         FrameScheduler.renderBegin();
-        FrameScheduler.renderBegin();
         RenderBatchStats.beginDocument();
         RectFrameCache.begin();
         TransformFrameCache.begin();

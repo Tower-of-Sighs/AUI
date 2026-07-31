@@ -29,9 +29,27 @@ public class Keybindings {
             "key.categories.apricityui"
     );
 
+    public static final KeyMapping DEV_TOOLS = new KeyMapping("key.apricityui.dev_tools",
+            KeyConflictContext.GUI,
+            KeyModifier.NONE,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F12,
+            "key.categories.apricityui"
+    );
+
+    public static final KeyMapping RESOURCE_MANAGER = new KeyMapping("key.apricityui.resource_manager",
+            KeyConflictContext.GUI,
+            KeyModifier.NONE,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_F10,
+            "key.categories.apricityui"
+    );
+
     @SubscribeEvent
     public static void registerKeyMapping(RegisterKeyMappingsEvent event) {
         event.register(RELEASE_MOUSE);
         event.register(RELOAD);
+        event.register(DEV_TOOLS);
+        event.register(RESOURCE_MANAGER);
     }
 }

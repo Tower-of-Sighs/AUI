@@ -35,7 +35,9 @@ class DevToolsTest {
         assertTrue(template.contains("<meta name=\"aui-viewport\" content=\"mode=browser\">"));
         assertTrue(template.contains("<meta name=\"aui-mouse-events\" content=\"intercept\">"));
         assertTrue(template.indexOf("id=\"closeDocumentBtn\"") < template.indexOf("id=\"documentSelect\""));
+        assertTrue(template.indexOf("console-btn") < template.indexOf("id=\"closeDevToolsBtn\""));
         assertTrue(template.contains("data-tooltip-key=\"tooltip.apricityui.devtools.close_document\""));
+        assertTrue(template.contains("data-tooltip-key=\"tooltip.apricityui.devtools.close\""));
         assertTrue(template.contains("width: 40px;"));
         assertTrue(template.contains("height: 40px;"));
         assertTrue(template.contains("background: var(--danger);"));
@@ -86,8 +88,13 @@ class DevToolsTest {
             assertNotNull(documentSelect);
             Element documentSelectorBar = tool.querySelector(".document-selector-bar");
             Element closeDocumentButton = tool.querySelector("#closeDocumentBtn");
+            Element closeDevToolsButton = tool.querySelector("#closeDevToolsBtn");
             assertNotNull(documentSelectorBar);
             assertNotNull(closeDocumentButton);
+            assertNotNull(closeDevToolsButton);
+            assertEquals(closeDevToolsButton, topbar.children.get(topbar.children.size() - 1));
+            assertEquals("1", closeDevToolsButton.getAttribute("data-java-bound"));
+            assertEquals("1", closeDevToolsButton.getAttribute("data-tooltip-bound"));
             assertEquals(sidePanel, documentSelectorBar.parentElement);
             assertEquals(documentSelectorBar, sidePanel.children.get(1));
             assertEquals(closeDocumentButton, documentSelectorBar.children.get(0));
@@ -225,6 +232,9 @@ class DevToolsTest {
             assertEquals(duplicate.getUuid().toString(), documentSelect.getValue());
             assertNotNull(tool.querySelector("#domTree [data-node-id=\""
                     + duplicate.body.uuid + "\"]"));
+            closeDevToolsButton.click();
+            assertFalse(DevTools.isOpen());
+            assertFalse(tool.isActive());
         } finally {
             if (DevTools.isOpen()) DevTools.toggle();
             duplicate.remove();
