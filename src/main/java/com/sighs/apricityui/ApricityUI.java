@@ -146,10 +146,26 @@ public class ApricityUI {
         return window;
     }
 
+    /** Creates and registers a world window with an independent display-distance limit. */
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, int maxDisplayDistance) {
+        WorldWindow window = createWorldWindow(documentPath, position, maxDistance);
+        window.setMaxDisplayDistance(maxDisplayDistance);
+        return window;
+    }
+
     public static WorldWindow createWorldWindow(String documentPath,
                                                 double x, double y, double z, int maxDistance) {
         WorldWindow window = new WorldWindow(documentPath, x, y, z, maxDistance);
         WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath,
+                                                double x, double y, double z,
+                                                int maxDistance, int maxDisplayDistance) {
+        WorldWindow window = createWorldWindow(documentPath, x, y, z, maxDistance);
+        window.setMaxDisplayDistance(maxDisplayDistance);
         return window;
     }
 
@@ -195,6 +211,17 @@ public class ApricityUI {
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, maxDistance, followFactor);
         WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath,
+                                                                         Vec3 position,
+                                                                         int maxDistance,
+                                                                         int maxDisplayDistance,
+                                                                         float followFactor) {
+        FollowFacingWorldWindow window = createFollowFacingWorldWindow(
+                documentPath, position, maxDistance, followFactor);
+        window.setMaxDisplayDistance(maxDisplayDistance);
         return window;
     }
 

@@ -19,6 +19,7 @@ import com.sighs.apricityui.instance.ApricityUIConfig;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.layout.Position;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.Util;
 import net.minecraft.world.phys.Vec3;
@@ -108,10 +109,13 @@ public final class ResourceManager {
         }
         if (worldWindow == null || worldWindow.document == null || worldWindow.document.isDisposed()) {
             Minecraft minecraft = Minecraft.getInstance();
-            Vec3 camera = minecraft.gameRenderer.getMainCamera().getPosition();
-            Vec3 look = minecraft.player.getViewVector(minecraft.getPartialTick());
-            Vec3 position = camera.add(look.scale(3.0d));
-            Vec3 toCamera = camera.subtract(position);
+            // Place the panel along the actual render camera direction in third person.
+            Camera camera = minecraft.gameRenderer.getMainCamera();
+            Vec3 cameraPosition = camera.getPosition();
+            var lookVector = camera.getLookVector();
+            Vec3 look = new Vec3(lookVector.x, lookVector.y, lookVector.z).normalize();
+            Vec3 position = cameraPosition.add(look.scale(3.0d));
+            Vec3 toCamera = cameraPosition.subtract(position);
             double horizontal = Math.sqrt(toCamera.x * toCamera.x + toCamera.z * toCamera.z);
             float yaw = (float) (Math.toDegrees(Math.atan2(toCamera.z, toCamera.x)) + 90.0d);
             float pitch = (float) -Math.toDegrees(Math.atan2(toCamera.y, horizontal));

@@ -114,6 +114,7 @@ public interface RenderNode {
     record ElementPhaseNode(Element target, Base.RenderPhase phase) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            if (phase == Base.RenderPhase.SHADOW && !WorldWindowRenderContext.shouldRenderEffects()) return;
             ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
@@ -140,7 +141,11 @@ public interface RenderNode {
                         currentClip
                 );
             }
-            target.drawPhase(poseStack, phase);
+            if (phase == Base.RenderPhase.BODY && !WorldWindowRenderContext.shouldRenderContent()) {
+                target.drawBackgroundOnly(poseStack);
+            } else {
+                target.drawPhase(poseStack, phase);
+            }
         }
 
         static boolean shouldLogTarget(Element target) {
@@ -172,6 +177,7 @@ public interface RenderNode {
     record ElementContentNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderContent()) return;
             ensureRendererLoaded(target);
             if (shouldSkip(target)) return;
             AABB currentClip = Mask.getCurrentClip();
@@ -189,6 +195,7 @@ public interface RenderNode {
     record ScrollbarNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderContent()) return;
             ensureRendererLoaded(target);
             if (shouldSkip(target) || !target.mayRenderScrollbar()) return;
 
@@ -208,7 +215,8 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             String clip = target.getComputedStyle().clipPath;
-            if (clip == null || clip.equals("none")) return;
+            if (!WorldWindowRenderContext.shouldRenderEffects()
+                    || clip == null || clip.equals("none")) return;
 
             applyWithTransform(poseStack, target, rect -> {
                 Position p = rect.getBodyRectPosition();
@@ -231,7 +239,8 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             String clip = target.getComputedStyle().clipPath;
-            if (clip == null || clip.equals("none")) return;
+            if (!WorldWindowRenderContext.shouldRenderEffects()
+                    || clip == null || clip.equals("none")) return;
 
             applyWithTransform(poseStack, target, rect -> {
                 Position p = rect.getBodyRectPosition();
@@ -253,6 +262,7 @@ public interface RenderNode {
 
         @Override
         public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderEffects()) return;
             if (!Filter.isDisabled(target)) FilterRenderer.pushFilter();
         }
     }
@@ -260,6 +270,7 @@ public interface RenderNode {
     record FilterPopNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderEffects()) return;
             if (!Filter.isDisabled(target)) FilterRenderer.popFilter(Filter.getFilterOf(target));
         }
     }
@@ -267,6 +278,7 @@ public interface RenderNode {
     record BackdropFilterNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderEffects()) return;
             if (shouldSkip(target)) return;
             AABB clip = Mask.getCurrentClip();
             if (clip.isValid() && Rect.of(target).getVisualBounds().intersects(clip)) {

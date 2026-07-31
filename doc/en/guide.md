@@ -169,6 +169,7 @@ To make it render, attach it to a `WorldWindow`:
 
 ```java
 WorldWindow window = ApricityUI.createWorldWindow("demo/world.html", position, 180, 100, 16);
+window.setMaxDisplayDistance(32);
 
 ApricityUI.removeWorldWindow(window);
 ```
@@ -177,6 +178,7 @@ Equivalent KJS client API:
 
 ```javascript
 let window = ApricityUI.createWorldWindow("demo/world.html", 0, 65, 0, 180, 100, 16)
+window.setMaxDisplayDistance(32)
 
 ApricityUI.removeWorldWindow(window)
 ```
@@ -187,6 +189,40 @@ This flat world-space UI supports:
 2. Rotation
 3. Scaling
 4. Depth testing and occlusion
+5. An independent maximum display distance
+
+When `setMaxDisplayDistance()` has not been called, a window uses the global
+default from `[worldWindow] maxDisplayDistance` in
+`config/apricityui-client.toml`. The default is `128` blocks; set it to
+`2147483647` for unlimited distance.
+Calling `setMaxDisplayDistance(distance)` overrides the global value for that
+instance; `clearMaxDisplayDistanceOverride()` restores the global default.
+
+LOD is disabled by default. To enable it globally, set these values in the
+`[worldWindow]` section of `config/apricityui-client.toml`:
+
+```toml
+lodEnabled = true
+fullDetailDistance = 16
+reducedDetailDistance = 48
+```
+
+With these defaults, distances up to 16 blocks use `FULL`, distances over 16
+and up to 48 use `REDUCED`, and farther windows use `MINIMAL`. To enable LOD
+for only one window, call:
+
+```java
+window.setDisplayPrecisionDistances(16, 48);
+
+// Or force one level (also available from KubeJS as a string):
+window.setDisplayPrecision(WorldWindowDisplayPrecision.REDUCED);
+// window.setDisplayPrecision("minimal");
+```
+
+`REDUCED` keeps text and primary content while omitting shadows, filters,
+backdrop filters, and clip-path effects. `MINIMAL` keeps only basic backgrounds
+and borders. `maxDisplayDistance` still takes precedence and hides the complete
+window beyond its limit.
 
 The default scale is `0.02f`, roughly meaning 50 pixels per block.
 

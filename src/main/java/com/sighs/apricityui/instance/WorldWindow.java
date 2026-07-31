@@ -6,8 +6,10 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.WorldWindowRenderContext;
 import com.sighs.apricityui.render.WorldPaintDepth;
 import com.sighs.apricityui.layout.Position;
+import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.util.Mth;
@@ -21,6 +23,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
@@ -51,6 +54,15 @@ public class WorldWindow {
     private Float widthOverride;
     private Float heightOverride;
     private int maxDistance;
+    /** Optional per-instance camera-distance limit; null means use the client config default. */
+    private Integer maxDisplayDistanceOverride;
+    /** Display mode; AUTO follows the global LOD setting unless explicitly configured. */
+    private WorldWindowDisplayPrecision displayPrecision = WorldWindowDisplayPrecision.AUTO;
+    /** Whether this instance explicitly opted into a display precision policy. */
+    private boolean displayPrecisionOverride;
+    /** Optional per-instance LOD thresholds; null means use the client config values. */
+    private Integer fullDetailDistanceOverride;
+    private Integer reducedDetailDistanceOverride;
     private float nearDepthStep = DEFAULT_NEAR_DEPTH_STEP;
     private float farDepthStep = DEFAULT_FAR_DEPTH_STEP;
     private float depthNearDistance = DEFAULT_DEPTH_NEAR_DISTANCE;
@@ -185,6 +197,92 @@ public class WorldWindow {
         this.depthFarDistance = Math.max(this.depthNearDistance + 0.001f, this.maxDistance);
     }
 
+    /**
+     * Returns the effective camera-distance limit. An instance override takes
+     * precedence; otherwise the current client config default is used.
+     */
+    public int getMaxDisplayDistance() {
+        return WorldWindowVisibility.resolveDisplayDistance(
+                ApricityUIConfig.CLIENT.worldWindowMaxDisplayDistance(),
+                maxDisplayDistanceOverride);
+    }
+
+    /** Sets the per-instance maximum camera distance at which this window is rendered and interactive. */
+    public void setMaxDisplayDistance(int maxDisplayDistance) {
+        this.maxDisplayDistanceOverride = sanitizeDistance(maxDisplayDistance);
+    }
+
+    /** Returns whether this window overrides the configured global display-distance default. */
+    public boolean hasMaxDisplayDistanceOverride() {
+        return maxDisplayDistanceOverride != null;
+    }
+
+    /** Clears the per-instance limit so this window follows the client config default again. */
+    public void clearMaxDisplayDistanceOverride() {
+        maxDisplayDistanceOverride = null;
+    }
+
+    public WorldWindowDisplayPrecision getDisplayPrecision() {
+        return displayPrecision;
+    }
+
+    /**
+     * Sets the configured display precision. {@code AUTO} follows the global LOD
+     * setting, while an explicit level always applies to this instance.
+     */
+    public void setDisplayPrecision(WorldWindowDisplayPrecision displayPrecision) {
+        WorldWindowDisplayPrecision mode = displayPrecision == null
+                ? WorldWindowDisplayPrecision.AUTO : displayPrecision;
+        this.displayPrecision = mode;
+        this.displayPrecisionOverride = mode != WorldWindowDisplayPrecision.AUTO;
+        if (mode == WorldWindowDisplayPrecision.AUTO) {
+            this.fullDetailDistanceOverride = null;
+            this.reducedDetailDistanceOverride = null;
+        }
+    }
+
+    /** Rhino/KubeJS-friendly overload accepting {@code auto}, {@code full}, {@code reduced} or {@code minimal}. */
+    public void setDisplayPrecision(String displayPrecision) {
+        setDisplayPrecision(WorldWindowDisplayPrecision.parse(displayPrecision));
+    }
+
+    /** Returns the currently effective level for the main render camera. */
+    public WorldWindowDisplayPrecision getEffectiveDisplayPrecision() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.gameRenderer == null) return WorldWindowDisplayPrecision.MINIMAL;
+        Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
+        if (!isWithinDisplayDistance(cameraPosition)) return WorldWindowDisplayPrecision.MINIMAL;
+        return resolveDisplayPrecision(cameraPosition);
+    }
+
+    /**
+     * Enables distance-based LOD for this instance. Up to
+     * {@code fullDetailDistance} the window is FULL, then REDUCED until
+     * {@code reducedDetailDistance}, and MINIMAL afterwards. Both values are
+     * inclusive and measured in blocks.
+     */
+    public void setDisplayPrecisionDistances(int fullDetailDistance, int reducedDetailDistance) {
+        int full = sanitizeDistance(fullDetailDistance);
+        int reduced = sanitizeDistance(reducedDetailDistance);
+        if (reduced < full) reduced = full;
+        this.fullDetailDistanceOverride = full;
+        this.reducedDetailDistanceOverride = reduced;
+        this.displayPrecisionOverride = true;
+        this.displayPrecision = WorldWindowDisplayPrecision.AUTO;
+    }
+
+    public int getFullDetailDistance() {
+        return fullDetailDistanceOverride != null
+                ? fullDetailDistanceOverride
+                : ApricityUIConfig.CLIENT.worldWindowFullDetailDistance();
+    }
+
+    public int getReducedDetailDistance() {
+        return reducedDetailDistanceOverride != null
+                ? reducedDetailDistanceOverride
+                : ApricityUIConfig.CLIENT.worldWindowReducedDetailDistance();
+    }
+
     public void setDynamicDepthStep(float nearDepthStep, float farDepthStep, float nearDistance, float farDistance) {
         this.nearDepthStep = Math.max(0.0f, nearDepthStep);
         this.farDepthStep = Math.max(this.nearDepthStep, farDepthStep);
@@ -205,6 +303,8 @@ public class WorldWindow {
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
         Minecraft mc = Minecraft.getInstance();
         Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
+        if (!isWithinDisplayDistance(cameraPos)) return;
+        WorldWindowDisplayPrecision precision = resolveDisplayPrecision(cameraPos);
         float documentScale = worldDocumentScale();
         float worldScale = resolveRenderScale(cameraPos, projectionMatrix);
         float renderScale = worldScale * documentScale;
@@ -220,6 +320,14 @@ public class WorldWindow {
         poseStack.mulPose(new Quaternionf(rotation));
 
         poseStack.scale(renderScale, -renderScale, renderScale);
+
+        // Avoid entering the expensive document/stencil path when the complete panel is
+        // outside the camera frustum. The test is conservative for panels crossing a plane.
+        if (!isQuadVisible(poseStack.last().pose(), projectionMatrix, getWidth(), getHeight())) {
+            poseStack.popPose();
+            return;
+        }
+
         poseStack.translate(-getWidth() / 2.0f, -getHeight() / 2.0f, 0);
 
         MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
@@ -256,7 +364,9 @@ public class WorldWindow {
         Mask.resetDepth(getWidth(), getHeight());
         Mask.pushForceStencil();
         try {
-            Base.drawDocument(poseStack, document);
+            try (WorldWindowRenderContext.Scope ignored = WorldWindowRenderContext.push(precision)) {
+                Base.drawDocument(poseStack, document);
+            }
         } finally {
             Mask.popForceStencil();
             WorldPaintDepth.popFlatTransforms();
@@ -314,8 +424,12 @@ public class WorldWindow {
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) return null;
 
-        Vec3 rayOrigin = mc.player.getEyePosition(mc.getPartialTick());
-        Vec3 rayDir = mc.player.getViewVector(mc.getPartialTick());
+        // The render camera differs from the player eye in third person.
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vec3 rayOrigin = camera.getPosition();
+        if (!isWithinDisplayDistance(rayOrigin)) return null;
+        Vector3f lookVector = camera.getLookVector();
+        Vec3 rayDir = new Vec3(lookVector.x, lookVector.y, lookVector.z).normalize();
 
         Matrix4f modelMatrix = new Matrix4f();
         modelMatrix.translate((float) position.x, (float) position.y, (float) position.z);
@@ -371,6 +485,23 @@ public class WorldWindow {
 
         double blockDistance = rayOrigin.distanceTo(blockHit.getLocation());
         return blockDistance + OCCLUSION_DISTANCE_EPSILON < windowDistance;
+    }
+
+    private boolean isWithinDisplayDistance(Vec3 cameraPosition) {
+        if (cameraPosition == null || position == null) return false;
+        return WorldWindowVisibility.isWithinDisplayDistance(
+                cameraPosition.distanceToSqr(position), getMaxDisplayDistance());
+    }
+
+    private WorldWindowDisplayPrecision resolveDisplayPrecision(Vec3 cameraPosition) {
+        if (cameraPosition == null || position == null) return WorldWindowDisplayPrecision.MINIMAL;
+        return WorldWindowVisibility.resolveDisplayPrecision(
+                cameraPosition.distanceToSqr(position),
+                displayPrecision,
+                displayPrecisionOverride || ApricityUIConfig.CLIENT.worldWindowLodEnabled(),
+                getFullDetailDistance(),
+                getReducedDetailDistance()
+        );
     }
 
     private float documentViewportWidth() {
@@ -443,6 +574,61 @@ public class WorldWindow {
             return sanitizeScale(fallbackScale);
         }
         return (float) fittedScale;
+    }
+
+    static boolean isQuadVisible(Matrix4f modelViewMatrix, Matrix4f projectionMatrix,
+                                  float width, float height) {
+        if (modelViewMatrix == null || projectionMatrix == null
+                || !Float.isFinite(width) || !Float.isFinite(height)
+                || width <= 0.0f || height <= 0.0f) {
+            return true;
+        }
+
+        Matrix4f clip = new Matrix4f(projectionMatrix).mul(modelViewMatrix);
+        float halfWidth = width * 0.5f;
+        float halfHeight = height * 0.5f;
+
+        float centerX = clip.m30();
+        float centerY = clip.m31();
+        float centerZ = clip.m32();
+        float centerW = clip.m33();
+        float xAxisX = clip.m00() * halfWidth;
+        float xAxisY = clip.m01() * halfWidth;
+        float xAxisZ = clip.m02() * halfWidth;
+        float xAxisW = clip.m03() * halfWidth;
+        float yAxisX = clip.m10() * halfHeight;
+        float yAxisY = clip.m11() * halfHeight;
+        float yAxisZ = clip.m12() * halfHeight;
+        float yAxisW = clip.m13() * halfHeight;
+
+        // A panel entirely behind the camera cannot contribute any fragments.
+        if (centerW + Math.abs(xAxisW) + Math.abs(yAxisW) <= 0.0f) return false;
+
+        // Each expression below checks whether all four corners are outside one
+        // homogeneous clip plane. If no plane excludes the whole quad, keep it.
+        if (outsideLeft(centerX, centerW, xAxisX, xAxisW, yAxisX, yAxisW)) return false;
+        if (outsideRight(centerX, centerW, xAxisX, xAxisW, yAxisX, yAxisW)) return false;
+        if (outsideLeft(centerY, centerW, xAxisY, xAxisW, yAxisY, yAxisW)) return false;
+        if (outsideRight(centerY, centerW, xAxisY, xAxisW, yAxisY, yAxisW)) return false;
+        if (outsideLeft(centerZ, centerW, xAxisZ, xAxisW, yAxisZ, yAxisW)) return false;
+        if (outsideRight(centerZ, centerW, xAxisZ, xAxisW, yAxisZ, yAxisW)) return false;
+        return true;
+    }
+
+    private static boolean outsideLeft(float valueCenter, float wCenter,
+                                       float xAxis, float wAxis,
+                                       float yAxis, float yWAxis) {
+        float center = valueCenter + wCenter;
+        float radius = Math.abs(xAxis + wAxis) + Math.abs(yAxis + yWAxis);
+        return center + radius < 0.0f;
+    }
+
+    private static boolean outsideRight(float valueCenter, float wCenter,
+                                        float xAxis, float wAxis,
+                                        float yAxis, float yWAxis) {
+        float center = valueCenter - wCenter;
+        float radius = Math.abs(xAxis - wAxis) + Math.abs(yAxis - yWAxis);
+        return center - radius > 0.0f;
     }
 
     private static float sanitizeScale(float value) {

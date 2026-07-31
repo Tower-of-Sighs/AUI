@@ -20,6 +20,10 @@ public final class ApricityUIConfig {
         public final ForgeConfigSpec.BooleanValue remoteDebug;
         public final ForgeConfigSpec.BooleanValue resourceManagerWorldWindow;
         public final ForgeConfigSpec.DoubleValue worldWindowDepthOffsetScale;
+        public final ForgeConfigSpec.IntValue worldWindowMaxDisplayDistance;
+        public final ForgeConfigSpec.BooleanValue worldWindowLodEnabled;
+        public final ForgeConfigSpec.IntValue worldWindowFullDetailDistance;
+        public final ForgeConfigSpec.IntValue worldWindowReducedDetailDistance;
 
         private Client(ForgeConfigSpec.Builder builder) {
             builder.push("debug");
@@ -44,11 +48,39 @@ public final class ApricityUIConfig {
             worldWindowDepthOffsetScale = builder
                     .comment("Scale applied to WorldWindow's distance-based depth offset.")
                     .defineInRange("depthOffsetScale", 0.0005d, 0.0d, 1.0d);
+            worldWindowMaxDisplayDistance = builder
+                    .comment("Default maximum camera distance for WorldWindow rendering and interaction. Integer.MAX_VALUE means unlimited.")
+                    .defineInRange("maxDisplayDistance", 128, 0, Integer.MAX_VALUE);
+            worldWindowLodEnabled = builder
+                    .comment("Enable distance-based level-of-detail rendering for WorldWindow by default.")
+                    .define("lodEnabled", false);
+            worldWindowFullDetailDistance = builder
+                    .comment("WorldWindow distance up to which automatic LOD keeps full detail.")
+                    .defineInRange("fullDetailDistance", 16, 0, Integer.MAX_VALUE);
+            worldWindowReducedDetailDistance = builder
+                    .comment("WorldWindow distance up to which automatic LOD keeps reduced detail.")
+                    .defineInRange("reducedDetailDistance", 48, 0, Integer.MAX_VALUE);
             builder.pop();
         }
 
         public float worldWindowDepthOffsetScale() {
             return worldWindowDepthOffsetScale.get().floatValue();
+        }
+
+        public int worldWindowMaxDisplayDistance() {
+            return worldWindowMaxDisplayDistance.get();
+        }
+
+        public boolean worldWindowLodEnabled() {
+            return worldWindowLodEnabled.get();
+        }
+
+        public int worldWindowFullDetailDistance() {
+            return worldWindowFullDetailDistance.get();
+        }
+
+        public int worldWindowReducedDetailDistance() {
+            return worldWindowReducedDetailDistance.get();
         }
     }
 
