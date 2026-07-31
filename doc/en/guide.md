@@ -330,8 +330,8 @@ Screen documents can choose their logical root viewport with an `aui-viewport` m
 Supported modes:
 
 1. `mode=gui`: default Minecraft GUI-sized viewport, compatible with the old behavior.
-2. `mode=browser`, `mode=css`, or `mode=web`: use a browser-like CSS viewport with a monitor-derived fixed width. The height follows the current window's CSS height, while the render scale stays fixed, so resizing the window does not change horizontal layout.
-3. `mode=window` or `mode=native`: use the monitor CSS viewport and fit it into the current window. The logical CSS size stays stable while the render scale follows the window size.
+2. `mode=window` or `mode=native`: use a browser-like CSS viewport with a monitor-derived fixed width. The height follows the current window's CSS height, while the render scale stays fixed, so resizing the window does not change horizontal layout.
+3. `mode=browser`, `mode=css`, or `mode=web`: keep the monitor CSS width, scale it to the current GUI viewport width, and derive the CSS height from the current window height so both axes fill the window.
 4. `mode=screen` or `mode=fullscreen`: compatibility aliases for `mode=window`.
 5. `mode=fixed,width=427,height=249`: use an explicit fixed logical viewport.
 

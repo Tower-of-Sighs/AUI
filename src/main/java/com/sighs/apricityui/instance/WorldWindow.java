@@ -3,6 +3,7 @@ package com.sighs.apricityui.instance;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
@@ -376,6 +377,7 @@ public class WorldWindow {
             captureInteractionTransform(projectionMatrix, poseStack.last().pose(), renderScale, documentZOffset);
             try (WorldWindowRenderContext.Scope ignored = WorldWindowRenderContext.push(precision)) {
                 Base.drawDocument(poseStack, document);
+                ResourcePreviewDialog.drawInWorld(poseStack, document);
             }
         } finally {
             Mask.popForceStencil();
@@ -516,7 +518,8 @@ public class WorldWindow {
 
     /** Returns the current mouse position mapped to document coordinates for world events. */
     public Position getRealPos() {
-        return getRealPos(Client.getMousePositionDirectly());
+        // A grabbed cursor reports virtual look coordinates; world picking uses the crosshair.
+        return getRealPos(Client.getMousePositionForWorldInteraction());
     }
 
     /** Returns a screen position mapped to this window's event coordinate space. */

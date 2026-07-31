@@ -98,6 +98,7 @@ public class RenderElement {
     private Rect committedRect = null;
     private Matrix4f committedWorldTransform = null;
     private long styleVersion = 1L;
+    private long textVersion = 1L;
     private long layoutVersion = 1L;
     private long scrollVersion = 1L;
     private long transformVersion = 1L;
@@ -155,6 +156,19 @@ public class RenderElement {
         return usedSizeDependency();
     }
 
+    /**
+     * Version of text styling inherited by this element's layout objects.
+     * Text runs are stored inside normal/flex layout results, so their cache
+     * dependency must be separate from geometry and hit-test dependencies.
+     */
+    public long textDependency() {
+        long value = 17L;
+        for (Element routeElement : element.getRouteArray()) {
+            value = mix(value, routeElement.getRenderer().textVersion);
+        }
+        return value;
+    }
+
     private long usedSizeDependency() {
         long value = 17L;
         if (element.document != null) value = mix(value, element.document.getViewportVersion());
@@ -199,6 +213,10 @@ public class RenderElement {
 
     public void invalidateStyleVersion() {
         styleVersion++;
+    }
+
+    public void invalidateTextVersion() {
+        textVersion++;
     }
 
     public void invalidateScrollVersion() {
@@ -399,14 +417,23 @@ public class RenderElement {
             dirtyMask |= Drawer.REPAINT;
         }
 
-        if (check.test(Style.getTextProp())) {
+        boolean textChanged = check.test(Style.getTextProp());
+        if (textChanged) {
             renderer.text.clear();
             renderer.wrappedText.clear();
+            // A flow result may be cached by an ancestor while this element's
+            // inherited color/font is changing. Bump the route dependency so
+            // that the ancestor rebuilds its stored TextRunLayout objects.
+            element.forEachRoute(routeElement -> routeElement.getRenderer().invalidateTextVersion());
             dirtyMask |= Drawer.REPAINT;
 
             if (check.test(TEXT_LAYOUT_PROPS)) {
                 // 字体大小行高变化触发重排
-                element.forEachRoute(e -> e.getRenderer().size.clear());
+                element.forEachRoute(routeElement -> {
+                    RenderElement routeRenderer = routeElement.getRenderer();
+                    routeRenderer.invalidateLayoutVersion();
+                    routeRenderer.size.clear();
+                });
                 renderer.box.clear();
                 if (element.parentElement != null) {
                     element.parentElement.getRenderer().size.clear();

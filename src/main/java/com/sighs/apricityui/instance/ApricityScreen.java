@@ -83,6 +83,14 @@ public class ApricityScreen extends Screen {
     }
 
     @Override
+    public void resize(@Nonnull Minecraft minecraft, int width, int height) {
+        super.resize(minecraft, width, height);
+        if (linkedDocument != null) {
+            linkedDocument.applyViewport(true);
+        }
+    }
+
+    @Override
     public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
         FrameTimingHud.beginFrame();
         try {

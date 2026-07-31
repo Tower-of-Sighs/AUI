@@ -35,6 +35,8 @@ final class MotionTrack {
     private final ConcurrentHashMap<Element, Integer> flags = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Element, Style> lastMotionStyles = new ConcurrentHashMap<>();
     private final Set<Element> hitTestRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<Element> layoutRoots = Collections.newSetFromMap(new IdentityHashMap<>());
+    private final Set<Element> geometryRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private boolean visualChanges = false;
 
     MotionTrack(Document owner) {
@@ -45,6 +47,8 @@ final class MotionTrack {
         flags.clear();
         lastMotionStyles.clear();
         hitTestRoots.clear();
+        layoutRoots.clear();
+        geometryRoots.clear();
         visualChanges = false;
     }
 
@@ -52,6 +56,9 @@ final class MotionTrack {
         if (element == null) return;
         flags.keySet().removeIf(e -> element.uuid.equals(e.uuid));
         lastMotionStyles.keySet().removeIf(e -> element.uuid.equals(e.uuid));
+        hitTestRoots.remove(element);
+        layoutRoots.remove(element);
+        geometryRoots.remove(element);
     }
 
     void setTransitionActive(Element element, boolean active) {
@@ -64,6 +71,8 @@ final class MotionTrack {
 
     boolean stepRender() {
         hitTestRoots.clear();
+        layoutRoots.clear();
+        geometryRoots.clear();
         visualChanges = false;
         if (!StyleFrameCache.isActive()) return false;
         if (flags.isEmpty()) return false;
@@ -163,10 +172,22 @@ final class MotionTrack {
     }
 
     Set<Element> drainHitTestRoots() {
-        if (hitTestRoots.isEmpty()) return Set.of();
+        return drainRoots(hitTestRoots);
+    }
+
+    Set<Element> drainLayoutRoots() {
+        return drainRoots(layoutRoots);
+    }
+
+    Set<Element> drainGeometryRoots() {
+        return drainRoots(geometryRoots);
+    }
+
+    private static Set<Element> drainRoots(Set<Element> roots) {
+        if (roots.isEmpty()) return Set.of();
         Set<Element> result = Collections.newSetFromMap(new IdentityHashMap<>());
-        result.addAll(hitTestRoots);
-        hitTestRoots.clear();
+        result.addAll(roots);
+        roots.clear();
         return result;
     }
 
@@ -188,11 +209,13 @@ final class MotionTrack {
         if (differsAny(base, animated, Style.getTextProp())) {
             renderer.text.clear();
             renderer.wrappedText.clear();
+            element.forEachRoute(routeElement -> routeElement.getRenderer().invalidateTextVersion());
         }
 
         if (!Objects.equals(base.transform, animated.transform)) {
             renderer.invalidateTransformVersion();
             renderer.transform.clear();
+            geometryRoots.add(element);
             hitTestRoots.add(element);
             requiresGeometryCommit = true;
         }
@@ -213,6 +236,7 @@ final class MotionTrack {
 
     private void invalidateLayoutMotion(Element element, Style base, Style animated) {
         RenderElement renderer = element.getRenderer();
+        layoutRoots.add(element);
         boolean affectsNormalFlow = Layout.isInFlow(base) || Layout.isInFlow(animated);
         if (affectsNormalFlow) {
             element.forEachRoute(e -> {
@@ -260,6 +284,7 @@ final class MotionTrack {
         }
         if (affectsTransform) {
             renderer.invalidateTransformVersion();
+            geometryRoots.add(element);
             hitTestRoots.add(element);
             requiresGeometryCommit = true;
         }
