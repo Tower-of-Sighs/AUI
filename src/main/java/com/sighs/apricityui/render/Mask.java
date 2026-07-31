@@ -16,7 +16,9 @@ public class Mask {
     private static int depth = 0;
     private static final Stack<AABB> clipStack = new Stack<>();
     private static final Stack<AABB> scissorStack = new Stack<>();
-    private static final Stack<Boolean> maskScissorStack = new Stack<>();
+    private static final Stack<MaskMode> maskModeStack = new Stack<>();
+    private static final Stack<MaskMode> clipPathModeStack = new Stack<>();
+    private static final Stack<AABB> clipPathScissorStack = new Stack<>();
     private static final Stack<SurfaceClipState> surfaceClipStack = new Stack<>();
     private static final ThreadLocal<ArrayDeque<Double>> scissorScaleStack = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> forceStencilDepth = ThreadLocal.withInitial(() -> 0);
@@ -34,7 +36,9 @@ public class Mask {
         depth = 0;
         clipStack.clear();
         scissorStack.clear();
-        maskScissorStack.clear();
+        maskModeStack.clear();
+        clipPathModeStack.clear();
+        clipPathScissorStack.clear();
         surfaceClipStack.clear();
         currentScissor = null;
         surfaceScissorTransform = null;
@@ -119,9 +123,12 @@ public class Mask {
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii, boolean forceStencil) {
-        boolean useScissor = !forceStencil && forceStencilDepth.get() == 0 && isRectMask(radii);
-        maskScissorStack.push(useScissor);
-        if (useScissor) {
+        boolean forced = forceStencil || forceStencilDepth.get() > 0;
+        MaskMode mode = !FilterRenderer.isStencilAvailable()
+                ? (forced ? MaskMode.NONE : MaskMode.SCISSOR)
+                : (!forced && isRectMask(radii) ? MaskMode.SCISSOR : MaskMode.STENCIL);
+        maskModeStack.push(mode);
+        if (mode == MaskMode.SCISSOR) {
             Graph.endBatch();
             ImageDrawer.flushBatch();
             scissorStack.push(currentScissor);
@@ -142,6 +149,8 @@ public class Mask {
         // popMask always restores this stack, so it must be pushed here too.
         clipStack.push(currentClip);
         currentClip = currentClip.intersection(new AABB(x, y, width, height));
+
+        if (mode == MaskMode.NONE) return;
 
         if (depth == 0) {
             RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
@@ -166,8 +175,8 @@ public class Mask {
     }
 
     public static void popMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
-        boolean useScissor = !maskScissorStack.isEmpty() && maskScissorStack.pop();
-        if (useScissor) {
+        MaskMode mode = maskModeStack.isEmpty() ? MaskMode.STENCIL : maskModeStack.pop();
+        if (mode == MaskMode.SCISSOR) {
             Graph.endBatch();
             ImageDrawer.flushBatch();
             if (!clipStack.isEmpty()) currentClip = clipStack.pop();
@@ -180,6 +189,7 @@ public class Mask {
         Graph.endBatch();
         ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
+        if (mode == MaskMode.NONE) return;
         if (depth <= 1) {
             depth = 0;
             finishStencilPop();
@@ -247,9 +257,32 @@ public class Mask {
     }
 
     public static void pushClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
+        pushClipPath(pose, x, y, width, height, clipPathValue, false);
+    }
+
+    public static void pushClipPath(PoseStack pose, float x, float y, float width, float height,
+                                    String clipPathValue, boolean forceStencil) {
+        boolean forced = forceStencil || forceStencilDepth.get() > 0;
+        MaskMode mode = !FilterRenderer.isStencilAvailable()
+                ? (forced ? MaskMode.NONE : MaskMode.SCISSOR)
+                : MaskMode.STENCIL;
+        clipPathModeStack.push(mode);
+
         clipStack.push(currentClip);
         AABB newMask = new AABB(x, y, width, height);
         currentClip = currentClip.intersection(newMask);
+
+        if (mode == MaskMode.NONE) return;
+
+        if (mode == MaskMode.SCISSOR) {
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
+            clipPathScissorStack.push(currentScissor);
+            currentScissor = currentScissor == null ? newMask : currentScissor.intersection(newMask);
+            applyScissor(currentScissor);
+            return;
+        }
+
         Graph.endBatch();
         ImageDrawer.flushBatch();
 
@@ -276,9 +309,21 @@ public class Mask {
     }
 
     public static void popClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
+        MaskMode mode = clipPathModeStack.isEmpty() ? MaskMode.STENCIL : clipPathModeStack.pop();
+        if (mode == MaskMode.SCISSOR) {
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
+            if (!clipStack.isEmpty()) currentClip = clipStack.pop();
+            currentScissor = clipPathScissorStack.isEmpty() ? null : clipPathScissorStack.pop();
+            if (currentScissor == null) disableScissor();
+            else applyScissor(currentScissor);
+            return;
+        }
+
         Graph.endBatch();
         ImageDrawer.flushBatch();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
+        if (mode == MaskMode.NONE) return;
         if (depth <= 1) {
             depth = 0;
             finishStencilPop();
@@ -367,6 +412,12 @@ public class Mask {
     }
 
     private record SurfaceClipState(AABB clip, AABB scissor, SurfaceScissorTransform transform) {
+    }
+
+    private enum MaskMode {
+        SCISSOR,
+        STENCIL,
+        NONE
     }
 
     private record StencilDepthState(boolean depthTestEnabled, boolean depthWriteEnabled, boolean cullEnabled) {

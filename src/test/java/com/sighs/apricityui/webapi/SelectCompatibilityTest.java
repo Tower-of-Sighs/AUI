@@ -5,11 +5,13 @@ import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Field;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -123,6 +125,37 @@ class SelectCompatibilityTest {
     }
 
     @Test
+    void popupUsesOwningViewportForFixedAncestorWithoutDocumentContext() throws Exception {
+        Size.setViewportOverride(400, 300);
+        Document document = TestDocumentFactory.createDocument();
+        setViewport(document, 1600, 900);
+        Element sidePanel = new Element(document, "div");
+        sidePanel.setAttribute("style", "position:fixed;right:0;top:0;width:420px;height:900px;");
+
+        Select select = new Select(document);
+        select.appendChild(option(document, "First", "a"));
+        select.appendChild(option(document, "Second", "b"));
+        sidePanel.appendChild(select);
+        document.body.appendChild(sidePanel);
+        setGeometry(sidePanel, 420, 900, null);
+        setGeometry(select, 200, 32, new Position(10, 10));
+
+        try {
+            try (Document.ContextScope ignored = Document.withContext(null)) {
+                select.openPopup();
+            }
+            Element popup = document.querySelector(".aui-select-popup");
+            assertNotNull(popup);
+            assertTrue(popup.getAttribute("style").contains("left:1190.00px;"));
+            assertTrue(popup.getAttribute("style").contains("top:42.00px;"));
+        } finally {
+            select.closePopup();
+            document.remove();
+            Size.clearViewportOverride();
+        }
+    }
+
+    @Test
     void popupRowsInheritOptionTooltipTranslationKeys() {
         Document document = TestDocumentFactory.createDocument();
         Select select = new Select(document);
@@ -223,6 +256,50 @@ class SelectCompatibilityTest {
     }
 
     @Test
+    void multipleSelectPopupCommitsOneOptionWithoutClosingOrLooping() {
+        Document document = TestDocumentFactory.createDocument();
+        Select select = new Select(document);
+        select.setMultiple(true);
+        Option first = option(document, "First", "a");
+        Option second = option(document, "Second", "b");
+        Option third = option(document, "Third", "c");
+        first.setSelected(true);
+        second.setSelected(true);
+        document.body.appendChild(select);
+        select.appendChild(first);
+        select.appendChild(second);
+        select.appendChild(third);
+        setSelectTestGeometry(select);
+
+        AtomicInteger input = new AtomicInteger();
+        AtomicInteger change = new AtomicInteger();
+        select.addEventListener("input", event -> input.incrementAndGet());
+        select.addEventListener("change", event -> change.incrementAndGet());
+
+        try {
+            select.openPopup();
+            List<Element> rows = document.querySelectorAll(".aui-select-option");
+            assertEquals(3, rows.size());
+            rows.get(2).click();
+
+            assertTrue(select.isPopupOpen());
+            assertTrue(third.isSelected());
+            assertEquals(List.of(first, second, third), select.getSelectedOptions());
+            assertEquals(1, input.get());
+            assertEquals(1, change.get());
+
+            rows.get(0).click();
+            assertFalse(first.isSelected());
+            assertEquals(List.of(second, third), select.getSelectedOptions());
+            assertEquals(2, input.get());
+            assertEquals(2, change.get());
+        } finally {
+            select.closePopup();
+            document.remove();
+        }
+    }
+
+    @Test
     void structuralRemovalReselectsFirstOptionAndDisconnectClosesPopup() {
         Document document = TestDocumentFactory.createDocument();
         Select select = new Select(document);
@@ -273,10 +350,20 @@ class SelectCompatibilityTest {
     }
 
     private static void setSelectTestGeometry(Select select) {
+        setGeometry(select, 200, 32, new Position(10, 10));
+    }
+
+    private static void setGeometry(Element element, double width, double height, Position position) {
         Box box = new Box();
-        box.element = select;
-        select.getRenderer().box.set(box);
-        select.getRenderer().size.set(new Size(200, 32));
-        select.getRenderer().position.set(new Position(10, 10));
+        box.element = element;
+        element.getRenderer().box.set(box);
+        element.getRenderer().size.set(new Size(width, height));
+        element.getRenderer().position.set(position);
+    }
+
+    private static void setViewport(Document document, int width, int height) throws Exception {
+        Field viewport = Document.class.getDeclaredField("viewport");
+        viewport.setAccessible(true);
+        viewport.set(document, new ApricityViewport(width, height, 1.0f, 1.0d));
     }
 }

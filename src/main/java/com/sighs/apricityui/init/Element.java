@@ -16,10 +16,20 @@ import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.*;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.YearMonth;
+import java.time.DayOfWeek;
+import java.time.temporal.IsoFields;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 
 public class Element extends Node {
     private HashMap<String, String> attributes = new HashMap<>();
@@ -55,6 +65,8 @@ public class Element extends Node {
     private boolean checkedDirty = false;
     private Boolean selectedState = null;
     private boolean selectedDirty = false;
+    private String customValidityMessage = "";
+    private final ArrayList<String> fileList = new ArrayList<>();
     public boolean isHover = false;
     public boolean isActive = false;
     public boolean isFocus = false;
@@ -582,7 +594,21 @@ public class Element extends Node {
 
     public String getType() {
         if ("SELECT".equalsIgnoreCase(tagName)) return isMultiple() ? "select-multiple" : "select-one";
-        return getAttribute("type");
+        String type = getAttribute("type");
+        if (type == null || type.isBlank()) {
+            if ("INPUT".equalsIgnoreCase(tagName)) return "text";
+            if ("BUTTON".equalsIgnoreCase(tagName)) return "submit";
+        }
+        if ("INPUT".equalsIgnoreCase(tagName)) {
+            String normalized = type.toLowerCase(Locale.ROOT);
+            return switch (normalized) {
+                case "button", "checkbox", "color", "date", "datetime-local", "email", "file",
+                        "hidden", "image", "month", "number", "password", "radio", "range",
+                        "reset", "search", "submit", "tel", "text", "time", "url", "week" -> normalized;
+                default -> "text";
+            };
+        }
+        return type;
     }
 
     public void setType(String value) {
@@ -598,11 +624,110 @@ public class Element extends Node {
     }
 
     public boolean isDisabled() {
-        return hasBooleanAttribute("disabled");
+        if (hasBooleanAttribute("disabled")) return true;
+        if (!isFormControl() && !"OPTION".equalsIgnoreCase(tagName)
+                && !"OPTGROUP".equalsIgnoreCase(tagName)) return false;
+
+        // A disabled FIELDSET disables its form controls, except descendants
+        // of the first LEGEND child. This is intentionally evaluated from the
+        // live tree so moving a control updates its behavior immediately.
+        for (Element ancestor = parentElement; ancestor != null; ancestor = ancestor.parentElement) {
+            if (!"FIELDSET".equalsIgnoreCase(ancestor.tagName)) continue;
+            if (!ancestor.hasBooleanAttribute("disabled")) continue;
+            if (!isInsideFirstLegend(ancestor)) return true;
+        }
+        return "OPTION".equalsIgnoreCase(tagName) && parentElement != null
+                && "OPTGROUP".equalsIgnoreCase(parentElement.tagName)
+                && parentElement.isDisabled();
     }
 
     public void setDisabled(boolean disabled) {
         setBooleanAttribute("disabled", disabled);
+    }
+
+    /** Returns the owning FORM, honoring an explicit form=id association. */
+    public Element getFormOwner() {
+        if ("FORM".equalsIgnoreCase(tagName)) return null;
+        if (!isFormControl()) return null;
+        if (hasAttribute("form")) {
+            String id = getAttribute("form");
+            if (id == null || id.isBlank() || document == null) return null;
+            Element candidate = document.getElementById(id.trim());
+            if (candidate == null) {
+                Element root = document.documentElement != null ? document.documentElement : document.body;
+                candidate = findElementById(root, id.trim());
+            }
+            return candidate != null && "FORM".equalsIgnoreCase(candidate.tagName) ? candidate : null;
+        }
+        for (Element current = parentElement; current != null; current = current.parentElement) {
+            if ("FORM".equalsIgnoreCase(current.tagName)) return current;
+        }
+        return null;
+    }
+
+    /** Browser-style form property name used by the JavaScript bridge. */
+    public Element getForm() {
+        return getFormOwner();
+    }
+
+    public boolean isFormAssociated() {
+        return isFormControl();
+    }
+
+    public List<Element> getFormControls() {
+        if (!"FORM".equalsIgnoreCase(tagName)) return List.of();
+        ArrayList<Element> result = new ArrayList<>();
+        ArrayList<Element> candidates = new ArrayList<>();
+        if (document != null) candidates.addAll(document.getElements());
+        // A form can be queried before it is attached to a document. Include
+        // its local subtree in addition to the document tree, de-duplicating
+        // nodes that are already registered by ElementTree.
+        ArrayList<Element> local = new ArrayList<>();
+        collectElements(this, local);
+        for (Element candidate : local) {
+            if (!candidates.contains(candidate)) candidates.add(candidate);
+        }
+        for (Element candidate : candidates) {
+            if (candidate != null && candidate != this && candidate.isFormControl()
+                    && candidate.getFormOwner() == this) {
+                result.add(candidate);
+            }
+        }
+        return Collections.unmodifiableList(result);
+    }
+
+    private static Element findElementById(Element root, String id) {
+        if (root == null || id == null) return null;
+        if (id.equals(root.id) || id.equals(root.getAttribute("id"))) return root;
+        for (Element child : root.children) {
+            Element match = findElementById(child, id);
+            if (match != null) return match;
+        }
+        return null;
+    }
+
+    private boolean isInsideFirstLegend(Element fieldset) {
+        Element firstLegend = null;
+        for (Element child : fieldset.children) {
+            if ("LEGEND".equalsIgnoreCase(child.tagName)) {
+                firstLegend = child;
+                break;
+            }
+        }
+        return firstLegend != null && firstLegend.contains(this);
+    }
+
+    private boolean isFormControl() {
+        if (tagName == null) return false;
+        return switch (tagName.toUpperCase(Locale.ROOT)) {
+            case "INPUT", "SELECT", "TEXTAREA", "BUTTON", "OUTPUT", "FIELDSET" -> true;
+            default -> false;
+        };
+    }
+
+    private boolean isLabelableControl() {
+        if (!isFormControl()) return false;
+        return !"FIELDSET".equalsIgnoreCase(tagName);
     }
 
     public boolean isChecked() {
@@ -1447,7 +1572,10 @@ public class Element extends Node {
     }
 
     public void focus() {
-        if (document == null) return;
+        if (document == null || isDisabled()) return;
+        // Keep programmatic focus compatible with existing AUI documents that
+        // focus ordinary elements, while hidden inputs remain non-focusable.
+        if ("INPUT".equalsIgnoreCase(tagName) && !canFocus()) return;
         document.setFocusedElement(this);
     }
 
@@ -1458,13 +1586,612 @@ public class Element extends Node {
         }
     }
 
+    /** Programmatic submission, matching the legacy AUI behavior. */
     public boolean submit() {
         if (!"FORM".equalsIgnoreCase(tagName)) return false;
+        return dispatchSubmitEvent(null);
+    }
+
+    /** Interactive submission with constraint validation and an optional submitter. */
+    public boolean requestSubmit() {
+        return requestSubmit(null);
+    }
+
+    public boolean requestSubmit(Element submitter) {
+        if (!"FORM".equalsIgnoreCase(tagName)) return false;
+        if (submitter != null && (!isSubmitButton(submitter) || submitter.getFormOwner() != this
+                || submitter.isDisabled())) return false;
+        boolean skipValidation = hasAttribute("novalidate")
+                || (submitter != null && submitter.hasAttribute("formnovalidate"));
+        if (!skipValidation && !checkValidity()) return false;
+        return dispatchSubmitEvent(submitter);
+    }
+
+    private boolean dispatchSubmitEvent(Element submitter) {
         Event event = new Event(this, "submit", null, false);
         event.bubbles = true;
         event.cancelable = true;
+        event.submitter = submitter;
         Event.tiggerEvent(event);
-        return !event.defaultPrevented;
+        if (event.defaultPrevented) return false;
+
+        Event formDataEvent = new Event(this, "formdata", false);
+        formDataEvent.formData = getFormData(submitter);
+        Event.tiggerEvent(formDataEvent);
+        return true;
+    }
+
+    public boolean reset() {
+        if (!"FORM".equalsIgnoreCase(tagName)) return false;
+        Event event = new Event(this, "reset", null, false);
+        event.bubbles = true;
+        event.cancelable = true;
+        Event.tiggerEvent(event);
+        if (event.defaultPrevented) return false;
+        List<Element> controls = getFormControls();
+        for (Element control : controls) control.resetFormControl();
+        for (Element control : controls) {
+            if ("INPUT".equalsIgnoreCase(control.tagName)
+                    && "radio".equals(normalizedInputType(control)) && control.isChecked()) {
+                control.enforceRadioGroupChecked();
+            }
+        }
+        return true;
+    }
+
+    /** Returns successful controls in document order for FormData and submission. */
+    public List<FormDataEntry> getFormDataEntries() {
+        return getFormDataEntries(null);
+    }
+
+    public List<FormDataEntry> getFormDataEntries(Element submitter) {
+        if (!"FORM".equalsIgnoreCase(tagName)) return List.of();
+        ArrayList<FormDataEntry> entries = new ArrayList<>();
+        for (Element control : getFormControls()) {
+            appendFormDataEntries(entries, control, submitter);
+        }
+        if (submitter != null && submitter.getFormOwner() == this
+                && !getFormControls().contains(submitter)) {
+            appendFormDataEntries(entries, submitter, submitter);
+        }
+        return Collections.unmodifiableList(entries);
+    }
+
+    public FormData getFormData() {
+        return new FormData(getFormDataEntries());
+    }
+
+    public FormData getFormData(Element submitter) {
+        return new FormData(getFormDataEntries(submitter));
+    }
+
+    private static void appendFormDataEntries(List<FormDataEntry> entries, Element control, Element submitter) {
+        if (control == null || !control.hasAttribute("name") || control.isDisabled()) return;
+        String name = control.getAttribute("name");
+        String tag = control.tagName == null ? "" : control.tagName.toUpperCase(Locale.ROOT);
+        if ("OUTPUT".equals(tag) || "FIELDSET".equals(tag)) return;
+        if ("SELECT".equals(tag)) {
+            for (Element option : control.getSelectedOptions()) {
+                if (!option.isOptionEffectivelyDisabled()) {
+                    entries.add(new FormDataEntry(name, option.getOptionValue()));
+                }
+            }
+            return;
+        }
+        if ("INPUT".equals(tag)) {
+            String type = normalizedInputType(control);
+            if ("checkbox".equals(type) || "radio".equals(type)) {
+                if (!control.isChecked()) return;
+                entries.add(new FormDataEntry(name,
+                        control.hasAttribute("value") ? control.getValue() : "on"));
+                return;
+            }
+            if ("submit".equals(type) || "image".equals(type)) {
+                if (control != submitter) return;
+                if ("image".equals(type)) {
+                    entries.add(new FormDataEntry(name + ".x", "0"));
+                    entries.add(new FormDataEntry(name + ".y", "0"));
+                    return;
+                }
+            }
+            if ("button".equals(type) || "reset".equals(type)) return;
+            if ("file".equals(type)) {
+                List<String> files = control.getFileList();
+                if (files.isEmpty()) entries.add(new FormDataEntry(name, "", ""));
+                else for (String file : files) entries.add(new FormDataEntry(name, file, fileName(file)));
+                return;
+            }
+        } else if ("BUTTON".equals(tag)) {
+            String type = control.getAttribute("type");
+            if (type == null || type.isBlank()) type = "submit";
+            if (!"submit".equalsIgnoreCase(type) && !"image".equalsIgnoreCase(type)) return;
+            if (control != submitter) return;
+        }
+        entries.add(new FormDataEntry(name, control.getValue()));
+    }
+
+    private static String fileName(String value) {
+        if (value == null || value.isEmpty()) return "";
+        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
+        return slash < 0 ? value : value.substring(slash + 1);
+    }
+
+    private static String normalizedInputType(Element control) {
+        String type = control.getType();
+        return type == null || type.isBlank() ? "text" : type.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static boolean isSubmitButton(Element element) {
+        if (element == null) return false;
+        if ("BUTTON".equalsIgnoreCase(element.tagName)) {
+            String type = element.getAttribute("type");
+            return type == null || type.isBlank() || "submit".equalsIgnoreCase(type)
+                    || "image".equalsIgnoreCase(type);
+        }
+        if (!"INPUT".equalsIgnoreCase(element.tagName)) return false;
+        String type = normalizedInputType(element);
+        return "submit".equals(type) || "image".equals(type);
+    }
+
+    public boolean isWillValidate() {
+        if (!isFormControl() || isDisabled()) return false;
+        if ("OUTPUT".equalsIgnoreCase(tagName) || "FIELDSET".equalsIgnoreCase(tagName)) return false;
+        if ("INPUT".equalsIgnoreCase(tagName)) {
+            String type = normalizedInputType(this);
+            if ("hidden".equals(type) || "button".equals(type) || "reset".equals(type)
+                    || "submit".equals(type) || "image".equals(type)) return false;
+        }
+        if ("BUTTON".equalsIgnoreCase(tagName)) {
+            return false;
+        }
+        if (("INPUT".equalsIgnoreCase(tagName) || "TEXTAREA".equalsIgnoreCase(tagName))
+                && hasAttribute("readonly")) return false;
+        return true;
+    }
+
+    public ValidityState getValidity() {
+        ValidationResult result;
+        if ("FORM".equalsIgnoreCase(tagName)) {
+            result = new ValidationResult();
+            for (Element control : getFormControls()) result.merge(control.constraintState());
+        } else {
+            result = constraintState();
+        }
+        return result.toState();
+    }
+
+    public boolean isValid() {
+        return getValidity().valid;
+    }
+
+    public boolean checkValidity() {
+        if ("FORM".equalsIgnoreCase(tagName)) {
+            boolean valid = true;
+            for (Element control : getFormControls()) {
+                if (!control.checkValidity()) valid = false;
+            }
+            return valid;
+        }
+        if (!isWillValidate()) return true;
+        if (!isValid()) {
+            Event invalid = new Event(this, "invalid", false);
+            invalid.cancelable = true;
+            Event.tiggerEvent(invalid);
+            return false;
+        }
+        return true;
+    }
+
+    public boolean reportValidity() {
+        return checkValidity();
+    }
+
+    public void setCustomValidity(String message) {
+        customValidityMessage = message == null ? "" : message;
+        invalidateStyle();
+    }
+
+    public String getValidationMessage() {
+        if (!isWillValidate() || isValid()) return "";
+        if (!customValidityMessage.isBlank()) return customValidityMessage;
+        ValidityState state = getValidity();
+        if (state.valueMissing) return "Please fill out this field.";
+        if (state.typeMismatch) return "Please enter a valid value.";
+        if (state.badInput) return "Please enter a number.";
+        if (state.rangeUnderflow) return "Value is too small.";
+        if (state.rangeOverflow) return "Value is too large.";
+        if (state.stepMismatch) return "Please enter a valid value.";
+        if (state.patternMismatch) return "Please match the requested format.";
+        if (state.tooShort) return "Value is too short.";
+        if (state.tooLong) return "Value is too long.";
+        return "Please enter a valid value.";
+    }
+
+    public double getValueAsNumber() {
+        Double parsed = parseConstraintNumber(normalizedInputType(this), getValue());
+        if (parsed == null) return Double.NaN;
+        return switch (normalizedInputType(this)) {
+            case "date" -> parsed * 86_400_000d;
+            case "datetime-local" -> parsed * 1_000d;
+            case "time" -> parsed * 1_000d;
+            case "week" -> parsed * 86_400_000d;
+            case "month" -> {
+                long monthIndex = Math.round(parsed);
+                int year = (int) Math.floorDiv(monthIndex, 12);
+                int month = (int) Math.floorMod(monthIndex, 12) + 1;
+                yield YearMonth.of(year, month).atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            }
+            default -> parsed;
+        };
+    }
+
+    public void setValueAsNumber(double number) {
+        if (!Double.isFinite(number)) {
+            setValue("");
+            return;
+        }
+        String type = normalizedInputType(this);
+        double internal = switch (type) {
+            case "date", "week" -> number / 86_400_000d;
+            case "datetime-local" -> number / 1_000d;
+            case "time" -> number / 1_000d;
+            default -> number;
+        };
+        if ("date".equals(type)) setValue(LocalDate.ofEpochDay(Math.round(internal)).toString());
+        else if ("time".equals(type)) setValue(formatTime(internal));
+        else if ("datetime-local".equals(type)) {
+            setValue(java.time.Instant.ofEpochMilli(Math.round(number))
+                    .atZone(java.time.ZoneOffset.UTC).toLocalDateTime().toString());
+        }
+        else if ("month".equals(type)) {
+            java.time.Instant instant = java.time.Instant.ofEpochMilli(Math.round(number));
+            setValue(YearMonth.from(instant.atZone(java.time.ZoneOffset.UTC)).toString());
+        } else if ("week".equals(type)) {
+            LocalDate date = LocalDate.ofEpochDay(Math.round(internal));
+            setValue(String.format(Locale.ROOT, "%04d-W%02d",
+                    date.get(IsoFields.WEEK_BASED_YEAR), date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
+        }
+        else setValue(Double.toString(number));
+    }
+
+    public void stepUp() {
+        stepBy(1);
+    }
+
+    public void stepUp(int count) {
+        stepBy(Math.max(0, count));
+    }
+
+    public void stepDown() {
+        stepBy(-1);
+    }
+
+    public void stepDown(int count) {
+        stepBy(-Math.max(0, count));
+    }
+
+    private void stepBy(int count) {
+        String type = normalizedInputType(this);
+        if (!isNumericType(type)) return;
+        Double currentValue = parseConstraintNumber(type, getValue());
+        Double minimum = parseConstraintNumber(type, getAttribute("min"));
+        double current = currentValue == null ? (minimum == null ? 0d : minimum) : currentValue;
+        double step = parseConstraintNumber("number", getAttribute("step")) == null
+                ? ("time".equals(type) || "datetime-local".equals(type) ? 60d : "week".equals(type) ? 7d : 1d)
+                : parseConstraintNumber("number", getAttribute("step"));
+        if (step <= 0 || !Double.isFinite(step)) return;
+        double next = current + count * step;
+        double exposed = switch (type) {
+            case "date", "week" -> next * 86_400_000d;
+            case "datetime-local" -> next * 1_000d;
+            case "time" -> next * 1_000d;
+            case "month" -> {
+                int year = (int) Math.floorDiv(Math.round(next), 12);
+                int month = (int) Math.floorMod(Math.round(next), 12) + 1;
+                yield YearMonth.of(year, month).atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
+            }
+            default -> next;
+        };
+        setValueAsNumber(exposed);
+    }
+
+    private ValidationResult constraintState() {
+        ValidationResult result = new ValidationResult();
+        if (!isWillValidate()) return result;
+        String raw = getValue();
+        String valueText = raw == null ? "" : raw;
+        boolean empty = valueText.isEmpty();
+        String type = normalizedInputType(this);
+
+        if (hasAttribute("required")) {
+            boolean missing = empty;
+            if ("checkbox".equals(type) || "radio".equals(type)) {
+                missing = "radio".equals(type) ? !radioGroupHasChecked() : !isChecked();
+            } else if ("SELECT".equalsIgnoreCase(tagName)) {
+                List<Element> selected = getSelectedOptions();
+                missing = selected.isEmpty()
+                        || (!isMultiple() && selected.get(0).getOptionValue().isEmpty());
+            }
+            result.valueMissing = missing;
+        }
+        if (empty) {
+            result.applyCustom(customValidityMessage);
+            return result;
+        }
+
+        if ("email".equals(type)) {
+            boolean valid = hasAttribute("multiple")
+                    ? Arrays.stream(valueText.split(",", -1)).map(String::trim).allMatch(Element::isSimpleEmail)
+                    : isSimpleEmail(valueText);
+            result.typeMismatch = !valid;
+        } else if ("color".equals(type)) {
+            result.typeMismatch = !valueText.matches("#[0-9a-fA-F]{6}");
+        } else if ("url".equals(type)) {
+            try {
+                URI uri = new URI(valueText);
+                result.typeMismatch = uri.getScheme() == null || uri.getScheme().isBlank();
+            } catch (URISyntaxException ignored) {
+                result.typeMismatch = true;
+            }
+        }
+
+        Double number = parseConstraintNumber(type, valueText);
+        if (isNumericType(type) && number == null) result.badInput = true;
+
+        Double min = parseConstraintNumber(type, getAttribute("min"));
+        Double max = parseConstraintNumber(type, getAttribute("max"));
+        if (number != null && min != null) result.rangeUnderflow = number < min;
+        if (number != null && max != null) result.rangeOverflow = number > max;
+
+        if (number != null && isNumericType(type)) {
+            String stepText = hasAttribute("step") ? getAttribute("step") : defaultStepText(type);
+            if (!"any".equalsIgnoreCase(stepText)) {
+                try {
+                    double step = Double.parseDouble(stepText);
+                    if (step > 0 && Double.isFinite(step)) {
+                        double base = min != null ? min : defaultStepBase(type);
+                        result.stepMismatch = Math.abs((number - base) / step - Math.rint((number - base) / step)) > 1e-7;
+                    }
+                } catch (NumberFormatException ignored) {
+                    // Invalid step attributes are ignored by browsers.
+                }
+            }
+        }
+
+        if (hasAttribute("pattern") && supportsTextLengthAndPattern(type)) {
+            try {
+                result.patternMismatch = !Pattern.compile("(?:" + getAttribute("pattern") + ")").matcher(valueText).matches();
+            } catch (PatternSyntaxException ignored) {
+                result.patternMismatch = false;
+            }
+        }
+        if (supportsTextLengthAndPattern(type)) {
+            int minLength = parseNonNegativeInt(getAttribute("minlength"));
+            int maxLength = parseNonNegativeInt(getAttribute("maxlength"));
+            if (minLength >= 0) result.tooShort = valueText.length() < minLength;
+            if (maxLength >= 0) result.tooLong = valueText.length() > maxLength;
+        }
+        result.applyCustom(customValidityMessage);
+        return result;
+    }
+
+    private boolean radioGroupHasChecked() {
+        String name = getAttribute("name");
+        Element form = getFormOwner();
+        List<Element> candidates;
+        if (form != null) {
+            candidates = form.getFormControls();
+        } else if (document != null) {
+            candidates = document.getElements();
+        } else {
+            Element root = this;
+            while (root.parentElement != null) root = root.parentElement;
+            ArrayList<Element> local = new ArrayList<>();
+            collectElements(root, local);
+            candidates = local;
+        }
+        for (Element control : candidates) {
+            if (control.getFormOwner() != form) continue;
+            if ("INPUT".equalsIgnoreCase(control.tagName)
+                    && "radio".equals(normalizedInputType(control))
+                    && Objects.equals(name, control.getAttribute("name"))
+                    && !control.isDisabled()
+                    && control.isChecked()) return true;
+        }
+        return false;
+    }
+
+    private static boolean isSimpleEmail(String value) {
+        return value != null && value.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+");
+    }
+
+    private boolean supportsTextLengthAndPattern(String type) {
+        if ("TEXTAREA".equalsIgnoreCase(tagName)) return true;
+        if (!"INPUT".equalsIgnoreCase(tagName)) return false;
+        return switch (type) {
+            case "text", "search", "email", "url", "tel", "password" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isNumericType(String type) {
+        return switch (type) {
+            case "number", "range", "date", "month", "week", "time", "datetime-local" -> true;
+            default -> false;
+        };
+    }
+
+    private static Double parseConstraintNumber(String type, String raw) {
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            return switch (type) {
+                case "number", "range" -> Double.parseDouble(raw);
+                case "date" -> (double) LocalDate.parse(raw).toEpochDay();
+                case "month" -> {
+                    YearMonth month = YearMonth.parse(raw);
+                    yield (double) (month.getYear() * 12L + month.getMonthValue() - 1);
+                }
+                case "time" -> (double) parseTimeSeconds(raw);
+                case "datetime-local" -> LocalDateTime.parse(raw)
+                        .toInstant(java.time.ZoneOffset.UTC).toEpochMilli() / 1_000d;
+                case "week" -> {
+                    if (!raw.matches("\\d{4}-W\\d{2}")) yield null;
+                    String[] parts = raw.split("-W");
+                    int year = Integer.parseInt(parts[0]);
+                    int week = Integer.parseInt(parts[1]);
+                    yield (double) LocalDate.of(year, 1, 4)
+                            .with(IsoFields.WEEK_OF_WEEK_BASED_YEAR, week)
+                            .with(DayOfWeek.MONDAY).toEpochDay();
+                }
+                default -> null;
+            };
+        } catch (RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private static double parseTimeSeconds(String raw) {
+        LocalTime time = LocalTime.parse(raw);
+        return time.toNanoOfDay() / 1_000_000_000d;
+    }
+
+    private static String formatTime(double seconds) {
+        long rounded = Math.max(0L, Math.round(seconds));
+        return LocalTime.ofSecondOfDay(rounded % 86400L).toString();
+    }
+
+    private static double defaultStepBase(String type) {
+        return switch (type) {
+            case "date" -> 0d;
+            case "month" -> 0d;
+            case "datetime-local", "time" -> 0d;
+            case "week" -> LocalDate.of(1969, 12, 29).toEpochDay();
+            default -> 0d;
+        };
+    }
+
+    private static String defaultStepText(String type) {
+        return switch (type) {
+            case "time", "datetime-local" -> "60";
+            case "week" -> "7";
+            default -> "1";
+        };
+    }
+
+    private static int parseNonNegativeInt(String raw) {
+        if (raw == null || raw.isBlank()) return -1;
+        try {
+            int value = Integer.parseInt(raw);
+            return value < 0 ? -1 : value;
+        } catch (NumberFormatException ignored) {
+            return -1;
+        }
+    }
+
+    private void resetFormControl() {
+        if ("INPUT".equalsIgnoreCase(tagName) || "TEXTAREA".equalsIgnoreCase(tagName)) {
+            restoreFormValue(getDefaultValue());
+        }
+        if ("INPUT".equalsIgnoreCase(tagName) && "file".equals(normalizedInputType(this))) {
+            fileList.clear();
+            value = "";
+            valueDirty = false;
+        }
+        if ("INPUT".equalsIgnoreCase(tagName)
+                && ("checkbox".equals(normalizedInputType(this)) || "radio".equals(normalizedInputType(this)))) {
+            checkedState = isDefaultChecked();
+            checkedDirty = false;
+            invalidateStyle();
+        }
+        if ("OPTION".equalsIgnoreCase(tagName)) {
+            selectedState = isDefaultSelected();
+            selectedDirty = false;
+            invalidateStyle();
+        }
+        if ("SELECT".equalsIgnoreCase(tagName)) {
+            for (Element option : getOptionChildren()) {
+                option.selectedState = option.isDefaultSelected();
+                option.selectedDirty = false;
+            }
+            normalizeSelectSelection(true);
+            invalidateSelectPresentation();
+        }
+    }
+
+    protected void restoreFormValue(String restored) {
+        value = restored == null ? "" : restored;
+        valueDirty = false;
+        getRenderer().text.clear();
+        getRenderer().wrappedText.clear();
+        invalidateStyle();
+    }
+
+    public List<String> getFileList() {
+        return Collections.unmodifiableList(fileList);
+    }
+
+    public int getFileCount() {
+        return fileList.size();
+    }
+
+    public String getFile(int index) {
+        return index >= 0 && index < fileList.size() ? fileList.get(index) : "";
+    }
+
+    public void setFileList(List<String> files) {
+        fileList.clear();
+        if (files != null) {
+            for (String file : files) {
+                if (file != null && !file.isBlank()) fileList.add(file);
+            }
+        }
+        if (!isMultiple() && fileList.size() > 1) {
+            fileList.subList(1, fileList.size()).clear();
+        }
+        if ("INPUT".equalsIgnoreCase(tagName) && "file".equals(normalizedInputType(this))) {
+            value = fileList.isEmpty() ? "" : fileList.get(0);
+            valueDirty = true;
+            getRenderer().text.clear();
+        }
+    }
+
+    private static final class ValidationResult {
+        boolean badInput;
+        boolean customError;
+        boolean patternMismatch;
+        boolean rangeOverflow;
+        boolean rangeUnderflow;
+        boolean stepMismatch;
+        boolean tooLong;
+        boolean tooShort;
+        boolean typeMismatch;
+        boolean valueMissing;
+
+        void applyCustom(String message) {
+            customError = message != null && !message.isBlank();
+        }
+
+        void merge(ValidationResult other) {
+            if (other == null) return;
+            badInput |= other.badInput;
+            customError |= other.customError;
+            patternMismatch |= other.patternMismatch;
+            rangeOverflow |= other.rangeOverflow;
+            rangeUnderflow |= other.rangeUnderflow;
+            stepMismatch |= other.stepMismatch;
+            tooLong |= other.tooLong;
+            tooShort |= other.tooShort;
+            typeMismatch |= other.typeMismatch;
+            valueMissing |= other.valueMissing;
+        }
+
+        ValidityState toState() {
+            boolean valid = !(badInput || customError || patternMismatch || rangeOverflow
+                    || rangeUnderflow || stepMismatch || tooLong || tooShort
+                    || typeMismatch || valueMissing);
+            return new ValidityState(badInput, customError, patternMismatch, rangeOverflow,
+                    rangeUnderflow, stepMismatch, tooLong, tooShort, typeMismatch, valueMissing, valid);
+        }
     }
 
     public void scrollTo(double x, double y) {
@@ -1551,20 +2278,72 @@ public class Element extends Node {
     }
 
     public void handleClickDefault() {
-        if (!"LABEL".equalsIgnoreCase(tagName) || document == null) return;
-        Element control = null;
-        String forId = getAttribute("for");
-        if (forId != null && !forId.isBlank()) {
-            control = document.getElementById(forId.trim());
-        } else {
-            control = querySelector("input, select, textarea, button");
+        if (document == null) return;
+        if ("BUTTON".equalsIgnoreCase(tagName)) {
+            String type = getAttribute("type");
+            if (type == null || type.isBlank() || "submit".equalsIgnoreCase(type)) {
+                Element form = getFormOwner();
+                if (form != null) form.requestSubmit(this);
+            } else if ("reset".equalsIgnoreCase(type)) {
+                Element form = getFormOwner();
+                if (form != null) form.reset();
+            }
+            return;
         }
+        if (!"LABEL".equalsIgnoreCase(tagName)) return;
+        Element control = getLabeledControl();
         if (control != null && control != this && !control.isDisabled()) {
             control.click();
         }
     }
 
+    public Element getLabeledControl() {
+        if (!"LABEL".equalsIgnoreCase(tagName)) return null;
+        String forId = getAttribute("for");
+        if (hasAttribute("for")) {
+            if (forId == null || forId.isBlank()) return null;
+            Element candidate = document == null ? null : document.getElementById(forId.trim());
+            if (candidate == null) {
+                Element root = this;
+                while (root.parentElement != null) root = root.parentElement;
+                candidate = findElementById(root, forId.trim());
+            }
+            return candidate != null && candidate.isLabelableControl() ? candidate : null;
+        }
+        return querySelector("input, select, textarea, button, output");
+    }
+
+    public List<Element> getLabels() {
+        if (!isLabelableControl()) return List.of();
+        ArrayList<Element> labels = new ArrayList<>();
+        ArrayList<Element> candidates = new ArrayList<>();
+        if (document != null) candidates.addAll(document.getElements());
+        Element root = this;
+        while (root.parentElement != null) root = root.parentElement;
+        ArrayList<Element> local = new ArrayList<>();
+        collectElements(root, local);
+        for (Element candidate : local) {
+            if (!candidates.contains(candidate)) candidates.add(candidate);
+        }
+        for (Element candidate : candidates) {
+            if (!"LABEL".equalsIgnoreCase(candidate.tagName)) continue;
+            // A label with an explicit `for` only labels that referenced
+            // control; it does not also label arbitrary descendants.
+            if (candidate.getLabeledControl() == this
+                    || (!candidate.hasAttribute("for") && candidate.contains(this))) labels.add(candidate);
+        }
+        return Collections.unmodifiableList(labels);
+    }
+
+    private static void collectElements(Element root, List<Element> result) {
+        if (root == null) return;
+        result.add(root);
+        for (Element child : root.children) collectElements(child, result);
+    }
+
     public Element findEnclosingForm() {
+        Element owner = getFormOwner();
+        if (owner != null) return owner;
         Element current = this;
         while (current != null) {
             if ("FORM".equalsIgnoreCase(current.tagName)) return current;
@@ -1575,7 +2354,7 @@ public class Element extends Node {
 
     public boolean submitEnclosingForm() {
         Element form = findEnclosingForm();
-        return form != null && form.submit();
+        return form != null && form.requestSubmit(isSubmitButton(this) ? this : null);
     }
 
     public boolean dispatchScrollEventIfChanged(double previousLeft, double previousTop) {
@@ -1782,6 +2561,10 @@ public class Element extends Node {
         return "SELECT".equalsIgnoreCase(tagName) ? getOptionChildren().size() : 0;
     }
 
+    public int getFormLength() {
+        return "FORM".equalsIgnoreCase(tagName) ? getFormControls().size() : 0;
+    }
+
     public int getSelectSize() {
         return "SELECT".equalsIgnoreCase(tagName) ? getSelectDisplaySize() : 0;
     }
@@ -1802,6 +2585,8 @@ public class Element extends Node {
     public boolean isOptionEffectivelyDisabled() {
         if (!"OPTION".equalsIgnoreCase(tagName)) return isDisabled();
         if (isDisabled()) return true;
+        Element select = getOwnerSelect();
+        if (select != null && select.isDisabled()) return true;
         return parentElement != null
                 && "OPTGROUP".equalsIgnoreCase(parentElement.tagName)
                 && parentElement.isDisabled();
@@ -1994,13 +2779,26 @@ public class Element extends Node {
     }
 
     private void enforceRadioGroupChecked() {
-        if (document == null) return;
         String group = getAttribute("name");
         if (group == null || group.isBlank()) return;
-        for (Element element : document.getElements()) {
+        Element owner = getFormOwner();
+        List<Element> candidates;
+        if (owner != null) {
+            candidates = owner.getFormControls();
+        } else if (document != null) {
+            candidates = document.getElements();
+        } else {
+            Element root = this;
+            while (root.parentElement != null) root = root.parentElement;
+            ArrayList<Element> local = new ArrayList<>();
+            collectElements(root, local);
+            candidates = local;
+        }
+        for (Element element : candidates) {
             if (element == this) continue;
+            if (element.getFormOwner() != owner) continue;
             if (!"INPUT".equalsIgnoreCase(element.tagName)) continue;
-            if (!"radio".equalsIgnoreCase(element.getAttribute("type"))) continue;
+            if (!"radio".equalsIgnoreCase(normalizedInputType(element))) continue;
             if (!group.equals(element.getAttribute("name"))) continue;
             element.checkedState = false;
             element.checkedDirty = true;

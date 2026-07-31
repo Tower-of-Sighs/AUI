@@ -225,7 +225,7 @@ public interface RenderNode {
                 float y = (float) (p.y - rect.box.getBorderTop());
                 float w = (float) (s.width() + rect.box.getBorderHorizontal());
                 float h = (float) (s.height() + rect.box.getBorderVertical());
-                Mask.pushClipPath(poseStack, x, y, w, h, clip);
+                Mask.pushClipPath(poseStack, x, y, w, h, clip, hasTransformedAncestor(target));
             });
         }
     }

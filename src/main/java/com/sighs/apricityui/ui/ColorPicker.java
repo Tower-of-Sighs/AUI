@@ -19,33 +19,39 @@ public final class ColorPicker {
     private static ColorPicker active;
 
     private final Document document;
+    private final boolean ownsDocument;
     private final CompletableFuture<Optional<String>> result = new CompletableFuture<>();
     private final ColorState color;
     private String format = "hex";
     private Element root, svPanel, hueSlider, alphaSlider, previewFill, previewValue, alphaFill, svHandle, hueHandle, alphaHandle, inputs;
     private Element dragTarget;
 
-    private ColorPicker(Document document, String initialColor) { this.document = document; this.color = ColorState.parse(initialColor); }
+    private ColorPicker(Document document, boolean ownsDocument, String initialColor) {
+        this.document = document;
+        this.ownsDocument = ownsDocument;
+        this.color = ColorState.parse(initialColor);
+    }
 
     public static synchronized CompletableFuture<Optional<String>> pick(String initialColor) {
         Document document = Document.create(PATH);
         if (document == null || document.body == null) return CompletableFuture.completedFuture(Optional.empty());
         document.setReloadPersistent(true);
-        return open(document, null, initialColor);
+        return open(document, null, initialColor, true);
     }
 
     public static synchronized CompletableFuture<Optional<String>> pickIn(Document document, Element anchor, String initialColor) {
-        return open(document, anchor, initialColor);
+        return open(document, anchor, initialColor, false);
     }
 
     public static synchronized boolean isOpen() { return active != null && active.root != null && active.root.isConnected(); }
     public static synchronized void closeActive() { if (active != null) active.finish(Optional.empty()); }
 
-    private static CompletableFuture<Optional<String>> open(Document document, Element anchor, String initialColor) {
+    private static CompletableFuture<Optional<String>> open(Document document, Element anchor, String initialColor,
+                                                             boolean ownsDocument) {
         if (document == null || document.body == null) return CompletableFuture.completedFuture(Optional.empty());
         Tooltip.hide();
         if (active != null) active.finish(Optional.empty());
-        active = new ColorPicker(document, initialColor);
+        active = new ColorPicker(document, ownsDocument, initialColor);
         active.render(anchor);
         return active.result;
     }
@@ -101,7 +107,19 @@ public final class ColorPicker {
     private String hex() { Rgb c = color.rgb(); return String.format(Locale.ROOT, "#%02x%02x%02x", c.r, c.g, c.b); }
     private String rgba() { Rgb c = color.rgb(); return "rgba(" + c.r + "," + c.g + "," + c.b + "," + decimal(color.a) + ")"; }
     private String value() { Rgb c = color.rgb(); if ("hex".equals(format)) return color.a < .999 ? hex() + String.format(Locale.ROOT, "%02x", Math.round(color.a * 255)) : hex(); if ("rgb".equals(format)) return color.a < .999 ? rgba() : "rgb(" + c.r + ", " + c.g + ", " + c.b + ")"; Hsl h = color.hsl(); return color.a < .999 ? "hsla(" + h.h + ", " + h.s + "%, " + h.l + "%, " + decimal(color.a) + ")" : "hsl(" + h.h + ", " + h.s + "%, " + h.l + "%)"; }
-    private void finish(Optional<String> value) { if (root != null) root.remove(); dragTarget = null; if (!result.isDone()) result.complete(value); synchronized (ColorPicker.class) { if (active == this) active = null; } dirty(); }
+    private void finish(Optional<String> value) {
+        if (root != null) root.remove();
+        dragTarget = null;
+        if (!result.isDone()) result.complete(value);
+        synchronized (ColorPicker.class) {
+            if (active == this) active = null;
+        }
+        if (ownsDocument) {
+            document.remove();
+        } else {
+            dirty();
+        }
+    }
     private Element el(String tag, String cls) { Element e = Element.init(document.createElement(tag)); e.setAttribute("class", cls); return e; } private Element text(String tag, String cls, String value) { Element e = el(tag, cls); e.setTextContent(value); return e; } private Element button(String cls, String value) { Element e = text("BUTTON", cls, value); e.setAttribute("type", "button"); return e; } private Element slider(String cls) { return el("DIV", cls); } private Element sliderRow(String label, Element slider) { Element row = el("DIV", "cp-slider-row"); row.append(text("DIV", "cp-slider-label", label)); row.append(slider); return row; } private void dirty() { if (document.body != null) document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST); }
     private static double clamp(double value, double min, double max) { return Math.max(min, Math.min(max, Double.isFinite(value) ? value : min)); } private static double number(String value, double fallback) { try { return Double.parseDouble(value == null ? "" : value.trim()); } catch (NumberFormatException ignored) { return fallback; } } private static String number(double value) { return Math.abs(value - Math.rint(value)) < .01 ? Long.toString(Math.round(value)) : String.format(Locale.ROOT, "%.2f", value); } private static String decimal(double value) { return String.format(Locale.ROOT, "%.2f", value); }
 

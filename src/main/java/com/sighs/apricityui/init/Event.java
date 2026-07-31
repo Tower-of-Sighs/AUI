@@ -24,6 +24,10 @@ public class Event implements Cloneable {
     public boolean cancelable = false;
     public boolean defaultPrevented = false;
     public Object detail = null;
+    /** Submit button that initiated a submit event, when applicable. */
+    public Object submitter = null;
+    /** FormData snapshot exposed on a formdata event. */
+    public Object formData = null;
     public short eventPhase = NONE;
     public boolean cancelBubble = false;
     public boolean returnValue = true;
@@ -101,6 +105,8 @@ public class Event implements Cloneable {
         copy.cancelable = cancelable;
         copy.defaultPrevented = defaultPrevented;
         copy.detail = detail;
+        copy.submitter = submitter;
+        copy.formData = formData;
         copy.eventPhase = eventPhase;
         copy.cancelBubble = cancelBubble;
         copy.returnValue = returnValue;
@@ -309,6 +315,25 @@ public class Event implements Cloneable {
             InputEvent copy = new InputEvent(target, type, bubbles, inputType, data);
             copyTo(copy);
             copy.inputType = inputType;
+            copy.data = data;
+            copy.isComposing = isComposing;
+            return copy;
+        }
+    }
+
+    public static class CompositionEvent extends Event {
+        public String data = "";
+        public boolean isComposing = false;
+
+        public CompositionEvent(Object target, String type, boolean bubbles, String data) {
+            super(target, type, bubbles);
+            this.data = data == null ? "" : data;
+        }
+
+        @Override
+        public CompositionEvent clone() {
+            CompositionEvent copy = new CompositionEvent(target, type, bubbles, data);
+            copyTo(copy);
             copy.data = data;
             copy.isComposing = isComposing;
             return copy;

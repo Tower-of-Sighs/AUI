@@ -4,6 +4,7 @@ import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.*;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.ShaderRegistry;
@@ -19,6 +20,7 @@ import org.lwjgl.opengl.GL30;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Stack;
 
@@ -32,6 +34,40 @@ public class FilterRenderer {
     private static final Map<String, Long> LOG_TIMES = new HashMap<>();
     private static final long LOG_INTERVAL_MS = 2000L;
     private static final float MAX_REASONABLE_BACKDROP_BLUR = 32.0f;
+    private static boolean stencilCapabilityResolved;
+    private static boolean stencilAvailable = true;
+
+    /**
+     * Returns whether AUI may allocate/use a stencil attachment for the
+     * current GL context. Desktop OpenGL keeps the existing path; GLES is
+     * conservatively treated as unavailable because some Android drivers
+     * reject Minecraft's depth/stencil framebuffer combination.
+     */
+    public static boolean isStencilAvailable() {
+        resolveStencilCapability();
+        return stencilAvailable;
+    }
+
+    private static void resolveStencilCapability() {
+        if (stencilCapabilityResolved) return;
+
+        // Resolve lazily from the render thread, after a context exists. If a
+        // test/headless context cannot answer the query, preserve the desktop
+        // behavior rather than disabling stencil for the whole process.
+        stencilCapabilityResolved = true;
+        try {
+            String version = GL11.glGetString(GL11.GL_VERSION);
+            if (version != null && version.toLowerCase(Locale.ROOT).contains("opengl es")) {
+                stencilAvailable = false;
+                ApricityUI.LOGGER.warn(
+                        "[ApricityUI] OpenGL ES detected ({}); disabling stencil-backed masks for compatibility",
+                        version
+                );
+            }
+        } catch (RuntimeException ignored) {
+            stencilAvailable = true;
+        }
+    }
 
     private static boolean shouldLog(String key, long intervalMs) {
         long now = System.currentTimeMillis();
@@ -49,7 +85,7 @@ public class FilterRenderer {
             fboStack.clear();
         }
         mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
-        if (mainRenderTarget != null) {
+        if (mainRenderTarget != null && isStencilAvailable()) {
             mainRenderTarget.enableStencil();
         }
         poolPointer = 0;
@@ -99,7 +135,7 @@ public class FilterRenderer {
             if (temp.width != (int) width || temp.height != (int) height) {
                 temp.destroyBuffers();
                 temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-                temp.enableStencil();
+                if (isStencilAvailable()) temp.enableStencil();
                 fboPool.set(poolPointer, temp);
 //                com.sighs.apricityui.ApricityUI.LOGGER.info(
 //                        "[FilterRenderer] pushFilter resized temp target index={} size={}x{}",
@@ -108,7 +144,7 @@ public class FilterRenderer {
             }
         } else {
             temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-            temp.enableStencil();
+            if (isStencilAvailable()) temp.enableStencil();
             fboPool.add(temp);
 //            com.sighs.apricityui.ApricityUI.LOGGER.info(
 //                    "[FilterRenderer] pushFilter created temp target index={} size={}x{}",

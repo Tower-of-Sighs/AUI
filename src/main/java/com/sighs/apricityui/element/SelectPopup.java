@@ -57,7 +57,9 @@ final class SelectPopup {
             activePopup.close();
         }
         SelectPopup popup = new SelectPopup(select);
-        popup.mount();
+        try (Document.ContextScope ignored = Document.withContext(popup.document)) {
+            popup.mount();
+        }
         if (popup.isOpen()) activePopup = popup;
         return popup;
     }
@@ -71,19 +73,21 @@ final class SelectPopup {
     }
 
     void close() {
-        if (closed) return;
-        closed = true;
-        document.removeEventListener("mousedown", outsideMouseListener, true);
-        document.removeEventListener("contextmenu", outsideContextMenuListener, true);
-        Tooltip.hide(document);
-        if (panel != null) panel.remove();
-        panel = null;
-        rows.clear();
-        synchronized (SelectPopup.class) {
-            if (activePopup == this) activePopup = null;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            if (closed) return;
+            closed = true;
+            document.removeEventListener("mousedown", outsideMouseListener, true);
+            document.removeEventListener("contextmenu", outsideContextMenuListener, true);
+            Tooltip.hide(document);
+            if (panel != null) panel.remove();
+            panel = null;
+            rows.clear();
+            synchronized (SelectPopup.class) {
+                if (activePopup == this) activePopup = null;
+            }
+            markDirty();
+            select.onPopupClosed(this);
         }
-        markDirty();
-        select.onPopupClosed(this);
     }
 
     void move(int delta) {
@@ -105,26 +109,32 @@ final class SelectPopup {
     }
 
     void setActiveIndex(int index, boolean reveal) {
-        if (index < 0 || index >= options.size() || options.get(index).isOptionEffectivelyDisabled()) return;
-        int previous = activeIndex;
-        activeIndex = index;
-        if (previous >= 0 && previous < rows.size()) applyRowStyle(previous);
-        if (activeIndex < rows.size()) applyRowStyle(activeIndex);
-        if (reveal) {
-            FrameTaskScheduler.scheduleAfterFrames(1, deadlineNs -> {
-                if (isOpen()) revealActiveRow();
-                return true;
-            });
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            if (index < 0 || index >= options.size() || options.get(index).isOptionEffectivelyDisabled()) return;
+            int previous = activeIndex;
+            activeIndex = index;
+            if (previous >= 0 && previous < rows.size()) applyRowStyle(previous);
+            if (activeIndex < rows.size()) applyRowStyle(activeIndex);
+            if (reveal) {
+                FrameTaskScheduler.scheduleAfterFrames(1, deadlineNs -> {
+                    try (Document.ContextScope callbackContext = Document.withContext(document)) {
+                        if (isOpen()) revealActiveRow();
+                        return true;
+                    }
+                });
+            }
         }
     }
 
     boolean commitActive() {
-        if (activeIndex < 0 || activeIndex >= options.size()) return false;
-        if (options.get(activeIndex).isOptionEffectivelyDisabled()) return false;
-        select.commitUserSelection(activeIndex);
-        if (!select.isMultiple()) close();
-        else refreshRows();
-        return true;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            if (activeIndex < 0 || activeIndex >= options.size()) return false;
+            if (options.get(activeIndex).isOptionEffectivelyDisabled()) return false;
+            select.commitUserSelection(activeIndex);
+            if (!select.isMultiple()) close();
+            else refreshRows();
+            return true;
+        }
     }
 
     private void mount() {
@@ -159,11 +169,13 @@ final class SelectPopup {
         markDirty();
 
         FrameTaskScheduler.scheduleAfterFrames(1, deadlineNs -> {
-            if (!isOpen()) return true;
-            positionPanel();
-            revealActiveRow();
-            markDirty();
-            return true;
+            try (Document.ContextScope callbackContext = Document.withContext(document)) {
+                if (!isOpen()) return true;
+                positionPanel();
+                revealActiveRow();
+                markDirty();
+                return true;
+            }
         });
     }
 

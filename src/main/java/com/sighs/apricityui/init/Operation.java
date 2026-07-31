@@ -145,6 +145,22 @@ public class Operation {
                 String selectedText = resolveSelectedText(document, focusedElement);
                 boolean ctrlDown = isCtrlDown();
 
+                if (focusedElement instanceof Input input && input.handleRangeKey(key)) {
+                    documentCanceled[0] = true;
+                    return;
+                }
+
+                if (focusedElement != null && ("BUTTON".equalsIgnoreCase(focusedElement.tagName)
+                        || (focusedElement instanceof Input input
+                        && ("submit".equalsIgnoreCase(input.getType())
+                        || "reset".equalsIgnoreCase(input.getType())
+                        || "button".equalsIgnoreCase(input.getType()))))
+                        && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE)) {
+                    focusedElement.click();
+                    documentCanceled[0] = true;
+                    return;
+                }
+
                 if (focusedElement instanceof Select select && select.handleKeyDownDefault(keyEvent)) {
                     documentCanceled[0] = true;
                     return;
@@ -161,24 +177,42 @@ public class Operation {
                         }
                         if (key == GLFW.GLFW_KEY_C) {
                             if (textElement.canSelectText() && !selectedText.isEmpty()) {
-                                setClipboardText(selectedText);
-                                documentCanceled[0] = true;
-                                return;
+                                Event clipboard = new Event(focusedElement, "copy", true);
+                                clipboard.cancelable = true;
+                                Event.markTrustedFromCurrentDispatch(clipboard);
+                                Event.tiggerEvent(clipboard);
+                                if (!clipboard.defaultPrevented) {
+                                    setClipboardText(selectedText);
+                                    documentCanceled[0] = true;
+                                    return;
+                                }
                             }
                         }
                         if (key == GLFW.GLFW_KEY_X) {
                             if (textElement.canEditText() && textElement.hasSelection()) {
-                                if (!selectedText.isEmpty()) setClipboardText(selectedText);
-                                textElement.replaceSelection("");
-                                documentCanceled[0] = true;
-                                return;
+                                Event clipboard = new Event(focusedElement, "cut", true);
+                                clipboard.cancelable = true;
+                                Event.markTrustedFromCurrentDispatch(clipboard);
+                                Event.tiggerEvent(clipboard);
+                                if (!clipboard.defaultPrevented) {
+                                    if (!selectedText.isEmpty()) setClipboardText(selectedText);
+                                    textElement.replaceSelection("");
+                                    documentCanceled[0] = true;
+                                    return;
+                                }
                             }
                         }
                         if (key == GLFW.GLFW_KEY_V) {
                             if (textElement.canEditText()) {
-                                textElement.insertText(getClipboardText());
-                                documentCanceled[0] = true;
-                                return;
+                                Event clipboard = new Event(focusedElement, "paste", true);
+                                clipboard.cancelable = true;
+                                Event.markTrustedFromCurrentDispatch(clipboard);
+                                Event.tiggerEvent(clipboard);
+                                if (!clipboard.defaultPrevented) {
+                                    textElement.insertText(getClipboardText());
+                                    documentCanceled[0] = true;
+                                    return;
+                                }
                             }
                         }
                         if (key == GLFW.GLFW_KEY_Z) {

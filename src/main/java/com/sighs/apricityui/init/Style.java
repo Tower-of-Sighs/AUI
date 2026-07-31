@@ -1132,6 +1132,7 @@ public class Style implements Cloneable {
         if (element != null && element.isPseudoElement()) return "inline";
         if (element == null || element.tagName == null) return "block";
         String tag = element.tagName.trim().toUpperCase(Locale.ROOT);
+        if ("INPUT".equals(tag) && "hidden".equalsIgnoreCase(element.getAttribute("type"))) return "none";
         return switch (tag) {
             case "A", "ABBR", "B", "BDI", "BDO", "CITE", "CODE", "DATA", "DEL", "DFN", "EM", "I",
                  "INS", "KBD", "LABEL", "MARK", "Q", "S", "SAMP", "SMALL", "SPAN", "STRONG", "SUB",

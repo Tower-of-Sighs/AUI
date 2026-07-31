@@ -6,6 +6,7 @@ import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Test;
 import java.awt.Canvas;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
@@ -749,6 +751,24 @@ class LayoutPositionTest {
         Size window = Size.getWindowSize();
         assertEquals(window.width() - 20 - 12, Position.getOffset(fixedChild).x);
         assertEquals(window.height() - 15 - 8, Position.getOffset(fixedChild).y);
+    }
+
+    @Test
+    void fixedOffsetsUseOwningDocumentViewportWithoutContext() throws Exception {
+        Size.setViewportOverride(400, 300);
+        Document document = TestDocumentFactory.createDocument();
+        setViewport(document, 1600, 900);
+        Element fixed = new Element(document, "div");
+        fixed.setAttribute("style", "position:fixed;right:0;bottom:0;width:420px;height:100px;");
+        document.body.appendChild(fixed);
+
+        try (Document.ContextScope ignored = Document.withContext(null)) {
+            assertEquals(1180, Position.getOffset(fixed).x, 0.01);
+            assertEquals(800, Position.getOffset(fixed).y, 0.01);
+        } finally {
+            document.remove();
+            Size.clearViewportOverride();
+        }
     }
 
     @Test
@@ -1855,6 +1875,12 @@ class LayoutPositionTest {
 
     private static void assumeMinecraftClientTextRuntime() {
         Assumptions.assumeTrue(isClassPresent("net.minecraft.client.renderer.MultiBufferSource"));
+    }
+
+    private static void setViewport(Document document, int width, int height) throws Exception {
+        Field viewport = Document.class.getDeclaredField("viewport");
+        viewport.setAccessible(true);
+        viewport.set(document, new ApricityViewport(width, height, 1.0f, 1.0d));
     }
 
     private static boolean isClassPresent(String name) {
