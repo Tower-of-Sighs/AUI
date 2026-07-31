@@ -240,7 +240,7 @@ public record Transition(String name, double start, double end, double duration,
         element.getRenderer().filter.clear();
         element.getRenderer().backdropFilter.clear();
         if (!Objects.equals(animated.boxShadow, endStyle.boxShadow)) {
-            element.getRenderer().box.clear();
+            element.getRenderer().clearVisualBoxCache();
             element.getRenderer().invalidateStyleVersion();
         }
         if (element.document != null && !stillActive) {

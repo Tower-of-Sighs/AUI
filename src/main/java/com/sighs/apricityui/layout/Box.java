@@ -38,6 +38,20 @@ public class Box {
     public Shadow shadow = null;
     public BorderImage borderImage = null;
     public Element element;
+    private Size cachedRawElementSize;
+    private Size cachedRawInnerSize;
+    private Size cachedInnerRawSize;
+    private Size cachedInnerSize;
+    private Size cachedSizeElementSize;
+    private Size cachedSize;
+    private double cachedSizeMarginHorizontal = Double.NaN;
+    private double cachedSizeMarginVertical = Double.NaN;
+    private double cachedRawBorderHorizontal = Double.NaN;
+    private double cachedRawBorderVertical = Double.NaN;
+    private double cachedRawPaddingHorizontal = Double.NaN;
+    private double cachedRawPaddingVertical = Double.NaN;
+    private double cachedInnerVerticalGutter = Double.NaN;
+    private double cachedInnerHorizontalGutter = Double.NaN;
 
     public Box() {
     }
@@ -169,24 +183,68 @@ public class Box {
 
     public Size size() {
         Size elementSize = Size.of(element);
-        double resultWidth = elementSize.width() + getMarginHorizontal();
-        double resultHeight = elementSize.height() + getMarginVertical();
-        return new Size(resultWidth, resultHeight);
+        double marginHorizontal = getMarginHorizontal();
+        double marginVertical = getMarginVertical();
+        if (cachedSize != null
+                && cachedSizeElementSize == elementSize
+                && Double.compare(cachedSizeMarginHorizontal, marginHorizontal) == 0
+                && Double.compare(cachedSizeMarginVertical, marginVertical) == 0) {
+            return cachedSize;
+        }
+        double resultWidth = elementSize.width() + marginHorizontal;
+        double resultHeight = elementSize.height() + marginVertical;
+        cachedSizeElementSize = elementSize;
+        cachedSizeMarginHorizontal = marginHorizontal;
+        cachedSizeMarginVertical = marginVertical;
+        cachedSize = new Size(resultWidth, resultHeight);
+        return cachedSize;
     }
 
     public Size innerSize() {
         Size raw = rawInnerSize();
-        double resultWidth = Math.max(0, raw.width() - element.getVerticalScrollbarGutter());
-        double resultHeight = Math.max(0, raw.height() - element.getHorizontalScrollbarGutter());
-        return new Size(resultWidth, resultHeight);
+        double verticalGutter = element.getVerticalScrollbarGutter();
+        double horizontalGutter = element.getHorizontalScrollbarGutter();
+        if (cachedInnerSize != null
+                && cachedInnerRawSize == raw
+                && Double.compare(cachedInnerVerticalGutter, verticalGutter) == 0
+                && Double.compare(cachedInnerHorizontalGutter, horizontalGutter) == 0) {
+            return cachedInnerSize;
+        }
+        double resultWidth = Math.max(0, raw.width() - verticalGutter);
+        double resultHeight = Math.max(0, raw.height() - horizontalGutter);
+        cachedInnerRawSize = raw;
+        cachedInnerVerticalGutter = verticalGutter;
+        cachedInnerHorizontalGutter = horizontalGutter;
+        cachedInnerSize = new Size(resultWidth, resultHeight);
+        return cachedInnerSize;
     }
 
     /** Content-box size before classic scrollbars consume their gutter. */
     public Size rawInnerSize() {
         Size elementSize = Size.of(element);
-        double resultWidth = elementSize.width() - getBorderHorizontal() - getPaddingHorizontal();
-        double resultHeight = elementSize.height() - getBorderVertical() - getPaddingVertical();
-        return new Size(resultWidth, resultHeight);
+        double borderHorizontal = getBorderHorizontal();
+        double borderVertical = getBorderVertical();
+        double paddingHorizontal = getPaddingHorizontal();
+        double paddingVertical = getPaddingVertical();
+        if (cachedRawInnerSize != null
+                && cachedRawElementSize.equals(elementSize)
+                && Double.compare(cachedRawBorderHorizontal, borderHorizontal) == 0
+                && Double.compare(cachedRawBorderVertical, borderVertical) == 0
+                && Double.compare(cachedRawPaddingHorizontal, paddingHorizontal) == 0
+                && Double.compare(cachedRawPaddingVertical, paddingVertical) == 0) {
+            return cachedRawInnerSize;
+        }
+        double resultWidth = elementSize.width() - borderHorizontal - paddingHorizontal;
+        double resultHeight = elementSize.height() - borderVertical - paddingVertical;
+        cachedRawElementSize = elementSize;
+        cachedRawBorderHorizontal = borderHorizontal;
+        cachedRawBorderVertical = borderVertical;
+        cachedRawPaddingHorizontal = paddingHorizontal;
+        cachedRawPaddingVertical = paddingVertical;
+        cachedRawInnerSize = new Size(resultWidth, resultHeight);
+        cachedInnerRawSize = null;
+        cachedInnerSize = null;
+        return cachedRawInnerSize;
     }
 
     public Size elementSize() {
@@ -406,6 +464,8 @@ public class Box {
             case "bottom" -> marginBottom = value;
             case "left" -> marginLeft = value;
         }
+        cachedSize = null;
+        cachedSizeElementSize = null;
     }
 
     private void setAutoMargin(String side, boolean value) {

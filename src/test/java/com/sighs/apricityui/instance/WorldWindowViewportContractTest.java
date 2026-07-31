@@ -12,6 +12,54 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class WorldWindowViewportContractTest {
     @Test
+    void browserViewportLocksWidthAndTracksAvailableWindowHeight() {
+        ApricityViewport.Spec spec = new ApricityViewport.Spec(
+                "browser", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
+        );
+
+        ApricityViewport large = spec.resolveHeadless(1920, 1080, 1.0d);
+        ApricityViewport small = spec.resolveHeadless(960, 540, 1.0d);
+
+        assertEquals(large.layoutWidth(), small.layoutWidth());
+        assertEquals(1080, large.layoutHeight());
+        assertEquals(540, small.layoutHeight());
+        assertEquals(large.renderScale(), small.renderScale());
+        assertEquals(large.scissorScale(), small.scissorScale());
+    }
+
+    @Test
+    void windowViewportFitsTheFixedBrowserViewportToAvailableWindow() {
+        ApricityViewport.Spec spec = new ApricityViewport.Spec(
+                "window", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
+        );
+
+        ApricityViewport large = spec.resolveHeadless(1920, 1080, 1.0d);
+        ApricityViewport small = spec.resolveHeadless(960, 540, 1.0d);
+
+        assertEquals(large.layoutWidth(), small.layoutWidth());
+        assertEquals(large.layoutHeight(), small.layoutHeight());
+        assertEquals(1.0f, large.renderScale(), 0.0001f);
+        assertEquals(0.5f, small.renderScale(), 0.0001f);
+        assertEquals(1.0d, large.scissorScale(), 0.0001d);
+        assertEquals(0.5d, small.scissorScale(), 0.0001d);
+    }
+
+    @Test
+    void screenRemainsACompatibilityAliasForWindowViewport() {
+        ApricityViewport.Spec window = new ApricityViewport.Spec(
+                "window", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
+        );
+        ApricityViewport.Spec screen = new ApricityViewport.Spec(
+                "screen", Map.of(), 1.0d, 0.5d, 3.0d, 0.1d, true
+        );
+
+        ApricityViewport expected = window.resolveHeadless(960, 540, 1.0d);
+        ApricityViewport actual = screen.resolveHeadless(960, 540, 1.0d);
+
+        assertEquals(expected, actual);
+    }
+
+    @Test
     void fixedMetaViewportDefinesWorldDocumentLogicalSize() {
         ApricityViewport.Spec spec = new ApricityViewport.Spec(
                 "fixed",

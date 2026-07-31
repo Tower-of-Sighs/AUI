@@ -10,6 +10,12 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 final class RenderQueue {
+    private static final int VISUAL_DIRTY_MASK =
+            Drawer.REPAINT
+                    | Drawer.REORDER
+                    | Drawer.RELAYOUT
+                    | Drawer.COMMIT_LAYOUT;
+
     private final Document owner;
     private final Set<Element> dirtyElements = ConcurrentHashMap.newKeySet();
     private final Set<Element> hitTestDirtyRoots = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -17,6 +23,7 @@ final class RenderQueue {
     private ArrayList<RenderNode> paintList = new ArrayList<>();
     private int globalDirtyMask = 0;
     private boolean layoutCommitDirty = false;
+    private volatile long visualVersion = 1L;
 
     RenderQueue(Document owner) {
         this.owner = owner;
@@ -27,11 +34,16 @@ final class RenderQueue {
         return paintList;
     }
 
+    long getVisualVersion() {
+        return visualVersion;
+    }
+
     Set<Element> getDirtyElements() {
         return dirtyElements;
     }
 
     void reset() {
+        markVisualDirty();
         dirtyElements.clear();
         hitTestDirtyRoots.clear();
         globalDirtyMask = 0;
@@ -41,6 +53,7 @@ final class RenderQueue {
     }
 
     void rebuildPaintList() {
+        markVisualDirty();
         if (owner.documentElement == null) {
             paintList = new ArrayList<>();
             hitTestCache.clear();
@@ -62,10 +75,11 @@ final class RenderQueue {
         commit(true);
     }
 
-    void commit(boolean commitLayoutNow) {
+    boolean commit(boolean commitLayoutNow) {
         boolean hadWork = globalDirtyMask != 0 || !dirtyElements.isEmpty() || layoutCommitDirty;
         boolean hadGlobalDirty = globalDirtyMask != 0;
-        boolean needsLayoutCommit = layoutCommitDirty || hadGlobalDirty;
+        boolean needsLayoutCommit = layoutCommitDirty
+                || (globalDirtyMask & (Drawer.RELAYOUT | Drawer.COMMIT_LAYOUT)) != 0;
         boolean fullHitTestRebuild = hadGlobalDirty || hitTestDirtyRoots.contains(owner.documentElement);
         Set<Element> incrementalHitRoots = Collections.newSetFromMap(new IdentityHashMap<>());
         for (Element element : dirtyElements) {
@@ -113,22 +127,33 @@ final class RenderQueue {
             }
             layoutCommitDirty = false;
         }
+        return needsLayoutCommit;
     }
 
     void markDirty(int mask) {
         if (mask == 0) return;
+        if ((mask & VISUAL_DIRTY_MASK) != 0) markVisualDirty();
         globalDirtyMask |= mask;
     }
 
     void markDirty(Element element, int mask) {
-        if (element == null) return;
+        if (element == null || mask == 0) return;
         if (!element.isConnected()) return;
+        if ((mask & VISUAL_DIRTY_MASK) != 0) markVisualDirty();
         element.addDirtyFlags(mask);
         dirtyElements.add(element);
     }
 
     boolean hasPendingWork() {
         return globalDirtyMask != 0 || !dirtyElements.isEmpty() || layoutCommitDirty;
+    }
+
+    boolean hasPendingVisualWork() {
+        if (layoutCommitDirty || (globalDirtyMask & VISUAL_DIRTY_MASK) != 0) return true;
+        for (Element element : dirtyElements) {
+            if (element != null && element.hasDirtyFlag(VISUAL_DIRTY_MASK)) return true;
+        }
+        return false;
     }
 
     int getGlobalDirtyMask() {
@@ -168,5 +193,9 @@ final class RenderQueue {
             element.addDirtyFlags(mask);
             dirtyElements.add(element);
         }
+    }
+
+    void markVisualDirty() {
+        visualVersion++;
     }
 }

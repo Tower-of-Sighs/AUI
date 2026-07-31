@@ -639,6 +639,22 @@ class LayoutPositionTest {
     }
 
     @Test
+    void nativeScrollbarGutterIsMeasuredInDevicePixelsAcrossViewports() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        setViewport(document, 300, 200, 2.0d);
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element scroller = new Element(document, "div");
+        scroller.setAttribute("style", "width: 100px; height: 60px; overflow-y: auto;");
+        Element content = new Element(document, "div");
+        content.setAttribute("style", "width: 100px; height: 300px;");
+        document.body.appendChild(scroller);
+        scroller.appendChild(content);
+
+        assertTrue(scroller.hasVerticalScrollRange());
+        assertEquals(4.0, scroller.getVerticalScrollbarGutter(), 0.001);
+    }
+
+    @Test
     void webFontMeasurementUsesBrowserFractionalAdvances() throws Exception {
         java.nio.file.Path fontPath = java.nio.file.Path.of(
                 "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf");
@@ -1878,9 +1894,13 @@ class LayoutPositionTest {
     }
 
     private static void setViewport(Document document, int width, int height) throws Exception {
+        setViewport(document, width, height, 1.0d);
+    }
+
+    private static void setViewport(Document document, int width, int height, double scissorScale) throws Exception {
         Field viewport = Document.class.getDeclaredField("viewport");
         viewport.setAccessible(true);
-        viewport.set(document, new ApricityViewport(width, height, 1.0f, 1.0d));
+        viewport.set(document, new ApricityViewport(width, height, 1.0f, scissorScale));
     }
 
     private static boolean isClassPresent(String name) {

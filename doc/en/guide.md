@@ -330,9 +330,9 @@ Screen documents can choose their logical root viewport with an `aui-viewport` m
 Supported modes:
 
 1. `mode=gui`: default Minecraft GUI-sized viewport, compatible with the old behavior.
-2. `mode=browser`, `mode=css`, or `mode=web`: use a browser-like CSS viewport. The layout viewport is the window framebuffer converted through the OS/GLFW content scale, and rendering maps CSS px back into the current Minecraft GUI coordinate space. `100vw`, `100vh`, and CSS px resolve against this logical viewport.
-3. `mode=window` or `mode=native`: compatibility aliases for browser/CSS viewport mode. Prefer `mode=browser` in new pages when the intent is browser-like CSS sizing.
-4. `mode=screen` or `mode=fullscreen`: use the current monitor video-mode size as the logical viewport and scale it into the window.
+2. `mode=browser`, `mode=css`, or `mode=web`: use a browser-like CSS viewport with a monitor-derived fixed width. The height follows the current window's CSS height, while the render scale stays fixed, so resizing the window does not change horizontal layout.
+3. `mode=window` or `mode=native`: use the monitor CSS viewport and fit it into the current window. The logical CSS size stays stable while the render scale follows the window size.
+4. `mode=screen` or `mode=fullscreen`: compatibility aliases for `mode=window`.
 5. `mode=fixed,width=427,height=249`: use an explicit fixed logical viewport.
 
 Fixed mode also accepts `scale=1`, `scale=gui`, `scale=window`, or `scale=fit`.

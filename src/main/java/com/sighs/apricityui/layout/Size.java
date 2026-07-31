@@ -307,6 +307,10 @@ public record Size(double width, double height) {
         boolean intrinsicMeasurement = isNaturalMeasurementContext();
         Size cache = intrinsicMeasurement ? null : element.getRenderer().size.get();
         if (cache != null) return cache;
+        if (intrinsicMeasurement && !allowFlexAdjustments) {
+            Size naturalCache = getNaturalMeasurementCache(element);
+            if (naturalCache != null) return naturalCache;
+        }
 
         Style style = element.getComputedStyle();
 
@@ -429,7 +433,7 @@ public record Size(double width, double height) {
                 && Flex.of(element.parentElement).flexDirection.isColumn();
         if (unsetHeight && !insetResolvedHeight && !flexMainHeightAssigned && !flexCrossHeightStretched
                 && !parentAssignsColumnMainSize
-                && (!isNaturalMeasurementContext() || naturalWidthConstraint != null)
+                && (!intrinsicMeasurement || naturalWidthConstraint != null)
                 && !(element instanceof AbstractText)
                 && Layout.isFlexDisplay(style.display)) {
             Flex ownFlex = Flex.of(element);
@@ -549,32 +553,65 @@ public record Size(double width, double height) {
     }
 
     public static double getScaleWidth(Element element) {
-        Double constrainedWidth = NATURAL_CONTENT_WIDTHS.get().get(element);
-        if (constrainedWidth != null) return Math.max(0, constrainedWidth);
-        Element parent = element.parentElement;
-        if (parent != null) {
-            Double constrainedParentWidth = NATURAL_CONTENT_WIDTHS.get().get(parent);
-            if (constrainedParentWidth != null) {
-                return Math.max(0, constrainedParentWidth);
-            }
-            Size cachedParentSize = parent.getRenderer().size.get();
-            if (cachedParentSize != null) {
-                double innerWidth = Box.of(parent).innerSize().width();
+        if (element == null) return getWindowWidth();
+
+        Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
+        Element[] route = element.getRouteArray();
+        for (Element current : route) {
+            Double constrainedWidth = constraints.get(current);
+            if (constrainedWidth != null) return Math.max(0, constrainedWidth);
+        }
+
+        // The recursive implementation recalculated the entire ancestor chain
+        // once for tryResolveLength() and again for resolveLength(). The route
+        // is already cached by the renderer, so resolve ancestors once from
+        // the root while retaining the nearest usable containing block.
+        double scaleWidth = getWindowWidth();
+        double nearestScaleWidth = scaleWidth;
+        for (int index = route.length - 1; index > 0; index--) {
+            Element current = route[index];
+            Size cachedSize = current.getRenderer().size.get();
+            boolean hasUsableSize = false;
+            if (cachedSize != null) {
+                double innerWidth = Box.of(current).innerSize().width();
                 if (innerWidth > 0) {
-                    return innerWidth;
+                    scaleWidth = innerWidth;
+                    hasUsableSize = true;
                 }
             }
-            Style parentStyle = parent.getRawComputedStyle();
-            if (tryResolveLength(parentStyle.width, getScaleWidth(parent)) != null) {
-                double resolvedWidth = resolveLength(parentStyle.width, getScaleWidth(parent), 0);
-                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
-                    Box parentBox = Box.of(parent);
-                    resolvedWidth -= parentBox.getBorderHorizontal() + parentBox.getPaddingHorizontal();
+
+            if (!hasUsableSize) {
+                Style currentStyle = current.getRawComputedStyle();
+                Double resolved = tryResolveLength(currentStyle.width, scaleWidth);
+                if (resolved != null) {
+                    double resolvedWidth = resolved;
+                    if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(currentStyle.boxSizing))) {
+                        Box currentBox = Box.of(current);
+                        resolvedWidth -= currentBox.getBorderHorizontal() + currentBox.getPaddingHorizontal();
+                    }
+                    scaleWidth = Math.max(0, resolvedWidth);
+                    hasUsableSize = true;
                 }
-                return Math.max(0, resolvedWidth);
             }
-            return getScaleWidth(parent);
-        } else return getWindowWidth();
+
+            if (hasUsableSize) nearestScaleWidth = scaleWidth;
+        }
+        return nearestScaleWidth;
+    }
+
+    private static Size getNaturalMeasurementCache(Element element) {
+        Map<Element, Double> constraints = NATURAL_CONTENT_WIDTHS.get();
+        Double availableWidth = getNaturalMeasurementWidthContext(element);
+        int cacheMode = constraints.containsKey(element)
+                ? LayoutMeasureCache.SIZE_NATURAL_CONSTRAINED
+                : LayoutMeasureCache.SIZE_NATURAL;
+        return LayoutMeasureCache.getSize(
+                cacheMode,
+                element,
+                availableWidth == null ? Double.NaN : availableWidth,
+                Double.NaN,
+                true
+        );
     }
 
     public static double getScaleHeight(Element element) {
