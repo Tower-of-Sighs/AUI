@@ -339,16 +339,16 @@ public interface Transform {
             Transform e = eTs.get(i);
 
             if (s instanceof Transform.Translate st && e instanceof Transform.Translate et) {
-                changes.add(new Transition.Change("transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress)));
-                changes.add(new Transition.Change("transform-translatey", Transition.getOffset("y", st.y(), et.y(), progress)));
-                changes.add(new Transition.Change("transform-translatez", Transition.getOffset("z", st.z(), et.z(), progress)));
+                Transition.addChange(changes, "transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress));
+                Transition.addChange(changes, "transform-translatey", Transition.getOffset("y", st.y(), et.y(), progress));
+                Transition.addChange(changes, "transform-translatez", Transition.getOffset("z", st.z(), et.z(), progress));
             } else if (s instanceof Transform.Rotate sr && e instanceof Transform.Rotate er) {
-                changes.add(new Transition.Change("transform-rotatex", Transition.getOffset("x", sr.x(), er.x(), progress)));
-                changes.add(new Transition.Change("transform-rotatey", Transition.getOffset("y", sr.y(), er.y(), progress)));
-                changes.add(new Transition.Change("transform-rotatez", Transition.getOffset("z", sr.z(), er.z(), progress)));
+                Transition.addChange(changes, "transform-rotatex", Transition.getOffset("x", sr.x(), er.x(), progress));
+                Transition.addChange(changes, "transform-rotatey", Transition.getOffset("y", sr.y(), er.y(), progress));
+                Transition.addChange(changes, "transform-rotatez", Transition.getOffset("z", sr.z(), er.z(), progress));
             } else if (s instanceof Transform.Scale ss && e instanceof Transform.Scale es) {
-                changes.add(new Transition.Change("transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress)));
-                changes.add(new Transition.Change("transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress)));
+                Transition.addChange(changes, "transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress));
+                Transition.addChange(changes, "transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress));
             }
         }
     }

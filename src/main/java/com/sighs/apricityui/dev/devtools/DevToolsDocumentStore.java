@@ -6,6 +6,7 @@ import com.sighs.apricityui.instance.Loader;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -13,7 +14,7 @@ import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
 
-/** Resolves DevTools documents to existing, writable Apricity HTML resources. */
+/** Resolves DevTools documents and stylesheets to existing, writable Apricity resources. */
 final class DevToolsDocumentStore {
     private DevToolsDocumentStore() {
     }
@@ -32,15 +33,30 @@ final class DevToolsDocumentStore {
         if (relativePath.isBlank() || !relativePath.toLowerCase(Locale.ROOT).endsWith(".html")) {
             return Resolution.failure("Only Apricity HTML documents can be saved");
         }
+        return resolveNormalized(relativePath, entries, production, "HTML");
+    }
+
+    static Resolution resolveResource(String resourcePath, List<Loader.StaticResourceEntry> entries,
+                                      boolean production) {
+        String relativePath = normalize(resourcePath);
+        if (relativePath.isBlank()) {
+            return Resolution.failure("Only Apricity resources can be saved");
+        }
+        return resolveNormalized(relativePath, entries, production, "stylesheet");
+    }
+
+    private static Resolution resolveNormalized(String relativePath, List<Loader.StaticResourceEntry> entries,
+                                                boolean production, String resourceKind) {
         Loader.StaticResourceEntry matched = null;
         if (entries != null) {
             for (Loader.StaticResourceEntry entry : entries) {
                 if (entry != null && relativePath.equals(normalize(entry.path()))) matched = entry;
             }
         }
-        if (matched == null) return Resolution.failure("This document is not a file-backed Apricity resource");
+        if (matched == null) return Resolution.failure(
+                "This " + resourceKind + " is not a file-backed Apricity resource");
         if (matched.layer() == Loader.ResourceLayer.RESOURCE_PACK) {
-            return Resolution.failure("Resource-pack HTML is read-only");
+            return Resolution.failure("Resource-pack " + resourceKind.toLowerCase(Locale.ROOT) + " is read-only");
         }
         if (matched.layer() == Loader.ResourceLayer.DEV_FOLDER && production) {
             return Resolution.failure("Development resources cannot be saved in production");
@@ -50,26 +66,27 @@ final class DevToolsDocumentStore {
             Path root = Path.of(matched.sourceRoot()).toAbsolutePath().normalize().toRealPath();
             Path target = root.resolve(relativePath).normalize();
             if (!target.startsWith(root)) return Resolution.failure("Resource path is outside its source root");
-            if (!Files.isRegularFile(target)) return Resolution.failure("The source HTML file no longer exists");
+            if (!Files.isRegularFile(target)) return Resolution.failure(
+                    "The source " + resourceKind.toLowerCase(Locale.ROOT) + " file no longer exists");
             Path realTarget = target.toRealPath();
             if (!realTarget.startsWith(root)) return Resolution.failure("Resource path is outside its source root");
             return Resolution.success(new SaveTarget(relativePath, realTarget, matched.layer()));
         } catch (IOException | RuntimeException ignored) {
-            return Resolution.failure("The source HTML path is invalid");
+            return Resolution.failure("The source " + resourceKind.toLowerCase(Locale.ROOT) + " path is invalid");
         }
     }
 
-    static SaveResult save(SaveTarget target, String html) {
-        if (target == null || html == null) return SaveResult.failure("Nothing to save");
+    static SaveResult save(SaveTarget target, String content) {
+        if (target == null || content == null) return SaveResult.failure("Nothing to save");
         Path file = target.file().toAbsolutePath().normalize();
-        if (!Files.isRegularFile(file)) return SaveResult.failure("The source HTML file no longer exists");
+        if (!Files.isRegularFile(file)) return SaveResult.failure("The source file no longer exists");
         try {
-            Files.writeString(file, html, StandardCharsets.UTF_8,
+            Files.writeString(file, content, StandardCharsets.UTF_8,
                     StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
             ClientLoader.invalidateStaticResourceCache();
             return SaveResult.success(file);
         } catch (IOException | RuntimeException ignored) {
-            return SaveResult.failure("Could not save the HTML file");
+            return SaveResult.failure("Could not save the source file");
         }
     }
 
@@ -78,6 +95,14 @@ final class DevToolsDocumentStore {
         try {
             return Files.readString(target.file(), StandardCharsets.UTF_8);
         } catch (IOException | RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    static String readResource(String resourcePath) {
+        try (InputStream stream = ClientLoader.getResourceStream(resourcePath)) {
+            return stream == null ? null : new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException | RuntimeException | LinkageError ignored) {
             return null;
         }
     }

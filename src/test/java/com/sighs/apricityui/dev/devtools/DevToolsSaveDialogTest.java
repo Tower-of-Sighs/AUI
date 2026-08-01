@@ -16,27 +16,34 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DevToolsSaveDialogTest {
     @Test
-    void confirmsThePathAndReturnsTheSessionReminderChoice() {
+    void returnsIndependentSessionReminderAndDomChoices() {
         String path = "test://save-dialog-" + UUID.randomUUID();
         HTML.putTemple(path, "<html><body></body></html>");
         Document document = Document.create(path);
         assertNotNull(document);
         try {
             DevToolsSaveDialog dialog = new DevToolsSaveDialog();
-            AtomicReference<Boolean> skip = new AtomicReference<>();
-            dialog.open(document, "pages/example.html", skip::set);
+            AtomicReference<DevToolsSaveDialog.SaveOptions> options = new AtomicReference<>();
+            dialog.open(document, "pages/example.html", options::set);
 
-            assertEquals("Save HTML", document.querySelector(".aui-dialog-title-text").getTextContent());
+            assertEquals("Save changes", document.querySelector(".aui-dialog-title-text").getTextContent());
             assertEquals("pages/example.html", document.querySelector(".save-dialog-path").getTextContent());
+            assertEquals("By default, only CSS changes are saved. Enable the option below to also save the current DOM tree.",
+                    document.querySelector(".save-dialog-scope").getTextContent());
             assertEquals("Do not ask again this session",
                     document.querySelector(".save-dialog-reminder-text").getTextContent());
-            Element checkbox = document.querySelector(".save-dialog-checkbox");
-            assertNotNull(checkbox);
-            assertFalse(checkbox.isChecked());
+            Element domCheckbox = document.querySelector(".save-dialog-dom-checkbox");
+            Element reminderCheckbox = document.querySelector(".save-dialog-reminder .save-dialog-checkbox");
+            assertNotNull(domCheckbox);
+            assertNotNull(reminderCheckbox);
+            assertFalse(domCheckbox.isChecked());
+            assertFalse(reminderCheckbox.isChecked());
+            document.querySelector(".save-dialog-option").click();
+            assertTrue(domCheckbox.isChecked());
             document.querySelector(".save-dialog-reminder").click();
-            assertTrue(checkbox.isChecked());
+            assertTrue(reminderCheckbox.isChecked());
             document.querySelector(".dialog-btn-confirm").click();
-            assertEquals(Boolean.TRUE, skip.get());
+            assertEquals(new DevToolsSaveDialog.SaveOptions(true, true), options.get());
             assertNull(document.querySelector(".dialog-overlay"));
         } finally {
             document.remove();

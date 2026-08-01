@@ -755,6 +755,30 @@
             transform: rotate(90deg);
         }
 
+        .dialog-maximize {
+            width: 24px;
+            height: 24px;
+            padding: 0;
+            background: transparent;
+            border: 2px solid var(--white);
+            color: var(--white);
+            cursor: pointer;
+            font-family: 'Chakra Petch', sans-serif;
+            font-weight: 600;
+            font-size: 16px;
+            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        .dialog-maximize:hover {
+            background: var(--white);
+            color: var(--purple);
+        }
+
         .dialog-body {
             padding: 24px 24px 20px;
             background:

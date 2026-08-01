@@ -16,6 +16,7 @@ import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
@@ -25,7 +26,10 @@ import com.sighs.apricityui.ui.ContextMenu;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.ui.FilePicker;
 import com.sighs.apricityui.editor.ore.OreEditor;
+import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
+import com.sighs.apricityui.instance.ClientLoader;
 import net.minecraft.client.Minecraft;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -85,6 +89,8 @@ public final class DevToolsController {
     private final DevToolsConsole console = new DevToolsConsole(this);
     private final DevToolsEditHistory editHistory = new DevToolsEditHistory();
     private final DevToolsSaveDialog saveDialog = new DevToolsSaveDialog();
+    private final DevToolsConfigDialog configDialog = new DevToolsConfigDialog();
+    private final ResourceMetaDialog metaDialog = new ResourceMetaDialog();
 
     private Document toolDocument;
     private Document targetDocument;
@@ -757,6 +763,8 @@ public final class DevToolsController {
     private void close() {
         disconnectTargetObserver();
         saveDialog.close();
+        configDialog.close();
+        metaDialog.close();
         closeCreateElementDialog();
         Document closing = toolDocument;
         Tooltip.hide(closing);
@@ -819,6 +827,7 @@ public final class DevToolsController {
     }
 
     private void bindTarget(Document target) {
+        metaDialog.close();
         disconnectTargetObserver();
         pickMode = false;
         treeHoverElementUuid = null;
@@ -854,8 +863,11 @@ public final class DevToolsController {
         if (toolDocument == null || toolDocument.body == null) return;
         Element pickButton = toolDocument.querySelector("#pickBtn");
         Element saveButton = toolDocument.querySelector("#saveBtn");
+        Element reloadDocumentButton = toolDocument.querySelector("#reloadDocumentBtn");
+        Element metaButton = toolDocument.querySelector("#metaButton");
         Element consoleButton = toolDocument.querySelector(".console-btn");
         Element oreEditorButton = toolDocument.querySelector("#oreEditorButton");
+        Element settingsButton = toolDocument.querySelector("#settingsButton");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
         Element closeDevToolsButton = toolDocument.querySelector("#closeDevToolsBtn");
         Element closeDocumentButton = toolDocument.querySelector("#closeDocumentBtn");
@@ -879,14 +891,20 @@ public final class DevToolsController {
                     ? "devtools.apricityui.inspect_mode_on" : "devtools.apricityui.inspect_mode_off"));
         });
         bindOnce(saveButton, event -> requestSave());
+        bindOnce(reloadDocumentButton, event -> reloadTargetDocument());
+        bindOnce(metaButton, event -> openMetaEditor());
         bindOnce(consoleButton, event -> toggleConsoleMode());
         bindOnce(oreEditorButton, event -> openOreEditorFilePicker());
+        bindOnce(settingsButton, event -> configDialog.open(toolDocument));
         bindOnce(closeDevToolsButton, event -> close());
         bindOnce(closeDocumentButton, event -> closeTargetDocument());
         bindTooltipOnce(pickButton, "tooltip.apricityui.devtools.inspect");
         bindTooltipOnce(saveButton, "tooltip.apricityui.devtools.save");
+        bindTooltipOnce(reloadDocumentButton, "tooltip.apricityui.devtools.reload_document");
+        bindTooltipOnce(metaButton, "tooltip.apricityui.devtools.meta");
         bindConsoleTooltip(consoleButton);
         bindTooltipOnce(oreEditorButton, "tooltip.apricityui.ore_editor.open");
+        bindTooltipOnce(settingsButton, "tooltip.apricityui.devtools.settings");
         bindTooltipOnce(closeDevToolsButton, "tooltip.apricityui.devtools.close");
         bindTooltipOnce(closeDocumentButton, "tooltip.apricityui.devtools.close_document");
         bindPanelDrag(dragHandle);
@@ -947,10 +965,13 @@ public final class DevToolsController {
         if (logo != null) logo.setTextContent(DevToolsTranslations.translate("devtools.apricityui.title"));
         setAttribute("#panelDragHandle", "aria-label", "devtools.apricityui.move");
         setAttribute("#saveBtn", "aria-label", "devtools.apricityui.save_current_html");
+        setAttribute("#reloadDocumentBtn", "aria-label", "devtools.apricityui.reload_document");
+        setAttribute("#metaButton", "aria-label", "devtools.apricityui.edit_meta");
         setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
         setAttribute(".console-btn", "aria-label",
                 consoleMode ? "devtools.apricityui.inspect_elements" : "devtools.apricityui.console");
         setAttribute("#oreEditorButton", "aria-label", "tooltip.apricityui.ore_editor.open");
+        setAttribute("#settingsButton", "aria-label", "tooltip.apricityui.devtools.settings");
         setAttribute("#closeDevToolsBtn", "aria-label", "tooltip.apricityui.devtools.close");
         setAttribute("#closeDocumentBtn", "aria-label", "tooltip.apricityui.devtools.close_document");
     }
@@ -995,6 +1016,7 @@ public final class DevToolsController {
         }
         disconnectTargetObserver();
         saveDialog.close();
+        metaDialog.close();
         closeCreateElementDialog();
         Tooltip.hide(toolDocument);
         Cursor.resetToDefault();
@@ -1006,6 +1028,42 @@ public final class DevToolsController {
         bindTarget(resolvePreferredTarget());
         selectedElementUuid = targetDocument == null ? null : targetDocument.body.uuid;
         refresh();
+    }
+
+    private synchronized void reloadTargetDocument() {
+        Document document = targetDocument;
+        if (!isDebuggable(document)) {
+            showToast(DevToolsTranslations.translate("devtools.apricityui.select_document_first"));
+            return;
+        }
+
+        disconnectTargetObserver();
+        saveDialog.close();
+        metaDialog.close();
+        closeCreateElementDialog();
+        Tooltip.hide(toolDocument);
+        Cursor.resetToDefault();
+        pickMode = false;
+        treeHoverElementUuid = null;
+        consumeInspectMouseUp = false;
+        hideInspectHighlight();
+        expandedNodes.clear();
+        disabledStyles.clear();
+        disabledRuleStyles.clear();
+        editHistory.clear();
+        selectedElementUuid = null;
+
+        // Refresh the source template first so a saved or externally edited HTML file is used.
+        HTML.reload(document.getPath());
+        document.refresh();
+
+        if (!isOpen()) return;
+        bindTarget(document);
+        selectedElementUuid = targetDocument == null || targetDocument.body == null
+                ? null : targetDocument.body.uuid;
+        refresh();
+        showToast(DevToolsTranslations.translate(
+                "devtools.apricityui.document_reloaded", document.getPath()));
     }
 
     private void bindHistoryShortcuts() {
@@ -1037,16 +1095,36 @@ public final class DevToolsController {
             return;
         }
         if (skipSaveConfirmation) {
-            saveDocument(document, resolution.target());
+            saveDocument(document, resolution.target(), false);
             return;
         }
-        saveDialog.open(toolDocument, resolution.target().relativePath(), skip -> {
-            if (skip) skipSaveConfirmation = true;
-            saveDocument(document, resolution.target());
+        saveDialog.open(toolDocument, resolution.target().relativePath(), options -> {
+            if (options.skipConfirmation()) skipSaveConfirmation = true;
+            saveDocument(document, resolution.target(), options.saveDomTree());
         });
     }
 
-    private void saveDocument(Document document, DevToolsDocumentStore.SaveTarget target) {
+    private void openMetaEditor() {
+        Document document = targetDocument;
+        if (!isDebuggable(document)) {
+            showToast(DevToolsTranslations.translate("devtools.apricityui.select_document_first"));
+            return;
+        }
+        DevToolsDocumentStore.Resolution resolution = DevToolsDocumentStore.resolve(document);
+        if (!resolution.writable()) {
+            showToast(resolution.message());
+            return;
+        }
+        Tooltip.hide(toolDocument);
+        metaDialog.open(toolDocument, document.getPath(), resolution.target().file(), ClientLoader::reload,
+                document.getViewport().zoom(), zoom -> FrameTaskScheduler.scheduleAfterFrames(3, deadlineNs -> {
+                    if (document.isActive()) document.setViewportZoom(zoom);
+                    return true;
+                }));
+    }
+
+    private void saveDocument(Document document, DevToolsDocumentStore.SaveTarget target,
+                              boolean saveDomTree) {
         if (document == null || target == null || !document.isActive()) {
             showToast(DevToolsTranslations.translate("devtools.apricityui.document_unavailable"));
             return;
@@ -1056,9 +1134,27 @@ public final class DevToolsController {
             showToast(DevToolsTranslations.translate("devtools.apricityui.source_read_failed"));
             return;
         }
-        String html = DevToolsHtmlSerializer.serialize(document, original);
-        DevToolsDocumentStore.SaveResult result = DevToolsDocumentStore.save(target, html);
-        showToast(result.success() ? DevToolsTranslations.translate("devtools.apricityui.saved", target.relativePath()) : result.message());
+        DevToolsCssSerializer.Result prepared = DevToolsCssSerializer.prepare(
+                document, original, target, ClientLoader.listFinalStaticResources(),
+                FMLEnvironment.production, saveDomTree);
+        if (!prepared.success()) {
+            showToast(prepared.message());
+            return;
+        }
+        if (prepared.edits().isEmpty()) {
+            showToast(DevToolsTranslations.translate("devtools.apricityui.no_css_changes"));
+            return;
+        }
+        for (DevToolsCssSerializer.Edit edit : prepared.edits()) {
+            DevToolsDocumentStore.SaveResult result = DevToolsDocumentStore.save(
+                    edit.target(), edit.content());
+            if (!result.success()) {
+                showToast(DevToolsTranslations.translate(
+                        "devtools.apricityui.source_save_failed", edit.target().relativePath()));
+                return;
+            }
+        }
+        showToast(DevToolsTranslations.translate("devtools.apricityui.saved", target.relativePath()));
     }
 
     boolean undoEdit() {
@@ -1206,6 +1302,27 @@ public final class DevToolsController {
             } else {
                 saveButton.setAttribute("disabled", "disabled");
                 saveButton.setAttribute("aria-disabled", "true");
+            }
+        }
+        Element metaButton = toolDocument.querySelector("#metaButton");
+        if (metaButton != null) {
+            DevToolsDocumentStore.Resolution resolution = DevToolsDocumentStore.resolve(targetDocument);
+            if (resolution.writable()) {
+                metaButton.removeAttribute("disabled");
+                metaButton.setAttribute("aria-disabled", "false");
+            } else {
+                metaButton.setAttribute("disabled", "disabled");
+                metaButton.setAttribute("aria-disabled", "true");
+            }
+        }
+        Element reloadDocumentButton = toolDocument.querySelector("#reloadDocumentBtn");
+        if (reloadDocumentButton != null) {
+            if (isDebuggable(targetDocument)) {
+                reloadDocumentButton.removeAttribute("disabled");
+                reloadDocumentButton.setAttribute("aria-disabled", "false");
+            } else {
+                reloadDocumentButton.setAttribute("disabled", "disabled");
+                reloadDocumentButton.setAttribute("aria-disabled", "true");
             }
         }
         Element closeDocumentButton = toolDocument.querySelector("#closeDocumentBtn");

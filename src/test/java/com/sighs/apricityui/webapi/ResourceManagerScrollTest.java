@@ -219,6 +219,20 @@ class ResourceManagerScrollTest {
             assertFalse(previewDocument.isReloadPersistent());
             assertTrue(previewDocument.isManuallyRendered());
             assertEquals(path, previewDocumentPathField.get(previewDialog));
+
+            Element previewWindow = owner.querySelector(".resource-preview-window");
+            Element maximize = owner.querySelector(".resource-preview-window .dialog-maximize");
+            assertNotNull(previewWindow);
+            assertNotNull(maximize);
+            String normalBounds = previewWindow.getAttribute("style");
+            String normalIcon = maximize.getTextContent();
+            maximize.click();
+            assertTrue(previewWindow.getAttribute("style").contains("left:0.00px;top:0.00px;"));
+            assertEquals("\u25A3", maximize.getTextContent());
+            assertFalse(normalIcon.equals(maximize.getTextContent()));
+            maximize.click();
+            assertEquals(normalBounds, previewWindow.getAttribute("style"));
+            assertEquals("\u25A1", maximize.getTextContent());
         } finally {
             previewDialog.close();
             owner.remove();

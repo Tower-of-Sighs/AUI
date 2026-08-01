@@ -726,16 +726,16 @@ public class Box {
         for (int i = 0; i < count; i++) {
             Shadow startShadow = i < start.size() ? start.get(i) : transparentShadow(end.get(i));
             Shadow endShadow = i < end.size() ? end.get(i) : transparentShadow(start.get(i));
-            changes.add(new Transition.Change(shadowTransitionName(i, "x"),
-                    Transition.getOffset("x", startShadow.x(), endShadow.x(), progress)));
-            changes.add(new Transition.Change(shadowTransitionName(i, "y"),
-                    Transition.getOffset("y", startShadow.y(), endShadow.y(), progress)));
-            changes.add(new Transition.Change(shadowTransitionName(i, "blur"),
-                    Transition.getOffset("blur", startShadow.size(), endShadow.size(), progress)));
-            changes.add(new Transition.Change(shadowTransitionName(i, "spread"),
-                    Transition.getOffset("spread", startShadow.spread(), endShadow.spread(), progress)));
-            changes.add(new Transition.Change(shadowTransitionName(i, "color"),
-                    Transition.getOffset("color", startShadow.color().getValue(), endShadow.color().getValue(), progress)));
+            Transition.addChange(changes, shadowTransitionName(i, "x"),
+                    Transition.getOffset("x", startShadow.x(), endShadow.x(), progress));
+            Transition.addChange(changes, shadowTransitionName(i, "y"),
+                    Transition.getOffset("y", startShadow.y(), endShadow.y(), progress));
+            Transition.addChange(changes, shadowTransitionName(i, "blur"),
+                    Transition.getOffset("blur", startShadow.size(), endShadow.size(), progress));
+            Transition.addChange(changes, shadowTransitionName(i, "spread"),
+                    Transition.getOffset("spread", startShadow.spread(), endShadow.spread(), progress));
+            Transition.addChange(changes, shadowTransitionName(i, "color"),
+                    Transition.getOffset("color", startShadow.color().getValue(), endShadow.color().getValue(), progress));
         }
     }
 

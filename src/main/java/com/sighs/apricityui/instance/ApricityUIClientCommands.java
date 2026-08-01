@@ -27,6 +27,7 @@ public final class ApricityUIClientCommands {
     private static final float DEFAULT_NEAR_DEPTH_STEP = 0.00035f;
     private static final float DEFAULT_FAR_DEPTH_STEP = 0.003f;
     private static final float DEFAULT_DEPTH_NEAR_DISTANCE = 2.0f;
+    private static final float DEFAULT_FOLLOW_FACTOR = 0.3f;
     private static WorldWindow testWindow;
     private static Document boundDocument;
     private static final Consumer<Event> DEBUG_EVENT_LISTENER = ApricityUIClientCommands::handleDebugEvent;
@@ -98,13 +99,27 @@ public final class ApricityUIClientCommands {
         String id = target.getAttribute("id");
         if (id == null || id.isBlank()) return;
         switch (id) {
-            case "max-display-distance", "display-distance-mode" -> applyDisplayDistance();
+            case "max-display-distance" -> {
+                // Editing the distance directly opts this test instance into its
+                // override instead of silently discarding the slider value while
+                // the source selector still says "global".
+                Element mode = control("display-distance-mode");
+                if (mode != null && !"instance".equalsIgnoreCase(value(mode, "global"))) {
+                    mode.setValue("instance");
+                }
+                applyDisplayDistance();
+            }
+            case "display-distance-mode" -> applyDisplayDistance();
             case "max-distance" -> testWindow.setMaxDistance(readInt(target, testWindow.getMaxDistance()));
             case "depth-test" -> testWindow.setDepthTest(target.isChecked());
             case "lod-policy", "lod-custom", "lod-full-distance", "lod-reduced-distance" -> applyLodSettings();
             case "scale-mode", "world-scale" -> applyScaleSettings();
             case "near-depth-step", "far-depth-step", "depth-near-distance", "depth-far-distance" ->
                     applyDepthSettings();
+            case "follow-enabled" -> testWindow.setFollow(target.isChecked());
+            case "facing-enabled" -> testWindow.setFacing(target.isChecked());
+            case "follow-factor" -> testWindow.setFollowFactor(
+                    readFloat(target, testWindow.getFollowFactor()));
             default -> {
                 return;
             }
@@ -166,6 +181,9 @@ public final class ApricityUIClientCommands {
         testWindow.setMaxDistance(TEST_MAX_DISTANCE);
         testWindow.clearMaxDisplayDistanceOverride();
         testWindow.setDepthTest(true);
+        testWindow.setFollow(false);
+        testWindow.setFollowFactor(DEFAULT_FOLLOW_FACTOR);
+        testWindow.setFacing(false);
         testWindow.setDisplayPrecision(WorldWindowDisplayPrecision.AUTO);
         testWindow.clearScaleOverride();
         testWindow.setDynamicDepthStep(
@@ -185,7 +203,9 @@ public final class ApricityUIClientCommands {
         String displayMode = !testWindow.hasMaxDisplayDistanceOverride()
                 ? "global" : effectiveDisplayDistance == Integer.MAX_VALUE ? "unlimited" : "instance";
         setValue("display-distance-mode", displayMode);
-        setDisabled("max-display-distance", !"instance".equals(displayMode));
+        // The slider is an explicit instance-edit affordance. Dragging it opts
+        // into the instance source, so it must remain usable in global mode.
+        setDisabled("max-display-distance", false);
         setValue("max-distance", Integer.toString(testWindow.getMaxDistance()));
         setChecked("depth-test", testWindow.isDepthTestEnabled());
         setText("display-distance-value", effectiveDisplayDistance == Integer.MAX_VALUE
@@ -217,6 +237,12 @@ public final class ApricityUIClientCommands {
         setText("far-depth-value", formatDecimal(testWindow.getFarDepthStep(), 5));
         setText("depth-near-value", formatDecimal(testWindow.getDepthNearDistance(), 1) + " BLOCKS");
         setText("depth-far-value", formatDecimal(testWindow.getDepthFarDistance(), 1) + " BLOCKS");
+
+        setChecked("follow-enabled", testWindow.isFollowEnabled());
+        setValue("follow-factor", formatDecimal(testWindow.getFollowFactor(), 2));
+        setDisabled("follow-factor", !testWindow.isFollowEnabled());
+        setText("follow-factor-value", formatDecimal(testWindow.getFollowFactor(), 2));
+        setChecked("facing-enabled", testWindow.isFacingEnabled());
 
         setText("window-status", "LIVE / RAY " + testWindow.getMaxDistance() + " BLOCKS");
         setText("display-status", effectiveDisplayDistance == Integer.MAX_VALUE

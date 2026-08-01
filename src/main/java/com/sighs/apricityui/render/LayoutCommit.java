@@ -44,6 +44,32 @@ public final class LayoutCommit {
         }
     }
 
+    /**
+     * Commits only the world transforms below the supplied roots. Transform
+     * animation does not change layout rectangles, so rebuilding every rect
+     * in the document is unnecessary and can dominate the render frame.
+     */
+    public static void commitTransforms(Document document, Set<Element> roots) {
+        if (document == null || !document.isActive() || roots == null || roots.isEmpty()) return;
+        List<RenderNode> paintList = document.getPaintList();
+        if (paintList == null || paintList.isEmpty()) return;
+
+        Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        RectFrameCache.begin();
+        TransformFrameCache.begin();
+        try {
+            for (RenderNode node : paintList) {
+                Element target = getRenderNodeTarget(node);
+                if (target == null || target.document != document || !visited.add(target)) continue;
+                if (!isInTransformSubtree(target, roots)) continue;
+                commitTransformElement(target);
+            }
+        } finally {
+            TransformFrameCache.end();
+            RectFrameCache.end();
+        }
+    }
+
     private static void commitElement(Element target) {
         ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
@@ -64,6 +90,29 @@ public final class LayoutCommit {
                 if (!isOptionalRenderDependency(unavailableRenderRuntime)) throw unavailableRenderRuntime;
             }
         }
+    }
+
+    private static void commitTransformElement(Element target) {
+        ensureRendererLoaded(target);
+        if (!Interaction.isDisplayed(target)) return;
+
+        long transformDependency = target.getRenderer().transformDependency(target.document);
+        if (target.getRenderer().hasCommittedWorldTransform(transformDependency)) return;
+        try {
+            Matrix4f matrix = Base.createAndCacheWorldTransform(target);
+            target.getRenderer().commitWorldTransform(matrix, transformDependency);
+        } catch (NoClassDefFoundError unavailableRenderRuntime) {
+            if (!isOptionalRenderDependency(unavailableRenderRuntime)) throw unavailableRenderRuntime;
+        }
+    }
+
+    private static boolean isInTransformSubtree(Element target, Set<Element> roots) {
+        Element current = target;
+        while (current != null) {
+            if (roots.contains(current)) return true;
+            current = current.parentElement;
+        }
+        return false;
     }
 
     private static boolean isOptionalRenderDependency(NoClassDefFoundError error) {

@@ -12,6 +12,9 @@ import com.sighs.apricityui.init.TextNode;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.util.AuiLog;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -51,6 +54,19 @@ public class HTML {
 
     public static void scan() {
         new ClientLoader("html").loadResources(HTML::putTemple);
+    }
+
+    /** Refreshes one resource template without rescanning or rebuilding other documents. */
+    public static boolean reload(String path) {
+        if (path == null || path.isBlank()) return false;
+        try (InputStream stream = ClientLoader.getResourceStream(path)) {
+            if (stream == null) return false;
+            putTemple(path, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+            return true;
+        } catch (IOException | RuntimeException exception) {
+            ApricityUI.LOGGER.warn("[AUI HTML] failed to reload template path={}", AuiLog.source(path), exception);
+            return false;
+        }
     }
 
     public static DocumentRoot create(Document document, String path) {

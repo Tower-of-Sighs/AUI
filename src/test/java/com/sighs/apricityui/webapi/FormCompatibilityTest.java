@@ -168,7 +168,42 @@ class FormCompatibilityTest {
         range.setAttribute("type", "range");
         assertEquals("50.0", range.getValue());
         range.stepUp();
-        assertEquals("51.0", range.getValue());
+        assertEquals("51", range.getValue());
+    }
+
+    @Test
+    void rangePointerUpdatesDuringDragAndCommitsOnRelease() {
+        Document document = TestDocumentFactory.createDocument();
+        Input range = new Input(document) {
+            @Override
+            public DOMRect getBoundingClientRect() {
+                return new DOMRect(10, 10, 100, 8);
+            }
+        };
+        range.setAttribute("type", "range");
+        range.setAttribute("min", "0");
+        range.setAttribute("max", "100");
+        range.setAttribute("step", "10");
+        range.setValue("0");
+        document.body.appendChild(range);
+
+        AtomicInteger inputEvents = new AtomicInteger();
+        AtomicInteger changeEvents = new AtomicInteger();
+        range.addEventListener("input", event -> inputEvents.incrementAndGet());
+        range.addEventListener("change", event -> changeEvents.incrementAndGet());
+
+        MouseEvent down = new MouseEvent("mousedown", new Position(60, 14), 0, false);
+        MouseEvent.dispatchToTarget(down, document, range);
+        assertEquals("50", range.getValue());
+
+        MouseEvent move = new MouseEvent("mousemove", new Position(100, 14), 0, false);
+        MouseEvent.dispatchToTarget(move, document, range);
+        assertEquals("90", range.getValue());
+
+        MouseEvent up = new MouseEvent("mouseup", new Position(100, 14), 0, false);
+        MouseEvent.dispatchToTarget(up, document, range);
+        assertTrue(inputEvents.get() >= 2);
+        assertEquals(1, changeEvents.get());
     }
 
     @Test
@@ -194,22 +229,22 @@ class FormCompatibilityTest {
         MouseEvent.dispatchToTarget(wheelUp, document, number);
         assertTrue(wheelUp.defaultPrevented);
         assertTrue(wheelUp.isNativeConsumed());
-        assertEquals("7.0", number.getValue());
+        assertEquals("7", number.getValue());
 
         MouseEvent spinnerUp = new MouseEvent("mousedown", new Position(105, 12), 0, false);
         assertTrue(number.handleNumberSpinner(spinnerUp));
-        assertEquals("9.0", number.getValue());
+        assertEquals("9", number.getValue());
 
         MouseEvent spinnerDown = new MouseEvent("mousedown", new Position(105, 30), 0, false);
         assertTrue(number.handleNumberSpinner(spinnerDown));
-        assertEquals("7.0", number.getValue());
+        assertEquals("7", number.getValue());
 
         MouseEvent wheelDown = new MouseEvent("wheel", new Position(0, 0), -1, false);
         wheelDown.deltaY = 50;
         wheelDown.scrollDelta = 50;
         wheelDown.cancelable = true;
         MouseEvent.dispatchToTarget(wheelDown, document, number);
-        assertEquals("5.0", number.getValue());
+        assertEquals("5", number.getValue());
 
         number.setAttribute("readonly", "readonly");
         MouseEvent readOnlyWheel = new MouseEvent("wheel", new Position(0, 0), -1, false);
@@ -217,8 +252,45 @@ class FormCompatibilityTest {
         readOnlyWheel.scrollDelta = -50;
         readOnlyWheel.cancelable = true;
         assertFalse(number.handleNumberWheel(readOnlyWheel));
-        assertEquals("5.0", number.getValue());
+        assertEquals("5", number.getValue());
         assertFalse(readOnlyWheel.defaultPrevented);
+    }
+
+    @Test
+    void numberInputWithoutMinCanStepBelowZero() {
+        Document document = TestDocumentFactory.createDocument();
+        Input number = new Input(document);
+        number.setAttribute("type", "number");
+        number.setValue("0");
+        document.body.appendChild(number);
+
+        MouseEvent wheelDown = new MouseEvent("wheel", new Position(0, 0), -1, false);
+        wheelDown.deltaY = 50;
+        wheelDown.scrollDelta = 50;
+        wheelDown.cancelable = true;
+
+        assertTrue(number.handleNumberWheel(wheelDown));
+        assertEquals("-1", number.getValue());
+    }
+
+    @Test
+    void numberSpinnerHitAreaMatchesContentBoxWithPadding() {
+        Document document = TestDocumentFactory.createDocument();
+        Input number = new Input(document) {
+            @Override
+            public DOMRect getBoundingClientRect() {
+                return new DOMRect(10, 10, 100, 34);
+            }
+        };
+        number.setAttribute("type", "number");
+        number.setAttribute("style", "border: 1px solid #000; padding: 7px 9px;");
+        number.setValue("5");
+        document.body.appendChild(number);
+
+        // The icon center is inside the content-box spinner, but outside the old outer-edge hit area.
+        MouseEvent spinnerIcon = new MouseEvent("mousedown", new Position(91, 21), 0, false);
+        assertTrue(number.handleNumberSpinner(spinnerIcon));
+        assertEquals("6", number.getValue());
     }
 
     @Test

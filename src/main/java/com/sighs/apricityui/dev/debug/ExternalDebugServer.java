@@ -70,6 +70,15 @@ public final class ExternalDebugServer {
         }
     }
 
+    /** Applies the current debug-server setting after a live config reload. */
+    public static void reconcileConfiguration() {
+        if (isEnabled()) {
+            startIfEnabled();
+        } else {
+            stop();
+        }
+    }
+
     public static void tick() {
         if (!STARTED.get()) return;
         long deadline = System.nanoTime() + COMMAND_BUDGET_NS;

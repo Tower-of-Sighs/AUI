@@ -6,12 +6,20 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Style;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class Animation {
     private static final Map<String, TreeMap<Double, Map<String, String>>> KEYFRAMES = new HashMap<>();
     private static final Map<String, Set<String>> KEYFRAME_PROPS = new HashMap<>();
+    private static final Map<String, List<AnimationConfig>> PARSED_CONFIGS = new LinkedHashMap<>(32, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, List<AnimationConfig>> eldest) {
+            return size() > 256;
+        }
+    };
     private static final Map<UUID, AnimationState> ACTIVE_ANIMATIONS = new HashMap<>();
+    private static final Map<String, TimingFunction> TIMING_FUNCTIONS = new ConcurrentHashMap<>();
     private static final Pattern STEPS_PATTERN = Pattern.compile(
             "^steps\\(\\s*([1-9][0-9]*)\\s*(?:,\\s*(start|end|jump-start|jump-end|jump-none|jump-both)\\s*)?\\)\\s*$"
     );
@@ -28,8 +36,24 @@ public class Animation {
     );
     private static final Set<String> PLAY_STATE_SET = Set.of("running", "paused");
 
+    private interface TimingFunction {
+        double apply(double progress);
+    }
+
+    private static final TimingFunction IDENTITY_TIMING = progress -> progress;
+    private static final TimingFunction STEP_START_TIMING = progress -> 1.0;
+    private static final TimingFunction STEP_END_TIMING = progress -> progress >= 1.0 ? 1.0 : 0.0;
+    private static final TimingFunction EASE_TIMING = new CubicBezierTiming(0.25, 0.1, 0.25, 1.0);
+    private static final TimingFunction EASE_IN_TIMING = new CubicBezierTiming(0.42, 0.0, 1.0, 1.0);
+    private static final TimingFunction EASE_OUT_TIMING = new CubicBezierTiming(0.0, 0.0, 0.58, 1.0);
+    private static final TimingFunction EASE_IN_OUT_TIMING = new CubicBezierTiming(0.42, 0.0, 0.58, 1.0);
+
     private static class AnimationConfig {
         String name = "none", duration = "0s", delay = "0s", count = "1", direction = "normal", fill = "none", timing = "ease", playState = "running";
+        double durationMs;
+        double delayMs;
+        double iterationCount = 1.0;
+        TimingFunction timingFunction = EASE_TIMING;
     }
 
     private static class AnimationState {
@@ -38,6 +62,7 @@ public class Animation {
         String lastSpec = null;
         List<AnimationConfig> cachedConfigs = List.of();
         final Set<String> live = new HashSet<>();
+        final Transition.ChangeBuffer changes = new Transition.ChangeBuffer();
 
         void forgetExcept(Set<String> names) {
             starts.keySet().retainAll(names);
@@ -138,7 +163,7 @@ public class Animation {
             }
         }
 
-        double dur = Transition.parseTime(config.duration), delay = Transition.parseTime(config.delay);
+        double dur = config.durationMs, delay = config.delayMs;
         if (dur <= 0) return;
 
         long sampleTime = paused ? state.pausedAt.getOrDefault(config.name, now) : now;
@@ -146,14 +171,14 @@ public class Animation {
         double activeTime = elapsed - delay;
         if (activeTime < 0) {
             if (config.fill.equals("backwards") || config.fill.equals("both"))
-                renderFrame(element, style, config.name, 0.0);
+                renderFrame(element, style, config.name, 0.0, state.changes);
             return;
         }
 
-        double count = "infinite".equals(config.count) ? Double.MAX_VALUE : Double.parseDouble(config.count);
+        double count = config.iterationCount;
         if (activeTime >= dur * count) {
             if (config.fill.equals("forwards") || config.fill.equals("both"))
-                renderFrame(element, style, config.name, 100.0);
+                renderFrame(element, style, config.name, 100.0, state.changes);
             return;
         }
 
@@ -162,10 +187,12 @@ public class Animation {
         if (config.direction.startsWith("alternate") && iter % 2 != 0) progress = 1.0 - progress;
         else if (config.direction.equals("reverse")) progress = 1.0 - progress;
 
-        renderFrame(element, style, config.name, applyTiming(progress, config.timing) * 100.0);
+        renderFrame(element, style, config.name, config.timingFunction.apply(progress) * 100.0, state.changes);
     }
 
-    private static void renderFrame(Element element, Style style, String name, double percent) {
+    private static void renderFrame(Element element, Style style, String name, double percent,
+                                    List<Transition.Change> changes) {
+        changes.clear();
         TreeMap<Double, Map<String, String>> timeline = KEYFRAMES.get(name);
         if (timeline == null) return;
 
@@ -184,7 +211,6 @@ public class Animation {
         if (allProps == null || allProps.isEmpty()) return;
 
         Size transformBasis = allProps.contains("transform") ? Size.of(element) : null;
-        List<Transition.Change> changes = new ArrayList<>(allProps.size());
         for (String p : allProps) {
             String vS = findProperty(timeline, percent, p, true, style.get(p));
             String vE = findProperty(timeline, percent, p, false, vS);
@@ -199,10 +225,14 @@ public class Animation {
             else if (p.equals("box-shadow")) Box.interpolateShadow(changes, vS, vE, fraction);
             else {
                 double val = Transition.getOffset(p, parseAnimationStyle(element, p, vS), parseAnimationStyle(element, p, vE), fraction);
-                changes.add(new Transition.Change(p, val));
+                Transition.addChange(changes, p, val);
             }
         }
-        Transition.applyChanges(style, changes);
+        try {
+            Transition.applyChanges(style, changes);
+        } finally {
+            changes.clear();
+        }
     }
 
     private static double parseAnimationStyle(Element element, String name, String value) {
@@ -253,42 +283,29 @@ public class Animation {
     }
 
     static double applyTiming(double p, String tf) {
-        if (tf == null || tf.isBlank()) return p;
-        tf = tf.trim();
-        if (tf.startsWith("steps")) {
-            var m = STEPS_PATTERN.matcher(tf);
-            if (m.matches()) {
-                int steps = Integer.parseInt(m.group(1));
-                String mode = m.group(2) == null ? "end" : m.group(2);
-                return applySteps(p, steps, mode);
-            }
-        }
-        if ("step-start".equals(tf)) return 1.0;
-        if ("step-end".equals(tf)) return p >= 1.0 ? 1.0 : 0.0;
-        if ("linear".equals(tf)) return p;
-        if ("ease".equals(tf)) return cubicBezierAtTime(p, 0.25, 0.1, 0.25, 1.0);
-        if ("ease-in".equals(tf)) return cubicBezierAtTime(p, 0.42, 0.0, 1.0, 1.0);
-        if ("ease-out".equals(tf)) return cubicBezierAtTime(p, 0.0, 0.0, 0.58, 1.0);
-        if ("ease-in-out".equals(tf)) return cubicBezierAtTime(p, 0.42, 0.0, 0.58, 1.0);
-
-        var bezier = CUBIC_BEZIER_PATTERN.matcher(tf);
-        if (bezier.matches()) {
-            return cubicBezierAtTime(
-                    p,
-                    Double.parseDouble(bezier.group(1)),
-                    Double.parseDouble(bezier.group(2)),
-                    Double.parseDouble(bezier.group(3)),
-                    Double.parseDouble(bezier.group(4))
-            );
-        }
-        return p;
+        return compileTiming(tf).apply(p);
     }
 
     private static List<AnimationConfig> resolve(String spec, AnimationState state) {
         if (spec.equals(state.lastSpec)) {
             return state.cachedConfigs;
         }
-        List<AnimationConfig> configs = new ArrayList<>();
+        List<AnimationConfig> configs;
+        synchronized (PARSED_CONFIGS) {
+            configs = PARSED_CONFIGS.get(spec);
+            if (configs == null) {
+                ArrayList<AnimationConfig> parsed = new ArrayList<>();
+                parseSpec(spec, parsed);
+                configs = parsed.isEmpty() ? List.of() : List.copyOf(parsed);
+                PARSED_CONFIGS.put(spec, configs);
+            }
+        }
+        state.lastSpec = spec;
+        state.cachedConfigs = configs;
+        return configs;
+    }
+
+    private static void parseSpec(String spec, List<AnimationConfig> configs) {
         int depth = 0;
         int partStart = 0;
         int len = spec.length();
@@ -302,9 +319,6 @@ public class Animation {
             }
         }
         parsePart(spec, partStart, len, configs);
-        state.lastSpec = spec;
-        state.cachedConfigs = configs.isEmpty() ? List.of() : configs;
-        return configs;
     }
 
     private static void parsePart(String spec, int start, int end, List<AnimationConfig> configs) {
@@ -327,7 +341,45 @@ public class Animation {
             else if (isTimingFunctionToken(normalized)) c.timing = normalized;
             else c.name = t;
         }
+        c.durationMs = Transition.parseTime(c.duration);
+        c.delayMs = Transition.parseTime(c.delay);
+        c.iterationCount = "infinite".equals(c.count) ? Double.MAX_VALUE : Double.parseDouble(c.count);
+        c.timingFunction = compileTiming(c.timing);
         configs.add(c);
+    }
+
+    private static TimingFunction compileTiming(String value) {
+        String normalized = value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+        if (normalized.isEmpty()) return IDENTITY_TIMING;
+        return TIMING_FUNCTIONS.computeIfAbsent(normalized, Animation::parseTiming);
+    }
+
+    private static TimingFunction parseTiming(String timing) {
+        if ("linear".equals(timing)) return IDENTITY_TIMING;
+        if ("step-start".equals(timing)) return STEP_START_TIMING;
+        if ("step-end".equals(timing)) return STEP_END_TIMING;
+        if ("ease".equals(timing)) return EASE_TIMING;
+        if ("ease-in".equals(timing)) return EASE_IN_TIMING;
+        if ("ease-out".equals(timing)) return EASE_OUT_TIMING;
+        if ("ease-in-out".equals(timing)) return EASE_IN_OUT_TIMING;
+
+        var steps = STEPS_PATTERN.matcher(timing);
+        if (steps.matches()) {
+            int count = Integer.parseInt(steps.group(1));
+            String mode = steps.group(2) == null ? "end" : steps.group(2);
+            return new StepsTiming(count, mode);
+        }
+
+        var bezier = CUBIC_BEZIER_PATTERN.matcher(timing);
+        if (bezier.matches()) {
+            return new CubicBezierTiming(
+                    Double.parseDouble(bezier.group(1)),
+                    Double.parseDouble(bezier.group(2)),
+                    Double.parseDouble(bezier.group(3)),
+                    Double.parseDouble(bezier.group(4))
+            );
+        }
+        return IDENTITY_TIMING;
     }
 
     static boolean isTimingFunctionToken(String token) {
@@ -396,6 +448,40 @@ public class Animation {
             case "end", "jump-end" -> Math.floor(progress * steps) / steps;
             default -> progress;
         };
+    }
+
+    private static final class StepsTiming implements TimingFunction {
+        private final int steps;
+        private final String mode;
+
+        private StepsTiming(int steps, String mode) {
+            this.steps = steps;
+            this.mode = mode;
+        }
+
+        @Override
+        public double apply(double progress) {
+            return applySteps(progress, steps, mode);
+        }
+    }
+
+    private static final class CubicBezierTiming implements TimingFunction {
+        private final double x1;
+        private final double y1;
+        private final double x2;
+        private final double y2;
+
+        private CubicBezierTiming(double x1, double y1, double x2, double y2) {
+            this.x1 = x1;
+            this.y1 = y1;
+            this.x2 = x2;
+            this.y2 = y2;
+        }
+
+        @Override
+        public double apply(double progress) {
+            return cubicBezierAtTime(progress, x1, y1, x2, y2);
+        }
     }
 
     private static boolean isNumberToken(String t) {

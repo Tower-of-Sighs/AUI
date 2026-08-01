@@ -93,7 +93,7 @@ public class Document {
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
-    private final boolean interceptMouseEvents;
+    private volatile boolean interceptMouseEvents;
     /** A document rendered by an owning surface instead of the global document pass. */
     private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
@@ -248,6 +248,22 @@ public class Document {
         return true;
     }
 
+    /** Applies an editor-controlled zoom value without requiring user-scalable metadata. */
+    public boolean setViewportZoom(double zoom) {
+        boolean changed = viewportState.setZoom(zoom);
+        if (!changed) return false;
+        if (inWorld) applyViewport(true);
+        else applyViewportForPath(path, true);
+        ApricityUI.LOGGER.info(
+                "[AUI Viewport] editor zoom path={} zoom={} viewport={}x{}",
+                path,
+                String.format(Locale.ROOT, "%.2f", viewport.zoom()),
+                viewport.layoutWidth(),
+                viewport.layoutHeight()
+        );
+        return true;
+    }
+
     private static void applyViewportForPath(String path, boolean relayout) {
         for (Document document : documents) {
             if (document == null || document.inWorld || document.isDisposed() || !document.is(path)) continue;
@@ -257,6 +273,9 @@ public class Document {
 
     public void refresh() {
         beginRefreshLifecycle();
+        ApricityViewport.spec(path).createState(path);
+        interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
+        applyViewport(false);
         ContextScope contextScope = withContext(this);
         String stage = "reset";
         try {
@@ -540,6 +559,14 @@ public class Document {
 
     public void commitMotionHitTest() {
         render.updateHitTestSubtrees(motion.drainHitTestRoots());
+    }
+
+    public Set<Element> drainMotionLayoutRoots() {
+        return motion.drainLayoutRoots();
+    }
+
+    public Set<Element> drainMotionGeometryRoots() {
+        return motion.drainGeometryRoots();
     }
 
     /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */

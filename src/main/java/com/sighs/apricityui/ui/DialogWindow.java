@@ -11,25 +11,36 @@ public final class DialogWindow {
     public record Options(String title, double width, double height, boolean resizable,
                           String overlayClass, String windowClass, String headingClass,
                           String titleClass, String closeClass, String contentClass,
-                          String titleIconClass) {
+                          String titleIconClass, boolean maximizable) {
         public Options(String title, double width, double height, boolean resizable,
                        String overlayClass, String windowClass, String headingClass,
                        String titleClass, String closeClass) {
             this(title, width, height, resizable, overlayClass, windowClass, headingClass,
-                    titleClass, closeClass, "aui-dialog-content", "");
+                    titleClass, closeClass, "aui-dialog-content", "", false);
+        }
+
+        public Options(String title, double width, double height, boolean resizable,
+                       String overlayClass, String windowClass, String headingClass,
+                       String titleClass, String closeClass, String contentClass,
+                       String titleIconClass) {
+            this(title, width, height, resizable, overlayClass, windowClass, headingClass,
+                    titleClass, closeClass, contentClass, titleIconClass, false);
         }
 
         public static Options of(String title, double width, double height, boolean resizable) {
             return new Options(title, width, height, resizable, "aui-dialog-overlay", "aui-dialog-window",
                     "aui-dialog-heading", "aui-dialog-title", "aui-dialog-close",
-                    "aui-dialog-content", "aui-dialog-title-icon");
+                    "aui-dialog-content", "aui-dialog-title-icon", false);
         }
     }
     private final Document document;
     private final Options options;
     private final Runnable onClose;
     private Element overlay, window, content;
+    private Element maximizeButton;
     private double x, y, width, height, startX, startY, startWidth, startHeight, startLeft, startTop;
+    private double restoredX, restoredY, restoredWidth, restoredHeight;
+    private boolean maximized;
     private Mode mode = Mode.NONE;
 
     private DialogWindow(Document document, Options options, Runnable onClose) {
@@ -44,6 +55,8 @@ public final class DialogWindow {
     public void close() {
         if (overlay != null) overlay.remove();
         overlay = window = content = null;
+        maximizeButton = null;
+        maximized = false;
         if (onClose != null) onClose.run();
     }
     private void create() {
@@ -62,18 +75,62 @@ public final class DialogWindow {
             title.append(el("DIV", options.titleIconClass()));
         }
         Element titleText = el("SPAN", "aui-dialog-title-text"); titleText.setTextContent(options.title()); title.append(titleText);
+        Element controls = el("DIV", "aui-dialog-controls");
+        controls.setAttribute("style", "display:flex;align-items:center;gap:6px;position:relative;z-index:1;flex-shrink:0;");
+        if (options.maximizable()) {
+            maximizeButton = el("BUTTON", "dialog-maximize");
+            maximizeButton.setAttribute("type", "button");
+            maximizeButton.addEventListener("mousedown", e -> e.stopPropagation());
+            maximizeButton.addEventListener("click", e -> { e.stopPropagation(); toggleMaximized(); });
+            updateMaximizeButton();
+            controls.append(maximizeButton);
+        }
         Element close = el("BUTTON", options.closeClass()); close.setTextContent("\u2715");
+        close.setAttribute("type", "button");
+        close.addEventListener("mousedown", e -> e.stopPropagation());
         close.addEventListener("click", e -> { e.stopPropagation(); close(); });
-        heading.addEventListener("mousedown", e -> begin(e, Mode.MOVE)); heading.append(title); heading.append(close); window.append(heading);
+        controls.append(close);
+        heading.addEventListener("mousedown", e -> begin(e, Mode.MOVE)); heading.append(title); heading.append(controls); window.append(heading);
         content = el("DIV", options.contentClass()); content.setAttribute("style", height > 0 ? "position:relative;flex:1;min-height:0;" : "position:relative;"); window.append(content);
         if (options.resizable()) for (Mode resize : new Mode[]{Mode.N,Mode.NE,Mode.E,Mode.SE,Mode.S,Mode.SW,Mode.W,Mode.NW}) handle(resize);
         overlay.addEventListener("mousemove", this::move); overlay.addEventListener("mouseup", e -> mode = Mode.NONE);
         overlay.append(window); document.body.append(overlay); dirty();
     }
     private void handle(Mode mode) { Element e=el("DIV", "aui-dialog-resize"); e.setAttribute("style", "position:absolute;z-index:2;"+mode.handleStyle()); e.addEventListener("mousedown", v->begin(v,mode)); window.append(e); }
-    private void begin(Event event, Mode next) { if (!(event instanceof MouseEvent e)) return; mode=next; startX=e.clientX;startY=e.clientY;startLeft=x;startTop=y;startWidth=width;startHeight=height;event.stopPropagation(); }
-    private void move(Event event) { if (mode==Mode.NONE || !(event instanceof MouseEvent e)) return; double dx=e.clientX-startX,dy=e.clientY-startY; if(mode.move){x=startLeft+dx;y=startTop+dy;} if(mode.e){width=Math.max(360,startWidth+dx);} if(mode.s){height=Math.max(240,startHeight+dy);} if(mode.w){width=Math.max(360,startWidth-dx);x=startLeft+startWidth-width;} if(mode.n){height=Math.max(240,startHeight-dy);y=startTop+startHeight-height;} applyBounds();dirty();event.stopPropagation(); }
-    private void applyBounds() { String style="position:absolute;left:"+px(x)+";top:"+px(y)+";width:"+px(width)+";pointer-events:auto;"; if(height>0) style+="height:"+px(height)+";display:flex;flex-direction:column;"; window.setAttribute("style",style); }
+    private void begin(Event event, Mode next) { if (maximized || !(event instanceof MouseEvent e)) return; mode=next; startX=e.clientX;startY=e.clientY;startLeft=x;startTop=y;startWidth=width;startHeight=height;event.stopPropagation(); }
+    private void move(Event event) { if (maximized || mode==Mode.NONE || !(event instanceof MouseEvent e)) return; double dx=e.clientX-startX,dy=e.clientY-startY; if(mode.move){x=startLeft+dx;y=startTop+dy;} if(mode.e){width=Math.max(360,startWidth+dx);} if(mode.s){height=Math.max(240,startHeight+dy);} if(mode.w){width=Math.max(360,startWidth-dx);x=startLeft+startWidth-width;} if(mode.n){height=Math.max(240,startHeight-dy);y=startTop+startHeight-height;} applyBounds();dirty();event.stopPropagation(); }
+    private void toggleMaximized() {
+        if (!options.maximizable()) return;
+        if (maximized) {
+            x = restoredX;
+            y = restoredY;
+            width = restoredWidth;
+            height = restoredHeight;
+            maximized = false;
+        } else {
+            restoredX = x;
+            restoredY = y;
+            restoredWidth = width;
+            restoredHeight = height;
+            x = 0;
+            y = 0;
+            width = Math.max(0d, document.getViewport().layoutWidth());
+            height = Math.max(0d, document.getViewport().layoutHeight());
+            maximized = true;
+        }
+        mode = Mode.NONE;
+        applyBounds();
+        updateMaximizeButton();
+        dirty();
+    }
+    private void updateMaximizeButton() {
+        if (maximizeButton == null) return;
+        maximizeButton.setTextContent(maximized ? "\u25A3" : "\u25A1");
+        maximizeButton.setAttribute("class", maximized ? "dialog-maximize is-maximized" : "dialog-maximize");
+        maximizeButton.setAttribute("aria-label", maximized ? "Restore window" : "Maximize window");
+        maximizeButton.setAttribute("title", maximized ? "Restore window" : "Maximize window");
+    }
+    private void applyBounds() { String style="position:absolute;left:"+px(x)+";top:"+px(y)+";width:"+px(width)+";pointer-events:auto;"; if(height>0) style+="height:"+px(height)+";display:flex;flex-direction:column;"; window.setAttribute("class", options.windowClass() + (maximized ? " maximized" : "")); window.setAttribute("style",style); }
     private Element el(String tag,String cls){Element e=Element.init(document.createElement(tag));e.setAttribute("class",cls);return e;}
     private void dirty(){if(document.body!=null)document.markDirty(document.body, Drawer.RELAYOUT|Drawer.REPAINT|Drawer.REORDER);}
     private static String px(double n){return String.format(java.util.Locale.ROOT,"%.2fpx",n);}

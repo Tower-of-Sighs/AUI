@@ -94,16 +94,16 @@
 
             <section class="control-group">
                 <div class="group-heading"><span>03</span><h2>WORLD SCALE</h2></div>
-                <label class="field-label" for="scale-mode"><span>SCALE SOURCE</span><span class="field-note">FIT FOLLOWS CAMERA</span></label>
+                <label class="field-label" for="scale-mode"><span>SCALE SOURCE</span><span class="field-note">FIT ONCE / WORLD SIZE FIXED</span></label>
                 <select id="scale-mode">
-                    <option value="auto">AUTO / FIT TO CAMERA</option>
+                    <option value="auto">AUTO / FIT INITIAL SIZE</option>
                     <option value="manual">MANUAL / WORLD UNITS PER PX</option>
                 </select>
                 <label class="field-label" for="world-scale">
                     <span>MANUAL SCALE</span><output id="world-scale-value">0.0200</output>
                 </label>
                 <input id="world-scale" type="number" min="0.001" max="0.2" step="0.001" value="0.020">
-                <p class="micro-copy">Manual mode holds the panel size while the camera moves. Auto mode restores viewport fitting.</p>
+                <p class="micro-copy">Auto mode fits the initial world size; manual mode supplies the exact world scale.</p>
             </section>
 
             <section class="control-group">
@@ -124,6 +124,17 @@
                     <span>FAR DISTANCE</span><output id="depth-far-value">32.0 BLOCKS</output>
                 </label>
                 <input id="depth-far-distance" type="number" min="0" max="256" step="0.5" value="32">
+            </section>
+
+            <section class="control-group">
+                <div class="group-heading"><span>05</span><h2>CAMERA ATTITUDE</h2></div>
+                <label class="check-row"><input id="follow-enabled" type="checkbox"><span>FOLLOW CAMERA VIEW PLANE</span></label>
+                <label class="field-label" for="follow-factor">
+                    <span>FOLLOW FACTOR</span><output id="follow-factor-value">0.30</output>
+                </label>
+                <input id="follow-factor" type="number" min="0" max="1" step="0.05" value="0.30">
+                <label class="check-row"><input id="facing-enabled" type="checkbox"><span>FACE ACTIVE CAMERA</span></label>
+                <p class="micro-copy">Follow moves the panel toward the view ray; facing rotates it independently toward the camera.</p>
             </section>
 
             <button id="reset-settings" class="reset-button" type="button"><span>RESET INSTANCE SETTINGS</span><b>R</b></button>

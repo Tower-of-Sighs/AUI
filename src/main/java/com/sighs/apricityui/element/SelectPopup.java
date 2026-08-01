@@ -140,7 +140,7 @@ final class SelectPopup {
     private void mount() {
         if (document == null || document.body == null || options.isEmpty()) return;
         Tooltip.hide(document);
-        Element.DOMRect initialAnchor = select.getBoundingClientRect();
+        Element.DOMRect initialAnchor = readAnchorRect();
         panel = element("DIV", "aui-select-popup");
         panel.setTopLayer(true);
         panel.setAttribute("role", "listbox");
@@ -267,7 +267,26 @@ final class SelectPopup {
 
     private void positionPanel() {
         if (panel == null) return;
-        positionPanel(select.getBoundingClientRect());
+        positionPanel(readAnchorRect());
+    }
+
+    /**
+     * Popup placement is a synchronous geometry read. Input events can arrive
+     * before the normal frame tick has flushed pending style/layout work, so
+     * make that work visible before falling back to the renderer's committed
+     * rectangle cache.
+     */
+    private Element.DOMRect readAnchorRect() {
+        if (document != null && document.isActive()) {
+            document.commitPendingStyleRecalcForRender();
+            // Headless documents used by API tests do not have a paint list or
+            // the Minecraft text runtime. A real document has a paint list;
+            // only force its pending layout commit on that path.
+            if (!document.getPaintList().isEmpty() && document.hasPendingRenderState()) {
+                document.commitRenderState();
+            }
+        }
+        return select.getBoundingClientRect();
     }
 
     private void positionPanel(Element.DOMRect anchor) {

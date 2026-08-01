@@ -6,11 +6,11 @@ import com.sighs.apricityui.ui.DialogWindow;
 
 import java.util.function.Consumer;
 
-/** Confirmation dialog for overwriting the inspected document's source HTML. */
+/** Confirmation dialog for saving the inspected document's CSS and optional DOM tree. */
 final class DevToolsSaveDialog {
     private DialogWindow dialog;
 
-    void open(Document document, String path, Consumer<Boolean> onConfirm) {
+    void open(Document document, String path, Consumer<SaveOptions> onConfirm) {
         close();
         if (document == null || document.body == null) return;
         dialog = DialogWindow.open(document, new DialogWindow.Options(
@@ -25,6 +25,31 @@ final class DevToolsSaveDialog {
         Element file = DevToolsDom.text(document, "DIV", "save-dialog-path", path);
         content.append(message);
         content.append(file);
+
+        Element scope = DevToolsDom.text(document, "DIV", "save-dialog-scope",
+                DevToolsTranslations.translate("devtools.apricityui.save_scope_description"));
+        content.append(scope);
+
+        Element domOption = DevToolsDom.element(document, "LABEL", "save-dialog-option");
+        Element domCheckbox = DevToolsDom.element(document, "INPUT",
+                "save-dialog-checkbox save-dialog-dom-checkbox");
+        domCheckbox.setAttribute("type", "checkbox");
+        Element domCheckmark = DevToolsDom.element(document, "SPAN", "save-dialog-checkmark");
+        Element domCopy = DevToolsDom.element(document, "SPAN", "save-dialog-option-copy");
+        domCopy.append(DevToolsDom.text(document, "SPAN", "save-dialog-option-title",
+                DevToolsTranslations.translate("devtools.apricityui.save_dom_tree")));
+        domCopy.append(DevToolsDom.text(document, "SPAN", "save-dialog-option-description",
+                DevToolsTranslations.translate("devtools.apricityui.save_dom_tree.description")));
+        domOption.append(domCheckbox);
+        domOption.append(domCheckmark);
+        domOption.append(domCopy);
+        domOption.addEventListener("click", event -> {
+            if (event.target == domCheckbox) return;
+            domCheckbox.setChecked(!domCheckbox.isChecked());
+            event.preventDefault();
+            DevToolsDom.markDirty(document);
+        });
+        content.append(domOption);
 
         Element reminder = DevToolsDom.element(document, "LABEL", "save-dialog-reminder");
         Element checkbox = DevToolsDom.element(document, "INPUT", "save-dialog-checkbox");
@@ -48,8 +73,9 @@ final class DevToolsSaveDialog {
         cancel.addEventListener("click", event -> close());
         save.addEventListener("click", event -> {
             boolean skipNextTime = checkbox.isChecked();
+            boolean saveDomTree = domCheckbox.isChecked();
             close();
-            if (onConfirm != null) onConfirm.accept(skipNextTime);
+            if (onConfirm != null) onConfirm.accept(new SaveOptions(skipNextTime, saveDomTree));
         });
         footer.append(cancel);
         footer.append(save);
@@ -67,5 +93,8 @@ final class DevToolsSaveDialog {
         Element button = DevToolsDom.element(document, "BUTTON", className);
         button.append(DevToolsDom.text(document, "SPAN", "dialog-btn-label", label));
         return button;
+    }
+
+    record SaveOptions(boolean skipConfirmation, boolean saveDomTree) {
     }
 }

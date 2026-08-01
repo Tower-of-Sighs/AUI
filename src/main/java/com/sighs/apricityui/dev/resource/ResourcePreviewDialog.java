@@ -113,7 +113,8 @@ public final class ResourcePreviewDialog {
                 "dialog-title resource-preview-title",
                 "dialog-close resource-preview-close",
                 "dialog-body resource-preview-body",
-                "dialog-title-icon"
+                "dialog-title-icon",
+                true
         );
         dialog = DialogWindow.open(owner, options, null);
         Element body = dialog.content();
