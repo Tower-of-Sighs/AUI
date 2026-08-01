@@ -20,6 +20,8 @@ import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -40,7 +42,14 @@ public class FontDrawer {
     private static final String RASTER_SOURCE_PROPERTY = "apricityui.fontRaster.source";
     private static final String STROKE_CONTROL_PROPERTY = "apricityui.fontRaster.strokeControl";
     private static final String FONT_RENDER_CONTEXT_PROPERTY = "apricityui.fontRaster.frc";
+    private static final int FONT_ATLAS_SIZE = 2048;
+    private static final int FONT_ATLAS_PADDING = 1;
     private static final Map<String, FontEntry> CACHE = new ConcurrentHashMap<>();
+    // FontEntry is a value record, but two different strings can produce equal metadata.
+    // Keep the region attached to the actual cached entry instance to avoid UV aliasing.
+    private static final Map<FontEntry, FontAtlas.Region> ATLAS_REGIONS =
+            Collections.synchronizedMap(new IdentityHashMap<>());
+    private static final Map<Boolean, FontAtlas> FONT_ATLASES = new ConcurrentHashMap<>();
     private static final ThreadLocal<java.util.ArrayDeque<Double>> DOCUMENT_PIXEL_SCALE_STACK = ThreadLocal.withInitial(java.util.ArrayDeque::new);
 
     public static void pushDocumentPixelScale(double scale) {
@@ -172,40 +181,76 @@ public class FontDrawer {
             if (pixelScale > 0.0d && Double.isFinite(pixelScale)) {
                 croppedDrawW = (float) Math.max(0.0d, drawW - quadMode.physicalRightCropTexels() / pixelScale);
             }
-            ImageDrawer.drawWithUvWindow(poseStack, entry.location(),
+            drawEntryWithUvWindow(poseStack, entry,
                     drawX, drawY,
                     croppedDrawW, drawH,
                     true,
-                    entry.width(), entry.height(),
                     (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
                     (float) Math.max(0.0d, entry.width() - quadMode.physicalRightCropTexels() - quadMode.uvRightInsetTexels()),
                     (float) (entry.height() - quadMode.uvBottomInsetTexels())
             );
         } else if (quadMode.hasUvWindowOffset()) {
-            ImageDrawer.drawWithUvWindow(poseStack, entry.location(),
+            drawEntryWithUvWindow(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
                     true,
-                    entry.width(), entry.height(),
                     (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
                     (float) (entry.width() - quadMode.uvRightInsetTexels()),
                     (float) (entry.height() - quadMode.uvBottomInsetTexels())
             );
         } else if (quadMode.hasUvInset()) {
-            ImageDrawer.drawWithUvInset(poseStack, entry.location(),
+            drawEntryWithUvInset(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
                     true,
-                    entry.width(), entry.height(),
                     (float) quadMode.uvRightInsetTexels(), (float) quadMode.uvBottomInsetTexels()
             );
         } else {
-            ImageDrawer.draw(poseStack, entry.location(),
+            drawEntry(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
                     true
             );
         }
+    }
+
+    private static void drawEntry(PoseStack poseStack, FontEntry entry,
+                                  float x, float y, float width, float height, boolean blur) {
+        FontAtlas.Region region = ATLAS_REGIONS.get(entry);
+        if (region == null) {
+            ImageDrawer.draw(poseStack, entry.location(), x, y, width, height, blur);
+            return;
+        }
+        ImageDrawer.drawWithUvWindow(poseStack, region.location(),
+                x, y, width, height, blur,
+                region.textureWidth(), region.textureHeight(),
+                region.x(), region.y(), entry.width(), entry.height());
+    }
+
+    private static void drawEntryWithUvInset(PoseStack poseStack, FontEntry entry,
+                                             float x, float y, float width, float height, boolean blur,
+                                             float rightTexelInset, float bottomTexelInset) {
+        float sampleWidth = Math.max(0.0f, entry.width() - Math.max(0.0f, rightTexelInset));
+        float sampleHeight = Math.max(0.0f, entry.height() - Math.max(0.0f, bottomTexelInset));
+        drawEntryWithUvWindow(poseStack, entry, x, y, width, height, blur,
+                0.0f, 0.0f, sampleWidth, sampleHeight);
+    }
+
+    private static void drawEntryWithUvWindow(PoseStack poseStack, FontEntry entry,
+                                              float x, float y, float width, float height, boolean blur,
+                                              float uTexel, float vTexel,
+                                              float widthTexels, float heightTexels) {
+        FontAtlas.Region region = ATLAS_REGIONS.get(entry);
+        if (region == null) {
+            ImageDrawer.drawWithUvWindow(poseStack, entry.location(),
+                    x, y, width, height, blur,
+                    entry.width(), entry.height(), uTexel, vTexel, widthTexels, heightTexels);
+            return;
+        }
+        ImageDrawer.drawWithUvWindow(poseStack, region.location(),
+                x, y, width, height, blur,
+                region.textureWidth(), region.textureHeight(),
+                region.x() + uTexel, region.y() + vTexel, widthTexels, heightTexels);
     }
 
     private static FontEntry textureEntry(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
@@ -238,7 +283,7 @@ public class FontDrawer {
         if (actionMode != quadMode) {
             FontEntry actionEntry = textureEntry(text, content, rasterMode, actionMode);
             if (actionEntry == null) return false;
-            ImageDrawer.draw(poseStack, actionEntry.location(),
+            drawEntry(poseStack, actionEntry,
                     drawX, drawY,
                     drawW, drawH,
                     true
@@ -248,11 +293,10 @@ public class FontDrawer {
 
         float widthTexels = (float) sourceRightExclusive;
         float croppedDrawW = (float) Math.max(0.0d, drawW * (widthTexels / entry.width()));
-        ImageDrawer.drawWithUvWindow(poseStack, entry.location(),
+        drawEntryWithUvWindow(poseStack, entry,
                 drawX, drawY,
                 croppedDrawW, drawH,
                 true,
-                entry.width(), entry.height(),
                 0.0f, 0.0f,
                 widthTexels, entry.height()
         );
@@ -410,6 +454,15 @@ public class FontDrawer {
                     }
                     nativeImg.setPixelRGBA(x, y, argbToAbgr(argb));
                 }
+            }
+
+            FontAtlas.Region atlasRegion = fontAtlasFor(filterMode.linear()).add(nativeImg);
+            if (atlasRegion != null) {
+                nativeImg.close();
+                FontEntry atlasEntry = new FontEntry(atlasRegion.location(), null, null, imgW, imgH, textureStats,
+                        new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height())));
+                ATLAS_REGIONS.put(atlasEntry, atlasRegion);
+                return atlasEntry;
             }
 
             DynamicTexture texture = new DynamicTexture(nativeImg);
@@ -628,15 +681,23 @@ public class FontDrawer {
     }
 
     public static void clearCache() {
-        if (CACHE.isEmpty()) return;
         for (FontEntry entry : CACHE.values()) {
             if (entry == null) continue;
             try {
-                entry.dynamicTexture().close();
+                if (entry.dynamicTexture() != null) entry.dynamicTexture().close();
             } catch (Exception ignored) {
             }
         }
         CACHE.clear();
+        ATLAS_REGIONS.clear();
+        for (FontAtlas atlas : FONT_ATLASES.values()) {
+            if (atlas != null) atlas.close();
+        }
+        FONT_ATLASES.clear();
+    }
+
+    private static FontAtlas fontAtlasFor(boolean linear) {
+        return FONT_ATLASES.computeIfAbsent(linear, FontAtlas::new);
     }
 
     private static int argbToAbgr(int argb) {
@@ -1621,6 +1682,125 @@ public class FontDrawer {
     }
 
     private record RasterLayout(int pad, int lineHeight, float glyphAnchorTexel) {
+    }
+
+    /**
+     * Packs completed text rasters into a shared texture without changing
+     * their pixels. Entries that do not fit keep the original texture path.
+     */
+    private static final class FontAtlas {
+        private final boolean linear;
+        private final ResourceLocation location;
+        private NativeImage pixels;
+        private DynamicTexture texture;
+        private boolean registered;
+        private boolean disabled;
+        private int cursorX;
+        private int cursorY;
+        private int rowHeight;
+
+        private FontAtlas(boolean linear) {
+            this.linear = linear;
+            this.location = new ResourceLocation(MODID, linear ? "font/atlas-linear" : "font/atlas-nearest");
+        }
+
+        private synchronized Region add(NativeImage source) {
+            if (disabled || source == null) return null;
+            int width = source.getWidth();
+            int height = source.getHeight();
+            int packedWidth = width + FONT_ATLAS_PADDING * 2;
+            int packedHeight = height + FONT_ATLAS_PADDING * 2;
+            if (width <= 0 || height <= 0 || packedWidth > FONT_ATLAS_SIZE || packedHeight > FONT_ATLAS_SIZE) {
+                return null;
+            }
+
+            if (cursorX + packedWidth > FONT_ATLAS_SIZE) {
+                cursorX = 0;
+                cursorY += rowHeight;
+                rowHeight = 0;
+            }
+            if (cursorY + packedHeight > FONT_ATLAS_SIZE) return null;
+
+            try {
+                ensureTexture();
+                int x = cursorX + FONT_ATLAS_PADDING;
+                int y = cursorY + FONT_ATLAS_PADDING;
+                source.copyRect(pixels, 0, 0, x, y, width, height, false, false);
+                copyPadding(source, x, y, width, height);
+
+                texture.bind();
+                pixels.upload(0,
+                        cursorX, cursorY,
+                        cursorX, cursorY,
+                        packedWidth, packedHeight,
+                        linear, false);
+
+                cursorX += packedWidth;
+                rowHeight = Math.max(rowHeight, packedHeight);
+                return new Region(location, x, y, width, height, FONT_ATLAS_SIZE, FONT_ATLAS_SIZE);
+            } catch (RuntimeException exception) {
+                disable();
+                return null;
+            }
+        }
+
+        private void ensureTexture() {
+            if (texture != null) return;
+            NativeImage image = new NativeImage(NativeImage.Format.RGBA, FONT_ATLAS_SIZE, FONT_ATLAS_SIZE, true);
+            DynamicTexture created = new DynamicTexture(image);
+            created.setFilter(linear, false);
+            pixels = image;
+            texture = created;
+            try {
+                Minecraft.getInstance().getTextureManager().register(location, created);
+                registered = true;
+            } catch (RuntimeException exception) {
+                texture = null;
+                pixels = null;
+                created.close();
+                throw exception;
+            }
+        }
+
+        private void copyPadding(NativeImage source, int x, int y, int width, int height) {
+            source.copyRect(pixels, 0, 0, x - 1, y, 1, height, false, false);
+            source.copyRect(pixels, width - 1, 0, x + width, y, 1, height, false, false);
+            source.copyRect(pixels, 0, 0, x, y - 1, width, 1, false, false);
+            source.copyRect(pixels, 0, height - 1, x, y + height, width, 1, false, false);
+            source.copyRect(pixels, 0, 0, x - 1, y - 1, 1, 1, false, false);
+            source.copyRect(pixels, width - 1, 0, x + width, y - 1, 1, 1, false, false);
+            source.copyRect(pixels, 0, height - 1, x - 1, y + height, 1, 1, false, false);
+            source.copyRect(pixels, width - 1, height - 1, x + width, y + height, 1, 1, false, false);
+        }
+
+        private void disable() {
+            disabled = true;
+            close();
+        }
+
+        private synchronized void close() {
+            if (texture == null) return;
+            try {
+                if (registered) {
+                    Minecraft.getInstance().getTextureManager().release(location);
+                } else {
+                    texture.close();
+                }
+            } catch (Exception ignored) {
+                try {
+                    texture.close();
+                } catch (Exception ignoredAgain) {
+                }
+            } finally {
+                texture = null;
+                pixels = null;
+                registered = false;
+            }
+        }
+
+        private record Region(ResourceLocation location, int x, int y, int width, int height,
+                              int textureWidth, int textureHeight) {
+        }
     }
 
     public record FontEntry(ResourceLocation location, NativeImage nativeImage, DynamicTexture dynamicTexture,

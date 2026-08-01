@@ -69,8 +69,9 @@ final class HitTestCache {
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            List<Bounds> clips = resolveCommittedClipBounds(clipStack, boundsCache);
-            entries.add(new Entry(element, bounds, clips));
+            Bounds clip = resolveCommittedClipBounds(clipStack, boundsCache);
+            if (clip != null && clip.isEmpty()) continue;
+            entries.add(new Entry(element, bounds, clip));
         }
     }
 
@@ -123,8 +124,9 @@ final class HitTestCache {
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            List<Bounds> clips = resolveCommittedClipBounds(clipStack, boundsCache);
-            rebuilt.add(new Entry(element, bounds, clips));
+            Bounds clip = resolveCommittedClipBounds(clipStack, boundsCache);
+            if (clip != null && clip.isEmpty()) continue;
+            rebuilt.add(new Entry(element, bounds, clip));
         }
         if (rebuilt.isEmpty()) return;
 
@@ -145,14 +147,8 @@ final class HitTestCache {
         }
         for (Entry entry : entries) {
             if (!entry.bounds.contains(cursorPosition)) continue;
-            boolean clipped = false;
-            for (Bounds clip : entry.clips) {
-                if (!clip.contains(cursorPosition)) {
-                    clipped = true;
-                    break;
-                }
-            }
-            if (!clipped) return entry.element;
+            if (entry.clip != null && !entry.clip.contains(cursorPosition)) continue;
+            return entry.element;
         }
         return null;
     }
@@ -184,9 +180,9 @@ final class HitTestCache {
         return bounds;
     }
 
-    private static List<Bounds> resolveCommittedClipBounds(ArrayDeque<Element> clipStack, Map<Element, Bounds> boundsCache) {
-        if (clipStack.isEmpty()) return List.of();
-        ArrayList<Bounds> clips = new ArrayList<>(clipStack.size());
+    private static Bounds resolveCommittedClipBounds(ArrayDeque<Element> clipStack, Map<Element, Bounds> boundsCache) {
+        if (clipStack.isEmpty()) return null;
+        Bounds effective = null;
         for (Element clip : clipStack) {
             Rect rect = clip.getRenderer().getCommittedRect();
             if (rect == null) continue;
@@ -198,9 +194,11 @@ final class HitTestCache {
                     Math.max(0, size.width() - clip.getVerticalScrollbarGutter()),
                     Math.max(0, size.height() - clip.getHorizontalScrollbarGutter())
             );
-            if (clipBounds.isValid()) clips.add(clipBounds);
+            if (clipBounds.isEmpty()) return Bounds.EMPTY;
+            effective = effective == null ? clipBounds : effective.intersection(clipBounds);
+            if (effective.isEmpty()) return Bounds.EMPTY;
         }
-        return clips.isEmpty() ? List.of() : clips;
+        return effective;
     }
 
     private static void appendScrollbarEntries(Element element,
@@ -214,7 +212,8 @@ final class HitTestCache {
         Size size = rect.getBodyRectSize();
         double vertical = element.getVerticalScrollbarGutter();
         double horizontal = element.getHorizontalScrollbarGutter();
-        List<Bounds> clips = resolveCommittedClipBounds(clipStack, boundsCache);
+        Bounds clip = resolveCommittedClipBounds(clipStack, boundsCache);
+        if (clip != null && clip.isEmpty()) return;
         if (vertical > 0) {
             Bounds bounds = new Bounds(
                     position.x + size.width() - vertical,
@@ -222,7 +221,7 @@ final class HitTestCache {
                     vertical,
                     Math.max(0, size.height() - horizontal)
             );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clips));
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clip));
         }
         if (horizontal > 0) {
             Bounds bounds = new Bounds(
@@ -231,7 +230,7 @@ final class HitTestCache {
                     Math.max(0, size.width() - vertical),
                     horizontal
             );
-            if (bounds.isValid()) output.add(new Entry(element, bounds, clips));
+            if (bounds.isValid()) output.add(new Entry(element, bounds, clip));
         }
     }
 
@@ -300,7 +299,7 @@ final class HitTestCache {
         return -1;
     }
 
-    private record Entry(Element element, Bounds bounds, List<Bounds> clips) {
+    private record Entry(Element element, Bounds bounds, Bounds clip) {
     }
 
     private record Bounds(double x, double y, double width, double height) {
@@ -308,6 +307,19 @@ final class HitTestCache {
 
         private boolean isValid() {
             return width >= 0 && height >= 0;
+        }
+
+        private boolean isEmpty() {
+            return width <= 0 || height <= 0;
+        }
+
+        private Bounds intersection(Bounds other) {
+            if (other == null) return this;
+            double left = Math.max(x, other.x);
+            double top = Math.max(y, other.y);
+            double right = Math.min(x + width, other.x + other.width);
+            double bottom = Math.min(y + height, other.y + other.height);
+            return new Bounds(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
         }
 
         private boolean contains(Position position) {

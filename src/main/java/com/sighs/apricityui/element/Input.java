@@ -27,6 +27,12 @@ import java.util.ArrayList;
 @ElementRegister(Input.TAG_NAME)
 public class Input extends AbstractText {
     public static final String TAG_NAME = "INPUT";
+    // Keep overlapping control surfaces ordered inside one BODY paint slot.
+    // Screen documents ignore these offsets; world windows use them to avoid
+    // depth ties between the native-looking control layers.
+    private static final float CONTENT_DEPTH_OFFSET = 0.16f;
+    private static final float DETAIL_DEPTH_OFFSET = 0.24f;
+    private static final float MARK_DEPTH_OFFSET = 0.20f;
 
     private enum Mode {
         TEXT,
@@ -271,6 +277,7 @@ public class Input extends AbstractText {
         if (phase != Base.RenderPhase.BODY) return;
 
         rectRenderer.drawBody(poseStack);
+        Base.offsetPaintDepth(poseStack, CONTENT_DEPTH_OFFSET);
         if (mode == Mode.RANGE) {
             drawRangeInput(poseStack, rectRenderer);
             return;
@@ -332,6 +339,7 @@ public class Input extends AbstractText {
                 uniformRadii(radius),
                 backgroundColor
         );
+        Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
         Graph.drawComplexRoundedBorder(
                 poseStack.last().pose(),
                 x,
@@ -344,6 +352,7 @@ public class Input extends AbstractText {
         );
 
         if (checked) {
+            Base.offsetPaintDepth(poseStack, MARK_DEPTH_OFFSET);
             int indicatorColor = new Color(isDisabled() ? "#F7F7F7" : "#FFFFFF").getValue();
             if (mode == Mode.RADIO) {
                 float dotSize = Math.max(4f, controlSize * 0.42f);
@@ -409,7 +418,9 @@ public class Input extends AbstractText {
         float drawY = (float) singleLineDrawY(rectRenderer, text);
 
         if (!isPlaceholder) {
+            Base.offsetPaintDepth(poseStack, 0.04f);
             drawSingleLineSelection(poseStack, rectRenderer, textToShow, drawY, text.lineHeight);
+            Base.offsetPaintDepth(poseStack, 0.10f);
         }
         if (!isPlaceholder && hasSelection() && canSelectText()) {
             int min = Math.max(0, Math.min(selMin(), textToShow.length()));
@@ -439,11 +450,13 @@ public class Input extends AbstractText {
         } else {
             FontDrawer.drawFont(poseStack, text, new Position(drawX, drawY));
         }
+        Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
         drawSingleLineCursor(poseStack, textToShow, drawX, drawY, (float) text.lineHeight);
     }
 
     private void drawNumberInput(PoseStack poseStack, Rect rectRenderer) {
         drawTextInput(poseStack, rectRenderer);
+        Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
 
         Box box = rectRenderer.box;
         Position contentPos = rectRenderer.getContentPosition();
@@ -496,6 +509,7 @@ public class Input extends AbstractText {
                 }
             }
         }
+        Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
         Graph.drawFillRect(poseStack.last().pose(), left, top, right, bottom, color);
     }
 
@@ -583,6 +597,7 @@ public class Input extends AbstractText {
         Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1f, (float) right, (float) centerY + 1f, track);
         Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1f,
                 (float) (left + (right - left) * fraction), (float) centerY + 1f, accent);
+        Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
         float knobX = (float) (left + (right - left) * fraction - 5f);
         Graph.drawUnifiedRoundedRect(poseStack.last().pose(), knobX, (float) centerY - 5f, 10f, 10f,
                 uniformRadii(5f), isDisabled() ? new Color("#B7B7B7").getValue() : accent);

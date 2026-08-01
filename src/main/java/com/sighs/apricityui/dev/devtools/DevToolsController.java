@@ -88,6 +88,12 @@ public final class DevToolsController {
 
     private Document toolDocument;
     private Document targetDocument;
+    private Document inspectShellCacheDocument;
+    private long inspectShellCacheGeneration = -1L;
+    private Element inspectPanelElement;
+    private Element inspectHighlightElement;
+    private Element inspectHighlightLabelElement;
+    private Map<String, Element> inspectBoxRegionElements = Map.of();
     private Document.MutationObserver targetObserver;
     private UUID selectedElementUuid;
     private InspectorTab inspectorTab = InspectorTab.ATTRIBUTES;
@@ -742,6 +748,7 @@ public final class DevToolsController {
     private void open() {
         toolDocument = Document.create(PATH);
         if (toolDocument == null) return;
+        cacheInspectShellElements();
         toolDocument.setReloadPersistent(true);
         bindTarget(resolvePreferredTarget());
         refresh();
@@ -757,6 +764,7 @@ public final class DevToolsController {
         consoleTooltipBinding = null;
         consoleTooltipTarget = null;
         consoleTooltipKey = null;
+        clearInspectShellElementCache();
         toolDocument = null;
         targetDocument = null;
         selectedElementUuid = null;
@@ -773,6 +781,35 @@ public final class DevToolsController {
         resizingInspector = false;
         refreshQueued = false;
         if (closing != null) closing.remove();
+    }
+
+    private void cacheInspectShellElements() {
+        if (toolDocument == null) {
+            clearInspectShellElementCache();
+            return;
+        }
+        long generation = toolDocument.getRefreshGeneration();
+        if (inspectShellCacheDocument == toolDocument && inspectShellCacheGeneration == generation) return;
+
+        inspectShellCacheDocument = toolDocument;
+        inspectShellCacheGeneration = generation;
+        inspectPanelElement = toolDocument.querySelector(".side-panel");
+        inspectHighlightElement = toolDocument.getElementById("inspectHighlight");
+        inspectHighlightLabelElement = toolDocument.getElementById("inspectHighlightLabel");
+        Map<String, Element> regions = new LinkedHashMap<>();
+        for (String id : BOX_MODEL_REGION_IDS) {
+            regions.put(id, toolDocument.getElementById(id));
+        }
+        inspectBoxRegionElements = regions;
+    }
+
+    private void clearInspectShellElementCache() {
+        inspectShellCacheDocument = null;
+        inspectShellCacheGeneration = -1L;
+        inspectPanelElement = null;
+        inspectHighlightElement = null;
+        inspectHighlightLabelElement = null;
+        inspectBoxRegionElements = Map.of();
     }
 
     private void closeCreateElementDialog() {
@@ -1217,7 +1254,8 @@ public final class DevToolsController {
 
     private boolean isOverToolPanel(Position screenPosition) {
         if (screenPosition == null || toolDocument == null) return false;
-        Element panel = toolDocument.querySelector(".side-panel");
+        cacheInspectShellElements();
+        Element panel = inspectPanelElement;
         if (panel == null) return false;
         Position local = toolDocument.screenToDocumentPosition(screenPosition);
         Element.DOMRect rect = panel.getBoundingClientRect();
@@ -1230,8 +1268,9 @@ public final class DevToolsController {
             hideInspectHighlight();
             return;
         }
-        Element highlight = toolDocument.querySelector("#inspectHighlight");
-        Element label = toolDocument.querySelector("#inspectHighlightLabel");
+        cacheInspectShellElements();
+        Element highlight = inspectHighlightElement;
+        Element label = inspectHighlightLabelElement;
         if (highlight == null || label == null) return;
 
         Element.DOMRect rect = element.getBoundingClientRect();
@@ -1298,7 +1337,8 @@ public final class DevToolsController {
     }
 
     private void setBoxModelRegion(String id, double x, double y, double width, double height) {
-        Element region = toolDocument == null ? null : toolDocument.querySelector("#" + id);
+        cacheInspectShellElements();
+        Element region = inspectBoxRegionElements.get(id);
         if (region == null) return;
         String style;
         if (width <= 0 || height <= 0) {
@@ -1341,18 +1381,19 @@ public final class DevToolsController {
 
     private void hideInspectHighlight() {
         if (toolDocument == null) return;
-        Element highlight = toolDocument.querySelector("#inspectHighlight");
+        cacheInspectShellElements();
+        Element highlight = inspectHighlightElement;
         if (highlight != null && !"inspect-highlight".equals(highlight.getAttribute("class"))) {
             highlight.setAttribute("class", "inspect-highlight");
         }
         for (String id : BOX_MODEL_REGION_IDS) {
-            Element region = toolDocument.querySelector("#" + id);
+            Element region = inspectBoxRegionElements.get(id);
             if (region != null) {
                 String hiddenStyle = "left:0px;top:0px;width:0px;height:0px;";
                 if (!hiddenStyle.equals(region.getAttribute("style"))) region.setAttribute("style", hiddenStyle);
             }
         }
-        Element label = toolDocument.querySelector("#inspectHighlightLabel");
+        Element label = inspectHighlightLabelElement;
         if (label != null) {
             String hiddenStyle = "left:-10000px;top:-10000px;";
             if (!hiddenStyle.equals(label.getAttribute("style"))) label.setAttribute("style", hiddenStyle);

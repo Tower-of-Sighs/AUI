@@ -235,6 +235,19 @@ public class Font {
         METRICS_REVISION.incrementAndGet();
     }
 
+    /**
+     * Clears reload-sensitive font caches while keeping already registered web fonts available
+     * until the asynchronous stylesheet font loads finish.
+     */
+    public static void prepareReload() {
+        UNAVAILABLE_FAMILIES.clear();
+        clearResolutionCaches();
+        if (!FONTS.containsKey(DEFAULT_KEY)) {
+            FONTS.put(DEFAULT_KEY, new java.awt.Font("Microsoft YaHei", java.awt.Font.PLAIN, (int) BASE_FONT_SIZE));
+        }
+        METRICS_REVISION.incrementAndGet();
+    }
+
     private static java.awt.Font resolveSingleFamily(String family) {
         if (family == null || family.isBlank()) return null;
 

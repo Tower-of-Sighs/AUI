@@ -832,6 +832,36 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void animationTranslatePercentagesUseElementBox() {
+        String animationName = "css-compat-transform-percent-" + UUID.randomUUID();
+        Animation.registerKeyframe(animationName, 0.0,
+                Map.of("transform", "translate(-50%, -50%)"));
+        Animation.registerKeyframe(animationName, 100.0,
+                Map.of("transform", "translate(-50%, -50%)"));
+
+        Document document = TestDocumentFactory.createDocument();
+        Element element = new Element(document, "div");
+        element.setAttribute("style",
+                "width:190px;height:100px;animation:" + animationName + " 1s linear infinite;");
+        document.body.appendChild(element);
+
+        try {
+            Size elementSize = Size.of(element);
+            Style animated = element.getComputedStyle().clone();
+            Animation.updateStyle(element, animated);
+            assertFalse(animated.transform.contains("%"));
+            Transform.Translate translate = (Transform.Translate) Transform
+                    .parse(animated.transform, elementSize.width(), elementSize.height())
+                    .get(0);
+
+            assertEquals(-elementSize.width() / 2.0, translate.x(), 0.001);
+            assertEquals(-elementSize.height() / 2.0, translate.y(), 0.001);
+        } finally {
+            Animation.stop(element);
+        }
+    }
+
+    @Test
     void resolveLengthSupportsMinMaxAndClampFunctions() {
         assertEquals(900.0, com.sighs.apricityui.layout.Size.resolveLength("min(900px, 100%)", 1600, 0));
         assertEquals(1600.0, com.sighs.apricityui.layout.Size.resolveLength("max(900px, 100%)", 1600, 0));
