@@ -193,8 +193,9 @@ class DevToolsTest {
             assertEquals(0, sidePanel.getBoundingClientRect().x, 0.01);
             assertEquals(0, sidePanel.getBoundingClientRect().y, 0.01);
             dragHorizontally(tool, dragHandle, 3000);
-            assertEquals(1600 - sidePanel.getBoundingClientRect().width,
-                    sidePanel.getBoundingClientRect().x, 0.01);
+            assertEquals(tool.getViewport().layoutWidth() - sidePanel.getBoundingClientRect().width,
+                    sidePanel.getBoundingClientRect().x, 0.01,
+                    "panel should clamp to the CSS viewport right edge");
             assertEquals(0, sidePanel.getBoundingClientRect().y, 0.01);
             Element pick = tool.querySelector("#pickBtn");
             MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(1500, 20), -1, false), tool, pick);

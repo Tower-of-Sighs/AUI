@@ -9,7 +9,6 @@ import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -158,7 +157,6 @@ class SelectCompatibilityTest {
 
     @Test
     void popupMeasuresSelectAfterPendingLayoutInsteadOfUsingStaleWidth() throws Exception {
-        Assumptions.assumeTrue(isMinecraftTextRuntimeAvailable());
         Size.setViewportOverride(400, 300);
         Document document = TestDocumentFactory.createDocument();
         setViewport(document, 400, 300);
@@ -395,12 +393,4 @@ class SelectCompatibilityTest {
         viewport.set(document, new ApricityViewport(width, height, 1.0f, 1.0d));
     }
 
-    private static boolean isMinecraftTextRuntimeAvailable() {
-        try {
-            Class.forName("net.minecraft.network.chat.FormattedText");
-            return true;
-        } catch (ClassNotFoundException | LinkageError unavailable) {
-            return false;
-        }
-    }
 }

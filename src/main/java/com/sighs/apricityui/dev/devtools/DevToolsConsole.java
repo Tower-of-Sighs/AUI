@@ -92,7 +92,12 @@ final class DevToolsConsole {
                     "  at checkCompat (audit.js:128)\n  at onPageLoad (lifecycle.js:42)");
             addLog("info", "3 stylesheets loaded · 0 blocking", "network", null);
         }
-        if (controller.isConsoleMode()) drainExternalLogs();
+        if (controller.isConsoleMode()) {
+            drainExternalLogs();
+            // The controller survives closing/reopening DevTools. Rebind the
+            // existing console history to the newly-created tool document.
+            render();
+        }
     }
 
     void drainExternalLogs() {
