@@ -359,14 +359,17 @@ public record ApricityViewport(
         }
 
         public synchronized boolean zoomIn() {
+            if (!spec.userScalable()) return false;
             return setZoom(zoom + spec.zoomStep());
         }
 
         public synchronized boolean zoomOut() {
+            if (!spec.userScalable()) return false;
             return setZoom(zoom - spec.zoomStep());
         }
 
         public synchronized boolean resetZoom() {
+            if (!spec.userScalable()) return false;
             return setZoom(spec.initialZoom());
         }
 
@@ -388,8 +391,8 @@ public record ApricityViewport(
             }
         }
 
-        private boolean setZoom(double nextZoom) {
-            if (!spec.userScalable()) return false;
+        /** Sets an editor-controlled zoom value, even when wheel scaling is disabled. */
+        public synchronized boolean setZoom(double nextZoom) {
             double clamped = clamp(sanitizeZoom(nextZoom, zoom), spec.minZoom(), spec.maxZoom());
             if (Math.abs(clamped - zoom) < 0.000001d) return false;
             zoom = clamped;

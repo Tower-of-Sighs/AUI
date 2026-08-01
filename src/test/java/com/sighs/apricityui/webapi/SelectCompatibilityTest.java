@@ -9,6 +9,7 @@ import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -148,6 +149,33 @@ class SelectCompatibilityTest {
             assertNotNull(popup);
             assertTrue(popup.getAttribute("style").contains("left:1190.00px;"));
             assertTrue(popup.getAttribute("style").contains("top:42.00px;"));
+        } finally {
+            select.closePopup();
+            document.remove();
+            Size.clearViewportOverride();
+        }
+    }
+
+    @Test
+    void popupMeasuresSelectAfterPendingLayoutInsteadOfUsingStaleWidth() throws Exception {
+        Assumptions.assumeTrue(isMinecraftTextRuntimeAvailable());
+        Size.setViewportOverride(400, 300);
+        Document document = TestDocumentFactory.createDocument();
+        setViewport(document, 400, 300);
+        Select select = new Select(document);
+        select.appendChild(option(document, "First", "a"));
+        document.body.appendChild(select);
+
+        // Simulate the previous frame's committed geometry. The style change
+        // below is still pending when the popup is opened.
+        setGeometry(select, 400, 32, new Position(10, 10));
+        select.setAttribute("style", "width:200px;");
+
+        try {
+            select.openPopup();
+            Element popup = document.querySelector(".aui-select-popup");
+            assertNotNull(popup);
+            assertTrue(popup.getAttribute("style").contains("width:200.00px;"));
         } finally {
             select.closePopup();
             document.remove();
@@ -365,5 +393,14 @@ class SelectCompatibilityTest {
         Field viewport = Document.class.getDeclaredField("viewport");
         viewport.setAccessible(true);
         viewport.set(document, new ApricityViewport(width, height, 1.0f, 1.0d));
+    }
+
+    private static boolean isMinecraftTextRuntimeAvailable() {
+        try {
+            Class.forName("net.minecraft.network.chat.FormattedText");
+            return true;
+        } catch (ClassNotFoundException | LinkageError unavailable) {
+            return false;
+        }
     }
 }

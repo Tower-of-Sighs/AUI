@@ -24,6 +24,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.joml.Vector3f;
 import org.joml.Vector4f;
 import org.lwjgl.opengl.GL11;
 
@@ -41,6 +42,8 @@ public class WorldWindow {
     private static final float DEFAULT_VIEWPORT_FILL = 0.8f;
     private static final float FALLBACK_WORLD_SCALE = 0.02f;
     private static final double OCCLUSION_DISTANCE_EPSILON = 1.0e-4d;
+    private static final float DEFAULT_FOLLOW_FACTOR = 0.3f;
+    private static final float[] VIEWPORT_CLIP_RADIUS = new float[]{0, 0, 0, 0};
 
     public Document document;
     private Vec3 position;
@@ -51,6 +54,12 @@ public class WorldWindow {
     private float resolvedScale = FALLBACK_WORLD_SCALE;
     private long resolvedViewportVersion = Long.MIN_VALUE;
     private boolean depthTest = true;
+    /** Whether this window follows the camera's view plane from its base position. */
+    private boolean followEnabled;
+    /** Whether this window rotates to face the active camera each frame. */
+    private boolean facingEnabled;
+    /** Interpolation amount for follow, where 0 keeps the base position and 1 fully follows. */
+    private float followFactor = DEFAULT_FOLLOW_FACTOR;
     private Float widthOverride;
     private Float heightOverride;
     private int maxDistance;
@@ -75,6 +84,7 @@ public class WorldWindow {
      */
     private Matrix4f interactionClipMatrix;
     private Matrix4f interactionWorldMatrix;
+    private Vec3 interactionPosition;
 
     /** Creates a world window whose logical size comes from the document viewport. */
     public WorldWindow(String documentPath, Vec3 position, int maxDistance) {
@@ -173,6 +183,101 @@ public class WorldWindow {
 
     public Quaternionf getOrientation() {
         return new Quaternionf(rotation);
+    }
+
+    /** Enables or disables camera-plane following while preserving the base position. */
+    public void setFollow(boolean follow) {
+        if (this.followEnabled != follow) {
+            resolvedViewportVersion = Long.MIN_VALUE;
+        }
+        this.followEnabled = follow;
+    }
+
+    public boolean isFollowEnabled() {
+        return followEnabled;
+    }
+
+    /** Alias for callers that prefer an explicit enabled suffix. */
+    public void setFollowEnabled(boolean follow) {
+        setFollow(follow);
+    }
+
+    public boolean isFollow() {
+        return isFollowEnabled();
+    }
+
+    /** Enables or disables camera-facing rotation independently from following. */
+    public void setFacing(boolean facing) {
+        this.facingEnabled = facing;
+    }
+
+    public boolean isFacingEnabled() {
+        return facingEnabled;
+    }
+
+    /** Alias for callers that prefer an explicit enabled suffix. */
+    public void setFacingEnabled(boolean facing) {
+        setFacing(facing);
+    }
+
+    public boolean isFacing() {
+        return isFacingEnabled();
+    }
+
+    /** Sets the follow interpolation factor in the inclusive range {@code [0, 1]}. */
+    public void setFollowFactor(float followFactor) {
+        this.followFactor = sanitizeFollowFactor(followFactor);
+    }
+
+    public float getFollowFactor() {
+        return followFactor;
+    }
+
+    private Vec3 resolveRenderPosition(Camera camera) {
+        if (position == null || !followEnabled || camera == null) return position;
+        Vector3f lookVector = camera.getLookVector();
+        Vec3 look = new Vec3(lookVector.x, lookVector.y, lookVector.z);
+        return resolveFollowPosition(position, camera.getPosition(), look, followFactor);
+    }
+
+    private Quaternionf resolveRenderRotation(Vec3 cameraPosition, Vec3 renderPosition) {
+        if (!facingEnabled || cameraPosition == null || renderPosition == null) {
+            return new Quaternionf(rotation);
+        }
+        return faceCamera(cameraPosition, renderPosition);
+    }
+
+    private Quaternionf faceCamera(Vec3 cameraPosition, Vec3 windowPosition) {
+        if (cameraPosition == null || windowPosition == null) return new Quaternionf(rotation);
+        Vec3 toCamera = cameraPosition.subtract(windowPosition);
+        double horizontal = Math.sqrt(toCamera.x * toCamera.x + toCamera.z * toCamera.z);
+        float yaw = (float) (Math.toDegrees(Math.atan2(toCamera.z, toCamera.x)) - 90.0);
+        float pitch = (float) (Math.toDegrees(Math.atan2(toCamera.y, horizontal)));
+        // Keep the configured orientation untouched; facing is a frame-local rotation.
+        return new Quaternionf()
+                .rotateY((float) Math.toRadians(-yaw))
+                .rotateX((float) Math.toRadians(-pitch));
+    }
+
+    /** Resolves a base point toward the camera view ray using the requested factor. */
+    static Vec3 resolveFollowPosition(Vec3 basePosition, Vec3 cameraPosition,
+                                      Vec3 lookVector, float followFactor) {
+        if (basePosition == null || cameraPosition == null || lookVector == null) return basePosition;
+        double lookLength = Math.sqrt(
+                lookVector.x * lookVector.x
+                        + lookVector.y * lookVector.y
+                        + lookVector.z * lookVector.z
+        );
+        if (!(lookLength > 1.0e-8) || !Double.isFinite(lookLength)) return basePosition;
+
+        Vec3 normalizedLook = lookVector.scale(1.0 / lookLength);
+        Vec3 toBase = basePosition.subtract(cameraPosition);
+        double depth = toBase.dot(normalizedLook);
+        if (!(depth > 0.0) || !Double.isFinite(depth)) return basePosition;
+
+        Vec3 targetPosition = cameraPosition.add(normalizedLook.scale(depth));
+        float factor = sanitizeFollowFactor(followFactor);
+        return basePosition.add(targetPosition.subtract(basePosition).scale(factor));
     }
 
     /**
@@ -279,9 +384,11 @@ public class WorldWindow {
     public WorldWindowDisplayPrecision getEffectiveDisplayPrecision() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null || minecraft.gameRenderer == null) return WorldWindowDisplayPrecision.MINIMAL;
-        Vec3 cameraPosition = minecraft.gameRenderer.getMainCamera().getPosition();
-        if (!isWithinDisplayDistance(cameraPosition)) return WorldWindowDisplayPrecision.MINIMAL;
-        return resolveDisplayPrecision(cameraPosition);
+        Camera camera = minecraft.gameRenderer.getMainCamera();
+        Vec3 cameraPosition = camera.getPosition();
+        Vec3 renderPosition = resolveRenderPosition(camera);
+        if (!isWithinDisplayDistance(cameraPosition, renderPosition)) return WorldWindowDisplayPrecision.MINIMAL;
+        return resolveDisplayPrecision(cameraPosition, renderPosition);
     }
 
     /**
@@ -348,33 +455,38 @@ public class WorldWindow {
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
         clearInteractionTransform();
         Minecraft mc = Minecraft.getInstance();
-        Vec3 cameraPos = mc.gameRenderer.getMainCamera().getPosition();
-        if (!isWithinDisplayDistance(cameraPos)) return;
-        WorldWindowDisplayPrecision precision = resolveDisplayPrecision(cameraPos);
+        Camera camera = mc.gameRenderer.getMainCamera();
+        Vec3 cameraPos = camera.getPosition();
+        Vec3 renderPosition = resolveRenderPosition(camera);
+        if (!isWithinDisplayDistance(cameraPos, renderPosition)) return;
+        WorldWindowDisplayPrecision precision = resolveDisplayPrecision(cameraPos, renderPosition);
         float documentScale = worldDocumentScale();
-        float worldScale = resolveRenderScale(cameraPos, projectionMatrix);
+        float worldScale = resolveRenderScale(cameraPos, projectionMatrix, renderPosition);
         float renderScale = worldScale * documentScale;
+        float viewportWidth = getWidth();
+        float viewportHeight = getHeight();
         resolvedScale = worldScale;
+        Quaternionf renderRotation = resolveRenderRotation(cameraPos, renderPosition);
 
         poseStack.pushPose();
         poseStack.translate(
-                position.x - cameraPos.x,
-                position.y - cameraPos.y,
-                position.z - cameraPos.z
+                renderPosition.x - cameraPos.x,
+                renderPosition.y - cameraPos.y,
+                renderPosition.z - cameraPos.z
         );
 
-        poseStack.mulPose(new Quaternionf(rotation));
+        poseStack.mulPose(new Quaternionf(renderRotation));
 
         poseStack.scale(renderScale, -renderScale, renderScale);
 
         // Avoid entering the expensive document/stencil path when the complete panel is
         // outside the camera frustum. The test is conservative for panels crossing a plane.
-        if (!isQuadVisible(poseStack.last().pose(), projectionMatrix, getWidth(), getHeight())) {
+        if (!isQuadVisible(poseStack.last().pose(), projectionMatrix, viewportWidth, viewportHeight)) {
             poseStack.popPose();
             return;
         }
 
-        poseStack.translate(-getWidth() / 2.0f, -getHeight() / 2.0f, 0);
+        poseStack.translate(-viewportWidth / 2.0f, -viewportHeight / 2.0f, 0);
 
         MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
 
@@ -397,7 +509,7 @@ public class WorldWindow {
         RenderSystem.enablePolygonOffset();
         RenderSystem.polygonOffset(POLYGON_OFFSET, POLYGON_OFFSET);
 
-        float documentDepthBudget = computeDepthStep(cameraPos);
+        float documentDepthBudget = computeDepthStep(cameraPos, renderPosition);
         float safeScale = Math.max(1.0e-4f, renderScale);
         int paintNodeCount = document == null ? 1 : Math.max(1, document.getPaintList().size());
         float localStep = documentDepthBudget / paintNodeCount / safeScale;
@@ -408,15 +520,27 @@ public class WorldWindow {
         float documentZOffset = documentDepthBudget / safeScale;
         Base.pushDocumentZOffset(documentZOffset);
         WorldPaintDepth.pushFlatTransforms(true);
-        Mask.resetDepth(getWidth(), getHeight());
+        Mask.resetDepth(viewportWidth, viewportHeight);
         Mask.pushForceStencil();
+        // The document clip used to be only a logical culling rectangle. A
+        // root stencil is required here because the world transform can make
+        // a partially visible child draw outside the WorldWindow quad.
+        Mask.pushMask(poseStack, 0, 0, viewportWidth, viewportHeight, VIEWPORT_CLIP_RADIUS, true);
         try {
-            captureInteractionTransform(projectionMatrix, poseStack.last().pose(), renderScale, documentZOffset);
+            captureInteractionTransform(
+                    projectionMatrix,
+                    poseStack.last().pose(),
+                    renderScale,
+                    documentZOffset,
+                    renderPosition,
+                    renderRotation
+            );
             try (WorldWindowRenderContext.Scope ignored = WorldWindowRenderContext.push(precision)) {
                 Base.drawDocument(poseStack, document);
                 ResourcePreviewDialog.drawInWorld(poseStack, document);
             }
         } finally {
+            Mask.popMask(poseStack, 0, 0, viewportWidth, viewportHeight, VIEWPORT_CLIP_RADIUS);
             Mask.popForceStencil();
             WorldPaintDepth.popFlatTransforms();
             Base.popDepthTest();
@@ -436,8 +560,8 @@ public class WorldWindow {
     }
 
     /** Returns the total world-space depth budget for this document. */
-    private float computeDepthStep(Vec3 cameraPos) {
-        double distance = cameraPos.distanceTo(position);
+    private float computeDepthStep(Vec3 cameraPos, Vec3 renderPosition) {
+        double distance = cameraPos.distanceTo(renderPosition);
         double t = Mth.inverseLerp(distance, depthNearDistance, depthFarDistance);
         float depth = (float) Mth.clampedLerp(nearDepthStep, farDepthStep, t);
         return depth * ApricityUIConfig.CLIENT.worldWindowDepthOffsetScale() / DEFAULT_DEPTH_OFFSET_SCALE;
@@ -482,7 +606,8 @@ public class WorldWindow {
         Camera camera = minecraft.gameRenderer.getMainCamera();
         if (camera == null) return null;
         Vec3 rayOrigin = camera.getPosition();
-        if (!isWithinDisplayDistance(rayOrigin)) return null;
+        Vec3 renderPosition = interactionPosition == null ? position : interactionPosition;
+        if (!isWithinDisplayDistance(rayOrigin, renderPosition)) return null;
 
         Position localHit = unprojectToDocument(screenPosition);
         if (localHit == null) return null;
@@ -604,13 +729,16 @@ public class WorldWindow {
     }
 
     private void captureInteractionTransform(Matrix4f projectionMatrix, Matrix4f modelViewMatrix,
-                                              float renderScale, float documentZOffset) {
-        if (projectionMatrix == null || modelViewMatrix == null || position == null) return;
+                                              float renderScale, float documentZOffset,
+                                              Vec3 renderPosition, Quaternionf renderRotation) {
+        if (projectionMatrix == null || modelViewMatrix == null
+                || renderPosition == null || renderRotation == null) return;
         Matrix4f documentModelView = new Matrix4f(modelViewMatrix).translate(0.0f, 0.0f, documentZOffset);
         interactionClipMatrix = new Matrix4f(projectionMatrix).mul(documentModelView);
+        interactionPosition = renderPosition;
         interactionWorldMatrix = new Matrix4f()
-                .translate((float) position.x, (float) position.y, (float) position.z)
-                .rotate(rotation)
+                .translate((float) renderPosition.x, (float) renderPosition.y, (float) renderPosition.z)
+                .rotate(renderRotation)
                 .scale(renderScale, -renderScale, renderScale)
                 .translate(-getWidth() / 2.0f, -getHeight() / 2.0f, 0.0f)
                 .translate(0.0f, 0.0f, documentZOffset);
@@ -619,6 +747,7 @@ public class WorldWindow {
     private void clearInteractionTransform() {
         interactionClipMatrix = null;
         interactionWorldMatrix = null;
+        interactionPosition = null;
     }
 
     public record ScreenRect(double x, double y, double width, double height) {
@@ -641,15 +770,23 @@ public class WorldWindow {
     }
 
     private boolean isWithinDisplayDistance(Vec3 cameraPosition) {
-        if (cameraPosition == null || position == null) return false;
+        return isWithinDisplayDistance(cameraPosition, position);
+    }
+
+    private boolean isWithinDisplayDistance(Vec3 cameraPosition, Vec3 renderPosition) {
+        if (cameraPosition == null || renderPosition == null) return false;
         return WorldWindowVisibility.isWithinDisplayDistance(
-                cameraPosition.distanceToSqr(position), getMaxDisplayDistance());
+                cameraPosition.distanceToSqr(renderPosition), getMaxDisplayDistance());
     }
 
     private WorldWindowDisplayPrecision resolveDisplayPrecision(Vec3 cameraPosition) {
-        if (cameraPosition == null || position == null) return WorldWindowDisplayPrecision.MINIMAL;
+        return resolveDisplayPrecision(cameraPosition, position);
+    }
+
+    private WorldWindowDisplayPrecision resolveDisplayPrecision(Vec3 cameraPosition, Vec3 renderPosition) {
+        if (cameraPosition == null || renderPosition == null) return WorldWindowDisplayPrecision.MINIMAL;
         return WorldWindowVisibility.resolveDisplayPrecision(
-                cameraPosition.distanceToSqr(position),
+                cameraPosition.distanceToSqr(renderPosition),
                 displayPrecision,
                 displayPrecisionOverride || ApricityUIConfig.CLIENT.worldWindowLodEnabled(),
                 getFullDetailDistance(),
@@ -667,18 +804,21 @@ public class WorldWindow {
         return Math.max(1.0f, document.getViewport().layoutHeight());
     }
 
-    private float resolveRenderScale(Vec3 cameraPos, Matrix4f projectionMatrix) {
+    private float resolveRenderScale(Vec3 cameraPos, Matrix4f projectionMatrix, Vec3 renderPosition) {
         if (scaleOverride != null) return scaleOverride;
 
         long viewportVersion = document == null ? 0L : document.getViewportVersion();
         // Fit once for this world placement. A world object must keep its physical size
         // while the camera moves; only a viewport change or repositioning invalidates it.
+        // Follow changes the frame-local render position, not the window's physical
+        // size. Keep the fitted scale cached until the document viewport changes or
+        // the world placement is explicitly changed.
         if (resolvedViewportVersion == viewportVersion) return resolvedScale;
 
         // Use the actual camera-to-window distance. Camera look-vector conventions
         // differ between Minecraft's render and entity cameras; distance is stable
         // for fitting and cannot incorrectly trigger the legacy fallback scale.
-        double viewDepth = cameraPos.distanceTo(position);
+        double viewDepth = cameraPos.distanceTo(renderPosition);
         float fittedScale = computeViewportScale(
                 getWidth() * worldDocumentScale(),
                 getHeight() * worldDocumentScale(),
@@ -786,6 +926,10 @@ public class WorldWindow {
 
     private static float sanitizeScale(float value) {
         return Float.isFinite(value) && value > 0.0f ? value : FALLBACK_WORLD_SCALE;
+    }
+
+    private static float sanitizeFollowFactor(float value) {
+        return Float.isFinite(value) ? Mth.clamp(value, 0.0f, 1.0f) : DEFAULT_FOLLOW_FACTOR;
     }
 
     private static float sanitizeDimension(float value) {

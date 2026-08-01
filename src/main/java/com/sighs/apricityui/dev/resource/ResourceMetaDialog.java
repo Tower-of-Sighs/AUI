@@ -15,6 +15,8 @@ import java.util.function.Consumer;
 
 /** Resource-browser dialog for editing the meta elements in an HTML head. */
 public final class ResourceMetaDialog {
+    private static final double MIN_ZOOM = 0.01d;
+    private static final double MAX_ZOOM = 10.0d;
     private static final List<Choice> FONT_MODE_CHOICES = List.of(
             new Choice("NOT SET", "", "tooltip.apricityui.meta.font_mode.not_set"),
             new Choice("MC", "mc", "tooltip.apricityui.meta.font_mode.mc"),
@@ -37,11 +39,13 @@ public final class ResourceMetaDialog {
     private Element fontModeSelect;
     private Element viewportSelect;
     private Element mouseEventsSelect;
+    private Element zoomInput;
     private Element saveButton;
     private Document document;
     private Path target;
     private Runnable afterSave;
     private Consumer<String> templateSave;
+    private Consumer<Double> zoomSave;
     private String charset = "";
     private List<String> preservedMeta = List.of();
 
@@ -54,7 +58,23 @@ public final class ResourceMetaDialog {
             return;
         }
         openEditor(document, "EDIT META / " + ResourcePath.fileName(resourcePath).toUpperCase(java.util.Locale.ROOT),
-                target, afterSave, HtmlMetaEditor.parseSettings(loaded.metaMarkup()), null);
+                target, afterSave, HtmlMetaEditor.parseSettings(loaded.metaMarkup()), null,
+                Double.NaN, null);
+    }
+
+    /** Opens the editor with a live document zoom field, used by DevTools. */
+    public void open(Document document, String resourcePath, Path target, Runnable afterSave,
+                     double currentZoom, Consumer<Double> onZoomSave) {
+        close();
+        if (document == null || document.body == null) return;
+        HtmlMetaEditor.LoadResult loaded = HtmlMetaEditor.load(target);
+        if (!loaded.success()) {
+            ToastManager.show(loaded.message());
+            return;
+        }
+        openEditor(document, "EDIT META / " + ResourcePath.fileName(resourcePath).toUpperCase(java.util.Locale.ROOT),
+                target, afterSave, HtmlMetaEditor.parseSettings(loaded.metaMarkup()), null,
+                currentZoom, onZoomSave);
     }
 
     /** Opens the same editor for a not-yet-created document and returns its meta markup. */
@@ -63,15 +83,18 @@ public final class ResourceMetaDialog {
         if (document == null || document.body == null) return;
         HtmlMetaEditor.MetaSettings browserDefaults = new HtmlMetaEditor.MetaSettings(
                 "UTF-8", "web", "mode=browser", "intercept", List.of());
-        openEditor(document, "NEW HTML META", null, null, browserDefaults, onSave);
+        openEditor(document, "NEW HTML META", null, null, browserDefaults, onSave,
+                Double.NaN, null);
     }
 
     private void openEditor(Document document, String title, Path target, Runnable afterSave,
-                            HtmlMetaEditor.MetaSettings settings, Consumer<String> templateSave) {
+                            HtmlMetaEditor.MetaSettings settings, Consumer<String> templateSave,
+                            double currentZoom, Consumer<Double> zoomSave) {
         this.document = document;
         this.target = target;
         this.afterSave = afterSave;
         this.templateSave = templateSave;
+        this.zoomSave = zoomSave;
         this.dialog = DialogWindow.open(document, new DialogWindow.Options(
                 title, 720, 520, true,
                 "dialog-overlay show", "dialog",
@@ -87,6 +110,7 @@ public final class ResourceMetaDialog {
         viewportSelect = appendSelectField(fields, "VIEWPORT", "tooltip.apricityui.meta.viewport", VIEWPORT_CHOICES, settings.viewport());
         fontModeSelect = appendSelectField(fields, "FONT MODE", "tooltip.apricityui.meta.font_mode", FONT_MODE_CHOICES, settings.fontMode());
         mouseEventsSelect = appendSelectField(fields, "MOUSE EVENTS", "tooltip.apricityui.meta.mouse_events", MOUSE_EVENT_CHOICES, settings.mouseEvents());
+        if (zoomSave != null) zoomInput = appendZoomField(fields, currentZoom);
         root.append(fields);
 
         Element submitRow = element("DIV", "dialog-footer");
@@ -107,6 +131,11 @@ public final class ResourceMetaDialog {
     }
 
     private void save() {
+        Double zoom = zoomValue();
+        if (zoomInput != null && zoom == null) {
+            ToastManager.show("ZOOM must be a number between 0.01 and 10");
+            return;
+        }
         String markup = HtmlMetaEditor.toMetaMarkup(new HtmlMetaEditor.MetaSettings(
                 charset, valueOf(fontModeSelect), valueOf(viewportSelect),
                 valueOf(mouseEventsSelect), preservedMeta));
@@ -122,16 +151,53 @@ public final class ResourceMetaDialog {
             return;
         }
         Runnable callback = afterSave;
+        Consumer<Double> zoomCallback = zoomSave;
         String name = target == null || target.getFileName() == null ? "HTML" : target.getFileName().toString();
         close();
         ToastManager.show("Updated META in " + name);
+        if (zoomCallback != null && zoom != null) zoomCallback.accept(zoom);
         if (callback != null) callback.run();
     }
 
     private void refreshSaveState() {
         if (saveButton == null) return;
-        saveButton.removeAttribute("disabled");
+        if (zoomInput != null && zoomValue() == null) saveButton.setAttribute("disabled", "disabled");
+        else saveButton.removeAttribute("disabled");
         markDirty();
+    }
+
+    private Element appendZoomField(Element parent, double currentZoom) {
+        Element field = element("DIV", "dialog-field");
+        field.setAttribute("style", "margin:0 0 14px;");
+        field.append(text("LABEL", "ZOOM", "dialog-label"));
+        Element input = element("INPUT", "dialog-input");
+        input.setAttribute("type", "number");
+        input.setAttribute("inputmode", "decimal");
+        input.setAttribute("min", Double.toString(MIN_ZOOM));
+        input.setAttribute("max", Double.toString(MAX_ZOOM));
+        input.setAttribute("step", "0.01");
+        input.setValue(formatZoom(currentZoom));
+        input.addEventListener("input", event -> refreshSaveState());
+        input.addEventListener("change", event -> refreshSaveState());
+        field.append(input);
+        parent.append(field);
+        return input;
+    }
+
+    private Double zoomValue() {
+        if (zoomInput == null) return null;
+        String raw = zoomInput.getValue();
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            double value = Double.parseDouble(raw.trim());
+            return Double.isFinite(value) && value >= MIN_ZOOM && value <= MAX_ZOOM ? value : null;
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
+    }
+
+    private static String formatZoom(double value) {
+        return Double.isFinite(value) && value > 0 ? Double.toString(value) : "1.0";
     }
 
     private Element appendSelectField(Element parent, String label, String tooltipKey,
@@ -190,11 +256,13 @@ public final class ResourceMetaDialog {
         fontModeSelect = null;
         viewportSelect = null;
         mouseEventsSelect = null;
+        zoomInput = null;
         saveButton = null;
         document = null;
         target = null;
         afterSave = null;
         templateSave = null;
+        zoomSave = null;
         charset = "";
         preservedMeta = List.of();
     }

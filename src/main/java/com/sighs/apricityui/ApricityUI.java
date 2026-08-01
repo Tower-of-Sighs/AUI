@@ -24,6 +24,7 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
@@ -42,6 +43,7 @@ public class ApricityUI {
     public ApricityUI() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC);
+        modEventBus.addListener(this::onConfigReload);
         if (ModList.get().isLoaded("kubejs")) {
             KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
         }
@@ -61,6 +63,11 @@ public class ApricityUI {
             ShaderRegistry.register(event);
         } catch (IOException ignored) {
         }
+    }
+
+    private void onConfigReload(ModConfigEvent.Reloading event) {
+        if (event.getConfig().getSpec() != ApricityUIConfig.CLIENT_SPEC) return;
+        ApricityUIConfig.markClientReloadPending();
     }
 
     public static Window getWindow() {
@@ -210,12 +217,22 @@ public class ApricityUI {
         return window;
     }
 
+    /**
+     * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
+     *             follow/facing on the returned window.
+     */
+    @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, maxDistance, followFactor);
         WorldWindow.addWindow(window);
         return window;
     }
 
+    /**
+     * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
+     *             follow/facing on the returned window.
+     */
+    @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath,
                                                                          Vec3 position,
                                                                          int maxDistance,

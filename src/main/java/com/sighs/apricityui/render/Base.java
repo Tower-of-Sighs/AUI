@@ -19,6 +19,7 @@ import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.lwjgl.opengl.GL11;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
@@ -113,31 +114,62 @@ public class Base {
             if (styleChanged) {
                 styleNeedsGeometryCommit = document.commitRenderStateForMotion();
             }
-            if (styleNeedsGeometryCommit || motionNeedsGeometryCommit || scrollChanged) {
+            if (styleNeedsGeometryCommit || scrollChanged) {
                 LayoutCommit.commit(document);
+                document.commitMotionHitTest();
+            } else if (motionNeedsGeometryCommit) {
+                Set<Element> layoutRoots = document.drainMotionLayoutRoots();
+                Set<Element> geometryRoots = document.drainMotionGeometryRoots();
+                if (!layoutRoots.isEmpty()) {
+                    LayoutCommit.commit(document);
+                } else if (!geometryRoots.isEmpty()) {
+                    LayoutCommit.commitTransforms(document, geometryRoots);
+                } else {
+                    // Keep the correctness fallback for a future motion source
+                    // that reports geometry work without publishing a root.
+                    LayoutCommit.commit(document);
+                }
                 document.commitMotionHitTest();
             }
             poseStack.translate(0, 0, documentZOffset);
             Element skippedSubtree = null;
             Set<Element> enteredSubtrees = Collections.newSetFromMap(new IdentityHashMap<>());
-            for (RenderNode node : document.getPaintList()) {
-                Element target = getRenderNodeTarget(node);
-                if (skippedSubtree != null) {
-                    if (target != null && isSameOrDescendant(target, skippedSubtree)) {
+            Element activeTopLayerRoot = null;
+            TopLayerDepthScope topLayerDepthScope = null;
+            try {
+                for (RenderNode node : document.getPaintList()) {
+                    Element target = getRenderNodeTarget(node);
+                    if (skippedSubtree != null) {
+                        if (target != null && isSameOrDescendant(target, skippedSubtree)) {
+                            continue;
+                        }
+                        skippedSubtree = null;
+                    }
+                    // Clip/filter pushes precede an element's SHADOW node. Cull at
+                    // the first node so a skipped subtree cannot leave either stack unbalanced.
+                    if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
+                        skippedSubtree = target;
                         continue;
                     }
-                    skippedSubtree = null;
+
+                    Element topLayerRoot = WorldWindowRenderContext.isWorldWindowRender()
+                            ? findTopLayerRoot(target) : null;
+                    if (topLayerRoot != activeTopLayerRoot) {
+                        if (topLayerDepthScope != null) topLayerDepthScope.close();
+                        topLayerDepthScope = null;
+                        activeTopLayerRoot = topLayerRoot;
+                        if (topLayerRoot != null) {
+                            topLayerDepthScope = TopLayerDepthScope.open();
+                        }
+                    }
+
+                    poseStack.pushPose();
+                    Base.resolvePaintOffset(poseStack, node);
+                    node.render(poseStack);
+                    poseStack.popPose();
                 }
-                // Clip/filter pushes precede an element's SHADOW node. Cull at
-                // the first node so a skipped subtree cannot leave either stack unbalanced.
-                if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
-                    skippedSubtree = target;
-                    continue;
-                }
-                poseStack.pushPose();
-                Base.resolvePaintOffset(poseStack, node);
-                node.render(poseStack);
-                poseStack.popPose();
+            } finally {
+                if (topLayerDepthScope != null) topLayerDepthScope.close();
             }
         } finally {
             FontDrawer.popDocumentPixelScale();
@@ -151,6 +183,56 @@ public class Base {
             FilterRenderer.endFrame();
             RenderBatchStats.endDocument();
             FrameTimingHud.record(System.nanoTime() - startNs);
+        }
+    }
+
+    private static Element findTopLayerRoot(Element target) {
+        Element current = target;
+        while (current != null) {
+            if (current.isTopLayer()) return current;
+            current = current.parentElement;
+        }
+        return null;
+    }
+
+    /**
+     * World-space documents use depth testing to occlude normal content. A
+     * top-layer popup is a separate browser surface, however, so leaving the
+     * depth test enabled makes it compete with the document plane at far
+     * distances. Isolate its batches and paint it in DOM order instead.
+     */
+    private static final class TopLayerDepthScope {
+        private final boolean previousDepthTest;
+        private final boolean previousDepthMask;
+        private boolean closed;
+
+        private TopLayerDepthScope(boolean previousDepthTest, boolean previousDepthMask) {
+            this.previousDepthTest = previousDepthTest;
+            this.previousDepthMask = previousDepthMask;
+        }
+
+        private static TopLayerDepthScope open() {
+            if (!Base.isDepthTestEnabled()) return null;
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
+
+            boolean previousDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+            boolean previousDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+            Base.pushDepthTest(false);
+            RenderSystem.disableDepthTest();
+            GL11.glDepthMask(false);
+            return new TopLayerDepthScope(previousDepthTest, previousDepthMask);
+        }
+
+        private void close() {
+            if (closed) return;
+            closed = true;
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
+            Base.popDepthTest();
+            if (previousDepthTest) RenderSystem.enableDepthTest();
+            else RenderSystem.disableDepthTest();
+            GL11.glDepthMask(previousDepthMask);
         }
     }
 

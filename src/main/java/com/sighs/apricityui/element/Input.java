@@ -33,6 +33,8 @@ public class Input extends AbstractText {
     private static final float CONTENT_DEPTH_OFFSET = 0.16f;
     private static final float DETAIL_DEPTH_OFFSET = 0.24f;
     private static final float MARK_DEPTH_OFFSET = 0.20f;
+    private boolean rangeDragging;
+    private boolean rangeValueChanged;
 
     private enum Mode {
         TEXT,
@@ -51,14 +53,36 @@ public class Input extends AbstractText {
         addInternalEventListener("mousedown", event -> {
             if (!(event instanceof MouseEvent mouse) || isDisabled()) return;
             if (getMode() == Mode.RANGE) {
-                double width = Math.max(1d, Box.of(this).innerSize().width());
-                setValueFromPointer(mouse.offsetX / width);
-                triggerChangeEvent();
+                if (mouse.button != -1 && mouse.button != 0) return;
+                rangeDragging = true;
+                rangeValueChanged = setRangeValueFromPointer(mouse);
+                if (rangeValueChanged) triggerInputEvent();
                 return;
             }
             if (getMode() == Mode.NUMBER) {
                 handleNumberSpinner(mouse);
             }
+        });
+        addInternalEventListener("mousemove", event -> {
+            if (!(event instanceof MouseEvent mouse)
+                    || getMode() != Mode.RANGE || !rangeDragging || isDisabled()) return;
+            if (setRangeValueFromPointer(mouse)) {
+                rangeValueChanged = true;
+                triggerInputEvent();
+            }
+        });
+        addInternalEventListener("mouseup", event -> {
+            if (!(event instanceof MouseEvent)
+                    || getMode() != Mode.RANGE || !rangeDragging) return;
+            rangeDragging = false;
+            if (rangeValueChanged) {
+                rangeValueChanged = false;
+                triggerChangeOnlyEvent();
+            }
+        });
+        addInternalEventListener("blur", event -> {
+            rangeDragging = false;
+            rangeValueChanged = false;
         });
         addInternalEventListener("wheel", event -> {
             if (!(event instanceof MouseEvent mouse)) return;
@@ -143,10 +167,18 @@ public class Input extends AbstractText {
     }
 
     private void triggerChangeEvent() {
+        triggerInputEvent();
+
+        triggerChangeOnlyEvent();
+    }
+
+    private void triggerInputEvent() {
         Event inputEvent = new Event(this, "input", true);
         Event.markTrustedFromCurrentDispatch(inputEvent);
         Event.tiggerEvent(inputEvent);
+    }
 
+    private void triggerChangeOnlyEvent() {
         Event changeEvent = new Event(this, "change", true);
         Event.markTrustedFromCurrentDispatch(changeEvent);
         Event.tiggerEvent(changeEvent);
@@ -532,10 +564,20 @@ public class Input extends AbstractText {
         if (event == null || getMode() != Mode.NUMBER || isDisabled() || hasAttribute("readonly")) return 0;
         Element.DOMRect rect = getBoundingClientRect();
         if (rect == null || rect.width <= 0 || rect.height <= 0) return 0;
-        double spinnerWidth = numberSpinnerWidth(rect.width);
-        if (event.clientX < rect.right - spinnerWidth || event.clientX > rect.right
-                || event.clientY < rect.top || event.clientY > rect.bottom) return 0;
-        return event.clientY < rect.top + rect.height / 2d ? 1 : -1;
+        Box box = Box.of(this);
+        double contentLeft = rect.x + box.getBorderLeft() + box.getPaddingLeft();
+        double contentTop = rect.y + box.getBorderTop() + box.getPaddingTop();
+        double contentWidth = Math.max(0d, rect.width - box.getBorderHorizontal()
+                - box.getPaddingHorizontal() - getVerticalScrollbarGutter());
+        double contentHeight = Math.max(0d, rect.height - box.getBorderVertical()
+                - box.getPaddingVertical() - getHorizontalScrollbarGutter());
+        double spinnerWidth = numberSpinnerWidth(contentWidth);
+        double spinnerRight = contentLeft + contentWidth;
+        double spinnerBottom = contentTop + contentHeight;
+        if (contentWidth <= 0d || contentHeight <= 0d
+                || event.clientX < spinnerRight - spinnerWidth || event.clientX > spinnerRight
+                || event.clientY < contentTop || event.clientY > spinnerBottom) return 0;
+        return event.clientY < contentTop + contentHeight / 2d ? 1 : -1;
     }
 
     /** Handles a click in the number input's up/down spinner area. */
@@ -625,12 +667,35 @@ public class Input extends AbstractText {
     }
 
     public void setValueFromPointer(double fraction) {
+        setRangeValueFromFraction(fraction);
+    }
+
+    private boolean setRangeValueFromPointer(MouseEvent event) {
+        if (event == null) return false;
+        Element.DOMRect rect = getBoundingClientRect();
+        double width = rect != null && Double.isFinite(rect.width) && rect.width > 0.0d
+                ? rect.width : Math.max(1d, Box.of(this).innerSize().width());
+        double offset = rect == null ? event.offsetX : event.clientX - rect.x;
+        if (!Double.isFinite(offset)) {
+            offset = event.offsetX;
+        }
+        return setRangeValueFromFraction(offset / width);
+    }
+
+    private boolean setRangeValueFromFraction(double fraction) {
         double min = rangeMin();
         double max = rangeMax();
         double value = min + Math.max(0d, Math.min(1d, fraction)) * (max - min);
         double step = rangeStep();
         if (step > 0) value = min + Math.round((value - min) / step) * step;
-        setValueAsNumber(Math.max(min, Math.min(max, value)));
+        double next = Math.max(min, Math.min(max, value));
+        double previous = getValueAsNumber();
+        setValueAsNumber(next);
+        double current = getValueAsNumber();
+        if (Double.isFinite(previous) && Double.isFinite(current)) {
+            return Double.compare(previous, current) != 0;
+        }
+        return !Objects.equals(Double.toString(previous), Double.toString(current));
     }
 
     private double rangeMin() { return parseNumberAttribute("min", 0d); }

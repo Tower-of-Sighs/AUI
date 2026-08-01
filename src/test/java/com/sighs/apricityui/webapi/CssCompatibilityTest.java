@@ -569,6 +569,23 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void generatedPseudoElementDecodesHexEscapedContent() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS(".label::before { content: '\\25B6'; }", cache,
+                "test://pseudo-escaped-content.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element label = new Element(document, "label");
+        label.setAttribute("class", "label");
+        label.setTextContent("Viewport");
+        document.body.appendChild(label);
+
+        assertEquals("\u25B6", label.getRenderChildNodes().get(0).getTextContent());
+    }
+
+    @Test
     void disabledAndFocusWithinPseudoClassesTrackControlState() throws Exception {
         HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
         CSS.readCSS("""

@@ -21,16 +21,22 @@ class DevToolsDocumentStoreTest {
         Files.createDirectories(localRoot.resolve("pages"));
         Files.createDirectories(devRoot.resolve("dev"));
         Files.writeString(localRoot.resolve("pages/local.html"), "<html></html>");
+        Files.writeString(localRoot.resolve("styles.css"), ".card { color: red; }");
         Files.writeString(devRoot.resolve("dev/source.html"), "<html></html>");
+        Files.writeString(tempDir.resolve("pack.css"), ".card { color: red; }");
 
         Loader.StaticResourceEntry local = entry("pages/local.html", Loader.ResourceLayer.LOCAL_FOLDER, localRoot);
+        Loader.StaticResourceEntry css = entry("styles.css", Loader.ResourceLayer.LOCAL_FOLDER, localRoot);
         Loader.StaticResourceEntry dev = entry("dev/source.html", Loader.ResourceLayer.DEV_FOLDER, devRoot);
         Loader.StaticResourceEntry pack = entry("pack.html", Loader.ResourceLayer.RESOURCE_PACK, tempDir);
+        Loader.StaticResourceEntry packCss = entry("pack.css", Loader.ResourceLayer.RESOURCE_PACK, tempDir);
 
         assertTrue(DevToolsDocumentStore.resolve("pages/local.html", List.of(local), true).writable());
         assertTrue(DevToolsDocumentStore.resolve("dev/source.html", List.of(dev), false).writable());
         assertFalse(DevToolsDocumentStore.resolve("dev/source.html", List.of(dev), true).writable());
         assertFalse(DevToolsDocumentStore.resolve("pack.html", List.of(pack), false).writable());
+        assertTrue(DevToolsDocumentStore.resolveResource("styles.css", List.of(css), true).writable());
+        assertFalse(DevToolsDocumentStore.resolveResource("pack.css", List.of(packCss), false).writable());
         assertFalse(DevToolsDocumentStore.resolve("../outside.html", List.of(local), false).writable());
         assertFalse(DevToolsDocumentStore.resolve("pages/local.css", List.of(local), false).writable());
     }

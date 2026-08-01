@@ -3,9 +3,12 @@ package com.sighs.apricityui.instance;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
 public final class ApricityUIConfig {
     public static final ForgeConfigSpec CLIENT_SPEC;
     public static final Client CLIENT;
+    private static final AtomicBoolean CLIENT_RELOAD_PENDING = new AtomicBoolean();
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -19,6 +22,7 @@ public final class ApricityUIConfig {
         public final ForgeConfigSpec.BooleanValue frameTimingHud;
         public final ForgeConfigSpec.BooleanValue remoteDebug;
         public final ForgeConfigSpec.BooleanValue resourceManagerWorldWindow;
+        public final ForgeConfigSpec.BooleanValue viewportZoomPassThrough;
         public final ForgeConfigSpec.DoubleValue worldWindowDepthOffsetScale;
         public final ForgeConfigSpec.IntValue worldWindowMaxDisplayDistance;
         public final ForgeConfigSpec.BooleanValue worldWindowLodEnabled;
@@ -42,6 +46,12 @@ public final class ApricityUIConfig {
             resourceManagerWorldWindow = builder
                     .comment("Open the debug resource manager as a world window while in-game.")
                     .define("resourceManagerWorldWindow", false);
+            builder.pop();
+
+            builder.push("input");
+            viewportZoomPassThrough = builder
+                    .comment("Allow Ctrl+mouse-wheel viewport zoom to pass through persistent overlays that do not intercept mouse events.")
+                    .define("viewportZoomPassThrough", true);
             builder.pop();
 
             builder.push("worldWindow");
@@ -85,5 +95,18 @@ public final class ApricityUIConfig {
     }
 
     private ApricityUIConfig() {
+    }
+
+    /**
+     * Marks a Forge config reload for processing on the client thread. Forge's file watcher
+     * invokes reload listeners from its watcher thread, while a few runtime side effects need
+     * to be applied by the Minecraft client.
+     */
+    public static void markClientReloadPending() {
+        CLIENT_RELOAD_PENDING.set(true);
+    }
+
+    public static boolean consumeClientReloadPending() {
+        return CLIENT_RELOAD_PENDING.compareAndSet(true, false);
     }
 }

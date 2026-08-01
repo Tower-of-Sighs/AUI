@@ -991,6 +991,98 @@
             background: var(--white);
         }
 
+        .dialog-field {
+            margin-bottom: 18px;
+            position: relative;
+        }
+
+        .dialog-label {
+            display: block;
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--purple);
+            margin-bottom: 8px;
+            position: relative;
+            padding-left: 12px;
+        }
+
+        .dialog-label::before {
+            content: '\25B6';
+            position: absolute;
+            left: 0;
+            color: var(--purple);
+        }
+
+        .dialog-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--bg);
+            border: 2px solid var(--gray-light);
+            color: var(--black);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .dialog-input:focus {
+            border-color: var(--purple);
+            background: var(--white);
+            box-shadow: 4px 4px 0 rgba(139,92,246,0.15);
+            transform: translate(-2px, -2px);
+        }
+
+        .dialog-select-wrap { position: relative; }
+
+        .dialog-select {
+            width: 100%;
+            padding: 10px 40px 10px 14px;
+            background: var(--bg);
+            border: 2px solid var(--gray-light);
+            color: var(--black);
+            font-family: 'Chakra Petch', sans-serif;
+            font-size: 13px;
+            font-weight: 600;
+            letter-spacing: 1px;
+            outline: none;
+            cursor: pointer;
+            appearance: none;
+            -webkit-appearance: none;
+            transition: border-color 0.2s ease;
+        }
+
+        .dialog-select:hover,
+        .dialog-select:focus { border-color: var(--purple); }
+
+        .dialog-select-arrow {
+            position: absolute;
+            right: 0;
+            top: 0;
+            width: 36px;
+            height: 100%;
+            background: var(--purple);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+            color: var(--white);
+            font-size: 12px;
+            transition: background-color 0.2s ease;
+        }
+
+        .dialog-select-wrap:hover .dialog-select-arrow,
+        .dialog-select-wrap:focus-within .dialog-select-arrow { background: var(--purple-dark); }
+
+        .dialog-select option {
+            padding: 8px;
+            font-family: 'Chakra Petch', sans-serif;
+            background: var(--white);
+        }
+
         .save-dialog-message {
             color: var(--black);
             font-size: 13px;
@@ -1011,11 +1103,61 @@
             white-space: nowrap;
         }
 
+        .save-dialog-scope {
+            margin-top: 12px;
+            color: var(--gray-dark);
+            font-size: 11px;
+            line-height: 16px;
+        }
+
+        .save-dialog-option {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            margin-top: 12px;
+            padding: 10px 12px;
+            border: 1px solid var(--gray-light);
+            background: var(--bg);
+            color: var(--gray-dark);
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .save-dialog-option:hover {
+            border-color: var(--purple-light);
+            background: rgba(139,92,246,0.05);
+        }
+
+        .save-dialog-option-copy {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .save-dialog-option-title {
+            color: var(--black);
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 14px;
+        }
+
+        .save-dialog-option-description {
+            color: var(--gray);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 9px;
+            line-height: 13px;
+        }
+
         .save-dialog-reminder {
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-top: 16px;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid var(--gray-light);
             width: fit-content;
             color: var(--gray-dark);
             font-size: 11px;
@@ -1066,10 +1208,14 @@
         }
 
         .dialog-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
             padding: 8px 20px;
             font-family: 'Chakra Petch', sans-serif;
             font-weight: 600;
             font-size: 12px;
+            line-height: 16px;
             letter-spacing: 2px;
             text-transform: uppercase;
             cursor: pointer;
@@ -1119,6 +1265,208 @@
         }
 
         .create-element-dialog .dialog-body { padding-bottom: 18px; }
+
+        /* ===== Client settings dialog ===== */
+        .settings-dialog {
+            max-width: calc(100vw - 24px);
+            max-height: calc(100vh - 24px);
+        }
+
+        .settings-dialog-title-icon {
+            width: 18px;
+            height: 18px;
+            border: 2px solid var(--white);
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .settings-dialog-title-icon::before,
+        .settings-dialog-title-icon::after {
+            content: '';
+            position: absolute;
+            left: 3px;
+            right: 3px;
+            height: 2px;
+            background: var(--white);
+        }
+
+        .settings-dialog-title-icon::before { top: 4px; }
+        .settings-dialog-title-icon::after { bottom: 4px; }
+
+        .settings-dialog .dialog-body {
+            padding: 18px 20px 14px;
+            overflow: hidden;
+        }
+
+        .dialog-btn > span {
+            display: block;
+            line-height: 16px;
+        }
+
+        .settings-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 6px;
+        }
+
+        .settings-note {
+            color: var(--gray-dark);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 10px;
+            line-height: 16px;
+            padding: 8px 10px;
+            margin-bottom: 14px;
+            border-left: 3px solid var(--purple);
+            background: rgba(139,92,246,0.06);
+        }
+
+        .settings-section {
+            margin-top: 14px;
+            padding-top: 12px;
+            border-top: 2px solid var(--gray-light);
+        }
+
+        .settings-section:first-of-type {
+            margin-top: 0;
+            padding-top: 0;
+            border-top: 0;
+        }
+
+        .settings-section-title {
+            color: var(--purple-dark);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 2px;
+            line-height: 14px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+        }
+
+        .settings-section-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .settings-checkbox-field,
+        .settings-number-field {
+            min-width: 0;
+            min-height: 54px;
+            border: 1px solid var(--gray-light);
+            background: var(--white);
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+        }
+
+        .settings-checkbox-field {
+            display: flex;
+            align-items: flex-start;
+            gap: 9px;
+            padding: 9px 10px;
+            cursor: pointer;
+            position: relative;
+        }
+
+        .settings-checkbox-field:hover,
+        .settings-number-field:focus-within {
+            border-color: var(--purple-light);
+            background: rgba(139,92,246,0.04);
+        }
+
+        .settings-checkbox-input {
+            position: absolute;
+            opacity: 0;
+            width: 1px;
+            height: 1px;
+        }
+
+        .settings-checkbox-mark {
+            width: 16px;
+            height: 16px;
+            flex: 0 0 16px;
+            margin-top: 1px;
+            border: 2px solid var(--gray);
+            background: var(--white);
+            position: relative;
+        }
+
+        .settings-checkbox-input:checked + .settings-checkbox-mark {
+            border-color: var(--purple-dark);
+            background: var(--purple);
+        }
+
+        .settings-checkbox-input:checked + .settings-checkbox-mark::after {
+            content: '';
+            position: absolute;
+            left: 3px;
+            top: 0;
+            width: 5px;
+            height: 9px;
+            border: solid var(--white);
+            border-width: 0 2px 2px 0;
+            transform: rotate(45deg);
+        }
+
+        .settings-checkbox-copy,
+        .settings-number-copy {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .settings-field-label {
+            color: var(--black);
+            font-size: 10px;
+            font-weight: 600;
+            letter-spacing: 0.7px;
+            line-height: 13px;
+            text-transform: uppercase;
+        }
+
+        .settings-field-description {
+            color: var(--gray);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 8px;
+            line-height: 12px;
+        }
+
+        .settings-number-field {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            padding: 9px 10px;
+        }
+
+        .settings-number-input {
+            width: 104px;
+            height: 30px;
+            flex: 0 0 104px;
+            padding: 0 7px;
+            border: 2px solid var(--gray-light);
+            background: var(--bg);
+            color: var(--black);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            outline: none;
+        }
+
+        .settings-number-input:focus {
+            border-color: var(--purple);
+            background: var(--white);
+        }
+
+        .settings-number-input::-webkit-outer-spin-button,
+        .settings-number-input::-webkit-inner-spin-button {
+            margin: 0;
+        }
+
+        .settings-dialog .dialog-footer { flex-shrink: 0; }
+
+        @media (max-width: 640px) {
+            .settings-section-grid { grid-template-columns: minmax(0, 1fr); }
+        }
 
         .create-element-label {
             display: block;
@@ -1532,18 +1880,27 @@
             <button class="top-btn drag-handle" id="panelDragHandle" aria-label="Move DevTools horizontally" data-tooltip-key="tooltip.apricityui.devtools.move">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m18 8 4 4-4 4M2 12h20M6 8l-4 4 4 4"/></svg>
             </button>
-            <button class="top-btn" id="saveBtn" aria-label="Save current HTML" data-tooltip-key="tooltip.apricityui.devtools.save">
+            <button class="top-btn" id="saveBtn" aria-label="Save current changes" data-tooltip-key="tooltip.apricityui.devtools.save">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15.2 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8.8z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+            </button>
+            <button class="top-btn" id="reloadDocumentBtn" aria-label="Reload inspected document" data-tooltip-key="tooltip.apricityui.devtools.reload_document">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8.1 8.1 0 1 0 1 4"/><path d="M20 4v7h-7"/></svg>
+            </button>
+            <button class="top-btn" id="metaButton" aria-label="Edit HTML meta and viewport zoom" data-tooltip-key="tooltip.apricityui.devtools.meta">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M10 12l-2 2 2 2M14 12l2 2-2 2"/></svg>
             </button>
             <button class="top-btn" id="pickBtn" aria-label="Inspect elements" data-tooltip-key="tooltip.apricityui.devtools.inspect">
                 <svg viewBox="0 0 16 16" fill="currentColor"><path d="M3 2l10 5-4 1.5L7.5 13 6 10l-3-1z"/></svg>
             </button>
-            <button class="top-btn" id="oreEditorButton" aria-label="Open Ore Editor" data-tooltip-key="tooltip.apricityui.ore_editor.open">
+            <button class="top-btn" id="oreEditorButton" style="display:none;" aria-label="Open Ore Editor" data-tooltip-key="tooltip.apricityui.ore_editor.open">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
             </button>
             <button class="top-btn console-btn" aria-label="Console" data-tooltip-key="tooltip.apricityui.devtools.console">
                 <svg class="console-mode-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.75" y="2.75" width="12.5" height="10.5"/><path d="M4 6l2 2-2 2M8 10h3"/></svg>
                 <svg class="debugger-mode-icon" viewBox="0 0 14 14" fill="currentColor"><path d="M2 2h10v10H2zm1 1v8h8V3z"/></svg>
+            </button>
+            <button class="top-btn" id="settingsButton" aria-label="Settings" data-tooltip-key="tooltip.apricityui.devtools.settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/><path d="m19.4 15 .1.1a2 2 0 0 1-2.8 2.8l-.1-.1a2 2 0 0 0-3.4 1.4V19a2 2 0 0 1-4 0v-.1a2 2 0 0 0-3.4-1.4l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A2 2 0 0 0 1.6 11H1.5a2 2 0 0 1 0-4h.1A2 2 0 0 0 3 3.6l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A2 2 0 0 0 9.2 0h.1a2 2 0 0 1 4 0h.1a2 2 0 0 0 3.4.8l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a2 2 0 0 0 1.4 3.4h.1a2 2 0 0 1 0 4h-.1a2 2 0 0 0-1.4 3.4Z" transform="translate(1.5 1.5) scale(.875)"/></svg>
             </button>
             <button type="button" class="top-btn close-devtools-btn" id="closeDevToolsBtn" aria-label="Close DevTools" data-tooltip-key="tooltip.apricityui.devtools.close">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>

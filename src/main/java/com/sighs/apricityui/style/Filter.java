@@ -213,16 +213,16 @@ public class Filter {
 
     public static void interpolateFilter(List<Transition.Change> changes, String start, String end, double progress) {
         Filter.FilterState s = Filter.parse(start, 1f), e = Filter.parse(end, 1f);
-        changes.add(new Transition.Change("filter-blur", Transition.getOffset("blur", s.blurRadius(), e.blurRadius(), progress)));
-        changes.add(new Transition.Change("filter-brightness", Transition.getOffset("bright", s.brightness(), e.brightness(), progress)));
-        changes.add(new Transition.Change("filter-grayscale", Transition.getOffset("gray", s.grayscale(), e.grayscale(), progress)));
-        changes.add(new Transition.Change("filter-invert", Transition.getOffset("inv", s.invert(), e.invert(), progress)));
-        changes.add(new Transition.Change("filter-hue-rotate", Transition.getOffset("hue", s.hueRotate(), e.hueRotate(), progress)));
-        changes.add(new Transition.Change("filter-opacity", Transition.getOffset("op", s.opacity(), e.opacity(), progress)));
-        changes.add(new Transition.Change("filter-drop-shadow-x", Transition.getOffset("drop-shadow-x", s.dropShadowX(), e.dropShadowX(), progress)));
-        changes.add(new Transition.Change("filter-drop-shadow-y", Transition.getOffset("drop-shadow-y", s.dropShadowY(), e.dropShadowY(), progress)));
-        changes.add(new Transition.Change("filter-drop-shadow-blur", Transition.getOffset("drop-shadow-blur", s.dropShadowBlur(), e.dropShadowBlur(), progress)));
-        changes.add(new Transition.Change("filter-drop-shadow-color", Transition.getOffset("drop-shadow-color", s.dropShadowColor(), e.dropShadowColor(), progress)));
+        Transition.addChange(changes, "filter-blur", Transition.getOffset("blur", s.blurRadius(), e.blurRadius(), progress));
+        Transition.addChange(changes, "filter-brightness", Transition.getOffset("bright", s.brightness(), e.brightness(), progress));
+        Transition.addChange(changes, "filter-grayscale", Transition.getOffset("gray", s.grayscale(), e.grayscale(), progress));
+        Transition.addChange(changes, "filter-invert", Transition.getOffset("inv", s.invert(), e.invert(), progress));
+        Transition.addChange(changes, "filter-hue-rotate", Transition.getOffset("hue", s.hueRotate(), e.hueRotate(), progress));
+        Transition.addChange(changes, "filter-opacity", Transition.getOffset("op", s.opacity(), e.opacity(), progress));
+        Transition.addChange(changes, "filter-drop-shadow-x", Transition.getOffset("drop-shadow-x", s.dropShadowX(), e.dropShadowX(), progress));
+        Transition.addChange(changes, "filter-drop-shadow-y", Transition.getOffset("drop-shadow-y", s.dropShadowY(), e.dropShadowY(), progress));
+        Transition.addChange(changes, "filter-drop-shadow-blur", Transition.getOffset("drop-shadow-blur", s.dropShadowBlur(), e.dropShadowBlur(), progress));
+        Transition.addChange(changes, "filter-drop-shadow-color", Transition.getOffset("drop-shadow-color", s.dropShadowColor(), e.dropShadowColor(), progress));
     }
 
     private static String serialize(FilterState state) {

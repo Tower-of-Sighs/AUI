@@ -5,6 +5,7 @@ import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Operation;
@@ -407,9 +408,13 @@ public class Client {
     private static Document findViewportZoomTargetAtMouse() {
         Position mouse = Operation.getMousePositionDirectly();
         if (mouse == null) return null;
+        boolean passThrough = ApricityUIConfig.CLIENT.viewportZoomPassThrough.get();
         for (Document document : DocumentLayerOrder.frontToBack(Document.getAll())) {
             if (document == null || document.inWorld || document.isManuallyRendered() || !document.isActive()) continue;
             if (document.hitTest(document.screenToDocumentPosition(mouse)) != null) {
+                if (passThrough && document.isReloadPersistent() && !document.interceptsMouseEvents()) {
+                    continue;
+                }
                 return document;
             }
         }
@@ -450,8 +455,12 @@ public class Client {
     public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
             CursorReleaseController.tick();
+            if (ApricityUIConfig.consumeClientReloadPending()) {
+                com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
+            }
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             Runtime.tick();
+            ResourceManager.reconcileConfiguredMode();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();

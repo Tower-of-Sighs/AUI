@@ -43,7 +43,10 @@ public class WorldWindowTestSpawner {
 
         Vec3 base = target.position().add(0.0, 1.5, 0.0);
         if (lastWindow == null) {
-            WorldWindow window = new FollowFacingWorldWindow(TEST_DOC_PATH, base, TEST_MAX_DISTANCE, TEST_FOLLOW_FACTOR);
+            WorldWindow window = new WorldWindow(TEST_DOC_PATH, base, TEST_MAX_DISTANCE);
+            window.setFollow(true);
+            window.setFollowFactor(TEST_FOLLOW_FACTOR);
+            window.setFacing(true);
             WorldWindow.addWindow(window);
             lastWindow = window;
         }

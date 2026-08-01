@@ -283,6 +283,11 @@ public class Style implements Cloneable {
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
     private static final Field[] STYLE_FIELDS;
     private static final String[] STYLE_FIELD_CSS_NAMES;
+    private static final Set<String> TEXT_PROPS = Set.of(
+            "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
+            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space", "text-overflow",
+            "line-clamp"
+    );
 
     static {
         java.util.List<Field> fields = new java.util.ArrayList<>();
@@ -1374,11 +1379,20 @@ public class Style implements Cloneable {
     }
 
     static Set<String> getTextProp() {
-        return Set.of(
-                "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
-            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space", "text-overflow",
-            "line-clamp"
-        );
+        return TEXT_PROPS;
+    }
+
+    /** Copies the mutable CSS fields without allocating another Style object. */
+    public void copyFrom(Style other) {
+        if (other == null || other == this) return;
+        for (Field field : STYLE_FIELDS) {
+            try {
+                field.set(this, field.get(other));
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+        customProperties.clear();
+        customProperties.putAll(other.customProperties);
     }
 
     public record TextStroke(double width, int color) {

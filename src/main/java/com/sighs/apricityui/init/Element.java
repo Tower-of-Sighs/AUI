@@ -16,6 +16,7 @@ import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.*;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.time.LocalDate;
@@ -1287,10 +1288,62 @@ public class Element extends Node {
 
     private static String unescapeCssString(String value) {
         if (value == null || value.isEmpty()) return "";
-        return value
-                .replace("\\\"", "\"")
-                .replace("\\'", "'")
-                .replace("\\\\", "\\");
+        StringBuilder result = new StringBuilder(value.length());
+        for (int index = 0; index < value.length();) {
+            char current = value.charAt(index++);
+            if (current != '\\') {
+                result.append(current);
+                continue;
+            }
+            if (index >= value.length()) {
+                result.append('\\');
+                break;
+            }
+
+            char escaped = value.charAt(index);
+            if (isCssHexDigit(escaped)) {
+                int codePoint = 0;
+                int digits = 0;
+                while (index < value.length() && digits < 6 && isCssHexDigit(value.charAt(index))) {
+                    codePoint = (codePoint << 4) + Character.digit(value.charAt(index++), 16);
+                    digits++;
+                }
+                if (index < value.length() && isCssWhitespace(value.charAt(index))) {
+                    if (value.charAt(index) == '\r'
+                            && index + 1 < value.length() && value.charAt(index + 1) == '\n') {
+                        index += 2;
+                    } else {
+                        index++;
+                    }
+                }
+                if (codePoint == 0 || codePoint > Character.MAX_CODE_POINT
+                        || (codePoint >= Character.MIN_SURROGATE && codePoint <= Character.MAX_SURROGATE)) {
+                    codePoint = 0xFFFD;
+                }
+                result.appendCodePoint(codePoint);
+                continue;
+            }
+            if (isCssNewline(escaped)) {
+                index++;
+                if (escaped == '\r' && index < value.length() && value.charAt(index) == '\n') index++;
+                continue;
+            }
+            result.append(escaped);
+            index++;
+        }
+        return result.toString();
+    }
+
+    private static boolean isCssHexDigit(char value) {
+        return Character.digit(value, 16) >= 0;
+    }
+
+    private static boolean isCssWhitespace(char value) {
+        return value == ' ' || value == '\t' || value == '\r' || value == '\n' || value == '\f';
+    }
+
+    private static boolean isCssNewline(char value) {
+        return value == '\r' || value == '\n' || value == '\f';
     }
 
     private void clearPseudoElementCaches() {
@@ -1854,7 +1907,13 @@ public class Element extends Node {
             setValue(String.format(Locale.ROOT, "%04d-W%02d",
                     date.get(IsoFields.WEEK_BASED_YEAR), date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
         }
-        else setValue(Double.toString(number));
+        else setValue(serializeNumberValue(number));
+    }
+
+    /** Keeps interactive numeric values decimal-safe without preserving redundant trailing zeroes. */
+    private static String serializeNumberValue(double number) {
+        if (number == 0d) return "0";
+        return BigDecimal.valueOf(number).stripTrailingZeros().toPlainString();
     }
 
     public void stepUp() {

@@ -17,7 +17,72 @@ public record Transition(String name, double start, double end, double duration,
         this(name, start, end, duration, delay, startTime, "ease");
     }
 
-    public record Change(String name, double value) {
+    public static final class Change {
+        private String name;
+        private double value;
+
+        public Change(String name, double value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        public String name() {
+            return name;
+        }
+
+        public double value() {
+            return value;
+        }
+
+        private void set(String name, double value) {
+            this.name = name;
+            this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof Change change)) return false;
+            return Double.compare(value, change.value) == 0 && Objects.equals(name, change.name);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(name, value);
+        }
+
+        @Override
+        public String toString() {
+            return "Change[name=" + name + ", value=" + value + "]";
+        }
+    }
+
+    static final class ChangeBuffer extends ArrayList<Change> {
+        private final ArrayList<Change> pool = new ArrayList<>();
+
+        void addReusable(String name, double value) {
+            int index = size();
+            Change change;
+            if (index < pool.size()) {
+                change = pool.get(index);
+                change.set(name, value);
+            } else {
+                change = new Change(name, value);
+                pool.add(change);
+            }
+            super.add(change);
+        }
+    }
+
+    private static final ThreadLocal<ChangeBuffer> CHANGE_BUFFER =
+            ThreadLocal.withInitial(ChangeBuffer::new);
+
+    public static void addChange(List<Change> changes, String name, double value) {
+        if (changes instanceof ChangeBuffer buffer) {
+            buffer.addReusable(name, value);
+        } else {
+            changes.add(new Change(name, value));
+        }
     }
 
     public static void create(Element element, Style startStyle, Style endStyle) {
@@ -136,48 +201,50 @@ public record Transition(String name, double start, double end, double duration,
         }
 
         long now = System.currentTimeMillis();
-        List<Change> changes = null;
+        ChangeBuffer changes = CHANGE_BUFFER.get();
+        changes.clear();
+        try {
+            boolean stillActive;
+            synchronized (LOCK) {
+                transitions = workList.get(element.uuid);
+                if (transitions == null || transitions.isEmpty()) return false;
 
-        boolean stillActive;
-        synchronized (LOCK) {
-            transitions = workList.get(element.uuid);
-            if (transitions == null || transitions.isEmpty()) return false;
+                for (ListIterator<Transition> it = transitions.listIterator(); it.hasNext(); ) {
+                    Transition t = it.next();
+                    if (t.startTime < 0) {
+                        t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now, t.timing);
+                        it.set(t);
+                    }
+                    if (t.duration <= 0.0) {
+                        addChange(changes, t.name, t.end);
+                        it.remove();
+                        continue;
+                    }
+                    double progress = (now - t.startTime - t.delay) / t.duration;
+                    if (progress < 0) continue;
+                    if (progress > 1) progress = 1;
 
-            for (ListIterator<Transition> it = transitions.listIterator(); it.hasNext(); ) {
-                Transition t = it.next();
-                if (t.startTime < 0) {
-                    t = new Transition(t.name, t.start, t.end, t.duration, t.delay, now, t.timing);
-                    it.set(t);
+                    addChange(changes, t.name, getOffset(t.name, t.start, t.end,
+                            Animation.applyTiming(progress, t.timing)));
+                    if (progress >= 1) it.remove();
                 }
-                if (t.duration <= 0.0) {
-                    if (changes == null) changes = new ArrayList<>();
-                    changes.add(new Change(t.name, t.end));
-                    it.remove();
-                    continue;
-                }
-                double progress = (now - t.startTime - t.delay) / t.duration;
-                if (progress < 0) continue;
-                if (progress > 1) progress = 1;
 
-                if (changes == null) changes = new ArrayList<>();
-                changes.add(new Change(t.name, getOffset(t.name, t.start, t.end,
-                        Animation.applyTiming(progress, t.timing))));
-                if (progress >= 1) it.remove();
+                if (transitions.isEmpty()) {
+                    workList.remove(element.uuid);
+                    stillActive = false;
+                } else {
+                    stillActive = true;
+                }
             }
 
-            if (transitions.isEmpty()) {
-                workList.remove(element.uuid);
-                stillActive = false;
-            } else {
-                stillActive = true;
+            if (!changes.isEmpty()) {
+                applyChanges(originStyle, changes);
             }
-        }
 
-        if (changes != null && !changes.isEmpty()) {
-            applyChanges(originStyle, changes);
+            return stillActive;
+        } finally {
+            changes.clear();
         }
-
-        return stillActive;
     }
 
     public static void applyChanges(Style style, List<Change> changes) {

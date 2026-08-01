@@ -33,7 +33,7 @@ final class MotionTrack {
 
     private final Document owner;
     private final ConcurrentHashMap<Element, Integer> flags = new ConcurrentHashMap<>();
-    private final ConcurrentHashMap<Element, Style> lastMotionStyles = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<Element, MotionStyles> lastMotionStyles = new ConcurrentHashMap<>();
     private final Set<Element> hitTestRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Element> layoutRoots = Collections.newSetFromMap(new IdentityHashMap<>());
     private final Set<Element> geometryRoots = Collections.newSetFromMap(new IdentityHashMap<>());
@@ -106,7 +106,11 @@ final class MotionTrack {
 
             visualChanges = true;
 
-            Style animated = base.clone();
+            MotionStyles motionStyles = lastMotionStyles.computeIfAbsent(element, ignored -> new MotionStyles());
+            Style previousMotionStyle = motionStyles.initialized ? motionStyles.last : null;
+            Style animated = motionStyles.work;
+            Style previousBuffer = motionStyles.last;
+            animated.copyFrom(base);
             boolean completedLayoutTransition = false;
             boolean completedTransformTransition = false;
             boolean completedRectTransition = false;
@@ -131,13 +135,15 @@ final class MotionTrack {
                 Animation.updateStyle(element, animated);
             }
             // 为当帧提供“带 motion 的 computed style”
-            Style previousMotionStyle = lastMotionStyles.put(element, animated);
             requiresGeometryCommit |= invalidateMotionCaches(
                     element,
                     previousMotionStyle == null ? base : previousMotionStyle,
                     animated
             );
             StyleFrameCache.put(element, animated);
+            motionStyles.last = animated;
+            motionStyles.work = previousBuffer;
+            motionStyles.initialized = true;
 
             // CSS color is inherited.  A parent's transition is composited after
             // its base style is resolved, so descendants must sample that frame
@@ -317,5 +323,11 @@ final class MotionTrack {
         if (!flags.containsKey(element)) {
             lastMotionStyles.remove(element);
         }
+    }
+
+    private static final class MotionStyles {
+        Style last = new Style();
+        Style work = new Style();
+        boolean initialized;
     }
 }

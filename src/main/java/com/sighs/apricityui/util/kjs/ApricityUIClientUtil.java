@@ -3,10 +3,12 @@ package com.sighs.apricityui.util.kjs;
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
+import com.sighs.apricityui.instance.ApricityScreen;
 import com.sighs.apricityui.instance.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.WorldWindow;
 import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
+import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
 import java.util.ArrayList;
@@ -36,6 +38,14 @@ public class ApricityUIClientUtil {
 
     public static Document getDocumentByUUID(String uuid) {
         return Document.getByUUID(uuid);
+    }
+
+    /** Returns the document currently bound to the active {@link ApricityScreen}, or {@code null}. */
+    public static Document getCurrentScreenDocument() {
+        if (Minecraft.getInstance().screen instanceof ApricityScreen screen) {
+            return screen.getLinkedDocument();
+        }
+        return null;
     }
 
     public static List<Document> getAllDocument() {
@@ -134,12 +144,22 @@ public class ApricityUIClientUtil {
         return window;
     }
 
+    /**
+     * @deprecated Use {@link #createWorldWindow(String, double, double, double, int)}
+     *             and configure follow/facing on the returned window.
+     */
+    @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(path, new Vec3(x, y, z), maxDistance, followFactor);
         WorldWindow.addWindow(window);
         return window;
     }
 
+    /**
+     * @deprecated Use {@link #createWorldWindow(String, double, double, double, int)}
+     *             and configure follow/facing on the returned window.
+     */
+    @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path,
                                                                          double x, double y, double z,
                                                                          int maxDistance,

@@ -70,6 +70,25 @@ public final class ResourceManager {
         return toolDocument != null && !toolDocument.isDisposed();
     }
 
+    /** Switches an already-open resource manager when its display-mode config changes. */
+    public static void reconcileConfiguredMode() {
+        if (!isOpen()) return;
+
+        boolean wantsWorldWindow = ApricityUIConfig.CLIENT.resourceManagerWorldWindow.get();
+        boolean isWorldWindow = worldWindow != null && toolDocument == worldWindow.document;
+        if (wantsWorldWindow == isWorldWindow) return;
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (wantsWorldWindow
+                && (minecraft == null || minecraft.level == null
+                || minecraft.screen != null || minecraft.player == null)) {
+            return;
+        }
+
+        close();
+        open();
+    }
+
     public static void toggle() {
         if (isOpen()) {
             close();
