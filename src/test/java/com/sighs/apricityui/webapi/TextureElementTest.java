@@ -4,7 +4,7 @@ import com.sighs.apricityui.element.Texture;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.resource.HTML;
-import org.junit.jupiter.api.Assumptions;
+import com.sighs.apricityui.test.TestRuntime;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
@@ -52,15 +52,7 @@ class TextureElementTest {
     }
 
     private static void assumeMinecraftResourceRuntime() {
-        Assumptions.assumeTrue(isClassPresent("net.minecraft.resources.ResourceLocation"));
+        TestRuntime.assumeClassUsable("net.minecraft.resources.ResourceLocation", "texture resource locations");
     }
 
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name);
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
-    }
 }

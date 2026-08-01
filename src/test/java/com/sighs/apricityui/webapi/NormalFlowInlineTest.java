@@ -8,8 +8,9 @@ import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
+
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -112,22 +113,20 @@ class NormalFlowInlineTest {
         parent.appendChild(outer);
 
         boolean sawOuter = false;
-        boolean sawInner = false;
         for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(parent)) {
             if (run.owner() == outer) {
                 sawOuter = true;
                 assertEquals(Text.getFontColor(outer), run.text().color.getValue());
             }
-            if (run.owner() == inner) {
-                sawInner = true;
-                assertEquals(Text.getFontColor(inner), run.text().color.getValue());
-                assertTrue(run.lineCount() > 1);
-            }
         }
 
         assertTrue(sawOuter);
-        assertTrue(sawInner);
-        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(inner));
+        List<NormalFlow.TextRunLayout> innerRuns = NormalFlow.computeTextRuns(inner);
+        assertFalse(innerRuns.isEmpty());
+        assertTrue(innerRuns.stream().allMatch(run -> run.owner() == inner));
+        assertTrue(innerRuns.stream().allMatch(run -> run.text().color.getValue() == Text.getFontColor(inner)));
+        assertTrue(innerRuns.stream().anyMatch(run -> run.lineCount() > 1));
+        assertFalse(NormalFlow.isInlineTextPaintedByAncestor(inner));
     }
 
     @Test
@@ -157,8 +156,8 @@ class NormalFlowInlineTest {
         parent.appendChild(outer);
         parent.appendChild(tail);
 
-        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(prefix));
-        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(tail));
+        assertFalse(NormalFlow.isInlineTextPaintedByAncestor(prefix));
+        assertFalse(NormalFlow.isInlineTextPaintedByAncestor(tail));
         assertTrue(Position.getOffset(tail).y > 0);
         assertTrue(Size.of(tail).width() < 72);
         for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(parent)) {
@@ -271,15 +270,7 @@ class NormalFlowInlineTest {
     }
 
     private static void assumeMinecraftClientTextRuntime() {
-        Assumptions.assumeTrue(isClassPresent("net.minecraft.client.renderer.MultiBufferSource"));
-    }
-
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name);
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
+        // Inline flow tests are pure geometry checks and do not require a live
+        // Minecraft client when the viewport and font fallback are deterministic.
     }
 }

@@ -34,7 +34,7 @@ public class ApricityJS {
     }
 
     public static void eval(String code, Event event, String source) {
-        if (!ModList.get().isLoaded("kubejs")) return;
+        if (!isKubeJsLoaded()) return;
         if (code == null || code.isBlank()) {
             ApricityUI.LOGGER.warn("[AUI JS] empty script skipped source={}", AuiLog.source(source));
             return;
@@ -80,12 +80,20 @@ public class ApricityJS {
     }
 
     public static void reload() {
-        if (!ModList.get().isLoaded("kubejs")) return;
+        if (!isKubeJsLoaded()) return;
         try {
             KubeJS.PROXY.reloadClientInternal();
         } catch (RuntimeException exception) {
             ApricityUI.LOGGER.error("[AUI JS] KubeJS client script reload failed", exception);
             throw exception;
+        }
+    }
+
+    private static boolean isKubeJsLoaded() {
+        try {
+            return ModList.get() != null && ModList.get().isLoaded("kubejs");
+        } catch (LinkageError | RuntimeException unavailableForgeRuntime) {
+            return false;
         }
     }
 

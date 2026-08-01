@@ -17,10 +17,10 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.CSS;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
-import java.awt.Canvas;
+import java.awt.font.FontRenderContext;
+import java.awt.geom.AffineTransform;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
@@ -1224,13 +1224,14 @@ class LayoutPositionTest {
         Text text = Text.of(title);
         int style = text.isBold() ? java.awt.Font.BOLD : java.awt.Font.PLAIN;
         var runs = Font.planFontRuns(text.fontFamily, style, Font.getBaseFontSize(), content);
-        Canvas metrics = new Canvas();
         double scale = text.renderedFontSize() / Font.getBaseFontSize();
-        double expected = Font.measureFontRuns(runs, metrics::getFontMetrics, text.letterSpacing / scale, true) * scale;
+        FontRenderContext browserMetrics = new FontRenderContext(new AffineTransform(), true, true);
+        double expected = Font.measureFontRuns(runs, browserMetrics, text.letterSpacing / scale, true) * scale;
 
         assertEquals(expected, Text.measureLine(text, content), 0.01);
-        double rasterAdvance = Font.measureFontRuns(runs, metrics::getFontMetrics, text.letterSpacing / scale, false) * scale;
-        assertEquals(text.letterSpacing, expected - rasterAdvance, 0.01);
+        double withoutTrailingSpacing = Font.measureFontRuns(
+                runs, browserMetrics, text.letterSpacing / scale, false) * scale;
+        assertEquals(text.letterSpacing, expected - withoutTrailingSpacing, 0.01);
     }
 
     @Test
@@ -1890,7 +1891,9 @@ class LayoutPositionTest {
     }
 
     private static void assumeMinecraftClientTextRuntime() {
-        Assumptions.assumeTrue(isClassPresent("net.minecraft.client.renderer.MultiBufferSource"));
+        // Text/layout assertions use the deterministic AWT font fallback in the
+        // headless JVM test task; Minecraft font rendering is covered by the
+        // client integration smoke suite.
     }
 
     private static void setViewport(Document document, int width, int height) throws Exception {
@@ -1901,15 +1904,6 @@ class LayoutPositionTest {
         Field viewport = Document.class.getDeclaredField("viewport");
         viewport.setAccessible(true);
         viewport.set(document, new ApricityViewport(width, height, 1.0f, scissorScale));
-    }
-
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name);
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
     }
 
     private static final class CaretTestInput extends Input {

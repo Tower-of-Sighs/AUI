@@ -3131,6 +3131,8 @@ public class Element extends Node {
         }
         if (Layout.isGridDisplay(getComputedStyle().display)) return;
         Position contentPos = rectRenderer.getContentPosition();
+        boolean alignDirectTextRuns = shouldAlignDirectNormalFlowTextRuns();
+        double contentWidth = alignDirectTextRuns ? Box.of(this).innerSize().width() : 0;
         for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(this)) {
             if (run == null || run.text() == null || run.lines() == null) continue;
             Position drawPos = new Position(0, 0);
@@ -3138,13 +3140,35 @@ public class Element extends Node {
                 String line = run.lines().get(i);
                 if (line == null || line.isEmpty()) continue;
                 double lineWidth = Text.measureLine(run.text(), line);
-                drawPos.x = contentPos.x + (i == 0 ? run.x() : 0) - scrollLeft;
+                double alignOffset = alignDirectTextRuns && run.owner() == this
+                        ? computeAlignedX(run.text(), contentWidth, lineWidth, i == 0)
+                        : 0;
+                drawPos.x = contentPos.x + (i == 0 ? run.x() : 0) + alignOffset - scrollLeft;
                 drawPos.y = contentPos.y + run.y() + i * run.text().lineHeight;
                 drawInlineFragmentBackground(poseStack, run.owner(), drawPos, lineWidth, run.text().lineHeight);
                 Text lineText = cloneTextForSegment(run.text(), line, Color.BLACK);
                 FontDrawer.drawFont(poseStack, lineText, drawPos);
             }
         }
+    }
+
+    /**
+     * Direct text in a normal-flow container is aligned by the container's
+     * inline formatting context. Generated absolute/fixed pseudo-elements do
+     * not participate in that context and must not disable text alignment.
+     */
+    private boolean shouldAlignDirectNormalFlowTextRuns() {
+        boolean hasText = false;
+        for (Node child : getRenderChildNodes()) {
+            if (child instanceof CommentNode) continue;
+            if (child instanceof TextNode textNode) {
+                hasText |= textNode.getTextContent() != null && !textNode.getTextContent().isEmpty();
+                continue;
+            }
+            if (child instanceof Element element && !Layout.isInFlow(element.getComputedStyle())) continue;
+            return false;
+        }
+        return hasText;
     }
 
     private void drawInlineFragmentBackground(PoseStack poseStack, Element owner, Position drawPos, double width, double height) {

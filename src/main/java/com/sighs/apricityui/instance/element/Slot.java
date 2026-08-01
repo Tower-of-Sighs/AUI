@@ -32,7 +32,9 @@ public class Slot extends MinecraftElement {
      * 由 SlotDataBinder 注入的视图接口，绑定态时非 null。
      */
     private SlotView view = null;
-    private ItemStack virtualStack = ItemStack.EMPTY;
+    // Keep DOM-only Slot construction independent from Minecraft's registry
+    // bootstrap. The stack is populated lazily when the client tick path runs.
+    private ItemStack virtualStack;
 
     private SlotDisplaySpec displaySpec = SlotDisplaySpec.EMPTY;
     private String compiledSignature = "";
@@ -251,7 +253,7 @@ public class Slot extends MinecraftElement {
         // 绑定态 tooltip 由 Screen 层处理
         if (hasView()) return ItemStack.EMPTY;
         ItemStack stack = virtualStack;
-        if (stack.isEmpty()) return ItemStack.EMPTY;
+        if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
         return stack.copy();
     }
 

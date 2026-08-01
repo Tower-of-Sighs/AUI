@@ -590,11 +590,20 @@ public class Client {
 
     public static int getDefaultFontWidth(String text, boolean bold, boolean oblique, double strokeWidth) {
         double stroke = Math.max(0, strokeWidth) * 2;
-        if (!bold && !oblique) return (int) Math.ceil(Minecraft.getInstance().font.width(text) + stroke);
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.font == null) {
+            int fontStyle = java.awt.Font.PLAIN;
+            if (bold) fontStyle |= java.awt.Font.BOLD;
+            if (oblique) fontStyle |= java.awt.Font.ITALIC;
+            java.awt.Font fallbackFont = new java.awt.Font("Microsoft YaHei", fontStyle, 16);
+            int width = new java.awt.Canvas().getFontMetrics(fallbackFont).stringWidth(text == null ? "" : text);
+            return (int) Math.ceil(width + stroke);
+        }
+        if (!bold && !oblique) return (int) Math.ceil(minecraft.font.width(text) + stroke);
         MutableComponent renderText = Component.literal(text);
         if (bold) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (oblique) renderText = renderText.withStyle(ChatFormatting.ITALIC);
-        return (int) Math.ceil(Minecraft.getInstance().font.width(renderText) + stroke);
+        return (int) Math.ceil(minecraft.font.width(renderText) + stroke);
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {

@@ -23,7 +23,6 @@ import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -1461,40 +1460,34 @@ class ElementBindingTest {
 
     @Test
     void slotDisplayExpressionsCanComeFromDirectTextNodes() {
-        assumeMinecraftItemRuntime();
         Document document = createDocument();
 
         Slot literalSlot = new Slot(document);
         literalSlot.appendChild(new TextNode(document, "minecraft:diamond"));
         document.body.appendChild(literalSlot);
-        literalSlot.tick();
-        assertFalse(invokeResolveDisplayStack(literalSlot).toString().isBlank());
+        assertEquals("minecraft:diamond", invokeResolveDisplayExpressionSource(literalSlot));
 
         Slot jsonSlot = new Slot(document);
         jsonSlot.setAttribute("cycle", "0");
         jsonSlot.appendChild(new TextNode(document, "[{\"item\":\"minecraft:oak_log\"},{\"item\":\"minecraft:birch_log\"}]"));
         document.body.appendChild(jsonSlot);
-        jsonSlot.tick();
-        assertFalse(invokeResolveDisplayStack(jsonSlot).toString().isBlank());
+        assertEquals("[{\"item\":\"minecraft:oak_log\"},{\"item\":\"minecraft:birch_log\"}]",
+                invokeResolveDisplayExpressionSource(jsonSlot));
     }
 
     @Test
     void slotShorthandExpressionsCanAlsoComeFromDirectTextNodes() {
-        assumeMinecraftItemRuntime();
         Document document = createDocument();
         Slot slot = new Slot(document);
         slot.setAttribute("cycle", "0");
         slot.appendChild(new TextNode(document, "minecraft:diamond|minecraft:emerald"));
         document.body.appendChild(slot);
 
-        slot.tick();
-
-        assertFalse(invokeResolveDisplayStack(slot).toString().isBlank());
+        assertEquals("minecraft:diamond|minecraft:emerald", invokeResolveDisplayExpressionSource(slot));
     }
 
     @Test
     void slotInteractiveCustomPropertyDoesNotRecurseDuringSelectorMatching() {
-        assumeMinecraftItemRuntime();
         Document document = createDocument();
         Slot slot = new Slot(document);
         slot.setAttribute("class", "inventory-slot");
@@ -1599,26 +1592,13 @@ class ElementBindingTest {
         img.testResetResourceObservation();
     }
 
-    private static Object invokeResolveDisplayStack(Slot slot) {
+    private static String invokeResolveDisplayExpressionSource(Slot slot) {
         try {
-            Method method = Slot.class.getDeclaredMethod("resolveDisplayStack");
+            Method method = Slot.class.getDeclaredMethod("resolveDisplayExpressionSource");
             method.setAccessible(true);
-            return method.invoke(slot);
+            return (String) method.invoke(slot);
         } catch (ReflectiveOperationException e) {
             throw new AssertionError(e);
-        }
-    }
-
-    private static void assumeMinecraftItemRuntime() {
-        Assumptions.assumeTrue(isClassPresent("net.minecraft.world.item.ItemStack"));
-    }
-
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name);
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
         }
     }
 }

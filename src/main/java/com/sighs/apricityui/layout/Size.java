@@ -42,14 +42,12 @@ public record Size(double width, double height) {
     }
 
     public static Size getWindowSize() {
+        Size override = viewportOverride;
+        if (override != null) return override;
         Document context = Document.getContextDocument();
         if (context != null && context.isActive()) {
             com.sighs.apricityui.instance.ApricityViewport viewport = context.getViewport();
             return new Size(viewport.layoutWidth(), viewport.layoutHeight());
-        }
-        Size override = viewportOverride;
-        if (override != null) {
-            return override;
         }
         String widthOverride = System.getProperty("aui.test.viewport.width");
         String heightOverride = System.getProperty("aui.test.viewport.height");
@@ -67,14 +65,34 @@ public record Size(double width, double height) {
         }
     }
 
-    public static double getWindowWidth() {
-        Document context = Document.getContextDocument();
-        if (context != null && context.isActive()) {
-            return context.getViewport().layoutWidth();
+    /**
+     * Returns the deterministic viewport used when no Minecraft client window exists.
+     * Unlike {@link #getWindowSize()}, this deliberately ignores the active document
+     * context so one headless document cannot leak its viewport into another test.
+     */
+    public static Size getHeadlessWindowSize() {
+        Size override = viewportOverride;
+        if (override != null) return override;
+
+        String widthOverride = System.getProperty("aui.test.viewport.width");
+        String heightOverride = System.getProperty("aui.test.viewport.height");
+        if (widthOverride != null || heightOverride != null) {
+            Double parsedWidth = parseNumber(widthOverride);
+            Double parsedHeight = parseNumber(heightOverride);
+            return new Size(parsedWidth == null ? 1920 : parsedWidth,
+                    parsedHeight == null ? 1080 : parsedHeight);
         }
+        return new Size(1920, 1080);
+    }
+
+    public static double getWindowWidth() {
         Size override = viewportOverride;
         if (override != null) {
             return override.width;
+        }
+        Document context = Document.getContextDocument();
+        if (context != null && context.isActive()) {
+            return context.getViewport().layoutWidth();
         }
         String widthOverride = System.getProperty("aui.test.viewport.width");
         if (widthOverride != null) {
@@ -89,13 +107,13 @@ public record Size(double width, double height) {
     }
 
     public static double getWindowHeight() {
-        Document context = Document.getContextDocument();
-        if (context != null && context.isActive()) {
-            return context.getViewport().layoutHeight();
-        }
         Size override = viewportOverride;
         if (override != null) {
             return override.height;
+        }
+        Document context = Document.getContextDocument();
+        if (context != null && context.isActive()) {
+            return context.getViewport().layoutHeight();
         }
         String heightOverride = System.getProperty("aui.test.viewport.height");
         if (heightOverride != null) {

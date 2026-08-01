@@ -13,7 +13,6 @@ import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -124,7 +123,9 @@ class ResourceManagerScrollTest {
             assertTrue(content.hasVerticalScrollRange(), "resource grid should create a vertical scroll range");
 
             Position position = Position.of(content);
-            MouseEvent wheel = new MouseEvent("wheel", new Position(position.x + 20, position.y + 80), -1, false);
+            Position screenPosition = document.documentToScreenPosition(
+                    new Position(position.x + 20, position.y + 80));
+            MouseEvent wheel = new MouseEvent("wheel", screenPosition, -1, false);
             wheel.scrollDelta = 80;
             boolean consumed = MouseEvent.tiggerEvent(wheel, document);
             assertTrue(consumed);
@@ -137,7 +138,6 @@ class ResourceManagerScrollTest {
 
     @Test
     void wrappedFileNamesReserveSpaceBeforeFileMetadata() throws Exception {
-        Assumptions.assumeTrue(isClassPresent("net.minecraft.client.renderer.MultiBufferSource"));
         Size.setViewportOverride(1463, 843);
         Document document = createManagerDocument("test://resource-manager-wrapped-file-names", List.of(
                 entry("tests/absolute-pseudo-percent-width.html", "html", 2_400),
@@ -342,12 +342,4 @@ class ResourceManagerScrollTest {
         return Files.readString(TEMPLATE);
     }
 
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name);
-            return true;
-        } catch (ClassNotFoundException exception) {
-            return false;
-        }
-    }
 }
