@@ -319,8 +319,19 @@ public interface Transform {
     }
 
     static void interpolateTransform(List<Transition.Change> changes, String start, String end, double progress) {
-        List<Transform> sTs = new ArrayList<>(Transform.parse(start));
-        List<Transform> eTs = new ArrayList<>(Transform.parse(end));
+        Size window = Size.getWindowSize();
+        interpolateTransform(changes, start, end, progress, window.width(), window.height());
+    }
+
+    /**
+     * Interpolates transform lengths using the transformed element's box as the
+     * percentage basis. CSS translate percentages are relative to that box,
+     * rather than the viewport used by the convenience parser above.
+     */
+    static void interpolateTransform(List<Transition.Change> changes, String start, String end,
+                                     double progress, double percentBasisWidth, double percentBasisHeight) {
+        List<Transform> sTs = new ArrayList<>(Transform.parse(start, percentBasisWidth, percentBasisHeight));
+        List<Transform> eTs = new ArrayList<>(Transform.parse(end, percentBasisWidth, percentBasisHeight));
 
         int size = padWithIdentityTransforms(sTs, eTs);
         for (int i = 0; i < size; i++) {

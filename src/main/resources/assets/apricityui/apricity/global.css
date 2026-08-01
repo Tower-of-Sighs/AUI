@@ -98,10 +98,6 @@ input {
     width: 64px;
     overflow: hidden;
 }
-input:focus {
-    background-color: #fff;
-}
-
 /* Chromium paints a disabled native select as a faded control even when
  * author styles provide its border, background and inset shadow. ApricityUI
  * owns the select renderer, so reproduce that native disabled-state

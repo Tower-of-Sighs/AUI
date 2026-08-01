@@ -38,6 +38,7 @@ public class Select extends Element {
             case SHADOW -> rectRenderer.drawShadow(poseStack);
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
+                Base.offsetPaintDepth(poseStack, 0.16f);
                 Text text = Text.of(this);
                 text.content = selectedLabel();
                 com.sighs.apricityui.layout.Position contentPosition = rectRenderer.getContentPosition();

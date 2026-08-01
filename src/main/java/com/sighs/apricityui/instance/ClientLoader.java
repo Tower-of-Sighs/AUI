@@ -89,7 +89,7 @@ public class ClientLoader extends Loader {
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
         FontDrawer.clearCache();
-        Font.clear();
+        Font.prepareReload();
 
         long scanStartNs = System.nanoTime();
         HTML.scan();

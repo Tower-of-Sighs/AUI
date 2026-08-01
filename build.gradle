@@ -47,12 +47,16 @@ legacyForge {
                         if (project.hasProperty('auiVerboseLogs')) {
                             systemProperty 'apricityui.test.verboseLogs', project.property('auiVerboseLogs')
                         }
-                        if (project.hasProperty('auiLogRenderPhases')) {
+            if (project.hasProperty('auiLogRenderPhases')) {
                 systemProperty 'apricityui.test.logRenderPhases', project.property('auiLogRenderPhases')
             }
             if (project.hasProperty('auiWindowWidth')) {
                 programArgument '--width'
                 programArgument project.property('auiWindowWidth').toString()
+            }
+            if (project.hasProperty('auiQuickPlaySingleplayer')) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument project.property('auiQuickPlaySingleplayer').toString()
             }
             if (project.hasProperty('auiWindowHeight')) {
                 programArgument '--height'

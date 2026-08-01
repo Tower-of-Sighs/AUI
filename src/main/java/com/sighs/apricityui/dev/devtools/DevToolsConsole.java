@@ -20,6 +20,7 @@ import java.util.regex.Pattern;
 /** Java event bridge for the console markup copied from devtools0.html. */
 final class DevToolsConsole {
     private static final int MAX_LOG_ENTRIES = 2000;
+    private static final int MAX_EXTERNAL_LOGS_PER_TICK = 128;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss.SSS");
     private static final Pattern SELECT_PATTERN = Pattern.compile("^select\\((\\d+)\\)$", Pattern.CASE_INSENSITIVE);
     private static final Pattern QUERY_PATTERN = Pattern.compile("^(\\$\\$?|querySelectorAll)\\((.+)\\)$", Pattern.CASE_INSENSITIVE);
@@ -53,6 +54,12 @@ final class DevToolsConsole {
     private boolean wrap;
     private Document boundDocument;
     private boolean initialized;
+    private int renderedLogCount = -1;
+    private Filter renderedFilter;
+    private String renderedSearch = "";
+    private boolean logWindowTruncated;
+    private int pendingAppendedLogCount;
+    private int pendingRemovedLogCount;
 
     DevToolsConsole(DevToolsController controller) {
         this.controller = controller;
@@ -68,6 +75,12 @@ final class DevToolsConsole {
             bindInput(document);
             bindHints(document);
             boundDocument = document;
+            renderedLogCount = -1;
+            renderedFilter = null;
+            renderedSearch = "";
+            logWindowTruncated = false;
+            pendingAppendedLogCount = 0;
+            pendingRemovedLogCount = 0;
         }
         if (!initialized) {
             initialized = true;
@@ -78,14 +91,13 @@ final class DevToolsConsole {
             addLog("warn", "Deprecated API usage detected at header.site-header", "compat",
                     "  at checkCompat (audit.js:128)\n  at onPageLoad (lifecycle.js:42)");
             addLog("info", "3 stylesheets loaded · 0 blocking", "network", null);
-        } else {
-            render();
         }
         if (controller.isConsoleMode()) drainExternalLogs();
     }
 
     void drainExternalLogs() {
-        List<DevToolsLogBridge.ConsoleLog> externalLogs = DevToolsLogBridge.drain();
+        List<DevToolsLogBridge.ConsoleLog> externalLogs =
+                DevToolsLogBridge.drain(MAX_EXTERNAL_LOGS_PER_TICK);
         if (externalLogs.isEmpty()) return;
         for (DevToolsLogBridge.ConsoleLog external : externalLogs) {
             appendLog(external.level(), external.text(), external.source(), external.stack(), external.time());
@@ -205,6 +217,9 @@ final class DevToolsConsole {
 
     private void clear() {
         logs.clear();
+        logWindowTruncated = false;
+        pendingAppendedLogCount = 0;
+        pendingRemovedLogCount = 0;
         addLog("system", "Console cleared.", "system", null);
     }
 
@@ -361,8 +376,13 @@ final class DevToolsConsole {
                 stack,
                 time == null || time.isBlank() ? LocalTime.now().format(TIME_FORMAT) : time
         ));
+        pendingAppendedLogCount++;
         int overflow = logs.size() - MAX_LOG_ENTRIES;
-        if (overflow > 0) logs.subList(0, overflow).clear();
+        if (overflow > 0) {
+            logs.subList(0, overflow).clear();
+            logWindowTruncated = true;
+            pendingRemovedLogCount += overflow;
+        }
     }
 
     private void render() {
@@ -370,21 +390,94 @@ final class DevToolsConsole {
         if (document == null) return;
         Element container = document.querySelector("#consoleLogs");
         if (container == null) return;
-        DevToolsDom.clear(container);
         String search = DevToolsDom.value(document.querySelector("#consoleSearch")).toLowerCase(Locale.ROOT);
-        int visible = 0;
-        for (LogEntry log : logs) {
-            if (!matchesFilter(log) || (!search.isBlank() && !log.text.toLowerCase(Locale.ROOT).contains(search))) continue;
-            container.append(renderLog(document, log));
-            visible++;
+
+        int appendedStart = Math.max(0, logs.size() - pendingAppendedLogCount);
+        boolean sameView = renderedLogCount >= 0
+                && renderedFilter == filter
+                && renderedSearch.equals(search)
+                && renderedLogCount <= logs.size();
+        boolean canAppend = sameView
+                && !logWindowTruncated
+                && appendedStart == renderedLogCount;
+        boolean canTrimAndAppend = sameView
+                && logWindowTruncated
+                && filter == Filter.ALL
+                && search.isBlank()
+                && pendingRemovedLogCount > 0
+                && pendingRemovedLogCount <= renderedLogCount
+                && appendedStart == renderedLogCount - pendingRemovedLogCount
+                && container.getChildElementCount() >= pendingRemovedLogCount;
+        if (canAppend) {
+            int visible = appendRenderedLogs(document, container, appendedStart, logs.size(), true, search);
+            if (visible > 0) removeEmptyState(container);
+            finishIncrementalRender(document, container, search);
+            return;
         }
+        if (canTrimAndAppend) {
+            for (int i = 0; i < pendingRemovedLogCount; i++) {
+                Element first = container.getFirstElementChild();
+                if (first == null) break;
+                first.remove();
+            }
+            appendRenderedLogs(document, container, appendedStart, logs.size(), false, search);
+            finishIncrementalRender(document, container, search);
+            return;
+        }
+
+        DevToolsDom.clear(container);
+        Node fragment = document.createDocumentFragment();
+        int visible = appendRenderedLogs(document, fragment, 0, logs.size(), true, search);
         if (visible == 0) {
             String empty = logs.isEmpty() ? "NO LOGS YET · TYPE \"help\" TO GET STARTED" : "NO MATCHING ENTRIES";
-            Element state = DevToolsDom.text(document, "DIV", "console-empty-state", empty);
-            state.setAttribute("style", "padding:40px 20px;text-align:center;color:var(--gray);font-size:11px;letter-spacing:1px;");
-            container.append(state);
+            fragment.appendChild(emptyState(document, empty));
         }
+        container.appendChild(fragment);
         updateCounts(document);
+        renderedLogCount = logs.size();
+        renderedFilter = filter;
+        renderedSearch = search;
+        logWindowTruncated = false;
+        pendingAppendedLogCount = 0;
+        pendingRemovedLogCount = 0;
+        container.scrollTop = container.scrollHeight;
+        DevToolsDom.markDirty(document);
+    }
+
+    private int appendRenderedLogs(Document document, Node parent,
+                                   int start, int end, boolean applyView, String search) {
+        Node fragment = document.createDocumentFragment();
+        int visible = 0;
+        for (int i = start; i < end; i++) {
+            LogEntry log = logs.get(i);
+            if (applyView && (!matchesFilter(log)
+                    || (!search.isBlank() && !log.text.toLowerCase(Locale.ROOT).contains(search)))) continue;
+            fragment.appendChild(renderLog(document, log));
+            visible++;
+        }
+        if (visible > 0) parent.appendChild(fragment);
+        return visible;
+    }
+
+    private Element emptyState(Document document, String text) {
+        Element state = DevToolsDom.text(document, "DIV", "console-empty-state", text);
+        state.setAttribute("style", "padding:40px 20px;text-align:center;color:var(--gray);font-size:11px;letter-spacing:1px;");
+        return state;
+    }
+
+    private void removeEmptyState(Element container) {
+        Element state = container.querySelector(".console-empty-state");
+        if (state != null) state.remove();
+    }
+
+    private void finishIncrementalRender(Document document, Element container, String search) {
+        updateCounts(document);
+        renderedLogCount = logs.size();
+        renderedFilter = filter;
+        renderedSearch = search;
+        logWindowTruncated = false;
+        pendingAppendedLogCount = 0;
+        pendingRemovedLogCount = 0;
         container.scrollTop = container.scrollHeight;
         DevToolsDom.markDirty(document);
     }

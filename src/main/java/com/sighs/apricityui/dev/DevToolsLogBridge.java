@@ -101,8 +101,14 @@ public final class DevToolsLogBridge {
 
     /** Drains pending events. This method is called only from the client thread. */
     public static List<ConsoleLog> drain() {
+        return drain(Integer.MAX_VALUE);
+    }
+
+    /** Drains at most maxEntries events for one client tick. */
+    public static List<ConsoleLog> drain(int maxEntries) {
+        if (maxEntries <= 0) return List.of();
         ArrayList<ConsoleLog> drained = new ArrayList<>();
-        PENDING.drainTo(drained);
+        PENDING.drainTo(drained, maxEntries);
         return drained;
     }
 

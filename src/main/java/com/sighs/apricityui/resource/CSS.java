@@ -138,6 +138,10 @@ public class CSS {
 
                 String hrefValue = findAttrValue(attrText, "href");
                 if (hrefValue != null && !hrefValue.isEmpty()) {
+                    if (isBinaryStylesheetResource(hrefValue)) {
+                        linkMatcher.appendReplacement(linkFree, "");
+                        continue;
+                    }
                     cachedStyleSrcs.add(hrefValue);
                 } else {
                     ApricityUI.LOGGER.warn(
@@ -159,6 +163,21 @@ public class CSS {
                 if ("stylesheet".equalsIgnoreCase(token)) return true;
             }
             return false;
+        }
+
+        private static boolean isBinaryStylesheetResource(String href) {
+            if (href == null || href.isBlank()) return false;
+            String path = href.trim();
+            int query = path.indexOf('?');
+            if (query >= 0) path = path.substring(0, query);
+            int fragment = path.indexOf('#');
+            if (fragment >= 0) path = path.substring(0, fragment);
+            String lower = path.toLowerCase(Locale.ROOT);
+            return lower.endsWith(".woff")
+                    || lower.endsWith(".woff2")
+                    || lower.endsWith(".ttf")
+                    || lower.endsWith(".otf")
+                    || lower.endsWith(".eot");
         }
 
         private static String findAttrValue(String attrText, String attrName) {
