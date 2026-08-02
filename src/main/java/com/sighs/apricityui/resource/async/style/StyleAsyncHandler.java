@@ -1,7 +1,7 @@
 package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;

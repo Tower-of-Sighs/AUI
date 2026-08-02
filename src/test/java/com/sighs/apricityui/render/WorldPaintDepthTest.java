@@ -1,7 +1,7 @@
 package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.webapi.TestDocumentFactory;
 import org.junit.jupiter.api.Test;

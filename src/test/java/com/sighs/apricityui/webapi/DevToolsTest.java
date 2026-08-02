@@ -5,8 +5,8 @@ import com.sighs.apricityui.dev.devtools.DevToolsController;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.FrameTaskScheduler;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.layout.Position;
@@ -20,6 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.render.Drawer;
 
 class DevToolsTest {
     private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/devtools.html");
@@ -328,7 +329,7 @@ class DevToolsTest {
             assertNotNull(targetElement);
             assertFalse(pick.getClassNames().contains("active"));
 
-            target.markDirty(target.body, com.sighs.apricityui.init.Drawer.REORDER);
+            target.markDirty(target.body, com.sighs.apricityui.render.Drawer.REORDER);
             target.commitRenderState();
             Element.DOMRect targetRect = targetElement.getBoundingClientRect();
             Position targetCenter = target.documentToScreenPosition(new Position(
@@ -360,7 +361,7 @@ class DevToolsTest {
             assertTrue(marginTopHighlight.getBoundingClientRect().height > 0);
             assertTrue(borderTopHighlight.getBoundingClientRect().height > 0);
             assertTrue(paddingTopHighlight.getBoundingClientRect().height > 0);
-            tool.markDirty(tool.body, com.sighs.apricityui.init.Drawer.REORDER);
+            tool.markDirty(tool.body, com.sighs.apricityui.render.Drawer.REORDER);
             tool.commitRenderState();
             assertTrue(tool.getPaintList().stream().anyMatch(node ->
                     node instanceof RenderNode.ElementPhaseNode phase && phase.target() == contentHighlight));

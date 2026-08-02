@@ -2,10 +2,10 @@ package com.sighs.apricityui.ui;
 
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.render.Operation;
 
 import java.util.ArrayList;
 import java.util.Locale;

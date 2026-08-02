@@ -46,7 +46,11 @@ public class ClientScheduler {
 
     public static Cancellable setInterval(int ms, Consumer<Cancellable> action) {
         Task task = new Task(action, true);
-        TIMER.scheduleAtFixedRate(task, ms, ms);
+        // Browser setInterval is fixed-delay: the next run is scheduled relative to the
+        // previous run's completion. scheduleAtFixedRate would fire catch-up bursts when
+        // the client thread is slow, which browsers never do and which breaks clearInterval
+        // (a canceled interval could still fire once more to catch up).
+        TIMER.schedule(task, ms, ms);
         return task;
     }
 

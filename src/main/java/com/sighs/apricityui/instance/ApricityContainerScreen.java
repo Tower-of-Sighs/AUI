@@ -2,7 +2,7 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.instance.element.MinecraftElement;
 import com.sighs.apricityui.instance.screen.SlotDataBinder;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;

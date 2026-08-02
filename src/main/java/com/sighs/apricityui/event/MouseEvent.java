@@ -15,6 +15,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.render.Operation;
+import com.sighs.apricityui.style.StyleFrameCache;
 
 // 鼠标事件，现在还没有做得很完善
 public class MouseEvent extends Event implements Cloneable {

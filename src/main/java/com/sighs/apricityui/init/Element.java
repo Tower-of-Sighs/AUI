@@ -4,10 +4,8 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
-import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
@@ -16,21 +14,36 @@ import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.*;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
-import java.math.BigDecimal;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.YearMonth;
-import java.time.DayOfWeek;
 import java.time.temporal.IsoFields;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import java.util.regex.Pattern;
-import java.util.regex.PatternSyntaxException;
+import com.sighs.apricityui.util.HtmlSerializer;
+import com.sighs.apricityui.task.FrameScheduler;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.style.ConstraintText;
+import com.sighs.apricityui.style.CssString;
+import com.sighs.apricityui.style.Selector;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.render.DirtyFlags;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.form.ConstraintValidator;
+import com.sighs.apricityui.form.FormData;
+import com.sighs.apricityui.form.FormDataEntry;
+import com.sighs.apricityui.form.ValidityState;
+import com.sighs.apricityui.behavior.ScrollModel;
+import com.sighs.apricityui.behavior.SelectModel;
+import com.sighs.apricityui.behavior.TextSelection;
+import com.sighs.apricityui.dom.CommentNode;
+import com.sighs.apricityui.dom.ElementTree;
+import com.sighs.apricityui.dom.NodeTree;
+import com.sighs.apricityui.dom.RenderElement;
+import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.util.TextMetrics;
 
 public class Element extends Node {
     private HashMap<String, String> attributes = new HashMap<>();
@@ -64,7 +77,7 @@ public class Element extends Node {
     private boolean valueDirty = false;
     private Boolean checkedState = null;
     private boolean checkedDirty = false;
-    private Boolean selectedState = null;
+    public Boolean selectedState = null;
     private boolean selectedDirty = false;
     private String customValidityMessage = "";
     private final ArrayList<String> fileList = new ArrayList<>();
@@ -97,15 +110,9 @@ public class Element extends Node {
         textSelection.addEventListeners();
     }
 
+    /** 子类以继承方式调用的入口，实现见 {@link CssString#parseClassNames}。 */
     protected static Set<String> parseClassNames(String value) {
-        if (value == null) return Collections.emptySet();
-        String trimmed = value.trim();
-        if (trimmed.isEmpty()) return Collections.emptySet();
-        // 只在 class 属性变化时解析；selector match 路径只读缓存，避免 split/Set.of 的高频分配。
-        // class token 允许重复输入，这里按出现顺序去重，避免因为重复 class 导致整个页面初始化失败。
-        LinkedHashSet<String> classNames = new LinkedHashSet<>(Arrays.asList(trimmed.split("\\s+")));
-        if (classNames.isEmpty()) return Collections.emptySet();
-        return Collections.unmodifiableSet(classNames);
+        return CssString.parseClassNames(value);
     }
 
     protected final void invalidateStyleCaches() {
@@ -357,7 +364,7 @@ public class Element extends Node {
         }
     }
 
-    boolean recomputeStyleSelf() {
+    public boolean recomputeStyleSelf() {
         Style originStyle = getComputedStyle();
 
         cssCache = pseudoElement
@@ -684,7 +691,7 @@ public class Element extends Node {
         // its local subtree in addition to the document tree, de-duplicating
         // nodes that are already registered by ElementTree.
         ArrayList<Element> local = new ArrayList<>();
-        collectElements(this, local);
+        ConstraintValidator.collectElements(this, local);
         for (Element candidate : local) {
             if (!candidates.contains(candidate)) candidates.add(candidate);
         }
@@ -904,7 +911,7 @@ public class Element extends Node {
      * <p>
      * 该方法只在 {@link #init(Element)} 替换元素后调用；程序运行过程中属性变更仍建议走懒加载/脏检查。
      */
-    protected final void runInitFromDomOnce(Element origin) {
+    public final void runInitFromDomOnce(Element origin) {
         if (domInitHookInvoked) return;
         domInitHookInvoked = true;
 
@@ -1074,7 +1081,7 @@ public class Element extends Node {
         return result;
     }
 
-    List<Element> getExistingLayoutChildren() {
+    public List<Element> getExistingLayoutChildren() {
         if (beforePseudoElement == null && afterPseudoElement == null) return children;
         ArrayList<Element> result = new ArrayList<>(children.size() + 2);
         if (beforePseudoElement != null) result.add(beforePseudoElement);
@@ -1163,7 +1170,7 @@ public class Element extends Node {
     private Element getGeneratedPseudoElement(Selector.PseudoElement kind) {
         if (kind == null || pseudoElement) return null;
         HashMap<String, String> styles = resolvePseudoElementStyles(kind);
-        if (!isGeneratedPseudoContent(styles == null ? null : styles.get("content"))) return null;
+        if (!CssString.isGeneratedPseudoContent(styles == null ? null : styles.get("content"))) return null;
         Element pseudo = kind == Selector.PseudoElement.BEFORE ? beforePseudoElement : afterPseudoElement;
         if (pseudo == null) {
             pseudo = createPseudoElement(kind);
@@ -1212,7 +1219,7 @@ public class Element extends Node {
         RenderElement.observeStyle(this, originStyle, style);
         Transition.create(this, originStyle, style);
         pseudoElementPreviousStyle = style.clone();
-        innerText = parsePseudoContentText(style.content);
+        innerText = CssString.parsePseudoContentText(style.content);
         isPointerEnabled = false;
         invalidatePseudoElementHostLayout();
     }
@@ -1241,13 +1248,13 @@ public class Element extends Node {
     private boolean isPseudoContentGenerated() {
         if (!pseudoElement) return false;
         Style style = getRawComputedStyle();
-        return isGeneratedPseudoContent(style.content);
+        return CssString.isGeneratedPseudoContent(style.content);
     }
 
     private boolean wasPseudoContentGenerated() {
         if (!pseudoElement) return false;
         Style previous = pseudoElementPreviousStyle;
-        return previous != null && isGeneratedPseudoContent(previous.content);
+        return previous != null && CssString.isGeneratedPseudoContent(previous.content);
     }
 
     private HashMap<String, String> resolvePseudoElementStyles(Selector.PseudoElement kind) {
@@ -1263,87 +1270,6 @@ public class Element extends Node {
             afterPseudoResolved = true;
         }
         return afterPseudoStyles;
-    }
-
-    private static boolean isGeneratedPseudoContent(String raw) {
-        String content = raw == null ? "" : raw.trim();
-        return !content.isEmpty()
-                && !"normal".equalsIgnoreCase(content)
-                && !"none".equalsIgnoreCase(content)
-                && !"unset".equalsIgnoreCase(content);
-    }
-
-    private static String parsePseudoContentText(String raw) {
-        if (raw == null) return "";
-        String value = raw.trim();
-        if (value.length() >= 2) {
-            char first = value.charAt(0);
-            char last = value.charAt(value.length() - 1);
-            if ((first == '"' && last == '"') || (first == '\'' && last == '\'')) {
-                return unescapeCssString(value.substring(1, value.length() - 1));
-            }
-        }
-        return "";
-    }
-
-    private static String unescapeCssString(String value) {
-        if (value == null || value.isEmpty()) return "";
-        StringBuilder result = new StringBuilder(value.length());
-        for (int index = 0; index < value.length();) {
-            char current = value.charAt(index++);
-            if (current != '\\') {
-                result.append(current);
-                continue;
-            }
-            if (index >= value.length()) {
-                result.append('\\');
-                break;
-            }
-
-            char escaped = value.charAt(index);
-            if (isCssHexDigit(escaped)) {
-                int codePoint = 0;
-                int digits = 0;
-                while (index < value.length() && digits < 6 && isCssHexDigit(value.charAt(index))) {
-                    codePoint = (codePoint << 4) + Character.digit(value.charAt(index++), 16);
-                    digits++;
-                }
-                if (index < value.length() && isCssWhitespace(value.charAt(index))) {
-                    if (value.charAt(index) == '\r'
-                            && index + 1 < value.length() && value.charAt(index + 1) == '\n') {
-                        index += 2;
-                    } else {
-                        index++;
-                    }
-                }
-                if (codePoint == 0 || codePoint > Character.MAX_CODE_POINT
-                        || (codePoint >= Character.MIN_SURROGATE && codePoint <= Character.MAX_SURROGATE)) {
-                    codePoint = 0xFFFD;
-                }
-                result.appendCodePoint(codePoint);
-                continue;
-            }
-            if (isCssNewline(escaped)) {
-                index++;
-                if (escaped == '\r' && index < value.length() && value.charAt(index) == '\n') index++;
-                continue;
-            }
-            result.append(escaped);
-            index++;
-        }
-        return result.toString();
-    }
-
-    private static boolean isCssHexDigit(char value) {
-        return Character.digit(value, 16) >= 0;
-    }
-
-    private static boolean isCssWhitespace(char value) {
-        return value == ' ' || value == '\t' || value == '\r' || value == '\n' || value == '\f';
-    }
-
-    private static boolean isCssNewline(char value) {
-        return value == '\r' || value == '\n' || value == '\f';
     }
 
     private void clearPseudoElementCaches() {
@@ -1375,9 +1301,7 @@ public class Element extends Node {
 
     public List<Element> getOptions() {
         if (!"SELECT".equalsIgnoreCase(tagName)) return List.of();
-        ArrayList<Element> options = new ArrayList<>();
-        collectOptionChildren(this, options);
-        return Collections.unmodifiableList(options);
+        return Collections.unmodifiableList(getOptionChildren());
     }
 
     public List<Element> getSelectedOptions() {
@@ -1435,7 +1359,7 @@ public class Element extends Node {
     @Override
     public void setTextContent(String value) {
         String oldValue = getTextContent();
-        String normalized = value == null ? "" : normalizeNumericText(value);
+        String normalized = value == null ? "" : ConstraintText.normalizeNumericText(value);
         if (!childNodes.isEmpty()) {
             ArrayList<Node> snapshot = new ArrayList<>(childNodes);
             for (Node child : snapshot) {
@@ -1465,32 +1389,6 @@ public class Element extends Node {
         }
     }
 
-    /**
-     * Rhino/KubeJS 在把 Java/JS 数值传给 Java 的 String 形参时，Double 对象会被格式化为 "18.0"。
-     * 这对页面里常见的 count/page 显示很不友好，因此把纯整数值的 "N.0" 归一化为 "N"。
-     */
-    private static String normalizeNumericText(String value) {
-        if (value == null || value.isEmpty()) return "";
-        int len = value.length();
-        int i = 0;
-        if (value.charAt(0) == '-') {
-            if (len == 1) return value;
-            i = 1;
-        }
-        boolean allDigits = true;
-        for (int j = i; j < len - 2; j++) {
-            char c = value.charAt(j);
-            if (c < '0' || c > '9') {
-                allDigits = false;
-                break;
-            }
-        }
-        if (allDigits && len >= i + 3 && value.charAt(len - 2) == '.' && value.charAt(len - 1) == '0') {
-            return value.substring(0, len - 2);
-        }
-        return value;
-    }
-
     @Override
     public Element cloneNode(boolean deep) {
         Element cloned = Element.init(new Element(document, tagName));
@@ -1515,12 +1413,12 @@ public class Element extends Node {
 
     public String getInnerHTML() {
         if (childNodes.isEmpty()) {
-            return escapeHtml(innerText);
+            return HtmlSerializer.escapeHtml(innerText);
         }
         StringBuilder builder = new StringBuilder();
         for (Node child : childNodes) {
             if (child != null) {
-                builder.append(serializeNode(child));
+                builder.append(HtmlSerializer.serializeNode(child));
             }
         }
         return builder.toString();
@@ -1545,7 +1443,7 @@ public class Element extends Node {
     }
 
     public String getOuterHTML() {
-        return serializeNode(this);
+        return HtmlSerializer.serializeNode(this);
     }
 
     public void setOuterHTML(String html) {
@@ -1655,7 +1553,7 @@ public class Element extends Node {
 
     public boolean requestSubmit(Element submitter) {
         if (!"FORM".equalsIgnoreCase(tagName)) return false;
-        if (submitter != null && (!isSubmitButton(submitter) || submitter.getFormOwner() != this
+        if (submitter != null && (!ConstraintText.isSubmitButton(submitter) || submitter.getFormOwner() != this
                 || submitter.isDisabled())) return false;
         boolean skipValidation = hasAttribute("novalidate")
                 || (submitter != null && submitter.hasAttribute("formnovalidate"));
@@ -1688,7 +1586,7 @@ public class Element extends Node {
         for (Element control : controls) control.resetFormControl();
         for (Element control : controls) {
             if ("INPUT".equalsIgnoreCase(control.tagName)
-                    && "radio".equals(normalizedInputType(control)) && control.isChecked()) {
+                    && "radio".equals(ConstraintText.normalizedInputType(control)) && control.isChecked()) {
                 control.enforceRadioGroupChecked();
             }
         }
@@ -1735,7 +1633,7 @@ public class Element extends Node {
             return;
         }
         if ("INPUT".equals(tag)) {
-            String type = normalizedInputType(control);
+            String type = ConstraintText.normalizedInputType(control);
             if ("checkbox".equals(type) || "radio".equals(type)) {
                 if (!control.isChecked()) return;
                 entries.add(new FormDataEntry(name,
@@ -1754,7 +1652,7 @@ public class Element extends Node {
             if ("file".equals(type)) {
                 List<String> files = control.getFileList();
                 if (files.isEmpty()) entries.add(new FormDataEntry(name, "", ""));
-                else for (String file : files) entries.add(new FormDataEntry(name, file, fileName(file)));
+                else for (String file : files) entries.add(new FormDataEntry(name, file, ConstraintText.fileName(file)));
                 return;
             }
         } else if ("BUTTON".equals(tag)) {
@@ -1766,34 +1664,11 @@ public class Element extends Node {
         entries.add(new FormDataEntry(name, control.getValue()));
     }
 
-    private static String fileName(String value) {
-        if (value == null || value.isEmpty()) return "";
-        int slash = Math.max(value.lastIndexOf('/'), value.lastIndexOf('\\'));
-        return slash < 0 ? value : value.substring(slash + 1);
-    }
-
-    private static String normalizedInputType(Element control) {
-        String type = control.getType();
-        return type == null || type.isBlank() ? "text" : type.trim().toLowerCase(Locale.ROOT);
-    }
-
-    private static boolean isSubmitButton(Element element) {
-        if (element == null) return false;
-        if ("BUTTON".equalsIgnoreCase(element.tagName)) {
-            String type = element.getAttribute("type");
-            return type == null || type.isBlank() || "submit".equalsIgnoreCase(type)
-                    || "image".equalsIgnoreCase(type);
-        }
-        if (!"INPUT".equalsIgnoreCase(element.tagName)) return false;
-        String type = normalizedInputType(element);
-        return "submit".equals(type) || "image".equals(type);
-    }
-
     public boolean isWillValidate() {
         if (!isFormControl() || isDisabled()) return false;
         if ("OUTPUT".equalsIgnoreCase(tagName) || "FIELDSET".equalsIgnoreCase(tagName)) return false;
         if ("INPUT".equalsIgnoreCase(tagName)) {
-            String type = normalizedInputType(this);
+            String type = ConstraintText.normalizedInputType(this);
             if ("hidden".equals(type) || "button".equals(type) || "reset".equals(type)
                     || "submit".equals(type) || "image".equals(type)) return false;
         }
@@ -1806,12 +1681,14 @@ public class Element extends Node {
     }
 
     public ValidityState getValidity() {
-        ValidationResult result;
+        ConstraintValidator.ValidationResult result;
         if ("FORM".equalsIgnoreCase(tagName)) {
-            result = new ValidationResult();
-            for (Element control : getFormControls()) result.merge(control.constraintState());
+            result = new ConstraintValidator.ValidationResult();
+            for (Element control : getFormControls()) {
+                result.merge(ConstraintValidator.state(control, control.customValidityMessage));
+            }
         } else {
-            result = constraintState();
+            result = ConstraintValidator.state(this, customValidityMessage);
         }
         return result.toState();
     }
@@ -1864,9 +1741,9 @@ public class Element extends Node {
     }
 
     public double getValueAsNumber() {
-        Double parsed = parseConstraintNumber(normalizedInputType(this), getValue());
+        Double parsed = ConstraintText.parseConstraintNumber(ConstraintText.normalizedInputType(this), getValue());
         if (parsed == null) return Double.NaN;
-        return switch (normalizedInputType(this)) {
+        return switch (ConstraintText.normalizedInputType(this)) {
             case "date" -> parsed * 86_400_000d;
             case "datetime-local" -> parsed * 1_000d;
             case "time" -> parsed * 1_000d;
@@ -1886,7 +1763,7 @@ public class Element extends Node {
             setValue("");
             return;
         }
-        String type = normalizedInputType(this);
+        String type = ConstraintText.normalizedInputType(this);
         double internal = switch (type) {
             case "date", "week" -> number / 86_400_000d;
             case "datetime-local" -> number / 1_000d;
@@ -1894,7 +1771,7 @@ public class Element extends Node {
             default -> number;
         };
         if ("date".equals(type)) setValue(LocalDate.ofEpochDay(Math.round(internal)).toString());
-        else if ("time".equals(type)) setValue(formatTime(internal));
+        else if ("time".equals(type)) setValue(ConstraintText.formatTime(internal));
         else if ("datetime-local".equals(type)) {
             setValue(java.time.Instant.ofEpochMilli(Math.round(number))
                     .atZone(java.time.ZoneOffset.UTC).toLocalDateTime().toString());
@@ -1907,13 +1784,7 @@ public class Element extends Node {
             setValue(String.format(Locale.ROOT, "%04d-W%02d",
                     date.get(IsoFields.WEEK_BASED_YEAR), date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
         }
-        else setValue(serializeNumberValue(number));
-    }
-
-    /** Keeps interactive numeric values decimal-safe without preserving redundant trailing zeroes. */
-    private static String serializeNumberValue(double number) {
-        if (number == 0d) return "0";
-        return BigDecimal.valueOf(number).stripTrailingZeros().toPlainString();
+        else setValue(ConstraintText.serializeNumberValue(number));
     }
 
     public void stepUp() {
@@ -1933,14 +1804,14 @@ public class Element extends Node {
     }
 
     private void stepBy(int count) {
-        String type = normalizedInputType(this);
-        if (!isNumericType(type)) return;
-        Double currentValue = parseConstraintNumber(type, getValue());
-        Double minimum = parseConstraintNumber(type, getAttribute("min"));
+        String type = ConstraintText.normalizedInputType(this);
+        if (!ConstraintText.isNumericType(type)) return;
+        Double currentValue = ConstraintText.parseConstraintNumber(type, getValue());
+        Double minimum = ConstraintText.parseConstraintNumber(type, getAttribute("min"));
         double current = currentValue == null ? (minimum == null ? 0d : minimum) : currentValue;
-        double step = parseConstraintNumber("number", getAttribute("step")) == null
+        double step = ConstraintText.parseConstraintNumber("number", getAttribute("step")) == null
                 ? ("time".equals(type) || "datetime-local".equals(type) ? 60d : "week".equals(type) ? 7d : 1d)
-                : parseConstraintNumber("number", getAttribute("step"));
+                : ConstraintText.parseConstraintNumber("number", getAttribute("step"));
         if (step <= 0 || !Double.isFinite(step)) return;
         double next = current + count * step;
         double exposed = switch (type) {
@@ -1957,210 +1828,18 @@ public class Element extends Node {
         setValueAsNumber(exposed);
     }
 
-    private ValidationResult constraintState() {
-        ValidationResult result = new ValidationResult();
-        if (!isWillValidate()) return result;
-        String raw = getValue();
-        String valueText = raw == null ? "" : raw;
-        boolean empty = valueText.isEmpty();
-        String type = normalizedInputType(this);
-
-        if (hasAttribute("required")) {
-            boolean missing = empty;
-            if ("checkbox".equals(type) || "radio".equals(type)) {
-                missing = "radio".equals(type) ? !radioGroupHasChecked() : !isChecked();
-            } else if ("SELECT".equalsIgnoreCase(tagName)) {
-                List<Element> selected = getSelectedOptions();
-                missing = selected.isEmpty()
-                        || (!isMultiple() && selected.get(0).getOptionValue().isEmpty());
-            }
-            result.valueMissing = missing;
-        }
-        if (empty) {
-            result.applyCustom(customValidityMessage);
-            return result;
-        }
-
-        if ("email".equals(type)) {
-            boolean valid = hasAttribute("multiple")
-                    ? Arrays.stream(valueText.split(",", -1)).map(String::trim).allMatch(Element::isSimpleEmail)
-                    : isSimpleEmail(valueText);
-            result.typeMismatch = !valid;
-        } else if ("color".equals(type)) {
-            result.typeMismatch = !valueText.matches("#[0-9a-fA-F]{6}");
-        } else if ("url".equals(type)) {
-            try {
-                URI uri = new URI(valueText);
-                result.typeMismatch = uri.getScheme() == null || uri.getScheme().isBlank();
-            } catch (URISyntaxException ignored) {
-                result.typeMismatch = true;
-            }
-        }
-
-        Double number = parseConstraintNumber(type, valueText);
-        if (isNumericType(type) && number == null) result.badInput = true;
-
-        Double min = parseConstraintNumber(type, getAttribute("min"));
-        Double max = parseConstraintNumber(type, getAttribute("max"));
-        if (number != null && min != null) result.rangeUnderflow = number < min;
-        if (number != null && max != null) result.rangeOverflow = number > max;
-
-        if (number != null && isNumericType(type)) {
-            String stepText = hasAttribute("step") ? getAttribute("step") : defaultStepText(type);
-            if (!"any".equalsIgnoreCase(stepText)) {
-                try {
-                    double step = Double.parseDouble(stepText);
-                    if (step > 0 && Double.isFinite(step)) {
-                        double base = min != null ? min : defaultStepBase(type);
-                        result.stepMismatch = Math.abs((number - base) / step - Math.rint((number - base) / step)) > 1e-7;
-                    }
-                } catch (NumberFormatException ignored) {
-                    // Invalid step attributes are ignored by browsers.
-                }
-            }
-        }
-
-        if (hasAttribute("pattern") && supportsTextLengthAndPattern(type)) {
-            try {
-                result.patternMismatch = !Pattern.compile("(?:" + getAttribute("pattern") + ")").matcher(valueText).matches();
-            } catch (PatternSyntaxException ignored) {
-                result.patternMismatch = false;
-            }
-        }
-        if (supportsTextLengthAndPattern(type)) {
-            int minLength = parseNonNegativeInt(getAttribute("minlength"));
-            int maxLength = parseNonNegativeInt(getAttribute("maxlength"));
-            if (minLength >= 0) result.tooShort = valueText.length() < minLength;
-            if (maxLength >= 0) result.tooLong = valueText.length() > maxLength;
-        }
-        result.applyCustom(customValidityMessage);
-        return result;
-    }
-
-    private boolean radioGroupHasChecked() {
-        String name = getAttribute("name");
-        Element form = getFormOwner();
-        List<Element> candidates;
-        if (form != null) {
-            candidates = form.getFormControls();
-        } else if (document != null) {
-            candidates = document.getElements();
-        } else {
-            Element root = this;
-            while (root.parentElement != null) root = root.parentElement;
-            ArrayList<Element> local = new ArrayList<>();
-            collectElements(root, local);
-            candidates = local;
-        }
-        for (Element control : candidates) {
-            if (control.getFormOwner() != form) continue;
-            if ("INPUT".equalsIgnoreCase(control.tagName)
-                    && "radio".equals(normalizedInputType(control))
-                    && Objects.equals(name, control.getAttribute("name"))
-                    && !control.isDisabled()
-                    && control.isChecked()) return true;
-        }
-        return false;
-    }
-
-    private static boolean isSimpleEmail(String value) {
-        return value != null && value.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+");
-    }
-
-    private boolean supportsTextLengthAndPattern(String type) {
-        if ("TEXTAREA".equalsIgnoreCase(tagName)) return true;
-        if (!"INPUT".equalsIgnoreCase(tagName)) return false;
-        return switch (type) {
-            case "text", "search", "email", "url", "tel", "password" -> true;
-            default -> false;
-        };
-    }
-
-    private static boolean isNumericType(String type) {
-        return switch (type) {
-            case "number", "range", "date", "month", "week", "time", "datetime-local" -> true;
-            default -> false;
-        };
-    }
-
-    private static Double parseConstraintNumber(String type, String raw) {
-        if (raw == null || raw.isBlank()) return null;
-        try {
-            return switch (type) {
-                case "number", "range" -> Double.parseDouble(raw);
-                case "date" -> (double) LocalDate.parse(raw).toEpochDay();
-                case "month" -> {
-                    YearMonth month = YearMonth.parse(raw);
-                    yield (double) (month.getYear() * 12L + month.getMonthValue() - 1);
-                }
-                case "time" -> (double) parseTimeSeconds(raw);
-                case "datetime-local" -> LocalDateTime.parse(raw)
-                        .toInstant(java.time.ZoneOffset.UTC).toEpochMilli() / 1_000d;
-                case "week" -> {
-                    if (!raw.matches("\\d{4}-W\\d{2}")) yield null;
-                    String[] parts = raw.split("-W");
-                    int year = Integer.parseInt(parts[0]);
-                    int week = Integer.parseInt(parts[1]);
-                    yield (double) LocalDate.of(year, 1, 4)
-                            .with(IsoFields.WEEK_OF_WEEK_BASED_YEAR, week)
-                            .with(DayOfWeek.MONDAY).toEpochDay();
-                }
-                default -> null;
-            };
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private static double parseTimeSeconds(String raw) {
-        LocalTime time = LocalTime.parse(raw);
-        return time.toNanoOfDay() / 1_000_000_000d;
-    }
-
-    private static String formatTime(double seconds) {
-        long rounded = Math.max(0L, Math.round(seconds));
-        return LocalTime.ofSecondOfDay(rounded % 86400L).toString();
-    }
-
-    private static double defaultStepBase(String type) {
-        return switch (type) {
-            case "date" -> 0d;
-            case "month" -> 0d;
-            case "datetime-local", "time" -> 0d;
-            case "week" -> LocalDate.of(1969, 12, 29).toEpochDay();
-            default -> 0d;
-        };
-    }
-
-    private static String defaultStepText(String type) {
-        return switch (type) {
-            case "time", "datetime-local" -> "60";
-            case "week" -> "7";
-            default -> "1";
-        };
-    }
-
-    private static int parseNonNegativeInt(String raw) {
-        if (raw == null || raw.isBlank()) return -1;
-        try {
-            int value = Integer.parseInt(raw);
-            return value < 0 ? -1 : value;
-        } catch (NumberFormatException ignored) {
-            return -1;
-        }
-    }
 
     private void resetFormControl() {
         if ("INPUT".equalsIgnoreCase(tagName) || "TEXTAREA".equalsIgnoreCase(tagName)) {
             restoreFormValue(getDefaultValue());
         }
-        if ("INPUT".equalsIgnoreCase(tagName) && "file".equals(normalizedInputType(this))) {
+        if ("INPUT".equalsIgnoreCase(tagName) && "file".equals(ConstraintText.normalizedInputType(this))) {
             fileList.clear();
             value = "";
             valueDirty = false;
         }
         if ("INPUT".equalsIgnoreCase(tagName)
-                && ("checkbox".equals(normalizedInputType(this)) || "radio".equals(normalizedInputType(this)))) {
+                && ("checkbox".equals(ConstraintText.normalizedInputType(this)) || "radio".equals(ConstraintText.normalizedInputType(this)))) {
             checkedState = isDefaultChecked();
             checkedDirty = false;
             invalidateStyle();
@@ -2210,49 +1889,10 @@ public class Element extends Node {
         if (!isMultiple() && fileList.size() > 1) {
             fileList.subList(1, fileList.size()).clear();
         }
-        if ("INPUT".equalsIgnoreCase(tagName) && "file".equals(normalizedInputType(this))) {
+        if ("INPUT".equalsIgnoreCase(tagName) && "file".equals(ConstraintText.normalizedInputType(this))) {
             value = fileList.isEmpty() ? "" : fileList.get(0);
             valueDirty = true;
             getRenderer().text.clear();
-        }
-    }
-
-    private static final class ValidationResult {
-        boolean badInput;
-        boolean customError;
-        boolean patternMismatch;
-        boolean rangeOverflow;
-        boolean rangeUnderflow;
-        boolean stepMismatch;
-        boolean tooLong;
-        boolean tooShort;
-        boolean typeMismatch;
-        boolean valueMissing;
-
-        void applyCustom(String message) {
-            customError = message != null && !message.isBlank();
-        }
-
-        void merge(ValidationResult other) {
-            if (other == null) return;
-            badInput |= other.badInput;
-            customError |= other.customError;
-            patternMismatch |= other.patternMismatch;
-            rangeOverflow |= other.rangeOverflow;
-            rangeUnderflow |= other.rangeUnderflow;
-            stepMismatch |= other.stepMismatch;
-            tooLong |= other.tooLong;
-            tooShort |= other.tooShort;
-            typeMismatch |= other.typeMismatch;
-            valueMissing |= other.valueMissing;
-        }
-
-        ValidityState toState() {
-            boolean valid = !(badInput || customError || patternMismatch || rangeOverflow
-                    || rangeUnderflow || stepMismatch || tooLong || tooShort
-                    || typeMismatch || valueMissing);
-            return new ValidityState(badInput, customError, patternMismatch, rangeOverflow,
-                    rangeUnderflow, stepMismatch, tooLong, tooShort, typeMismatch, valueMissing, valid);
         }
     }
 
@@ -2383,7 +2023,7 @@ public class Element extends Node {
         Element root = this;
         while (root.parentElement != null) root = root.parentElement;
         ArrayList<Element> local = new ArrayList<>();
-        collectElements(root, local);
+        ConstraintValidator.collectElements(root, local);
         for (Element candidate : local) {
             if (!candidates.contains(candidate)) candidates.add(candidate);
         }
@@ -2395,12 +2035,6 @@ public class Element extends Node {
                     || (!candidate.hasAttribute("for") && candidate.contains(this))) labels.add(candidate);
         }
         return Collections.unmodifiableList(labels);
-    }
-
-    private static void collectElements(Element root, List<Element> result) {
-        if (root == null) return;
-        result.add(root);
-        for (Element child : root.children) collectElements(child, result);
     }
 
     public Element findEnclosingForm() {
@@ -2416,7 +2050,7 @@ public class Element extends Node {
 
     public boolean submitEnclosingForm() {
         Element form = findEnclosingForm();
-        return form != null && form.requestSubmit(isSubmitButton(this) ? this : null);
+        return form != null && form.requestSubmit(ConstraintText.isSubmitButton(this) ? this : null);
     }
 
     public boolean dispatchScrollEventIfChanged(double previousLeft, double previousTop) {
@@ -2562,7 +2196,7 @@ public class Element extends Node {
         else removeAttribute(name);
     }
 
-    protected final boolean hasRawBooleanAttribute(String name) {
+    public final boolean hasRawBooleanAttribute(String name) {
         return attributes.containsKey(name);
     }
 
@@ -2572,55 +2206,35 @@ public class Element extends Node {
     }
 
     private List<Element> getOptionChildren() {
-        if (!"SELECT".equalsIgnoreCase(tagName)) return List.of();
-        ArrayList<Element> options = new ArrayList<>();
-        collectOptionChildren(this, options);
-        return options;
-    }
-
-    private static void collectOptionChildren(Element parent, List<Element> result) {
-        if (parent == null) return;
-        for (Element child : parent.children) {
-            if (child == null) continue;
-            if ("OPTION".equalsIgnoreCase(child.tagName)) {
-                result.add(child);
-            } else if ("OPTGROUP".equalsIgnoreCase(child.tagName)) {
-                collectOptionChildren(child, result);
-            }
-        }
+        return SelectModel.getOptionChildren(this);
     }
 
     public String getOptionValue() {
-        if (!"OPTION".equalsIgnoreCase(tagName)) return getValue();
-        if (hasAttribute("value")) return getAttribute("value");
-        return normalizeOptionText(getTextContent());
+        return SelectModel.getOptionValue(this);
     }
 
     public String getOptionLabel() {
-        if (!"OPTION".equalsIgnoreCase(tagName)) return getTextContent();
-        if (hasAttribute("label")) return getAttribute("label");
-        return normalizeOptionText(getTextContent());
+        return SelectModel.getOptionLabel(this);
     }
 
     public void setOptionLabel(String label) {
-        if ("OPTION".equalsIgnoreCase(tagName)) setAttribute("label", label == null ? "" : label);
+        SelectModel.setOptionLabel(this, label);
     }
 
     public String getOptionText() {
-        return "OPTION".equalsIgnoreCase(tagName) ? normalizeOptionText(getTextContent()) : "";
+        return SelectModel.getOptionText(this);
     }
 
     public void setOptionText(String text) {
-        if ("OPTION".equalsIgnoreCase(tagName)) setTextContent(text == null ? "" : text);
+        SelectModel.setOptionText(this, text);
     }
 
     public int getOptionIndex() {
-        Element select = getOwnerSelect();
-        return select == null ? -1 : select.getOptionChildren().indexOf(this);
+        return SelectModel.getOptionIndex(this);
     }
 
     public int getSelectLength() {
-        return "SELECT".equalsIgnoreCase(tagName) ? getOptionChildren().size() : 0;
+        return SelectModel.getSelectLength(this);
     }
 
     public int getFormLength() {
@@ -2628,80 +2242,35 @@ public class Element extends Node {
     }
 
     public int getSelectSize() {
-        return "SELECT".equalsIgnoreCase(tagName) ? getSelectDisplaySize() : 0;
+        return SelectModel.getSelectSize(this);
     }
 
     public void setSelectSize(int size) {
-        if (!"SELECT".equalsIgnoreCase(tagName)) return;
-        if (size <= 0) removeAttribute("size");
-        else setAttribute("size", Integer.toString(size));
+        SelectModel.setSelectSize(this, size);
     }
 
     public Element getOwnerSelect() {
-        if (!"OPTION".equalsIgnoreCase(tagName)) return null;
-        Element current = parentElement;
-        if (current != null && "OPTGROUP".equalsIgnoreCase(current.tagName)) current = current.parentElement;
-        return current != null && "SELECT".equalsIgnoreCase(current.tagName) ? current : null;
+        return SelectModel.getOwnerSelect(this);
     }
 
     public boolean isOptionEffectivelyDisabled() {
-        if (!"OPTION".equalsIgnoreCase(tagName)) return isDisabled();
-        if (isDisabled()) return true;
-        Element select = getOwnerSelect();
-        if (select != null && select.isDisabled()) return true;
-        return parentElement != null
-                && "OPTGROUP".equalsIgnoreCase(parentElement.tagName)
-                && parentElement.isDisabled();
+        return SelectModel.isOptionEffectivelyDisabled(this);
     }
 
     private boolean currentSelectedness() {
-        return selectedState != null ? selectedState : hasRawBooleanAttribute("selected");
-    }
-
-    private static String normalizeOptionText(String text) {
-        if (text == null || text.isEmpty()) return "";
-        return text.trim().replaceAll("[\\t\\n\\f\\r ]+", " ");
+        return SelectModel.currentSelectedness(this);
     }
 
     private void normalizeSelectSelection(boolean allowDefaultSelection) {
-        if (!"SELECT".equalsIgnoreCase(tagName)) return;
-        List<Element> options = getOptionChildren();
-        if (options.isEmpty()) return;
-
-        for (Element option : options) {
-            if (option.selectedState == null) {
-                option.selectedState = option.hasRawBooleanAttribute("selected");
-            }
-        }
-        if (isMultiple()) return;
-
-        Element winner = null;
-        for (Element option : options) {
-            if (option.currentSelectedness()) winner = option;
-        }
-        if (winner == null && allowDefaultSelection && getSelectDisplaySize() <= 1) {
-            winner = options.get(0);
-        }
-        if (winner != null) {
-            for (Element option : options) option.selectedState = option == winner;
-        }
+        SelectModel.normalizeSelectSelection(this, allowDefaultSelection);
     }
 
     private int getSelectDisplaySize() {
-        String raw = getAttribute("size");
-        if (raw == null || raw.isBlank()) return isMultiple() ? 4 : 1;
-        try {
-            int parsed = Integer.parseInt(raw.trim());
-            return parsed > 0 ? parsed : (isMultiple() ? 4 : 1);
-        } catch (NumberFormatException ignored) {
-            return isMultiple() ? 4 : 1;
-        }
+        return SelectModel.getSelectDisplaySize(this);
     }
 
     private void invalidateSelectPresentation() {
-        getRenderer().text.clear();
-        getRenderer().wrappedText.clear();
-        invalidateStyle();
+        SelectModel.invalidateSelectPresentation(this);
     }
 
     private void syncAttributeState(String name) {
@@ -2781,7 +2350,7 @@ public class Element extends Node {
         }
     }
 
-    void syncDomStateAfterAttach() {
+    public void syncDomStateAfterAttach() {
         applyDomStateFromAttributes();
         for (Element child : children) {
             if (child != null) {
@@ -2791,7 +2360,7 @@ public class Element extends Node {
         if ("SELECT".equalsIgnoreCase(tagName)) normalizeSelectSelection(true);
     }
 
-    void syncSelectStateAfterChildrenChanged() {
+    public void syncSelectStateAfterChildrenChanged() {
         if ("SELECT".equalsIgnoreCase(tagName)) {
             normalizeSelectSelection(true);
             invalidateSelectPresentation();
@@ -2804,10 +2373,10 @@ public class Element extends Node {
         }
     }
 
-    protected void onDisconnectedFromDocument() {
+    public void onDisconnectedFromDocument() {
     }
 
-    void invalidateSubtreeAfterAttach() {
+    public void invalidateSubtreeAfterAttach() {
         invalidateStyleCaches();
         renderElement.route.clear();
         renderElement.transform.clear();
@@ -2853,14 +2422,14 @@ public class Element extends Node {
             Element root = this;
             while (root.parentElement != null) root = root.parentElement;
             ArrayList<Element> local = new ArrayList<>();
-            collectElements(root, local);
+            ConstraintValidator.collectElements(root, local);
             candidates = local;
         }
         for (Element element : candidates) {
             if (element == this) continue;
             if (element.getFormOwner() != owner) continue;
             if (!"INPUT".equalsIgnoreCase(element.tagName)) continue;
-            if (!"radio".equalsIgnoreCase(normalizedInputType(element))) continue;
+            if (!"radio".equalsIgnoreCase(ConstraintText.normalizedInputType(element))) continue;
             if (!group.equals(element.getAttribute("name"))) continue;
             element.checkedState = false;
             element.checkedDirty = true;
@@ -3007,54 +2576,6 @@ public class Element extends Node {
         }
     }
 
-    private static String serializeNode(Node node) {
-        if (node == null) return "";
-        if (node instanceof TextNode textNode) {
-            return escapeHtml(textNode.getTextContent());
-        }
-        if (node instanceof CommentNode commentNode) {
-            return "<!--" + escapeHtml(commentNode.getTextContent()) + "-->";
-        }
-        if (!(node instanceof Element element)) {
-            return "";
-        }
-        return serializeHtml(element);
-    }
-
-    private static String serializeHtml(Element element) {
-        if (element == null) return "";
-        StringBuilder builder = new StringBuilder();
-        builder.append('<').append(element.tagName.toLowerCase(Locale.ROOT));
-        for (Map.Entry<String, String> entry : element.getAttributes().entrySet()) {
-            String key = entry.getKey();
-            if (key == null || key.isBlank()) continue;
-            builder.append(' ').append(key);
-            String value = entry.getValue();
-            if (value != null && !value.isEmpty()) {
-                builder.append("=\"").append(escapeHtml(value)).append('"');
-            }
-        }
-        builder.append('>');
-        if (!element.childNodes.isEmpty()) {
-            for (Node child : element.childNodes) {
-                builder.append(serializeNode(child));
-            }
-        } else if (!element.innerText.isEmpty()) {
-            builder.append(escapeHtml(element.innerText));
-        }
-        builder.append("</").append(element.tagName.toLowerCase(Locale.ROOT)).append('>');
-        return builder.toString();
-    }
-
-    private static String escapeHtml(String value) {
-        if (value == null || value.isEmpty()) return "";
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;");
-    }
-
     public static final class DOMRect {
         public final double x;
         public final double y;
@@ -3087,20 +2608,20 @@ public class Element extends Node {
         if (renderLines.isEmpty()) return;
 
         double textHeight = Math.max(text.lineHeight, renderLines.size() * text.lineHeight);
-        double drawY = contentPos.y + computeVerticalOffset(text, contentHeight, textHeight);
+        double drawY = contentPos.y + TextMetrics.computeVerticalOffset(text, contentHeight, textHeight);
 
         for (int i = 0; i < renderLines.size(); i++) {
             String line = renderLines.get(i);
             double lineTop = i * text.lineHeight;
             if (lineTop >= contentHeight) break;
             double lineWidth = Text.measureLine(text, line);
-            double drawX = contentPos.x + computeAlignedX(text, contentWidth, lineWidth, i == 0);
-            Text lineText = cloneTextForSegment(text, line, Color.BLACK);
+            double drawX = contentPos.x + TextMetrics.computeAlignedX(text, contentWidth, lineWidth, i == 0);
+            Text lineText = TextMetrics.cloneTextForSegment(text, line, Color.BLACK);
             FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, drawY + lineTop));
         }
     }
 
-    Position getFlexTextOffset() {
+    public Position getFlexTextOffset() {
         Text text = Text.of(this);
         String content = text == null ? "" : text.content;
         if (content == null || content.isEmpty()) return Position.ZERO;
@@ -3109,8 +2630,8 @@ public class Element extends Node {
         double contentWidth = Box.of(this).innerSize().width();
         double contentHeight = Box.of(this).innerSize().height();
         double lineWidth = Text.measureLine(text, firstLine);
-        double x = computeFlexTextAlignedX(this, text, contentWidth, lineWidth);
-        double y = computeFlexTextAlignedY(this, text, contentHeight);
+        double x = TextMetrics.computeFlexTextAlignedX(this, text, contentWidth, lineWidth);
+        double y = TextMetrics.computeFlexTextAlignedY(this, text, contentHeight);
         return new Position(x, y);
     }
 
@@ -3141,12 +2662,12 @@ public class Element extends Node {
                 if (line == null || line.isEmpty()) continue;
                 double lineWidth = Text.measureLine(run.text(), line);
                 double alignOffset = alignDirectTextRuns && run.owner() == this
-                        ? computeAlignedX(run.text(), contentWidth, lineWidth, i == 0)
+                        ? TextMetrics.computeAlignedX(run.text(), contentWidth, lineWidth, i == 0)
                         : 0;
                 drawPos.x = contentPos.x + (i == 0 ? run.x() : 0) + alignOffset - scrollLeft;
                 drawPos.y = contentPos.y + run.y() + i * run.text().lineHeight;
                 drawInlineFragmentBackground(poseStack, run.owner(), drawPos, lineWidth, run.text().lineHeight);
-                Text lineText = cloneTextForSegment(run.text(), line, Color.BLACK);
+                Text lineText = TextMetrics.cloneTextForSegment(run.text(), line, Color.BLACK);
                 FontDrawer.drawFont(poseStack, lineText, drawPos);
             }
         }
@@ -3196,7 +2717,7 @@ public class Element extends Node {
             if (text.content == null || text.content.isEmpty()) continue;
             FontDrawer.drawFont(
                     poseStack,
-                    cloneTextForSegment(text, text.content, Color.BLACK),
+                    TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK),
                     getFlexDirectTextPaintPosition(layout)
             );
         }
@@ -3221,7 +2742,7 @@ public class Element extends Node {
         return false;
     }
 
-    List<String> resolveRenderedLines(Text text, double contentWidth, double contentHeight) {
+    public List<String> resolveRenderedLines(Text text, double contentWidth, double contentHeight) {
         Text.WrappedText wrapped = Text.wrap(this, text);
         List<String> lines = new ArrayList<>(wrapped.lines());
         if (lines.isEmpty()) return lines;
@@ -3236,10 +2757,10 @@ public class Element extends Node {
 
         if (shouldApplyClampedEllipsis(contentWidth, lineClamp, truncated)) {
             int last = lines.size() - 1;
-            lines.set(last, ellipsize(text, lines.get(last), contentWidth, true));
+            lines.set(last, TextMetrics.ellipsize(text, lines.get(last), contentWidth, true));
         } else if (shouldApplyEllipsis(text, contentWidth)) {
             String line = lines.get(0);
-            lines.set(0, ellipsize(text, line, Math.max(0, contentWidth - Math.abs(text.textIndent)), false));
+            lines.set(0, TextMetrics.ellipsize(text, line, Math.max(0, contentWidth - Math.abs(text.textIndent)), false));
             if (lines.size() > 1) {
                 lines = new ArrayList<>(lines.subList(0, 1));
             }
@@ -3262,136 +2783,6 @@ public class Element extends Node {
         Style style = getComputedStyle();
         return Interaction.clipsOverflow(style.overflow)
                 && "ellipsis".equalsIgnoreCase(style.textOverflow);
-    }
-
-    private static String ellipsize(Text text, String content, double maxWidth, boolean forceEllipsis) {
-        if (content == null || content.isEmpty()) return "";
-        if (maxWidth <= 0) return "";
-
-        String ellipsis = "...";
-        double ellipsisWidth = Text.measureLine(text, ellipsis);
-        if (ellipsisWidth >= maxWidth) return "";
-        if (!forceEllipsis && Text.measureLine(text, content) <= maxWidth) return content;
-        if (forceEllipsis && Text.measureLine(text, content + ellipsis) <= maxWidth) return content + ellipsis;
-
-        int end = content.length();
-        while (end > 0) {
-            String candidate = content.substring(0, end) + ellipsis;
-            if (Text.measureLine(text, candidate) <= maxWidth) {
-                return candidate;
-            }
-            end--;
-        }
-        return ellipsis;
-    }
-
-    static Text cloneTextForSegment(Text base, String content, Color fallbackStrokeColor) {
-        Text copy = new Text();
-        copy.fontSize = base.fontSize;
-        copy.fontWeight = base.fontWeight;
-        copy.oblique = base.oblique;
-        copy.strokeWidth = base.strokeWidth;
-        copy.strokeColor = base.strokeColor == null ? fallbackStrokeColor : base.strokeColor;
-        copy.color = base.color == null ? Color.BLACK : base.color;
-        copy.textDecoration = base.textDecoration;
-        copy.fontFamily = base.fontFamily;
-        copy.lineHeight = base.lineHeight;
-        copy.direction = base.direction;
-        copy.textAlign = base.textAlign;
-        copy.verticalAlign = base.verticalAlign;
-        copy.whiteSpace = base.whiteSpace;
-        copy.fontMode = base.fontMode;
-        copy.textIndent = 0;
-        copy.letterSpacing = base.letterSpacing;
-        copy.content = content == null ? "" : content;
-        copy.flexDirect = base.flexDirect;
-        copy.rasterBackgroundColor = base.rasterBackgroundColor;
-        return copy;
-    }
-
-    public static void copyTextForRun(Text base, Text out) {
-        out.fontSize = base.fontSize;
-        out.fontWeight = base.fontWeight;
-        out.oblique = base.oblique;
-        out.strokeWidth = base.strokeWidth;
-        out.strokeColor = base.strokeColor;
-        out.color = base.color;
-        out.textDecoration = base.textDecoration;
-        out.fontFamily = base.fontFamily;
-        out.lineHeight = base.lineHeight;
-        out.direction = base.direction;
-        out.textAlign = base.textAlign;
-        out.verticalAlign = base.verticalAlign;
-        out.whiteSpace = base.whiteSpace;
-        out.fontMode = base.fontMode;
-        out.textIndent = 0;
-        out.letterSpacing = base.letterSpacing;
-        out.size = null;
-        out.rasterBackgroundColor = base.rasterBackgroundColor;
-    }
-
-    protected static double computeAlignedX(Text text, double contentWidth, double lineWidth, boolean firstLine) {
-        double alignOffset = switch (resolveLogicalTextAlign(text)) {
-            case "center" -> (contentWidth - lineWidth) / 2.0;
-            case "right" -> contentWidth - lineWidth;
-            default -> 0;
-        };
-        double indent = firstLine ? text.textIndent : 0;
-        if (text.isRtl()) indent = -indent;
-        return alignOffset + indent;
-    }
-
-    protected static String resolveLogicalTextAlign(Text text) {
-        String align = text.textAlign == null ? "start" : text.textAlign;
-        if (align.equals("start")) return text.isRtl() ? "right" : "left";
-        if (align.equals("end")) return text.isRtl() ? "left" : "right";
-        if (align.equals("justify")) return text.isRtl() ? "right" : "left";
-        return align;
-    }
-
-    protected static double computeVerticalOffset(Text text, double contentHeight, double textHeight) {
-        String align = text.verticalAlign == null ? "top" : text.verticalAlign;
-        return switch (align) {
-            case "middle", "center" -> (contentHeight - textHeight) / 2.0;
-            case "bottom", "text-bottom" -> contentHeight - textHeight;
-            default -> 0;
-        };
-    }
-
-    protected static double computeFlexTextAlignedX(Element element, Text text, double contentWidth, double lineWidth) {
-        if (element != null && Layout.isFlexDisplay(element.getComputedStyle().display)) {
-            Flex flex = Flex.of(element);
-            if (flex.flexDirection.isColumn()) {
-                String align = flex.alignItems.value();
-                if ("center".equals(align)) return (contentWidth - lineWidth) / 2.0;
-                if ("flex-end".equals(align) || "end".equals(align)) return contentWidth - lineWidth;
-            } else {
-                String justify = flex.justifyContent.value();
-                if ("center".equals(justify)) return (contentWidth - lineWidth) / 2.0;
-                if ("flex-end".equals(justify) || "end".equals(justify)) return contentWidth - lineWidth;
-            }
-        }
-        String align = text == null || text.textAlign == null ? "start" : resolveLogicalTextAlign(text);
-        if ("center".equals(align)) return (contentWidth - lineWidth) / 2.0;
-        if ("right".equals(align)) return contentWidth - lineWidth;
-        return 0;
-    }
-
-    protected static double computeFlexTextAlignedY(Element element, Text text, double contentHeight) {
-        if (element == null || text == null) return 0;
-        if (Layout.isFlexDisplay(element.getComputedStyle().display)) {
-            Flex flex = Flex.of(element);
-            if (flex.flexDirection.isColumn()) {
-                String justify = flex.justifyContent.value();
-                if ("center".equals(justify)) return (contentHeight - text.lineHeight) / 2.0;
-                if ("flex-end".equals(justify) || "end".equals(justify)) return contentHeight - text.lineHeight;
-            } else {
-                String align = flex.alignItems.value();
-                if ("center".equals(align)) return (contentHeight - text.lineHeight) / 2.0;
-                if ("flex-end".equals(align) || "end".equals(align)) return contentHeight - text.lineHeight;
-            }
-        }
-        return 0;
     }
 
     @Override

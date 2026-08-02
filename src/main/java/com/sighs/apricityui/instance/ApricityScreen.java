@@ -1,7 +1,7 @@
 package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.render.Base;

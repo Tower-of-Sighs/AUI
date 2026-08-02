@@ -1,7 +1,7 @@
 package com.sighs.apricityui.editor.ore;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.instance.ClientLoader;
@@ -38,6 +38,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
 import org.lwjgl.glfw.GLFW;
+import com.sighs.apricityui.event.Event;
 
 /** Owns only the editor document and shell interactions. Canvas behavior is added separately. */
 final class OreEditorController {
@@ -314,7 +315,7 @@ final class OreEditorController {
         element.addEventListener("click", event -> action.run());
     }
 
-    private void handleEditorShortcut(com.sighs.apricityui.init.Event event) {
+    private void handleEditorShortcut(com.sighs.apricityui.event.Event event) {
         if (!(event instanceof KeyEvent keyEvent) || (!keyEvent.controlKey && !keyEvent.metaKey)
                 || keyEvent.altKey || isTextEntry(keyEvent.target)) return;
         boolean redo = keyEvent.keyCode == GLFW.GLFW_KEY_Y

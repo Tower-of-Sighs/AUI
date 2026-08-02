@@ -3,7 +3,7 @@ package com.sighs.apricityui.style;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;

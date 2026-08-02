@@ -4,11 +4,11 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Head;
 import com.sighs.apricityui.element.Html;
-import com.sighs.apricityui.init.CommentNode;
+import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.util.AuiLog;
 

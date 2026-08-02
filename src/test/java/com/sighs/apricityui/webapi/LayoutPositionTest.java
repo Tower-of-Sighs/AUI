@@ -2,7 +2,7 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.event.MouseEvent;
@@ -36,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.style.Style;
 
 class LayoutPositionTest {
 
@@ -1499,13 +1500,13 @@ class LayoutPositionTest {
     void layoutDisplayHelpersRecognizeInlineVariantsAndInFlowRules() {
         assertTrue(Layout.isFlexDisplay("inline-flex"));
         assertTrue(Layout.isGridDisplay("inline-grid"));
-        assertTrue(Layout.isInFlow(new com.sighs.apricityui.init.Style()));
+        assertTrue(Layout.isInFlow(new com.sighs.apricityui.style.Style()));
 
-        com.sighs.apricityui.init.Style absolute = new com.sighs.apricityui.init.Style();
+        com.sighs.apricityui.style.Style absolute = new com.sighs.apricityui.style.Style();
         absolute.position = "absolute";
         assertTrue(!Layout.isInFlow(absolute));
 
-        com.sighs.apricityui.init.Style hidden = new com.sighs.apricityui.init.Style();
+        com.sighs.apricityui.style.Style hidden = new com.sighs.apricityui.style.Style();
         hidden.display = "none";
         assertTrue(!Layout.isInFlow(hidden));
     }
@@ -1915,6 +1916,30 @@ class LayoutPositionTest {
             cursor = getValue().length();
             clampScroll();
         }
+    }
+
+    @Test
+    void nestedFlowPositionsDoNotDoubleCountAncestorMargins() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 400px; height: 300px;");
+
+        Element outer = new Element(document, "div");
+        outer.setAttribute("style", "box-sizing: border-box;"
+                + " width: 200px; height: 150px; padding: 10px; border: 2px solid #000; margin-left: 7px;");
+        document.body.appendChild(outer);
+
+        Element middle = new Element(document, "div");
+        middle.setAttribute("style", "margin-left: 30px;");
+        outer.appendChild(middle);
+
+        Element inner = new Element(document, "div");
+        inner.setAttribute("style", "margin-left: 25px;");
+        middle.appendChild(inner);
+
+        // 中间祖先的 margin 只能计入一次：middle = 7 + border2 + padding10 + margin30
+        assertEquals(7, Position.of(outer).x, 0.01);
+        assertEquals(49, Position.of(middle).x, 0.01);
+        assertEquals(74, Position.of(inner).x, 0.01);
     }
 
 }

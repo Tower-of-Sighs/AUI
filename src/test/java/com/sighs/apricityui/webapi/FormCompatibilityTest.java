@@ -7,8 +7,8 @@ import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.FormDataEntry;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.form.FormDataEntry;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.layout.Position;
 import org.junit.jupiter.api.Test;
 

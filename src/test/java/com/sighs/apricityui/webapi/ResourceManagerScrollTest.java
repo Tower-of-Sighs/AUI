@@ -6,7 +6,7 @@ import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.Font;

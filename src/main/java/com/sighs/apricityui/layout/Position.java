@@ -3,7 +3,7 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 
 import java.util.List;
 
@@ -73,41 +73,22 @@ public class Position {
         return Layout.computeChildPosition(element, parent, siblings);
     }
 
+    /**
+     * 解析字符串中出现的第一个数字（可带符号）。与 Size.parseNumber 的差异：
+     * parseNumber 只解析前导数字，这里允许任意前缀字符（如 "translate(7px)"），
+     * 因此先定位到第一个候选起点，再委托 parseNumber 完成扫描。
+     */
     public static double parseSignedNumber(String str) {
-        if (str == null || str.isEmpty() || "unset".equals(str)) {
-            return 0;
-        }
-
-        StringBuilder numberBuilder = new StringBuilder();
-        boolean foundNumber = false;
-        boolean foundDot = false;
-
-        char[] chars = str.toCharArray();
-        for (int i = 0; i < chars.length; i++) {
-            char c = chars[i];
-
-            if (c == '-' && !foundNumber && i + 1 < chars.length && Character.isDigit(chars[i + 1])) {
-                numberBuilder.append(c);
-                foundNumber = true;
-            } else if (Character.isDigit(c)) {
-                numberBuilder.append(c);
-                foundNumber = true;
-            } else if (c == '.' && foundNumber && !foundDot) {
-                numberBuilder.append(c);
-                foundDot = true;
-            } else if (foundNumber) {
-                break;
+        if (str == null || str.isEmpty() || "unset".equals(str)) return 0;
+        for (int i = 0; i < str.length(); i++) {
+            char c = str.charAt(i);
+            boolean signStart = (c == '-' || c == '+') && i + 1 < str.length()
+                    && Character.isDigit(str.charAt(i + 1));
+            if (Character.isDigit(c) || signStart) {
+                Double number = Size.parseNumber(str.substring(i));
+                return number == null ? 0 : number;
             }
         }
-
-        if (!numberBuilder.isEmpty()) {
-            try {
-                return Double.parseDouble(numberBuilder.toString());
-            } catch (NumberFormatException e) {
-                return 0;
-            }
-        }
-
         return 0;
     }
 

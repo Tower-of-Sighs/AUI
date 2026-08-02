@@ -3,13 +3,14 @@ package com.sighs.apricityui.element;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.style.Animation;
 
 import java.util.*;
 import java.util.regex.Pattern;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 @ElementRegister(Sprite.TAG_NAME)
 public class Sprite extends Div {
@@ -259,7 +260,7 @@ public class Sprite extends Div {
 
     private static boolean isHandleReady(com.sighs.apricityui.resource.async.image.ImageHandle handle) {
         return handle != null
-                && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY
+                && handle.state() == com.sighs.apricityui.task.AbstractAsyncHandler.AsyncState.READY
                 && handle.texture() != null;
     }
 

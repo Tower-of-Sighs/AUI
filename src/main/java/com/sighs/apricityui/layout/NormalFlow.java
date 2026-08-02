@@ -4,8 +4,9 @@ import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.init.Style;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.util.TextMetrics;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.instance.element.Translation;
 
 import java.util.ArrayList;
@@ -274,8 +275,8 @@ public final class NormalFlow {
                     outerSize.height() - box.getMarginVertical() - box.getBorderVertical() - box.getPaddingVertical());
             double crossOffset = 0;
             if (Layout.isFlexDisplay(element.getComputedStyle().display)
-                    && Flex.of(element).flexDirection.isRow()
-                    && Flex.of(element).alignItems.isCenter()) {
+                    && Flex.of(element).flexDirection.contains("row")
+                    && Flex.of(element).alignItems.is("center")) {
                 crossOffset = Math.max(0, (contentHeight - text.lineHeight) / 2.0d);
             }
             double baseline = box.getMarginTop() + box.getBorderTop() + box.getPaddingTop()
@@ -401,7 +402,7 @@ public final class NormalFlow {
         Element textOwner = node != null && node.parentNode instanceof Element parent ? parent : owner;
         Text base = Text.of(textOwner);
         Text text = new Text();
-        Element.copyTextForRun(base, text);
+        TextMetrics.copyTextForRun(base, text);
         text.color = base.color;
         text.strokeColor = base.strokeColor;
         text.content = normalizeInlineTextFragment(content, text.whiteSpace);

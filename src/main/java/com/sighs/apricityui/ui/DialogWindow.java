@@ -2,9 +2,9 @@ package com.sighs.apricityui.ui;
 
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 
 /** Reusable document modal: title drag is always enabled; resize is opt-in. */
 public final class DialogWindow {

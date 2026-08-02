@@ -9,6 +9,7 @@ import com.sighs.apricityui.init.Element;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import com.sighs.apricityui.init.Node;
 
 final class DebugProtocolSession {
     private final Map<String, String> attachedTargets = new HashMap<>();

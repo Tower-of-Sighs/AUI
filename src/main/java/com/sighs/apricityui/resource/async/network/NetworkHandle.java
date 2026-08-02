@@ -1,6 +1,6 @@
 package com.sighs.apricityui.resource.async.network;
 
-import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 public final class NetworkHandle {
     private final String url;

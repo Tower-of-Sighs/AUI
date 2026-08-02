@@ -2,7 +2,7 @@ package com.sighs.apricityui.ui.file;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.ui.FilePicker;
 import com.sighs.apricityui.webapi.TestDocumentFactory;

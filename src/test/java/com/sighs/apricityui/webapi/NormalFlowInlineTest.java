@@ -2,7 +2,7 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;

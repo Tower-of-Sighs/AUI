@@ -3,7 +3,7 @@ package com.sighs.apricityui.dev.devtools;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.event.MouseEvent;
 
 import java.util.Locale;

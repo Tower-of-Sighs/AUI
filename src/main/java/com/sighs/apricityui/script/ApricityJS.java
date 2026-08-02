@@ -5,7 +5,7 @@ import dev.latvian.mods.kubejs.KubeJS;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.Scriptable;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.util.AuiLog;
 import net.minecraftforge.fml.ModList;
 
@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.function.Consumer;
+import com.sighs.apricityui.init.Node;
 
 public class ApricityJS {
     // KubeJS 自带的 Rhino 版本不支持部分 ES6 语法（数组展开、默认参数等）。

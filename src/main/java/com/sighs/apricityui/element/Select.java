@@ -3,7 +3,7 @@ package com.sighs.apricityui.element;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
@@ -166,7 +166,7 @@ public class Select extends Element {
     }
 
     @Override
-    protected void onDisconnectedFromDocument() {
+    public void onDisconnectedFromDocument() {
         closePopup();
     }
 

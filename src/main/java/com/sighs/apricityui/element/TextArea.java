@@ -2,10 +2,10 @@ package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;

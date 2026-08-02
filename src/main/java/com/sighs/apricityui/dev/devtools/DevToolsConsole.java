@@ -4,10 +4,10 @@ import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.init.Operation;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.render.Operation;
+import com.sighs.apricityui.dom.TextNode;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;

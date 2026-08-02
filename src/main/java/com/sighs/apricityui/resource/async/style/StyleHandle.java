@@ -1,6 +1,6 @@
 package com.sighs.apricityui.resource.async.style;
 
-import com.sighs.apricityui.init.AbstractAsyncHandler;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 import java.util.ArrayList;
 import java.util.List;

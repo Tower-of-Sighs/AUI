@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 public class Cursor {
     private static final float PSEUDO_CURSOR_Z = 1000.0F;
@@ -72,7 +73,7 @@ public class Cursor {
         if (urlSpec != null) {
             ImageHandle handle = ImageAsyncHandler.INSTANCE.request(urlSpec.path());
             if (handle != null
-                    && handle.state() == com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY
+                    && handle.state() == com.sighs.apricityui.task.AbstractAsyncHandler.AsyncState.READY
                     && handle.texture() != null) {
                 enablePseudoCursor(urlSpec);
             } else {
@@ -150,7 +151,7 @@ public class Cursor {
         if (poseStack == null || pseudoCursorSpec == null) return;
 
         ImageHandle handle = ImageAsyncHandler.INSTANCE.request(pseudoCursorSpec.path());
-        if (handle == null || handle.state() != com.sighs.apricityui.init.AbstractAsyncHandler.AsyncState.READY) return;
+        if (handle == null || handle.state() != com.sighs.apricityui.task.AbstractAsyncHandler.AsyncState.READY) return;
 
         Image.ITexture texture = handle.texture();
         if (texture == null || texture.getLocation() == null) return;

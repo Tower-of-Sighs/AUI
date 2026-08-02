@@ -2,7 +2,7 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Transition;
 import org.junit.jupiter.api.Test;

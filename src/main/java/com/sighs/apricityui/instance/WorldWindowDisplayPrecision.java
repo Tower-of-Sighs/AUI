@@ -1,5 +1,7 @@
 package com.sighs.apricityui.instance;
 
+import com.sighs.apricityui.init.Document;
+
 /**
  * Rendering detail level for a {@link WorldWindow}.
  *

@@ -2,9 +2,9 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Selector;
-import com.sighs.apricityui.init.Style;
-import com.sighs.apricityui.init.StyleFrameCache;
+import com.sighs.apricityui.style.Selector;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.element.Input;
@@ -35,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.dom.TextNode;
 
 class CssCompatibilityTest {
     @Test
@@ -563,7 +564,7 @@ class CssCompatibilityTest {
 
         assertEquals(2, label.getRenderChildNodes().size());
         assertTrue(label.getRenderChildNodes().get(0) instanceof Element);
-        assertTrue(label.getRenderChildNodes().get(1) instanceof com.sighs.apricityui.init.TextNode);
+        assertTrue(label.getRenderChildNodes().get(1) instanceof com.sighs.apricityui.dom.TextNode);
         assertEquals("Viewport", label.getRenderChildNodes().get(1).getTextContent());
         assertTrue(label.getChildNodes().isEmpty(), "generated render text must not mutate the DOM child list");
     }

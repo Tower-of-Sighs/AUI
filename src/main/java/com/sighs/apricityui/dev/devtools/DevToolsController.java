@@ -3,13 +3,13 @@ package com.sighs.apricityui.dev.devtools;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.FrameTaskScheduler;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.init.Operation;
-import com.sighs.apricityui.init.Selector;
+import com.sighs.apricityui.render.Operation;
+import com.sighs.apricityui.style.Selector;
 import com.sighs.apricityui.instance.ApricityContainerScreen;
 import com.sighs.apricityui.instance.ApricityScreen;
 import com.sighs.apricityui.instance.WorldWindow;
@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import com.sighs.apricityui.style.Style;
 
 public final class DevToolsController {
     public static final String PATH = "devtools/devtools.html";

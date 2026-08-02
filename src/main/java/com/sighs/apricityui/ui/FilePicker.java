@@ -3,7 +3,7 @@ package com.sighs.apricityui.ui;
 import com.sighs.apricityui.dev.resource.ResourceFileWriter;
 import com.sighs.apricityui.dev.resource.ResourcePath;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import com.sighs.apricityui.event.Event;
 
 /**
  * Global, resource-manager-backed file selection UI. The result is empty when the
@@ -425,7 +426,7 @@ public final class FilePicker {
         else target.appendChild(translation("SPAN", key, null));
     }
 
-    private void bindTemplate(Element element, String type, java.util.function.Consumer<com.sighs.apricityui.init.Event> listener) {
+    private void bindTemplate(Element element, String type, java.util.function.Consumer<com.sighs.apricityui.event.Event> listener) {
         if (element == null) return;
         String marker = "data-file-picker-bound-" + type;
         if ("1".equals(element.getAttribute(marker))) return;

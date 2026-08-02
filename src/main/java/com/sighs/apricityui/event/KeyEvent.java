@@ -2,8 +2,8 @@ package com.sighs.apricityui.event;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.render.Operation;
 import org.lwjgl.glfw.GLFW;
 
 public class KeyEvent extends Event {

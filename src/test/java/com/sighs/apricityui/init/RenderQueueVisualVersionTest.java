@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.RenderQueue;
 
 class RenderQueueVisualVersionTest {
     @Test

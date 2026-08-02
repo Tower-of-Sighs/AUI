@@ -15,6 +15,7 @@ import java.lang.reflect.Method;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
+import com.sighs.apricityui.render.Drawer;
 
 class ResourcePipelineTest {
     @Test
@@ -239,7 +240,7 @@ class ResourcePipelineTest {
         hidden.appendChild(hiddenChild);
         hidden.setAttribute("style", "display: none;");
 
-        document.markDirty(document.body, com.sighs.apricityui.init.Drawer.REORDER);
+        document.markDirty(document.body, com.sighs.apricityui.render.Drawer.REORDER);
         document.commitRenderState();
 
         assertFalse(containsPaintTarget(document.getPaintList(), hidden));
@@ -258,7 +259,7 @@ class ResourcePipelineTest {
         panel.appendChild(host);
         host.appendChild(removed);
 
-        document.markDirty(document.body, com.sighs.apricityui.init.Drawer.REORDER);
+        document.markDirty(document.body, com.sighs.apricityui.render.Drawer.REORDER);
         document.commitRenderState();
         assertTrue(containsPaintTarget(document.getPaintList(), removed));
 

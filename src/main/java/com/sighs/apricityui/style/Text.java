@@ -4,7 +4,7 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.instance.element.Translation;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
@@ -19,6 +19,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.dom.RenderElement;
+import com.sighs.apricityui.dom.TextNode;
 
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
@@ -412,7 +415,7 @@ public class Text {
         if (element.childNodes.isEmpty()) return element.innerText == null ? "" : element.innerText;
         StringBuilder builder = new StringBuilder();
         for (com.sighs.apricityui.init.Node child : element.childNodes) {
-            if (child instanceof com.sighs.apricityui.init.TextNode textNode) {
+            if (child instanceof com.sighs.apricityui.dom.TextNode textNode) {
                 builder.append(textNode.getTextContent());
             }
         }

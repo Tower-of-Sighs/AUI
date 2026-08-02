@@ -20,14 +20,18 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import com.sighs.apricityui.util.BrowserLocation;
+import com.sighs.apricityui.util.LocalStorage;
+import com.sighs.apricityui.util.SimpleJsonParser;
+import com.sighs.apricityui.util.Storage;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.style.Style;
 
 public class Window {
     public static final Window window = new Window();
@@ -598,198 +602,7 @@ public class Window {
         }
     }
 
-    private static final class SimpleJsonParser {
-        private final String source;
-        private int index = 0;
-
-        private SimpleJsonParser(String source) {
-            this.source = source == null ? "" : source;
-        }
-
-        private Object parse() {
-            skipWhitespace();
-            Object value = parseValue();
-            skipWhitespace();
-            if (index != source.length()) {
-                throw new IllegalArgumentException("Unexpected trailing JSON content at index " + index);
-            }
-            return value;
-        }
-
-        private Object parseValue() {
-            skipWhitespace();
-            if (index >= source.length()) {
-                throw new IllegalArgumentException("Unexpected end of JSON input");
-            }
-            char c = source.charAt(index);
-            return switch (c) {
-                case '{' -> parseObject();
-                case '[' -> parseArray();
-                case '"' -> parseString();
-                case 't' -> parseLiteral("true", Boolean.TRUE);
-                case 'f' -> parseLiteral("false", Boolean.FALSE);
-                case 'n' -> parseLiteral("null", null);
-                default -> parseNumber();
-            };
-        }
-
-        private Map<String, Object> parseObject() {
-            LinkedHashMap<String, Object> result = new LinkedHashMap<>();
-            index++;
-            skipWhitespace();
-            if (peek('}')) {
-                index++;
-                return result;
-            }
-            while (true) {
-                skipWhitespace();
-                String key = parseString();
-                skipWhitespace();
-                expect(':');
-                Object value = parseValue();
-                result.put(key, value);
-                skipWhitespace();
-                if (peek('}')) {
-                    index++;
-                    return result;
-                }
-                expect(',');
-            }
-        }
-
-        private List<Object> parseArray() {
-            ArrayList<Object> result = new ArrayList<>();
-            index++;
-            skipWhitespace();
-            if (peek(']')) {
-                index++;
-                return result;
-            }
-            while (true) {
-                result.add(parseValue());
-                skipWhitespace();
-                if (peek(']')) {
-                    index++;
-                    return result;
-                }
-                expect(',');
-            }
-        }
-
-        private String parseString() {
-            expect('"');
-            StringBuilder builder = new StringBuilder();
-            while (index < source.length()) {
-                char c = source.charAt(index++);
-                if (c == '"') {
-                    return builder.toString();
-                }
-                if (c != '\\') {
-                    builder.append(c);
-                    continue;
-                }
-                if (index >= source.length()) {
-                    throw new IllegalArgumentException("Unexpected end of JSON string escape");
-                }
-                char escaped = source.charAt(index++);
-                switch (escaped) {
-                    case '"', '\\', '/' -> builder.append(escaped);
-                    case 'b' -> builder.append('\b');
-                    case 'f' -> builder.append('\f');
-                    case 'n' -> builder.append('\n');
-                    case 'r' -> builder.append('\r');
-                    case 't' -> builder.append('\t');
-                    case 'u' -> {
-                        if (index + 4 > source.length()) {
-                            throw new IllegalArgumentException("Invalid unicode escape in JSON string");
-                        }
-                        String hex = source.substring(index, index + 4);
-                        builder.append((char) Integer.parseInt(hex, 16));
-                        index += 4;
-                    }
-                    default -> throw new IllegalArgumentException("Unsupported JSON escape: \\" + escaped);
-                }
-            }
-            throw new IllegalArgumentException("Unterminated JSON string");
-        }
-
-        private Object parseLiteral(String literal, Object value) {
-            if (!source.startsWith(literal, index)) {
-                throw new IllegalArgumentException("Invalid JSON literal at index " + index);
-            }
-            index += literal.length();
-            return value;
-        }
-
-        private Double parseNumber() {
-            int start = index;
-            if (peek('-')) index++;
-            while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
-            if (peek('.')) {
-                index++;
-                while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
-            }
-            if (peek('e') || peek('E')) {
-                index++;
-                if (peek('+') || peek('-')) index++;
-                while (index < source.length() && Character.isDigit(source.charAt(index))) index++;
-            }
-            String token = source.substring(start, index);
-            if (token.isEmpty() || "-".equals(token)) {
-                throw new IllegalArgumentException("Invalid JSON number at index " + start);
-            }
-            return Double.parseDouble(token);
-        }
-
-        private void skipWhitespace() {
-            while (index < source.length() && Character.isWhitespace(source.charAt(index))) {
-                index++;
-            }
-        }
-
-        private void expect(char expected) {
-            skipWhitespace();
-            if (!peek(expected)) {
-                throw new IllegalArgumentException("Expected '" + expected + "' at index " + index);
-            }
-            index++;
-        }
-
-        private boolean peek(char expected) {
-            return index < source.length() && source.charAt(index) == expected;
-        }
-    }
-
-    public static class SessionStorage {
-        private final LinkedHashMap<String, String> data = new LinkedHashMap<>();
-
-        public String getItem(String key) {
-            if (key == null || key.isBlank()) return null;
-            return data.get(key);
-        }
-
-        public void setItem(String key, String value) {
-            if (key == null || key.isBlank()) return;
-            data.put(key, value == null ? "null" : value);
-        }
-
-        public void removeItem(String key) {
-            if (key == null || key.isBlank()) return;
-            data.remove(key);
-        }
-
-        public void clear() {
-            data.clear();
-        }
-
-        public int getLength() {
-            return data.size();
-        }
-
-        public String key(int index) {
-            if (index < 0 || index >= data.size()) return null;
-            return new ArrayList<>(data.keySet()).get(index);
-        }
+    public static class SessionStorage extends Storage {
     }
 
     public static class Console {

@@ -1,11 +1,11 @@
 package com.sighs.apricityui.element;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.FrameTaskScheduler;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.task.FrameTaskScheduler;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.ui.Tooltip;
 
 import java.util.ArrayList;

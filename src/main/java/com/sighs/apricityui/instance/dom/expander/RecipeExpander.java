@@ -2,7 +2,7 @@ package com.sighs.apricityui.instance.dom.expander;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;

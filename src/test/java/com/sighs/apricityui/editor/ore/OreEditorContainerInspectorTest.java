@@ -2,7 +2,7 @@ package com.sighs.apricityui.editor.ore;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.resource.HTML;
 import org.junit.jupiter.api.Test;
 

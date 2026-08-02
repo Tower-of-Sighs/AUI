@@ -6,7 +6,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.resource.Font;
 
@@ -18,6 +18,8 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.dom.TextNode;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
@@ -448,14 +450,14 @@ public record Size(double width, double height) {
         boolean parentAssignsColumnMainSize = element.parentElement != null
                 && Layout.isInFlow(style)
                 && Layout.isFlexDisplay(element.parentElement.getComputedStyle().display)
-                && Flex.of(element.parentElement).flexDirection.isColumn();
+                && Flex.of(element.parentElement).flexDirection.contains("column");
         if (unsetHeight && !insetResolvedHeight && !flexMainHeightAssigned && !flexCrossHeightStretched
                 && !parentAssignsColumnMainSize
                 && (!intrinsicMeasurement || naturalWidthConstraint != null)
                 && !(element instanceof AbstractText)
                 && Layout.isFlexDisplay(style.display)) {
             Flex ownFlex = Flex.of(element);
-            if (ownFlex.flexDirection.isRow() && !ownFlex.flexWrap.canWrap()) {
+            if (ownFlex.flexDirection.contains("row") && !ownFlex.flexWrap.is("wrap")) {
                 contentHeight = Flex.computeRowCrossSizeAtMainSize(element, contentWidth);
             }
         }
@@ -555,7 +557,7 @@ public record Size(double width, double height) {
     private static boolean hasDirectTextNodeChildren(Element element) {
         if (element == null) return false;
         for (com.sighs.apricityui.init.Node child : element.getRenderChildNodes()) {
-            if (child instanceof com.sighs.apricityui.init.TextNode textNode && !textNode.getTextContent().isEmpty()) {
+            if (child instanceof com.sighs.apricityui.dom.TextNode textNode && !textNode.getTextContent().isEmpty()) {
                 return true;
             }
         }
@@ -674,17 +676,34 @@ public record Size(double width, double height) {
         return true;
     }
 
-    public static Double getContainingBlockPaddingBoxHeight(Element element) {
-        // CSS2 §10.1：absolute 的百分比尺寸相对最近 positioned 祖先的 padding box
+    /**
+     * CSS2 §10.1：absolute 的百分比尺寸相对最近 positioned 祖先的 padding box。
+     * 按轴参数化的核心：explicit 时用显式内容尺寸 + padding，否则用盒尺寸 - 边框。
+     */
+    private static Double containingBlockPaddingBoxExtent(Element element, boolean horizontal, boolean explicit) {
         Element cb = Position.findContainingBlock(element);
-        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).height());
+        if (cb == null) {
+            Size viewport = Position.viewportContainingBlockSize(element);
+            return Math.max(0, horizontal ? viewport.width() : viewport.height());
+        }
+        Box cbBox = Box.of(cb);
+        if (explicit) {
+            Double content = horizontal ? resolveOwnExplicitContentWidth(cb) : resolveOwnExplicitContentHeight(cb);
+            if (content == null) return null;
+            return Math.max(0, content + (horizontal ? cbBox.getPaddingHorizontal() : cbBox.getPaddingVertical()));
+        }
         Size cbSize = cb.getRenderer().size.get();
         if (cbSize == null) {
             if (isResolving(cb)) return null;
             cbSize = Size.of(cb);
         }
-        Box cbBox = Box.of(cb);
-        return Math.max(0, cbSize.height() - cbBox.getBorderVertical());
+        return Math.max(0, horizontal
+                ? cbSize.width() - cbBox.getBorderHorizontal()
+                : cbSize.height() - cbBox.getBorderVertical());
+    }
+
+    public static Double getContainingBlockPaddingBoxHeight(Element element) {
+        return containingBlockPaddingBoxExtent(element, false, false);
     }
 
     private static Double getCachedContainingBlockContentHeight(Element element) {
@@ -697,34 +716,15 @@ public record Size(double width, double height) {
     }
 
     public static Double getContainingBlockPaddingBoxWidth(Element element) {
-        // CSS2 §10.1：absolute 的百分比尺寸相对最近 positioned 祖先的 padding box
-        Element cb = Position.findContainingBlock(element);
-        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).width());
-        Size cbSize = cb.getRenderer().size.get();
-        if (cbSize == null) {
-            if (isResolving(cb)) return null;
-            cbSize = Size.of(cb);
-        }
-        Box cbBox = Box.of(cb);
-        return Math.max(0, cbSize.width() - cbBox.getBorderHorizontal());
+        return containingBlockPaddingBoxExtent(element, true, false);
     }
 
     private static Double getExplicitContainingBlockPaddingBoxWidth(Element element) {
-        Element cb = Position.findContainingBlock(element);
-        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).width());
-        Double contentWidth = resolveOwnExplicitContentWidth(cb);
-        if (contentWidth == null) return null;
-        Box cbBox = Box.of(cb);
-        return Math.max(0, contentWidth + cbBox.getPaddingHorizontal());
+        return containingBlockPaddingBoxExtent(element, true, true);
     }
 
     private static Double getExplicitContainingBlockPaddingBoxHeight(Element element) {
-        Element cb = Position.findContainingBlock(element);
-        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).height());
-        Double contentHeight = resolveOwnExplicitContentHeight(cb);
-        if (contentHeight == null) return null;
-        Box cbBox = Box.of(cb);
-        return Math.max(0, contentHeight + cbBox.getPaddingVertical());
+        return containingBlockPaddingBoxExtent(element, false, true);
     }
 
     private static Double resolveOwnExplicitContentHeight(Element element) {
@@ -824,7 +824,7 @@ public record Size(double width, double height) {
             if (parent == null) {
                 return false;
             }
-            if (Layout.isFlexDisplay(parent.getComputedStyle().display) && Flex.of(parent).flexDirection.isRow()) {
+            if (Layout.isFlexDisplay(parent.getComputedStyle().display) && Flex.of(parent).flexDirection.contains("row")) {
                 return true;
             }
             current = parent;
@@ -835,8 +835,8 @@ public record Size(double width, double height) {
     private static boolean shouldUseContentBasedAutoWidthForWrappedFlex(Element element) {
         if (element == null) return false;
         Style style = element.getComputedStyle();
-        return "inline-flex".equalsIgnoreCase(style.display) && Flex.of(element).flexDirection.isRow()
-                && Flex.of(element).flexWrap.canWrap()
+        return "inline-flex".equalsIgnoreCase(style.display) && Flex.of(element).flexDirection.contains("row")
+                && Flex.of(element).flexWrap.is("wrap")
                 && parseNumber(style.width) == null;
     }
 
@@ -853,7 +853,7 @@ public record Size(double width, double height) {
 
         if (Layout.isFlexDisplay(parent.getComputedStyle().display)) {
             Flex parentFlex = Flex.of(parent);
-            if (parentFlex.flexDirection.isColumn() && Flex.shouldStretchCrossAxis(element, parent)) {
+            if (parentFlex.flexDirection.contains("column") && Flex.shouldStretchCrossAxis(element, parent)) {
                 return true;
             }
         }

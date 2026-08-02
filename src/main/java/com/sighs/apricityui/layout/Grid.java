@@ -3,7 +3,7 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -58,8 +58,6 @@ public final class Grid {
     private record Gaps(int rowGap, int colGap) {
     }
 
-    private enum Align {START, CENTER, END, STRETCH}
-
     private record SpanSpec(int start, int span) {
         static SpanSpec auto() {
             return new SpanSpec(-1, 1);
@@ -99,8 +97,10 @@ public final class Grid {
 
         Size assignedSize = resolveAssignedSize(element, parent, layout, p, cellW, cellH);
         Size itemSize = assignedSize != null ? assignedSize : Size.box(element);
-        double dx = computeJustifyOffset(element, parent, cellW, itemSize.width());
-        double dy = computeAlignOffset(element, parent, cellH, itemSize.height());
+        Style ps = parent.getComputedStyle();
+        Style es = element.getComputedStyle();
+        double dx = computeAlignmentOffset(ps.justifyItems, es.justifySelf, cellW, itemSize.width());
+        double dy = computeAlignmentOffset(ps.alignItems, es.alignSelf, cellH, itemSize.height());
         return new Position(baseX + dx, baseY + dy);
     }
 
@@ -191,8 +191,8 @@ public final class Grid {
     }
 
     private static boolean isGridStretch(String containerValue, String selfValue) {
-        Align container = normalizeAlign(containerValue, Align.STRETCH);
-        Align self = normalizeAlign(selfValue, container);
+        Align container = Align.normalize(containerValue, Align.STRETCH);
+        Align self = Align.normalize(selfValue, container);
         return self == Align.STRETCH;
     }
 
@@ -543,40 +543,15 @@ public final class Grid {
         };
     }
 
-    private static double computeJustifyOffset(Element element, Element parent, double cellW, double itemW) {
-        Style ps = parent.getComputedStyle();
-        Style es = element.getComputedStyle();
-        Align container = normalizeAlign(ps.justifyItems, Align.START);
-        Align self = normalizeAlign(es.justifySelf, container);
+    /** 网格项在其单元格内的对齐偏移：container 提供默认，self 可覆盖。 */
+    private static double computeAlignmentOffset(String containerRaw, String selfRaw,
+                                                 double cellExtent, double itemExtent) {
+        Align container = Align.normalize(containerRaw, Align.START);
+        Align self = Align.normalize(selfRaw, container);
         return switch (self) {
-            case CENTER -> (cellW - itemW) / 2.0;
-            case END -> (cellW - itemW);
+            case CENTER -> (cellExtent - itemExtent) / 2.0;
+            case END -> (cellExtent - itemExtent);
             case STRETCH, START -> 0.0;
-        };
-    }
-
-    private static double computeAlignOffset(Element element, Element parent, double cellH, double itemH) {
-        Style ps = parent.getComputedStyle();
-        Style es = element.getComputedStyle();
-        Align container = normalizeAlign(ps.alignItems, Align.START);
-        Align self = normalizeAlign(es.alignSelf, container);
-        return switch (self) {
-            case CENTER -> (cellH - itemH) / 2.0;
-            case END -> (cellH - itemH);
-            case STRETCH, START -> 0.0;
-        };
-    }
-
-    private static Align normalizeAlign(String raw, Align fallback) {
-        if (raw == null) return fallback;
-        raw = raw.trim().toLowerCase(Locale.ROOT);
-        if (raw.isBlank() || "unset".equals(raw) || "auto".equals(raw)) return fallback;
-        return switch (raw) {
-            case "start", "flex-start", "left", "top" -> Align.START;
-            case "center" -> Align.CENTER;
-            case "end", "flex-end", "right", "bottom" -> Align.END;
-            case "stretch" -> Align.STRETCH;
-            default -> fallback;
         };
     }
 
@@ -742,27 +717,7 @@ public final class Grid {
     }
 
     private static List<String> splitTopLevelWhitespace(String value) {
-        List<String> parts = new ArrayList<>();
-        if (value == null || value.isBlank()) return parts;
-
-        int depth = 0;
-        StringBuilder current = new StringBuilder();
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '(') depth++;
-            else if (c == ')' && depth > 0) depth--;
-
-            if (Character.isWhitespace(c) && depth == 0) {
-                if (!current.isEmpty()) {
-                    parts.add(current.toString());
-                    current.setLength(0);
-                }
-                continue;
-            }
-            current.append(c);
-        }
-        if (!current.isEmpty()) parts.add(current.toString());
-        return parts;
+        return Layout.splitTopLevelWhitespace(value);
     }
 
     private static final class Occupancy {

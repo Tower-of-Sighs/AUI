@@ -8,8 +8,8 @@ import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Operation;
-import com.sighs.apricityui.init.Runtime;
+import com.sighs.apricityui.task.FrameScheduler;
+import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
@@ -459,7 +459,7 @@ public class Client {
                 com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
             }
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
-            Runtime.tick();
+            FrameScheduler.tick();
             ResourceManager.reconcileConfiguredMode();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();

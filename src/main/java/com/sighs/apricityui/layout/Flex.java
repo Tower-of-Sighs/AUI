@@ -5,26 +5,51 @@ import com.sighs.apricityui.style.*;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.init.Style;
-import com.sighs.apricityui.init.TextNode;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.util.TextMetrics;
+import com.sighs.apricityui.dom.TextNode;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
 
 public class Flex {
-    public FlexDirection flexDirection;
-    public FlexWrap flexWrap;
-    public AlignContent alignContent;
-    public JustifyContent justifyContent;
-    public AlignItems alignItems;
+    /**
+     * flex 关键字值（flex-direction/flex-wrap/align-content/justify-content/align-items）
+     * 统一封装。方向类用 contains（row/column/reverse），其余用 is 精确匹配。
+     */
+    public static final class KeywordValue {
+        public final String value;
+
+        public KeywordValue(String value) {
+            this.value = value;
+        }
+
+        public boolean is(String keyword) {
+            return keyword.equals(value);
+        }
+
+        public boolean contains(String part) {
+            return value != null && value.contains(part);
+        }
+
+        public String value() {
+            return value;
+        }
+    }
+
+    public KeywordValue flexDirection;
+    public KeywordValue flexWrap;
+    public KeywordValue alignContent;
+    public KeywordValue justifyContent;
+    public KeywordValue alignItems;
 
     public Flex(Style style) {
-        flexDirection = new FlexDirection(style.flexDirection);
-        flexWrap = new FlexWrap(style.flexWrap);
-        alignContent = new AlignContent(style.alignContent, flexWrap.canWrap());
-        justifyContent = new JustifyContent(style.justifyContent);
-        alignItems = new AlignItems(style.alignItems);
+        flexDirection = new KeywordValue(style.flexDirection);
+        flexWrap = new KeywordValue(style.flexWrap);
+        alignContent = new KeywordValue(style.alignContent);
+        justifyContent = new KeywordValue(style.justifyContent);
+        alignItems = new KeywordValue(style.alignItems);
     }
 
     public static Flex of(Element element) {
@@ -51,8 +76,8 @@ public class Flex {
 
     public static Size computeContentSize(Element element) {
         Flex flex = Flex.of(element);
-        boolean flexColumn = flex.flexDirection.isColumn();
-        boolean wrappedRow = flex.flexWrap.canWrap() && !flexColumn;
+        boolean flexColumn = flex.flexDirection.contains("column");
+        boolean wrappedRow = flex.flexWrap.is("wrap") && !flexColumn;
         boolean natural = Size.isNaturalMeasurementContext();
         double availableWidth = wrappedRow
                 ? resolveWrappedRowAvailableWidth(element)
@@ -99,7 +124,7 @@ public class Flex {
         if (parent == null) return FlexLayoutResult.EMPTY;
         Flex flex = Flex.of(parent);
         Box parentBox = Box.of(parent);
-        boolean wrappedRow = flex.flexWrap.canWrap() && flex.flexDirection.isRow();
+        boolean wrappedRow = flex.flexWrap.is("wrap") && flex.flexDirection.contains("row");
         boolean natural = Size.isNaturalMeasurementContext();
         double availableWidth = wrappedRow
                 ? resolveWrappedRowAvailableWidth(parent)
@@ -127,7 +152,7 @@ public class Flex {
         double[] itemMainSizes = computeAssignedMainSizes(parent, flowItems);
         double totalMain = 0;
         for (FlexParticipant participant : participants) {
-            double mainSize = participantMainSize(participant, itemMainSizes, flex.flexDirection.isColumn());
+            double mainSize = participantMainSize(participant, itemMainSizes, flex.flexDirection.contains("column"));
             totalMain += mainSize;
         }
         if (participants.size() > 1) {
@@ -138,10 +163,10 @@ public class Flex {
         double offsetTotal = availableMain - totalMain;
         double cursorX = parentBox.offset("left");
         double cursorY = parentBox.offset("top");
-        double autoMarginShare = resolveMainAxisAutoMarginShare(participants, flex.flexDirection.isColumn(), offsetTotal);
+        double autoMarginShare = resolveMainAxisAutoMarginShare(participants, flex.flexDirection.contains("column"), offsetTotal);
         double justifyOffsetTotal = autoMarginShare > 0 ? 0 : offsetTotal;
         FlexLayoutOffset flexOffset = computeJustifyContentOffset(flex.justifyContent, justifyOffsetTotal, participants.size(), 0);
-        if (flex.flexDirection.isColumn()) {
+        if (flex.flexDirection.contains("column")) {
             cursorY += flexOffset.offsetStart;
         } else {
             cursorX += flexOffset.offsetStart;
@@ -151,8 +176,8 @@ public class Flex {
         ArrayList<DirectTextLayout> layouts = new ArrayList<>();
         for (int i = 0; i < participants.size(); i++) {
             FlexParticipant participant = participants.get(i);
-            double mainSize = participantMainSize(participant, itemMainSizes, flex.flexDirection.isColumn());
-            if (flex.flexDirection.isColumn()) {
+            double mainSize = participantMainSize(participant, itemMainSizes, flex.flexDirection.contains("column"));
+            if (flex.flexDirection.contains("column")) {
                 cursorY += mainAxisAutoMarginBefore(participant, true, autoMarginShare);
             } else {
                 cursorX += mainAxisAutoMarginBefore(participant, false, autoMarginShare);
@@ -166,20 +191,20 @@ public class Flex {
                 Size childSize = participant.size();
                 double childX = cursorX;
                 double childY = cursorY;
-                double availableCross = flex.flexDirection.isColumn()
+                double availableCross = flex.flexDirection.contains("column")
                         ? parentContentSize.width()
                         : parentContentSize.height();
-                double usedCross = flex.flexDirection.isColumn()
+                double usedCross = flex.flexDirection.contains("column")
                         ? childSize.width()
                         : childSize.height();
                 double crossOffset = resolveCrossAxisOffset(child, parent, availableCross, usedCross);
-                if (flex.flexDirection.isColumn()) childX += crossOffset;
+                if (flex.flexDirection.contains("column")) childX += crossOffset;
                 else childY += crossOffset;
                 positions.put(child, new Position(childX, childY));
             }
             if (participant.text() != null) {
                 double crossOffset = 0;
-                if (flex.flexDirection.isColumn()) {
+                if (flex.flexDirection.contains("column")) {
                     crossOffset = resolveCrossOffset(flex, parentContentSize.width(), participant.size().width());
                     layouts.add(new DirectTextLayout(participant.text(), new Position(cursorX + crossOffset, cursorY)));
                 } else {
@@ -187,13 +212,13 @@ public class Flex {
                     layouts.add(new DirectTextLayout(participant.text(), new Position(cursorX, cursorY + crossOffset)));
                 }
             }
-            if (flex.flexDirection.isColumn()) {
+            if (flex.flexDirection.contains("column")) {
                 cursorY += mainSize + mainAxisAutoMarginAfter(participant, true, autoMarginShare);
             } else {
                 cursorX += mainSize + mainAxisAutoMarginAfter(participant, false, autoMarginShare);
             }
             if (i + 1 < participants.size()) {
-                if (flex.flexDirection.isColumn()) {
+                if (flex.flexDirection.contains("column")) {
                     cursorY += gap + flexOffset.offsetInterval;
                 } else {
                     cursorX += gap + flexOffset.offsetInterval;
@@ -240,7 +265,7 @@ public class Flex {
     public static double resolveMainAxisGap(Element parent) {
         if (parent == null) return 0;
         Style style = parent.getComputedStyle();
-        boolean column = Flex.of(parent).flexDirection.isColumn();
+        boolean column = Flex.of(parent).flexDirection.contains("column");
         String raw = column
                 ? ("unset".equals(style.rowGap) ? style.gap : style.rowGap)
                 : ("unset".equals(style.columnGap) ? style.gap : style.columnGap);
@@ -251,7 +276,7 @@ public class Flex {
     private static double resolveAvailableMainSize(Element parent, Box parentBox, Flex flex) {
         if (parent == null || parentBox == null || flex == null) return 0;
         Size parentContentSize = parentBox.innerSize();
-        return Math.max(0, flex.flexDirection.isColumn()
+        return Math.max(0, flex.flexDirection.contains("column")
                 ? parentContentSize.height()
                 : parentContentSize.width());
     }
@@ -264,7 +289,7 @@ public class Flex {
         String effective = ("unset".equals(alignSelf) || "auto".equals(alignSelf)) ? flex.alignItems.value : alignSelf;
         if (!"stretch".equals(effective)) return false;
         Box childBox = Box.of(child);
-        boolean hasCrossAxisAutoMargin = flex.flexDirection.isColumn()
+        boolean hasCrossAxisAutoMargin = flex.flexDirection.contains("column")
                 ? childBox.isMarginAuto("left") || childBox.isMarginAuto("right")
                 : childBox.isMarginAuto("top") || childBox.isMarginAuto("bottom");
         // CSS Flexbox: an auto margin on either cross-axis side absorbs the
@@ -272,10 +297,10 @@ public class Flex {
         if (hasCrossAxisAutoMargin) return false;
         Double aspectRatio = Size.parseAspectRatio(childStyle.aspectRatio);
         if (aspectRatio != null && aspectRatio > 0) {
-            if (flex.flexDirection.isColumn() && Size.parseNumber(childStyle.height) != null) return false;
-            if (!flex.flexDirection.isColumn() && Size.parseNumber(childStyle.width) != null) return false;
+            if (flex.flexDirection.contains("column") && Size.parseNumber(childStyle.height) != null) return false;
+            if (!flex.flexDirection.contains("column") && Size.parseNumber(childStyle.width) != null) return false;
         }
-        return flex.flexDirection.isColumn()
+        return flex.flexDirection.contains("column")
                 ? Size.parseNumber(childStyle.width) == null
                 : Size.parseNumber(childStyle.height) == null;
     }
@@ -313,11 +338,11 @@ public class Flex {
 
         if (allowMainAxisAdjustment) {
             Size parentContentSize = parentResolving ? Size.ZERO : Box.of(parent).innerSize();
-            if (flex.flexDirection.isColumn() && widthAuto && shouldStretchCrossAxis(element, parent)) {
+            if (flex.flexDirection.contains("column") && widthAuto && shouldStretchCrossAxis(element, parent)) {
                 double parentCrossWidth = parentContentSize.width() > 0
                         ? parentContentSize.width() : Size.getScaleWidth(element);
                 contentWidth = Math.max(0, parentCrossWidth - box.getMarginHorizontal() - horizontalBox);
-            } else if (flex.flexDirection.isRow() && heightAuto && shouldStretchCrossAxis(element, parent)
+            } else if (flex.flexDirection.contains("row") && heightAuto && shouldStretchCrossAxis(element, parent)
                     && (!parentResolving || explicitParentHeight != null)) {
                 double parentCrossHeight = parentContentSize.height() > 0
                         ? parentContentSize.height()
@@ -326,12 +351,12 @@ public class Flex {
                 crossSizeStretched = true;
             }
 
-            if (!parentResolving && flex.flexDirection.isColumn() && heightAuto) {
+            if (!parentResolving && flex.flexDirection.contains("column") && heightAuto) {
                 double outer = resolveAssignedMainSize(element, parent,
                         contentHeight + verticalBox + box.getMarginVertical());
                 contentHeight = Math.max(0, outer - box.getMarginVertical() - verticalBox);
                 mainSizeAssigned = true;
-            } else if (!parentResolving && flex.flexDirection.isRow()
+            } else if (!parentResolving && flex.flexDirection.contains("row")
                     && Size.hasDefiniteAutoResolvedWidth(parent)) {
                 double previousWidth = contentWidth;
                 double outer = resolveAssignedMainSize(element, parent,
@@ -347,7 +372,7 @@ public class Flex {
 
         if (!parentResolving && shouldStretchCrossAxis(element, parent)) {
             Size parentInner = Box.of(parent).innerSize();
-            if (flex.flexDirection.isColumn()) {
+            if (flex.flexDirection.contains("column")) {
                 contentWidth = Math.max(0, parentInner.width() - box.getMarginHorizontal() - horizontalBox);
             } else {
                 contentHeight = Math.max(0, parentInner.height() - box.getMarginVertical() - verticalBox);
@@ -400,10 +425,10 @@ public class Flex {
                     naturalElementSize.width() + itemBox.getMarginHorizontal(),
                     naturalElementSize.height() + itemBox.getMarginVertical()
             );
-            double naturalOuterMainSize = flex.flexDirection.isColumn() ? naturalItemSize.height() : naturalItemSize.width();
-            double base = resolveFlexBaseMainSize(item, parent, flex.flexDirection.isColumn(), naturalOuterMainSize);
+            double naturalOuterMainSize = flex.flexDirection.contains("column") ? naturalItemSize.height() : naturalItemSize.width();
+            double base = resolveFlexBaseMainSize(item, parent, flex.flexDirection.contains("column"), naturalOuterMainSize);
             assigned[i] = base;
-            minMainSizes[i] = resolveMinMainSize(item, flex.flexDirection.isColumn(), base);
+            minMainSizes[i] = resolveMinMainSize(item, flex.flexDirection.contains("column"), base);
             totalBase += base;
             double grow = resolveFlexGrow(item);
             double shrink = resolveFlexShrink(item);
@@ -445,7 +470,7 @@ public class Flex {
     }
 
     private static Size measureNaturalFlexItem(Element parent, Element item, Flex flex) {
-        if (parent == null || item == null || flex == null || !flex.flexDirection.isColumn()
+        if (parent == null || item == null || flex == null || !flex.flexDirection.contains("column")
                 || !shouldStretchCrossAxis(item, parent)) {
             return Size.natural(item);
         }
@@ -467,7 +492,7 @@ public class Flex {
     public static double computeRowCrossSizeAtMainSize(Element parent, double availableMain) {
         if (parent == null) return 0;
         Flex flex = Flex.of(parent);
-        if (!flex.flexDirection.isRow() || flex.flexWrap.canWrap()) return 0;
+        if (!flex.flexDirection.contains("row") || flex.flexWrap.is("wrap")) return 0;
 
         List<Element> items = getFlowItems(parent.getRenderChildren());
         // Direct text in a flex container becomes an anonymous flex item. It
@@ -545,7 +570,7 @@ public class Flex {
             boolean definiteMain = parent == null || (columnMainAxis
                     ? Size.parseNumber(parent.getComputedStyle().height) != null
                     : Size.hasDefiniteAutoResolvedWidth(parent));
-            boolean parentWraps = parent != null && Flex.of(parent).flexWrap.canWrap();
+            boolean parentWraps = parent != null && Flex.of(parent).flexWrap.is("wrap");
             boolean flexible = definiteMain && (resolveFlexShrink(item) > 0 || resolveFlexGrow(item) > 0
                     || (style.flexBasis != null && !style.flexBasis.isBlank()
                     && !"auto".equalsIgnoreCase(style.flexBasis)
@@ -747,9 +772,12 @@ public class Flex {
     }
 
     private static double resolveCrossOffset(Flex flex, double availableCross, double usedCross) {
-        if (flex.alignItems.isCenter()) return Math.max(0, (availableCross - usedCross) / 2.0);
-        if (flex.alignItems.isFlexEnd()) return Math.max(0, availableCross - usedCross);
-        return 0;
+        Align align = Align.normalize(flex.alignItems.value(), Align.STRETCH);
+        return switch (align) {
+            case CENTER -> Math.max(0, (availableCross - usedCross) / 2.0);
+            case END -> Math.max(0, availableCross - usedCross);
+            default -> 0;
+        };
     }
 
     private static double resolveCrossAxisOffset(Element child, Element parent,
@@ -757,10 +785,10 @@ public class Flex {
         if (child == null || parent == null) return 0;
         Flex flex = Flex.of(parent);
         Box box = Box.of(child);
-        boolean beforeAuto = flex.flexDirection.isColumn()
+        boolean beforeAuto = flex.flexDirection.contains("column")
                 ? box.isMarginAuto("left")
                 : box.isMarginAuto("top");
-        boolean afterAuto = flex.flexDirection.isColumn()
+        boolean afterAuto = flex.flexDirection.contains("column")
                 ? box.isMarginAuto("right")
                 : box.isMarginAuto("bottom");
         double freeSpace = availableCross - usedCross;
@@ -774,10 +802,12 @@ public class Flex {
             return beforeAuto ? freeSpace : 0;
         }
 
-        String effective = resolveCrossAxisAlignValue(child, parent);
-        if ("center".equals(effective)) return Math.max(0, freeSpace / 2.0d);
-        if ("flex-end".equals(effective) || "end".equals(effective)) return Math.max(0, freeSpace);
-        return 0;
+        Align align = Align.normalize(resolveCrossAxisAlignValue(child, parent), Align.STRETCH);
+        return switch (align) {
+            case CENTER -> Math.max(0, freeSpace / 2.0d);
+            case END -> Math.max(0, freeSpace);
+            default -> 0;
+        };
     }
 
     private static double resolveMainAxisAutoMarginShare(List<FlexParticipant> participants, boolean columnMainAxis, double freeSpace) {
@@ -844,7 +874,7 @@ public class Flex {
                 if (normalized == null || normalized.isBlank()) continue;
                 Text base = Text.of(parent);
                 Text text = new Text();
-                Element.copyTextForRun(base, text);
+                TextMetrics.copyTextForRun(base, text);
                 text.color = base.color == null ? Color.BLACK : base.color;
                 text.strokeColor = base.strokeColor == null ? Color.BLACK : base.strokeColor;
                 text.content = normalized;
@@ -863,7 +893,7 @@ public class Flex {
             if (normalized != null && !normalized.isBlank()) {
                 Text base = Text.of(parent);
                 Text text = new Text();
-                Element.copyTextForRun(base, text);
+                TextMetrics.copyTextForRun(base, text);
                 text.color = base.color == null ? Color.BLACK : base.color;
                 text.strokeColor = base.strokeColor == null ? Color.BLACK : base.strokeColor;
                 text.content = normalized;
@@ -912,27 +942,27 @@ public class Flex {
         }
     }
 
-    private static FlexLayoutOffset computeJustifyContentOffset(JustifyContent justifyContent,
+    private static FlexLayoutOffset computeJustifyContentOffset(KeywordValue justifyContent,
                                                                 double offsetTotal, int siblingsCount, int index) {
         double offsetStart = 0, offsetInterval = 0;
         if (offsetTotal < 0
-                && (justifyContent.isSpaceAround()
-                || justifyContent.isSpaceEvenly()
-                || justifyContent.isSpaceBetween())) {
+                && (justifyContent.is("space-around")
+                || justifyContent.is("space-evenly")
+                || justifyContent.is("space-between"))) {
             return new FlexLayoutOffset(0, 0);
         }
 
-        if (justifyContent.isCenter()) {
+        if (justifyContent.is("center")) {
             offsetStart = offsetTotal / 2;
-        } else if (justifyContent.isFlexEnd()) {
+        } else if (justifyContent.is("flex-end")) {
             offsetStart = offsetTotal;
-        } else if (justifyContent.isSpaceAround()) {
+        } else if (justifyContent.is("space-around")) {
             offsetStart = (offsetTotal / siblingsCount) / 2;
             offsetInterval = offsetTotal / siblingsCount;
-        } else if (justifyContent.isSpaceEvenly()) {
+        } else if (justifyContent.is("space-evenly")) {
             offsetStart = offsetTotal / (siblingsCount + 1);
             offsetInterval = offsetStart;
-        } else if (justifyContent.isSpaceBetween()) {
+        } else if (justifyContent.is("space-between")) {
             offsetStart = 0;
             offsetInterval = offsetTotal / Math.max(1, siblingsCount - 1);
         }
@@ -941,100 +971,6 @@ public class Flex {
     }
 
     private record FlexLayoutOffset(double offsetStart, double offsetInterval) {
-    }
-
-    public record FlexDirection(String value) {
-        public boolean isColumn() {
-            return value.contains("column");
-        }
-
-        public boolean isRow() {
-            return value.contains("row");
-        }
-
-        public boolean isReverse() {
-            return value.contains("reverse");
-        }
-    }
-
-    public record FlexWrap(String value) {
-        public boolean canWrap() {
-            return value.equals("wrap");
-        }
-    }
-
-    public record AlignContent(String value, boolean canWrap) {
-        public boolean isCenter() {
-            return canWrap && value.equals("center");
-        }
-
-        public boolean isFlexStart() {
-            return canWrap && value.equals("flex-start");
-        }
-
-        public boolean isFlexEnd() {
-            return canWrap && value.equals("flex-end");
-        }
-
-        public boolean isSpaceAround() {
-            return canWrap && value.equals("space-around");
-        }
-
-        public boolean isSpaceBetween() {
-            return canWrap && value.equals("space-between");
-        }
-
-        public boolean isStretch() {
-            return canWrap && value.equals("stretch");
-        }
-    }
-
-    public record JustifyContent(String value) {
-        public boolean isCenter() {
-            return value.equals("center");
-        }
-
-        public boolean isFlexStart() {
-            return value.equals("flex-start");
-        }
-
-        public boolean isFlexEnd() {
-            return value.equals("flex-end");
-        }
-
-        public boolean isSpaceBetween() {
-            return value.equals("space-between");
-        }
-
-        public boolean isSpaceAround() {
-            return value.equals("space-around");
-        }
-
-        public boolean isSpaceEvenly() {
-            return value.equals("space-evenly");
-        }
-    }
-
-    public record AlignItems(String value) {
-        public boolean isCenter() {
-            return value.equals("center");
-        }
-
-        public boolean isFlexStart() {
-            return value.equals("flex-start");
-        }
-
-        public boolean isFlexEnd() {
-            return value.equals("flex-end");
-        }
-
-        public boolean isStretch() {
-            return value.equals("stretch");
-        }
-
-        public boolean isBaseline() {
-            return value.equals("baseline");
-        }
     }
 
     private record WrappedRowLine(List<Element> items, double lineWidth, double lineHeight, double columnGap) {

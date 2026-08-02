@@ -25,6 +25,23 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
+import com.sighs.apricityui.util.BrowserLocation;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.style.Selector;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.StyleScope;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.RenderQueue;
+import com.sighs.apricityui.behavior.FocusRing;
+import com.sighs.apricityui.behavior.MotionTrack;
+import com.sighs.apricityui.dom.CommentNode;
+import com.sighs.apricityui.dom.DocumentFragment;
+import com.sighs.apricityui.dom.DocumentRegistry;
+import com.sighs.apricityui.dom.ElementTree;
+import com.sighs.apricityui.dom.RenderElement;
+import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.dom.MutationObserverManager;
 
 public class Document {
 
@@ -78,8 +95,6 @@ public class Document {
         }
     }
 
-    private static final List<Document> documents = new CopyOnWriteArrayList<>();
-    private static final ThreadLocal<Document> contextDocument = new ThreadLocal<>();
     private static final String MOUSE_EVENTS_META_NAME = "aui-mouse-events";
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
@@ -110,7 +125,7 @@ public class Document {
     private volatile long viewportVersion = 1L;
     private final ApricityViewport.State viewportState;
     private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
-    private final CopyOnWriteArrayList<MutationObserver> mutationObservers = new CopyOnWriteArrayList<>();
+    private final MutationObserverManager mutationManager = new MutationObserverManager(this);
 
     private final StyleScope style = new StyleScope(this);
     private final MotionTrack motion = new MotionTrack(this);
@@ -236,7 +251,7 @@ public class Document {
         if (!viewportState.canUserScale()) return false;
         boolean changed = zoomIn ? viewportState.zoomIn() : viewportState.zoomOut();
         if (!changed) return false;
-        applyViewportForPath(path, true);
+        DocumentRegistry.applyViewportForPath(path, true);
         ApricityUI.LOGGER.info(
                 "[AUI Viewport] zoom path={} zoom={} viewport={}x{}",
                 path,
@@ -250,7 +265,7 @@ public class Document {
     public boolean resetViewportZoom() {
         if (!viewportState.canUserScale()) return false;
         if (!viewportState.resetZoom()) return false;
-        applyViewportForPath(path, true);
+        DocumentRegistry.applyViewportForPath(path, true);
         return true;
     }
 
@@ -259,7 +274,7 @@ public class Document {
         boolean changed = viewportState.setZoom(zoom);
         if (!changed) return false;
         if (inWorld) applyViewport(true);
-        else applyViewportForPath(path, true);
+        else DocumentRegistry.applyViewportForPath(path, true);
         ApricityUI.LOGGER.info(
                 "[AUI Viewport] editor zoom path={} zoom={} viewport={}x{}",
                 path,
@@ -268,13 +283,6 @@ public class Document {
                 viewport.layoutHeight()
         );
         return true;
-    }
-
-    private static void applyViewportForPath(String path, boolean relayout) {
-        for (Document document : documents) {
-            if (document == null || document.inWorld || document.isDisposed() || !document.is(path)) continue;
-            document.applyViewport(relayout);
-        }
     }
 
     public void refresh() {
@@ -439,7 +447,7 @@ public class Document {
         readyState = lifecycleState.readyStateValue;
     }
 
-    private void disposeLifecycle() {
+    public void disposeLifecycle() {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
         clearMutationObservers();
@@ -677,11 +685,11 @@ public class Document {
         style.rebuildSelectorIndex();
     }
 
-    Selector.Index getSelectorIndex() {
+    public Selector.Index getSelectorIndex() {
         return style.getSelectorIndex();
     }
 
-    ElementTree getTree() {
+    public ElementTree getTree() {
         return tree;
     }
 
@@ -915,66 +923,32 @@ public class Document {
     }
 
     public static void refreshAll() {
-        for (Document document : documents) {
-            if (document == null || document.isReloadPersistent() || document.isDisposed()) continue;
-            document.refresh();
-        }
+        DocumentRegistry.refreshAll();
     }
 
     // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
     public static Document create(String path) {
-        if (HTML.getTemple(path) == null) {
-            ApricityUI.LOGGER.error("[AUI Document] cannot create document: template is missing path={}", path);
-            return null;
-        }
-        Document document = new Document(path, false);
-        documents.add(document);
-        try {
-            document.applyViewport(false);
-            document.refresh();
-            document.applyViewport(false);
-            return document;
-        } catch (RuntimeException | LinkageError failure) {
-            document.remove();
-            throw failure;
-        }
+        return DocumentRegistry.create(path);
     }
 
     public static Document createInWorld(String path) {
-        if (HTML.getTemple(path) == null) {
-            ApricityUI.LOGGER.error("[AUI Document] cannot create world document: template is missing path={}", path);
-            return null;
-        }
-        Document document = new Document(path, true);
-        documents.add(document);
-        // World documents use the same viewport contract as screen documents.
-        // Their world transform is applied by WorldWindow, not by layout.
-        document.applyViewport(false);
-        document.refresh();
-        return document;
+        return DocumentRegistry.createInWorld(path);
     }
 
     public static ArrayList<Document> get(String path) {
-        ArrayList<Document> result = new ArrayList<>();
-        for (Document document : documents) {
-            if (!document.isDisposed() && document.getPath().equals(path)) result.add(document);
-        }
-        return result;
+        return DocumentRegistry.get(path);
     }
 
     public static Document getByUUID(String uuid) {
-        for (Document document : documents) {
-            if (!document.isDisposed() && document.uuid.toString().equals(uuid)) return document;
-        }
-        return null;
+        return DocumentRegistry.getByUUID(uuid);
     }
 
     public static List<Document> getAll() {
-        return documents;
+        return DocumentRegistry.getAll();
     }
 
     public static Document getContextDocument() {
-        return contextDocument.get();
+        return DocumentRegistry.getContext();
     }
 
     public static void runWithContext(Document document, Runnable runnable) {
@@ -985,12 +959,8 @@ public class Document {
     }
 
     public static ContextScope withContext(Document document) {
-        Document previous = contextDocument.get();
-        if (document == null) {
-            contextDocument.remove();
-        } else {
-            contextDocument.set(document);
-        }
+        Document previous = DocumentRegistry.getContext();
+        DocumentRegistry.setContext(document);
         return new ContextScope(previous);
     }
 
@@ -1006,11 +976,7 @@ public class Document {
         public void close() {
             if (closed) return;
             closed = true;
-            if (previous == null) {
-                contextDocument.remove();
-            } else {
-                contextDocument.set(previous);
-            }
+            DocumentRegistry.setContext(previous);
         }
     }
 
@@ -1023,23 +989,15 @@ public class Document {
     }
 
     public static void remove(String path) {
-        documents.removeIf(document -> {
-            if (!document.is(path)) return false;
-            document.disposeLifecycle();
-            return true;
-        });
+        DocumentRegistry.remove(path);
     }
 
     public static void remove(UUID uuid) {
-        documents.removeIf(document -> {
-            if (!document.is(uuid)) return false;
-            document.disposeLifecycle();
-            return true;
-        });
+        DocumentRegistry.remove(uuid);
     }
 
     public void remove() {
-        Document.remove(uuid);
+        DocumentRegistry.remove(uuid);
     }
 
     public void removeNode(Node node) {
@@ -1054,13 +1012,7 @@ public class Document {
     }
 
     public MutationObserver createMutationObserver(Consumer<Object> callback) {
-        MutationObserver observer = new MutationObserver(this, callback);
-        if (isActive()) {
-            mutationObservers.add(observer);
-        } else {
-            observer.disconnect();
-        }
-        return observer;
+        return mutationManager.create(callback);
     }
 
     public CanvasPath2D createPath2D() {
@@ -1082,24 +1034,11 @@ public class Document {
     }
 
     public void queueMutation(MutationRecord record) {
-        if (record == null || !isActive()) return;
-        if (record.target != null) {
-            record.target.invalidateSubtreeMutationVersion();
-        }
-        for (MutationObserver observer : mutationObservers) {
-            if (observer != null) observer.enqueue(record);
-        }
+        mutationManager.queue(record);
     }
 
     public void flushMutationObservers() {
-        if (!isActive()) return;
-        for (MutationObserver observer : mutationObservers) {
-            if (observer == null) continue;
-            observer.flush();
-            if (observer.disconnected) {
-                mutationObservers.remove(observer);
-            }
-        }
+        mutationManager.flush();
     }
 
     public void setTransitionActive(Element element, boolean active) {
@@ -1169,10 +1108,7 @@ public class Document {
     }
 
     private void clearMutationObservers() {
-        for (MutationObserver observer : mutationObservers) {
-            if (observer != null) observer.disconnect();
-        }
-        mutationObservers.clear();
+        mutationManager.clearAll();
     }
 
     public static final class MutationObserver {
@@ -1181,7 +1117,7 @@ public class Document {
         private final long ownerGeneration;
         private final CopyOnWriteArrayList<ObservedTarget> observed = new CopyOnWriteArrayList<>();
         private final ArrayList<MutationRecord> pending = new ArrayList<>();
-        private volatile boolean disconnected = false;
+        public volatile boolean disconnected = false;
 
         public MutationObserver(Document owner, Consumer<Object> callback) {
             this.owner = owner;
@@ -1211,7 +1147,7 @@ public class Document {
             synchronized (pending) {
                 pending.clear();
             }
-            owner.mutationObservers.remove(this);
+            owner.mutationManager.remove(this);
         }
 
         public List<MutationRecord> takeRecords() {
@@ -1222,14 +1158,14 @@ public class Document {
             }
         }
 
-        void enqueue(MutationRecord record) {
+        public void enqueue(MutationRecord record) {
             if (disconnected || record == null || owner == null || !owner.isCurrentGeneration(ownerGeneration) || !matches(record)) return;
             synchronized (pending) {
                 pending.add(adapt(record));
             }
         }
 
-        void flush() {
+        public void flush() {
             if (disconnected || callback == null || owner == null || !owner.isCurrentGeneration(ownerGeneration)) return;
             List<MutationRecord> snapshot = takeRecords();
             if (snapshot.isEmpty()) return;

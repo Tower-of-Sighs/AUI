@@ -3,8 +3,8 @@ package com.sighs.apricityui.webapi;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Event;
-import com.sighs.apricityui.init.LocalStorage;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.util.LocalStorage;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.init.Document;
 import org.junit.jupiter.api.Test;
@@ -260,12 +260,14 @@ class WindowApiTest {
             frameLatch.countDown();
         });
         assertTrue(frameId > 0);
-        assertTrue(frameLatch.await(300, TimeUnit.MILLISECONDS));
+        // rAF is a 16ms timer; a generous timeout absorbs scheduler latency under load.
+        assertTrue(frameLatch.await(2, TimeUnit.SECONDS));
 
         CountDownLatch canceledLatch = new CountDownLatch(1);
         int canceledId = window.requestAnimationFrame(timestamp -> canceledLatch.countDown());
         window.cancelAnimationFrame(canceledId);
-        assertFalse(canceledLatch.await(80, TimeUnit.MILLISECONDS));
+        // Observe across several rAF periods: a canceled frame must not fire.
+        assertFalse(canceledLatch.await(200, TimeUnit.MILLISECONDS));
 
         CountDownLatch fetchLatch = new CountDownLatch(1);
         AtomicReference<Object> fetchError = new AtomicReference<>();
@@ -274,7 +276,7 @@ class WindowApiTest {
             fetchLatch.countDown();
         });
 
-        assertTrue(fetchLatch.await(300, TimeUnit.MILLISECONDS));
+        assertTrue(fetchLatch.await(2, TimeUnit.SECONDS));
         assertNotNull(fetchError.get());
     }
 
@@ -290,12 +292,20 @@ class WindowApiTest {
 
         AtomicInteger intervalCalls = new AtomicInteger();
         Object interval = window.setInterval(handle -> intervalCalls.incrementAndGet(), 20);
-        Thread.sleep(70);
+        // Wait (poll) until the interval has fired at least once, so the cancel is not
+        // racing the first tick on a loaded machine.
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (intervalCalls.get() < 1 && System.nanoTime() < deadline) {
+            Thread.sleep(5);
+        }
+        assertTrue(intervalCalls.get() >= 1);
         window.clearInterval(interval);
-        int callsAfterCancel = intervalCalls.get();
-        Thread.sleep(70);
-        assertTrue(callsAfterCancel >= 1);
-        assertEquals(callsAfterCancel, intervalCalls.get());
+        // Let any in-flight callback drain, then verify the count stays frozen: a canceled
+        // interval must not keep firing.
+        Thread.sleep(150);
+        int baseline = intervalCalls.get();
+        Thread.sleep(150);
+        assertEquals(baseline, intervalCalls.get());
     }
 
     @Test

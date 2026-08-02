@@ -2,9 +2,9 @@ package com.sighs.apricityui.dev.resource;
 
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Operation;
+import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.ui.DialogWindow;
 
 import java.util.Locale;

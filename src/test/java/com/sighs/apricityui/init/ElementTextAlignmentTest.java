@@ -14,6 +14,7 @@ import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.util.TextMetrics;
 
 class ElementTextAlignmentTest {
     @Test
@@ -41,10 +42,10 @@ class ElementTextAlignmentTest {
     void normalFlowTextAlignmentUsesTheContainingLineWidth() {
         Text text = new Text();
         text.textAlign = "center";
-        assertEquals(30, Element.computeAlignedX(text, 100, 40, false), 0.001);
+        assertEquals(30, TextMetrics.computeAlignedX(text, 100, 40, false), 0.001);
 
         text.textAlign = "right";
-        assertEquals(60, Element.computeAlignedX(text, 100, 40, false), 0.001);
+        assertEquals(60, TextMetrics.computeAlignedX(text, 100, 40, false), 0.001);
     }
 
     private static Document createDocument() {

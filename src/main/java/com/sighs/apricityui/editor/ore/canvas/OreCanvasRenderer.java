@@ -6,7 +6,7 @@ import com.sighs.apricityui.editor.ore.model.OreComponentNode;
 import com.sighs.apricityui.editor.ore.model.OreContainerNode;
 import com.sighs.apricityui.editor.ore.model.OreEditorProject;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.MouseEvent;
 

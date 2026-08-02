@@ -3,7 +3,7 @@ package com.sighs.apricityui.layout;
 import com.sighs.apricityui.style.*;
 
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -254,46 +254,65 @@ public class Box {
         return Math.max(0, Size.resolveLength(value, basis, 0));
     }
 
-    private double[] parseFourSideLengths(String raw) {
+    /**
+     * 1-4 值简写展开映射：索引 = 数量-1，值 = 输出位 [TL,TR,BR,BL] 各取源 token 的下标。
+     * 1=全同，2=[TL,TR,TL,TR]，3=[TL,TR,BR,TR]，4=[TL,TR,BR,BL]。
+     */
+    private static final int[][] FOUR_SIDE_MAP = {
+            {0, 0, 0, 0},
+            {0, 1, 0, 1},
+            {0, 1, 2, 1},
+            {0, 1, 2, 3},
+    };
+
+    /** 1-4 值简写展开为 [TL,TR,BR,BL]；数量不在 [1,4] 时整体填 zero。 */
+    private static <T> T[] expandFourSideShorthand(List<T> values, java.util.function.IntFunction<T[]> allocator, T zero) {
+        T[] out = allocator.apply(4);
+        int count = values.size();
+        if (count < 1 || count > 4) {
+            java.util.Arrays.fill(out, zero);
+            return out;
+        }
+        int[] map = FOUR_SIDE_MAP[count - 1];
+        for (int i = 0; i < 4; i++) out[i] = values.get(map[i]);
+        return out;
+    }
+
+    /** 按空白切分最多 4 个 token，逐 token 映射后做 1-4 简写展开。 */
+    private <T> T[] parseFourSideShorthand(String raw, java.util.function.Function<String, T> mapper,
+                                           java.util.function.IntFunction<T[]> allocator, T zero) {
         if (raw == null || raw.isBlank() || "unset".equals(raw)) {
-            return new double[]{0, 0, 0, 0};
+            T[] out = allocator.apply(4);
+            java.util.Arrays.fill(out, zero);
+            return out;
         }
-
         String[] parts = raw.trim().split("\\s+");
-        double[] parsed = new double[Math.min(parts.length, 4)];
-        for (int i = 0; i < parsed.length; i++) {
-            parsed[i] = resolveBoxLength(parts[i]);
+        List<T> values = new ArrayList<>(4);
+        for (int i = 0; i < Math.min(parts.length, 4); i++) {
+            values.add(mapper.apply(parts[i]));
         }
+        return expandFourSideShorthand(values, allocator, zero);
+    }
 
-        return switch (parsed.length) {
-            case 1 -> new double[]{parsed[0], parsed[0], parsed[0], parsed[0]};
-            case 2 -> new double[]{parsed[0], parsed[1], parsed[0], parsed[1]};
-            case 3 -> new double[]{parsed[0], parsed[1], parsed[2], parsed[1]};
-            default -> new double[]{parsed[0], parsed[1], parsed[2], parsed[3]};
-        };
+    private double[] parseFourSideLengths(String raw) {
+        Double[] expanded = parseFourSideShorthand(raw, this::resolveBoxLength, Double[]::new, 0.0);
+        return new double[]{expanded[0], expanded[1], expanded[2], expanded[3]};
     }
 
     private BoxLength[] parseFourSideBoxLengths(String raw) {
-        if (raw == null || raw.isBlank() || "unset".equals(raw)) {
-            return new BoxLength[]{BoxLength.zero(), BoxLength.zero(), BoxLength.zero(), BoxLength.zero()};
-        }
-
-        String[] parts = raw.trim().split("\\s+");
-        BoxLength[] parsed = new BoxLength[Math.min(parts.length, 4)];
-        for (int i = 0; i < parsed.length; i++) {
-            parsed[i] = isAuto(parts[i]) ? BoxLength.autoValue() : new BoxLength(resolveBoxLength(parts[i]), false);
-        }
-
-        return switch (parsed.length) {
-            case 1 -> new BoxLength[]{parsed[0], parsed[0], parsed[0], parsed[0]};
-            case 2 -> new BoxLength[]{parsed[0], parsed[1], parsed[0], parsed[1]};
-            case 3 -> new BoxLength[]{parsed[0], parsed[1], parsed[2], parsed[1]};
-            default -> new BoxLength[]{parsed[0], parsed[1], parsed[2], parsed[3]};
-        };
+        return parseFourSideShorthand(raw,
+                token -> isAuto(token) ? BoxLength.autoValue() : new BoxLength(resolveBoxLength(token), false),
+                BoxLength[]::new, BoxLength.zero());
     }
 
+    /**
+     * 内容盒原点相对自身 border-box 原点的偏移（border + padding）。
+     * 不含 margin：margin 在 border-box 之外，子元素/滚动内容的定位基准
+     * 都是 border-box 原点；把 margin 算进来会让 Position.of 沿父链累加时
+     * 把每个中间祖先的 margin 重复计入一次。
+     */
     public double offset(String side) {
-        return getBorder(side).size + getMargin(side) + getPadding(side);
+        return getBorder(side).size + getPadding(side);
     }
 
     public double getMarginHorizontal() {
@@ -532,23 +551,9 @@ public class Box {
     }
 
     private static String[] splitWhitespace(String value, int maxTokens) {
-        if (value == null || value.isBlank() || maxTokens <= 0) return new String[0];
-        ArrayList<String> tokens = new ArrayList<>(Math.min(4, maxTokens));
-        int index = 0;
-        int depth = 0;
-        while (index < value.length() && tokens.size() < maxTokens) {
-            while (index < value.length() && Character.isWhitespace(value.charAt(index))) index++;
-            if (index >= value.length()) break;
-            int start = index;
-            while (index < value.length()) {
-                char current = value.charAt(index);
-                if (current == '(') depth++;
-                else if (current == ')' && depth > 0) depth--;
-                else if (Character.isWhitespace(current) && depth == 0) break;
-                index++;
-            }
-            tokens.add(value.substring(start, index));
-        }
+        if (maxTokens <= 0) return new String[0];
+        List<String> tokens = Layout.splitTopLevelWhitespace(value);
+        if (tokens.size() > maxTokens) tokens = tokens.subList(0, maxTokens);
         return tokens.toArray(String[]::new);
     }
 
@@ -632,32 +637,19 @@ public class Box {
     }
 
     private static int[] parse4Values(String input) {
-        String[] parts = input.trim().split("\\s+");
-        int[] res = new int[4];
         try {
             List<Integer> vals = new ArrayList<>();
-            for (String p : parts) {
+            for (String p : input.trim().split("\\s+")) {
                 if (p.equals("fill") || p.isEmpty()) continue;
                 int v = Size.parse(p);
                 vals.add(v == -1 ? 0 : v);
             }
-
-            if (vals.size() == 1) { // all
-                int v = vals.get(0);
-                return new int[]{v, v, v, v};
-            } else if (vals.size() == 2) { // top-bottom, left-right
-                int tb = vals.get(0), lr = vals.get(1);
-                return new int[]{tb, lr, tb, lr};
-            } else if (vals.size() == 3) { // top, left-right, bottom
-                int t = vals.get(0), lr = vals.get(1), b = vals.get(2);
-                return new int[]{t, lr, b, lr};
-            } else if (vals.size() >= 4) { // top, right, bottom, left
-                return new int[]{vals.get(0), vals.get(1), vals.get(2), vals.get(3)};
-            }
+            if (vals.size() > 4) vals = vals.subList(0, 4);
+            Integer[] expanded = expandFourSideShorthand(vals, Integer[]::new, 0);
+            return new int[]{expanded[0], expanded[1], expanded[2], expanded[3]};
         } catch (Exception e) {
             return new int[]{0, 0, 0, 0};
         }
-        return res;
     }
 
     /**
@@ -682,38 +674,14 @@ public class Box {
         }
     }
 
-    /** 按空白切分 token，但不拆散 calc()/min() 等函数体内的空白。 */
+    /** 按顶层空白切分 token，但不拆散 calc()/min() 等函数体内的空白。 */
     private static List<String> tokenizeRadius(String s) {
-        List<String> tokens = new ArrayList<>();
-        int depth = 0;
-        int start = -1;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '(') depth++;
-            else if (c == ')') depth = Math.max(0, depth - 1);
-            if (Character.isWhitespace(c) && depth == 0) {
-                if (start >= 0) {
-                    tokens.add(s.substring(start, i));
-                    start = -1;
-                }
-            } else if (start < 0) {
-                start = i;
-            }
-        }
-        if (start >= 0) tokens.add(s.substring(start));
-        return tokens;
+        return Layout.splitTopLevelWhitespace(s);
     }
 
     /** 1-4 值简写展开为 [TL, TR, BR, BL]；数量非法时整组回退为 0。 */
     private static String[] expandRadiusTokens(List<String> tokens) {
-        String[] zero = {"0", "0", "0", "0"};
-        return switch (tokens.size()) {
-            case 1 -> new String[]{tokens.get(0), tokens.get(0), tokens.get(0), tokens.get(0)};
-            case 2 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(0), tokens.get(1)};
-            case 3 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(2), tokens.get(1)};
-            case 4 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(2), tokens.get(3)};
-            default -> zero;
-        };
+        return expandFourSideShorthand(tokens, String[]::new, "0");
     }
 
     /** 无法解析的 token 回退为 0（百分比用 100 为基准做合法性校验）。 */

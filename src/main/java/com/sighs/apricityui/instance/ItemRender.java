@@ -2,7 +2,7 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Style;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Mask;
