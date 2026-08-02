@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.ui.ToastManager;
 
@@ -66,7 +67,12 @@ public final class ResourceReferenceDialog {
 
         Element codeField = element("DIV", "dialog-field resource-reference-code-field");
         codeField.append(text("LABEL", "REFERENCE CODE", "dialog-label"));
-        codeArea = element("TEXTAREA", "resource-reference-code");
+        // This dialog is created from Java before a document is necessarily
+        // parsed through the element registry. Construct the specialized
+        // control directly so its value is painted, not just stored on a
+        // generic Element fallback.
+        codeArea = new TextArea(document);
+        codeArea.setAttribute("class", "resource-reference-code");
         codeArea.setAttribute("readonly", "readonly");
         codeArea.setAttribute("spellcheck", "false");
         codeField.append(codeArea);
@@ -170,7 +176,7 @@ public final class ResourceReferenceDialog {
     private void updateCode() {
         String snippet = selectedSnippet();
         if (codeArea != null) {
-            codeArea.value = snippet;
+            codeArea.setValue(snippet);
             codeArea.setAttribute("value", snippet);
         }
         if (copyButton != null) {

@@ -128,6 +128,38 @@ public class Position {
         return new Position(left - right, top - bottom);
     }
 
+    /**
+     * CSS2 §10.1：absolute 的包含块是最近的 position ≠ static 的祖先
+     * （relative/absolute/fixed）的 padding box；没有这样的祖先时返回 null，
+     * 表示使用初始包含块（文档视口，随内容滚动，区别于 fixed）。
+     */
+    public static Element findContainingBlock(Element element) {
+        for (Element e = element == null ? null : element.parentElement; e != null; e = e.parentElement) {
+            String position = e.getComputedStyle().position;
+            if (position == null) continue;
+            String value = position.trim().toLowerCase(java.util.Locale.ROOT);
+            if (!value.isEmpty() && !"static".equals(value) && !"unset".equals(value)) return e;
+        }
+        return null;
+    }
+
+    /**
+     * 包含块原点在父元素坐标系中的偏移：沿父链向上，逐个减去各级祖先相对
+     * 其父元素 border-box 原点的偏移，直到（不含）包含块祖先。cb 为 null
+     * 时一直减到顶层元素，得到相对文档原点的偏移。最终文档坐标中这些中间
+     * 偏移会在 Position.of 累加时重新加回并相互抵消。
+     */
+    private static Position containingBlockShift(Element element, Element cb) {
+        double x = 0;
+        double y = 0;
+        for (Element e = element.parentElement; e != null && e != cb; e = e.parentElement) {
+            Position offset = Position.getOffset(e);
+            x -= offset.x;
+            y -= offset.y;
+        }
+        return new Position(x, y);
+    }
+
     private static Position resolveOutOfFlowOffset(Element element, String positionType) {
         Style style = element.getComputedStyle();
         Size selfSize = Size.box(element);
@@ -137,22 +169,27 @@ public class Position {
         double originX = 0;
         double originY = 0;
         if ("fixed".equals(positionType)) {
-            Size window = fixedContainingBlockSize(element);
+            Size window = viewportContainingBlockSize(element);
             containerW = window.width();
             containerH = window.height();
         } else {
-            Element parent = element.parentElement;
-            if (parent != null) {
-                Box parentBox = Box.of(parent);
-                Size parentSize = Size.of(parent);
-                originX = parentBox.getBorderLeft();
-                originY = parentBox.getBorderTop();
-                containerW = Math.max(0, parentSize.width() - parentBox.getBorderHorizontal());
-                containerH = Math.max(0, parentSize.height() - parentBox.getBorderVertical());
+            Element containingBlock = findContainingBlock(element);
+            if (containingBlock != null) {
+                Box cbBox = Box.of(containingBlock);
+                Size cbSize = Size.of(containingBlock);
+                containerW = Math.max(0, cbSize.width() - cbBox.getBorderHorizontal());
+                containerH = Math.max(0, cbSize.height() - cbBox.getBorderVertical());
+                Position shift = containingBlockShift(element, containingBlock);
+                originX = cbBox.getBorderLeft() + shift.x;
+                originY = cbBox.getBorderTop() + shift.y;
             } else {
-                Size window = Size.getWindowSize();
+                // 初始包含块：文档视口（随内容滚动，区别于 fixed）
+                Size window = viewportContainingBlockSize(element);
                 containerW = window.width();
                 containerH = window.height();
+                Position shift = containingBlockShift(element, null);
+                originX = shift.x;
+                originY = shift.y;
             }
         }
 
@@ -186,8 +223,11 @@ public class Position {
      * the thread-local global window size here is incorrect when layout is
      * queried from a keyboard/default-action callback without a document
      * context (for example, a browser-sized DevTools document).
+     *
+     * 初始包含块（无 positioned 祖先的 absolute）使用同一视口尺寸，
+     * 区别仅在于初始包含块随内容滚动。
      */
-    private static Size fixedContainingBlockSize(Element element) {
+    static Size viewportContainingBlockSize(Element element) {
         if (element != null && element.document != null) {
             Size viewport = new Size(
                     element.document.getViewport().layoutWidth(),

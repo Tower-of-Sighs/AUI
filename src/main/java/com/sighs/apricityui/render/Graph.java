@@ -432,29 +432,47 @@ public class Graph {
         addUnifiedRoundedRectVertices(buf, mat, x, y, width, height, radii, (px, py) -> color);
     }
 
+    /**
+     * 兼容每角单半径（圆角）的 float[4]，扩展为每角水平/垂直双半径（椭圆角）的
+     * float[8]：[tlH, tlV, trH, trV, brH, brV, blH, blV]。
+     */
+    private static float[] expandRadii(float[] radii) {
+        if (radii == null) return new float[8];
+        if (radii.length >= 8) return radii;
+        float[] expanded = new float[8];
+        for (int i = 0; i < 4; i++) {
+            float v = i < radii.length ? radii[i] : 0;
+            expanded[i * 2] = v;
+            expanded[i * 2 + 1] = v;
+        }
+        return expanded;
+    }
+
     public static void addUnifiedRoundedRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, ColorResolver colorRes) {
-        float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
+        float[] r = expandRadii(radii);
+        float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
+        float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
 
-        if (tl > 0) addCorner(buf, mat, x + tl, y + tl, tl, SEGMENTS * 2, colorRes);
-        if (tr > 0) addCorner(buf, mat, x + width - tr, y + tr, tr, SEGMENTS * 3, colorRes);
-        if (br > 0) addCorner(buf, mat, x + width - br, y + height - br, br, 0, colorRes);
-        if (bl > 0) addCorner(buf, mat, x + bl, y + height - bl, bl, SEGMENTS, colorRes);
+        if (tlH > 0 && tlV > 0) addCorner(buf, mat, x + tlH, y + tlV, tlH, tlV, SEGMENTS * 2, colorRes);
+        if (trH > 0 && trV > 0) addCorner(buf, mat, x + width - trH, y + trV, trH, trV, SEGMENTS * 3, colorRes);
+        if (brH > 0 && brV > 0) addCorner(buf, mat, x + width - brH, y + height - brV, brH, brV, 0, colorRes);
+        if (blH > 0 && blV > 0) addCorner(buf, mat, x + blH, y + height - blV, blH, blV, SEGMENTS, colorRes);
 
-        float maxTopR = Math.max(tl, tr), maxBottomR = Math.max(bl, br);
+        float maxTopR = Math.max(tlV, trV), maxBottomR = Math.max(blV, brV);
 
         // 中间大矩形
-        addRect(buf, mat, x + tl, y, x + width - tr, y + maxTopR, colorRes);
-        addRect(buf, mat, x + bl, y + height - maxBottomR, x + width - br, y + height, colorRes);
+        addRect(buf, mat, x + tlH, y, x + width - trH, y + maxTopR, colorRes);
+        addRect(buf, mat, x + blH, y + height - maxBottomR, x + width - brH, y + height, colorRes);
 
         float midY1 = y + maxTopR, midY2 = y + height - maxBottomR;
         if (midY1 < midY2) addRect(buf, mat, x, midY1, x + width, midY2, colorRes);
 
         // 填充角落留下的空隙
-        if (maxTopR > tl) addRect(buf, mat, x, y + tl, x + tl, y + maxTopR, colorRes);
-        if (maxTopR > tr) addRect(buf, mat, x + width - tr, y + tr, x + width, y + maxTopR, colorRes);
-        if (maxBottomR > bl) addRect(buf, mat, x, y + height - maxBottomR, x + bl, y + height - bl, colorRes);
-        if (maxBottomR > br)
-            addRect(buf, mat, x + width - br, y + height - maxBottomR, x + width, y + height - br, colorRes);
+        if (maxTopR > tlV) addRect(buf, mat, x, y + tlV, x + tlH, y + maxTopR, colorRes);
+        if (maxTopR > trV) addRect(buf, mat, x + width - trH, y + trV, x + width, y + maxTopR, colorRes);
+        if (maxBottomR > blV) addRect(buf, mat, x, y + height - maxBottomR, x + blH, y + height - blV, colorRes);
+        if (maxBottomR > brV)
+            addRect(buf, mat, x + width - brH, y + height - maxBottomR, x + width, y + height - brV, colorRes);
     }
 
     public static void addEllipseGeometry(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, int color) {
@@ -466,10 +484,10 @@ public class Graph {
     }
 
     private static void addCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float r, int startIndex, int color) {
-        addCorner(buf, mat, cx, cy, r, startIndex, (px, py) -> color);
+        addCorner(buf, mat, cx, cy, r, r, startIndex, (px, py) -> color);
     }
 
-    private static void addCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float r, int startIndex, ColorResolver colorRes) {
+    private static void addCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, int startIndex, ColorResolver colorRes) {
         // 圆心的颜色
         int centerColor = colorRes.resolve(cx, cy);
 
@@ -479,10 +497,10 @@ public class Graph {
 
             if (idx1 >= TOTAL_STEPS) idx1 -= TOTAL_STEPS;
 
-            float x0 = cx + COS_TABLE[idx0] * r;
-            float y0 = cy + SIN_TABLE[idx0] * r;
-            float x1 = cx + COS_TABLE[idx1] * r;
-            float y1 = cy + SIN_TABLE[idx1] * r;
+            float x0 = cx + COS_TABLE[idx0] * rx;
+            float y0 = cy + SIN_TABLE[idx0] * ry;
+            float x1 = cx + COS_TABLE[idx1] * rx;
+            float y1 = cy + SIN_TABLE[idx1] * ry;
 
             // 计算圆弧上每个点的颜色
             int c0 = colorRes.resolve(x0, y0);
@@ -511,21 +529,23 @@ public class Graph {
     }
 
     public static void addUnifiedShadowRingVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, float blur, int inC, int outC) {
-        float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
+        float[] r = expandRadii(radii);
+        float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
+        float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
 
-        addRect(buf, mat, x + tl, y - blur, x + width - tr, y, outC, inC, inC, outC);
-        addRect(buf, mat, x + bl, y + height, x + width - br, y + height + blur, inC, outC, outC, inC);
-        addRect(buf, mat, x - blur, y + tl, x, y + height - bl, outC, outC, inC, inC);
-        addRect(buf, mat, x + width, y + tr, x + width + blur, y + height - br, inC, inC, outC, outC);
+        addRect(buf, mat, x + tlH, y - blur, x + width - trH, y, outC, inC, inC, outC);
+        addRect(buf, mat, x + blH, y + height, x + width - brH, y + height + blur, inC, outC, outC, inC);
+        addRect(buf, mat, x - blur, y + tlV, x, y + height - blV, outC, outC, inC, inC);
+        addRect(buf, mat, x + width, y + trV, x + width + blur, y + height - brV, inC, inC, outC, outC);
 
-        if (tl > 0 || blur > 0) addCornerShadow(buf, mat, x + tl, y + tl, tl, tl + blur, SEGMENTS * 2, inC, outC);
-        if (tr > 0 || blur > 0)
-            addCornerShadow(buf, mat, x + width - tr, y + tr, tr, tr + blur, SEGMENTS * 3, inC, outC);
-        if (br > 0 || blur > 0) addCornerShadow(buf, mat, x + width - br, y + height - br, br, br + blur, 0, inC, outC);
-        if (bl > 0 || blur > 0) addCornerShadow(buf, mat, x + bl, y + height - bl, bl, bl + blur, SEGMENTS, inC, outC);
+        if ((tlH > 0 && tlV > 0) || blur > 0) addCornerShadow(buf, mat, x + tlH, y + tlV, tlH, tlV, tlH + blur, tlV + blur, SEGMENTS * 2, inC, outC);
+        if ((trH > 0 && trV > 0) || blur > 0)
+            addCornerShadow(buf, mat, x + width - trH, y + trV, trH, trV, trH + blur, trV + blur, SEGMENTS * 3, inC, outC);
+        if ((brH > 0 && brV > 0) || blur > 0) addCornerShadow(buf, mat, x + width - brH, y + height - brV, brH, brV, brH + blur, brV + blur, 0, inC, outC);
+        if ((blH > 0 && blV > 0) || blur > 0) addCornerShadow(buf, mat, x + blH, y + height - blV, blH, blV, blH + blur, blV + blur, SEGMENTS, inC, outC);
     }
 
-    private static void addCornerShadow(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rIn, float rOut, int startIndex, int inC, int outC) {
+    private static void addCornerShadow(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rInX, float rInY, float rOutX, float rOutY, int startIndex, int inC, int outC) {
         for (int i = 0; i < SEGMENTS; i++) {
             int idx0 = startIndex + i;
             int idx1 = startIndex + i + 1;
@@ -534,10 +554,10 @@ public class Graph {
             float c0 = COS_TABLE[idx0], s0 = SIN_TABLE[idx0];
             float c1 = COS_TABLE[idx1], s1 = SIN_TABLE[idx1];
 
-            float ix0 = cx + c0 * rIn, iy0 = cy + s0 * rIn;
-            float ix1 = cx + c1 * rIn, iy1 = cy + s1 * rIn;
-            float ox0 = cx + c0 * rOut, oy0 = cy + s0 * rOut;
-            float ox1 = cx + c1 * rOut, oy1 = cy + s1 * rOut;
+            float ix0 = cx + c0 * rInX, iy0 = cy + s0 * rInY;
+            float ix1 = cx + c1 * rInX, iy1 = cy + s1 * rInY;
+            float ox0 = cx + c0 * rOutX, oy0 = cy + s0 * rOutY;
+            float ox1 = cx + c1 * rOutX, oy1 = cy + s1 * rOutY;
 
             vtx(buf, mat, ix0, iy0, inC);
             vtx(buf, mat, ox0, oy0, outC);
@@ -550,52 +570,38 @@ public class Graph {
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
         if (batchActive) {
-            BufferBuilder buf = Base.getBuffer();
-
-            float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
-            int tC = colors[0], rC = colors[1], bC = colors[2], lC = colors[3];
-            float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
-
-            if (tW > 0) addRect(buf, mat, x + tl, y, x + w - tr, y + tW, tC);
-            if (bW > 0) addRect(buf, mat, x + bl, y + h - bW, x + w - br, y + h, bC);
-            if (lW > 0) addRect(buf, mat, x, y + tl, x + lW, y + h - bl, lC);
-            if (rW > 0) addRect(buf, mat, x + w - rW, y + tr, x + w, y + h - br, rC);
-
-            if (tl > 0 || tW > 0 || lW > 0)
-                addComplexCorner(buf, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
-            if (tr > 0 || tW > 0 || rW > 0)
-                addComplexCorner(buf, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
-            if (br > 0 || rW > 0 || bW > 0)
-                addComplexCorner(buf, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
-            if (bl > 0 || bW > 0 || lW > 0)
-                addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+            addComplexRoundedBorderVertices(Base.getBuffer(), mat, x, y, w, h, radii, borders, colors);
             return;
         }
 
         BufferBuilder buf = Base.getBuffer();
         Base.beginRendering();
         prepare(buf);
-
-        float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
-        int tC = colors[0], rC = colors[1], bC = colors[2], lC = colors[3];
-        float tl = radii[0], tr = radii[1], br = radii[2], bl = radii[3];
-
-        if (tW > 0) addRect(buf, mat, x + tl, y, x + w - tr, y + tW, tC);
-        if (bW > 0) addRect(buf, mat, x + bl, y + h - bW, x + w - br, y + h, bC);
-        if (lW > 0) addRect(buf, mat, x, y + tl, x + lW, y + h - bl, lC);
-        if (rW > 0) addRect(buf, mat, x + w - rW, y + tr, x + w, y + h - br, rC);
-
-        if (tl > 0 || tW > 0 || lW > 0)
-            addComplexCorner(buf, mat, x + tl, y + tl, tl, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
-        if (tr > 0 || tW > 0 || rW > 0)
-            addComplexCorner(buf, mat, x + w - tr, y + tr, tr, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
-        if (br > 0 || rW > 0 || bW > 0)
-            addComplexCorner(buf, mat, x + w - br, y + h - br, br, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
-        if (bl > 0 || bW > 0 || lW > 0)
-            addComplexCorner(buf, mat, x + bl, y + h - bl, bl, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
-
+        addComplexRoundedBorderVertices(buf, mat, x, y, w, h, radii, borders, colors);
         BufferUploader.drawWithShader(buf.end());
         Base.finishRendering();
+    }
+
+    private static void addComplexRoundedBorderVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
+        float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
+        int tC = colors[0], rC = colors[1], bC = colors[2], lC = colors[3];
+        float[] r = expandRadii(radii);
+        float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
+        float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
+
+        if (tW > 0) addRect(buf, mat, x + tlH, y, x + w - trH, y + tW, tC);
+        if (bW > 0) addRect(buf, mat, x + blH, y + h - bW, x + w - brH, y + h, bC);
+        if (lW > 0) addRect(buf, mat, x, y + tlV, x + lW, y + h - blV, lC);
+        if (rW > 0) addRect(buf, mat, x + w - rW, y + trV, x + w, y + h - brV, rC);
+
+        if ((tlH > 0 && tlV > 0) || tW > 0 || lW > 0)
+            addComplexCorner(buf, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+        if ((trH > 0 && trV > 0) || tW > 0 || rW > 0)
+            addComplexCorner(buf, mat, x + w - trH, y + trV, trH, trV, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+        if ((brH > 0 && brV > 0) || rW > 0 || bW > 0)
+            addComplexCorner(buf, mat, x + w - brH, y + h - brV, brH, brV, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+        if ((blH > 0 && blV > 0) || bW > 0 || lW > 0)
+            addComplexCorner(buf, mat, x + blH, y + h - blV, blH, blV, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
     }
 
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {
@@ -615,7 +621,7 @@ public class Graph {
         }
     }
 
-    private static void addComplexCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float r, float thX, float thY, int startIndex, int cS, int cE) {
+    private static void addComplexCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, float thX, float thY, int startIndex, int cS, int cE) {
         for (int i = 0; i < SEGMENTS; i++) {
             int idx1 = startIndex + i;
             int idx2 = startIndex + i + 1;
@@ -627,17 +633,17 @@ public class Graph {
             float t1 = (float) i / SEGMENTS;
             float t2 = (float) (i + 1) / SEGMENTS;
 
-            float inRx = Math.max(0, r - thX), inRy = Math.max(0, r - thY);
+            float inRx = Math.max(0, rx - thX), inRy = Math.max(0, ry - thY);
 
             int color1 = lerpColor(cS, cE, t1);
             int color2 = lerpColor(cS, cE, t2);
 
-            vtx(buf, mat, cx + cos1 * r, cy + sin1 * r, color1);
+            vtx(buf, mat, cx + cos1 * rx, cy + sin1 * ry, color1);
             vtx(buf, mat, cx + cos1 * inRx, cy + sin1 * inRy, color1);
             vtx(buf, mat, cx + cos2 * inRx, cy + sin2 * inRy, color2);
-            vtx(buf, mat, cx + cos1 * r, cy + sin1 * r, color1);
+            vtx(buf, mat, cx + cos1 * rx, cy + sin1 * ry, color1);
             vtx(buf, mat, cx + cos2 * inRx, cy + sin2 * inRy, color2);
-            vtx(buf, mat, cx + cos2 * r, cy + sin2 * r, color2);
+            vtx(buf, mat, cx + cos2 * rx, cy + sin2 * ry, color2);
         }
     }
 

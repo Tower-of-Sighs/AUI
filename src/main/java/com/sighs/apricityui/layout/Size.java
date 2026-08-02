@@ -675,16 +675,16 @@ public record Size(double width, double height) {
     }
 
     public static Double getContainingBlockPaddingBoxHeight(Element element) {
-        Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowHeight());
-        Size cachedParentSize = parent.getRenderer().size.get();
-        Size parentSize = cachedParentSize;
-        if (parentSize == null) {
-            if (isResolving(parent)) return null;
-            parentSize = Size.of(parent);
+        // CSS2 §10.1：absolute 的百分比尺寸相对最近 positioned 祖先的 padding box
+        Element cb = Position.findContainingBlock(element);
+        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).height());
+        Size cbSize = cb.getRenderer().size.get();
+        if (cbSize == null) {
+            if (isResolving(cb)) return null;
+            cbSize = Size.of(cb);
         }
-        Box parentBox = Box.of(parent);
-        return Math.max(0, parentSize.height() - parentBox.getBorderVertical());
+        Box cbBox = Box.of(cb);
+        return Math.max(0, cbSize.height() - cbBox.getBorderVertical());
     }
 
     private static Double getCachedContainingBlockContentHeight(Element element) {
@@ -697,34 +697,34 @@ public record Size(double width, double height) {
     }
 
     public static Double getContainingBlockPaddingBoxWidth(Element element) {
-        Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowWidth());
-        Size cachedParentSize = parent.getRenderer().size.get();
-        Size parentSize = cachedParentSize;
-        if (parentSize == null) {
-            if (isResolving(parent)) return null;
-            parentSize = Size.of(parent);
+        // CSS2 §10.1：absolute 的百分比尺寸相对最近 positioned 祖先的 padding box
+        Element cb = Position.findContainingBlock(element);
+        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).width());
+        Size cbSize = cb.getRenderer().size.get();
+        if (cbSize == null) {
+            if (isResolving(cb)) return null;
+            cbSize = Size.of(cb);
         }
-        Box parentBox = Box.of(parent);
-        return Math.max(0, parentSize.width() - parentBox.getBorderHorizontal());
+        Box cbBox = Box.of(cb);
+        return Math.max(0, cbSize.width() - cbBox.getBorderHorizontal());
     }
 
     private static Double getExplicitContainingBlockPaddingBoxWidth(Element element) {
-        Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowWidth());
-        Double contentWidth = resolveOwnExplicitContentWidth(parent);
+        Element cb = Position.findContainingBlock(element);
+        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).width());
+        Double contentWidth = resolveOwnExplicitContentWidth(cb);
         if (contentWidth == null) return null;
-        Box parentBox = Box.of(parent);
-        return Math.max(0, contentWidth + parentBox.getPaddingHorizontal());
+        Box cbBox = Box.of(cb);
+        return Math.max(0, contentWidth + cbBox.getPaddingHorizontal());
     }
 
     private static Double getExplicitContainingBlockPaddingBoxHeight(Element element) {
-        Element parent = element == null ? null : element.parentElement;
-        if (parent == null) return Math.max(0, getWindowHeight());
-        Double contentHeight = resolveOwnExplicitContentHeight(parent);
+        Element cb = Position.findContainingBlock(element);
+        if (cb == null) return Math.max(0, Position.viewportContainingBlockSize(element).height());
+        Double contentHeight = resolveOwnExplicitContentHeight(cb);
         if (contentHeight == null) return null;
-        Box parentBox = Box.of(parent);
-        return Math.max(0, contentHeight + parentBox.getPaddingVertical());
+        Box cbBox = Box.of(cb);
+        return Math.max(0, contentHeight + cbBox.getPaddingVertical());
     }
 
     private static Double resolveOwnExplicitContentHeight(Element element) {

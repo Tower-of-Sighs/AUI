@@ -30,6 +30,7 @@ legacyForge {
     runs {
         client {
             client()
+            gameDirectory = file('run')
 
             systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
             if (project.hasProperty('auiAutoExitSeconds')) {
@@ -263,6 +264,8 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+def auiTestLogConfig = layout.buildDirectory.file('tmp/aui-test-log4j2.xml')
+
 tasks.named('test', Test).configure {
     useJUnitPlatform()
     // Main code links against Forge/Minecraft classes. Keep the standard test
@@ -272,6 +275,17 @@ tasks.named('test', Test).configure {
     classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath
     if (!project.hasProperty('auiTestNoModRuntime') || project.hasProperty('auiTestIncludeModRuntime')) {
         classpath += configurations.auiTestModRuntime
+    }
+    doFirst {
+        File sourceConfig = file("${buildDir}/moddev/clientLog4j2.xml")
+        if (sourceConfig.isFile()) {
+            File isolatedConfig = auiTestLogConfig.get().asFile
+            isolatedConfig.parentFile.mkdirs()
+            String logDirectory = file('run/logs').absolutePath.replace('\\', '/')
+            isolatedConfig.text = sourceConfig.getText('UTF-8').replace('logs/', logDirectory + '/')
+            systemProperty 'log4j.configurationFile', isolatedConfig.absolutePath
+            systemProperty 'log4j2.configurationFile', isolatedConfig.absolutePath
+        }
     }
     ['aui.wpt.input', 'aui.wpt.output'].each { key ->
         def value = System.getProperty(key)

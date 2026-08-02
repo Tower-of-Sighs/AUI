@@ -26,7 +26,8 @@ public final class ContextMenu {
     private static final String BACKDROP_STYLE =
             "position:fixed;inset:0;z-index:" + Z_INDEX + ";background:transparent;pointer-events:auto;";
     private static final String MENU_BASE_STYLE =
-            "position:fixed;min-width:200px;background:#ffffff;border:2px solid #1a1a1a;" +
+            "position:fixed;min-width:200px;max-width:360px;box-sizing:border-box;" +
+                    "background:#ffffff;border:2px solid #1a1a1a;" +
                     "padding:4px 0;box-shadow:6px 6px 0 rgba(0,0,0,0.15);" +
                     "font-family:'Chakra Petch',sans-serif;color:#1a1a1a;overflow:hidden;" +
                     "transform-origin:center;transition:opacity 0.15s cubic-bezier(0.4,0,0.2,1)," +
@@ -34,7 +35,8 @@ public final class ContextMenu {
     private static final String HEADER_STYLE =
             "padding:6px 16px 8px;font-family:'Chakra Petch',sans-serif;font-size:10px;line-height:14px;" +
                     "color:#8b5cf6;letter-spacing:2px;" +
-                    "text-transform:uppercase;border-bottom:1px solid #e0e0e0;margin-bottom:4px;font-weight:600;";
+                    "text-transform:uppercase;border-bottom:1px solid #e0e0e0;margin-bottom:4px;font-weight:600;" +
+                    "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%;";
     private static final String SEPARATOR_STYLE =
             "height:1px;background:#e0e0e0;margin:4px 12px;";
     private static final String ITEM_BASE_STYLE =
