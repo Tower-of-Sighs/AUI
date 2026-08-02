@@ -73,9 +73,6 @@ When omitted:
 - Bound slots default to `tooltip slot`.
 - Display slots and recipe slots default to `tooltip`: they show item information but cannot move items.
 
-The CSS custom property `--aui-slot-interactive` can override the attribute. Precedence is CSS variable > `interactive`
-attribute > bound/display default.
-
 `slot` no longer uses `disabled` as an item-interaction switch. Use `interactive="none"` when all slot capabilities must
 be disabled.
 
@@ -111,11 +108,8 @@ exception draws AUI's magenta-and-black checkerboard and never falls back to van
 Forge `ItemDecorator` extensions still depend on vanilla `GuiGraphics` decoration rendering and are not invoked.
 Tooltips themselves are still drawn by Minecraft.
 
-### 3.6 Size and Style
+### 3.6 Styling
 
-- `size` (alias `slot-size`): slot pixel size.
-- `iconScale`: item icon scale factor.
-- CSS custom properties: `--aui-slot-size`, `--aui-slot-icon-scale`, and `--aui-slot-interactive`.
 - Items are auto-centered inside the slot; use container/recipe `gap` for spacing.
 - CSS such as `position/top/left/...` may still be used for manual layout.
 

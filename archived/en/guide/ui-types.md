@@ -99,14 +99,9 @@ Unified slot semantics:
 - `recipe` reads the recipe id only from `innerText`
 - `recipe.type` is required and strictly validated; if invalid, no preview is rendered and `data-recipe-error` is written
 
-Slot `global.css` variables:
+Slot rendering and container configuration:
 
-- `--aui-slot-size`: slot size in pixels
-- `--aui-slot-icon-scale`: icon scale
 - Use `render="all|bg|item|none"` to control background and item visibility
-- `--aui-slot-z`: slot z-index
-- `--aui-slot-interactive`: interaction capability tokens (`tooltip`, `slot`, `none`, or `tooltip slot`)
-- `--aui-slot-cycle` / `--aui-slot-cycle-interval`: display-slot cycling toggle and interval
 - `--aui-container-columns`: optional explicit column count; if omitted, runtime injects `min(9, slotCount)`
 
 Useful examples:

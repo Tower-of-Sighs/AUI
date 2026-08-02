@@ -133,20 +133,12 @@ So you are not starting from a blank sheet, but you also should not treat it lik
 
 ---
 
-### Slot-Related Variables
+### Slot Rendering and Container Configuration
 
-These variables are useful in `slot` and `container` scenarios:
+Container UI still supports the following configuration:
 
-- `--aui-slot-size`
-- `--aui-slot-icon-scale`
-- `render="all|bg|item|none"` (controls background and item visibility)
-- `--aui-slot-z`
-- `--aui-slot-interactive` (`tooltip`, `slot`, `none`, or `tooltip slot`)
-- `--aui-slot-cycle`
-- `--aui-slot-cycle-interval`
-- `--aui-container-columns`
-
-If you are building container UI, these are worth memorizing.
+- `render="all|bg|item|none"` (controls slot background and item visibility)
+- `--aui-container-columns` (explicitly sets the container column count)
 
 ---
 

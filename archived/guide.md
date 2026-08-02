@@ -72,14 +72,9 @@ ApricityUI.openScreen("demo/index.html")
 - `recipe` 的配方 id 只读取 `innerText`（不再读取 `recipe-id` 属性）；
 - `recipe.type` 必填并严格校验（不匹配则不渲染预览并写入 `data-recipe-error`）。
 
-`global.css` 槽位变量（可在容器或 slot 层覆盖）：
+槽位渲染与容器配置：
 
-- `--aui-slot-size`：槽位像素尺寸（整数）；
-- `--aui-slot-icon-scale`：图标缩放（浮点）；
 - 物品与背景的可见性使用 `render="all|bg|item|none"` 属性控制；
-- `--aui-slot-z`：槽位层级（整数）；
-- `--aui-slot-interactive`：交互能力 token（`tooltip`、`slot`、`none`；可组合 `tooltip slot`）；
-- `--aui-slot-cycle` / `--aui-slot-cycle-interval`：展示槽位轮播开关与间隔；
 - `--aui-container-columns`：可选，显式指定容器列数；未设置时由运行时按 `min(9, slotCount)` 注入默认列数。
 
 示例可直接参考：

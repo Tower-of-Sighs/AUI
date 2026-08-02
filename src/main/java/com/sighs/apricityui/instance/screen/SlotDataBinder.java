@@ -10,13 +10,14 @@ import com.sighs.apricityui.instance.element.Item;
 import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.instance.render.item.ItemRenderContext;
 import com.sighs.apricityui.instance.render.item.ItemRenderState;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.mixin.accessor.SlotAccessor;
-import com.sighs.apricityui.layout.Position;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.LinkedHashMap;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * 将 DOM Slot 绑定到菜单 Slot，并把实时状态写入其直接 Item。
@@ -116,9 +117,46 @@ public final class SlotDataBinder {
     }
 
     public void updateBoundItemRenderStates(AbstractContainerScreenAccessor accessor, ItemStack carried) {
+        if (accessor == null) return;
+
+        ItemStack safeCarried = carried == null ? ItemStack.EMPTY : carried;
+        Set<net.minecraft.world.inventory.Slot> quickCraftSlots = accessor.apricityui$getQuickCraftSlots();
+        boolean quickCrafting = accessor.apricityui$isQuickCrafting();
+        int quickCraftingType = accessor.apricityui$getQuickCraftingType();
+
+        int quickCraftBasePlaceCount = 0;
+        if (quickCrafting && !safeCarried.isEmpty() && quickCraftSlots != null && quickCraftSlots.size() > 1) {
+            quickCraftBasePlaceCount = net.minecraft.world.inventory.AbstractContainerMenu.getQuickCraftPlaceCount(
+                    quickCraftSlots,
+                    quickCraftingType,
+                    safeCarried
+            );
+        }
+
         for (SlotBinding binding : bindings.values()) {
             net.minecraft.world.inventory.Slot menuSlot = menu.slots.get(binding.globalIndex);
-            setItemState(binding.item, menuSlot.getItem(), null, false);
+            ItemStack renderStack = menuSlot.getItem();
+            String overlayText = null;
+            boolean ghost = false;
+
+            if (quickCrafting && quickCraftSlots != null && quickCraftSlots.contains(menuSlot) && !safeCarried.isEmpty()) {
+                if (quickCraftSlots.size() <= 1) {
+                    renderStack = ItemStack.EMPTY;
+                } else if (net.minecraft.world.inventory.AbstractContainerMenu.canItemQuickReplace(menuSlot, safeCarried, true)
+                        && menu.canDragTo(menuSlot)) {
+                    ghost = true;
+                    int maxStackSize = Math.min(safeCarried.getMaxStackSize(), menuSlot.getMaxStackSize(safeCarried));
+                    int existingCount = menuSlot.getItem().isEmpty() ? 0 : menuSlot.getItem().getCount();
+                    int placeCount = quickCraftBasePlaceCount + existingCount;
+                    if (placeCount > maxStackSize) {
+                        placeCount = maxStackSize;
+                        overlayText = net.minecraft.ChatFormatting.YELLOW + String.valueOf(maxStackSize);
+                    }
+                    renderStack = safeCarried.copyWithCount(placeCount);
+                }
+            }
+
+            setItemState(binding.item, renderStack, overlayText, ghost);
         }
     }
 

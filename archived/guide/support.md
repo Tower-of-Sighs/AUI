@@ -133,19 +133,12 @@ Minecraft 专属标签是这些：
 
 ---
 
-### 槽位相关变量
+### 槽位渲染与容器配置
 
-这些变量在 `slot` 和 `container` 场景里很好用：
+容器 UI 中仍可使用以下配置：
 
-- `--aui-slot-size`
-- `--aui-slot-icon-scale`
-- `--aui-slot-z`
-- `--aui-slot-interactive`（`tooltip`、`slot`、`none` 或 `tooltip slot`）
-- `--aui-slot-cycle`
-- `--aui-slot-cycle-interval`
-- `--aui-container-columns`
-
-如果你在写容器 UI，这组变量建议直接记住。
+- `render="all|bg|item|none"`：控制 slot 背景与物品可见性。
+- `--aui-container-columns`：显式指定容器列数。
 
 ---
 

@@ -147,15 +147,9 @@ innerText 就是翻译 key。
 - 动效：`transition` `animation*` `@keyframes` `@font-face`
 - 变量：`--*`
 
-### 6.3 槽位变量
+### 6.3 槽位渲染与容器配置
 
-- `--aui-slot-size`
-- `--aui-slot-icon-scale`
 - `render="all|bg|item|none"`（控制背景与物品可见性）
-- `--aui-slot-z`
-- `--aui-slot-interactive`（`tooltip`、`slot`、`none` 或 `tooltip slot`）
-- `--aui-slot-cycle`
-- `--aui-slot-cycle-interval`
 - `--aui-container-columns`
 
 ---

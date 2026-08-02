@@ -133,12 +133,12 @@ item, ingredient {
 slot > item,
 slot > ingredient {
     position: absolute;
-    inset: 1px;
+    top: 1px;
+    left: 1px;
 }
 
 ingredient > item {
     position: absolute;
-    inset: 0;
 }
 
 /* 玩家背包预设：前三行为背包 9..35，第四行为快捷栏 0..8 */

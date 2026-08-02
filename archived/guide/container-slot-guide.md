@@ -67,8 +67,6 @@
 - 已绑定 slot 默认 `tooltip slot`。
 - 展示 slot 和 recipe slot 默认 `tooltip`，可查看物品信息但不能取放。
 
-也可通过 CSS 自定义属性 `--aui-slot-interactive` 覆盖；优先级为 CSS 变量 > `interactive` 属性 > 绑定态默认值。
-
 `slot` 不再把 `disabled` 当作物品交互开关。若需禁用能力，请写 `interactive="none"`。
 
 ### 3.4 展示物品属性
@@ -101,11 +99,8 @@ PoseStack、深度和裁剪上下文中委托绘制；动态标准模型只在�
 
 Forge `ItemDecorator` 仍依赖原版 `GuiGraphics` 装饰路径，因此不会执行。Tooltip 本身仍由 Minecraft 绘制。
 
-### 3.6 尺寸与样式
+### 3.6 样式
 
-- `size`（别名 `slot-size`）：槽位像素尺寸。
-- `iconScale`：物品图标缩放比例。
-- CSS 自定义属性：`--aui-slot-size`、`--aui-slot-icon-scale`、`--aui-slot-interactive`。
 - 物品纹理始终在 slot 内自动居中；若需拉开 slot 间距，请使用容器或 recipe 的 `gap`。
 - CSS（`position/top/left/...`）可用于手动布局。
 
