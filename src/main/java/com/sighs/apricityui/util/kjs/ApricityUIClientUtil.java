@@ -6,7 +6,7 @@ import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.screen.ApricityScreen;
 import com.sighs.apricityui.instance.world.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.world.WorldWindow;
-import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
@@ -81,10 +81,10 @@ public class ApricityUIClientUtil {
     }
 
     /**
-     * 客户端打开纯展示 UI Screen。
+     * 客户端打开纯展示 UI Screen（纯客户端渲染，无需服务端）。
      */
     public static void screen(String path) {
-        ApricityScreenNetworkHandler.requestOpenScreen(path);
+        ApricityUI.screen(path);
     }
 
     /**
@@ -96,7 +96,7 @@ public class ApricityUIClientUtil {
     }
 
     public static void closeScreen() {
-        ApricityScreenNetworkHandler.requestCloseScreen();
+        ApricityUI.closeScreen();
     }
 
     /** @deprecated Configure the logical size with the document's {@code aui-viewport} meta. */

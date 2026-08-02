@@ -7,7 +7,7 @@ license = "${mod_license}"
     displayName = "${mod_name}"
     authors = "${mod_authors}"
     description = '''${mod_description}'''
-    clientRequired = false
+    clientRequired = true
 [[dependencies."${mod_id}"]]
     modId = "forge"
     mandatory = true
@@ -23,13 +23,13 @@ license = "${mod_license}"
 
 [[dependencies."${mod_id}"]]
     modId = "${mod_id}"
-    mandatory = true
+    mandatory = false
     versionRange = "[1.0.0,)"
     ordering = "NONE"
     side = "SERVER"
 [[dependencies."${mod_id}"]]
     modId = "${mod_id}"
-    mandatory = false
+    mandatory = true
     versionRange = "[1.0.0,)"
     ordering = "NONE"
     side = "CLIENT"

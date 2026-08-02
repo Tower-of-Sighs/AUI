@@ -9,8 +9,9 @@ import com.sighs.apricityui.instance.world.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.world.ShaderRegistry;
 import com.sighs.apricityui.instance.world.WorldWindow;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
-import com.sighs.apricityui.instance.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.instance.network.handler.PendingMenu;
+import com.sighs.apricityui.instance.screen.ApricityScreen;
+import net.minecraft.client.Minecraft;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
@@ -100,9 +101,10 @@ public class ApricityUI {
 
     /**
      * 客户端打开纯展示 UI Screen（不涉及服务端容器绑定）。
+     * 纯客户端直接渲染，无需服务端安装本 mod。
      */
     public static void screen(String path) {
-        ApricityScreenNetworkHandler.requestOpenScreen(path);
+        Minecraft.getInstance().setScreen(new ApricityScreen(path));
     }
 
     /**
@@ -132,10 +134,11 @@ public class ApricityUI {
     }
 
     /**
-     * 客户端请求关闭当前 Screen。
+     * 客户端关闭当前 Screen。纯客户端操作，无需服务端安装本 mod。
+     * 容器屏幕关闭时 vanilla 会自动向服务端发送容器关闭包。
      */
     public static void closeScreen() {
-        ApricityScreenNetworkHandler.requestCloseScreen();
+        Minecraft.getInstance().setScreen(null);
     }
 
     /**

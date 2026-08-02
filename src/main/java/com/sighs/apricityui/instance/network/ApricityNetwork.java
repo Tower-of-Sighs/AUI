@@ -39,7 +39,12 @@ public final class ApricityNetwork {
     }
 
     public static void sendToServer(Object message) {
-        CHANNEL.sendToServer(message);
+        try {
+            CHANNEL.sendToServer(message);
+        } catch (RuntimeException exception) {
+            // 服务端未安装本 mod（未注册通道）时静默失败：容器等需要服务端的功能优雅降级。
+            ApricityUI.LOGGER.warn("[AUI Network] failed to send packet to server (server may not have this mod) message={}", message.getClass().getSimpleName());
+        }
     }
 
     private static boolean isCompatibleProtocol(String remoteVersion) {
