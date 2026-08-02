@@ -1,7 +1,13 @@
 package com.sighs.apricityui.event;
+
+import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.style.*;
 
 import java.util.ArrayList;
@@ -15,6 +21,7 @@ public class MouseEvent extends Event implements Cloneable {
     public static final int DOM_DELTA_PIXEL = 0;
     public static final int PRIMARY_POINTER_ID = 1;
     private static final long DOUBLE_CLICK_WINDOW_NS = 500_000_000L;
+    private NativeDispatchState nativeDispatchState = new NativeDispatchState();
     public double clientX = 0;
     public double clientY = 0;
     public double pageX = 0;
@@ -46,6 +53,9 @@ public class MouseEvent extends Event implements Cloneable {
 
     public MouseEvent(String type, Position mousePosition, int button, boolean readEnvironmentState) {
         super(null, type, true);
+        if (mousePosition == null) {
+            mousePosition = Position.ZERO;
+        }
         clientX = mousePosition.x;
         clientY = mousePosition.y;
         pageX = clientX;
@@ -64,18 +74,34 @@ public class MouseEvent extends Event implements Cloneable {
         this.button = button;
     }
 
+    /** Prevents the originating Minecraft input event after AUI dispatch completes. */
+    public void consumeNative() {
+        nativeDispatchState.consumed = true;
+    }
+
+    public boolean isNativeConsumed() {
+        return nativeDispatchState.consumed;
+    }
+
     public static boolean tiggerEvent(MouseEvent event) {
         StyleFrameCache.begin();
         try {
-            applyCursorForTopMostDocument(event);
-            List<Document> docs = Document.getAll();
+            Cursor.refreshFromDocuments(new Position(event.clientX, event.clientY));
+            List<Document> docs = DocumentLayerOrder.frontToBack(Document.getAll());
             if (docs == null || docs.isEmpty()) return false;
 
-            for (int i = docs.size() - 1; i >= 0; i--) {
-                Document document = docs.get(i);
-                if (document == null || document.inWorld) continue;
-                boolean consumed = tiggerEvent(event, document);
-                if (consumed) {
+            for (Document document : docs) {
+                if (document == null || document.inWorld || document.isManuallyRendered()) continue;
+                boolean passThroughWheel = "wheel".equals(event.type) && !document.interceptsMouseEvents();
+                MouseEvent documentEvent = passThroughWheel ? event.clone() : event;
+                boolean consumed = tiggerEvent(documentEvent, document);
+                if (documentEvent.isNativeConsumed()) {
+                    return true;
+                }
+                if (consumed && !passThroughWheel) {
+                    return true;
+                }
+                if (document.interceptsMouseEventsAt(new Position(event.clientX, event.clientY))) {
                     return true;
                 }
             }
@@ -85,71 +111,55 @@ public class MouseEvent extends Event implements Cloneable {
         }
     }
 
-    private static void applyCursorForTopMostDocument(MouseEvent event) {
-        List<Document> docs = Document.getAll();
-        if (docs == null || docs.isEmpty()) {
-            Cursor.resetToDefault();
-            return;
-        }
-
-        Position detectionPos = new Position(event.clientX, event.clientY);
-
-        for (int i = docs.size() - 1; i >= 0; i--) {
-            Document document = docs.get(i);
-            if (document == null || document.inWorld) continue;
-
-            Element target = hitTest(document.getPaintList(), detectionPos);
-            if (target == null) continue;
-            if (target == document.body) continue;
-
-            Cursor.applyCssCursor(document.getPath(), resolveCursor(target));
-            return;
-        }
-
-        Cursor.resetToDefault();
-    }
-
-    private static String resolveCursor(Element target) {
-        if (target == null) return "default";
-
-        String cache = target.getRenderer().cursor.get();
-        if (cache != null) return cache;
-
-        Element e = target;
-        while (e != null) {
-            String c = e.getComputedStyle().cursor;
-            if (c != null) {
-                c = c.trim();
-                if (!c.isEmpty() && !c.equalsIgnoreCase("unset") && !c.equalsIgnoreCase("auto")) {
-                    target.getRenderer().cursor.set(c);
-                    return c;
-                }
-            }
-            e = e.parentElement;
-        }
-        target.getRenderer().cursor.set("default");
-        return "default";
-    }
-
     // 触发鼠标事件的主体
     public static boolean tiggerEvent(MouseEvent event, Document document) {
         StyleFrameCache.begin();
         try {
-            boolean consumed = false;
-            List<RenderNode> paintList = document.getPaintList();
+            try (Document.ContextScope ignored = Document.withContext(document)) {
+            double originalClientX = event == null ? 0 : event.clientX;
+            double originalClientY = event == null ? 0 : event.clientY;
+            event = adaptToDocumentViewport(event, document);
             Element activeElement = document.getPressedElement();
             Position detectionPos = new Position(event.clientX, event.clientY);
-            Element target = hitTest(paintList, detectionPos);
-            return triggerResolvedEvent(event, document, target, activeElement, true);
+            Element target = document.hitTest(detectionPos);
+            boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
+            if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
+                event.consumeNative();
+            }
+            return consumed;
+            }
         } finally {
             StyleFrameCache.end();
         }
     }
 
+    private static MouseEvent adaptToDocumentViewport(MouseEvent event, Document document) {
+        if (event == null || document == null) return event;
+        if (Math.abs(document.getViewportScaleX() - 1.0d) < 0.000001d
+                && Math.abs(document.getViewportScaleY() - 1.0d) < 0.000001d) {
+            return event;
+        }
+
+        MouseEvent adapted = event.clone();
+        Position documentPosition = document.screenToDocumentPosition(new Position(event.clientX, event.clientY));
+        adapted.clientX = documentPosition.x;
+        adapted.clientY = documentPosition.y;
+        adapted.pageX = documentPosition.x;
+        adapted.pageY = documentPosition.y;
+        adapted.movementX = event.movementX / document.getViewportScaleX();
+        adapted.movementY = event.movementY / document.getViewportScaleY();
+        adapted.deltaX = event.deltaX / document.getViewportScaleX();
+        adapted.deltaY = event.deltaY / document.getViewportScaleY();
+        adapted.scrollDelta = event.scrollDelta / document.getViewportScaleY();
+        return adapted;
+    }
+
     public static boolean dispatchToTarget(MouseEvent event, Document document, Element target) {
         StyleFrameCache.begin();
         try {
+            try (Document.ContextScope ignored = Document.withContext(document)) {
             return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
+            }
         } finally {
             StyleFrameCache.end();
         }
@@ -276,7 +286,10 @@ public class MouseEvent extends Event implements Cloneable {
         double beforeLeft = target.getTargetScrollLeft();
         double beforeTop = target.getTargetScrollTop();
         scroll(event);
-        return target.dispatchScrollEventIfChanged(beforeLeft, beforeTop);
+        boolean changed = Double.compare(beforeLeft, target.getTargetScrollLeft()) != 0
+                || Double.compare(beforeTop, target.getTargetScrollTop()) != 0;
+        target.dispatchScrollEventIfChanged(beforeLeft, beforeTop);
+        return changed;
     }
 
     private static boolean triggerResolvedEvent(MouseEvent event, Document document, Element target, Element activeElement, boolean resolveGeometry) {
@@ -291,6 +304,21 @@ public class MouseEvent extends Event implements Cloneable {
         event.target = target;
 
         if (event.type.equals("mousemove")) handleHoverChange(event, target, document);
+        if (event.type.equals("mousedown") && target != null && target.handleScrollbarMouseDown(event)) {
+            document.setPressedElement(target);
+            return true;
+        }
+        if (event.type.equals("mousemove") && activeElement != null
+                && activeElement.isScrollbarInteractionActive()
+                && activeElement.handleScrollbarMouseMove(event)) {
+            return true;
+        }
+        if (event.type.equals("mouseup") && activeElement != null
+                && activeElement.isScrollbarInteractionActive()
+                && activeElement.handleScrollbarMouseUp(event)) {
+            document.setPressedElement(null);
+            return true;
+        }
         if (event.type.equals("mousedown")) {
             clearGlobalSelectionsOnMouseDown(document, target);
             Event.runWithEventTrust(event, () -> {
@@ -342,31 +370,56 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static boolean dispatchMouseUpFollowupEvents(Document document, MouseEvent originalEvent, Element target, Element activeElement) {
         if (document == null || target == null || activeElement == null) return false;
-        if (target != activeElement || target.isDisabled()) return false;
+        Element activationTarget = nearestCommonInclusiveAncestor(activeElement, target);
+        if (activationTarget == null
+                || activeElement.isDisabled()
+                || target.isDisabled()
+                || activationTarget.isDisabled()) return false;
 
         boolean consumed = false;
         if (originalEvent.button == 0) {
             MouseEvent click = originalEvent.clone();
             click.type = "click";
-            click.target = target;
+            click.target = activationTarget;
             click.cancelable = true;
             consumed |= Event.tiggerEvent(click);
+            if (!click.defaultPrevented) {
+                Element defaultActionTarget = activationTarget.resolveClickActivationTarget();
+                if (defaultActionTarget != null && !defaultActionTarget.isDisabled()) {
+                    defaultActionTarget.handleClickDefault();
+                    consumed = true;
+                }
+            }
 
-            if (document.registerClickAndCheckDoubleClick(target, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {
+            if (document.registerClickAndCheckDoubleClick(activationTarget, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {
                 MouseEvent dblclick = originalEvent.clone();
                 dblclick.type = "dblclick";
-                dblclick.target = target;
+                dblclick.target = activationTarget;
                 dblclick.cancelable = true;
                 consumed |= Event.tiggerEvent(dblclick);
             }
         } else if (originalEvent.button == 1) {
             MouseEvent contextmenu = originalEvent.clone();
             contextmenu.type = "contextmenu";
-            contextmenu.target = target;
+            contextmenu.target = activationTarget;
             contextmenu.cancelable = true;
             consumed |= Event.tiggerEvent(contextmenu);
         }
         return consumed;
+    }
+
+    /**
+     * UI Events defines click activation against the nearest common inclusive
+     * ancestor of the press and release targets. A layout/paint update may make
+     * the exact hit node change from a control to one of its descendants (or
+     * between sibling descendants) without the pointer ever leaving the control.
+     */
+    private static Element nearestCommonInclusiveAncestor(Element first, Element second) {
+        if (first == null || second == null) return null;
+        for (Element candidate = first; candidate != null; candidate = candidate.parentElement) {
+            if (candidate.contains(second)) return candidate;
+        }
+        return null;
     }
 
     private static boolean dispatchPointerCompatEvent(MouseEvent source, Element target, boolean singleTargetOnly) {
@@ -487,7 +540,12 @@ public class MouseEvent extends Event implements Cloneable {
         copy.pointerId = pointerId;
         copy.pointerType = pointerType;
         copy.isPrimary = isPrimary;
+        copy.nativeDispatchState = nativeDispatchState;
         return copy;
+    }
+
+    private static final class NativeDispatchState {
+        private boolean consumed;
     }
 
     private static boolean isModifierPressed(String key) {

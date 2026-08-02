@@ -4,10 +4,10 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.style.Color;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
 
 import java.util.List;
@@ -111,8 +111,7 @@ final class TextSelection {
 
     void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
         if (!canSelectInnerText() || !hasInnerTextSelection()) return;
-        Text baseText = Text.of(owner);
-        baseText.content = getSelectableInnerText();
+        Text baseText = selectableText();
         if (baseText.content.isEmpty()) return;
         Text.WrappedText wrapped = Text.wrapCached(owner, baseText);
         List<String> lines = wrapped.lines();
@@ -148,9 +147,8 @@ final class TextSelection {
     }
 
     void drawInnerText(PoseStack poseStack, Rect rectRenderer) {
-        Text text = Text.of(owner);
+        Text text = selectableText();
         Position contentPos = rectRenderer.getContentPosition();
-        text.content = getSelectableInnerText();
         text.color = new Color(Text.getFontColor(owner));
 
         if (text.content == null || text.content.isEmpty()) return;
@@ -158,14 +156,14 @@ final class TextSelection {
         double contentWidth = Box.of(owner).innerSize().width();
         double contentHeight = Box.of(owner).innerSize().height();
         Text.WrappedText wrapped = Text.wrapCached(owner, text);
-        List<String> lines = wrapped.lines();
+        List<String> lines = owner.resolveRenderedLines(text, contentWidth, contentHeight);
         int[] starts = wrapped.starts();
-        double textHeight = wrapped.height(text.lineHeight);
-        boolean flexLike = com.sighs.apricityui.style.Layout.isFlexDisplay(owner.getComputedStyle().display)
-                || com.sighs.apricityui.style.Layout.isGridDisplay(owner.getComputedStyle().display);
+        double textHeight = Math.max(text.lineHeight, lines.size() * text.lineHeight);
+        boolean flexLike = com.sighs.apricityui.layout.Layout.isFlexDisplay(owner.getComputedStyle().display)
+                || com.sighs.apricityui.layout.Layout.isGridDisplay(owner.getComputedStyle().display);
         Position flexTextOffset = flexLike ? owner.getFlexTextOffset() : Position.ZERO;
         double drawY = contentPos.y + (flexLike ? flexTextOffset.y : Element.computeVerticalOffset(text, contentHeight, textHeight));
-        boolean drawSelectionText = canSelectInnerText() && hasInnerTextSelection();
+        boolean drawSelectionText = lines.equals(wrapped.lines()) && canSelectInnerText() && hasInnerTextSelection();
         int min = Math.max(0, Math.min(start, end));
         int max = Math.min(text.content.length(), Math.max(start, end));
         Position linePos = new Position(0, 0);
@@ -308,5 +306,29 @@ final class TextSelection {
         Text base = Text.of(owner);
         Text copy = Element.cloneTextForSegment(base, segment, Color.BLACK);
         return Text.measureLine(copy, segment);
+    }
+
+    private Text selectableText() {
+        Text base = Text.of(owner);
+        Text copy = new Text();
+        copy.fontSize = base.fontSize;
+        copy.fontWeight = base.fontWeight;
+        copy.oblique = base.oblique;
+        copy.strokeWidth = base.strokeWidth;
+        copy.strokeColor = base.strokeColor;
+        copy.color = base.color;
+        copy.textDecoration = base.textDecoration;
+        copy.fontFamily = base.fontFamily;
+        copy.lineHeight = base.lineHeight;
+        copy.direction = base.direction;
+        copy.textAlign = base.textAlign;
+        copy.verticalAlign = base.verticalAlign;
+        copy.whiteSpace = base.whiteSpace;
+        copy.fontMode = base.fontMode;
+        copy.textIndent = base.textIndent;
+        copy.letterSpacing = base.letterSpacing;
+        copy.rasterBackgroundColor = base.rasterBackgroundColor;
+        copy.content = getSelectableInnerText();
+        return copy;
     }
 }

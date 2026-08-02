@@ -8,10 +8,10 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
-import org.junit.jupiter.api.Assumptions;
+import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -410,15 +410,25 @@ class ElementBindingTest {
         Document document = createDocument();
         Element first = new Element(document, "div");
         Element second = new Element(document, "span");
-        document.getElements().add(first);
-        document.getElements().add(second);
+        document.body.appendChild(first);
+        document.body.appendChild(second);
+        document.getDirtyElements().clear();
+        first.clearDirtyFlags();
+        second.clearDirtyFlags();
 
         document.markDirty(Drawer.RELAYOUT);
 
-        assertTrue(first.hasDirtyFlag(Drawer.RELAYOUT));
-        assertTrue(second.hasDirtyFlag(Drawer.RELAYOUT));
-        assertTrue(document.getDirtyElements().contains(first));
-        assertTrue(document.getDirtyElements().contains(second));
+        assertEquals(Drawer.RELAYOUT, document.getGlobalDirtyMask());
+        assertFalse(first.hasDirtyFlag(Drawer.RELAYOUT));
+        assertFalse(second.hasDirtyFlag(Drawer.RELAYOUT));
+        assertTrue(document.getDirtyElements().isEmpty());
+
+        document.commitRenderState();
+
+        assertEquals(0, document.getGlobalDirtyMask());
+        assertTrue(document.getDirtyElements().isEmpty());
+        assertFalse(first.hasDirtyFlag(Drawer.RELAYOUT));
+        assertFalse(second.hasDirtyFlag(Drawer.RELAYOUT));
 
         second.clearDirtyFlags();
         document.getDirtyElements().clear();
@@ -577,13 +587,17 @@ class ElementBindingTest {
         select.appendChild(first);
         select.appendChild(second);
         select.setValue("a");
+        setRelativeHitBox(select, 0, 0, 120, 28);
 
         AtomicInteger inputEvents = new AtomicInteger();
         AtomicInteger changeEvents = new AtomicInteger();
         select.addEventListener("input", event -> inputEvents.incrementAndGet());
         select.addEventListener("change", event -> changeEvents.incrementAndGet());
 
-        assertTrue(second.dispatchEvent(new Event(second, "mousedown", null, false)));
+        select.openPopup();
+        var popupOptions = document.body.querySelectorAll(".aui-select-option");
+        assertEquals(2, popupOptions.size());
+        popupOptions.get(1).click();
         assertEquals("b", select.getValue());
         assertEquals(1, inputEvents.get());
         assertEquals(1, changeEvents.get());
@@ -819,6 +833,47 @@ class ElementBindingTest {
     }
 
     @Test
+    void labelForActivatesAssociatedRadioUsingClickDefault() {
+        Document document = createDocument();
+        Input radio = new Input(document);
+        radio.setAttribute("type", "radio");
+        radio.setAttribute("id", "ore-page-actions");
+        Element label = new Element(document, "label");
+        label.setAttribute("for", "ore-page-actions");
+        label.setTextContent("Actions");
+        document.appendChild(radio);
+        document.appendChild(label);
+
+        AtomicInteger inputEvents = new AtomicInteger();
+        AtomicInteger changeEvents = new AtomicInteger();
+        radio.addEventListener("input", event -> inputEvents.incrementAndGet());
+        radio.addEventListener("change", event -> changeEvents.incrementAndGet());
+
+        label.click();
+
+        assertTrue(radio.isChecked());
+        assertEquals(1, inputEvents.get());
+        assertEquals(1, changeEvents.get());
+    }
+
+    @Test
+    void externalListenerExceptionsDoNotEscapeDispatch() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        AtomicInteger laterCalls = new AtomicInteger();
+        target.addEventListener("custom", event -> {
+            throw new IllegalStateException("listener failure");
+        }, false, true);
+        target.addEventListener("custom", event -> laterCalls.incrementAndGet());
+
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertTrue(target.dispatchEvent(new Event(target, "custom", true)));
+        assertEquals(2, laterCalls.get());
+    }
+
+    @Test
     void mousePrimaryClickDispatchesClickAndDoubleClick() {
         Document document = createDocument();
         Element target = new Element(document, "button");
@@ -844,6 +899,54 @@ class ElementBindingTest {
 
         assertEquals(2, clickCalls.get());
         assertEquals(1, dblclickCalls.get());
+    }
+
+    @Test
+    void mouseClickUsesNearestCommonAncestorWhenHitNodeChangesInsideControl() {
+        Document document = createDocument();
+        Element control = new Element(document, "button");
+        Element icon = new Element(document, "span");
+        Element label = new Element(document, "span");
+        document.appendChild(control);
+        control.appendChild(icon);
+        control.appendChild(label);
+
+        AtomicInteger controlClicks = new AtomicInteger();
+        AtomicInteger iconClicks = new AtomicInteger();
+        control.addEventListener("click", event -> {
+            controlClicks.incrementAndGet();
+            assertSame(control, event.target);
+            assertSame(control, event.currentTarget);
+        });
+        icon.addEventListener("click", event -> iconClicks.incrementAndGet());
+
+        MouseEvent.dispatchToTarget(new MouseEvent("mousedown", new Position(0, 0), 0, false), document, icon);
+        MouseEvent.dispatchToTarget(new MouseEvent("mouseup", new Position(1, 0), 0, false), document, label);
+
+        assertEquals(1, controlClicks.get());
+        assertEquals(0, iconClicks.get());
+    }
+
+    @Test
+    void parentHoverSurvivesExactHitMovingToDescendant() {
+        Document document = createDocument();
+        Element control = new Element(document, "button");
+        Element label = new Element(document, "span");
+        document.appendChild(control);
+        control.appendChild(label);
+
+        AtomicInteger enterCalls = new AtomicInteger();
+        AtomicInteger leaveCalls = new AtomicInteger();
+        control.addEventListener("mouseenter", event -> enterCalls.incrementAndGet());
+        control.addEventListener("mouseleave", event -> leaveCalls.incrementAndGet());
+
+        MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(0, 0), -1, false), document, control);
+        MouseEvent.dispatchToTarget(new MouseEvent("mousemove", new Position(1, 0), -1, false), document, label);
+
+        assertTrue(control.isHover);
+        assertTrue(label.isHover);
+        assertEquals(1, enterCalls.get());
+        assertEquals(0, leaveCalls.get());
     }
 
     @Test
@@ -1174,6 +1277,36 @@ class ElementBindingTest {
     }
 
     @Test
+    void nativeMouseConsumptionIsExplicitAndSurvivesCloning() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+
+        target.addEventListener("mousedown", event -> {
+            MouseEvent mouseEvent = (MouseEvent) event;
+            assertFalse(mouseEvent.isNativeConsumed());
+            mouseEvent.consumeNative();
+        });
+
+        MouseEvent event = new MouseEvent("mousedown", new Position(0, 0), 0, false);
+        assertTrue(MouseEvent.dispatchToTarget(event, document, target));
+        assertTrue(event.isNativeConsumed());
+        assertTrue(event.clone().isNativeConsumed());
+    }
+
+    @Test
+    void mouseListenersDoNotConsumeNativeInputByDefault() {
+        Document document = createDocument();
+        Element target = new Element(document, "div");
+        document.appendChild(target);
+        target.addEventListener("mousedown", event -> { });
+
+        MouseEvent event = new MouseEvent("mousedown", new Position(0, 0), 0, false);
+        assertTrue(MouseEvent.dispatchToTarget(event, document, target));
+        assertFalse(event.isNativeConsumed());
+    }
+
+    @Test
     void scriptDispatchedEventsRemainUntrustedAndKeepTimestamp() {
         Document document = createDocument();
         Element target = new Element(document, "div");
@@ -1379,6 +1512,8 @@ class ElementBindingTest {
         element.getRenderer().box.set(box);
         element.getRenderer().size.set(new Size(width, height));
         element.getRenderer().position.set(new Position(x, y));
+        com.sighs.apricityui.render.Rect committed = new com.sighs.apricityui.render.Rect(element);
+        element.getRenderer().commitRect(committed, element.getRenderer().rectDependency(element.document));
     }
 
     private static void setPaintOrder(Document document, Element... elements) {
@@ -1403,26 +1538,4 @@ class ElementBindingTest {
         img.testResetResourceObservation();
     }
 
-    private static Object invokeResolveDisplayStack(Slot slot) {
-        try {
-            Method method = Slot.class.getDeclaredMethod("resolveDisplayStack");
-            method.setAccessible(true);
-            return method.invoke(slot);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static void assumeMinecraftItemRuntime() {
-        Assumptions.assumeTrue(isClassPresent("net.minecraft.world.item.ItemStack"));
-    }
-
-    private static boolean isClassPresent(String name) {
-        try {
-            Class.forName(name);
-            return true;
-        } catch (ClassNotFoundException e) {
-            return false;
-        }
-    }
 }

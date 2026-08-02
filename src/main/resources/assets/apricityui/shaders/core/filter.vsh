@@ -3,8 +3,10 @@ in vec3 Position;
 in vec2 UV0;
 uniform mat4 ProjMat;
 out vec2 texCoord;
+out vec2 screenPos;
 
 void main() {
     gl_Position = ProjMat * vec4(Position, 1.0);
     texCoord = UV0;
+    screenPos = Position.xy;
 }

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="aui-font-mode" content="web">
+  <meta name="aui-viewport" content="mode=browser">
+  <meta name="aui-mouse-events" content="intercept">
+  <meta name="aui-ore-editor" content="1">
+  <link rel="stylesheet" href="../../apricityui/theme/ore/ore.css">
+  <link rel="stylesheet" href="../../apricityui/theme/ore/ore-edit.css">
+  <link rel="stylesheet" href="ore-editor.css">
+</head>
+<body class="ore-theme ore-editor-shell">
+  <header class="navbar editor-toolbar">
+    <div class="editor-brand"><translation>ore_editor.apricityui.title</translation></div>
+    <div class="editor-document-state">
+      <translation>ore_editor.apricityui.document.untitled</translation>
+    </div>
+    <div class="editor-toolbar-actions">
+      <button id="undoButton" class="button button-small" data-tooltip-key="tooltip.apricityui.ore_editor.undo"><translation>ore_editor.apricityui.action.undo</translation></button>
+      <button id="redoButton" class="button button-small" data-tooltip-key="tooltip.apricityui.ore_editor.redo"><translation>ore_editor.apricityui.action.redo</translation></button>
+      <button id="loadButton" class="button button-secondary button-small" data-tooltip-key="tooltip.apricityui.ore_editor.load"><translation>ore_editor.apricityui.action.load_project</translation></button>
+      <button id="saveButton" class="button button-primary button-small" data-tooltip-key="tooltip.apricityui.ore_editor.save"><translation>ore_editor.apricityui.action.save_project</translation></button>
+      <button id="exportButton" class="button button-secondary button-small" data-tooltip-key="tooltip.apricityui.ore_editor.export"><translation>ore_editor.apricityui.action.export_html</translation></button>
+      <button id="closeButton" class="button button-danger button-small" data-tooltip-key="tooltip.apricityui.ore_editor.close"><translation>ore_editor.apricityui.action.close</translation></button>
+    </div>
+  </header>
+  <main class="editor-workspace">
+    <section class="canvas-region">
+      <div id="editorBreadcrumb" class="editor-breadcrumb"></div>
+      <div class="canvas-scroll">
+        <div id="editorCanvas" class="ore-theme ore-edit-theme editor-canvas" data-editor-canvas="1"></div>
+      </div>
+    </section>
+    <div id="editorResizeHandle" class="editor-resize-handle" data-tooltip-key="tooltip.apricityui.ore_editor.resize_panel"></div>
+    <aside id="editorSidebar" class="editor-sidebar">
+      <nav class="editor-tabs" data-aria-label-key="ore_editor.apricityui.accessibility.tabs">
+        <button class="button button-small editor-tab active" data-editor-mode="add"><translation>ore_editor.apricityui.mode.add</translation></button>
+        <button class="button button-small editor-tab" data-editor-mode="inspect"><translation>ore_editor.apricityui.mode.inspect</translation></button>
+        <button class="button button-small editor-tab" data-editor-mode="theme"><translation>ore_editor.apricityui.mode.theme</translation></button>
+      </nav>
+      <div id="editorSidebarContent" class="editor-sidebar-content">
+        <div class="panel">
+          <div class="panel-header"><translation>ore_editor.apricityui.palette.containers</translation></div>
+          <div class="panel-body"><translation>ore_editor.apricityui.empty.add</translation></div>
+        </div>
+      </div>
+    </aside>
+  </main>
+</body>
+</html>

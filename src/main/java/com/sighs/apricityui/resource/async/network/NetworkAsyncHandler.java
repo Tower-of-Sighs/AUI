@@ -1,5 +1,6 @@
 package com.sighs.apricityui.resource.async.network;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.Loader;
 
@@ -10,6 +11,10 @@ import java.io.InputStream;
 import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -47,12 +52,25 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                 if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
                     throw new IOException("下载失败: " + url + " (HTTP " + retryable.statusCode + ")", retryable);
                 }
+                ApricityUI.LOGGER.warn(
+                        "[AUI Network] retrying HTTP request url={} status={} attempt={}/{}",
+                        url,
+                        retryable.statusCode,
+                        attempt + 1,
+                        NetworkPolicy.MAX_RETRY_COUNT
+                );
                 sleepQuietly(retryable.delayMs);
                 attempt++;
             } catch (SocketTimeoutException timeout) {
                 if (attempt >= NetworkPolicy.MAX_RETRY_COUNT) {
                     throw new IOException("下载超时: " + url, timeout);
                 }
+                ApricityUI.LOGGER.warn(
+                        "[AUI Network] retrying timed out request url={} attempt={}/{}",
+                        url,
+                        attempt + 1,
+                        NetworkPolicy.MAX_RETRY_COUNT
+                );
                 sleepQuietly(NetworkPolicy.RETRY_DELAY_5XX_OR_TIMEOUT_MS);
                 attempt++;
             }
@@ -172,11 +190,13 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             Thread.sleep(delayMs);
         } catch (InterruptedException interruptedException) {
             Thread.currentThread().interrupt();
+            ApricityUI.LOGGER.warn("[AUI Network] retry wait interrupted", interruptedException);
         }
     }
 
     public byte[] fetchBytes(String url) throws IOException {
         if (!Loader.isRemotePath(url)) {
+            ApricityUI.LOGGER.error("[AUI Network] rejected non-HTTPS resource url={}", url);
             throw new IOException("仅允许 HTTPS 远程资源: " + url);
         }
 
@@ -193,6 +213,13 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
             SUCCESS_CACHE.remove(url, cached);
         }
 
+        byte[] diskCached = readDiskCache(url, now);
+        if (diskCached != null) {
+            SUCCESS_CACHE.put(url, new CacheEntry(diskCached, now + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            handle.markReady();
+            return diskCached;
+        }
+
         InFlightRequest own = new InFlightRequest();
         InFlightRequest existing = IN_FLIGHT.putIfAbsent(url, own);
         if (existing != null) {
@@ -205,16 +232,69 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         try {
             byte[] bytes = downloadWithRetry(url);
             SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            writeDiskCache(url, bytes);
             own.complete(bytes, null);
             handle.markReady();
             return bytes;
         } catch (IOException exception) {
             own.complete(null, exception);
             handle.markFailed(exception, System.currentTimeMillis());
+            ApricityUI.LOGGER.error(
+                    "[AUI Network] request failed url={} state={} generation={}",
+                    url,
+                    handle.state(),
+                    generation,
+                    exception
+            );
             throw exception;
         } finally {
             IN_FLIGHT.remove(url, own);
         }
+    }
+
+    private static byte[] readDiskCache(String url, long nowMs) {
+        try {
+            Path file = diskCachePath(url);
+            if (!Files.exists(file) || !Files.isRegularFile(file)) return null;
+            long ageMs = nowMs - Files.getLastModifiedTime(file).toMillis();
+            if (ageMs < 0 || ageMs > NetworkPolicy.DISK_CACHE_TTL_MS) return null;
+            long size = Files.size(file);
+            if (size <= 0 || size > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) return null;
+            return Files.readAllBytes(file);
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.debug("[AUI Network] disk cache read failed url={}", url, exception);
+            return null;
+        }
+    }
+
+    private static void writeDiskCache(String url, byte[] bytes) {
+        if (bytes == null || bytes.length == 0 || bytes.length > NetworkPolicy.MAX_CONTENT_LENGTH_BYTES) return;
+        try {
+            Path file = diskCachePath(url);
+            Files.createDirectories(file.getParent());
+            Files.write(file, bytes);
+        } catch (Exception exception) {
+            ApricityUI.LOGGER.warn("[AUI Network] disk cache write failed url={}", url, exception);
+        }
+    }
+
+    private static Path diskCachePath(String url) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        String hash = HexFormat.of().formatHex(digest.digest(url.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        return resolveGameDir().resolve("apricity/.cache/network/" + hash + ".bin");
+    }
+
+    private static Path resolveGameDir() {
+        try {
+            Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
+            Object gameDirHolder = fmlPathsClass.getField("GAMEDIR").get(null);
+            Object path = gameDirHolder.getClass().getMethod("get").invoke(gameDirHolder);
+            if (path instanceof Path resolved) {
+                return resolved.toAbsolutePath().normalize();
+            }
+        } catch (Throwable ignored) {
+        }
+        return Path.of("").toAbsolutePath().normalize();
     }
 
     @Override
@@ -260,6 +340,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
                 latch.await();
             } catch (InterruptedException interruptedException) {
                 Thread.currentThread().interrupt();
+                ApricityUI.LOGGER.warn("[AUI Network] waiting for in-flight request was interrupted url={}", url, interruptedException);
                 throw new IOException("等待远程资源结果被中断: " + url, interruptedException);
             }
             if (error != null) throw error;

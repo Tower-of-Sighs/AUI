@@ -1,0 +1,96 @@
+/* Editor-specific layout only. Ore controls remain defined by ore.css. */
+.ore-editor-shell {
+  height: 100vh;
+  overflow: hidden;
+}
+
+.editor-toolbar {
+  position: relative;
+  z-index: 2;
+  min-height: 58px;
+  padding-top: 8px;
+  padding-bottom: 12px;
+}
+
+.editor-brand { white-space: nowrap; }
+.editor-document-state { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-document-dirty { margin-left: 8px; color: var(--ore-gold); }
+.editor-toolbar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
+
+.editor-workspace { display: flex; height: calc(100vh - 58px); min-height: 0; }
+.canvas-region { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; flex-direction: column; background: var(--ore-surface-deep); }
+.editor-breadcrumb { flex: 0 0 auto; min-height: 30px; padding: 6px 12px; border-bottom: 2px solid var(--ore-edge); color: var(--ore-ink-muted); }
+.canvas-scroll { flex: 1 1 auto; width: 100%; min-height: 0; overflow: auto; padding: 24px; }
+.editor-canvas { position: relative; min-width: 640px; min-height: 480px; background-color: var(--ore-canvas); }
+.ore-editor-container { min-width: 0; min-height: 0; }
+.ore-editor-component { min-width: 0; }
+.editor-selection-overlay { position: absolute; z-index: 10; box-sizing: border-box; border: 2px solid var(--ore-purple); pointer-events: none; }
+.editor-hover-overlay { position: absolute; z-index: 9; box-sizing: border-box; border: 2px dashed var(--ore-gold); pointer-events: none; }
+.editor-insertion-overlay { position: absolute; z-index: 11; box-sizing: border-box; background: var(--ore-gold); pointer-events: none; }
+.editor-absolute-resize-handle { position: absolute; z-index: 12; width: 10px; height: 10px; box-sizing: border-box; border: 2px solid var(--ore-purple-shadow); background: var(--ore-focus); cursor: nwse-resize; }
+.editor-flex-overlay { position: absolute; inset: 0; z-index: 7; pointer-events: none; }
+.editor-flex-main-axis, .editor-flex-cross-axis { position: absolute; background: var(--ore-gold); opacity: 0.8; }
+.editor-flex-line-overlay { position: absolute; box-sizing: border-box; border: 1px dashed var(--ore-gold-shadow); opacity: 0.65; }
+.editor-flex-gap-overlay { position: absolute; box-sizing: border-box; background: var(--ore-gold); opacity: 0.16; }
+.editor-confirm-overlay { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0, 0, 0, 0.55); }
+.editor-confirm-dialog { width: min(420px, 100%); }
+
+.editor-sidebar { flex: 0 0 420px; width: 420px; min-width: 360px; max-width: 560px; min-height: 0; overflow: auto; border-left: 3px solid var(--ore-edge); background: var(--ore-surface-deep); }
+.editor-resize-handle { flex: 0 0 8px; width: 8px; cursor: ew-resize; background: var(--ore-edge); }
+.editor-resize-handle:hover, .editor-resize-handle.dragging { background: var(--ore-gold); }
+.editor-tabs { display: flex; gap: 4px; padding: 8px; border-bottom: 3px solid var(--ore-edge); }
+.editor-tab { flex: 1 1 0; min-width: 0; }
+.editor-tab.active { background: var(--ore-purple); }
+.editor-sidebar-content { padding: 8px; }
+.editor-palette-items { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.editor-palette-switcher { margin-bottom: 8px; }
+.editor-palette-item { min-height: 30px; }
+.editor-drag-ghost { position: absolute; z-index: 100; padding: 6px 10px; pointer-events: none; opacity: 0.9; }
+.editor-segmented { display: flex; flex-wrap: wrap; gap: 4px; }
+.editor-alignment-preview { display: flex; height: 28px; margin-top: 6px; padding: 4px; gap: 4px; box-sizing: border-box; border: 1px solid var(--ore-edge-light); background: var(--ore-canvas); overflow: hidden; }
+.editor-alignment-marker { flex: 0 0 12px; min-height: 5px; background: var(--ore-purple); }
+.editor-alignment-items .editor-alignment-marker:nth-child(1) { height: 5px; }
+.editor-alignment-items .editor-alignment-marker:nth-child(2) { height: 12px; }
+.editor-alignment-items .editor-alignment-marker:nth-child(3) { height: 18px; }
+.editor-alignment-content { height: 46px; flex-wrap: wrap; }
+.editor-alignment-content .editor-alignment-marker { flex-basis: 42%; height: 5px; }
+.editor-alignment-preview.editor-alignment-value-flex-start { justify-content: flex-start; align-items: flex-start; align-content: flex-start; }
+.editor-alignment-preview.editor-alignment-value-center { justify-content: center; align-items: center; align-content: center; }
+.editor-alignment-preview.editor-alignment-value-flex-end { justify-content: flex-end; align-items: flex-end; align-content: flex-end; }
+.editor-alignment-preview.editor-alignment-value-space-between { justify-content: space-between; align-content: space-between; }
+.editor-alignment-preview.editor-alignment-value-space-around { justify-content: space-around; align-content: space-around; }
+.editor-alignment-preview.editor-alignment-value-space-evenly { justify-content: space-evenly; align-content: space-evenly; }
+.editor-alignment-preview.editor-alignment-value-stretch { align-items: stretch; align-content: stretch; }
+.editor-alignment-preview.editor-alignment-value-baseline { align-items: baseline; }
+.editor-empty-container { align-self: center; color: var(--ore-ink-muted); padding: 8px; pointer-events: none; }
+.editor-state-status { margin: -4px 0 8px; }
+.editor-shadow-field { min-inline-size: 0; margin: 8px 0; padding: 8px 0 0; border: 0; border-top: 2px solid var(--ore-edge); }
+.editor-shadow-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin-top: 6px; }
+.editor-shadow-input { min-width: 0; }
+.editor-shadow-input .form-input { width: 100%; }
+.editor-box-field { min-inline-size: 0; margin: 8px 0; padding: 8px 0 0; border: 0; border-top: 2px solid var(--ore-edge); }
+.editor-box-link { display: inline-flex; margin: 0 0 6px; }
+.editor-box-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-areas: "top top" "left right" "bottom bottom"; gap: 6px; }
+.editor-box-input { min-width: 0; }
+.editor-box-input[data-editor-box-side="top"] { grid-area: top; }
+.editor-box-input[data-editor-box-side="right"] { grid-area: right; }
+.editor-box-input[data-editor-box-side="bottom"] { grid-area: bottom; }
+.editor-box-input[data-editor-box-side="left"] { grid-area: left; }
+.editor-length-field { display: grid; grid-template-columns: minmax(0, 1fr) 72px 88px; gap: 6px; align-items: center; }
+.editor-length-no-auto { grid-template-columns: minmax(0, 1fr) 72px; }
+.editor-length-field .form-input, .editor-length-field .form-select { min-width: 0; width: 100%; }
+.editor-box-input .editor-length-field:not(.editor-length-no-auto) { grid-template-columns: minmax(0, 1fr) 52px 70px; }
+.editor-box-input .editor-length-no-auto { grid-template-columns: minmax(0, 1fr) 72px; }
+.editor-inspector-actions { display: flex; gap: 6px; margin-top: 12px; }
+.editor-theme-group { min-inline-size: 0; margin: 0 0 12px; padding: 8px 0 0; border: 0; border-top: 2px solid var(--ore-edge); }
+.editor-theme-group-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; color: var(--ore-ink-muted); }
+.editor-theme-token-controls, .editor-color-field { display: flex; align-items: center; gap: 6px; }
+.editor-theme-token-controls .form-input, .editor-color-field .form-input { min-width: 0; flex: 1 1 auto; }
+.editor-theme-color, .editor-component-color { flex: 0 0 30px; width: 30px; height: 28px; padding: 2px; border: 2px solid var(--ore-edge); background: var(--ore-surface-deep); }
+.editor-component-alpha, .editor-theme-alpha { flex: 0 1 74px; min-width: 52px; }
+
+@media (max-width: 900px) {
+  .editor-toolbar { align-items: flex-start; }
+  .editor-document-state { order: 3; flex-basis: 100%; }
+  .editor-sidebar { flex-basis: 360px; width: 360px; }
+}

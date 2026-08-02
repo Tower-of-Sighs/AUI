@@ -1,0 +1,631 @@
+<head>
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-mouse-events" content="intercept">
+</head>
+
+<body>
+<div class="debug-shell">
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+    <div class="scanline"></div>
+
+    <header class="hero">
+        <div class="eyebrow">APRICITY UI / WORLD WINDOW LAB</div>
+        <h1>World Window Debugger</h1>
+        <p class="lede">A live control surface for distance gates, depth behaviour, scale fitting and display precision.</p>
+        <div class="status-row">
+            <span class="status-pill"><span class="status-dot"></span><output id="window-status">LIVE / RAY 32 BLOCKS</output></span>
+            <span class="status-pill status-cyan"><output id="display-status">DISPLAY 128 BLOCKS</output></span>
+            <span class="status-pill status-coral"><output id="lod-status">EFFECTIVE LOD: FULL</output></span>
+            <span class="status-pill status-lime"><output id="scale-status">SCALE AUTO</output></span>
+        </div>
+    </header>
+
+    <div class="content-row">
+        <section class="monitor-column">
+            <div class="section-kicker">LIVE SURFACE</div>
+            <div class="monitor-frame">
+                <div class="monitor-grid"></div>
+                <div class="monitor-orbit orbit-one"></div>
+                <div class="monitor-orbit orbit-two"></div>
+                <div class="monitor-core">
+                    <div class="core-mark">AUI</div>
+                    <div class="core-label">WORLD WINDOW</div>
+                    <div class="core-line"></div>
+                    <div class="core-state">RENDER PIPELINE ONLINE</div>
+                </div>
+                <span class="corner corner-tl"></span>
+                <span class="corner corner-tr"></span>
+                <span class="corner corner-bl"></span>
+                <span class="corner corner-br"></span>
+            </div>
+            <div class="monitor-caption">
+                <span>POSITION LOCKED IN WORLD</span>
+                <span class="caption-pulse">*</span>
+                <span>PARAMETERS APPLY LIVE</span>
+            </div>
+            <div class="legend-row">
+                <span><i class="legend-dot cyan"></i>viewport</span>
+                <span><i class="legend-dot coral"></i>depth</span>
+                <span><i class="legend-dot lime"></i>lod</span>
+            </div>
+        </section>
+
+        <form id="debug-form" class="control-column">
+            <section class="control-group">
+                <div class="group-heading"><span>01</span><h2>VISIBILITY / HIT TEST</h2></div>
+                <label class="field-label" for="max-display-distance">
+                    <span>MAX DISPLAY DISTANCE</span><output id="display-distance-value">128 BLOCKS</output>
+                </label>
+                <input id="max-display-distance" type="range" min="4" max="256" step="1" value="128">
+                <label class="field-label" for="display-distance-mode"><span>DISTANCE SOURCE</span><span class="field-note">INSTANCE OVERRIDES GLOBAL</span></label>
+                <select id="display-distance-mode">
+                    <option value="global">GLOBAL CONFIG DEFAULT</option>
+                    <option value="instance">INSTANCE OVERRIDE</option>
+                    <option value="unlimited">UNLIMITED / MAX VALUE</option>
+                </select>
+                <label class="field-label" for="max-distance">
+                    <span>INTERACTION RAY DISTANCE</span><output id="max-distance-value">32 BLOCKS</output>
+                </label>
+                <input id="max-distance" type="range" min="1" max="128" step="1" value="32">
+                <label class="check-row"><input id="depth-test" type="checkbox" checked><span>DEPTH TEST / BLOCK OCCLUSION</span></label>
+            </section>
+
+            <section class="control-group">
+                <div class="group-heading"><span>02</span><h2>DISPLAY PRECISION / LOD</h2></div>
+                <label class="field-label" for="lod-policy"><span>PAINT POLICY</span><span class="field-note">AUTO USES GLOBAL CONFIG</span></label>
+                <select id="lod-policy">
+                    <option value="auto">AUTO / DISTANCE BANDS</option>
+                    <option value="full">FULL / ALL EFFECTS</option>
+                    <option value="reduced">REDUCED / CORE CONTENT</option>
+                    <option value="minimal">MINIMAL / FRAME ONLY</option>
+                </select>
+                <label class="check-row"><input id="lod-custom" type="checkbox"><span>USE INSTANCE DISTANCE BANDS</span></label>
+                <label class="field-label" for="lod-full-distance">
+                    <span>FULL DETAIL UNTIL</span><output id="lod-full-value">16 BLOCKS</output>
+                </label>
+                <input id="lod-full-distance" type="number" min="0" max="256" step="1" value="16">
+                <label class="field-label" for="lod-reduced-distance">
+                    <span>REDUCED DETAIL UNTIL</span><output id="lod-reduced-value">48 BLOCKS</output>
+                </label>
+                <input id="lod-reduced-distance" type="number" min="0" max="256" step="1" value="48">
+            </section>
+
+            <section class="control-group">
+                <div class="group-heading"><span>03</span><h2>WORLD SCALE</h2></div>
+                <label class="field-label" for="scale-mode"><span>SCALE SOURCE</span><span class="field-note">FIT ONCE / WORLD SIZE FIXED</span></label>
+                <select id="scale-mode">
+                    <option value="auto">AUTO / FIT INITIAL SIZE</option>
+                    <option value="manual">MANUAL / WORLD UNITS PER PX</option>
+                </select>
+                <label class="field-label" for="world-scale">
+                    <span>MANUAL SCALE</span><output id="world-scale-value">0.0200</output>
+                </label>
+                <input id="world-scale" type="number" min="0.001" max="0.2" step="0.001" value="0.020">
+                <p class="micro-copy">Auto mode fits the initial world size; manual mode supplies the exact world scale.</p>
+            </section>
+
+            <section class="control-group">
+                <div class="group-heading"><span>04</span><h2>DYNAMIC DEPTH OFFSET</h2></div>
+                <label class="field-label" for="near-depth-step">
+                    <span>NEAR STEP</span><output id="near-depth-value">0.00035</output>
+                </label>
+                <input id="near-depth-step" type="number" min="0" max="0.1" step="0.00005" value="0.00035">
+                <label class="field-label" for="far-depth-step">
+                    <span>FAR STEP</span><output id="far-depth-value">0.00300</output>
+                </label>
+                <input id="far-depth-step" type="number" min="0" max="0.1" step="0.00005" value="0.00300">
+                <label class="field-label" for="depth-near-distance">
+                    <span>NEAR DISTANCE</span><output id="depth-near-value">2.0 BLOCKS</output>
+                </label>
+                <input id="depth-near-distance" type="number" min="0" max="256" step="0.5" value="2">
+                <label class="field-label" for="depth-far-distance">
+                    <span>FAR DISTANCE</span><output id="depth-far-value">32.0 BLOCKS</output>
+                </label>
+                <input id="depth-far-distance" type="number" min="0" max="256" step="0.5" value="32">
+            </section>
+
+            <section class="control-group">
+                <div class="group-heading"><span>05</span><h2>CAMERA ATTITUDE</h2></div>
+                <label class="check-row"><input id="follow-enabled" type="checkbox"><span>FOLLOW CAMERA VIEW PLANE</span></label>
+                <label class="field-label" for="follow-factor">
+                    <span>FOLLOW FACTOR</span><output id="follow-factor-value">0.30</output>
+                </label>
+                <input id="follow-factor" type="number" min="0" max="1" step="0.05" value="0.30">
+                <label class="check-row"><input id="facing-enabled" type="checkbox"><span>FACE ACTIVE CAMERA</span></label>
+                <p class="micro-copy">Follow moves the panel toward the view ray; facing rotates it independently toward the camera.</p>
+            </section>
+
+            <button id="reset-settings" class="reset-button" type="button"><span>RESET INSTANCE SETTINGS</span><b>R</b></button>
+        </form>
+    </div>
+
+    <footer class="footer-row">
+        <span>TEST DOCUMENT / WORLD-WINDOW-COMMAND.HTML</span>
+        <span>APRICITYUI DEBUG BUILD</span>
+    </footer>
+</div>
+</body>
+
+<style>
+    html,
+    body {
+        width: 100%;
+        min-height: 100%;
+        margin: 0;
+        padding: 0;
+        background-color: #07121d;
+        color: #e8f4f5;
+        font-family: "Consolas", "Courier New", monospace;
+        box-sizing: border-box;
+    }
+
+    *,
+    *::before,
+    *::after {
+        box-sizing: border-box;
+    }
+
+    body {
+        overflow-x: hidden;
+    }
+
+    .debug-shell {
+        position: relative;
+        width: 100%;
+        min-height: 100%;
+        padding: 46px 54px 32px;
+        overflow: hidden;
+        background-color: #07121d;
+    }
+
+    .debug-shell::before {
+        content: "";
+        position: absolute;
+        inset: 24px;
+        border: 1px solid #173748;
+        pointer-events: none;
+    }
+
+    .ambient {
+        position: absolute;
+        width: 220px;
+        height: 220px;
+        border: 1px solid #1c5661;
+        border-radius: 50%;
+        opacity: 0.32;
+        pointer-events: none;
+        animation: drift 8s ease-in-out infinite;
+    }
+
+    .ambient-one {
+        top: 92px;
+        right: 80px;
+    }
+
+    .ambient-two {
+        bottom: 80px;
+        left: 28px;
+        width: 140px;
+        height: 140px;
+        border-color: #724653;
+        animation-delay: -3s;
+    }
+
+    .scanline {
+        position: absolute;
+        top: 20%;
+        left: 0;
+        width: 100%;
+        height: 1px;
+        background-color: #2b7580;
+        opacity: 0.22;
+        pointer-events: none;
+        animation: scan 7s linear infinite;
+    }
+
+    .hero,
+    .content-row,
+    .footer-row {
+        position: relative;
+        z-index: 1;
+    }
+
+    .hero {
+        max-width: 980px;
+        margin: 0 auto 34px;
+    }
+
+    .eyebrow,
+    .section-kicker,
+    .footer-row,
+    .field-note,
+    .micro-copy,
+    .monitor-caption,
+    .legend-row {
+        letter-spacing: 1.4px;
+        text-transform: uppercase;
+    }
+
+    .eyebrow,
+    .section-kicker {
+        color: #62d5d2;
+        font-size: 13px;
+        font-weight: 700;
+    }
+
+    h1 {
+        margin: 10px 0 8px;
+        color: #f4fbf5;
+        font-family: "Trebuchet MS", sans-serif;
+        font-size: 42px;
+        font-weight: 700;
+        letter-spacing: 0;
+    }
+
+    .lede {
+        max-width: 700px;
+        margin: 0;
+        color: #91aeb4;
+        font-family: sans-serif;
+        font-size: 16px;
+        line-height: 1.55;
+    }
+
+    .status-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 9px;
+        margin-top: 20px;
+    }
+
+    .status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 11px;
+        border: 1px solid #28615e;
+        border-radius: 3px;
+        background-color: #0c242a;
+        color: #80e1c7;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .status-cyan {
+        border-color: #235f78;
+        background-color: #0b1f2b;
+        color: #6ac9ed;
+    }
+
+    .status-coral {
+        border-color: #70424b;
+        background-color: #281a24;
+        color: #f18e84;
+    }
+
+    .status-lime {
+        border-color: #496738;
+        background-color: #182519;
+        color: #b5e68d;
+    }
+
+    .status-dot,
+    .caption-pulse {
+        color: #80e1c7;
+        animation: blink 1.4s ease-in-out infinite;
+    }
+
+    .content-row {
+        display: flex;
+        align-items: flex-start;
+        gap: 30px;
+        max-width: 980px;
+        margin: 0 auto;
+    }
+
+    .monitor-column {
+        flex: 1 1 43%;
+        min-width: 300px;
+    }
+
+    .monitor-frame {
+        position: relative;
+        height: 340px;
+        margin-top: 12px;
+        overflow: hidden;
+        border: 1px solid #316d78;
+        background-color: #091d2a;
+        box-shadow: 0 0 0 7px #0b1a27, 0 18px 48px #020a10;
+    }
+
+    .monitor-grid {
+        position: absolute;
+        inset: 0;
+        opacity: 0.43;
+        background-image: linear-gradient(#1c4654 1px, transparent 1px), linear-gradient(90deg, #1c4654 1px, transparent 1px);
+        background-size: 34px 34px;
+        transform: perspective(400px) rotateX(62deg) scale(1.4) translateY(80px);
+        transform-origin: center bottom;
+    }
+
+    .monitor-orbit {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        border: 1px solid #2e8889;
+        border-radius: 50%;
+        transform: translate(-50%, -50%) rotate(-18deg);
+        animation: orbit 11s linear infinite;
+    }
+
+    .orbit-one {
+        width: 210px;
+        height: 100px;
+    }
+
+    .orbit-two {
+        width: 130px;
+        height: 220px;
+        border-color: #b55b66;
+        transform: translate(-50%, -50%) rotate(42deg);
+        animation-direction: reverse;
+        animation-duration: 13s;
+    }
+
+    .monitor-core {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 190px;
+        padding: 24px 16px;
+        border: 1px solid #54c8bd;
+        background-color: #0b2630;
+        text-align: center;
+        transform: translate(-50%, -50%);
+        box-shadow: 0 0 30px #0b5d67;
+        animation: breathe 3.5s ease-in-out infinite;
+    }
+
+    .core-mark {
+        color: #f5d27b;
+        font-family: "Trebuchet MS", sans-serif;
+        font-size: 32px;
+        font-weight: 700;
+    }
+
+    .core-label,
+    .core-state {
+        color: #9fd4d1;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1.2px;
+    }
+
+    .core-line {
+        width: 80px;
+        height: 2px;
+        margin: 14px auto;
+        background-color: #e58d77;
+    }
+
+    .core-state {
+        color: #b6e99a;
+        font-size: 9px;
+    }
+
+    .corner {
+        position: absolute;
+        width: 18px;
+        height: 18px;
+        border-color: #d8a35f;
+        border-style: solid;
+    }
+
+    .corner-tl { top: 14px; left: 14px; border-width: 1px 0 0 1px; }
+    .corner-tr { top: 14px; right: 14px; border-width: 1px 1px 0 0; }
+    .corner-bl { bottom: 14px; left: 14px; border-width: 0 0 1px 1px; }
+    .corner-br { right: 14px; bottom: 14px; border-width: 0 1px 1px 0; }
+
+    .monitor-caption,
+    .legend-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-top: 18px;
+        color: #6f929b;
+        font-size: 10px;
+    }
+
+    .legend-row {
+        justify-content: flex-start;
+        margin-top: 24px;
+        font-size: 11px;
+    }
+
+    .legend-row span {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .legend-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background-color: #66d9d4;
+    }
+
+    .legend-dot.coral { background-color: #ed8a7f; }
+    .legend-dot.lime { background-color: #b7e68a; }
+
+    .control-column {
+        flex: 1 1 57%;
+        min-width: 360px;
+    }
+
+    .control-group {
+        margin-bottom: 16px;
+        padding: 17px 18px 18px;
+        border: 1px solid #1f4655;
+        background-color: #0b1d2a;
+        box-shadow: 0 8px 24px #020a10;
+    }
+
+    .group-heading {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        margin-bottom: 15px;
+        border-bottom: 1px solid #193b48;
+        padding-bottom: 10px;
+    }
+
+    .group-heading span {
+        color: #e58d77;
+        font-size: 12px;
+        font-weight: 700;
+    }
+
+    h2 {
+        margin: 0;
+        color: #e8f4f5;
+        font-family: "Trebuchet MS", sans-serif;
+        font-size: 14px;
+        letter-spacing: 0.6px;
+    }
+
+    .field-label {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin: 11px 0 6px;
+        color: #b4cdd1;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .field-label output {
+        color: #6cd3cb;
+        white-space: nowrap;
+    }
+
+    .field-note {
+        color: #698a93;
+        font-size: 9px;
+        font-weight: 400;
+    }
+
+    input[type="range"] {
+        width: 100%;
+        height: 7px;
+        accent-color: #58cfc5;
+    }
+
+    input[type="number"],
+    select {
+        width: 100%;
+        min-height: 34px;
+        border: 1px solid #2b5b6a;
+        border-radius: 2px;
+        padding: 7px 9px;
+        background-color: #071620;
+        color: #e8f4f5;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 12px;
+    }
+
+    input[type="number"]:focus,
+    select:focus {
+        border-color: #65d6cb;
+        outline: 1px solid #65d6cb;
+    }
+
+    .check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 13px;
+        color: #b4cdd1;
+        font-size: 11px;
+        font-weight: 700;
+    }
+
+    .check-row input {
+        width: 15px;
+        height: 15px;
+        accent-color: #e58d77;
+    }
+
+    .micro-copy {
+        margin: 11px 0 0;
+        color: #66838c;
+        font-size: 9px;
+        line-height: 1.5;
+    }
+
+    .reset-button {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid #a25f55;
+        border-radius: 2px;
+        padding: 9px 14px;
+        background-color: #361f27;
+        color: #ffb09c;
+        font-family: "Consolas", "Courier New", monospace;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 1px;
+    }
+
+    .reset-button b {
+        color: #f5d27b;
+        font-size: 20px;
+        line-height: 1;
+    }
+
+    .reset-button:hover {
+        background-color: #512b31;
+    }
+
+    .footer-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        max-width: 980px;
+        margin: 28px auto 0;
+        border-top: 1px solid #193b48;
+        padding-top: 14px;
+        color: #5f7f88;
+        font-size: 9px;
+    }
+
+    @keyframes breathe {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); }
+        50% { transform: translate(-50%, -50%) scale(1.035); }
+    }
+
+    @keyframes drift {
+        0%, 100% { transform: translate(0, 0) rotate(0deg); }
+        50% { transform: translate(-18px, 12px) rotate(12deg); }
+    }
+
+    @keyframes orbit {
+        from { transform: translate(-50%, -50%) rotate(-18deg); }
+        to { transform: translate(-50%, -50%) rotate(342deg); }
+    }
+
+    @keyframes scan {
+        0% { transform: translateY(-20vh); }
+        100% { transform: translateY(80vh); }
+    }
+
+    @keyframes blink {
+        0%, 100% { opacity: 0.35; }
+        50% { opacity: 1; }
+    }
+</style>

@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-font-mode" content="web">
+    <title>AUI Form Controls Test</title>
+    <style>
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background: #10161d;
+            color: #edf6ff;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 10px;
+        }
+
+        body {
+            overflow: hidden;
+        }
+
+        .page {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .hero {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .eyebrow {
+            color: #7dd3fc;
+        }
+
+        .title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #f8fbff;
+        }
+
+        .summary,
+        .hint,
+        .meta {
+            color: #b9d7ea;
+        }
+
+        .content {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 2px;
+        }
+
+        .section {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 6px;
+            border: 1px solid rgba(156, 204, 228, 0.52);
+            border-radius: 8px;
+            background-color: rgba(5, 12, 18, 0.72);
+        }
+
+        .section-title {
+            color: #ffd78f;
+        }
+
+        .section-head {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .columns {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            gap: 8px;
+        }
+
+        .column {
+            flex: 1 1 260px;
+            min-width: 220px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .panel {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            padding: 6px;
+            border: 1px solid rgba(121, 167, 194, 0.38);
+            border-radius: 7px;
+            background-color: rgba(4, 10, 16, 0.52);
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .field-inline {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 22px;
+        }
+
+        label,
+        legend {
+            color: #dcefff;
+        }
+
+        fieldset {
+            min-width: 0;
+            margin: 0;
+            padding: 6px;
+            border: 1px solid rgba(121, 167, 194, 0.38);
+            border-radius: 6px;
+        }
+
+        fieldset + fieldset {
+            margin-top: 6px;
+        }
+
+        input,
+        select,
+        textarea,
+        button {
+            box-sizing: border-box;
+            min-height: 24px;
+            padding: 4px 6px;
+            border: 1px solid rgba(132, 182, 210, 0.72);
+            border-radius: 5px;
+            background-color: rgba(19, 48, 67, 0.92);
+            color: #eef8ff;
+            font: inherit;
+        }
+
+        input[type="checkbox"],
+        input[type="radio"] {
+            width: 16px;
+            min-width: 16px;
+            height: 16px;
+            min-height: 16px;
+            padding: 0;
+            flex: 0 0 16px;
+        }
+
+        input[type="color"] {
+            width: 64px;
+            padding: 2px;
+        }
+
+        input[type="file"] {
+            min-height: 28px;
+        }
+
+        textarea {
+            min-height: 48px;
+            resize: vertical;
+        }
+
+        select[multiple] {
+            min-height: 54px;
+        }
+
+        input:invalid,
+        select:invalid,
+        textarea:invalid {
+            border-color: #ff9b91;
+        }
+
+        input:disabled,
+        select:disabled,
+        textarea:disabled {
+            color: #7890a0;
+            background-color: rgba(15, 25, 33, 0.86);
+        }
+
+        .choice-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        button,
+        input[type="button"],
+        input[type="submit"],
+        input[type="reset"] {
+            width: auto;
+            min-width: 82px;
+            cursor: pointer;
+            background-color: rgba(31, 78, 106, 0.94);
+        }
+
+        .button-secondary {
+            background-color: rgba(31, 48, 61, 0.94);
+        }
+
+        .status {
+            min-height: 18px;
+            color: #9ff0c0;
+        }
+
+        .status[data-state="invalid"] {
+            color: #ffb5ad;
+        }
+
+        .log {
+            min-height: 46px;
+            max-height: 130px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .log-line {
+            padding: 4px 5px;
+            border: 1px solid rgba(121, 167, 194, 0.38);
+            border-radius: 5px;
+            background-color: rgba(4, 10, 16, 0.42);
+            color: #edf6ff;
+        }
+
+        .readout {
+            padding: 5px;
+            border: 1px solid rgba(121, 167, 194, 0.38);
+            border-radius: 5px;
+            background-color: rgba(4, 10, 16, 0.42);
+            color: #dcefff;
+            overflow-wrap: anywhere;
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">ApricityUI Forms Regression</div>
+        <div class="title">Form Controls Test</div>
+        <div class="summary">Exercise form association, validation, submit/reset, specialized inputs, file constraints, and FormData.</div>
+    </div>
+
+    <div class="content">
+        <div class="section">
+            <div class="section-head">
+                <div class="section-title">F1. Form controls and validation</div>
+                <div class="hint">The form starts valid. Clear a required field or toggle custom validity to check the invalid path.</div>
+            </div>
+
+            <form id="profile-form" action="/aui/form-test" method="post" enctype="multipart/form-data" autocomplete="off">
+                <div class="columns">
+                    <div class="column">
+                        <fieldset>
+                            <legend>Identity</legend>
+                            <div class="field">
+                                <label for="display-name">Display name (required, pattern)</label>
+                                <input id="display-name" name="displayName" type="text" value="AUI player" required minlength="3" maxlength="24" pattern="[A-Za-z0-9 _-]+">
+                            </div>
+                            <div class="field">
+                                <label for="email">Email (type mismatch)</label>
+                                <input id="email" name="email" type="email" value="player@example.test" required>
+                            </div>
+                            <div class="field">
+                                <label for="homepage">Homepage (URL)</label>
+                                <input id="homepage" name="homepage" type="url" value="https://example.test/aui">
+                            </div>
+                            <div class="field">
+                                <label for="secret">Password</label>
+                                <input id="secret" name="secret" type="password" value="apricity-ui">
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>Preferences</legend>
+                            <div class="field">
+                                <label for="role">Role (required select)</label>
+                                <select id="role" name="role" required>
+                                    <option value="">Choose a role</option>
+                                    <option value="builder" selected>Builder</option>
+                                    <option value="tester">Tester</option>
+                                    <option value="author">Author</option>
+                                </select>
+                            </div>
+                            <div class="field">
+                                <label for="tags">Tags (multiple select)</label>
+                                <select id="tags" name="tag" multiple>
+                                    <option value="dom" selected>DOM</option>
+                                    <option value="layout" selected>Layout</option>
+                                    <option value="render">Render</option>
+                                </select>
+                            </div>
+                            <div class="choice-list">
+                                <label class="field-inline"><input type="radio" name="density" value="comfortable" checked> Comfortable</label>
+                                <label class="field-inline"><input type="radio" name="density" value="compact"> Compact</label>
+                            </div>
+                            <label class="field-inline"><input id="terms" name="terms" type="checkbox" value="accepted" checked required> Accept test terms (required checkbox)</label>
+                        </fieldset>
+                    </div>
+
+                    <div class="column">
+                        <fieldset>
+                            <legend>Specialized values</legend>
+                            <div class="field">
+                                <label for="level">Level (min 1, max 99, step 2)</label>
+                                <input id="level" name="level" type="number" value="5" min="1" max="99" step="2" required>
+                            </div>
+                            <div class="field-inline">
+                                <label for="volume">Range</label>
+                                <input id="volume" name="volume" type="range" value="50" min="0" max="100" step="10">
+                            </div>
+                            <div class="field">
+                                <label for="day">Date</label>
+                                <input id="day" name="day" type="date" value="2024-01-02">
+                            </div>
+                            <div class="field">
+                                <label for="time">Time</label>
+                                <input id="time" name="time" type="time" value="03:04">
+                            </div>
+                            <div class="field-inline">
+                                <label for="accent">Color</label>
+                                <input id="accent" name="accent" type="color" value="#6fffe9">
+                                <span id="accent-readout" class="meta">#6fffe9</span>
+                            </div>
+                        </fieldset>
+
+                        <fieldset disabled>
+                            <legend><input id="legend-toggle" name="legendToggle" type="checkbox" value="yes" checked> Legend control remains enabled</legend>
+                            <div class="field">
+                                <label for="disabled-field">Disabled fieldset control</label>
+                                <input id="disabled-field" name="disabledField" type="text" value="not submitted">
+                            </div>
+                        </fieldset>
+
+                        <fieldset>
+                            <legend>Message and files</legend>
+                            <div class="field">
+                                <label for="message">Description</label>
+                                <textarea id="message" name="message">A form textarea value.</textarea>
+                            </div>
+                            <div class="field">
+                                <label for="attachments">Attachments (multiple, png/txt)</label>
+                                <input id="attachments" name="attachments" type="file" multiple accept=".png,image/png,.txt,text/plain">
+                            </div>
+                        </fieldset>
+                    </div>
+                </div>
+
+                <div class="actions">
+                    <input id="submit-form" type="submit" value="Submit form">
+                    <input id="reset-form" type="reset" value="Reset defaults" class="button-secondary">
+                    <input id="request-submit" type="button" value="requestSubmit()" class="button-secondary">
+                    <input id="validate-form" type="button" value="reportValidity()" class="button-secondary">
+                    <input id="clear-name" type="button" value="Clear required" class="button-secondary">
+                    <input id="custom-error" type="button" value="Toggle custom error" class="button-secondary">
+                    <input id="formdata-snapshot" type="button" value="FormData snapshot" class="button-secondary">
+                    <input id="step-level" type="button" value="level.stepUp()" class="button-secondary">
+                </div>
+            </form>
+
+            <div class="field">
+                <label for="external-code">External control using form=&quot;profile-form&quot;</label>
+                <input id="external-code" name="externalCode" form="profile-form" type="search" value="outside-form">
+            </div>
+            <div id="status" class="status">Ready. Submit the form to start.</div>
+            <div id="formdata-readout" class="readout">FormData: not captured</div>
+        </div>
+
+        <div class="section">
+            <div class="section-head">
+                <div class="section-title">F2. Event log</div>
+                <div class="hint">Expected events include input/change, submit, reset, and formdata. A cancelled submit must not emit formdata.</div>
+            </div>
+            <div id="event-log" class="log"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        var form = document.getElementById("profile-form");
+        var status = document.getElementById("status");
+        var log = document.getElementById("event-log");
+        var readout = document.getElementById("formdata-readout");
+        var level = document.getElementById("level");
+        var name = document.getElementById("display-name");
+        var accent = document.getElementById("accent");
+        var accentReadout = document.getElementById("accent-readout");
+        var sequence = 0;
+
+        function write(message) {
+            sequence += 1;
+            var line = document.createElement("div");
+            line.className = "log-line";
+            line.innerText = sequence + ". " + message;
+            log.appendChild(line);
+        }
+
+        function showStatus(message, invalid) {
+            status.innerText = message;
+            status.setAttribute("data-state", invalid ? "invalid" : "valid");
+        }
+
+        function snapshot() {
+            var data = new FormData(form);
+            readout.innerText = "FormData: " + data.toString();
+            write("FormData entries=" + data.entries().length + " keys=" + data.keys().join(","));
+            return data;
+        }
+
+        form.addEventListener("submit", function (event) {
+            event.preventDefault();
+            var submitter = event.submitter;
+            var submitterId = submitter && submitter.id ? submitter.id : "none";
+            var data = snapshot();
+            showStatus("Submit accepted; submitter=" + submitterId + "; entries=" + data.entries().length, false);
+            write("submit event; default prevented");
+        });
+
+        form.addEventListener("formdata", function () {
+            write("formdata event fired");
+        });
+
+        form.addEventListener("reset", function () {
+            showStatus("Reset event fired; defaults are being restored.", false);
+            write("reset event");
+        });
+
+        form.addEventListener("input", function (event) {
+            if (event.target && event.target.id) write("input: " + event.target.id);
+        });
+
+        form.addEventListener("change", function (event) {
+            if (event.target && event.target.id) write("change: " + event.target.id);
+        });
+
+        document.getElementById("request-submit").addEventListener("click", function () {
+            write("calling form.requestSubmit(submit-form)");
+            form.requestSubmit(document.getElementById("submit-form"));
+        });
+
+        document.getElementById("validate-form").addEventListener("click", function () {
+            var valid = form.reportValidity();
+            showStatus("reportValidity() = " + valid, !valid);
+            write("reportValidity() returned " + valid);
+        });
+
+        document.getElementById("clear-name").addEventListener("click", function () {
+            name.value = "";
+            name.focus();
+            showStatus("Display name cleared; required validation should fail.", true);
+            write("cleared display-name");
+        });
+
+        document.getElementById("custom-error").addEventListener("click", function () {
+            if (level.validity.customError) {
+                level.setCustomValidity("");
+                showStatus("Custom validity cleared.", false);
+                write("setCustomValidity(\"\")");
+            } else {
+                level.setCustomValidity("Level is locked by this test.");
+                showStatus("Custom validity set on level.", true);
+                write("setCustomValidity(custom message)");
+            }
+        });
+
+        document.getElementById("formdata-snapshot").addEventListener("click", snapshot);
+
+        document.getElementById("step-level").addEventListener("click", function () {
+            level.stepUp();
+            write("level.stepUp() -> " + level.value);
+        });
+
+        accent.addEventListener("input", function () {
+            accentReadout.innerText = accent.value;
+        });
+
+        var formElements = form.elements;
+        var formElementCount = formElements && typeof formElements.length === "number"
+            ? formElements.length : "bridge unavailable";
+        write("form.elements.length=" + formElementCount);
+        write("external control owner=" + (document.getElementById("external-code").form === form));
+    })();
+</script>
+</body>
+</html>

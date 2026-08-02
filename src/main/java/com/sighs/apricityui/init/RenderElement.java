@@ -1,9 +1,16 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.render.Rect;
+import org.joml.Matrix4f;
 
+import java.util.ArrayDeque;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -12,12 +19,14 @@ public class RenderElement {
     public Cache<Element[]> route = new Cache<>() {
         @Override
         void expandClear() {
+            clearCommittedLayout();
             element.children.forEach(e -> e.getRenderer().route.clear());
         }
     };
     public Cache<List<Transform>> transform = new Cache<>() {
         @Override
         void expandClear() {
+            clearCommittedWorldTransform();
             element.children.forEach(e -> e.getRenderer().transform.clear());
         }
     };
@@ -40,11 +49,40 @@ public class RenderElement {
             element.children.forEach(e -> e.getRenderer().wrappedText.clear());
         }
     };
-    public Cache<Size> size = new Cache<>();
-    public Cache<Box> box = new Cache<>();
+    public Cache<Size> size = new Cache<>() {
+        private long dependency = Long.MIN_VALUE;
+
+        @Override
+        public Size get() {
+            if (value == null) return null;
+            if (dependency != usedSizeDependency()) {
+                value = null;
+                return null;
+            }
+            return value;
+        }
+
+        @Override
+        public void set(Size value) {
+            this.value = value;
+            this.dependency = usedSizeDependency();
+        }
+
+        @Override
+        void expandClear() {
+            clearCommittedLayout();
+        }
+    };
+    public Cache<Box> box = new Cache<>() {
+        @Override
+        void expandClear() {
+            clearCommittedLayout();
+        }
+    };
     public Cache<Position> position = new Cache<>() {
         @Override
         void expandClear() {
+            clearCommittedLayout();
             element.children.forEach(e -> e.getRenderer().position.clear());
         }
     };
@@ -57,9 +95,198 @@ public class RenderElement {
     };
     public Cache<Filter.FilterState> filter = new Cache<>();
     public Cache<Filter.FilterState> backdropFilter = new Cache<>();
+    private Rect committedRect = null;
+    private Matrix4f committedWorldTransform = null;
+    private long styleVersion = 1L;
+    private long textVersion = 1L;
+    private long layoutVersion = 1L;
+    private long scrollVersion = 1L;
+    private long transformVersion = 1L;
+    private long committedRectDependency = Long.MIN_VALUE;
+    private long committedTransformDependency = Long.MIN_VALUE;
 
     public RenderElement(Element element) {
         this.element = element;
+    }
+
+    public Rect getCommittedRect() {
+        return committedRect;
+    }
+
+    public Rect getCommittedRectIfValid() {
+        return hasCommittedRect(rectDependency(element.document)) ? committedRect : null;
+    }
+
+    public Matrix4f getCommittedWorldTransform() {
+        return committedWorldTransform;
+    }
+
+    public Matrix4f getCommittedWorldTransformIfValid() {
+        return hasCommittedWorldTransform(transformDependency(element.document)) ? committedWorldTransform : null;
+    }
+
+    public boolean hasCommittedRect(long dependency) {
+        return committedRect != null && committedRectDependency == dependency;
+    }
+
+    public boolean hasCommittedWorldTransform(long dependency) {
+        return committedWorldTransform != null && committedTransformDependency == dependency;
+    }
+
+    public void commitRect(Rect rect, long dependency) {
+        committedRect = rect;
+        committedRectDependency = dependency;
+    }
+
+    public void commitWorldTransform(Matrix4f worldTransform, long dependency) {
+        committedWorldTransform = worldTransform;
+        committedTransformDependency = dependency;
+    }
+
+    public void invalidateLayoutVersion() {
+        layoutVersion++;
+    }
+
+    /**
+     * Version of all geometry inputs that can affect this element's used size.
+     * Layout caches use this stamp instead of requiring every mutation path to
+     * know which cache table must be cleared.
+     */
+    public long layoutDependency() {
+        return usedSizeDependency();
+    }
+
+    /**
+     * Version of text styling inherited by this element's layout objects.
+     * Text runs are stored inside normal/flex layout results, so their cache
+     * dependency must be separate from geometry and hit-test dependencies.
+     */
+    public long textDependency() {
+        long value = 17L;
+        for (Element routeElement : element.getRouteArray()) {
+            value = mix(value, routeElement.getRenderer().textVersion);
+        }
+        return value;
+    }
+
+    private long usedSizeDependency() {
+        long value = 17L;
+        if (element.document != null) value = mix(value, element.document.getViewportVersion());
+        Element[] route = element.getRouteArray();
+        for (int i = 0; i < route.length; i++) {
+            RenderElement renderer = route[i].getRenderer();
+            value = mix(value, renderer.layoutVersion);
+            if (i == 0) continue;
+            Size ancestorSize = renderer.size.value;
+            if (ancestorSize != null) {
+                value = mix(value, Double.doubleToLongBits(ancestorSize.width()));
+                value = mix(value, Double.doubleToLongBits(ancestorSize.height()));
+            }
+        }
+        return value;
+    }
+
+    /**
+     * Invalidates cached used values whose containing block may have changed.
+     * Descendant percentages, flex/grid assignments, text wrapping and
+     * percentage transforms all depend on ancestor geometry.
+     */
+    public void invalidateLayoutSubtree() {
+        ArrayDeque<Element> stack = new ArrayDeque<>();
+        stack.push(element);
+        while (!stack.isEmpty()) {
+            Element current = stack.pop();
+            RenderElement renderer = current.getRenderer();
+            renderer.layoutVersion++;
+            renderer.size.value = null;
+            renderer.box.value = null;
+            renderer.position.value = null;
+            renderer.text.value = null;
+            renderer.wrappedText.value = null;
+            renderer.transform.value = null;
+            renderer.clearCommittedLayout();
+            for (Element child : current.getExistingLayoutChildren()) {
+                stack.push(child);
+            }
+        }
+    }
+
+    public void invalidateStyleVersion() {
+        styleVersion++;
+    }
+
+    public void invalidateTextVersion() {
+        textVersion++;
+    }
+
+    public void invalidateScrollVersion() {
+        scrollVersion++;
+    }
+
+    public void invalidateTransformVersion() {
+        transformVersion++;
+    }
+
+    public long rectDependency(Document document) {
+        return dependency(document, false);
+    }
+
+    public long transformDependency(Document document) {
+        return dependency(document, true);
+    }
+
+    private long dependency(Document document, boolean includeTransform) {
+        long value = 17L;
+        if (document != null) {
+            value = mix(value, document.getViewportVersion());
+        }
+        for (Element routeElement : element.getRouteArray()) {
+            RenderElement renderer = routeElement.getRenderer();
+            if (!includeTransform && routeElement == element) {
+                value = mix(value, renderer.styleVersion);
+            }
+            value = mix(value, renderer.layoutVersion);
+            value = mix(value, renderer.scrollVersion);
+            if (includeTransform) {
+                value = mix(value, renderer.transformVersion);
+            }
+        }
+        return value;
+    }
+
+    private static long mix(long value, long version) {
+        return (value * 0x9E3779B185EBCA87L) ^ version;
+    }
+
+    public void clearCommittedLayout() {
+        committedRect = null;
+        committedWorldTransform = null;
+        committedRectDependency = Long.MIN_VALUE;
+        committedTransformDependency = Long.MIN_VALUE;
+    }
+
+    public void clearCommittedWorldTransform() {
+        committedWorldTransform = null;
+        committedTransformDependency = Long.MIN_VALUE;
+    }
+
+    /** Clears visual box parsing without invalidating the unchanged hit-test geometry. */
+    public void clearVisualBoxCache() {
+        box.value = null;
+    }
+
+    public void clearCommittedLayoutSubtree() {
+        clearCommittedLayout();
+        for (Element child : element.children) {
+            child.getRenderer().clearCommittedLayoutSubtree();
+        }
+    }
+
+    public void clearCommittedWorldTransformSubtree() {
+        clearCommittedWorldTransform();
+        for (Element child : element.children) {
+            child.getRenderer().clearCommittedWorldTransformSubtree();
+        }
     }
 
     public static class Cache<T> {
@@ -110,10 +337,12 @@ public class RenderElement {
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition"
     );
     private static final Set<String> CURSOR_PROPS = Set.of("cursor");
+    private static final Set<String> HIT_TEST_PROPS = Set.of("visibility", "pointerEvents");
 
     private static final Set<String> TEXT_LAYOUT_PROPS = Set.of(
             "fontSize", "lineHeight", "fontFamily", "fontWeight", "fontStyle", "textStroke",
-            "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace", "textOverflow"
+            "direction", "letterSpacing", "textAlign", "verticalAlign", "textIndent", "whiteSpace", "textOverflow",
+            "lineClamp"
     );
 
     private static final Set<String> STRUCTURAL_PROPS = Set.of(
@@ -162,9 +391,10 @@ public class RenderElement {
             dirtyMask |= Drawer.REORDER;
         }
 
-        if (!current.transform.equals(origin.transform)) {
+        if (!current.transform.equals(origin.transform) || !current.transformOrigin.equals(origin.transformOrigin)) {
             renderer.transform.clear();
-            dirtyMask |= Drawer.REPAINT;
+            renderer.invalidateTransformVersion();
+            dirtyMask |= Drawer.REPAINT | Drawer.COMMIT_LAYOUT;
             if (Transform.createsStackingContext(origin.transform) != Transform.createsStackingContext(current.transform)
                     || Math.abs(Transform.getTranslateZ(origin.transform) - Transform.getTranslateZ(current.transform)) > 0.0001) {
                 dirtyMask |= Drawer.REORDER;
@@ -187,14 +417,23 @@ public class RenderElement {
             dirtyMask |= Drawer.REPAINT;
         }
 
-        if (check.test(Style.getTextProp())) {
+        boolean textChanged = check.test(Style.getTextProp());
+        if (textChanged) {
             renderer.text.clear();
             renderer.wrappedText.clear();
+            // A flow result may be cached by an ancestor while this element's
+            // inherited color/font is changing. Bump the route dependency so
+            // that the ancestor rebuilds its stored TextRunLayout objects.
+            element.forEachRoute(routeElement -> routeElement.getRenderer().invalidateTextVersion());
             dirtyMask |= Drawer.REPAINT;
 
             if (check.test(TEXT_LAYOUT_PROPS)) {
                 // 字体大小行高变化触发重排
-                element.forEachRoute(e -> e.getRenderer().size.clear());
+                element.forEachRoute(routeElement -> {
+                    RenderElement routeRenderer = routeElement.getRenderer();
+                    routeRenderer.invalidateLayoutVersion();
+                    routeRenderer.size.clear();
+                });
                 renderer.box.clear();
                 if (element.parentElement != null) {
                     element.parentElement.getRenderer().size.clear();
@@ -205,24 +444,33 @@ public class RenderElement {
             }
         }
 
-        if (check.test(PADDING_AND_BORDER_PROPS)) {
+        boolean paddingOrBorderChanged = check.test(PADDING_AND_BORDER_PROPS);
+        boolean layoutChanged = check.test(LAYOUT_PROPS);
+
+        if (paddingOrBorderChanged) {
             element.forEachRoute(e -> e.getRenderer().size.clear());
             element.forEachRoute(e -> e.getRenderer().box.clear());
             if (element.parentElement != null) {
+                element.parentElement.getRenderer().size.clear();
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
 
             dirtyMask |= Drawer.RELAYOUT;
         }
 
-        if (check.test(LAYOUT_PROPS)) {
+        if (layoutChanged) {
             element.forEachRoute(e -> e.getRenderer().size.clear());
             renderer.box.clear();
             if (element.parentElement != null) {
+                element.parentElement.getRenderer().size.clear();
                 element.parentElement.children.forEach(sibling -> sibling.getRenderer().position.clear());
             } else renderer.position.clear();
 
             dirtyMask |= Drawer.RELAYOUT;
+        }
+
+        if (paddingOrBorderChanged || layoutChanged) {
+            renderer.invalidateLayoutSubtree();
         }
 
         if (!origin.display.equals(current.display)) {
@@ -235,11 +483,13 @@ public class RenderElement {
 
         if (check.test(BACKGROUND_PROPS)) {
             renderer.background.clear();
+            renderer.invalidateStyleVersion();
             dirtyMask |= Drawer.REPAINT;
         }
 
         if (check.test(VISUAL_BOX_PROPS)) {
-            renderer.box.clear();
+            renderer.clearVisualBoxCache();
+            renderer.invalidateStyleVersion();
             dirtyMask |= Drawer.REPAINT;
         }
 
@@ -247,9 +497,17 @@ public class RenderElement {
             renderer.cursor.clear();
         }
 
-//        if (!origin.animation.equals(current.animation)) {
-//            Animation.stop(element);
-//        }
+        if (check.test(HIT_TEST_PROPS)) {
+            dirtyMask |= Drawer.HITTEST;
+        }
+
+        if (!origin.animation.equals(current.animation)) {
+            Animation.stop(element);
+            renderer.transform.clear();
+            renderer.invalidateTransformVersion();
+            renderer.filter.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
 
         if (!origin.zIndex.equals(current.zIndex)) {
             dirtyMask |= Drawer.REORDER;

@@ -1,5 +1,6 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.canvas.CanvasPath2D;
 import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.element.Body;
@@ -12,13 +13,59 @@ import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.CSS;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.instance.ApricityViewport;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
+import dev.latvian.mods.rhino.Function;
+import dev.latvian.mods.rhino.util.HideFromJS;
+import net.minecraft.client.Minecraft;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 
 public class Document {
+
+    public enum FontMode {
+        MC("mc", 9d, 9d),
+        WEB("web", 16d, 9d),
+        WEB_SCALED("web-scaled", 16d, 16d);
+
+        private final String value;
+        private final double defaultFontSize;
+        private final double defaultFontScaleBase;
+
+        FontMode(String value, double defaultFontSize, double defaultFontScaleBase) {
+            this.value = value;
+            this.defaultFontSize = defaultFontSize;
+            this.defaultFontScaleBase = defaultFontScaleBase;
+        }
+
+        public String value() {
+            return value;
+        }
+
+        public double defaultFontSize() {
+            return defaultFontSize;
+        }
+
+        public double defaultFontScaleBase() {
+            return defaultFontScaleBase;
+        }
+
+        public static FontMode parse(String raw) {
+            if (raw == null) return WEB_SCALED;
+            String normalized = raw.trim().toLowerCase(Locale.ROOT);
+            for (FontMode mode : values()) {
+                if (mode.value.equals(normalized)) return mode;
+            }
+            return WEB_SCALED;
+        }
+    }
+
     private enum LifecycleState {
         LOADING("loading"),
         INTERACTIVE("interactive"),
@@ -33,10 +80,12 @@ public class Document {
     }
 
     private static final List<Document> documents = new CopyOnWriteArrayList<>();
+    private static final ThreadLocal<Document> contextDocument = new ThreadLocal<>();
+    private static final String MOUSE_EVENTS_META_NAME = "aui-mouse-events";
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
-    public final Map<String, Map<String, String>> CSSCache = new LinkedHashMap<>();
+    public final Map<String, Map<String, CSS.Declaration>> CSSCache = new LinkedHashMap<>();
     public final List<CSS.DebugRule> CSSDebugRules = new ArrayList<>();
     public final List<String> JSCache = new ArrayList<>();
     public Html documentElement;
@@ -45,69 +94,331 @@ public class Document {
     private final UUID uuid = UUID.randomUUID();
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
+    private volatile boolean interceptMouseEvents;
+    /** A document rendered by an owning surface instead of the global document pass. */
+    private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
     private volatile String readyState = LifecycleState.LOADING.readyStateValue;
+    private volatile FontMode fontMode = FontMode.WEB_SCALED;
     private volatile Element lastClickTarget = null;
     private volatile int lastClickButton = -1;
     private volatile long lastClickTimeNs = 0L;
+    private volatile double viewportScaleX = 1.0d;
+    private volatile double viewportScaleY = 1.0d;
+    private volatile double viewportOffsetX = 0.0d;
+    private volatile double viewportOffsetY = 0.0d;
+    private volatile long viewportVersion = 1L;
+    private final ApricityViewport.State viewportState;
+    private volatile ApricityViewport viewport = new ApricityViewport(1, 1, 1.0f, 1.0d);
     private final CopyOnWriteArrayList<MutationObserver> mutationObservers = new CopyOnWriteArrayList<>();
 
     private final StyleScope style = new StyleScope(this);
     private final MotionTrack motion = new MotionTrack(this);
     private final FocusRing focus = new FocusRing(this);
+    private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
 
     public Document(String path, boolean inWorld) {
         this.path = path;
         this.inWorld = inWorld;
+        this.viewportState = ApricityViewport.spec(path).createState(path);
+        this.interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
+    }
+
+    public boolean interceptsMouseEvents() {
+        return interceptMouseEvents;
+    }
+
+    public boolean interceptsMouseEventsAt(Position screenPosition) {
+        return interceptMouseEvents && hitTest(screenToDocumentPosition(screenPosition)) != null;
+    }
+
+    private static boolean parseMouseEventInterception(String raw) {
+        if (raw == null || raw.isBlank()) return false;
+        return switch (raw.trim().toLowerCase(Locale.ROOT)) {
+            case "intercept", "block", "true", "yes", "on", "1" -> true;
+            default -> false;
+        };
     }
 
     public UUID getUuid() {
         return uuid;
     }
 
+    public FontMode getFontMode() {
+        return fontMode;
+    }
+
+    public void setFontMode(FontMode fontMode) {
+        this.fontMode = fontMode == null ? FontMode.WEB_SCALED : fontMode;
+    }
+
+    public void setViewportTransform(double scaleX, double scaleY, double offsetX, double offsetY) {
+        viewportScaleX = scaleX > 0 && Double.isFinite(scaleX) ? scaleX : 1.0d;
+        viewportScaleY = scaleY > 0 && Double.isFinite(scaleY) ? scaleY : 1.0d;
+        viewportOffsetX = Double.isFinite(offsetX) ? offsetX : 0.0d;
+        viewportOffsetY = Double.isFinite(offsetY) ? offsetY : 0.0d;
+    }
+
+    public Position screenToDocumentPosition(Position screenPosition) {
+        if (screenPosition == null) return Position.ZERO;
+        return new Position(
+                (screenPosition.x - viewportOffsetX) / viewportScaleX,
+                (screenPosition.y - viewportOffsetY) / viewportScaleY
+        );
+    }
+
+    public Position documentToScreenPosition(Position documentPosition) {
+        if (documentPosition == null) return Position.ZERO;
+        return new Position(
+                documentPosition.x * viewportScaleX + viewportOffsetX,
+                documentPosition.y * viewportScaleY + viewportOffsetY
+        );
+    }
+
+    public double getViewportScaleX() {
+        return viewportScaleX;
+    }
+
+    public double getViewportScaleY() {
+        return viewportScaleY;
+    }
+
+    public ApricityViewport getViewport() {
+        return viewport;
+    }
+
+    public boolean isManuallyRendered() {
+        return manuallyRendered;
+    }
+
+    public void setManuallyRendered(boolean manuallyRendered) {
+        this.manuallyRendered = manuallyRendered;
+    }
+
+    public long getViewportVersion() {
+        return viewportVersion;
+    }
+
+    public void applyViewport(boolean relayout) {
+        ApricityViewport previous = viewport;
+        try {
+            Minecraft minecraft = Minecraft.getInstance();
+            if (minecraft == null) {
+                Size fallback = Size.getHeadlessWindowSize();
+                viewport = viewportState.resolveHeadless((int) Math.round(fallback.width()), (int) Math.round(fallback.height()));
+            } else {
+                viewport = viewportState.resolve(minecraft.getWindow());
+            }
+        } catch (NoClassDefFoundError unavailableClientRuntime) {
+            if (!isUnavailableClientRuntime(unavailableClientRuntime)) throw unavailableClientRuntime;
+            Size fallback = Size.getHeadlessWindowSize();
+            viewport = viewportState.resolveHeadless((int) Math.round(fallback.width()), (int) Math.round(fallback.height()));
+        }
+        setViewportTransform(viewport.renderScale(), viewport.renderScale(), 0.0d, 0.0d);
+        if (!viewport.equals(previous)) {
+            viewportVersion++;
+            StyleAsyncHandler.INSTANCE.handleViewportChange(this);
+        }
+        if (relayout) {
+            markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+        }
+    }
+
+    private static boolean isUnavailableClientRuntime(NoClassDefFoundError error) {
+        String missing = error.getMessage();
+        if (missing == null) return false;
+        String className = missing.replace('.', '/');
+        return className.startsWith("net/minecraft/client/")
+                || className.equals("com/mojang/blaze3d/platform/Window");
+    }
+
+    public boolean handleViewportZoom(boolean zoomIn) {
+        if (!viewportState.canUserScale()) return false;
+        boolean changed = zoomIn ? viewportState.zoomIn() : viewportState.zoomOut();
+        if (!changed) return false;
+        applyViewportForPath(path, true);
+        ApricityUI.LOGGER.info(
+                "[AUI Viewport] zoom path={} zoom={} viewport={}x{}",
+                path,
+                String.format(Locale.ROOT, "%.2f", viewport.zoom()),
+                viewport.layoutWidth(),
+                viewport.layoutHeight()
+        );
+        return true;
+    }
+
+    public boolean resetViewportZoom() {
+        if (!viewportState.canUserScale()) return false;
+        if (!viewportState.resetZoom()) return false;
+        applyViewportForPath(path, true);
+        return true;
+    }
+
+    /** Applies an editor-controlled zoom value without requiring user-scalable metadata. */
+    public boolean setViewportZoom(double zoom) {
+        boolean changed = viewportState.setZoom(zoom);
+        if (!changed) return false;
+        if (inWorld) applyViewport(true);
+        else applyViewportForPath(path, true);
+        ApricityUI.LOGGER.info(
+                "[AUI Viewport] editor zoom path={} zoom={} viewport={}x{}",
+                path,
+                String.format(Locale.ROOT, "%.2f", viewport.zoom()),
+                viewport.layoutWidth(),
+                viewport.layoutHeight()
+        );
+        return true;
+    }
+
+    private static void applyViewportForPath(String path, boolean relayout) {
+        for (Document document : documents) {
+            if (document == null || document.inWorld || document.isDisposed() || !document.is(path)) continue;
+            document.applyViewport(relayout);
+        }
+    }
+
     public void refresh() {
         beginRefreshLifecycle();
-        CSSCache.clear();
-        CSSDebugRules.clear();
-        JSCache.clear();
-        tree.clear();
-        render.reset();
-        motion.clear();
-        invalidateSelectorIndex();
-        HTML.DocumentRoot root = HTML.create(this, path);
+        ApricityViewport.spec(path).createState(path);
+        interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
+        applyViewport(false);
+        ContextScope contextScope = withContext(this);
+        String stage = "reset";
         try {
-            if (root == null || root.body() == null) return;
-            if (body != null) root.body().setEventListeners(body.EventListener);
-            documentElement = root.documentElement();
-            head = root.head();
-            body = root.body();
-            rebuildElementIndexFromBody();
-            SlotContentRules.normalizeTemplate(this);
-
-            // First pass: ensure computed styles exist for DOM expanders.
-            style.recomputeSubtree(documentElement);
-            DocumentExpander.apply(this);
-
-            // Final pass: apply styles once after expansion.
-            style.recomputeSubtree(documentElement);
-            tree.getElements().forEach(Element::clearDirtyFlags);
+            Size.clearRootFontOverride();
+            setFontMode(FontMode.WEB_SCALED);
+            CSSCache.clear();
+            CSSDebugRules.clear();
+            JSCache.clear();
+            tree.clear();
             render.reset();
-            render.rebuildPaintList();
-            ImageAsyncHandler.prefetchImages(this);
-            enterInteractive();
+            motion.clear();
+            invalidateSelectorIndex();
+            FontMode sourceFontMode = FontMode.parse(HTML.findMetaContent(path, "aui-font-mode"));
+            stage = "html/css/js extraction";
+            HTML.DocumentRoot root = HTML.create(this, path);
+            try {
+                if (root == null || root.body() == null) {
+                    ApricityUI.LOGGER.error("[AUI Document] refresh produced no body path={} stage={}", path, stage);
+                    return;
+                }
+                if (body != null) root.body().setEventListeners(body.EventListener);
+                documentElement = root.documentElement();
+                head = root.head();
+                body = root.body();
+                FontMode headFontMode = resolveFontModeFromHead(head);
+                setFontMode(headFontMode == FontMode.WEB_SCALED ? sourceFontMode : headFontMode);
+                rebuildElementIndexFromBody();
+                SlotContentRules.normalizeTemplate(this);
 
-            for (String js : JSCache) {
-                String head = Loader.readGlobalJS();
-                if (head == null) head = "";
-                else head = head.replace("__AUI_DOCUMENT_UUID__", uuid.toString());
-                if (!head.isEmpty() && !head.endsWith("\n")) head += "\n";
-                ApricityJS.eval(head + js);
+                stage = "initial style calculation";
+                // First pass: ensure computed styles exist for DOM expanders.
+                style.recomputeSubtree(documentElement);
+                if (documentElement != null) {
+                    Size.setRootFontOverride(resolveRootFontSize());
+                    clearRenderCaches(documentElement);
+                    style.recomputeSubtree(documentElement);
+                }
+                stage = "document expanders";
+                DocumentExpander.apply(this);
+
+                // Final pass: apply styles once after expansion.
+                stage = "final style calculation";
+                clearRenderCaches(documentElement);
+                style.recomputeSubtree(documentElement);
+                tree.getElements().forEach(Element::clearDirtyFlags);
+                render.reset();
+                render.rebuildPaintList();
+                ImageAsyncHandler.prefetchImages(this);
+                enterInteractive();
+
+                stage = "global javascript";
+                String globalJS = Loader.readGlobalJS();
+                if (globalJS != null && !globalJS.isBlank()) {
+                    ApricityJS.eval(
+                            globalJS.replace("__AUI_DOCUMENT_UUID__", uuid.toString()),
+                            null,
+                            "global.js"
+                    );
+                }
+                stage = "document javascript";
+                for (String js : JSCache) {
+                    ApricityJS.eval(js, null, path + "#script");
+                }
+                stage = "lifecycle events";
+                fireLifecycleEvent("DOMContentLoaded", false);
+                enterComplete();
+                fireLifecycleEvent("load", false);
+                ApricityUI.LOGGER.info(
+                        "[AUI Document] refresh complete path={} elements={} cssRules={} scripts={}",
+                        path,
+                        tree.getElements().size(),
+                        CSSCache.size(),
+                        JSCache.size()
+                );
+            } catch (Exception exception) {
+                ApricityUI.LOGGER.error("[AUI Document] refresh failed path={} stage={}", path, stage, exception);
             }
-            fireLifecycleEvent("DOMContentLoaded", false);
-            enterComplete();
-            fireLifecycleEvent("load", false);
-        } catch (Exception ignored) {
+        } finally {
+            contextScope.close();
+        }
+    }
+
+    private double resolveRootFontSize() {
+        double defaultFontSize = fontMode.defaultFontSize();
+        if (documentElement == null) return defaultFontSize;
+        documentElement.getComputedStyle();
+        String declared = documentElement.getStyle().fontSize;
+        if (declared == null || declared.equals("unset")) {
+            declared = documentElement.cssCache.get("font-size");
+        }
+        if (declared == null || declared.equals("unset")) {
+            declared = documentElement.cssCache.get("fontSize");
+        }
+        Double parsed = Size.tryResolveLength(declared, defaultFontSize, defaultFontSize);
+        return parsed == null || parsed <= 0 ? defaultFontSize : parsed;
+    }
+
+    private FontMode resolveFontModeFromHead(Head head) {
+        if (head == null) return FontMode.WEB_SCALED;
+        ArrayDeque<Node> stack = new ArrayDeque<>(head.childNodes);
+        while (!stack.isEmpty()) {
+            Node node = stack.pop();
+            if (node instanceof Element element) {
+                if ("META".equals(element.tagName)
+                        && "aui-font-mode".equalsIgnoreCase(element.getAttribute("name"))) {
+                    return FontMode.parse(element.getAttribute("content"));
+                }
+                List<Node> children = element.childNodes;
+                for (int i = children.size() - 1; i >= 0; i--) {
+                    stack.push(children.get(i));
+                }
+            }
+        }
+        return FontMode.WEB_SCALED;
+    }
+
+    private void clearRenderCaches(Element root) {
+        if (root == null) return;
+        ArrayDeque<Element> stack = new ArrayDeque<>();
+        stack.push(root);
+        while (!stack.isEmpty()) {
+            Element current = stack.pop();
+            if (current == null) continue;
+            RenderElement renderer = current.getRenderer();
+            renderer.text.clear();
+            renderer.wrappedText.clear();
+            renderer.size.clear();
+            renderer.box.clear();
+            renderer.position.clear();
+            List<Element> children = current.children;
+            for (int i = children.size() - 1; i >= 0; i--) {
+                Element child = children.get(i);
+                if (child != null) {
+                    stack.push(child);
+                }
+            }
         }
     }
 
@@ -160,6 +471,13 @@ public class Document {
         return render.getPaintList();
     }
 
+    public Element hitTest(Position documentPosition) {
+        if (!isActive()) return null;
+        try (ContextScope ignored = withContext(this)) {
+            return render.hitTest(documentPosition);
+        }
+    }
+
     // 用来将某个元素更新成另一个元素，比如创建的时候用转换成对应类的元素替换掉原来通用的
     public void updateElement(Element element) {
         tree.updateElement(element);
@@ -173,6 +491,12 @@ public class Document {
         if (element == null) return;
         if (element.document != this) return;
         style.requestRecalc(element);
+    }
+
+    public void requestPseudoStyleRecalc(Element element, String pseudoName) {
+        if (element == null) return;
+        if (element.document != this) return;
+        style.requestPseudoRecalc(element, pseudoName);
     }
 
     /**
@@ -197,14 +521,19 @@ public class Document {
      */
     public void tickFrame() {
         if (!isActive()) return;
-        commitStyleRecalc();
-        stepMotion();
-        tickElements();
-        // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
-        commitStyleRecalc();
-        stepMotion();
-        flushMutationObservers();
-        commitRenderState();
+        try (ContextScope ignored = withContext(this)) {
+            StyleFrameCache.begin();
+            try {
+                commitStyleRecalc();
+                tickElements();
+                // tick 内可能产生新的样式失效（例如脚本写属性），再 flush 一次以保证同 tick 内一致性。
+                commitStyleRecalc();
+                flushMutationObservers();
+                commitRenderState();
+            } finally {
+                StyleFrameCache.end();
+            }
+        }
     }
 
     /**
@@ -216,24 +545,65 @@ public class Document {
     }
 
     /**
+     * Commits interaction-driven style changes at the start of a paint frame.
+     * CSS hover transitions must begin on the next render frame rather than wait
+     * for Minecraft's 20 Hz client tick.
+     */
+    public boolean commitPendingStyleRecalcForRender() {
+        return isActive() && style.flushPendingUpdates();
+    }
+
+    /**
      * Transition/Animation 阶段（占位）。
      * <p>
      * tick 阶段目前不搞 motion；推进逻辑在 render 阶段执行以保持稳定 60 帧。
      * TODO：如需让 layout 随动画变化，需要引入更严格的 commit 机制。
      */
-    public void stepMotion() {
-        // Intentionally no-op for now.
+    public boolean stepMotionRender() {
+        boolean requiresGeometryCommit = motion.stepRender();
+        if (motion.hasVisualChanges()) render.markVisualDirty();
+        return requiresGeometryCommit;
     }
 
-    /**
-     * Render 阶段的 motion 推进：在渲染线程、每帧执行一次，确保动画/过渡丝滑。
-     * <p>
-     * 该阶段只写 {@link StyleFrameCache}（当帧缓存）与少量渲染相关缓存失效（transform/filter），
-     * 不去动 Document 的 dirty flags / paintList 啥的，避免 render 线程与 tick 线程职责混乱。
-     */
-    public void stepMotionRender() {
-        if (!isActive()) return;
-        motion.stepRender();
+    public void commitMotionHitTest() {
+        render.updateHitTestSubtrees(motion.drainHitTestRoots());
+    }
+
+    public Set<Element> drainMotionLayoutRoots() {
+        return motion.drainLayoutRoots();
+    }
+
+    public Set<Element> drainMotionGeometryRoots() {
+        return motion.drainGeometryRoots();
+    }
+
+    /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */
+    public boolean stepScrollRender() {
+        if (!isActive()) return false;
+        if (activeScrollElements.isEmpty()) return false;
+        boolean changed = false;
+        for (Element element : new ArrayList<>(activeScrollElements)) {
+            if (element == null || !element.isConnected()) {
+                activeScrollElements.remove(element);
+                continue;
+            }
+            boolean elementChanged = element.stepScrollRender();
+            if (elementChanged) {
+                element.getRenderer().invalidateScrollVersion();
+                render.markHitTestDirty(element);
+                changed = true;
+            }
+            if (!element.needsScrollRenderStep()) {
+                activeScrollElements.remove(element);
+            }
+        }
+        if (changed) render.markVisualDirty();
+        return changed;
+    }
+
+    void registerActiveScroll(Element element) {
+        if (element == null || !element.isConnected()) return;
+        activeScrollElements.add(element);
     }
 
     /**
@@ -252,6 +622,31 @@ public class Document {
         render.commit();
     }
 
+    /**
+     * Render-frame style commits must not commit target geometry before an
+     * immediately-created transition has supplied its first interpolated style.
+     */
+    public boolean commitRenderStateForMotion() {
+        if (!isActive()) return false;
+        return render.commit(false);
+    }
+
+    public boolean hasPendingRenderState() {
+        return render.hasPendingWork();
+    }
+
+    public long getVisualVersion() {
+        return render.getVisualVersion();
+    }
+
+    public boolean hasPendingVisualWork() {
+        return render.hasPendingVisualWork();
+    }
+
+    public int getGlobalDirtyMask() {
+        return render.getGlobalDirtyMask();
+    }
+
     public void markDirty(int mask) {
         render.markDirty(mask);
     }
@@ -264,6 +659,16 @@ public class Document {
         if (body == null) return;
         body.invalidateStyle();
         markDirty(body, Drawer.RELAYOUT | Drawer.REPAINT);
+    }
+
+    /**
+     * Invalidates used text and intrinsic sizes after a web font becomes available.
+     * Browsers reflow font-dependent layout when a FontFace finishes loading.
+     */
+    public void invalidateFontMetrics() {
+        if (documentElement == null) return;
+        documentElement.getRenderer().invalidateLayoutSubtree();
+        markDirty(documentElement, Drawer.RELAYOUT | Drawer.REPAINT);
     }
 
     public void invalidateSelectorIndex() {
@@ -427,28 +832,57 @@ public class Document {
         return element;
     }
 
+    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener) {
         if (body == null) return;
         body.addEventListener(type, listener);
     }
 
+    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.addEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture, boolean once) {
         if (body == null) return;
         body.addEventListener(type, listener, useCapture, once);
     }
 
+    public void addEventListener(String type, Function listener) {
+        addEventListener(type, listener, false, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
+        if (body == null) return;
+        java.util.function.Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) body.addEventListener(type, wrapped, useCapture, once);
+    }
+
+    @HideFromJS
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.removeEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, Function listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, Function listener, boolean useCapture) {
+        if (body == null) return;
+        java.util.function.Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) body.removeEventListener(type, wrapped, useCapture);
     }
 
     public boolean dispatchEvent(Object event) {
@@ -491,17 +925,33 @@ public class Document {
 
     // 这俩是创建UI用的，如果refresh放在构造函数里，那创建时就不会执行内嵌js，所以挪到了这里。
     public static Document create(String path) {
-        if (HTML.getTemple(path) == null) return null;
+        if (HTML.getTemple(path) == null) {
+            ApricityUI.LOGGER.error("[AUI Document] cannot create document: template is missing path={}", path);
+            return null;
+        }
         Document document = new Document(path, false);
         documents.add(document);
-        document.refresh();
-        return document;
+        try {
+            document.applyViewport(false);
+            document.refresh();
+            document.applyViewport(false);
+            return document;
+        } catch (RuntimeException | LinkageError failure) {
+            document.remove();
+            throw failure;
+        }
     }
 
     public static Document createInWorld(String path) {
-        if (HTML.getTemple(path) == null) return null;
+        if (HTML.getTemple(path) == null) {
+            ApricityUI.LOGGER.error("[AUI Document] cannot create world document: template is missing path={}", path);
+            return null;
+        }
         Document document = new Document(path, true);
         documents.add(document);
+        // World documents use the same viewport contract as screen documents.
+        // Their world transform is applied by WorldWindow, not by layout.
+        document.applyViewport(false);
         document.refresh();
         return document;
     }
@@ -523,6 +973,47 @@ public class Document {
 
     public static List<Document> getAll() {
         return documents;
+    }
+
+    public static Document getContextDocument() {
+        return contextDocument.get();
+    }
+
+    public static void runWithContext(Document document, Runnable runnable) {
+        if (runnable == null) return;
+        try (ContextScope ignored = withContext(document)) {
+            runnable.run();
+        }
+    }
+
+    public static ContextScope withContext(Document document) {
+        Document previous = contextDocument.get();
+        if (document == null) {
+            contextDocument.remove();
+        } else {
+            contextDocument.set(document);
+        }
+        return new ContextScope(previous);
+    }
+
+    public static final class ContextScope implements AutoCloseable {
+        private final Document previous;
+        private boolean closed = false;
+
+        private ContextScope(Document previous) {
+            this.previous = previous;
+        }
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+            if (previous == null) {
+                contextDocument.remove();
+            } else {
+                contextDocument.set(previous);
+            }
+        }
     }
 
     public ArrayList<Element> getElements() {
@@ -594,6 +1085,9 @@ public class Document {
 
     public void queueMutation(MutationRecord record) {
         if (record == null || !isActive()) return;
+        if (record.target != null) {
+            record.target.invalidateSubtreeMutationVersion();
+        }
         for (MutationObserver observer : mutationObservers) {
             if (observer != null) observer.enqueue(record);
         }

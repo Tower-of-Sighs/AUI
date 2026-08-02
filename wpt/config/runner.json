@@ -1,0 +1,39 @@
+{
+  "corpus": "../corpus",
+  "output": "../output",
+  "progress": "../progress.md",
+  "wptRevision": "a6f29b0bedaf3f1edba7b6739127fe8e713bfcb3",
+  "layoutDirectories": [
+    "css/CSS2",
+    "css/css-align",
+    "css/css-box",
+    "css/css-break",
+    "css/css-contain",
+    "css/css-display",
+    "css/css-flexbox",
+    "css/css-grid",
+    "css/css-inline",
+    "css/css-multicol",
+    "css/css-overflow",
+    "css/css-position",
+    "css/css-sizing",
+    "css/css-tables",
+    "css/css-text",
+    "css/css-transforms",
+    "css/css-ui",
+    "css/css-values",
+    "css/css-writing-modes"
+  ],
+  "viewport": {
+    "width": 800,
+    "height": 600,
+    "dpr": 1
+  },
+  "execution": {
+    "browserWorkers": 16,
+    "auiWorkers": "auto",
+    "cacheByContentHash": true,
+    "browserAdapter": null,
+    "auiAdapter": null
+  }
+}

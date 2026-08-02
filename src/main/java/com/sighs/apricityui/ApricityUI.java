@@ -1,6 +1,7 @@
 package com.sighs.apricityui;
 
 import com.mojang.logging.LogUtils;
+import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.ApricityUIConfig;
@@ -23,9 +24,11 @@ import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
+import net.minecraftforge.fml.event.config.ModConfigEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
+import org.joml.Quaternionf;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,6 +43,7 @@ public class ApricityUI {
     public ApricityUI() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC);
+        modEventBus.addListener(this::onConfigReload);
         if (ModList.get().isLoaded("kubejs")) {
             KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
         }
@@ -48,6 +52,7 @@ public class ApricityUI {
         ApricityNetwork.register();
 
         if (FMLEnvironment.dist == Dist.CLIENT) {
+            DevToolsLogBridge.install(LOGGER);
             ApricityUIRegistry.register();
             modEventBus.addListener(this::onRegisterShaders);
         }
@@ -58,6 +63,11 @@ public class ApricityUI {
             ShaderRegistry.register(event);
         } catch (IOException ignored) {
         }
+    }
+
+    private void onConfigReload(ModConfigEvent.Reloading event) {
+        if (event.getConfig().getSpec() != ApricityUIConfig.CLIENT_SPEC) return;
+        ApricityUIConfig.markClientReloadPending();
     }
 
     public static Window getWindow() {
@@ -128,15 +138,109 @@ public class ApricityUI {
         ApricityScreenNetworkHandler.requestCloseScreen();
     }
 
+    /**
+     * @deprecated Configure the logical size through {@code aui-viewport} and use
+     *             {@link #createWorldWindow(String, Vec3, int)}.
+     */
+    @Deprecated
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
         WorldWindow window = new WorldWindow(documentPath, position, width, height, maxDistance);
         WorldWindow.addWindow(window);
         return window;
     }
 
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position, int maxDistance) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    /** Creates and registers a world window with an independent display-distance limit. */
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, int maxDisplayDistance) {
+        WorldWindow window = createWorldWindow(documentPath, position, maxDistance);
+        window.setMaxDisplayDistance(maxDisplayDistance);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath,
+                                                double x, double y, double z, int maxDistance) {
+        WorldWindow window = new WorldWindow(documentPath, x, y, z, maxDistance);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath,
+                                                double x, double y, double z,
+                                                int maxDistance, int maxDisplayDistance) {
+        WorldWindow window = createWorldWindow(documentPath, x, y, z, maxDistance);
+        window.setMaxDisplayDistance(maxDisplayDistance);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, float yaw, float pitch) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, yaw, pitch);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, float yaw, float pitch, float roll) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, yaw, pitch, roll);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, Vec3 eulerDegrees) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, eulerDegrees);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
+                                                int maxDistance, Quaternionf orientation) {
+        WorldWindow window = new WorldWindow(documentPath, position, maxDistance, orientation);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    /**
+     * @deprecated Configure the logical size through {@code aui-viewport} and use
+     *             {@link #createFollowFacingWorldWindow(String, Vec3, int, float)}.
+     */
+    @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, width, height, maxDistance, followFactor);
         WorldWindow.addWindow(window);
+        return window;
+    }
+
+    /**
+     * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
+     *             follow/facing on the returned window.
+     */
+    @Deprecated
+    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, int maxDistance, float followFactor) {
+        FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, maxDistance, followFactor);
+        WorldWindow.addWindow(window);
+        return window;
+    }
+
+    /**
+     * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
+     *             follow/facing on the returned window.
+     */
+    @Deprecated
+    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath,
+                                                                         Vec3 position,
+                                                                         int maxDistance,
+                                                                         int maxDisplayDistance,
+                                                                         float followFactor) {
+        FollowFacingWorldWindow window = createFollowFacingWorldWindow(
+                documentPath, position, maxDistance, followFactor);
+        window.setMaxDisplayDistance(maxDisplayDistance);
         return window;
     }
 

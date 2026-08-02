@@ -8,9 +8,13 @@ import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
-import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.task.ClientScheduler;
-import com.sighs.apricityui.style.Box;
+import com.sighs.apricityui.util.AuiLog;
+import dev.latvian.mods.rhino.Function;
+import dev.latvian.mods.rhino.util.HideFromJS;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -83,11 +87,11 @@ public class Window {
     }
 
     public double getInnerWidth() {
-        return Client.getWindowSize().width();
+        return Size.getWindowSize().width();
     }
 
     public double getInnerHeight() {
-        return Client.getWindowSize().height();
+        return Size.getWindowSize().height();
     }
 
     public double getDevicePixelRatio() {
@@ -112,6 +116,12 @@ public class Window {
         return console;
     }
 
+    public String getTestPromptResponse() {
+        String propertyValue = System.getProperty("apricityui.test.promptResponse");
+        if (propertyValue != null) return propertyValue;
+        return System.getenv("APRICITYUI_TEST_PROMPT_RESPONSE");
+    }
+
     public BrowserLocation getLocation() {
         for (Document document : Document.getAll()) {
             if (document != null && document.isActive()) {
@@ -121,14 +131,17 @@ public class Window {
         return new BrowserLocation("");
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Object> listener) {
         addEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Object> listener, boolean useCapture) {
         addEventListener(type, listener, useCapture, false);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Object> listener, boolean useCapture, boolean once) {
         if (type == null || listener == null) return;
         Consumer<Event> wrapped = wrapWindowListener(listener);
@@ -136,16 +149,47 @@ public class Window {
                 .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
     }
 
+    public void addEventListener(String type, Function listener) {
+        addEventListener(type, listener, false, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
+        if (type == null || listener == null) return;
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped == null) return;
+        listeners.computeIfAbsent(type, key -> new CopyOnWriteArrayList<>())
+                .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
+    }
+
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Object> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Object> listener, boolean useCapture) {
         if (type == null || listener == null) return;
         CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
         if (typeListeners == null) return;
         typeListeners.removeIf(candidate ->
                 candidate.useCapture() == useCapture && listener.equals(unwrapWindowListener(candidate.listener())));
+    }
+
+    public void removeEventListener(String type, Function listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, Function listener, boolean useCapture) {
+        if (type == null || listener == null) return;
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
+        if (wrapped == null || typeListeners == null) return;
+        typeListeners.removeIf(candidate ->
+                candidate.useCapture() == useCapture && wrapped.equals(candidate.listener()));
     }
 
     public boolean dispatchEvent(Object event) {
@@ -264,6 +308,9 @@ public class Window {
             Consumer<Object> original = unwrapWindowListener(listener.listener());
             if (original != null) {
                 window.removeEventListener(type, original, listener.useCapture());
+            } else {
+                CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = window.listeners.get(type);
+                if (typeListeners != null) typeListeners.remove(listener);
             }
         }
         return !listener.internal();
@@ -358,6 +405,34 @@ public class Window {
         public String get(String name) {
             return getPropertyValue(name);
         }
+
+        public String getFontSize() {
+            return getPropertyValue("font-size");
+        }
+
+        public String getFontWeight() {
+            return getPropertyValue("font-weight");
+        }
+
+        public String getLetterSpacing() {
+            return getPropertyValue("letter-spacing");
+        }
+
+        public String getFontFamily() {
+            return getPropertyValue("font-family");
+        }
+
+        public String getLineHeight() {
+            return getPropertyValue("line-height");
+        }
+
+        public String getDisplay() {
+            return getPropertyValue("display");
+        }
+
+        public String getColor() {
+            return getPropertyValue("color");
+        }
     }
 
     public static class FetchPromise {
@@ -368,6 +443,12 @@ public class Window {
                 try {
                     return loadResponse(url, contextPath);
                 } catch (IOException exception) {
+                    ApricityUI.LOGGER.error(
+                            "[AUI Fetch] request failed url={} context={}",
+                            url,
+                            contextPath,
+                            exception
+                    );
                     throw new RuntimeException(exception);
                 }
             });
@@ -409,6 +490,7 @@ public class Window {
 
         private static FetchResponse loadResponse(String rawUrl, String contextPath) throws IOException {
             if (rawUrl == null || rawUrl.isBlank()) {
+                ApricityUI.LOGGER.error("[AUI Fetch] fetch URL is blank context={}", contextPath);
                 throw new IOException("fetch url is blank");
             }
             String resolved = Loader.resolve(contextPath == null ? "" : contextPath, rawUrl);
@@ -418,6 +500,7 @@ public class Window {
             } else {
                 try (InputStream stream = ClientLoader.getResourceStream(resolved)) {
                     if (stream == null) {
+                        ApricityUI.LOGGER.error("[AUI Fetch] local resource is missing resolved={}", resolved);
                         throw new IOException("resource not found: " + resolved);
                     }
                     bytes = stream.readAllBytes();
@@ -435,6 +518,7 @@ public class Window {
                 try {
                     return task.call();
                 } catch (Exception exception) {
+                    ApricityUI.LOGGER.error("[AUI Canvas] image bitmap task failed", exception);
                     throw new RuntimeException(exception);
                 }
             });
@@ -501,7 +585,12 @@ public class Window {
         }
 
         public Object json() {
-            return new SimpleJsonParser(text()).parse();
+            try {
+                return new SimpleJsonParser(text()).parse();
+            } catch (RuntimeException exception) {
+                ApricityUI.LOGGER.error("[AUI Fetch] JSON parse failed url={} body={}", url, AuiLog.compact(text()), exception);
+                throw exception;
+            }
         }
 
         public byte[] bytes() {

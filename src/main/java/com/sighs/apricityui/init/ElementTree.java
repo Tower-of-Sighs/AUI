@@ -6,7 +6,6 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 final class ElementTree {
     private final Document owner;
@@ -92,6 +91,13 @@ final class ElementTree {
         moveSubtree(newChild, parent, index);
     }
 
+    Node insertFragment(DocumentFragment fragment, Node parent, Node referenceChild) {
+        if (fragment == null || parent == null || fragment.childNodes.isEmpty()) return null;
+        int index = referenceChild == null ? parent.childNodes.size() : parent.childNodes.indexOf(referenceChild);
+        if (index < 0) index = parent.childNodes.size();
+        return moveFragmentChildren(fragment, parent, index);
+    }
+
     Node insertBeforeAndReturn(Node newChild, Node parent, Node referenceChild) {
         insertBefore(newChild, parent, referenceChild);
         return newChild;
@@ -108,6 +114,45 @@ final class ElementTree {
     void removeNode(Node node) {
         if (node == null) return;
         detachSubtree(node);
+    }
+
+    void clearChildren(Node parent) {
+        if (parent == null || parent.childNodes.isEmpty()) return;
+        ArrayList<Node> removedRoots = new ArrayList<>(parent.childNodes);
+        Node previousSibling = null;
+        Node nextSibling = null;
+        parent.childNodes.clear();
+        syncElementChildView(parent);
+
+        ArrayList<Node> removedNodes = new ArrayList<>();
+        ArrayList<Element> removedElements = new ArrayList<>();
+        for (Node child : removedRoots) {
+            List<Node> subtree = flattenSubtree(child);
+            removedNodes.addAll(subtree);
+            removedElements.addAll(flattenElements(subtree));
+            child.parentNode = null;
+            if (child instanceof Element element) {
+                element.parentElement = null;
+            }
+        }
+
+        nodes.removeAll(removedNodes);
+        elements.removeAll(removedElements);
+        for (Element element : removedElements) {
+            element.onDisconnectedFromDocument();
+            if (element.id != null && !element.id.isBlank()) {
+                removeId(element.id, element);
+            }
+            element.getRenderer().route.clear();
+        }
+        clearRemovedFocusState(removedElements);
+
+        if (parent instanceof Element parentElement) {
+            clearTextCaches(parentElement);
+            clearLayoutChain(parentElement);
+            owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
+        }
+        owner.queueMutation(Document.MutationRecord.childList(parent, List.of(), removedRoots, previousSibling, nextSibling));
     }
 
     void removeId(String id, Element element) {
@@ -140,6 +185,9 @@ final class ElementTree {
         updateSubtree(child, parent, parent.depth + 1, owner);
         if (child instanceof Element childElement) {
             childElement.syncDomStateAfterAttach();
+            childElement.invalidateSubtreeAfterAttach();
+            childElement.invalidateStyle();
+            owner.markDirty(childElement, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
         }
 
         int insertIndex = safeIndex == 0 ? nodes.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.childNodes.get(safeIndex - 1));
@@ -147,15 +195,52 @@ final class ElementTree {
         nodes.addAll(insertIndex, subtreeNodes);
         elements.addAll(resolveInsertIndexForElements(insertIndex), flattenElements(subtreeNodes));
 
-        if (child instanceof Element childElement) {
-            childElement.invalidateStyle();
-            childElement.getRenderer().size.clear();
-        }
         if (parent instanceof Element parentElement) {
             clearTextCaches(parentElement);
+            clearLayoutChain(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
         owner.queueMutation(Document.MutationRecord.childList(parent, List.of(child), List.of(), previousSibling, nextSibling));
+    }
+
+    private Node moveFragmentChildren(DocumentFragment fragment, Node parent, int childIndex) {
+        ArrayList<Node> roots = new ArrayList<>(fragment.childNodes);
+        if (roots.isEmpty()) return null;
+
+        int safeIndex = Math.max(0, Math.min(childIndex, parent.childNodes.size()));
+        Node previousSibling = safeIndex > 0 ? parent.childNodes.get(safeIndex - 1) : null;
+        Node nextSibling = safeIndex < parent.childNodes.size() ? parent.childNodes.get(safeIndex) : null;
+        fragment.childNodes.clear();
+
+        parent.childNodes.addAll(safeIndex, roots);
+        syncElementChildView(parent);
+
+        ArrayList<Node> insertedNodes = new ArrayList<>();
+        ArrayList<Element> insertedElements = new ArrayList<>();
+        for (Node child : roots) {
+            updateSubtree(child, parent, parent.depth + 1, owner);
+            if (child instanceof Element childElement) {
+                childElement.syncDomStateAfterAttach();
+                childElement.invalidateSubtreeAfterAttach();
+                childElement.invalidateStyle();
+                owner.markDirty(childElement, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+            }
+            List<Node> subtreeNodes = flattenSubtree(child);
+            insertedNodes.addAll(subtreeNodes);
+            insertedElements.addAll(flattenElements(subtreeNodes));
+        }
+
+        int insertIndex = safeIndex == 0 ? nodes.indexOf(parent) + 1 : findSubtreeEndExclusive(parent.childNodes.get(safeIndex - 1));
+        nodes.addAll(insertIndex, insertedNodes);
+        elements.addAll(resolveInsertIndexForElements(insertIndex), insertedElements);
+
+        if (parent instanceof Element parentElement) {
+            clearTextCaches(parentElement);
+            clearLayoutChain(parentElement);
+            owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
+        }
+        owner.queueMutation(Document.MutationRecord.childList(parent, roots, List.of(), previousSibling, nextSibling));
+        return roots.get(roots.size() - 1);
     }
 
     private void detachSubtree(Node node) {
@@ -168,6 +253,7 @@ final class ElementTree {
             syncElementChildView(oldParent);
             if (oldParent instanceof Element oldParentElement) {
                 clearTextCaches(oldParentElement);
+                clearLayoutChain(oldParentElement);
                 owner.markDirty(oldParentElement, Drawer.RELAYOUT | Drawer.REORDER);
             }
             owner.queueMutation(Document.MutationRecord.childList(oldParent, List.of(), List.of(node), previousSibling, nextSibling));
@@ -179,6 +265,7 @@ final class ElementTree {
         List<Element> subtreeElements = flattenElements(subtree);
         elements.removeAll(subtreeElements);
         for (Element element : subtreeElements) {
+            element.onDisconnectedFromDocument();
             if (element.id != null && !element.id.isBlank()) {
                 removeId(element.id, element);
             }
@@ -196,6 +283,16 @@ final class ElementTree {
         element.getRenderer().text.clear();
         element.getRenderer().wrappedText.clear();
         element.getRenderer().size.clear();
+    }
+
+    private static void clearLayoutChain(Element element) {
+        Element current = element;
+        while (current != null) {
+            current.getRenderer().size.clear();
+            current.getRenderer().box.clear();
+            current.getRenderer().position.clear();
+            current = current.parentElement;
+        }
     }
 
     private void updateSubtree(Node root, Node parent, int depth, Document document) {
@@ -258,7 +355,7 @@ final class ElementTree {
 
     private void syncElementChildView(Node node) {
         if (!(node instanceof Element element)) return;
-        CopyOnWriteArrayList<Element> elementChildren = new CopyOnWriteArrayList<>();
+        ArrayList<Element> elementChildren = new ArrayList<>();
         for (Node child : element.childNodes) {
             if (child instanceof Element childElement) {
                 childElement.parentElement = element;
@@ -266,6 +363,7 @@ final class ElementTree {
             }
         }
         element.children = elementChildren;
+        element.syncSelectStateAfterChildrenChanged();
     }
 
     private List<Element> flattenElements(List<Node> source) {

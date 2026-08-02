@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>AUI Tree Flex SVG Order Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 32px;
+            background: #fafafa;
+            color: #1a1a1a;
+            font-family: "Chakra Petch", sans-serif;
+        }
+
+        .tree-item {
+            width: 280px;
+            padding: 10px 24px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-left: 3px solid transparent;
+            font-size: 13px;
+            font-weight: 600;
+            background: rgba(139, 92, 246, 0.1);
+        }
+
+        .tree-toggle,
+        .tree-icon {
+            width: 16px;
+            height: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .tree-toggle {
+            color: #8b5cf6;
+        }
+
+        .tree-icon svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        .output {
+            margin-top: 24px;
+            font-family: Consolas, monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+<div id="static" class="tree-item">
+    <div class="tree-toggle">v</div>
+    <div class="tree-icon">
+        <svg viewBox="0 0 40 40" fill="none"><rect x="4" y="12" width="32" height="22" fill="#8b5cf6"/><rect x="4" y="8" width="14" height="6" fill="#6d28d9"/><rect x="4" y="14" width="32" height="2" fill="#6d28d9"/></svg>
+    </div>
+    <span>STATIC</span>
+</div>
+
+<div id="dynamic"></div>
+<pre id="metrics" class="output">PENDING</pre>
+
+<script>
+    document.getElementById('dynamic').innerHTML = '<div id="dynamic-item" class="tree-item">' +
+        '<div class="tree-toggle" onclick="void 0">▾</div>' +
+        '<div class="tree-icon"><svg viewBox="0 0 40 40" fill="none"><rect x="4" y="12" width="32" height="22" fill="#8b5cf6"/><rect x="4" y="8" width="14" height="6" fill="#6d28d9"/><rect x="4" y="14" width="32" height="2" fill="#6d28d9"/></svg></div>' +
+        '<span>DYNAMIC</span>' +
+        '</div>';
+
+    document.getElementById('dynamic').innerHTML += '<div id="resource-like" class="tree-item selected" style="padding-left:40px;animation-delay:0.04s" data-path="/worlds/survival" onclick="void 0">' +
+        '<div class="tree-toggle " onclick="void 0">▾</div>' +
+        '<div class="tree-icon"><svg viewBox="0 0 40 40" fill="none"><rect x="4" y="12" width="32" height="22" fill="#8b5cf6"/><rect x="4" y="8" width="14" height="6" fill="#6d28d9"/><rect x="4" y="14" width="32" height="2" fill="#6d28d9"/></svg></div>' +
+        '<span>SURVIVAL</span>' +
+        '</div>';
+
+    function rectOf(selector) {
+        var node = document.querySelector(selector);
+        var rect = node.getBoundingClientRect();
+        return {
+            selector: selector,
+            x: Math.round(rect.x * 100) / 100,
+            y: Math.round(rect.y * 100) / 100,
+            width: Math.round(rect.width * 100) / 100,
+            height: Math.round(rect.height * 100) / 100
+        };
+    }
+
+    var result = [
+        rectOf('#static .tree-toggle'),
+        rectOf('#static .tree-icon'),
+        rectOf('#static svg'),
+        rectOf('#static span'),
+        rectOf('#dynamic-item .tree-toggle'),
+        rectOf('#dynamic-item .tree-icon'),
+        rectOf('#dynamic-item svg'),
+        rectOf('#dynamic-item span'),
+        rectOf('#resource-like .tree-toggle'),
+        rectOf('#resource-like .tree-icon'),
+        rectOf('#resource-like svg'),
+        rectOf('#resource-like span')
+    ];
+    var payload = JSON.stringify(result);
+    document.getElementById('metrics').textContent = 'AUI_TREE_ORDER ' + payload;
+    console.log('AUI_TREE_ORDER ' + payload);
+</script>
+</body>
+</html>

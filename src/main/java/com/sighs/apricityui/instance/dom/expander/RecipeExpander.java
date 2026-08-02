@@ -480,7 +480,8 @@ public final class RecipeExpander {
             if (ingredient == null || ingredient.isEmpty()) return "";
             try {
                 return ingredient.toJson().toString();
-            } catch (Exception ignored) {
+            } catch (Exception exception) {
+                ApricityUI.LOGGER.warn("[AUI Recipe] failed to serialize ingredient={}", ingredient, exception);
                 return "";
             }
         }

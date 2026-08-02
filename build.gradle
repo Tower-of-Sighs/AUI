@@ -30,8 +30,53 @@ legacyForge {
     runs {
         client {
             client()
+            gameDirectory = file('run')
 
             systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+            if (project.hasProperty('auiAutoExitSeconds')) {
+                systemProperty 'apricityui.test.autoExitSeconds', project.property('auiAutoExitSeconds')
+            }
+            if (project.hasProperty('auiViewportWidth')) {
+                systemProperty 'aui.test.viewport.width', project.property('auiViewportWidth')
+            }
+            if (project.hasProperty('auiViewportHeight')) {
+                systemProperty 'aui.test.viewport.height', project.property('auiViewportHeight')
+            }
+            if (project.hasProperty('auiLogStyles')) {
+                systemProperty 'apricityui.test.logStyles', project.property('auiLogStyles')
+            }
+                        if (project.hasProperty('auiVerboseLogs')) {
+                            systemProperty 'apricityui.test.verboseLogs', project.property('auiVerboseLogs')
+                        }
+            if (project.hasProperty('auiLogRenderPhases')) {
+                systemProperty 'apricityui.test.logRenderPhases', project.property('auiLogRenderPhases')
+            }
+            if (project.hasProperty('auiClientSelfTest')) {
+                systemProperty 'apricityui.clientSelfTest', 'true'
+            }
+            if (project.hasProperty('auiClientSelfTestExit')) {
+                systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+            }
+            if (project.hasProperty('auiWindowWidth')) {
+                programArgument '--width'
+                programArgument project.property('auiWindowWidth').toString()
+            }
+            if (project.hasProperty('auiQuickPlaySingleplayer')) {
+                programArgument '--quickPlaySingleplayer'
+                programArgument project.property('auiQuickPlaySingleplayer').toString()
+            }
+            if (project.hasProperty('auiWindowHeight')) {
+                programArgument '--height'
+                programArgument project.property('auiWindowHeight').toString()
+            }
+            if (!project.hasProperty('auiWindowWidth') && !project.hasProperty('auiWindowHeight')) {
+                programArgument '--earlywindow.maximized'
+            }
+        }
+
+        wptClient {
+            client()
+            gameDirectory = file('wpt/runtime')
         }
 
         server {
@@ -85,6 +130,13 @@ repositories {
             includeGroup "curse.maven"
         }
     }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
 }
 
 dependencies {
@@ -92,6 +144,8 @@ dependencies {
 
     testImplementation platform('org.junit:junit-bom:5.10.2')
     testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation ("curse.maven:rhino-416294:6186971")
 
     modCompileOnly ("curse.maven:kubejs-238086:5853326")
     modCompileOnly ("curse.maven:rhino-416294:6186971")
@@ -107,6 +161,14 @@ dependencies {
 
     // modImplementation ("curse.maven:accelerated-rendering-1314021:7342975")
 
+}
+
+configurations {
+    auiTestModRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom modDevRuntimeDependencies
+    }
 }
 
 publishing {
@@ -202,8 +264,165 @@ tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
 
+def auiTestLogConfig = layout.buildDirectory.file('tmp/aui-test-log4j2.xml')
+
 tasks.named('test', Test).configure {
     useJUnitPlatform()
+    // Main code links against Forge/Minecraft classes. Keep the standard test
+    // task runnable in a deterministic, headless ModDev classpath; tests that
+    // need an actual client still opt in through TestRuntime assumptions and
+    // the runClient self-test below.
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath
+    if (!project.hasProperty('auiTestNoModRuntime') || project.hasProperty('auiTestIncludeModRuntime')) {
+        classpath += configurations.auiTestModRuntime
+    }
+    doFirst {
+        File sourceConfig = file("${buildDir}/moddev/clientLog4j2.xml")
+        if (sourceConfig.isFile()) {
+            File isolatedConfig = auiTestLogConfig.get().asFile
+            isolatedConfig.parentFile.mkdirs()
+            String logDirectory = file('run/logs').absolutePath.replace('\\', '/')
+            isolatedConfig.text = sourceConfig.getText('UTF-8').replace('logs/', logDirectory + '/')
+            systemProperty 'log4j.configurationFile', isolatedConfig.absolutePath
+            systemProperty 'log4j2.configurationFile', isolatedConfig.absolutePath
+        }
+    }
+    ['aui.wpt.input', 'aui.wpt.output'].each { key ->
+        def value = System.getProperty(key)
+        if (value != null && !value.isBlank()) {
+            systemProperty key, value
+        }
+    }
+}
+
+def auiTestResultsDirectory = layout.buildDirectory.dir('test-results/test')
+def auiTestSummaryFile = layout.buildDirectory.file('reports/aui/test-summary.txt')
+def auiClientOnlyTestsFile = file('src/test/resources/aui-client-only-tests.txt')
+
+def collectAuiTestSummary = {
+    File resultsDirectory = auiTestResultsDirectory.get().asFile
+    def summary = [tests: 0, failures: 0, errors: 0, skipped: 0, skippedTests: []]
+    if (!resultsDirectory.isDirectory()) return summary
+
+    resultsDirectory.eachFileMatch( groovy.io.FileType.FILES, ~/TEST-.*\.xml/) { resultFile ->
+        def suite = new XmlSlurper().parse(resultFile)
+        summary.tests += suite.@tests.toInteger()
+        summary.failures += suite.@failures.toInteger()
+        summary.errors += suite.@errors.toInteger()
+        summary.skipped += suite.@skipped.toInteger()
+        suite.testcase.each { testCase ->
+            if (testCase.skipped.size() > 0) {
+                summary.skippedTests << [
+                        id: "${suite.@name}::${testCase.@name}",
+                        reason: testCase.skipped.@message.toString()
+                ]
+            }
+        }
+    }
+    return summary
+}
+
+def writeAuiTestSummary = { Map summary ->
+    File reportFile = auiTestSummaryFile.get().asFile
+    reportFile.parentFile.mkdirs()
+    def report = new StringBuilder()
+    report.append("tests=").append(summary.tests)
+            .append(" failures=").append(summary.failures)
+            .append(" errors=").append(summary.errors)
+            .append(" skipped=").append(summary.skipped).append('\n')
+    summary.skippedTests.each { skipped ->
+        report.append("SKIPPED ").append(skipped.id)
+                .append(" | ").append(skipped.reason).append('\n')
+    }
+    reportFile.text = report.toString()
+    return reportFile
+}
+
+tasks.named('test', Test).configure {
+    doLast {
+        Map summary = collectAuiTestSummary()
+        File reportFile = writeAuiTestSummary(summary)
+        logger.lifecycle("[AUI tests] tests=${summary.tests}, failures=${summary.failures}, errors=${summary.errors}, skipped=${summary.skipped}")
+        if (summary.skipped > 0) {
+            logger.lifecycle("[AUI tests] skipped cases are recorded in ${reportFile}")
+        }
+        if (project.hasProperty('auiTestRequireNoSkips') && summary.skipped > 0) {
+            throw new GradleException("AUI test run skipped ${summary.skipped} cases; run clientTest or remove the client-only dependency")
+        }
+    }
+}
+
+def verifyAuiTestMatrix = tasks.register('verifyAuiTestMatrix') {
+    group = 'verification'
+    description = 'Verifies the headless test report and rejects unclassified skipped tests.'
+    dependsOn tasks.named('test')
+    doLast {
+        Map summary = collectAuiTestSummary()
+        Set<String> expectedClientOnly = [] as Set
+        if (auiClientOnlyTestsFile.isFile()) {
+            expectedClientOnly.addAll(auiClientOnlyTestsFile.readLines('UTF-8')
+                    .collect { it.trim() }
+                    .findAll { it && !it.startsWith('#') })
+        }
+        Set<String> actualSkipped = summary.skippedTests.collect { it.id } as Set
+        def unexpected = summary.skippedTests.findAll { skipped ->
+            String reason = skipped.reason ?: ''
+            !reason.contains('requires live Minecraft client')
+                    && !reason.contains('requires Minecraft runtime class')
+        }
+        if (!unexpected.isEmpty()) {
+            throw new GradleException("AUI tests contain unclassified skipped cases: "
+                    + unexpected.collect { it.id }.join(', '))
+        }
+        Set<String> unlisted = actualSkipped - expectedClientOnly
+        Set<String> noLongerSkipped = expectedClientOnly - actualSkipped
+        if (!unlisted.isEmpty() || !noLongerSkipped.isEmpty()) {
+            throw new GradleException("AUI client-only test inventory changed; "
+                    + "new=${unlisted.join(', ')} missing=${noLongerSkipped.join(', ')}")
+        }
+    }
+}
+
+def auiClientTestResultFile = layout.buildDirectory.file('reports/aui/client-test-result.txt').get().asFile
+def runClientTask = tasks.named('runClient')
+def clientTest = tasks.register('clientTest') {
+    group = 'verification'
+    description = 'Runs the Minecraft client integration self-test and requires an explicit PASS result.'
+    dependsOn runClientTask
+    doLast {
+        if (!auiClientTestResultFile.isFile()) {
+            throw new GradleException("Minecraft client self-test did not produce ${auiClientTestResultFile}")
+        }
+        List<String> resultLines = auiClientTestResultFile.readLines('UTF-8')
+        if (resultLines.isEmpty() || resultLines[0].trim() != 'PASS') {
+            throw new GradleException("Minecraft client self-test failed: " + resultLines.join(' | '))
+        }
+        logger.lifecycle('[AUI clientTest] PASS')
+    }
+}
+
+runClientTask.configure {
+    doFirst {
+        if (gradle.taskGraph.hasTask(clientTest.get())) {
+            auiClientTestResultFile.parentFile.mkdirs()
+            if (auiClientTestResultFile.exists()) auiClientTestResultFile.delete()
+            systemProperty 'apricityui.clientSelfTest', 'true'
+            systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+            systemProperty 'apricityui.clientSelfTest.resultFile', auiClientTestResultFile.absolutePath
+        }
+    }
+}
+
+clientTest.configure { mustRunAfter verifyAuiTestMatrix }
+
+tasks.register('testMatrix') {
+    group = 'verification'
+    description = 'Runs headless tests and the Minecraft client integration self-test.'
+    dependsOn verifyAuiTestMatrix, clientTest
+}
+
+tasks.named('check').configure {
+    dependsOn verifyAuiTestMatrix
 }
 
 jacoco {

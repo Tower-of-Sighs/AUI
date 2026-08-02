@@ -2,9 +2,12 @@ package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.HTML;
 import com.sighs.apricityui.resource.JS;
+import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -87,6 +90,37 @@ class ResourcePipelineTest {
     }
 
     @Test
+    void htmlTokenizerDecodesCharacterReferencesInTextAndAttributes() {
+        Document document = TestDocumentFactory.createDocument();
+
+        Element root = HTML.createElement(document, """
+                <div title="A &amp; B &quot;quoted&quot; &#x1F48E;">
+                  &lt;ore&gt; &amp; &#35; &#x23; &apos;quoted&apos;
+                </div>
+                """);
+
+        assertNotNull(root);
+        assertEquals("A & B \"quoted\" \uD83D\uDC8E", root.getAttribute("title"));
+        assertEquals("<ore> & # # 'quoted'", root.getTextContent().trim());
+    }
+
+    @Test
+    void textareaInitialValueComesFromItsTextContent() {
+        Document document = TestDocumentFactory.createDocument();
+        Element.register(TextArea.TAG_NAME, (owner, tag) -> new TextArea(owner));
+
+        Element root = HTML.createElement(document, "<textarea>First line\r\nSecond &amp; final</textarea>");
+
+        TextArea textarea = assertInstanceOf(TextArea.class, root);
+        assertEquals("First line\nSecond & final", textarea.getDefaultValue());
+        assertEquals("First line\nSecond & final", textarea.getValue());
+
+        textarea.setValue("edited");
+        assertEquals("First line\nSecond & final", textarea.getDefaultValue());
+        assertEquals("edited", textarea.getValue());
+    }
+
+    @Test
     void htmlNormalizationKeepsBodyAndDropsPreambleAndHeadContent() {
         String normalized = normalizeDocumentMarkup("""
                 <!DOCTYPE html>
@@ -117,12 +151,16 @@ class ResourcePipelineTest {
     }
 
     @Test
-    void htmlCreateElementReturnsNullForMalformedMarkupThatCannotBeBalanced() {
+    void htmlCreateElementRecoversMismatchedEndTagsLikeBrowsers() {
         Document document = TestDocumentFactory.createDocument();
 
         Element root = HTML.createElement(document, "<div><span>broken</div>");
 
-        assertNull(root);
+        assertNotNull(root);
+        assertEquals("DIV", root.getNodeName());
+        assertEquals(1, root.getChildren().size());
+        assertEquals("SPAN", root.getFirstElementChild().getNodeName());
+        assertEquals("broken", root.getTextContent());
     }
 
     @Test
@@ -167,6 +205,30 @@ class ResourcePipelineTest {
     }
 
     @Test
+    void htmlMetaFontModePresetAppliesDuringDocumentRefresh() {
+        HTML.putTemple("test://font-mode", """
+                <html>
+                  <head>
+                    <meta name="aui-font-mode" content="mc">
+                  </head>
+                  <body>
+                    <span style="font-family: sans-serif;">font</span>
+                  </body>
+                </html>
+                """);
+        Document document = new Document("test://font-mode", false);
+
+        try {
+            document.refresh();
+
+            assertEquals(Document.FontMode.MC, document.getFontMode());
+            assertEquals(9.0, Text.of(document.body.getFirstElementChild()).fontSize);
+        } finally {
+            Size.clearRootFontOverride();
+        }
+    }
+
+    @Test
     void commitRenderStateSkipsDisplayNoneSubtreesWhenRebuildingPaintList() {
         Document document = TestDocumentFactory.createDocument();
         Element visible = new Element(document, "div");
@@ -183,6 +245,31 @@ class ResourcePipelineTest {
         assertFalse(containsPaintTarget(document.getPaintList(), hidden));
         assertFalse(containsPaintTarget(document.getPaintList(), hiddenChild));
         assertTrue(containsPaintTarget(document.getPaintList(), visible));
+    }
+
+    @Test
+    void incrementalPaintListRebuildDropsDetachedSubtreeNodes() {
+        Document document = TestDocumentFactory.createDocument();
+        Element panel = new Element(document, "aside");
+        Element host = new Element(document, "div");
+        Element removed = new Element(document, "span");
+        panel.setAttribute("style", "position: fixed;");
+        document.body.appendChild(panel);
+        panel.appendChild(host);
+        host.appendChild(removed);
+
+        document.markDirty(document.body, com.sighs.apricityui.init.Drawer.REORDER);
+        document.commitRenderState();
+        assertTrue(containsPaintTarget(document.getPaintList(), removed));
+
+        removed.remove();
+        Element replacement = new Element(document, "strong");
+        host.appendChild(replacement);
+        document.commitRenderState();
+
+        assertFalse(removed.isConnected());
+        assertFalse(containsPaintTarget(document.getPaintList(), removed));
+        assertTrue(containsPaintTarget(document.getPaintList(), replacement));
     }
 
     @SuppressWarnings("unchecked")

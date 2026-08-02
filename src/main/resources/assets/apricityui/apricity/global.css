@@ -3,7 +3,7 @@ body {
     height: 100%;
 }
 
-img {
+img, texture {
     overflow: hidden;
 }
 
@@ -22,12 +22,11 @@ blockquote {
 p {
     display: block;
     margin: 8px 0;
-    line-height: 1.4;
 }
 
 h1, h2, h3, h4, h5, h6 {
     display: block;
-    margin: 10px 0 6px;
+    margin: 0;
     font-weight: 700;
     line-height: 1.2;
 }
@@ -91,8 +90,13 @@ input {
     width: 64px;
     overflow: hidden;
 }
-input:focus {
-    background-color: #fff;
+/* Chromium paints a disabled native select as a faded control even when
+ * author styles provide its border, background and inset shadow. ApricityUI
+ * owns the select renderer, so reproduce that native disabled-state
+ * compositing at the user-agent layer. Author opacity declarations loaded
+ * later can still override this default. */
+select:disabled {
+    opacity: 0.72;
 }
 
 i, em {
@@ -101,37 +105,6 @@ i, em {
 
 b, strong {
     font-weight:bold;
-}
-
-select {
-    border: 1px solid #808080;
-    width: 64px;
-    background-color: #fff;
-    height: 14px;
-    line-height: 14px;
-    overflow: hidden;
-    padding-left: 2px;
-}
-select:focus {
-    background-color: #eee;
-    height: unset;
-}
-select>option:first-child {
-    margin-top: 12px;
-}
-select>option {
-    background-color: #ddd;
-    width: 64px;
-    display: none;
-    justify-content: center;
-    height: 12px;
-    padding-left: 2px;
-}
-select:focus>option {
-    display: flex;
-}
-select>option:hover {
-    background-color: #fff;
 }
 
 container {

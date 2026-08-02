@@ -2,7 +2,12 @@ package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.Transform;
+import com.sighs.apricityui.style.Transition;
 
 import java.util.*;
 
@@ -10,6 +15,8 @@ public class Drawer {
     public static final int REPAINT = 1;
     public static final int REORDER = 2;
     public static final int RELAYOUT = 4;
+    public static final int HITTEST = 8;
+    public static final int COMMIT_LAYOUT = 16;
 
     public static void flushUpdates(Document document) {
         Set<Element> dirtyElements = document.getDirtyElements();
@@ -21,6 +28,7 @@ public class Drawer {
         for (Element e : sortedDirty) {
             // 如果标记了 RELAYOUT，通常意味着尺寸变化，这往往也会影响绘制顺序或边界
             if (e.hasDirtyFlag(RELAYOUT)) {
+                e.forEachRoute(element -> element.getRenderer().invalidateLayoutVersion());
                 e.forEachRoute(element -> element.getRenderer().size.clear());
                 e.forEachRoute(element -> element.getRenderer().position.clear());
                 // 布局变化通常需要重绘，但不一定需要重排队列（除非影响了层叠上下文）
@@ -31,17 +39,14 @@ public class Drawer {
             if (e.hasDirtyFlag(REORDER)) {
                 // REORDER 通常会同时标记一批同层元素；按层叠上下文去重，避免同一帧重复 rebuild 大子树。
                 Element contextRoot = findNearestStackingContext(e);
-                reorderRoots.add(contextRoot);
+                if (contextRoot != null) {
+                    reorderRoots.add(contextRoot);
+                }
             }
         }
 
         if (!reorderRoots.isEmpty()) {
-            ArrayList<RenderNode> rebuilt = document.body == null
-                    ? new ArrayList<>()
-                    : createPaintList(document.body);
-            List<RenderNode> globalList = document.getPaintList();
-            globalList.clear();
-            globalList.addAll(rebuilt);
+            updatePaintList(document, reorderRoots);
         }
 
         for (Element e : sortedDirty) {
@@ -59,7 +64,68 @@ public class Drawer {
     public static ArrayList<RenderNode> createPaintList(Element body) {
         ArrayList<RenderNode> paintList = new ArrayList<>();
         processStackingContext(body, paintList);
+        for (Element topLayer : collectTopLayerRoots(body)) {
+            processStackingContext(topLayer, paintList);
+        }
         return paintList;
+    }
+
+    private static List<Element> collectTopLayerRoots(Element root) {
+        if (root == null) return List.of();
+        ArrayList<Element> result = new ArrayList<>();
+        collectTopLayerRoots(root, result);
+        return result;
+    }
+
+    private static void collectTopLayerRoots(Element parent, List<Element> result) {
+        for (Element child : parent.getRenderChildren()) {
+            if (child.isTopLayer()) result.add(child);
+            collectTopLayerRoots(child, result);
+        }
+    }
+
+    private static void updatePaintList(Document document, Set<Element> reorderRoots) {
+        List<RenderNode> globalList = document.getPaintList();
+        Element paintRoot = getDocumentPaintRoot(document);
+        if (paintRoot == null) {
+            globalList.clear();
+            return;
+        }
+
+        // Detached nodes have already lost the ancestry used to find an incremental subtree boundary.
+        // Remove them before replacing a connected subtree so stale paint nodes cannot survive the splice.
+        globalList.removeIf(node -> {
+            Element target = getNodeTarget(node);
+            return target != null && !target.isConnected();
+        });
+
+        List<Element> roots = minimizeRoots(reorderRoots);
+        boolean rebuildAll = globalList.isEmpty();
+
+        for (Element root : roots) {
+            if (root == null || !root.isConnected() || root == paintRoot) {
+                rebuildAll = true;
+                break;
+            }
+
+            ArrayList<RenderNode> rebuiltSubtree = createPaintList(root);
+            if (!updateGlobalPaintList(globalList, root, rebuiltSubtree)) {
+                rebuildAll = true;
+                break;
+            }
+        }
+
+        if (rebuildAll) {
+            ArrayList<RenderNode> rebuilt = createPaintList(paintRoot);
+            globalList.clear();
+            globalList.addAll(rebuilt);
+        }
+    }
+
+    private static Element getDocumentPaintRoot(Document document) {
+        if (document == null) return null;
+        if (document.documentElement != null) return document.documentElement;
+        return document.body;
     }
 
     /**
@@ -105,17 +171,24 @@ public class Drawer {
         }
 
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.SHADOW));
-        appendBodyRenderNodes(contextRoot, paintList);
-        paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
 
-        boolean needsMask = Interaction.clipsOverflow(rootStyle);
-        if (needsMask) {
-            paintList.add(new RenderNode.MaskPushNode(contextRoot));
-        }
-
-        List<Element> children = contextRoot.children;
+        List<Element> children = contextRoot.getRenderChildren();
         if (children.isEmpty()) {
-            if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
+            boolean needsMask = Interaction.clipsOverflow(rootStyle);
+            if (needsMask) {
+                // CSS overflow clips an element's own content, but not its
+                // shadow or border. The padding box is the overflow clip edge.
+                paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+                paintList.add(new RenderNode.MaskPushNode(contextRoot));
+                appendBodyRenderNodes(contextRoot, paintList);
+                paintList.add(new RenderNode.MaskPopNode(contextRoot));
+            } else {
+                appendBodyRenderNodes(contextRoot, paintList);
+                paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+            }
+            if (contextRoot.mayRenderScrollbar()) {
+                paintList.add(new RenderNode.ScrollbarNode(contextRoot));
+            }
             if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
             if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
             return;
@@ -128,6 +201,9 @@ public class Drawer {
 
         for (int i = 0; i < children.size(); i++) {
             Element child = children.get(i);
+            // Top-layer boxes retain their DOM parent but paint in a separate
+            // root after the normal document, outside ancestor overflow clips.
+            if (child.isTopLayer()) continue;
             Style style = child.getRawComputedStyle();
             if ("none".equals(style.display)) {
                 continue;
@@ -135,14 +211,8 @@ public class Drawer {
             String zIndexStr = style.zIndex;
             double translateZ = Transform.getTranslateZ(style.transform);
 
-            boolean childHasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
-            boolean childHasFilter = hasCompositedFilter(child, style);
             // 按照规范，filter, opacity, transform 等都会触发层叠上下文
-            boolean createsContext = !zIndexStr.equals("auto")
-                    || !style.position.equals("static")
-                    || childHasFilter
-                    || childHasBackdrop
-                    || Transform.createsStackingContext(style.transform);
+            boolean createsContext = createsPaintStackingContext(child, style);
 
             // 关键：保持 CSS 的大体绘制顺序
             // - 普通流（static, 不创建层叠上下文）应当先绘制
@@ -169,12 +239,37 @@ public class Drawer {
         if (autoOrZeroContext.size() > 1) autoOrZeroContext.sort(PAINTABLE_ORDER);
         if (positiveZ.size() > 1) positiveZ.sort(PAINTABLE_ORDER);
 
+        boolean needsMask = Interaction.clipsOverflow(rootStyle);
+        boolean splitContentForNegativeZ = !negativeZ.isEmpty();
+
+        if (needsMask) {
+            if (splitContentForNegativeZ) {
+                paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+            }
+            paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+            paintList.add(new RenderNode.MaskPushNode(contextRoot));
+            if (!splitContentForNegativeZ) appendBodyRenderNodes(contextRoot, paintList);
+        } else {
+            if (splitContentForNegativeZ) {
+                paintList.add(new RenderNode.ElementBackgroundNode(contextRoot));
+            } else {
+                appendBodyRenderNodes(contextRoot, paintList);
+            }
+            paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+        }
+
         for (Paintable p : negativeZ) processStackingContext(p.element, paintList);
+        if (splitContentForNegativeZ) {
+            paintList.add(new RenderNode.ElementContentNode(contextRoot));
+        }
         for (Element e : normalFlow) processStackingContext(e, paintList);
         for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList);
         for (Paintable p : positiveZ) processStackingContext(p.element, paintList);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
+        if (contextRoot.mayRenderScrollbar()) {
+            paintList.add(new RenderNode.ScrollbarNode(contextRoot));
+        }
         if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
     }
@@ -221,9 +316,12 @@ public class Drawer {
     private static Element getNodeTarget(RenderNode node) {
         if (node instanceof Element e) return e;
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
+        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
+        if (node instanceof RenderNode.ElementContentNode n) return n.target();
         if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
+        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
         if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
         if (node instanceof RenderNode.FilterPushNode n) return n.target();
@@ -232,18 +330,19 @@ public class Drawer {
     }
 
     private static Element findNearestStackingContext(Element e) {
+        Element paintRoot = getDocumentPaintRoot(e == null ? null : e.document);
+        if (e == null) return paintRoot;
         Element current = e.parentElement;
         while (current != null) {
-            String zi = current.getRawComputedStyle().zIndex;
-            if (zi != null && !"auto".equals(zi)) {
+            if (current == paintRoot || createsPaintStackingContext(current, current.getRawComputedStyle())) {
                 return current;
             }
             current = current.parentElement;
         }
-        return e.document.body;
+        return paintRoot;
     }
 
-    private static void updateGlobalPaintList(List<RenderNode> globalList, Element root, List<RenderNode> newSubtree) {
+    private static boolean updateGlobalPaintList(List<RenderNode> globalList, Element root, List<RenderNode> newSubtree) {
         int startIndex = -1;
         for (int i = 0; i < globalList.size(); i++) {
             if (getNodeTarget(globalList.get(i)) == root) {
@@ -253,7 +352,7 @@ public class Drawer {
         }
 
         if (startIndex == -1) {
-            return;
+            return false;
         }
 
         int endIndex = startIndex + 1;
@@ -268,6 +367,7 @@ public class Drawer {
 
         globalList.subList(startIndex, endIndex).clear();
         globalList.addAll(startIndex, newSubtree);
+        return true;
     }
 
     private static boolean isNodeRelatedTo(RenderNode node, Element potentialParent) {
@@ -293,4 +393,17 @@ public class Drawer {
         if (Transition.affectsFilter(element)) return true;
         return Animation.affectsFilter(style);
     }
+
+    private static boolean createsPaintStackingContext(Element element, Style style) {
+        if (style == null) return false;
+        String zIndex = style.zIndex == null ? "auto" : style.zIndex;
+        String position = style.position == null ? "static" : style.position;
+        boolean hasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
+        return !zIndex.equals("auto")
+                || !position.equals("static")
+                || hasCompositedFilter(element, style)
+                || hasBackdrop
+                || Transform.createsStackingContext(style.transform);
+    }
+
 }

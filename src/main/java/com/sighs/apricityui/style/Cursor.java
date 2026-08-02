@@ -1,9 +1,14 @@
 package com.sighs.apricityui.style;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.DocumentLayerOrder;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
@@ -13,6 +18,7 @@ import net.minecraft.client.gui.GuiGraphics;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -88,8 +94,53 @@ public class Cursor {
         applyCssCursor("default");
     }
 
+    public static void refreshFromDocuments() {
+        refreshFromDocuments(Client.getMousePositionDirectly());
+    }
+
+    public static void refreshFromDocuments(Position mousePosition) {
+        if (mousePosition == null) {
+            resetToDefault();
+            return;
+        }
+
+        List<Document> documents = DocumentLayerOrder.frontToBack(Document.getAll());
+        for (Document document : documents) {
+            if (document.inWorld || document.isManuallyRendered()) continue;
+
+            Element target = document.hitTest(document.screenToDocumentPosition(mousePosition));
+            if (target == null || target == document.body) continue;
+
+            applyCssCursor(document.getPath(), resolveCssCursor(target, document.screenToDocumentPosition(mousePosition)));
+            return;
+        }
+        resetToDefault();
+    }
+
+    private static String resolveCssCursor(Element target, Position mousePosition) {
+        if (target instanceof com.sighs.apricityui.element.TextArea textArea
+                && textArea.isResizeHandleAt(mousePosition)) {
+            return textArea.getResizeCursor();
+        }
+        String cached = target.getRenderer().cursor.get();
+        if (cached != null) return cached;
+
+        for (Element element = target; element != null; element = element.parentElement) {
+            String value = element.getComputedStyle().cursor;
+            if (value == null) continue;
+            value = value.trim();
+            if (!value.isEmpty() && !value.equalsIgnoreCase("unset") && !value.equalsIgnoreCase("auto")) {
+                target.getRenderer().cursor.set(value);
+                return value;
+            }
+        }
+        target.getRenderer().cursor.set("default");
+        return "default";
+    }
+
     public static void drawPseudoCursor(GuiGraphics guiGraphics) {
         if (guiGraphics == null) return;
+        refreshFromDocuments();
         guiGraphics.flush();
         drawPseudoCursor(guiGraphics.pose());
         guiGraphics.flush();
@@ -119,11 +170,13 @@ public class Cursor {
         float drawHotspotX = (float) (hotspotX / guiScale);
         float drawHotspotY = (float) (hotspotY / guiScale);
 
-        Position mouse = Client.getMousePosition();
+        Position mouse = Client.getMousePositionDirectly();
+        if (mouse == null) mouse = Client.getMousePosition();
         float drawX = (float) mouse.x - drawHotspotX;
         float drawY = (float) mouse.y - drawHotspotY;
 
         poseStack.pushPose();
+        Graph.endBatch();
         ImageDrawer.flushBatch();
         Base.resolveOffset(poseStack);
         poseStack.translate(0.0D, 0.0D, PSEUDO_CURSOR_Z);
@@ -178,6 +231,7 @@ public class Cursor {
             case "crosshair" -> GLFW.GLFW_CROSSHAIR_CURSOR;
             case "ew-resize" -> GLFW.GLFW_HRESIZE_CURSOR;
             case "ns-resize" -> GLFW.GLFW_VRESIZE_CURSOR;
+            case "se-resize", "nwse-resize" -> GLFW.GLFW_RESIZE_NWSE_CURSOR;
             default -> GLFW.GLFW_ARROW_CURSOR;
         };
     }

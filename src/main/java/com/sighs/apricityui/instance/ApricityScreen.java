@@ -4,28 +4,55 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Event;
 import com.sighs.apricityui.instance.element.Item;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.FrameTimingHud;
+import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.ItemStack;
+import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nonnull;
 import java.util.List;
 
-/**
- * 纯 UI Screen（不带容器交互）。
- */
 public class ApricityScreen extends Screen {
     private final String templatePath;
+    private boolean pauseGame;
+    private boolean showDefaultBackground;
     private Document linkedDocument;
+    private boolean loggedInitState = false;
+    private boolean loggedRenderState = false;
 
     public ApricityScreen(String templatePath) {
         super(Component.empty());
         this.templatePath = templatePath;
+    }
+
+    /** Sets whether Minecraft should pause while this screen is open. */
+    public ApricityScreen setPauseGame(boolean pauseGame) {
+        this.pauseGame = pauseGame;
+        return this;
+    }
+
+    /** Sets whether Minecraft's standard screen background should be drawn first. */
+    public ApricityScreen setShowDefaultBackground(boolean showDefaultBackground) {
+        this.showDefaultBackground = showDefaultBackground;
+        return this;
+    }
+
+    public boolean isPauseGame() {
+        return pauseGame;
+    }
+
+    public boolean isShowDefaultBackground() {
+        return showDefaultBackground;
     }
 
     public Document getLinkedDocument() {
@@ -36,28 +63,82 @@ public class ApricityScreen extends Screen {
     protected void init() {
         super.init();
 
-        // 窗口 resize 会重新调用 init()，需要先清理旧 Document 避免残留
         if (linkedDocument != null) {
             linkedDocument.remove();
             linkedDocument = null;
         }
 
         linkedDocument = Document.create(templatePath);
+        if (linkedDocument != null) {
+            linkedDocument.applyViewport(false);
+        }
+        if (!loggedInitState) {
+            loggedInitState = true;
+            ApricityViewport viewport = currentViewport();
+            com.sighs.apricityui.ApricityUI.LOGGER.info(
+                    "[AUI Screen] init path={} viewport={}x{} doc={} body={} paintList={}",
+                    templatePath,
+                    viewport.layoutWidth(),
+                    viewport.layoutHeight(),
+                    linkedDocument == null ? "<null>" : linkedDocument.getUuid(),
+                    linkedDocument == null || linkedDocument.body == null ? "<null>" : linkedDocument.body.tagName,
+                    linkedDocument == null ? -1 : linkedDocument.getPaintList().size()
+            );
+        }
+    }
+
+    @Override
+    public void resize(@Nonnull Minecraft minecraft, int width, int height) {
+        super.resize(minecraft, width, height);
+        if (linkedDocument != null) {
+            linkedDocument.applyViewport(true);
+        }
     }
 
     @Override
     public void render(@Nonnull GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
-        if (linkedDocument != null) {
-            Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
-            // 默认字体使用 Minecraft 的 BufferSource，文档绘制结束后立即提交，避免文本延迟到后续阶段才显示。
-            Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
-            drawDisplaySlotTooltip(guiGraphics, mouseX, mouseY);
+        FrameTimingHud.beginFrame();
+        try {
+            if (showDefaultBackground) {
+                renderBackground(guiGraphics);
+            }
+            if (linkedDocument != null) {
+                if (!loggedRenderState) {
+                    loggedRenderState = true;
+                    com.sighs.apricityui.ApricityUI.LOGGER.info(
+                            "[AUI Screen] render path={} doc={} body={} paintList={} dirty={}",
+                            templatePath,
+                            linkedDocument.getUuid(),
+                            linkedDocument.body == null ? "<null>" : linkedDocument.body.tagName,
+                            linkedDocument.getPaintList().size(),
+                            linkedDocument.getDirtyElements().size()
+                    );
+                }
+
+                ApricityViewport viewport = currentViewport();
+                guiGraphics.pose().pushPose();
+                Mask.pushScissorScale(viewport.scissorScale());
+                try {
+                    guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                    Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
+                } finally {
+                    Mask.popScissorScale();
+                    guiGraphics.pose().popPose();
+                }
+                Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+                drawDisplaySlotTooltip(guiGraphics, mouseX, mouseY);
+            }
+            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose());
+            Cursor.drawPseudoCursor(guiGraphics);
+        } finally {
+            FrameTimingHud.endFrame(guiGraphics);
         }
-        Cursor.drawPseudoCursor(guiGraphics);
     }
 
     private void drawDisplaySlotTooltip(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (linkedDocument == null) return;
+        Position documentMouse = linkedDocument.screenToDocumentPosition(new Position(mouseX, mouseY));
 
         List<Element> elements = linkedDocument.getElements();
         for (int index = elements.size() - 1; index >= 0; index--) {
@@ -66,7 +147,7 @@ public class ApricityScreen extends Screen {
                     || !Interaction.isDisplayed(item)
                     || !item.isVisible
                     || !item.canShowItemTooltip()
-                    || !item.containsItemPoint(mouseX, mouseY)) {
+                    || !item.containsItemPoint(documentMouse.x, documentMouse.y)) {
                 continue;
             }
 
@@ -85,6 +166,7 @@ public class ApricityScreen extends Screen {
             }
             linkedDocument.remove();
         }
+        Size.clearViewportOverride();
         Cursor.resetToDefault();
         super.onClose();
     }
@@ -94,11 +176,56 @@ public class ApricityScreen extends Screen {
         if (linkedDocument != null) {
             linkedDocument.remove();
         }
+        Size.clearViewportOverride();
         super.removed();
     }
 
     @Override
     public boolean isPauseScreen() {
-        return false;
+        return pauseGame;
+    }
+
+    public boolean handleViewportZoom(boolean zoomIn) {
+        return linkedDocument != null && linkedDocument.handleViewportZoom(zoomIn);
+    }
+
+    public boolean resetViewportZoom() {
+        return linkedDocument != null && linkedDocument.resetViewportZoom();
+    }
+
+    private ApricityViewport currentViewport() {
+        return linkedDocument == null ? new ApricityViewport(1, 1, 1.0f, 1.0d) : linkedDocument.getViewport();
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0;
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double delta) {
+        if (hasControlDown() && handleViewportZoom(delta > 0)) {
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, delta);
+    }
+
+    @Override
+    public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
+        if (keyCode == Keybindings.RELOAD.getKey().getValue()) {
+            ClientLoader.reload();
+            return true;
+        }
+        if (isControlModifier(modifiers)) {
+            if (keyCode == GLFW.GLFW_KEY_EQUAL || keyCode == GLFW.GLFW_KEY_KP_ADD) {
+                return handleViewportZoom(true);
+            }
+            if (keyCode == GLFW.GLFW_KEY_MINUS || keyCode == GLFW.GLFW_KEY_KP_SUBTRACT) {
+                return handleViewportZoom(false);
+            }
+            if (keyCode == GLFW.GLFW_KEY_0 || keyCode == GLFW.GLFW_KEY_KP_0) {
+                return resetViewportZoom();
+            }
+        }
+        return super.keyPressed(keyCode, scanCode, modifiers);
     }
 }

@@ -9,17 +9,23 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.FrameScheduler;
 import com.sighs.apricityui.init.StyleFrameCache;
+import com.sighs.apricityui.instance.ApricityViewport;
 import com.sighs.apricityui.instance.ItemDrawer;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
-import com.sighs.apricityui.style.Transform;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.LayoutMeasureCache;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.*;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
+import org.lwjgl.opengl.GL11;
 
+import java.util.Collections;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Set;
 
 public class Base {
     public static void drawScreenDocument(PoseStack poseStack, Document document) {
@@ -27,67 +33,38 @@ public class Base {
     }
 
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
+    private static final float GLOBAL_DOCUMENT_Z_OFFSET = 1.0f;
+    private static final java.util.ArrayDeque<Float> DOCUMENT_Z_OFFSET_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
     private static float depthStep = DEFAULT_DEPTH_STEP;
     private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<Float> DEPTH_CURSOR_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<Boolean> DEPTH_TEST_STACK = new java.util.ArrayDeque<>();
     private static boolean accumulateDepth = false;
     private static float depthCursor = 0.0f;
+    private static boolean depthTestEnabled = true;
+    private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
 
     public static void drawAllDocument(PoseStack poseStack) {
-        Mask.resetDepth();
-        poseStack.translate(0, 0, 1);
-        for (Document document : Document.getAll()) {
-            if (!document.inWorld) drawDocument(poseStack, document);
+        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
+            if (!document.inWorld && !document.isManuallyRendered()) drawOverlayDocument(poseStack, document);
         }
     }
 
-    public static void drawScreenDocument(PoseStack poseStack, Document document, List<? extends RenderNode> overlayNodes) {
-        // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
-        Mask.resetDepth();
-        drawDocument(poseStack, document, overlayNodes);
-    }
-
-    public static void drawDocument(PoseStack poseStack, Document document) {
-        drawDocument(poseStack, document, List.of());
-    }
-
-    private static void drawDocument(PoseStack poseStack, Document document, List<? extends RenderNode> overlayNodes) {
-        // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
-        // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
-        FrameScheduler.renderBegin();
-        ItemDrawer.beginFrame();
-        RectFrameCache.begin();
-        StyleFrameCache.begin();
-        FilterRenderer.beginFrame();
-        try {
-            // 这个if是应对paintList更新没跟上节点树更新的情况，也就是渲染状态滞后，差不多这个意思。
-            if (!document.getDirtyElements().isEmpty()) {
-                document.commitStyleRecalc();
-                document.commitRenderState();
-            }
-            document.stepMotionRender();
-            for (RenderNode node : document.getPaintList()) {
-                poseStack.pushPose();
-                Base.resolveOffset(poseStack);
-                node.render(poseStack);
+    public static void drawOverlayDocument(PoseStack poseStack, Document document) {
+        if (document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            ApricityViewport viewport = document.getViewport();
+            Mask.resetDepth();
+            poseStack.pushPose();
+            Mask.pushScissorScale(viewport.scissorScale());
+            try {
+                poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                drawDocument(poseStack, document);
+            } finally {
+                Mask.popScissorScale();
                 poseStack.popPose();
             }
-            if (overlayNodes != null) {
-                for (RenderNode node : overlayNodes) {
-                    if (node == null) continue;
-                    poseStack.pushPose();
-                    Base.resolveOffset(poseStack);
-                    node.render(poseStack);
-                    poseStack.popPose();
-                }
-            }
-        } finally {
-            ItemDrawer.endFrame();
-            StyleFrameCache.end();
-            RectFrameCache.end();
-            ImageDrawer.flushBatch();
-            FilterRenderer.endFrame();
         }
     }
 
@@ -97,9 +74,233 @@ public class Base {
         BORDER
     }
 
+    public static void drawScreenDocument(PoseStack poseStack, Document document, List<? extends RenderNode> overlayNodes) {
+        if (document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
+            Mask.resetDepth();
+            drawDocumentInContext(poseStack, document, overlayNodes);
+        }
+    }
+
+    public static void drawDocument(PoseStack poseStack, Document document) {
+        if (document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            drawDocumentInContext(poseStack, document, List.of());
+        }
+    }
+
+    /**
+     * Draws a document while its document context is active. Keeping this
+     * boundary inside Base makes standalone surfaces behave like overlays.
+     */
+    private static void drawDocumentInContext(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes
+    ) {
+        long startNs = System.nanoTime();
+        // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
+        // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
+        FrameScheduler.renderBegin();
+        ItemDrawer.beginFrame();
+        RenderBatchStats.beginDocument();
+        RectFrameCache.begin();
+        TransformFrameCache.begin();
+        LayoutMeasureCache.begin();
+        StyleFrameCache.begin();
+        FilterRenderer.beginFrame();
+        poseStack.pushPose();
+        FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
+        try {
+            // Pointer state can change between client ticks. Commit only the
+            // queued style roots here so CSS transitions start on this frame.
+            boolean styleChanged = document.commitPendingStyleRecalcForRender();
+            // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
+            // Layout-affecting motion must also refresh committed bounds before this paint pass.
+            boolean motionNeedsGeometryCommit = document.stepMotionRender();
+            boolean scrollChanged = document.stepScrollRender();
+            boolean styleNeedsGeometryCommit = false;
+            if (styleChanged) {
+                styleNeedsGeometryCommit = document.commitRenderStateForMotion();
+            }
+            if (styleNeedsGeometryCommit || scrollChanged) {
+                LayoutCommit.commit(document);
+                document.commitMotionHitTest();
+            } else if (motionNeedsGeometryCommit) {
+                Set<Element> layoutRoots = document.drainMotionLayoutRoots();
+                Set<Element> geometryRoots = document.drainMotionGeometryRoots();
+                if (!layoutRoots.isEmpty()) {
+                    LayoutCommit.commit(document);
+                } else if (!geometryRoots.isEmpty()) {
+                    LayoutCommit.commitTransforms(document, geometryRoots);
+                } else {
+                    // Keep the correctness fallback for a future motion source
+                    // that reports geometry work without publishing a root.
+                    LayoutCommit.commit(document);
+                }
+                document.commitMotionHitTest();
+            }
+            poseStack.translate(0, 0, documentZOffset);
+            Element skippedSubtree = null;
+            Set<Element> enteredSubtrees = Collections.newSetFromMap(new IdentityHashMap<>());
+            Element activeTopLayerRoot = null;
+            TopLayerDepthScope topLayerDepthScope = null;
+            try {
+                for (RenderNode node : document.getPaintList()) {
+                    Element target = getRenderNodeTarget(node);
+                    if (skippedSubtree != null) {
+                        if (target != null && isSameOrDescendant(target, skippedSubtree)) {
+                            continue;
+                        }
+                        skippedSubtree = null;
+                    }
+                    // Clip/filter pushes precede an element's SHADOW node. Cull at
+                    // the first node so a skipped subtree cannot leave either stack unbalanced.
+                    if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
+                        skippedSubtree = target;
+                        continue;
+                    }
+
+                    Element topLayerRoot = WorldWindowRenderContext.isWorldWindowRender()
+                            ? findTopLayerRoot(target) : null;
+                    if (topLayerRoot != activeTopLayerRoot) {
+                        if (topLayerDepthScope != null) topLayerDepthScope.close();
+                        topLayerDepthScope = null;
+                        activeTopLayerRoot = topLayerRoot;
+                        if (topLayerRoot != null) {
+                            topLayerDepthScope = TopLayerDepthScope.open();
+                        }
+                    }
+
+                    poseStack.pushPose();
+                    Base.resolvePaintOffset(poseStack, node);
+                    node.render(poseStack);
+                    poseStack.popPose();
+                }
+                if (overlayNodes != null) {
+                    for (RenderNode node : overlayNodes) {
+                        if (node == null) continue;
+                        poseStack.pushPose();
+                        Base.resolvePaintOffset(poseStack, node);
+                        node.render(poseStack);
+                        poseStack.popPose();
+                    }
+                }
+            } finally {
+                if (topLayerDepthScope != null) topLayerDepthScope.close();
+            }
+        } finally {
+            FontDrawer.popDocumentPixelScale();
+            poseStack.popPose();
+            StyleFrameCache.end();
+            LayoutMeasureCache.end();
+            TransformFrameCache.end();
+            RectFrameCache.end();
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
+            FilterRenderer.endFrame();
+            ItemDrawer.endFrame();
+            RenderBatchStats.endDocument();
+            FrameTimingHud.record(System.nanoTime() - startNs);
+        }
+    }
+
+    private static Element findTopLayerRoot(Element target) {
+        Element current = target;
+        while (current != null) {
+            if (current.isTopLayer()) return current;
+            current = current.parentElement;
+        }
+        return null;
+    }
+
+    /**
+     * World-space documents use depth testing to occlude normal content. A
+     * top-layer popup is a separate browser surface, however, so leaving the
+     * depth test enabled makes it compete with the document plane at far
+     * distances. Isolate its batches and paint it in DOM order instead.
+     */
+    private static final class TopLayerDepthScope {
+        private final boolean previousDepthTest;
+        private final boolean previousDepthMask;
+        private boolean closed;
+
+        private TopLayerDepthScope(boolean previousDepthTest, boolean previousDepthMask) {
+            this.previousDepthTest = previousDepthTest;
+            this.previousDepthMask = previousDepthMask;
+        }
+
+        private static TopLayerDepthScope open() {
+            if (!Base.isDepthTestEnabled()) return null;
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
+
+            boolean previousDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+            boolean previousDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+            Base.pushDepthTest(false);
+            RenderSystem.disableDepthTest();
+            GL11.glDepthMask(false);
+            return new TopLayerDepthScope(previousDepthTest, previousDepthMask);
+        }
+
+        private void close() {
+            if (closed) return;
+            closed = true;
+            Graph.endBatch();
+            ImageDrawer.flushBatch();
+            Base.popDepthTest();
+            if (previousDepthTest) RenderSystem.enableDepthTest();
+            else RenderSystem.disableDepthTest();
+            GL11.glDepthMask(previousDepthMask);
+        }
+    }
+
+    private static boolean shouldSkipSubtree(Element target) {
+        if (target == null || target.document == null
+                || target == target.document.documentElement
+                || target == target.document.body) return false;
+        if (RenderNode.shouldSkip(target)) return true;
+
+        AABB currentClip = Mask.getCurrentClip();
+        if (!currentClip.isValid()) return false;
+        Rect cachedRect = RectFrameCache.get(target);
+        if (cachedRect == null) return false;
+        return !cachedRect.getVisualBounds().intersects(currentClip);
+    }
+
+    private static Element getRenderNodeTarget(RenderNode node) {
+        if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
+        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
+        if (node instanceof RenderNode.ElementContentNode n) return n.target();
+        if (node instanceof RenderNode.MaskPushNode n) return n.target();
+        if (node instanceof RenderNode.MaskPopNode n) return n.target();
+        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
+        if (node instanceof RenderNode.FilterPushNode n) return n.target();
+        if (node instanceof RenderNode.FilterPopNode n) return n.target();
+        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
+        return null;
+    }
+
+    private static boolean isSameOrDescendant(Element element, Element ancestor) {
+        Element current = element;
+        while (current != null) {
+            if (current == ancestor) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
     public static void beginRendering() {
-        GlStateManager._enableDepthTest();
-        GlStateManager._depthMask(true);
+        if (depthTestEnabled) {
+            GlStateManager._enableDepthTest();
+            GlStateManager._depthMask(true);
+        } else {
+            GlStateManager._disableDepthTest();
+            GlStateManager._depthMask(false);
+        }
         GlStateManager._disableCull();
         GlStateManager._enableBlend();
         GlStateManager._blendFuncSeparate(
@@ -121,10 +322,31 @@ public class Base {
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {
-        Element[] route = element.getRouteArray();
-        double lastAbsX = 0;
-        double lastAbsY = 0;
+        Matrix4f matrix = prepareWorldTransform(element);
+        poseStack.mulPoseMatrix(matrix);
+    }
 
+    public static Matrix4f prepareWorldTransform(Element element) {
+        // A committed transform may have been produced by a normal screen
+        // layout pass. WorldWindow has different translateZ semantics, so it
+        // may only reuse transforms computed inside the current flat scope.
+        Matrix4f cached = WorldPaintDepth.canReuseCommittedTransforms()
+                ? TransformFrameCache.get(element)
+                : TransformFrameCache.getFrame(element);
+        if (cached != null) return cached;
+        Matrix4f matrix = computeWorldTransform(element);
+        TransformFrameCache.put(element, matrix);
+        return matrix;
+    }
+
+    public static Matrix4f createAndCacheWorldTransform(Element element) {
+        Matrix4f matrix = computeWorldTransform(element);
+        TransformFrameCache.put(element, matrix);
+        return matrix;
+    }
+
+    private static Matrix4f computeWorldTransform(Element element) {
+        Element[] route = element.getRouteArray();
         int routeSize = route.length;
         Scratch scratch = SCRATCH.get();
         if (scratch.absX.length < routeSize) {
@@ -150,51 +372,101 @@ public class Base {
             }
         }
 
-        for (int i = 0; i < routeSize; i++) {
+        Matrix4f matrix = new Matrix4f();
+        for (int i = routeSize - 1; i >= 0; i--) {
             Element e = route[i];
             double posX = absX[i];
             double posY = absY[i];
-            Box box = Box.of(e);
-            Size size = Size.of(e);
+            Rect rect = Rect.of(e);
+            Box box = rect.box;
+            Size size = rect.getShadowSize();
 
             double currentAbsX = posX + box.getMarginLeft();
             double currentAbsY = posY + box.getMarginTop();
-            poseStack.translate(currentAbsX - lastAbsX, currentAbsY - lastAbsY, 0);
 
-            List<Transform> functions = e.getRenderer().transform.get();
-            if (functions == null) {
-                String cssTransform = e.getComputedStyle().transform;
-                functions = Transform.parse(cssTransform);
-                e.getRenderer().transform.set(functions);
-            }
+            List<Transform> functions = prepareTransform(e, size);
 
             if (!functions.isEmpty()) {
                 double w = size.width();
                 double h = size.height();
                 // transform-origin 默认为中心 (50% 50%)
-                float originX = (float) (w / 2.0);
-                float originY = (float) (h / 2.0);
+                float[] origin = resolveTransformOrigin(e.getComputedStyle().transformOrigin, w, h);
+                float originX = origin[0];
+                float originY = origin[1];
 
                 for (Transform transform : functions) {
                     if (transform instanceof Transform.Translate t) {
-                        poseStack.translate(t.x(), t.y(), t.z());
+                        // WorldWindow uses the paint-depth cursor for CSS stacking.
+                        // Keep translateZ as a stacking-order input, but do not turn
+                        // ordinary flat DOM content into physically separated planes.
+                        matrix.translate((float) t.x(), (float) t.y(), WorldPaintDepth.effectiveTranslateZ(t.z()));
                     } else if (transform instanceof Transform.Rotate r) {
-                        poseStack.translate(originX, originY, 0);
-                        if (r.x() != 0) poseStack.mulPose(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
-                        if (r.y() != 0) poseStack.mulPose(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
-                        if (r.z() != 0) poseStack.mulPose(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
-                        poseStack.translate(-originX, -originY, 0);
+                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
+                        if (r.x() != 0) matrix.rotate(new Quaternionf().rotationX((float) Math.toRadians(r.x())));
+                        if (r.y() != 0) matrix.rotate(new Quaternionf().rotationY((float) Math.toRadians(r.y())));
+                        if (r.z() != 0) matrix.rotate(new Quaternionf().rotationZ((float) Math.toRadians(r.z())));
+                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     } else if (transform instanceof Transform.Scale s) {
-                        poseStack.translate(originX, originY, 0);
-                        poseStack.scale((float) s.x(), (float) s.y(), 1.0f);
-                        poseStack.translate(-originX, -originY, 0);
+                        matrix.translate((float) currentAbsX + originX, (float) currentAbsY + originY, 0);
+                        matrix.scale((float) s.x(), (float) s.y(), 1.0f);
+                        matrix.translate(-((float) currentAbsX + originX), -((float) currentAbsY + originY), 0);
                     }
                 }
             }
-
-            lastAbsX = currentAbsX;
-            lastAbsY = currentAbsY;
         }
+        return matrix;
+    }
+
+    public static List<Transform> prepareTransform(Element element, Size size) {
+        List<Transform> functions = element.getRenderer().transform.get();
+        if (functions != null) return functions;
+        String cssTransform = element.getComputedStyle().transform;
+        functions = Transform.parse(cssTransform, size.width(), size.height());
+        element.getRenderer().transform.set(functions);
+        return functions;
+    }
+
+    private static float[] resolveTransformOrigin(String value, double width, double height) {
+        if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value)) {
+            return new float[]{(float) (width / 2.0), (float) (height / 2.0)};
+        }
+
+        String[] raw = value.trim().toLowerCase(java.util.Locale.ROOT).split("\\s+");
+        String xToken = "50%";
+        String yToken = "50%";
+        if (raw.length == 1) {
+            if (isVerticalOrigin(raw[0])) yToken = raw[0];
+            else xToken = raw[0];
+        } else {
+            xToken = raw[0];
+            yToken = raw[1];
+            if (isVerticalOrigin(xToken) && !isVerticalOrigin(yToken)) {
+                String tmp = xToken;
+                xToken = yToken;
+                yToken = tmp;
+            }
+        }
+
+        return new float[]{
+                (float) resolveOriginToken(xToken, width, true),
+                (float) resolveOriginToken(yToken, height, false)
+        };
+    }
+
+    private static boolean isVerticalOrigin(String token) {
+        return "top".equals(token) || "bottom".equals(token);
+    }
+
+    private static double resolveOriginToken(String token, double basis, boolean horizontal) {
+        if (token == null || token.isBlank()) return basis / 2.0;
+        return switch (token) {
+            case "left" -> horizontal ? 0 : basis / 2.0;
+            case "right" -> horizontal ? basis : basis / 2.0;
+            case "top" -> horizontal ? basis / 2.0 : 0;
+            case "bottom" -> horizontal ? basis / 2.0 : basis;
+            case "center" -> basis / 2.0;
+            default -> Size.resolveLength(token, basis, basis / 2.0);
+        };
     }
 
     private record Scratch(double[] absX, double[] absY) {
@@ -204,11 +476,35 @@ public class Base {
 
     public static void resolveOffset(PoseStack poseStack) {
         if (accumulateDepth) {
-            depthCursor += depthStep;
-            poseStack.translate(0, 0, depthCursor);
-        } else {
-            poseStack.translate(0, 0, depthStep);
+            // A renderer-internal draw belongs to its enclosing RenderNode.
+            // Advancing here would let images and placeholders perturb every
+            // subsequent node's CSS paint depth.
+            return;
         }
+        poseStack.translate(0, 0, depthStep);
+    }
+
+    private static void resolvePaintOffset(PoseStack poseStack, RenderNode node) {
+        if (!accumulateDepth) {
+            poseStack.translate(0, 0, depthStep);
+            return;
+        }
+        poseStack.translate(0, 0, advancePaintDepth(node));
+    }
+
+    private static float advancePaintDepth(RenderNode node) {
+        depthCursor = WorldPaintDepth.advance(
+                depthCursor,
+                depthStep,
+                node == null || node.advancesPaintDepth()
+        );
+        return depthCursor;
+    }
+
+    /** Moves within the current paint layer without consuming another paint-list slot. */
+    public static void offsetPaintDepth(PoseStack poseStack, float fraction) {
+        if (!accumulateDepth || poseStack == null || !Float.isFinite(fraction)) return;
+        poseStack.translate(0, 0, depthStep * fraction);
     }
 
     public static void pushDepthStep(float step) {
@@ -229,6 +525,31 @@ public class Base {
         DEPTH_CURSOR_STACK.push(depthCursor);
         accumulateDepth = accumulate;
         depthCursor = 0.0f;
+    }
+
+    /** Overrides the document-level Z offset for a nested render surface. */
+    public static void pushDocumentZOffset(float offset) {
+        DOCUMENT_Z_OFFSET_STACK.push(documentZOffset);
+        documentZOffset = Float.isFinite(offset) ? offset : GLOBAL_DOCUMENT_Z_OFFSET;
+    }
+
+    public static void popDocumentZOffset() {
+        documentZOffset = DOCUMENT_Z_OFFSET_STACK.isEmpty()
+                ? GLOBAL_DOCUMENT_Z_OFFSET
+                : DOCUMENT_Z_OFFSET_STACK.pop();
+    }
+
+    public static void pushDepthTest(boolean enabled) {
+        DEPTH_TEST_STACK.push(depthTestEnabled);
+        depthTestEnabled = enabled;
+    }
+
+    public static void popDepthTest() {
+        depthTestEnabled = DEPTH_TEST_STACK.isEmpty() ? true : DEPTH_TEST_STACK.pop();
+    }
+
+    public static boolean isDepthTestEnabled() {
+        return depthTestEnabled;
     }
 
     public static void popDepthMode() {

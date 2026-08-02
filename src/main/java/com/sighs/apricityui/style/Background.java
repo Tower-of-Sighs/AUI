@@ -15,6 +15,9 @@ public class Background {
         public String position = "0 0";
         public String imagePath = "unset";
         public Gradient gradient = null;
+        public boolean intrinsicRepeat = false;
+        public String intrinsicRepeatValue = null;
+        public String intrinsicSizeValue = null;
 
         public boolean hasDrawableContent() {
             return gradient != null || (imagePath != null && !imagePath.isBlank() && !"unset".equals(imagePath));
@@ -34,7 +37,6 @@ public class Background {
     public static Background of(Element element) {
         Background cache = element.getRenderer().background.get();
         if (cache != null) {
-            cache.syncAnimatedFields(element.getComputedStyle(), element.document.getPath());
             return cache;
         }
 
@@ -45,12 +47,6 @@ public class Background {
 
         element.getRenderer().background.set(bg);
         return bg;
-    }
-
-    private void syncAnimatedFields(Style style, String contextPath) {
-        if (style == null) return;
-        this.color = style.backgroundColor;
-        buildLayers(contextPath, style.backgroundImage, style.backgroundRepeat, style.backgroundSize, style.backgroundPosition);
     }
 
     private void buildLayers(String contextPath, String image, String repeat, String size, String position) {
@@ -73,6 +69,10 @@ public class Background {
             layer.repeat = normalizeLayerValue(pickLayerToken(repeats, i, "no-repeat"), "no-repeat");
             layer.size = normalizeLayerValue(pickLayerToken(sizes, i, "auto"), "auto");
             layer.position = normalizeLayerValue(pickLayerToken(positions, i, "0 0"), "0 0");
+            if (layer.intrinsicRepeat) {
+                if (layer.intrinsicRepeatValue != null) layer.repeat = layer.intrinsicRepeatValue;
+                if (layer.intrinsicSizeValue != null) layer.size = layer.intrinsicSizeValue;
+            }
             layers.add(layer);
 
             if (gradient == null && layer.gradient != null) gradient = layer.gradient;
@@ -101,8 +101,11 @@ public class Background {
         }
 
         String lowered = image.toLowerCase(Locale.ROOT);
-        if (lowered.startsWith("linear-gradient")) {
+        if (lowered.startsWith("linear-gradient") || lowered.startsWith("repeating-linear-gradient")) {
             layer.gradient = Gradient.parse(image);
+            if (layer.gradient != null && layer.gradient.repeating()) {
+                applyRepeatingGradientTile(layer);
+            }
             return layer;
         }
 
@@ -118,6 +121,31 @@ public class Background {
             }
         }
         return layer;
+    }
+
+    private static void applyRepeatingGradientTile(Layer layer) {
+        float repeatLength = layer.gradient.repeatLengthPx();
+        if (repeatLength <= 0) return;
+        float angle = normalizeAngle(layer.gradient.angle());
+        if (Math.abs(angle - 90f) < 0.01f || Math.abs(angle - 270f) < 0.01f) {
+            layer.intrinsicRepeat = true;
+            layer.intrinsicRepeatValue = "repeat-x";
+            layer.intrinsicSizeValue = trimFloat(repeatLength) + "px 100%";
+        } else if (Math.abs(angle) < 0.01f || Math.abs(angle - 180f) < 0.01f) {
+            layer.intrinsicRepeat = true;
+            layer.intrinsicRepeatValue = "repeat-y";
+            layer.intrinsicSizeValue = "100% " + trimFloat(repeatLength) + "px";
+        }
+    }
+
+    private static float normalizeAngle(float angle) {
+        float normalized = angle % 360f;
+        return normalized < 0 ? normalized + 360f : normalized;
+    }
+
+    private static String trimFloat(float value) {
+        if (Math.abs(value - Math.round(value)) < 0.001f) return Integer.toString(Math.round(value));
+        return Float.toString(value);
     }
 
     private static String pickLayerToken(List<String> values, int index, String fallback) {

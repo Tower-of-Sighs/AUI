@@ -1,5 +1,7 @@
 package com.sighs.apricityui.instance;
 
+import com.sighs.apricityui.ApricityUI;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +31,7 @@ public class Loader {
     }
 
     protected final String extension;
+    protected int loadedResourceCount;
     protected BiConsumer<String, String> handler = (key, content) -> {
     };
 
@@ -57,7 +60,8 @@ public class Loader {
             if (Files.exists(local) && Files.isRegularFile(local)) {
                 return Files.newInputStream(local);
             }
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] filesystem resource read failed path={}", path, exception);
         }
         InputStream bundled = Loader.class.getClassLoader()
                 .getResourceAsStream("assets/apricityui/apricity/" + (path.startsWith("/") ? path.substring(1) : path));
@@ -158,7 +162,8 @@ public class Loader {
     static String readGlobalCSS() {
         try (InputStream stream = getResourceStream("global.css")) {
             if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to read global.css", exception);
         }
         return null;
     }
@@ -166,7 +171,8 @@ public class Loader {
     public static String readGlobalJS() {
         try (InputStream stream = getResourceStream("global.js")) {
             if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to read global.js", exception);
         }
         return null;
     }
@@ -199,8 +205,8 @@ public class Loader {
     }
 
     protected void loadFromLocalFolder() {
+        Path root = getGameDir().resolve("apricity");
         try {
-            Path root = getGameDir().resolve("apricity");
             if (!Files.exists(root)) {
                 Files.createDirectories(root);
                 return;
@@ -213,11 +219,19 @@ public class Loader {
                                 String content = Files.readString(path, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(path).toString().replace("\\", "/");
                                 handler.accept(relPath, content);
-                            } catch (IOException ignored) {
+                                loadedResourceCount++;
+                            } catch (IOException exception) {
+                                ApricityUI.LOGGER.error(
+                                        "[AUI Resource] failed to read local .{} file={}",
+                                        extension,
+                                        path,
+                                        exception
+                                );
                             }
-                        });
+                    });
             }
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.error("[AUI Resource] failed to scan local resource root={}", root, exception);
         }
     }
 
@@ -244,11 +258,19 @@ public class Loader {
                                 String content = Files.readString(path, StandardCharsets.UTF_8);
                                 String relPath = root.relativize(path).toString().replace("\\", "/");
                                 handler.accept(relPath, content);
-                            } catch (IOException ignored) {
+                                loadedResourceCount++;
+                            } catch (IOException exception) {
+                                ApricityUI.LOGGER.error(
+                                        "[AUI Resource] failed to read dev .{} file={}",
+                                        extension,
+                                        path,
+                                        exception
+                                );
                             }
-                        });
+                    });
             }
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.error("[AUI Resource] failed to scan dev resource root={}", root, exception);
         }
     }
 
@@ -292,11 +314,13 @@ public class Loader {
                                         sourceDetail,
                                         size
                                 ));
-                            } catch (IOException ignored) {
+                            } catch (IOException exception) {
+                                ApricityUI.LOGGER.warn("[AUI Resource] failed to inspect static resource file={}", path, exception);
                             }
-                        });
+                    });
             }
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to enumerate static resources root={}", root, exception);
         }
     }
 
@@ -310,7 +334,7 @@ public class Loader {
         }
     }
 
-    private static Path getGameDir() {
+    public static Path getGameDirectory() {
         try {
             Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
             Object gameDirHolder = fmlPathsClass.getField("GAMEDIR").get(null);
@@ -321,5 +345,9 @@ public class Loader {
         } catch (Throwable ignored) {
         }
         return Path.of("").toAbsolutePath().normalize();
+    }
+
+    private static Path getGameDir() {
+        return getGameDirectory();
     }
 }

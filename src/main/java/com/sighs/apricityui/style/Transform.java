@@ -1,5 +1,6 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.Style;
 
 import java.util.*;
@@ -20,6 +21,11 @@ public interface Transform {
     }
 
     static List<Transform> parse(String transform) {
+        Size window = Size.getWindowSize();
+        return parse(transform, window.width(), window.height());
+    }
+
+    static List<Transform> parse(String transform, double percentBasisWidth, double percentBasisHeight) {
         List<Transform> result = new ArrayList<>();
 
         Translate translate = Translate.DEFAULT;
@@ -30,31 +36,28 @@ public interface Transform {
             return List.of();
         }
 
-        Pattern funcPattern = Pattern.compile("([a-zA-Z0-9]+)\\(([^)]*)\\)");
-        Matcher m = funcPattern.matcher(transform);
-
-        while (m.find()) {
-            String func = m.group(1).toLowerCase(Locale.ENGLISH);
-            String argText = m.group(2).trim();
+        for (FunctionCall call : extractFunctionCalls(transform)) {
+            String func = call.name().toLowerCase(Locale.ENGLISH);
+            String argText = call.arguments().trim();
             List<String> args = splitArgs(argText);
 
             switch (func) {
                 case "translate", "translate3d" -> {
-                    double x = parseLength(args, 0);
-                    double y = parseLength(args, 1);
-                    double z = parseLength(args, 2);
+                    double x = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
+                    double y = parseLength(args, 1, percentBasisWidth, percentBasisHeight);
+                    double z = parseLength(args, 2, percentBasisWidth, percentBasisHeight);
                     result.add(new Translate(x, y, z));
                 }
                 case "translatex" -> {
-                    double x = parseLength(args, 0);
+                    double x = parseLength(args, 0, percentBasisWidth);
                     result.add(new Translate(x, translate.y(), translate.z()));
                 }
                 case "translatey" -> {
-                    double y = parseLength(args, 0);
+                    double y = parseLength(args, 0, percentBasisHeight);
                     result.add(new Translate(translate.x(), y, translate.z()));
                 }
                 case "translatez" -> {
-                    double z = parseLength(args, 0);
+                    double z = parseLength(args, 0, percentBasisWidth, percentBasisHeight);
                     result.add(new Translate(translate.x(), translate.y(), z));
                 }
                 case "rotate", "rotatez" -> {
@@ -119,16 +122,67 @@ public interface Transform {
     private static List<String> splitArgs(String argText) {
         List<String> out = new ArrayList<>();
         if (argText == null || argText.isBlank()) return out;
-        String[] byComma = argText.split(",");
-        for (String part : byComma) {
-            String trimmed = part.trim();
-            if (trimmed.isEmpty()) continue;
-            String[] bySpace = trimmed.split("\\s+");
-            for (String s : bySpace) {
-                if (!s.isEmpty()) out.add(s.trim());
+        StringBuilder current = new StringBuilder();
+        int depth = 0;
+        for (int i = 0; i < argText.length(); i++) {
+            char c = argText.charAt(i);
+            if (c == '(') {
+                depth++;
+                current.append(c);
+                continue;
             }
+            if (c == ')') {
+                depth = Math.max(0, depth - 1);
+                current.append(c);
+                continue;
+            }
+            if ((c == ',' || Character.isWhitespace(c)) && depth == 0) {
+                String token = current.toString().trim();
+                if (!token.isEmpty()) out.add(token);
+                current.setLength(0);
+                continue;
+            }
+            current.append(c);
+        }
+        String token = current.toString().trim();
+        if (!token.isEmpty()) {
+            out.add(token);
         }
         return out;
+    }
+
+    private static List<FunctionCall> extractFunctionCalls(String transform) {
+        List<FunctionCall> calls = new ArrayList<>();
+        if (transform == null || transform.isBlank()) return calls;
+
+        int length = transform.length();
+        int index = 0;
+        while (index < length) {
+            while (index < length && Character.isWhitespace(transform.charAt(index))) index++;
+            if (index >= length) break;
+
+            int nameStart = index;
+            while (index < length && Character.isLetterOrDigit(transform.charAt(index))) index++;
+            if (index <= nameStart || index >= length || transform.charAt(index) != '(') {
+                index++;
+                continue;
+            }
+
+            String name = transform.substring(nameStart, index);
+            int argsStart = ++index;
+            int depth = 1;
+            while (index < length && depth > 0) {
+                char c = transform.charAt(index);
+                if (c == '(') depth++;
+                else if (c == ')') depth--;
+                index++;
+            }
+            if (depth != 0) break;
+
+            String arguments = transform.substring(argsStart, index - 1);
+            calls.add(new FunctionCall(name, arguments));
+        }
+        return calls;
     }
 
     private static double parseScale(String token) {
@@ -145,9 +199,16 @@ public interface Transform {
         }
     }
 
-    private static double parseLength(List<String> args, int index) {
+    private static double parseLength(List<String> args, int index, double percentBasisWidth, double percentBasisHeight) {
         if (args == null || index < 0 || index >= args.size()) return 0;
-        Double parsed = Size.parseNumber(args.get(index));
+        double percentBasis = index == 1 ? percentBasisHeight : percentBasisWidth;
+        return parseLength(args, index, percentBasis);
+    }
+
+    private static double parseLength(List<String> args, int index, double percentBasis) {
+        if (args == null || index < 0 || index >= args.size()) return 0;
+        String raw = args.get(index);
+        Double parsed = Size.tryResolveLength(raw, percentBasis);
         return parsed == null ? 0 : parsed;
     }
 
@@ -168,32 +229,32 @@ public interface Transform {
 
     static void createTransition(Style startStyle, Style endStyle, List<Transition> result, double duration, double delay) {
         long time = System.currentTimeMillis();
-        List<Transform> startTransforms = parse(startStyle.transform);
-        List<Transform> endTransforms = parse(endStyle.transform);
+        List<Transform> startTransforms = new ArrayList<>(parse(startStyle.transform));
+        List<Transform> endTransforms = new ArrayList<>(parse(endStyle.transform));
 
-        if (startTransforms.size() != endTransforms.size()) return;
-        for (int i = 0; i < startTransforms.size(); i++) {
+        int transformCount = padWithIdentityTransforms(startTransforms, endTransforms);
+        for (int i = 0; i < transformCount; i++) {
             Transform start = startTransforms.get(i);
             Transform end = endTransforms.get(i);
             if (start instanceof Translate startTranslate && end instanceof Translate endTranslate) {
-                if (!startTranslate.equals(endTranslate)) {
-                    result.add(new Transition("transform-translatex", startTranslate.x(), endTranslate.x(), duration, delay, time));
-                    result.add(new Transition("transform-translatey", startTranslate.y(), endTranslate.y(), duration, delay, time));
-                    result.add(new Transition("transform-translatez", startTranslate.z(), endTranslate.z(), duration, delay, time));
-                }
+                addTransitionIfChanged(result, "transform-translatex", startTranslate.x(), endTranslate.x(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-translatey", startTranslate.y(), endTranslate.y(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-translatez", startTranslate.z(), endTranslate.z(), duration, delay, time);
             } else if (start instanceof Rotate startRotate && end instanceof Rotate endRotate) {
-                if (!startRotate.equals(endRotate)) {
-                    result.add(new Transition("transform-rotatex", startRotate.x(), endRotate.x(), duration, delay, time));
-                    result.add(new Transition("transform-rotatey", startRotate.y(), endRotate.y(), duration, delay, time));
-                    result.add(new Transition("transform-rotatez", startRotate.z(), endRotate.z(), duration, delay, time));
-                }
+                addTransitionIfChanged(result, "transform-rotatex", startRotate.x(), endRotate.x(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-rotatey", startRotate.y(), endRotate.y(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-rotatez", startRotate.z(), endRotate.z(), duration, delay, time);
             } else if (start instanceof Scale startScale && end instanceof Scale endScale) {
-                if (!startScale.equals(endScale)) {
-                    result.add(new Transition("transform-scalex", startScale.x(), endScale.x(), duration, delay, time));
-                    result.add(new Transition("transform-scaley", startScale.y(), endScale.y(), duration, delay, time));
-                }
+                addTransitionIfChanged(result, "transform-scalex", startScale.x(), endScale.x(), duration, delay, time);
+                addTransitionIfChanged(result, "transform-scaley", startScale.y(), endScale.y(), duration, delay, time);
             }
         }
+    }
+
+    private static void addTransitionIfChanged(List<Transition> result, String name, double start, double end,
+                                               double duration, double delay, long time) {
+        if (Math.abs(start - end) <= 0.0001) return;
+        result.add(new Transition(name, start, end, duration, delay, time));
     }
 
     static void readTransition(List<Transition.Change> changeList, Style originStyle) {
@@ -210,26 +271,45 @@ public interface Transform {
 
         if (vals.isEmpty()) return;
 
+        Translate baseTranslate = Translate.DEFAULT;
+        Rotate baseRotate = Rotate.DEFAULT;
+        Scale baseScale = Scale.DEFAULT;
+        boolean hasBaseTranslate = false;
+        boolean hasBaseRotate = false;
+        boolean hasBaseScale = false;
+        for (Transform transform : parse(originStyle.transform)) {
+            if (transform instanceof Translate value) {
+                baseTranslate = value;
+                hasBaseTranslate = true;
+            } else if (transform instanceof Rotate value) {
+                baseRotate = value;
+                hasBaseRotate = true;
+            } else if (transform instanceof Scale value) {
+                baseScale = value;
+                hasBaseScale = true;
+            }
+        }
+
         StringBuilder sb = new StringBuilder();
 
-        if (vals.containsKey("transform-translatex") || vals.containsKey("transform-translatey") || vals.containsKey("transform-translatez")) {
+        if (hasBaseTranslate || vals.containsKey("transform-translatex") || vals.containsKey("transform-translatey") || vals.containsKey("transform-translatez")) {
             sb.append(String.format("translate3d(%.2fpx, %.2fpx, %.2fpx) ",
-                    vals.getOrDefault("transform-translatex", 0d),
-                    vals.getOrDefault("transform-translatey", 0d),
-                    vals.getOrDefault("transform-translatez", 0d)));
+                    vals.getOrDefault("transform-translatex", baseTranslate.x()),
+                    vals.getOrDefault("transform-translatey", baseTranslate.y()),
+                    vals.getOrDefault("transform-translatez", baseTranslate.z())));
         }
 
-        if (vals.containsKey("transform-rotatex") || vals.containsKey("transform-rotatey") || vals.containsKey("transform-rotatez")) {
+        if (hasBaseRotate || vals.containsKey("transform-rotatex") || vals.containsKey("transform-rotatey") || vals.containsKey("transform-rotatez")) {
             sb.append(String.format("rotateX(%.2fdeg) rotateY(%.2fdeg) rotateZ(%.2fdeg) ",
-                    vals.getOrDefault("transform-rotatex", 0d),
-                    vals.getOrDefault("transform-rotatey", 0d),
-                    vals.getOrDefault("transform-rotatez", 0d)));
+                    vals.getOrDefault("transform-rotatex", baseRotate.x()),
+                    vals.getOrDefault("transform-rotatey", baseRotate.y()),
+                    vals.getOrDefault("transform-rotatez", baseRotate.z())));
         }
 
-        if (vals.containsKey("transform-scalex") || vals.containsKey("transform-scaley")) {
+        if (hasBaseScale || vals.containsKey("transform-scalex") || vals.containsKey("transform-scaley")) {
             sb.append(String.format("scale(%.2f, %.2f) ",
-                    vals.getOrDefault("transform-scalex", 1.0d),
-                    vals.getOrDefault("transform-scaley", 1.0d)));
+                    vals.getOrDefault("transform-scalex", baseScale.x()),
+                    vals.getOrDefault("transform-scaley", baseScale.y())));
         }
 
         String result = sb.toString().trim();
@@ -239,33 +319,49 @@ public interface Transform {
     }
 
     static void interpolateTransform(List<Transition.Change> changes, String start, String end, double progress) {
-        List<Transform> sTs = Transform.parse(start);
-        List<Transform> eTs = Transform.parse(end);
+        Size window = Size.getWindowSize();
+        interpolateTransform(changes, start, end, progress, window.width(), window.height());
+    }
 
-        if (sTs.isEmpty() && !eTs.isEmpty()) {
-            for (Transform e : eTs) sTs.add(getIdentity(e));
-        } else if (eTs.isEmpty() && !sTs.isEmpty()) {
-            for (Transform s : sTs) eTs.add(getIdentity(s));
-        }
+    /**
+     * Interpolates transform lengths using the transformed element's box as the
+     * percentage basis. CSS translate percentages are relative to that box,
+     * rather than the viewport used by the convenience parser above.
+     */
+    static void interpolateTransform(List<Transition.Change> changes, String start, String end,
+                                     double progress, double percentBasisWidth, double percentBasisHeight) {
+        List<Transform> sTs = new ArrayList<>(Transform.parse(start, percentBasisWidth, percentBasisHeight));
+        List<Transform> eTs = new ArrayList<>(Transform.parse(end, percentBasisWidth, percentBasisHeight));
 
-        int size = Math.max(sTs.size(), eTs.size());
+        int size = padWithIdentityTransforms(sTs, eTs);
         for (int i = 0; i < size; i++) {
-            Transform s = (i < sTs.size()) ? sTs.get(i) : (i < eTs.size() ? getIdentity(eTs.get(i)) : null);
-            Transform e = (i < eTs.size()) ? eTs.get(i) : (i < sTs.size() ? getIdentity(sTs.get(i)) : null);
+            Transform s = sTs.get(i);
+            Transform e = eTs.get(i);
 
             if (s instanceof Transform.Translate st && e instanceof Transform.Translate et) {
-                changes.add(new Transition.Change("transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress)));
-                changes.add(new Transition.Change("transform-translatey", Transition.getOffset("y", st.y(), et.y(), progress)));
-                changes.add(new Transition.Change("transform-translatez", Transition.getOffset("z", st.z(), et.z(), progress)));
+                Transition.addChange(changes, "transform-translatex", Transition.getOffset("x", st.x(), et.x(), progress));
+                Transition.addChange(changes, "transform-translatey", Transition.getOffset("y", st.y(), et.y(), progress));
+                Transition.addChange(changes, "transform-translatez", Transition.getOffset("z", st.z(), et.z(), progress));
             } else if (s instanceof Transform.Rotate sr && e instanceof Transform.Rotate er) {
-                changes.add(new Transition.Change("transform-rotatex", Transition.getOffset("x", sr.x(), er.x(), progress)));
-                changes.add(new Transition.Change("transform-rotatey", Transition.getOffset("y", sr.y(), er.y(), progress)));
-                changes.add(new Transition.Change("transform-rotatez", Transition.getOffset("z", sr.z(), er.z(), progress)));
+                Transition.addChange(changes, "transform-rotatex", Transition.getOffset("x", sr.x(), er.x(), progress));
+                Transition.addChange(changes, "transform-rotatey", Transition.getOffset("y", sr.y(), er.y(), progress));
+                Transition.addChange(changes, "transform-rotatez", Transition.getOffset("z", sr.z(), er.z(), progress));
             } else if (s instanceof Transform.Scale ss && e instanceof Transform.Scale es) {
-                changes.add(new Transition.Change("transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress)));
-                changes.add(new Transition.Change("transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress)));
+                Transition.addChange(changes, "transform-scalex", Transition.getOffset("x", ss.x(), es.x(), progress));
+                Transition.addChange(changes, "transform-scaley", Transition.getOffset("y", ss.y(), es.y(), progress));
             }
         }
+    }
+
+    private static int padWithIdentityTransforms(List<Transform> start, List<Transform> end) {
+        int size = Math.max(start.size(), end.size());
+        for (int i = start.size(); i < size; i++) {
+            start.add(getIdentity(end.get(i)));
+        }
+        for (int i = end.size(); i < size; i++) {
+            end.add(getIdentity(start.get(i)));
+        }
+        return size;
     }
 
     private static Transform getIdentity(Transform t) {
@@ -273,5 +369,8 @@ public interface Transform {
         if (t instanceof Transform.Rotate) return Transform.Rotate.DEFAULT;
         if (t instanceof Transform.Scale) return Transform.Scale.DEFAULT;
         return t;
+    }
+
+    record FunctionCall(String name, String arguments) {
     }
 }

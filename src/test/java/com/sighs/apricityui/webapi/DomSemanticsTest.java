@@ -1,10 +1,10 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.element.Body;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.NormalFlow;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.NormalFlow;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.init.CommentNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.DocumentFragment;
@@ -128,6 +128,72 @@ class DomSemanticsTest {
     }
 
     @Test
+    void disconnectedAttributeWritesDoNotQueueRenderWorkUntilMounted() {
+        Document document = TestDocumentFactory.createDocument();
+        document.getDirtyElements().clear();
+        Element row = new Element(document, "div");
+        Element cell = new Element(document, "span");
+
+        row.setAttribute("class", "row");
+        row.setAttribute("style", "display:flex;width:100px;");
+        cell.setAttribute("class", "cell");
+        cell.setAttribute("style", "width:50px;");
+        row.appendChild(cell);
+
+        assertFalse(row.isConnected());
+        assertFalse(cell.isConnected());
+        assertTrue(document.getDirtyElements().isEmpty(), () -> "dirty=" + document.getDirtyElements());
+
+        document.body.appendChild(row);
+
+        assertTrue(row.isConnected());
+        assertTrue(cell.isConnected());
+        assertTrue(document.getDirtyElements().contains(row));
+    }
+
+    @Test
+    void clearChildrenRemovesSubtreesInOneDomOperation() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = document.createElement("div");
+        Element first = document.createElement("span");
+        Element nested = document.createElement("b");
+        Element second = document.createElement("section");
+        first.setAttribute("id", "first");
+        nested.setAttribute("id", "nested");
+        second.setAttribute("id", "second");
+
+        document.body.appendChild(host);
+        host.appendChild(first);
+        first.appendChild(nested);
+        host.appendChild(second);
+
+        AtomicInteger callbackCalls = new AtomicInteger();
+        document.createMutationObserver(records -> {
+            callbackCalls.incrementAndGet();
+            @SuppressWarnings("unchecked")
+            List<Document.MutationRecord> snapshot = (List<Document.MutationRecord>) records;
+            assertEquals(1, snapshot.size());
+            assertSame(host, snapshot.get(0).target);
+            assertEquals(List.of(first, second), snapshot.get(0).removedNodes);
+        }).observe(host, true, false, false, false, false, false, "");
+
+        host.clearChildren();
+        document.flushMutationObservers();
+
+        assertTrue(host.childNodes.isEmpty());
+        assertTrue(host.children.isEmpty());
+        assertNull(first.getParentNode());
+        assertNull(second.getParentNode());
+        assertNull(document.getElementById("first"));
+        assertNull(document.getElementById("nested"));
+        assertNull(document.getElementById("second"));
+        assertFalse(document.getElements().contains(first));
+        assertFalse(document.getElements().contains(nested));
+        assertFalse(document.getElements().contains(second));
+        assertEquals(1, callbackCalls.get());
+    }
+
+    @Test
     void queryTraversalAndSiblingApisExposeBrowserLikeRelationships() {
         Document document = TestDocumentFactory.createDocument();
         Element parent = new Element(document, "div");
@@ -149,13 +215,14 @@ class DomSemanticsTest {
         parent.appendChild(third);
         parent.appendChild(text);
         parent.appendChild(comment);
+        Element mountedSecond = parent.getChildren().get(1);
 
         assertSame(first, document.getElementById("first"));
-        assertIterableEquals(List.of(first, second), document.getElementsByClassName("chip"));
+        assertIterableEquals(List.of(first, mountedSecond), document.getElementsByClassName("chip"));
         assertIterableEquals(List.of(parent), document.getElementsByTagName("div"));
-        assertIterableEquals(List.of(second), document.getElementsByName("username"));
-        assertIterableEquals(List.of(first, second, third), parent.getChildren());
-        assertIterableEquals(List.of(first, second, third, text, comment), parent.getChildNodes());
+        assertIterableEquals(List.of(mountedSecond), document.getElementsByName("username"));
+        assertIterableEquals(List.of(first, mountedSecond, third), parent.getChildren());
+        assertIterableEquals(List.of(first, mountedSecond, third, text, comment), parent.getChildNodes());
         assertSame(first, parent.getFirstChild());
         assertSame(comment, parent.getLastChild());
         assertSame(parent, text.getParentNode());
@@ -166,11 +233,11 @@ class DomSemanticsTest {
         assertSame(document, text.getOwnerDocument());
         assertSame(first, parent.getFirstElementChild());
         assertSame(third, parent.getLastElementChild());
-        assertSame(second, first.getNextElementSibling());
-        assertSame(second, third.getPreviousElementSibling());
-        assertSame(parent, second.getParentNode());
-        assertTrue(second.matches("input[name=\"username\"]"));
-        assertSame(parent, second.closest("div"));
+        assertSame(mountedSecond, first.getNextElementSibling());
+        assertSame(mountedSecond, third.getPreviousElementSibling());
+        assertSame(parent, mountedSecond.getParentNode());
+        assertTrue(mountedSecond.matches("input[name=\"username\"]"));
+        assertSame(parent, mountedSecond.closest("div"));
         assertTrue(parent.contains(third));
     }
 
@@ -427,6 +494,41 @@ class DomSemanticsTest {
         assertTrue(wrapper.getChildNodes().get(1) instanceof Element);
         assertTrue(wrapper.getChildNodes().get(2) instanceof CommentNode);
         assertEquals("before<strong>swap</strong><!--after-->", wrapper.getInnerHTML());
+    }
+
+    @Test
+    void innerHtmlParsedElementsInitializeDerivedAttributeState() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+
+        host.setInnerHTML("<div id=\"slot\" class=\"slot-card flex\" style=\"display:flex;background:white;border:2px solid #123456\"></div>");
+
+        Element slot = host.querySelector("#slot");
+        assertNotNull(slot);
+        assertTrue(slot.getClassNames().contains("slot-card"));
+        assertTrue(slot.getClassNames().contains("flex"));
+        assertEquals("flex", slot.getComputedStyle().display);
+        assertEquals("white", slot.getComputedStyle().backgroundColor);
+        assertEquals("2px solid #123456", slot.getComputedStyle().border);
+    }
+
+    @Test
+    void disconnectedInnerHtmlBuildsLocalSubtreeUntilHostIsMounted() {
+        Document document = TestDocumentFactory.createDocument();
+        Element host = new Element(document, "div");
+
+        host.setInnerHTML("<div class=\"card\"><span>alpha</span></div>");
+
+        assertEquals(1, host.getChildNodes().size());
+        assertSame(host, host.getFirstChild().getParentNode());
+        assertFalse(host.getFirstChild().isConnected());
+
+        document.body.appendChild(host);
+
+        Element card = host.querySelector(".card");
+        assertNotNull(card);
+        assertTrue(card.isConnected());
+        assertEquals("alpha", card.getTextContent());
     }
 
     @Test

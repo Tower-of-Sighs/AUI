@@ -1,15 +1,17 @@
 package com.sighs.apricityui.init;
+
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
+import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.instance.Client;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.registry.Keybindings;
-import com.sighs.apricityui.style.Position;
+import com.sighs.apricityui.layout.Position;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 
@@ -22,16 +24,24 @@ public class Operation {
     private static int lastScanCode = -1;
     private static int lastAction = -1;
     private static int lastModifiers = -1;
+    private static boolean lastDevToolsInspectConsumed;
 
     public static boolean onMouseDown() {
         return onMouseDown(-1);
     }
 
     public static boolean onMouseDown(int button) {
+        lastDevToolsInspectConsumed = false;
         mouseButtons |= buttonMask(button);
-        MouseEvent event = new MouseEvent("mousedown", getMousePosition(), button);
+        Position mousePosition = getMousePositionDirectly();
+        if (DevTools.handleInspectMouseDown(mousePosition, button)) {
+            lastDevToolsInspectConsumed = true;
+            return true;
+        }
+        MouseEvent event = new MouseEvent("mousedown", mousePosition, button);
         event.setTrusted(true);
-        return MouseEvent.tiggerEvent(event);
+        MouseEvent.tiggerEvent(event);
+        return event.isNativeConsumed();
     }
 
     public static boolean onMouseUp() {
@@ -39,15 +49,36 @@ public class Operation {
     }
 
     public static boolean onMouseUp(int button) {
+        lastDevToolsInspectConsumed = false;
         mouseButtons &= ~buttonMask(button);
-        MouseEvent event = new MouseEvent("mouseup", getMousePosition(), button);
+        if (DevTools.handleInspectMouseUp(button)) {
+            lastDevToolsInspectConsumed = true;
+            return true;
+        }
+        MouseEvent event = new MouseEvent("mouseup", getMousePositionDirectly(), button);
         event.setTrusted(true);
-        return MouseEvent.tiggerEvent(event);
+        MouseEvent.tiggerEvent(event);
+        return event.isNativeConsumed();
+    }
+
+    /** Returns whether the most recent mouse press/release was consumed by DevTools picking. */
+    public static boolean wasDevToolsInspectConsumed() {
+        return lastDevToolsInspectConsumed;
     }
 
     public static void onMouseMove(Position currentMousePosition) {
+        if (currentMousePosition == null) {
+            currentMousePosition = getMousePositionDirectly();
+        }
+        if (currentMousePosition == null) {
+            return;
+        }
         if (cachedMousePosition != null) {
-            MouseEvent mouseEvent = new MouseEvent("mousemove", getMousePosition());
+            if (Double.compare(currentMousePosition.x, cachedMousePosition.x) == 0
+                    && Double.compare(currentMousePosition.y, cachedMousePosition.y) == 0) {
+                return;
+            }
+            MouseEvent mouseEvent = new MouseEvent("mousemove", currentMousePosition);
             mouseEvent.movementX = currentMousePosition.x - cachedMousePosition.x;
             mouseEvent.movementY = currentMousePosition.y - cachedMousePosition.y;
             mouseEvent.setTrusted(true);
@@ -57,12 +88,13 @@ public class Operation {
     }
 
     public static boolean scroll(double delta) {
-        MouseEvent mouseEvent = new MouseEvent("wheel", getMousePosition());
+        MouseEvent mouseEvent = new MouseEvent("wheel", getMousePositionDirectly());
         mouseEvent.deltaY = -delta * 50;
         mouseEvent.scrollDelta = mouseEvent.deltaY;
         mouseEvent.cancelable = true;
         mouseEvent.setTrusted(true);
-        return MouseEvent.tiggerEvent(mouseEvent);
+        MouseEvent.tiggerEvent(mouseEvent);
+        return mouseEvent.isNativeConsumed();
     }
 
     public static int getMouseButtons() {
@@ -104,12 +136,38 @@ public class Operation {
         for (Document document : Document.getAll()) {
             final boolean[] documentCanceled = {false};
             Event.runTrustedAction(() -> {
-                KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
+                KeyEvent keyEvent = KeyEvent.triggerEvent(document, "keydown", key, scanCode, modifiers, repeat, source);
+                if (keyEvent != null && keyEvent.defaultPrevented) {
+                    documentCanceled[0] = true;
+                    return;
+                }
                 Element focusedElement = document.getFocusedElement();
                 String selectedText = resolveSelectedText(document, focusedElement);
+                boolean ctrlDown = isCtrlDown();
+
+                if (focusedElement instanceof Input input && input.handleRangeKey(key)) {
+                    documentCanceled[0] = true;
+                    return;
+                }
+
+                if (focusedElement != null && ("BUTTON".equalsIgnoreCase(focusedElement.tagName)
+                        || (focusedElement instanceof Input input
+                        && ("submit".equalsIgnoreCase(input.getType())
+                        || "reset".equalsIgnoreCase(input.getType())
+                        || "button".equalsIgnoreCase(input.getType()))))
+                        && (key == GLFW.GLFW_KEY_ENTER || key == GLFW.GLFW_KEY_SPACE)) {
+                    focusedElement.click();
+                    documentCanceled[0] = true;
+                    return;
+                }
+
+                if (focusedElement instanceof Select select && select.handleKeyDownDefault(keyEvent)) {
+                    documentCanceled[0] = true;
+                    return;
+                }
 
                 if (focusedElement instanceof AbstractText textElement) {
-                    if (isCtrlDown()) {
+                    if (ctrlDown) {
                         if (key == GLFW.GLFW_KEY_A) {
                             if (textElement.canSelectText()) {
                                 textElement.selectAll();
@@ -119,24 +177,42 @@ public class Operation {
                         }
                         if (key == GLFW.GLFW_KEY_C) {
                             if (textElement.canSelectText() && !selectedText.isEmpty()) {
-                                setClipboardText(selectedText);
-                                documentCanceled[0] = true;
-                                return;
+                                Event clipboard = new Event(focusedElement, "copy", true);
+                                clipboard.cancelable = true;
+                                Event.markTrustedFromCurrentDispatch(clipboard);
+                                Event.tiggerEvent(clipboard);
+                                if (!clipboard.defaultPrevented) {
+                                    setClipboardText(selectedText);
+                                    documentCanceled[0] = true;
+                                    return;
+                                }
                             }
                         }
                         if (key == GLFW.GLFW_KEY_X) {
                             if (textElement.canEditText() && textElement.hasSelection()) {
-                                if (!selectedText.isEmpty()) setClipboardText(selectedText);
-                                textElement.replaceSelection("");
-                                documentCanceled[0] = true;
-                                return;
+                                Event clipboard = new Event(focusedElement, "cut", true);
+                                clipboard.cancelable = true;
+                                Event.markTrustedFromCurrentDispatch(clipboard);
+                                Event.tiggerEvent(clipboard);
+                                if (!clipboard.defaultPrevented) {
+                                    if (!selectedText.isEmpty()) setClipboardText(selectedText);
+                                    textElement.replaceSelection("");
+                                    documentCanceled[0] = true;
+                                    return;
+                                }
                             }
                         }
                         if (key == GLFW.GLFW_KEY_V) {
                             if (textElement.canEditText()) {
-                                textElement.insertText(getClipboardText());
-                                documentCanceled[0] = true;
-                                return;
+                                Event clipboard = new Event(focusedElement, "paste", true);
+                                clipboard.cancelable = true;
+                                Event.markTrustedFromCurrentDispatch(clipboard);
+                                Event.tiggerEvent(clipboard);
+                                if (!clipboard.defaultPrevented) {
+                                    textElement.insertText(getClipboardText());
+                                    documentCanceled[0] = true;
+                                    return;
+                                }
                             }
                         }
                         if (key == GLFW.GLFW_KEY_Z) {
@@ -178,18 +254,24 @@ public class Operation {
                     } else if (key == GLFW.GLFW_KEY_ESCAPE) {
                         document.clearFocus();
                         documentCanceled[0] = true;
+                    } else if (shouldConsumeTextEntryKey(focusedElement, key)) {
+                        // Character insertion arrives through CharacterTyped. Consume the
+                        // preceding key press so Minecraft shortcuts do not run first.
+                        documentCanceled[0] = true;
                     }
                 } else if (focusedElement != null) {
-                    if (isCtrlDown()) {
+                    if (ctrlDown) {
                         if (key == GLFW.GLFW_KEY_A && focusedElement.canSelectInnerText()) {
                             focusedElement.selectAllInnerText();
                             documentCanceled[0] = true;
                             return;
                         }
-                        if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText() && !selectedText.isEmpty()) {
-                            setClipboardText(selectedText);
-                            documentCanceled[0] = true;
-                            return;
+                        if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText()) {
+                            if (!selectedText.isEmpty()) {
+                                setClipboardText(selectedText);
+                                documentCanceled[0] = true;
+                                return;
+                            }
                         }
                     }
                     if (key == GLFW.GLFW_KEY_ESCAPE && focusedElement.canSelectInnerText()) {
@@ -201,16 +283,53 @@ public class Operation {
             });
             cancel |= documentCanceled[0];
         }
-        if (!repeat && key == GLFW.GLFW_KEY_F12) {
-            DevTools.toggle();
-        }
-        if (!repeat && key == GLFW.GLFW_KEY_F10) {
-            ResourceManager.toggle();
-        }
-        if (!repeat && key == Keybindings.RELOAD.getKey().getValue()) {
-            ClientLoader.reload();
+        if (!repeat && handleFrameworkShortcut(key, modifiers)) {
+            return true;
         }
         return cancel;
+    }
+
+    static boolean shouldConsumeTextEntryKey(Element focusedElement, int key) {
+        if (!(focusedElement instanceof AbstractText textElement) || !textElement.canEditText()) {
+            return false;
+        }
+        return (key >= GLFW.GLFW_KEY_A && key <= GLFW.GLFW_KEY_Z)
+                || (key >= GLFW.GLFW_KEY_0 && key <= GLFW.GLFW_KEY_9)
+                || (key >= GLFW.GLFW_KEY_KP_0 && key <= GLFW.GLFW_KEY_KP_EQUAL)
+                || key == GLFW.GLFW_KEY_SPACE
+                || key == GLFW.GLFW_KEY_APOSTROPHE
+                || key == GLFW.GLFW_KEY_COMMA
+                || key == GLFW.GLFW_KEY_MINUS
+                || key == GLFW.GLFW_KEY_PERIOD
+                || key == GLFW.GLFW_KEY_SLASH
+                || key == GLFW.GLFW_KEY_SEMICOLON
+                || key == GLFW.GLFW_KEY_EQUAL
+                || key == GLFW.GLFW_KEY_LEFT_BRACKET
+                || key == GLFW.GLFW_KEY_BACKSLASH
+                || key == GLFW.GLFW_KEY_RIGHT_BRACKET
+                || key == GLFW.GLFW_KEY_GRAVE_ACCENT
+                || key == GLFW.GLFW_KEY_WORLD_1
+                || key == GLFW.GLFW_KEY_WORLD_2;
+    }
+
+    private static boolean handleFrameworkShortcut(int key, int modifiers) {
+        boolean devToolsShortcut = key == Keybindings.DEV_TOOLS.getKey().getValue()
+                || (key == GLFW.GLFW_KEY_I
+                && (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT))
+                == (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT));
+        if (devToolsShortcut) {
+            DevTools.toggle();
+            return true;
+        }
+        if (key == Keybindings.RESOURCE_MANAGER.getKey().getValue()) {
+            ResourceManager.toggle();
+            return true;
+        }
+        if (key == Keybindings.RELOAD.getKey().getValue()) {
+            ClientLoader.reload();
+            return true;
+        }
+        return false;
     }
 
     public static void onKeyReleased(int key) {

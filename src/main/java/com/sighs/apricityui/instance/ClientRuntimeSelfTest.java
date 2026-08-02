@@ -10,6 +10,9 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,6 +21,7 @@ public final class ClientRuntimeSelfTest {
     private static final String ENABLE_PROPERTY = "apricityui.clientSelfTest";
     private static final String EXIT_PROPERTY = "apricityui.clientSelfTest.exitOnFinish";
     private static final String ITEM_RENDER_REGRESSION_PROPERTY = "apricityui.itemRenderRegression";
+    private static final String RESULT_PROPERTY = "apricityui.clientSelfTest.resultFile";
     private static final String LIFECYCLE_DOC_PATH = "tests/lifecycle-event-test.html";
     private static final String RUNTIME_DOC_PATH = "tests/client-runtime-self-test.html";
     private static final String ITEM_RENDER_REGRESSION_DOC_PATH = "tests/item-render-regression-test.html";
@@ -78,8 +82,16 @@ public final class ClientRuntimeSelfTest {
         if (tickCounter - startTick < ASSERT_TIMEOUT_TICKS) return;
 
         List<String> failures = new ArrayList<>();
-        validateLifecycleDocument(failures);
-        validateRuntimeDocument(failures);
+        try {
+            validateLifecycleDocument(failures);
+        } catch (Throwable failure) {
+            failures.add("lifecycle assertion threw " + failure.getClass().getSimpleName() + ": " + safe(failure.getMessage()));
+        }
+        try {
+            validateRuntimeDocument(failures);
+        } catch (Throwable failure) {
+            failures.add("runtime assertion threw " + failure.getClass().getSimpleName() + ": " + safe(failure.getMessage()));
+        }
         // Slot/Item 迁移不在此自检中扩展行为断言；仅保持既有生命周期检查。
 
         if (failures.isEmpty()) {
@@ -87,6 +99,7 @@ public final class ClientRuntimeSelfTest {
         } else {
             ApricityUI.LOGGER.error("[AUI SelfTest] FAIL client runtime self-test: {}", String.join(" | ", failures));
         }
+        writeResult(failures);
 
         Document.remove(LIFECYCLE_DOC_PATH);
         Document.remove(RUNTIME_DOC_PATH);
@@ -165,6 +178,21 @@ public final class ClientRuntimeSelfTest {
 
     private static String safe(String value) {
         return value == null ? "<null>" : value;
+    }
+
+    private static void writeResult(List<String> failures) {
+        String rawPath = System.getProperty(RESULT_PROPERTY);
+        if (rawPath == null || rawPath.isBlank()) return;
+        try {
+            Path result = Path.of(rawPath).toAbsolutePath().normalize();
+            Path parent = result.getParent();
+            if (parent != null) Files.createDirectories(parent);
+            StringBuilder output = new StringBuilder(failures.isEmpty() ? "PASS\n" : "FAIL\n");
+            for (String failure : failures) output.append(failure).append('\n');
+            Files.writeString(result, output.toString(), StandardCharsets.UTF_8);
+        } catch (Exception writeFailure) {
+            ApricityUI.LOGGER.error("[AUI SelfTest] could not write result file", writeFailure);
+        }
     }
 
     private enum State {

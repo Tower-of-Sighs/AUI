@@ -42,9 +42,11 @@ public final class Interaction {
     }
 
     public static String getVisibility(Element element) {
-        for (Element e : element.getRoute()) {
-            String value = e.getComputedStyle().visibility;
+        Element current = element;
+        while (current != null) {
+            String value = current.getComputedStyle().visibility;
             if (!value.equals("unset")) return normalizeVisibility(value);
+            current = current.parentElement;
         }
         return "visible";
     }
@@ -55,9 +57,11 @@ public final class Interaction {
 
     public static boolean isDisplayed(Element element) {
         if (element == null) return false;
-        for (Element e : element.getRoute()) {
-            String value = e.getComputedStyle().display;
+        Element current = element;
+        while (current != null) {
+            String value = current.getComputedStyle().display;
             if ("none".equals(value)) return false;
+            current = current.parentElement;
         }
         return true;
     }

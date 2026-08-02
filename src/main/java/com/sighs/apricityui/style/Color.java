@@ -1,8 +1,39 @@
 package com.sighs.apricityui.style;
 
+import java.util.Locale;
+import java.util.Map;
+
 public class Color {
     private int value;
     public static final Color BLACK = new Color("#000");
+    private static final Map<String, Integer> NAMED_COLORS = Map.ofEntries(
+            Map.entry("black", 0xFF000000),
+            Map.entry("white", 0xFFFFFFFF),
+            Map.entry("red", 0xFFFF0000),
+            Map.entry("green", 0xFF008000),
+            Map.entry("blue", 0xFF0000FF),
+            Map.entry("yellow", 0xFFFFFF00),
+            Map.entry("cyan", 0xFF00FFFF),
+            Map.entry("magenta", 0xFFFF00FF),
+            Map.entry("gray", 0xFF808080),
+            Map.entry("grey", 0xFF808080),
+            Map.entry("lightgray", 0xFFD3D3D3),
+            Map.entry("lightgrey", 0xFFD3D3D3),
+            Map.entry("darkgray", 0xFFA9A9A9),
+            Map.entry("darkgrey", 0xFFA9A9A9),
+            Map.entry("orange", 0xFFFFA500),
+            Map.entry("purple", 0xFF800080),
+            Map.entry("pink", 0xFFFFC0CB),
+            Map.entry("brown", 0xFFA52A2A),
+            Map.entry("navy", 0xFF000080),
+            Map.entry("teal", 0xFF008080),
+            Map.entry("lime", 0xFF00FF00),
+            Map.entry("silver", 0xFFC0C0C0),
+            Map.entry("maroon", 0xFF800000),
+            Map.entry("olive", 0xFF808000),
+            Map.entry("aqua", 0xFF00FFFF),
+            Map.entry("fuchsia", 0xFFFF00FF)
+    );
 
     public Color(String string) {
         set(string);
@@ -28,7 +59,7 @@ public class Color {
         if (string == null) return 0;
         if (string.equals("unset")) string = "#000";
 
-        String input = string.trim().toLowerCase();
+        String input = string.trim().toLowerCase(Locale.ROOT);
         if (input.equals("transparent")) return 0;
 
         if (input.startsWith("#")) {
@@ -38,8 +69,14 @@ public class Color {
         } else if (input.startsWith("hsl(")) {
             return parseHsl(input);
         } else {
-            return 0;
+            return NAMED_COLORS.getOrDefault(input, 0);
         }
+    }
+
+    public static boolean isColorKeyword(String value) {
+        if (value == null || value.isBlank()) return false;
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
+        return "transparent".equals(normalized) || NAMED_COLORS.containsKey(normalized);
     }
 
     public static double mixColors(double startVal, double endVal, double process) {
@@ -73,7 +110,7 @@ public class Color {
         if (getA() == 255) {
             return String.format("#%06X", (value & 0x00FFFFFF));
         }
-        return String.format("#%08X", value);
+        return String.format("#%02X%02X%02X%02X", getR(), getG(), getB(), getA());
     }
 
     public int getA() {
@@ -97,21 +134,23 @@ public class Color {
 
         String cleanHex = hex.startsWith("#") ? hex.substring(1) : hex;
 
-        if (cleanHex.length() == 3) {
-            cleanHex = "" + cleanHex.charAt(0) + cleanHex.charAt(0) +
-                    cleanHex.charAt(1) + cleanHex.charAt(1) +
-                    cleanHex.charAt(2) + cleanHex.charAt(2);
+        if (cleanHex.length() == 3 || cleanHex.length() == 4) {
+            StringBuilder expanded = new StringBuilder(cleanHex.length() * 2);
+            for (int i = 0; i < cleanHex.length(); i++) {
+                expanded.append(cleanHex.charAt(i)).append(cleanHex.charAt(i));
+            }
+            cleanHex = expanded.toString();
         }
 
-        if (cleanHex.length() == 6) {
-            cleanHex = "FF" + cleanHex;
-        }
+        if (cleanHex.length() != 6 && cleanHex.length() != 8) return 0;
 
-        if (cleanHex.length() != 8) {
-            return parseHex("#00000000");
+        try {
+            long rgba = Long.parseLong(cleanHex, 16);
+            if (cleanHex.length() == 6) return (int) (0xFF000000L | rgba);
+            return (int) (((rgba & 0xFFL) << 24) | (rgba >>> 8));
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
-
-        return (int) Long.parseLong(cleanHex, 16);
     }
 
     private static int parseRgba(String input) {

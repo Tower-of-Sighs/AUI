@@ -9,9 +9,9 @@ import com.sighs.apricityui.instance.slot.ItemStackExpressionCompiler;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.Locale;

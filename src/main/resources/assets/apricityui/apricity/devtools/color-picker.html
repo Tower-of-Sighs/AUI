@@ -1,0 +1,24 @@
+<head>
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-font-mode" content="web">
+</head>
+<body></body>
+<style>
+    html, body { width:100%; height:100%; margin:0; background:transparent; pointer-events:auto; font-family:default; }
+    .color-picker { position:fixed; width:288px; box-sizing:border-box; background:#fff; border:2px solid #0f0f14; box-shadow:8px 8px 0 rgba(0,0,0,.18); z-index:10000; }
+    .cp-header { padding:8px 12px; background:#0f0f14; color:#fff; font-size:10px; font-weight:600; letter-spacing:2px; display:flex; align-items:center; justify-content:space-between; }
+    .cp-header-left { display:flex; align-items:center; gap:8px; } .cp-header-left::before { content:''; width:8px; height:8px; background:#8b5cf6; }
+    .cp-close { width:18px; height:18px; padding:0; background:transparent; border:1px solid transparent; color:#9ca3af; font-size:14px; cursor:pointer; } .cp-close:hover { color:#fff; border-color:#8b5cf6; background:#8b5cf6; }
+    .cp-body { padding:12px; } .cp-sv-panel { width:100%; height:180px; box-sizing:border-box; position:relative; cursor:crosshair; border:1px solid #e5e7eb; margin-bottom:10px; overflow:hidden; }
+    .cp-sv-white,.cp-sv-black,.cp-slider-alpha-fill,.cp-current-preview-fill { position:absolute; inset:0; } .cp-sv-white { background:linear-gradient(to right,#fff,rgba(255,255,255,0)); } .cp-sv-black { background:linear-gradient(to bottom,rgba(0,0,0,0),#000); }
+    .cp-sv-handle { position:absolute; width:14px; height:14px; box-sizing:border-box; border:2px solid #fff; box-shadow:0 0 0 1px #0f0f14,0 0 4px rgba(0,0,0,.3); transform:translate(-50%,-50%); pointer-events:none; }
+    .cp-slider-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; } .cp-slider-label { width:14px; font-size:9px; font-weight:600; color:#9ca3af; letter-spacing:.5px; }
+    .cp-slider { flex:1; height:14px; box-sizing:border-box; position:relative; cursor:crosshair; border:1px solid #e5e7eb; } .cp-slider-hue { background:linear-gradient(to right,hsl(0,100%,50%),hsl(60,100%,50%),hsl(120,100%,50%),hsl(180,100%,50%),hsl(240,100%,50%),hsl(300,100%,50%),hsl(360,100%,50%)); }
+    .cp-slider-alpha,.cp-current-preview { background-image:linear-gradient(45deg,#ccc 25%,transparent 25%),linear-gradient(-45deg,#ccc 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#ccc 75%),linear-gradient(-45deg,transparent 75%,#ccc 75%); background-size:8px 8px; background-position:0 0,0 4px,4px -4px,-4px 0; }
+    .cp-slider-handle { position:absolute; top:50%; width:8px; height:18px; box-sizing:border-box; background:#fff; border:1px solid #0f0f14; transform:translate(-50%,-50%); pointer-events:none; box-shadow:0 0 2px rgba(0,0,0,.3); }
+    .cp-current-preview { width:100%; height:32px; box-sizing:border-box; border:1px solid #e5e7eb; margin-bottom:12px; position:relative; } .cp-current-value { position:absolute; right:8px; top:50%; transform:translateY(-50%); font-size:10px; font-weight:600; letter-spacing:.5px; padding:2px 6px; background:rgba(0,0,0,.6); color:#fff; pointer-events:none; }
+    .cp-format-tabs { display:flex; gap:2px; margin-bottom:8px; background:#f4f4f8; padding:2px; border:1px solid #e5e7eb; } .cp-format-tab { flex:1; padding:4px 0; background:transparent; border:none; color:#4b5563; font-size:10px; font-weight:600; letter-spacing:1px; cursor:pointer; } .cp-format-tab.active { background:#fff; color:#8b5cf6; box-shadow:0 0 0 1px #8b5cf6; }
+    .cp-inputs { display:flex; gap:6px; margin-bottom:12px; } .cp-input-group { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; } .cp-input-group.hex { flex:2; } .cp-input-label { font-size:8px; color:#9ca3af; letter-spacing:1px; } .cp-input { width:100%; height:25px; box-sizing:border-box; padding:4px 6px; border:1px solid #e5e7eb; font-size:11px; outline:none; background:#fff; color:#0f0f14; } .cp-input:focus { border-color:#8b5cf6; }
+    .cp-actions { display:flex; align-items:center; gap:6px; padding-top:10px; border-top:1px solid #e5e7eb; } .cp-actions-left,.cp-actions-right { display:flex; gap:4px; } .cp-actions-spacer { flex:1; } .cp-icon-btn { width:28px; height:28px; padding:0; background:transparent; border:1px solid #e5e7eb; color:#4b5563; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; } .cp-icon-btn:hover { border-color:#8b5cf6; color:#8b5cf6; } .cp-icon-btn svg { width:13px; height:13px; }
+    .cp-btn { padding:6px 14px; background:transparent; border:1px solid #e5e7eb; color:#0f0f14; font-size:10px; font-weight:600; letter-spacing:1.5px; cursor:pointer; } .cp-btn.primary { background:#8b5cf6; border-color:#8b5cf6; color:#fff; }
+</style>

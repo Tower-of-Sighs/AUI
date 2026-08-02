@@ -2,9 +2,12 @@ package com.sighs.apricityui.instance;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
-import com.sighs.apricityui.dev.ToastManager;
+import com.sighs.apricityui.dev.DevToolsLogBridge;
+import com.sighs.apricityui.dev.debug.ExternalDebugServer;
+import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.FrameTaskScheduler;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
@@ -32,15 +35,23 @@ import java.util.function.BiConsumer;
 @OnlyIn(Dist.CLIENT)
 @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class ClientLoader extends Loader {
+    private static final Object STATIC_RESOURCE_CACHE_LOCK = new Object();
+    private static List<StaticResourceEntry> cachedFinalStaticResources = null;
+    private static boolean reloadQueued;
+    private static boolean reloadRequested;
     public ClientLoader(String extension) {
         super(extension);
     }
 
     @SubscribeEvent
     public static void setup(FMLClientSetupEvent event) {
+        DevToolsLogBridge.install(ApricityUI.LOGGER);
         // 初始加载时不调用 ApricityJS.reload()，因为此时其他模组的客户端资源
         // （如模型层）可能尚未注册完毕，强制重载 KubeJS 客户端脚本会导致崩溃。
-        event.enqueueWork(ClientLoader::reloadResources);
+        event.enqueueWork(() -> {
+            ExternalDebugServer.startIfEnabled();
+            reloadResources();
+        });
     }
 
     @SubscribeEvent
@@ -49,9 +60,29 @@ public class ClientLoader extends Loader {
     }
 
     public static void reload() {
-        long beginNs = System.nanoTime();
-        ApricityJS.reload();
-        reloadResourcesInternal(beginNs);
+        reloadRequested = true;
+        if (reloadQueued) return;
+        reloadQueued = true;
+        String progressToast = ToastManager.show(
+                "Reloading...",
+                new ToastManager.ToastOptions(0, false, "", "", "", "")
+        );
+
+        // Leave one complete UI frame between the progress toast and the synchronous reload.
+        FrameTaskScheduler.scheduleAfterFrames(2, deadlineNs -> {
+            try {
+                do {
+                    reloadRequested = false;
+                    long beginNs = System.nanoTime();
+                    ApricityJS.reload();
+                    reloadResourcesInternal(beginNs);
+                } while (reloadRequested);
+            } finally {
+                ToastManager.dismiss(progressToast);
+                reloadQueued = false;
+            }
+            return true;
+        });
     }
 
     private static void reloadResources() {
@@ -59,12 +90,13 @@ public class ClientLoader extends Loader {
     }
 
     private static void reloadResourcesInternal(long beginNs) {
+        invalidateStaticResourceCache();
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
         ImageDrawer.clearRenderTypeCache();
         ItemDrawer.clearCache();
         FontDrawer.clearCache();
-        Font.clear();
+        Font.prepareReload();
 
         long scanStartNs = System.nanoTime();
         HTML.scan();
@@ -80,7 +112,7 @@ public class ClientLoader extends Loader {
         long totalCostMs = (System.nanoTime() - beginNs) / 1_000_000L;
         ToastManager.show(
                 "重载完成 " + totalCostMs + "ms (扫描 " + scanCostMs + "ms, 刷新 " + refreshCostMs + "ms)",
-                new ToastManager.ToastOptions(4200, true, "#0f172a", "#e2e8f0", "#334155", "")
+                new ToastManager.ToastOptions(4200, true, "", "", "", "")
         );
     }
 
@@ -100,24 +132,40 @@ public class ClientLoader extends Loader {
             ResourceLocation resourceLocation = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
             Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(resourceLocation);
             if (resource.isPresent()) return resource.get().open();
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to open resource-pack resource path={}", path, exception);
         }
         return null;
     }
 
     public static List<StaticResourceEntry> listFinalStaticResources() {
+        synchronized (STATIC_RESOURCE_CACHE_LOCK) {
+            if (cachedFinalStaticResources != null) return cachedFinalStaticResources;
+        }
+
         LinkedHashMap<String, StaticResourceEntry> merged = new LinkedHashMap<>();
         loadResourcePackEntries(merged);
         loadFilesystemStaticResources(merged);
-        return merged.values().stream()
+        List<StaticResourceEntry> entries = merged.values().stream()
                 .sorted(Comparator.comparing(StaticResourceEntry::path))
                 .toList();
+        synchronized (STATIC_RESOURCE_CACHE_LOCK) {
+            cachedFinalStaticResources = entries;
+        }
+        return entries;
+    }
+
+    public static void invalidateStaticResourceCache() {
+        synchronized (STATIC_RESOURCE_CACHE_LOCK) {
+            cachedFinalStaticResources = null;
+        }
     }
 
     public static String readGlobalCSS() {
         try (InputStream stream = getResourceStream("global.css")) {
             if (stream != null) return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
-        } catch (IOException ignored) {
+        } catch (IOException exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] failed to read global.css", exception);
         }
         return null;
     }
@@ -145,9 +193,11 @@ public class ClientLoader extends Loader {
 
     public void loadResources(BiConsumer<String, String> handler) {
         this.handler = handler;
+        loadedResourceCount = 0;
         loadFromResourcePack();
         loadFromLocalFolder();
         loadFromDevFolders();
+        ApricityUI.LOGGER.info("[AUI Resource] scanned extension={} loaded={}", extension, loadedResourceCount);
     }
 
     private void loadFromResourcePack() {
@@ -160,8 +210,14 @@ public class ClientLoader extends Loader {
                 String path = entry.getKey().getPath();
                 if (path.startsWith("apricity/")) path = path.substring(9);
                 handler.accept(path, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+                loadedResourceCount++;
             } catch (IOException exception) {
-                exception.printStackTrace();
+                ApricityUI.LOGGER.error(
+                        "[AUI Resource] failed to read resource-pack {} path={}",
+                        extension,
+                        entry.getKey(),
+                        exception
+                );
             }
         }
     }

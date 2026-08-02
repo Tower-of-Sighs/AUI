@@ -4,20 +4,26 @@ import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dev.DevTools;
+import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Operation;
 import com.sighs.apricityui.init.Runtime;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.DocumentLayerOrder;
+import com.sighs.apricityui.render.FrameTimingHud;
+import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.ui.Tooltip;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraftforge.api.distmarker.Dist;
@@ -37,6 +43,9 @@ public class Client {
     public static final HashMap<String, Integer> KEY_MAP = new HashMap<>();
     private static int lastWindowWidth = -1;
     private static int lastWindowHeight = -1;
+    private static int lastFramebufferWidth = -1;
+    private static int lastFramebufferHeight = -1;
+    private static double lastGuiScale = -1.0d;
 
     static {
         KEY_MAP.put("key.keyboard.unknown", -1);
@@ -171,6 +180,13 @@ public class Client {
     }
 
     @SubscribeEvent
+    public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
+        Position mousePosition = new Position(event.getMouseX(), event.getMouseY());
+        Tooltip.moveActiveFromScreen(mousePosition);
+        DevTools.handleInspectMouseMove(mousePosition);
+    }
+
+    @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         if (Minecraft.getInstance().screen instanceof ApricityContainerScreen) {
             return;
@@ -179,8 +195,14 @@ public class Client {
             return;
         }
         if (Minecraft.getInstance().level == null || Minecraft.getInstance().screen != null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
-            Cursor.drawPseudoCursor(event.getGuiGraphics());
+            FrameTimingHud.beginFrame();
+            try {
+                drawPersistentScreenDocuments(event.getGuiGraphics());
+                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
+                Cursor.drawPseudoCursor(event.getGuiGraphics());
+            } finally {
+                FrameTimingHud.endFrame(event.getGuiGraphics());
+            }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
     }
@@ -188,16 +210,45 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
-            Base.drawAllDocument(event.getGuiGraphics().pose());
-            Cursor.drawPseudoCursor(event.getGuiGraphics());
+            // RenderGuiEvent is also emitted for the in-world HUD. Keep DevTools'
+            // world-window hover state in sync even when no Minecraft Screen exists.
+            DevTools.handleInspectMouseMove(getMousePositionDirectly());
+            FrameTimingHud.beginFrame();
+            try {
+                for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
+                    if (document == null || document.inWorld || document.isManuallyRendered()) continue;
+                    Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
+                }
+                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
+                Cursor.drawPseudoCursor(event.getGuiGraphics());
+            } finally {
+                FrameTimingHud.endFrame(event.getGuiGraphics());
+            }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
+        }
+    }
+
+    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics) {
+        drawPersistentScreenDocuments(guiGraphics, null);
+    }
+
+    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphics guiGraphics, Document excludedDocument) {
+        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
+            if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
+                continue;
+            }
+            Base.drawOverlayDocument(guiGraphics.pose(), document);
         }
     }
 
     @SubscribeEvent
     public static void scroll(InputEvent.MouseScrollingEvent event) {
         if (Minecraft.getInstance().screen != null) return;
-        boolean consumed = Operation.scroll(event.getScrollDelta());
+        if (handleViewportZoomAtMouse(event.getScrollDelta() > 0)) {
+            event.setCanceled(true);
+            return;
+        }
+        boolean nativeConsumed = Operation.scroll(event.getScrollDelta());
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
@@ -205,14 +256,19 @@ public class Client {
                 mouseEvent.deltaY = -event.getScrollDelta() * 50;
                 mouseEvent.scrollDelta = mouseEvent.deltaY;
                 mouseEvent.cancelable = true;
-                consumed |= MouseEvent.tiggerEvent(mouseEvent, window.document);
+                MouseEvent.tiggerEvent(mouseEvent, window.document);
+                nativeConsumed |= mouseEvent.isNativeConsumed();
             }
         }
-        if (consumed) event.setCanceled(true);
+        if (nativeConsumed || CursorReleaseController.isActive()) event.setCanceled(true);
     }
 
     @SubscribeEvent
     public static void scroll(ScreenEvent.MouseScrolled.Pre event) {
+        if (handleViewportZoomAtMouse(event.getScrollDelta() > 0)) {
+            event.setCanceled(true);
+            return;
+        }
         if (Operation.scroll(event.getScrollDelta())) {
             event.setCanceled(true);
         }
@@ -227,24 +283,33 @@ public class Client {
 
     @SubscribeEvent
     public static void mouseButton(InputEvent.MouseButton.Pre event) {
-        boolean consumed = false;
-        if (event.getAction() == InputConstants.PRESS) consumed = Operation.onMouseDown(event.getButton());
-        if (event.getAction() == InputConstants.RELEASE) consumed = Operation.onMouseUp(event.getButton());
+        boolean nativeConsumed = false;
+        if (event.getAction() == InputConstants.PRESS) nativeConsumed = Operation.onMouseDown(event.getButton());
+        if (event.getAction() == InputConstants.RELEASE) nativeConsumed = Operation.onMouseUp(event.getButton());
+        boolean devToolsInspectConsumed = Operation.wasDevToolsInspectConsumed();
         if (Minecraft.getInstance().screen != null) {
-            if (consumed) event.setCanceled(true);
+            if (nativeConsumed) event.setCanceled(true);
+            return;
+        }
+        // DevTools picking is an inspection gesture, not an application click.
+        if (devToolsInspectConsumed) {
+            event.setCanceled(true);
             return;
         }
         for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
             Position realPos = window.getRealPos();
             if (realPos != null) {
+                MouseEvent mouseEvent;
                 if (event.getAction() == InputConstants.PRESS) {
-                    consumed |= MouseEvent.tiggerEvent(new MouseEvent("mousedown", realPos, event.getButton()), window.document);
+                    mouseEvent = new MouseEvent("mousedown", realPos, event.getButton());
                 } else {
-                    consumed |= MouseEvent.tiggerEvent(new MouseEvent("mouseup", realPos, event.getButton()), window.document);
+                    mouseEvent = new MouseEvent("mouseup", realPos, event.getButton());
                 }
+                MouseEvent.tiggerEvent(mouseEvent, window.document);
+                nativeConsumed |= mouseEvent.isNativeConsumed();
             }
         }
-        if (consumed) event.setCanceled(true);
+        if (nativeConsumed || CursorReleaseController.isActive()) event.setCanceled(true);
     }
 
     @SubscribeEvent
@@ -268,6 +333,9 @@ public class Client {
         }
         int action = event.getAction();
         if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        if (action == InputConstants.PRESS && handleViewportZoomKeyAtMouse(event.getKey(), event.getModifiers())) {
+            return;
+        }
         boolean canceled = Operation.handleKeyInput(
                 event.getKey(),
                 event.getScanCode(),
@@ -281,6 +349,10 @@ public class Client {
 
     @SubscribeEvent
     public static void onScreenKeyPressed(ScreenEvent.KeyPressed.Pre event) {
+        if (handleViewportZoomKeyAtMouse(event.getKeyCode(), event.getModifiers())) {
+            event.setCanceled(true);
+            return;
+        }
         int action = InputConstants.PRESS;
         boolean canceled = Operation.handleKeyInput(
                 event.getKeyCode(),
@@ -290,7 +362,62 @@ public class Client {
                 false,
                 com.sighs.apricityui.event.KeyEvent.Source.SCREEN_EVENT
         );
-//        if (canceled) event.setCanceled(true);
+        if (canceled) event.setCanceled(true);
+    }
+
+    private static boolean handleViewportZoomAtMouse(boolean zoomIn) {
+        if (!isControlDown()) return false;
+        Document target = findViewportZoomTargetAtMouse();
+        if (target == null) return false;
+        ApricityUI.LOGGER.info("[AUI Viewport] wheel zoomIn={} target={}", zoomIn, target.getPath());
+        return target.handleViewportZoom(zoomIn);
+    }
+
+    private static boolean handleViewportZoomKeyAtMouse(int keyCode, int modifiers) {
+        if (!isControlModifier(modifiers)) return false;
+
+        boolean zoomIn = keyCode == GLFW.GLFW_KEY_EQUAL || keyCode == GLFW.GLFW_KEY_KP_ADD;
+        boolean zoomOut = keyCode == GLFW.GLFW_KEY_MINUS || keyCode == GLFW.GLFW_KEY_KP_SUBTRACT;
+        boolean reset = keyCode == GLFW.GLFW_KEY_0 || keyCode == GLFW.GLFW_KEY_KP_0;
+        if (!zoomIn && !zoomOut && !reset) return false;
+
+        Document target = findViewportZoomTargetAtMouse();
+        if (target == null) return false;
+        ApricityUI.LOGGER.info("[AUI Viewport] key zoomIn={} reset={} target={}", zoomIn, reset, target.getPath());
+        return reset ? target.resetViewportZoom() : target.handleViewportZoom(zoomIn);
+    }
+
+    private static Document findViewportZoomTargetAtMouse() {
+        Position mouse = Operation.getMousePositionDirectly();
+        if (mouse == null) return null;
+        boolean passThrough = ApricityUIConfig.CLIENT.viewportZoomPassThrough.get();
+        for (Document document : DocumentLayerOrder.frontToBack(Document.getAll())) {
+            if (document == null || document.inWorld || document.isManuallyRendered() || !document.isActive()) continue;
+            if (document.hitTest(document.screenToDocumentPosition(mouse)) != null) {
+                if (passThrough && document.isReloadPersistent() && !document.interceptsMouseEvents()) {
+                    continue;
+                }
+                return document;
+            }
+        }
+        return null;
+    }
+
+    private static boolean isControlModifier(int modifiers) {
+        return (modifiers & GLFW.GLFW_MOD_CONTROL) != 0 || isControlDown();
+    }
+
+    private static boolean isControlDown() {
+        if (Screen.hasControlDown()) return true;
+        try {
+            Window window = Minecraft.getInstance().getWindow();
+            long handle = window == null ? 0L : window.getWindow();
+            return handle != 0L
+                    && (GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_LEFT_CONTROL) == GLFW.GLFW_PRESS
+                    || GLFW.glfwGetKey(handle, GLFW.GLFW_KEY_RIGHT_CONTROL) == GLFW.GLFW_PRESS);
+        } catch (Throwable ignored) {
+            return false;
+        }
     }
 
     @SubscribeEvent
@@ -309,17 +436,37 @@ public class Client {
     @SubscribeEvent
     public static void tick(TickEvent.ClientTickEvent event) {
         if (event.phase == TickEvent.Phase.START) {
+            CursorReleaseController.tick();
+            if (ApricityUIConfig.consumeClientReloadPending()) {
+                com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
+            }
+            com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             Runtime.tick();
+            ResourceManager.reconcileConfiguredMode();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();
-            Size current = getWindowSize();
-            int w = (int) current.width();
-            int h = (int) current.height();
-            if (lastWindowWidth != w || lastWindowHeight != h) {
+            DevTools.drainLogs();
+            Window mcWindow = Minecraft.getInstance().getWindow();
+            int w = mcWindow.getScreenWidth();
+            int h = mcWindow.getScreenHeight();
+            int framebufferWidth = mcWindow.getWidth();
+            int framebufferHeight = mcWindow.getHeight();
+            double guiScale = mcWindow.getGuiScale();
+            if (lastWindowWidth != w || lastWindowHeight != h
+                    || lastFramebufferWidth != framebufferWidth
+                    || lastFramebufferHeight != framebufferHeight
+                    || Double.compare(lastGuiScale, guiScale) != 0) {
                 lastWindowWidth = w;
                 lastWindowHeight = h;
-                Document.getAll().forEach(document -> document.markDirty(Drawer.RELAYOUT));
+                lastFramebufferWidth = framebufferWidth;
+                lastFramebufferHeight = framebufferHeight;
+                lastGuiScale = guiScale;
+                for (Document document : Document.getAll()) {
+                    if (document != null && !document.isDisposed()) {
+                        document.applyViewport(true);
+                    }
+                }
                 com.sighs.apricityui.init.Window.window.fireResizeEvent();
             }
         }
@@ -343,7 +490,24 @@ public class Client {
         return new Position(mouseX, mouseY);
     }
 
-    /** 通过 GLFW 直接从窗口句柄获取实时坐标 */
+    /**
+     * Returns the pointer position represented by the screen for world-window picking.
+     * A grabbed GLFW cursor has virtual coordinates that track look movement, while
+     * the visible crosshair remains fixed at the center of the GUI viewport.
+     */
+    public static Position getMousePositionForWorldInteraction() {
+        Minecraft mc = Minecraft.getInstance();
+        Window window = mc.getWindow();
+        if (mc.mouseHandler.isMouseGrabbed()) {
+            return new Position(
+                    window.getGuiScaledWidth() * 0.5d,
+                    window.getGuiScaledHeight() * 0.5d
+            );
+        }
+        return getMousePosition();
+    }
+
+    /** Returns the live cursor position directly from the GLFW window handle. */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
         long handle = window.getWindow();
@@ -408,21 +572,33 @@ public class Client {
 
     public static int getDefaultFontWidth(String text, boolean bold, boolean oblique, double strokeWidth) {
         double stroke = Math.max(0, strokeWidth) * 2;
-        if (!bold && !oblique) return (int) Math.ceil(Minecraft.getInstance().font.width(text) + stroke);
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.font == null) {
+            int fontStyle = java.awt.Font.PLAIN;
+            if (bold) fontStyle |= java.awt.Font.BOLD;
+            if (oblique) fontStyle |= java.awt.Font.ITALIC;
+            java.awt.Font fallbackFont = new java.awt.Font("Microsoft YaHei", fontStyle, 16);
+            int width = new java.awt.Canvas().getFontMetrics(fallbackFont).stringWidth(text == null ? "" : text);
+            return (int) Math.ceil(width + stroke);
+        }
+        if (!bold && !oblique) return (int) Math.ceil(minecraft.font.width(text) + stroke);
         MutableComponent renderText = Component.literal(text);
         if (bold) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (oblique) renderText = renderText.withStyle(ChatFormatting.ITALIC);
-        return (int) Math.ceil(Minecraft.getInstance().font.width(renderText) + stroke);
+        return (int) Math.ceil(minecraft.font.width(renderText) + stroke);
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
         poseStack.pushPose();
         poseStack.translate(position.x, position.y, 0);
         // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
-        poseStack.scale((float) (text.fontSize / 9f), (float) (text.fontSize / 9f), 1f);
+        float scale = (float) text.defaultFontScale();
+        poseStack.scale(scale, scale, 1f);
         MutableComponent renderText = Component.literal(content == null ? "" : content);
         if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
         if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
+        if (text.isUnderlined()) renderText = renderText.withStyle(ChatFormatting.UNDERLINE);
+        if (text.isStrikethrough()) renderText = renderText.withStyle(ChatFormatting.STRIKETHROUGH);
         int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
         if (stroke > 0) {
             int strokeColor = text.strokeColor.getValue();

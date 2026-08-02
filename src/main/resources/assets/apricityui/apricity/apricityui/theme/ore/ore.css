@@ -1,0 +1,953 @@
+/*
+ * Ore theme for ApricityUI.
+ * Adapted from Minecraft-CSS by Jiyath5516F under the Mozilla Public License 2.0.
+ * The complete license is distributed beside this file as license.txt.
+ */
+
+@font-face {
+  font-family: OreRegular;
+  src: url("fonts/minecraft-regular.otf") format("opentype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: OreDisplay;
+  src: url("fonts/minecraft-ten.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+}
+
+.ore-theme {
+  --ore-ink: #f4f5f7;
+  --ore-ink-muted: #b6bac1;
+  --ore-ink-dark: #191a1c;
+  --ore-canvas: #202124;
+  --ore-surface: #48494a;
+  --ore-surface-deep: #313233;
+  --ore-surface-soft: #d0d1d4;
+  --ore-edge: #1e1e1f;
+  --ore-edge-light: #77797c;
+  --ore-green: #3c8527;
+  --ore-green-hover: #2a641c;
+  --ore-green-shadow: #1d4d13;
+  --ore-purple: #7345e5;
+  --ore-purple-hover: #5d2cc6;
+  --ore-purple-shadow: #4a1cac;
+  --ore-gold: #f0b92d;
+  --ore-gold-shadow: #936715;
+  --ore-red: #b33b31;
+  --ore-red-hover: #8b2923;
+  --ore-red-shadow: #662019;
+  --ore-blue: #2d78a8;
+  --ore-success: #69ad45;
+  --ore-warning: #f0b92d;
+  --ore-danger: #d45b50;
+  --ore-info: #58a6d2;
+  --ore-focus: #ffffff;
+  --ore-space-1: 4px;
+  --ore-space-2: 8px;
+  --ore-space-3: 16px;
+  --ore-space-4: 24px;
+  --ore-space-5: 32px;
+  --ore-font-sm: 13px;
+  --ore-font-md: 16px;
+  --ore-font-lg: 20px;
+  --ore-font-xl: 28px;
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  color: var(--ore-ink);
+  background-color: var(--ore-canvas);
+  font-family: OreRegular, sans-serif;
+  font-size: var(--ore-font-md);
+  line-height: 1.5;
+  letter-spacing: 0;
+  caret-color: var(--ore-green);
+}
+
+.ore-theme *,
+.ore-theme *::before,
+.ore-theme *::after {
+  box-sizing: border-box;
+}
+
+.ore-theme h1,
+.ore-theme h2,
+.ore-theme h3,
+.ore-theme h4,
+.ore-theme h5,
+.ore-theme h6,
+.ore-theme p,
+.ore-theme ul,
+.ore-theme ol,
+.ore-theme figure {
+  margin-top: 0;
+}
+
+.ore-theme h1,
+.ore-theme h2,
+.ore-theme h3,
+.ore-theme h4,
+.ore-theme h5,
+.ore-theme h6,
+.ore-theme .font-display {
+  color: var(--ore-ink);
+  font-family: OreDisplay, sans-serif;
+  font-weight: 400;
+  line-height: 1.15;
+  letter-spacing: 0;
+}
+
+.ore-theme h1,
+.ore-theme h2,
+.ore-theme h3,
+.ore-theme h4,
+.ore-theme h5,
+.ore-theme h6 {
+  font-family: OreDisplay, sans-serif;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.ore-theme h1 { margin-bottom: 16px; color: var(--ore-ink); font-family: OreDisplay, sans-serif; font-size: 36px; font-weight: 400; line-height: 1.15; }
+.ore-theme h2 { margin-bottom: 14px; color: var(--ore-ink); font-family: OreDisplay, sans-serif; font-size: 28px; font-weight: 400; line-height: 1.15; }
+.ore-theme h3 { margin-bottom: 12px; color: var(--ore-ink); font-family: OreDisplay, sans-serif; font-size: 22px; font-weight: 400; line-height: 1.15; }
+.ore-theme h4 { margin-bottom: 10px; color: var(--ore-ink); font-family: OreDisplay, sans-serif; font-size: 18px; font-weight: 400; line-height: 1.15; }
+.ore-theme h5 { margin-bottom: 8px; color: var(--ore-ink); font-family: OreDisplay, sans-serif; font-size: 16px; font-weight: 400; line-height: 1.15; }
+.ore-theme h6 { margin-bottom: 8px; color: var(--ore-ink); font-family: OreDisplay, sans-serif; font-size: 14px; font-weight: 400; line-height: 1.15; }
+
+.ore-theme .font-display {
+  color: var(--ore-ink);
+  font-family: OreDisplay, sans-serif;
+  font-weight: 400;
+  line-height: 1.15;
+}
+
+.ore-theme p { margin-bottom: 16px; }
+
+.ore-theme a {
+  color: var(--ore-info);
+  text-decoration: none;
+}
+
+.ore-theme a:hover {
+  color: #8cc9eb;
+  text-decoration: underline;
+}
+
+.ore-theme strong { color: #ffffff; }
+.ore-theme small, .ore-theme .text-muted { color: var(--ore-ink-muted); }
+
+.ore-theme code,
+.ore-theme kbd {
+  padding: 2px 6px;
+  border: 2px solid var(--ore-edge);
+  color: #ffffff;
+  background: var(--ore-surface-deep);
+  font-family: OreRegular, monospace;
+}
+
+.ore-theme .ore-code {
+  margin: 0;
+  padding: 14px;
+  border: 3px solid var(--ore-edge);
+  color: #dfe7dc;
+  background: #242527;
+  box-shadow: inset 0 5px #171819;
+  font-family: OreRegular, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow: auto;
+}
+
+.ore-theme .ore-code code {
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+}
+
+.ore-theme hr,
+.ore-theme .ore-divider {
+  height: 4px;
+  margin: 16px 0;
+  border: 0;
+  border-top: 2px solid #333334;
+  border-bottom: 2px solid #5a5b5c;
+}
+
+.ore-theme img {
+  max-width: 100%;
+  image-rendering: pixelated;
+}
+
+.ore-theme .container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.ore-theme .container-fluid {
+  width: 100%;
+  padding: 0 20px;
+}
+
+.ore-theme .grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.ore-theme .col-1 { grid-column: span 1; }
+.ore-theme .col-2 { grid-column: span 2; }
+.ore-theme .col-3 { grid-column: span 3; }
+.ore-theme .col-4 { grid-column: span 4; }
+.ore-theme .col-5 { grid-column: span 5; }
+.ore-theme .col-6 { grid-column: span 6; }
+.ore-theme .col-7 { grid-column: span 7; }
+.ore-theme .col-8 { grid-column: span 8; }
+.ore-theme .col-9 { grid-column: span 9; }
+.ore-theme .col-10 { grid-column: span 10; }
+.ore-theme .col-11 { grid-column: span 11; }
+.ore-theme .col-12, .ore-theme .col-full { grid-column: span 12; }
+
+.ore-theme .stack { display: flex; flex-direction: column; gap: 12px; }
+.ore-theme .cluster { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.ore-theme .split { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+
+.ore-theme .navbar {
+  min-height: 64px;
+  padding: 10px 20px 16px;
+  border-bottom: 3px solid #151516;
+  color: var(--ore-ink-dark);
+  background: #e6e8eb;
+  box-shadow: inset 0 -6px #b1b2b5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.ore-theme .navbar-brand {
+  color: var(--ore-ink-dark);
+  font-family: OreDisplay, sans-serif;
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ore-theme .navbar-brand:hover { text-decoration: underline; }
+
+.ore-theme .navbar-nav {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ore-theme .navbar-nav button,
+.ore-theme .navbar-nav a,
+.ore-theme .navbar-nav label {
+  min-height: 36px;
+  padding: 7px 12px 9px;
+  border: 2px solid transparent;
+  color: #242527;
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ore-theme .navbar-nav button:hover,
+.ore-theme .navbar-nav a:hover,
+.ore-theme .navbar-nav label:hover,
+.ore-theme .navbar-nav .active {
+  border-color: #242527;
+  color: #ffffff;
+  background: var(--ore-green);
+  text-decoration: none;
+}
+
+.ore-theme .breadcrumb {
+  height: 44px;
+  margin: 0;
+  padding: 10px 0;
+  list-style: none;
+  color: var(--ore-ink-muted);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.ore-theme .breadcrumb li + li::before {
+  content: ">";
+  margin-right: 8px;
+  color: var(--ore-edge-light);
+}
+
+.ore-theme .breadcrumb-page span { display: none; }
+
+.ore-theme .button,
+.ore-theme .form-button,
+.ore-theme .page-button {
+  min-height: 42px;
+  margin: 0;
+  padding: 7px 16px 13px;
+  border: 3px solid var(--ore-edge);
+  color: #ffffff;
+  background: var(--ore-green);
+  box-shadow:
+    inset 0 -6px var(--ore-green-shadow),
+    inset 3px 3px rgba(255, 255, 255, 0.22),
+    inset -3px -9px rgba(0, 0, 0, 0.12);
+  font-family: OreDisplay, sans-serif;
+  font-size: 16px;
+  line-height: 1;
+  letter-spacing: 0;
+  text-align: center;
+  text-decoration: none;
+  text-shadow: 2px 2px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.ore-theme .button:hover,
+.ore-theme .button-primary:hover,
+.ore-theme .form-button:hover {
+  color: #ffffff;
+  background: var(--ore-green-hover);
+  text-decoration: none;
+}
+
+.ore-theme .button:active,
+.ore-theme .form-button:active,
+.ore-theme .page-button:active {
+  padding-top: 9px;
+  padding-bottom: 11px;
+  box-shadow:
+    inset 3px 3px rgba(255, 255, 255, 0.18),
+    inset -3px -3px rgba(0, 0, 0, 0.18);
+}
+
+.ore-theme .button-secondary {
+  background: var(--ore-purple);
+  box-shadow:
+    inset 0 -6px var(--ore-purple-shadow),
+    inset 3px 3px rgba(255, 255, 255, 0.25),
+    inset -3px -9px rgba(0, 0, 0, 0.12);
+}
+
+.ore-theme .button-secondary:hover { background: var(--ore-purple-hover); }
+
+.ore-theme .button-tertiary {
+  color: var(--ore-ink-dark);
+  background: var(--ore-surface-soft);
+  box-shadow:
+    inset 0 -6px #58585a,
+    inset 3px 3px rgba(255, 255, 255, 0.55),
+    inset -3px -9px rgba(0, 0, 0, 0.08);
+  text-shadow: none;
+}
+
+.ore-theme .button-tertiary:hover { color: #000000; background: #b1b2b5; }
+
+.ore-theme .button-danger {
+  background: var(--ore-red);
+  box-shadow:
+    inset 0 -6px var(--ore-red-shadow),
+    inset 3px 3px rgba(255, 255, 255, 0.2),
+    inset -3px -9px rgba(0, 0, 0, 0.12);
+}
+
+.ore-theme .button-danger:hover { background: var(--ore-red-hover); }
+
+.ore-theme .button-normal {
+  padding: 8px 16px;
+  border: 2px solid #131313;
+  color: #4c4c4c;
+  background: #c6c6c6;
+  box-shadow: inset 2px 2px #f7f7f7, inset -2px -2px #656465;
+  font-family: OreRegular, sans-serif;
+  text-shadow: none;
+}
+
+.ore-theme .button-normal:hover {
+  border-color: #ffffff;
+  color: #ffffff;
+  background: #218306;
+  box-shadow: inset 2px 2px #17cd07, inset -2px -2px #004e00;
+}
+
+.ore-theme .button-small { min-height: 32px; padding: 5px 10px 9px; font-size: 13px; }
+.ore-theme .button-wide { width: 100%; }
+
+.ore-theme .button[disabled],
+.ore-theme .button.disabled,
+.ore-theme .form-button[disabled] {
+  border-color: #313233;
+  color: #8b8d91;
+  background: #55575a;
+  box-shadow: inset 0 -5px #3b3c3e, inset 2px 2px #696b6e;
+  text-shadow: none;
+  cursor: default;
+}
+
+.ore-theme .card,
+.ore-theme .panel {
+  border: 3px solid var(--ore-edge);
+  color: var(--ore-ink);
+  background: var(--ore-surface);
+  box-shadow: inset 2px 2px var(--ore-edge-light), inset -2px -2px #292a2b;
+}
+
+.ore-theme .card-header,
+.ore-theme .panel-header {
+  min-height: 46px;
+  padding: 12px 16px;
+  border-bottom: 3px solid var(--ore-edge);
+  background: var(--ore-surface-deep);
+  font-family: OreDisplay, sans-serif;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.ore-theme .card-body,
+.ore-theme .panel-body { padding: 16px; }
+
+.ore-theme .card-footer,
+.ore-theme .panel-footer {
+  padding: 12px 16px;
+  border-top: 3px solid var(--ore-edge);
+  background: #3a3b3d;
+}
+
+.ore-theme .card-accent-green { border-top-color: var(--ore-green); }
+.ore-theme .card-accent-purple { border-top-color: var(--ore-purple); }
+.ore-theme .card-accent-gold { border-top-color: var(--ore-gold); }
+
+.ore-theme .form-group { margin-bottom: 16px; }
+
+.ore-theme .form-label {
+  margin-bottom: 6px;
+  color: var(--ore-ink);
+  display: block;
+}
+
+.ore-theme .form-help {
+  margin-top: 5px;
+  color: var(--ore-ink-muted);
+  font-size: var(--ore-font-sm);
+}
+
+.ore-theme .form-input,
+.ore-theme .form-select,
+.ore-theme .form-textarea {
+  width: 100%;
+  min-height: 42px;
+  padding: 8px 10px;
+  border: 3px solid var(--ore-edge);
+  color: #ffffff;
+  background: var(--ore-surface-deep);
+  box-shadow: inset 0 5px #242425;
+  font-family: OreRegular, sans-serif;
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+.ore-theme .form-textarea {
+  min-height: 116px;
+  resize: vertical;
+}
+
+.ore-theme .form-input:hover,
+.ore-theme .form-select:hover,
+.ore-theme .form-textarea:hover { border-color: #85878b; }
+
+.ore-theme .form-input:focus,
+.ore-theme .form-select:focus,
+.ore-theme .form-textarea:focus {
+  border-color: var(--ore-focus);
+  outline: 2px solid var(--ore-green);
+  outline-offset: 0;
+}
+
+.ore-theme .form-input[disabled],
+.ore-theme .form-select[disabled],
+.ore-theme .form-textarea[disabled] {
+  color: #888a8e;
+  background: #292a2c;
+}
+
+.ore-theme .form-input.is-valid { border-color: var(--ore-success); }
+.ore-theme .form-input.is-invalid { border-color: var(--ore-danger); }
+
+.ore-theme .choice-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 18px;
+}
+
+.ore-theme .choice {
+  min-height: 28px;
+  color: var(--ore-ink);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.ore-theme .choice input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  accent-color: var(--ore-green);
+}
+
+.ore-theme .input-group {
+  width: 100%;
+  display: flex;
+}
+
+.ore-theme .input-group .form-input { min-width: 0; flex: 1; }
+.ore-theme .input-group .button { min-width: 96px; }
+
+.ore-theme .table-wrap {
+  width: 100%;
+  overflow: auto;
+  border: 3px solid var(--ore-edge);
+}
+
+.ore-theme .table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--ore-ink);
+  background: #3b3c3e;
+}
+
+.ore-theme .table thead,
+.ore-theme .table tbody { display: block; }
+
+.ore-theme .table tr {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ore-theme .table th,
+.ore-theme .table td {
+  padding: 10px 12px;
+  border-right: 2px solid #262729;
+  border-bottom: 2px solid #262729;
+  text-align: left;
+}
+
+.ore-theme .table th {
+  color: #ffffff;
+  background: var(--ore-surface-deep);
+  font-family: OreDisplay, sans-serif;
+  font-weight: 400;
+}
+
+.ore-theme .table tbody tr:hover { background: #545659; }
+
+.ore-theme .badge {
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 2px solid var(--ore-edge);
+  color: #ffffff;
+  background: var(--ore-blue);
+  font-size: 12px;
+  line-height: 1.2;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ore-theme .badge-success { background: var(--ore-green); }
+.ore-theme .badge-warning { color: #221b0d; background: var(--ore-gold); }
+.ore-theme .badge-danger { background: var(--ore-red); }
+.ore-theme .badge-purple { background: var(--ore-purple); }
+
+.ore-theme .alert {
+  padding: 12px 14px;
+  border: 3px solid var(--ore-edge);
+  border-left-width: 8px;
+  color: #ffffff;
+  background: #363739;
+  box-shadow: inset 2px 2px rgba(255, 255, 255, 0.08);
+}
+
+.ore-theme .alert-success { border-left-color: var(--ore-success); }
+.ore-theme .alert-warning { border-left-color: var(--ore-warning); }
+.ore-theme .alert-danger { border-left-color: var(--ore-danger); }
+.ore-theme .alert-info { border-left-color: var(--ore-info); }
+
+.ore-theme .progress {
+  height: 24px;
+  padding: 3px;
+  border: 3px solid var(--ore-edge);
+  background: #252628;
+  box-shadow: inset 0 3px #151516;
+  overflow: hidden;
+}
+
+.ore-theme .progress-bar {
+  height: 100%;
+  min-width: 0;
+  background: var(--ore-green);
+  box-shadow: inset 0 -4px var(--ore-green-shadow), inset 2px 2px rgba(255,255,255,0.2);
+}
+
+.ore-theme .progress-purple .progress-bar {
+  background: var(--ore-purple);
+  box-shadow: inset 0 -4px var(--ore-purple-shadow), inset 2px 2px rgba(255,255,255,0.2);
+}
+
+.ore-theme .list-group {
+  margin: 0;
+  padding: 0;
+  border: 3px solid var(--ore-edge);
+  list-style: none;
+}
+
+.ore-theme .list-group-item {
+  min-height: 42px;
+  padding: 9px 12px;
+  border-bottom: 2px solid #292a2b;
+  color: var(--ore-ink);
+  background: var(--ore-surface);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ore-theme .list-group-item:last-child { border-bottom: 0; }
+.ore-theme .list-group-item:hover { background: #56585b; }
+.ore-theme .list-group-item.active { background: var(--ore-green); }
+
+.ore-theme .inventory-grid {
+  display: grid;
+  grid-template-columns: repeat(9, 44px);
+  gap: 3px;
+}
+
+.ore-theme .slot {
+  width: 44px;
+  height: 44px;
+  border: 3px solid #1c1c1d;
+  border-top-color: #303133;
+  border-left-color: #303133;
+  color: #ffffff;
+  background: #77787a;
+  box-shadow: inset 3px 3px #4d4e50, inset -3px -3px #b2b3b5;
+  font-family: OreDisplay, sans-serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ore-theme .slot:hover {
+  border-color: #ffffff;
+  background: #8c8e91;
+}
+
+.ore-theme .ore-swatch {
+  min-height: 76px;
+  padding: 10px;
+  border: 3px solid var(--ore-edge);
+  color: #ffffff;
+  display: flex;
+  align-items: flex-end;
+}
+
+.ore-theme .ore-swatch-dark { background: var(--ore-surface-deep); }
+.ore-theme .ore-swatch-green { background: var(--ore-green); }
+.ore-theme .ore-swatch-purple { background: var(--ore-purple); }
+.ore-theme .ore-swatch-gold { color: #1c160b; background: var(--ore-gold); }
+.ore-theme .ore-swatch-red { background: var(--ore-red); }
+.ore-theme .ore-swatch-blue { background: var(--ore-blue); }
+
+.ore-theme .tabs {
+  border-bottom: 3px solid var(--ore-edge);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.ore-theme .tab {
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 2px solid var(--ore-edge);
+  border-bottom: 0;
+  color: var(--ore-ink-muted);
+  background: #37383a;
+  font: inherit;
+  cursor: pointer;
+}
+
+.ore-theme .tab:hover,
+.ore-theme .tab.active {
+  color: #ffffff;
+  background: var(--ore-surface);
+  box-shadow: inset 0 4px var(--ore-purple);
+}
+
+.ore-theme .modal-backdrop {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 900;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.68);
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.ore-theme .modal-backdrop.open { display: flex; }
+
+#ore-modal-toggle:checked~#exampleModal { display: flex; }
+
+.ore-theme .modal-dismiss {
+  position: absolute;
+  inset: 0;
+  cursor: default;
+}
+
+.ore-theme .modal {
+  position: relative;
+  z-index: 1;
+  width: 520px;
+  max-width: 100%;
+  border: 4px solid var(--ore-edge);
+  background: var(--ore-surface);
+  box-shadow: 8px 8px rgba(0, 0, 0, 0.42), inset 2px 2px var(--ore-edge-light);
+}
+
+.ore-theme .modal-header {
+  min-height: 50px;
+  padding: 13px 16px;
+  border-bottom: 3px solid var(--ore-edge);
+  background: var(--ore-surface-deep);
+  font-family: OreDisplay, sans-serif;
+  font-size: 20px;
+}
+
+.ore-theme .modal-body { padding: 18px 16px; }
+.ore-theme .modal-footer { padding: 12px 16px; border-top: 3px solid var(--ore-edge); }
+
+.ore-theme .pagination {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.ore-theme .page-button {
+  min-width: 42px;
+  min-height: 38px;
+  padding: 7px 10px 11px;
+  background: #55575a;
+  box-shadow: inset 0 -5px #353638, inset 2px 2px rgba(255,255,255,0.18);
+  font-family: OreRegular, sans-serif;
+}
+
+.ore-theme .page-button:hover,
+.ore-theme .page-button.active {
+  color: #ffffff;
+  background: var(--ore-purple);
+  box-shadow: inset 0 -5px var(--ore-purple-shadow), inset 2px 2px rgba(255,255,255,0.2);
+}
+
+.ore-theme .page-button[disabled] {
+  color: #85878b;
+  background: #3a3b3d;
+  box-shadow: inset 0 -5px #292a2b;
+  cursor: default;
+}
+
+.ore-theme .showcase-page-toggle,
+.ore-theme .showcase-modal-toggle { display: none; }
+
+.ore-theme .ore-page {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  flex: 1 1 auto;
+  display: none;
+}
+
+#ore-page-foundations:checked~.showcase-main .ore-page[data-page="0"],
+#ore-page-actions:checked~.showcase-main .ore-page[data-page="1"],
+#ore-page-forms:checked~.showcase-main .ore-page[data-page="2"],
+#ore-page-data:checked~.showcase-main .ore-page[data-page="3"],
+#ore-page-feedback:checked~.showcase-main .ore-page[data-page="4"],
+#ore-page-layout:checked~.showcase-main .ore-page[data-page="5"] { display: block; }
+
+#ore-page-foundations:checked~.navbar .navbar-nav label[for="ore-page-foundations"],
+#ore-page-actions:checked~.navbar .navbar-nav label[for="ore-page-actions"],
+#ore-page-forms:checked~.navbar .navbar-nav label[for="ore-page-forms"],
+#ore-page-data:checked~.navbar .navbar-nav label[for="ore-page-data"],
+#ore-page-feedback:checked~.navbar .navbar-nav label[for="ore-page-feedback"],
+#ore-page-layout:checked~.navbar .navbar-nav label[for="ore-page-layout"] {
+  border-color: #242527;
+  color: #ffffff;
+  background: var(--ore-green);
+  text-decoration: none;
+}
+
+#ore-page-foundations:checked~.showcase-main [data-breadcrumb="foundations"],
+#ore-page-actions:checked~.showcase-main [data-breadcrumb="actions"],
+#ore-page-forms:checked~.showcase-main [data-breadcrumb="forms"],
+#ore-page-data:checked~.showcase-main [data-breadcrumb="data"],
+#ore-page-feedback:checked~.showcase-main [data-breadcrumb="feedback"],
+#ore-page-layout:checked~.showcase-main [data-breadcrumb="layout"] { display: inline; }
+
+.ore-theme.ore-showcase {
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ore-theme.ore-showcase > .navbar { flex: 0 0 auto; }
+
+.ore-theme.ore-showcase > .showcase-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.ore-theme.ore-showcase > .showcase-main > .breadcrumb { flex: 0 0 auto; }
+
+.ore-theme.ore-showcase .table-wrap,
+.ore-theme.ore-showcase .ore-code,
+.ore-theme.ore-showcase .navbar-nav {
+  overflow: visible;
+}
+
+.ore-theme .showcase-hero {
+  min-height: 196px;
+  padding: 28px;
+  border: 4px solid var(--ore-edge);
+  color: #ffffff;
+  background-color: #313233;
+  background-image:
+    linear-gradient(90deg, rgba(115, 69, 229, 0.22) 25%, transparent 25%),
+    linear-gradient(rgba(60, 133, 39, 0.24) 25%, transparent 25%);
+  background-size: 32px 32px;
+  box-shadow: inset 4px 4px #5a5b5c, inset -4px -4px #18191a;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.ore-theme .showcase-mark {
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  border: 5px solid #171819;
+  background: var(--ore-green);
+  box-shadow:
+    inset 12px 12px #69ad45,
+    inset -12px -12px #1d4d13,
+    9px 9px rgba(0, 0, 0, 0.36);
+  color: #ffffff;
+  font-family: OreDisplay, sans-serif;
+  font-size: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ore-theme .showcase-section { padding: 20px 0 24px; }
+.ore-theme .showcase-section-title { margin-bottom: 6px; }
+.ore-theme .showcase-kicker { margin-bottom: 8px; color: var(--ore-gold); font-size: 13px; }
+
+.ore-theme .showcase-footer {
+  min-height: 108px;
+  margin-top: 0;
+  padding: 12px 20px 16px;
+  border-top: 3px solid #151516;
+  color: var(--ore-ink-muted);
+  background: #2a2b2d;
+  box-shadow: inset 0 6px #3d3e40;
+}
+
+.ore-theme.ore-showcase .showcase-footer .split { margin-bottom: 8px; }
+.ore-theme.ore-showcase .showcase-footer .page-button {
+  min-width: 34px;
+  min-height: 30px;
+  padding: 4px 7px 8px;
+}
+
+.ore-theme .text-left { text-align: left; }
+.ore-theme .text-center { text-align: center; }
+.ore-theme .text-right { text-align: right; }
+.ore-theme .text-success { color: #8bd067; }
+.ore-theme .text-warning { color: #ffd45f; }
+.ore-theme .text-danger { color: #ef8178; }
+.ore-theme .text-info { color: #82c6ec; }
+.ore-theme .font-sm { font-size: var(--ore-font-sm); }
+.ore-theme .font-lg { font-size: var(--ore-font-lg); }
+.ore-theme .hidden { display: none; }
+.ore-theme .invisible { visibility: hidden; }
+.ore-theme .w-full { width: 100%; }
+.ore-theme .m-0 { margin: 0; }
+.ore-theme .mt-1 { margin-top: 4px; }
+.ore-theme .mt-2 { margin-top: 8px; }
+.ore-theme .mt-3 { margin-top: 16px; }
+.ore-theme .mt-4 { margin-top: 24px; }
+.ore-theme .mb-1 { margin-bottom: 4px; }
+.ore-theme .mb-2 { margin-bottom: 8px; }
+.ore-theme .mb-3 { margin-bottom: 16px; }
+.ore-theme .mb-4 { margin-bottom: 24px; }
+.ore-theme .p-1 { padding: 4px; }
+.ore-theme .p-2 { padding: 8px; }
+.ore-theme .p-3 { padding: 16px; }
+.ore-theme .p-4 { padding: 24px; }
+
+@media (max-width: 900px) {
+  .ore-theme .col-3,
+  .ore-theme .col-4,
+  .ore-theme .col-5,
+  .ore-theme .col-6,
+  .ore-theme .col-7,
+  .ore-theme .col-8,
+  .ore-theme .col-9 { grid-column: span 12; }
+
+  .ore-theme .navbar { align-items: flex-start; flex-direction: column; }
+  .ore-theme .navbar-nav { width: 100%; overflow-x: auto; }
+  .ore-theme .showcase-hero { align-items: flex-start; flex-direction: column; }
+  .ore-theme .inventory-grid { grid-template-columns: repeat(6, 44px); }
+}
+
+@media (max-width: 560px) {
+  .ore-theme .container,
+  .ore-theme .container-fluid { padding-left: 12px; padding-right: 12px; }
+  .ore-theme h1 { font-size: 30px; }
+  .ore-theme .grid { grid-template-columns: 1fr; }
+  .ore-theme [class*="col-"] { grid-column: span 1; }
+  .ore-theme .split { align-items: stretch; flex-direction: column; }
+  .ore-theme .button { width: 100%; }
+  .ore-theme .navbar-nav button { white-space: nowrap; }
+  .ore-theme .inventory-grid { grid-template-columns: repeat(4, 44px); }
+  .ore-theme .showcase-mark { width: 88px; height: 88px; flex-basis: 88px; font-size: 38px; }
+}

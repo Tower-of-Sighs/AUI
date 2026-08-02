@@ -2,7 +2,6 @@ package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.canvas.CanvasRenderingContext2D;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Drawer;
 import com.sighs.apricityui.init.Element;
@@ -10,9 +9,9 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.Box;
-import com.sighs.apricityui.style.Position;
-import com.sighs.apricityui.style.Size;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
@@ -23,10 +22,12 @@ import javax.imageio.ImageWriter;
 import javax.imageio.stream.MemoryCacheImageOutputStream;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferInt;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
@@ -40,7 +41,7 @@ public class Canvas extends Element {
     private BufferedImage surface;
     private NativeImage nativeImage;
     private DynamicTexture texture;
-    private ResourceLocation textureLocation;
+    protected ResourceLocation textureLocation;
     private boolean surfaceDirty = true;
     private int bitmapWidth = DEFAULT_WIDTH;
     private int bitmapHeight = DEFAULT_HEIGHT;
@@ -125,6 +126,36 @@ public class Canvas extends Element {
         }
     }
 
+    /**
+     * Fast path for the common untransformed 2D-canvas clearRect case. The canvas surface is
+     * always TYPE_INT_ARGB, so clearing its backing array avoids Java2D's antialiased fill path.
+     */
+    public void clearSurfaceRect(int x, int y, int width, int height) {
+        ensureSurface();
+        if (width <= 0 || height <= 0) return;
+
+        int left = Math.max(0, x);
+        int top = Math.max(0, y);
+        int right = Math.min(bitmapWidth, x + width);
+        int bottom = Math.min(bitmapHeight, y + height);
+        if (left >= right || top >= bottom) return;
+
+        int[] pixels = ((DataBufferInt) surface.getRaster().getDataBuffer()).getData();
+        int rowWidth = right - left;
+        if (left == 0 && top == 0 && right == bitmapWidth && bottom == bitmapHeight) {
+            Arrays.fill(pixels, 0);
+        } else {
+            for (int row = top; row < bottom; row++) {
+                int offset = row * bitmapWidth + left;
+                Arrays.fill(pixels, offset, offset + rowWidth, 0);
+            }
+        }
+        surfaceDirty = true;
+        if (document != null) {
+            document.markDirty(this, Drawer.REPAINT);
+        }
+    }
+
     public String toDataURL() {
         return toDataURL("image/png");
     }
@@ -195,7 +226,7 @@ public class Canvas extends Element {
         }
     }
 
-    private void drawCanvas(PoseStack poseStack, Rect rectRenderer) {
+    protected void drawCanvas(PoseStack poseStack, Rect rectRenderer) {
         syncTexture();
         if (textureLocation == null) return;
 
@@ -223,7 +254,7 @@ public class Canvas extends Element {
         }
     }
 
-    private void resizeSurface(int width, int height, boolean resetState) {
+    protected void resizeSurface(int width, int height, boolean resetState) {
         int safeWidth = Math.max(1, width);
         int safeHeight = Math.max(1, height);
         if (surface != null && bitmapWidth == safeWidth && bitmapHeight == safeHeight) return;
@@ -238,7 +269,7 @@ public class Canvas extends Element {
         }
     }
 
-    private void syncTexture() {
+    protected void syncTexture() {
         ensureSurface();
         if (!surfaceDirty && textureLocation != null && texture != null && nativeImage != null) return;
 
@@ -255,9 +286,11 @@ public class Canvas extends Element {
             Minecraft.getInstance().getTextureManager().register(textureLocation, texture);
         }
 
+        int[] pixels = ((DataBufferInt) surface.getRaster().getDataBuffer()).getData();
+        int index = 0;
         for (int y = 0; y < bitmapHeight; y++) {
             for (int x = 0; x < bitmapWidth; x++) {
-                nativeImage.setPixelRGBA(x, y, argbToAbgr(surface.getRGB(x, y)));
+                nativeImage.setPixelRGBA(x, y, argbToAbgr(pixels[index++]));
             }
         }
         texture.upload();
@@ -298,5 +331,51 @@ public class Canvas extends Element {
         int g = (argb >>> 8) & 0xFF;
         int b = argb & 0xFF;
         return (a << 24) | (b << 16) | (g << 8) | r;
+    }
+
+    /**
+     * Binary compatibility for addons compiled against the previous nested context type.
+     *
+     * @deprecated Use {@link com.sighs.apricityui.canvas.CanvasRenderingContext2D}.
+     */
+    @Deprecated
+    public static class CanvasRenderingContext2D extends com.sighs.apricityui.canvas.CanvasRenderingContext2D {
+        public CanvasRenderingContext2D(Canvas canvas) {
+            super(canvas);
+        }
+
+        @Override
+        public CanvasLinearGradient createLinearGradient(double x0, double y0, double x1, double y1) {
+            return new CanvasLinearGradient((float) x0, (float) y0, (float) x1, (float) y1);
+        }
+
+        @Override
+        public CanvasRadialGradient createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1) {
+            return new CanvasRadialGradient((float) x0, (float) y0, (float) r0, (float) x1, (float) y1, (float) r1);
+        }
+    }
+
+    /**
+     * Binary compatibility for addons compiled against the previous nested gradient type.
+     *
+     * @deprecated Use {@link com.sighs.apricityui.canvas.CanvasLinearGradient}.
+     */
+    @Deprecated
+    public static class CanvasLinearGradient extends com.sighs.apricityui.canvas.CanvasLinearGradient {
+        public CanvasLinearGradient(float x0, float y0, float x1, float y1) {
+            super(x0, y0, x1, y1);
+        }
+    }
+
+    /**
+     * Binary compatibility for addons compiled against the previous nested gradient type.
+     *
+     * @deprecated Use {@link com.sighs.apricityui.canvas.CanvasRadialGradient}.
+     */
+    @Deprecated
+    public static class CanvasRadialGradient extends com.sighs.apricityui.canvas.CanvasRadialGradient {
+        public CanvasRadialGradient(float x0, float y0, float r0, float x1, float y1, float r1) {
+            super(x0, y0, r0, x1, y1, r1);
+        }
     }
 }

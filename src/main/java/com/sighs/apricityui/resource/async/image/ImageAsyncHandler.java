@@ -2,11 +2,13 @@ package com.sighs.apricityui.resource.async.image;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.instance.ClientLoader;
 import com.sighs.apricityui.instance.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.util.AuiLog;
 import net.minecraft.client.Minecraft;
 
 import java.io.InputStream;
@@ -85,7 +87,13 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
     }
 
     public ImageHandle request(String path, Element requester, boolean needRelayout) {
-        if (path == null || path.isBlank() || "unset".equals(path)) return null;
+        if (path == null || path.isBlank() || "unset".equals(path)) {
+            ApricityUI.LOGGER.warn(
+                    "[AUI Image] ignored empty image request requester={}",
+                    AuiLog.element(requester)
+            );
+            return null;
+        }
 
         long generation = currentGeneration();
         long now = System.currentTimeMillis();
@@ -107,7 +115,13 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
 
     private void submitDecodeIfNeeded(ImageHandle handle) {
         if (handle == null || !handle.tryEnterLoading()) return;
-        submitWorker(() -> decodeOnWorker(handle), ex -> handle.markFailed(ex, System.currentTimeMillis()));
+        submitWorker(
+                () -> decodeOnWorker(handle),
+                ex -> {
+                    ApricityUI.LOGGER.error("[AUI Image] decode worker rejected path={}", handle.path(), ex);
+                    handle.markFailed(ex, System.currentTimeMillis());
+                }
+        );
     }
 
     private void decodeOnWorker(ImageHandle handle) {
@@ -121,6 +135,7 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
             }
         } catch (Exception exception) {
             if (decodedImage != null) decodedImage.close();
+            ApricityUI.LOGGER.error("[AUI Image] image load/decode failed path={}", handle.path(), exception);
             handle.markFailed(exception, System.currentTimeMillis());
             return;
         }
@@ -171,10 +186,12 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         try {
             texture = Image.uploadDecoded(task.handle.path(), task.decodedImage);
         } catch (Exception exception) {
+            ApricityUI.LOGGER.error("[AUI Image] texture apply failed path={}", task.handle.path(), exception);
             task.handle.markFailed(exception, System.currentTimeMillis());
             return;
         }
         if (texture == null) {
+            ApricityUI.LOGGER.error("[AUI Image] texture upload returned null path={}", task.handle.path());
             task.handle.markFailed(new IllegalStateException("上传纹理失败: " + task.handle.path()), System.currentTimeMillis());
             return;
         }
@@ -191,7 +208,10 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
             Minecraft.getInstance().execute(() -> {
                 for (ImageHandle.RequesterRef requesterRef : requesters) {
                     Element element = requesterRef.getElement();
-                    if (element == null || element.document == null) continue;
+                    if (element == null || element.document == null) {
+                        ApricityUI.LOGGER.debug("[AUI Image] requester disappeared before apply path={}", task.handle.path());
+                        continue;
+                    }
                     int dirtyMask = requesterRef.needRelayout() ? Drawer.RELAYOUT : Drawer.REPAINT;
                     element.document.markDirty(element, dirtyMask);
                 }

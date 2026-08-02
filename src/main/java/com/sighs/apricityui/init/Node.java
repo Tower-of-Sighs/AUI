@@ -1,5 +1,9 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.script.ApricityJS;
+import dev.latvian.mods.rhino.Function;
+import dev.latvian.mods.rhino.util.HideFromJS;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -16,8 +20,9 @@ public abstract class Node {
     public UUID uuid = UUID.randomUUID();
     public Document document;
     public Node parentNode = null;
-    public final CopyOnWriteArrayList<Node> childNodes = new CopyOnWriteArrayList<>();
+    public final ArrayList<Node> childNodes = new ArrayList<>();
     public int depth = 0;
+    private long subtreeMutationVersion = 1L;
 
     private final EventRegistry events = new EventRegistry(this);
     public CopyOnWriteArrayList<Event.ListenerRecord> EventListener = events.listeners();
@@ -36,6 +41,16 @@ public abstract class Node {
 
     public List<Node> getChildNodes() {
         return Collections.unmodifiableList(childNodes);
+    }
+
+    public long getSubtreeMutationVersion() {
+        return subtreeMutationVersion;
+    }
+
+    void invalidateSubtreeMutationVersion() {
+        for (Node current = this; current != null; current = current.parentNode) {
+            current.subtreeMutationVersion++;
+        }
     }
 
     public Node getFirstChild() {
@@ -99,16 +114,17 @@ public abstract class Node {
     public Node appendChild(Node node) {
         if (document == null || node == null) return null;
         if (node instanceof DocumentFragment fragment) {
+            if (isConnected()) {
+                return document.getTree().insertFragment(fragment, this, null);
+            }
             Node last = null;
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
-                last = document.createRelationAndReturn(prepareForInsertion(child), this, false);
+                last = appendSingleChild(prepareForInsertion(child));
             }
             return last;
         }
-        Node inserted = prepareForInsertion(node);
-        document.createRelation(inserted, this, false);
-        return inserted;
+        return appendSingleChild(prepareForInsertion(node));
     }
 
     public Node removeChild(Node node) {
@@ -117,19 +133,32 @@ public abstract class Node {
         return node;
     }
 
+    public void clearChildren() {
+        if (document == null || childNodes.isEmpty()) return;
+        if (isConnected()) {
+            document.getTree().clearChildren(this);
+            return;
+        }
+        ArrayList<Node> snapshot = new ArrayList<>(childNodes);
+        for (Node child : snapshot) {
+            detachLocalChild(child);
+        }
+    }
+
     public Node insertBefore(Node newNode, Node referenceNode) {
         if (document == null || newNode == null) return null;
         if (newNode instanceof DocumentFragment fragment) {
+            if (isConnected()) {
+                return document.getTree().insertFragment(fragment, this, referenceNode);
+            }
             Node last = null;
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
-                last = document.getTree().insertBeforeAndReturn(prepareForInsertion(child), this, referenceNode);
+                last = insertSingleChildBefore(prepareForInsertion(child), referenceNode);
             }
             return last;
         }
-        Node inserted = prepareForInsertion(newNode);
-        document.getTree().insertBefore(inserted, this, referenceNode);
-        return inserted;
+        return insertSingleChildBefore(prepareForInsertion(newNode), referenceNode);
     }
 
     public Node replaceChild(Node newNode, Node oldNode) {
@@ -137,14 +166,82 @@ public abstract class Node {
         if (newNode instanceof DocumentFragment fragment) {
             Node nextSibling = oldNode.getNextSibling();
             document.removeNode(oldNode);
+            if (isConnected()) {
+                document.getTree().insertFragment(fragment, this, nextSibling);
+                return oldNode;
+            }
             ArrayList<Node> snapshot = new ArrayList<>(fragment.childNodes);
             for (Node child : snapshot) {
-                document.getTree().insertBefore(prepareForInsertion(child), this, nextSibling);
+                insertSingleChildBefore(prepareForInsertion(child), nextSibling);
             }
             return oldNode;
         }
-        document.getTree().replaceChild(this, prepareForInsertion(newNode), oldNode);
+        Node inserted = prepareForInsertion(newNode);
+        if (isConnected()) {
+            document.getTree().replaceChild(this, inserted, oldNode);
+        } else {
+            int index = childNodes.indexOf(oldNode);
+            if (index < 0) return null;
+            detachLocalChild(oldNode);
+            attachLocalChild(inserted, index);
+        }
         return oldNode;
+    }
+
+    private Node appendSingleChild(Node node) {
+        if (node == null) return null;
+        if (isConnected()) {
+            document.createRelation(node, this, false);
+        } else {
+            attachLocalChild(node, childNodes.size());
+        }
+        return node;
+    }
+
+    private Node insertSingleChildBefore(Node node, Node referenceNode) {
+        if (node == null) return null;
+        if (isConnected()) {
+            document.getTree().insertBefore(node, this, referenceNode);
+        } else {
+            int index = referenceNode == null ? childNodes.size() : childNodes.indexOf(referenceNode);
+            if (index < 0) index = childNodes.size();
+            attachLocalChild(node, index);
+        }
+        return node;
+    }
+
+    private void attachLocalChild(Node node, int index) {
+        if (node == null) return;
+        detachLocalChild(node);
+        int safeIndex = Math.max(0, Math.min(index, childNodes.size()));
+        childNodes.add(safeIndex, node);
+        node.parentNode = this;
+        node.document = document;
+        node.depth = depth + 1;
+        if (this instanceof Element parentElement) {
+            if (node instanceof Element childElement) {
+                childElement.parentElement = parentElement;
+                childElement.syncDomStateAfterAttach();
+            }
+            parentElement.refreshElementChildrenFromChildNodes();
+        } else if (node instanceof Element childElement) {
+            childElement.parentElement = null;
+            childElement.syncDomStateAfterAttach();
+        }
+    }
+
+    private static void detachLocalChild(Node node) {
+        if (node == null) return;
+        Node oldParent = node.parentNode;
+        if (oldParent == null) return;
+        oldParent.childNodes.remove(node);
+        if (oldParent instanceof Element oldParentElement) {
+            oldParentElement.refreshElementChildrenFromChildNodes();
+        }
+        node.parentNode = null;
+        if (node instanceof Element childElement) {
+            childElement.parentElement = null;
+        }
     }
 
     private Node prepareForInsertion(Node node) {
@@ -208,16 +305,32 @@ public abstract class Node {
         return !targetEvent.defaultPrevented;
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener) {
         events.addEventListener(type, listener);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         events.addEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
         events.addEventListener(type, listener, useCapture, once);
+    }
+
+    public void addEventListener(String type, Function listener) {
+        addEventListener(type, listener, false, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture) {
+        addEventListener(type, listener, useCapture, false);
+    }
+
+    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) events.addEventListener(type, wrapped, useCapture, once);
     }
 
     protected void addInternalEventListener(String type, Consumer<Event> listener) {
@@ -228,12 +341,23 @@ public abstract class Node {
         events.addInternalEventListener(type, listener, useCapture);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
 
+    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         events.removeEventListener(type, listener, useCapture);
+    }
+
+    public void removeEventListener(String type, Function listener) {
+        removeEventListener(type, listener, false);
+    }
+
+    public void removeEventListener(String type, Function listener, boolean useCapture) {
+        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        if (wrapped != null) events.removeEventListener(type, wrapped, useCapture);
     }
 
     public void triggerEvent(Consumer<Event.ListenerRecord> handler) {

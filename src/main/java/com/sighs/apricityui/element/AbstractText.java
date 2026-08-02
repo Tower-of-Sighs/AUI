@@ -1,5 +1,8 @@
 package com.sighs.apricityui.element;
 
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
@@ -21,10 +24,12 @@ public abstract class AbstractText extends Element {
 
     protected int selectionStart = 0;
     protected int selectionEnd = 0;
+    protected String selectionDirection = "none";
     protected boolean selecting = false;
     protected int selectionAnchor = 0;
     protected final Deque<TextState> undoStack = new ArrayDeque<>();
     protected boolean restoringUndo = false;
+    protected boolean composing = false;
     protected static final int MAX_UNDO_STACK = 128;
     private String focusValueSnapshot = "";
 
@@ -64,6 +69,7 @@ public abstract class AbstractText extends Element {
                 if (!hasSelection()) selectionAnchor = selectionStart;
                 selectionStart = selectionAnchor;
                 selectionEnd = cursor;
+                updateSelectionDirection();
             } else {
                 selectionAnchor = cursor;
                 if (canSelectText()) clearSelection();
@@ -79,6 +85,7 @@ public abstract class AbstractText extends Element {
             locateCursor(mouseEvent.offsetX, mouseEvent.offsetY);
             selectionStart = selectionAnchor;
             selectionEnd = cursor;
+            updateSelectionDirection();
             clampScroll();
         });
 
@@ -156,6 +163,99 @@ public abstract class AbstractText extends Element {
         return cursor;
     }
 
+    public int getSelectionStart() {
+        return Math.min(selectionStart, value == null ? 0 : value.length());
+    }
+
+    public int getSelectionEnd() {
+        return Math.min(selectionEnd, value == null ? 0 : value.length());
+    }
+
+    public String getSelectionDirection() {
+        return selectionDirection;
+    }
+
+    public void setSelectionRange(int start, int end) {
+        setSelectionRange(start, end, "none");
+    }
+
+    public void setSelectionRange(int start, int end, String direction) {
+        ensureValue();
+        int length = value.length();
+        int safeStart = clamp(start, 0, length);
+        int safeEnd = clamp(end, 0, length);
+        selectionStart = safeStart;
+        selectionEnd = safeEnd;
+        selectionDirection = normalizeSelectionDirection(direction);
+        selectionAnchor = "backward".equals(selectionDirection) ? safeEnd : safeStart;
+        cursor = safeEnd;
+        clampScroll();
+    }
+
+    public void select() {
+        ensureValue();
+        setSelectionRange(0, value.length(), "forward");
+    }
+
+    public void setRangeText(String replacement) {
+        setRangeText(replacement, getSelectionStart(), getSelectionEnd(), "preserve");
+    }
+
+    public void setRangeText(String replacement, int start, int end, String selectionMode) {
+        ensureValue();
+        if (!canEditText()) return;
+        int safeStart = clamp(Math.min(start, end), 0, value.length());
+        int safeEnd = clamp(Math.max(start, end), 0, value.length());
+        String normalized = normalizeInsertedText(replacement == null ? "" : replacement);
+        if (!dispatchBeforeInputEvent("insertReplacementText", normalized)) return;
+        pushUndoState();
+        value = value.substring(0, safeStart) + normalized + value.substring(safeEnd);
+        int nextStart = safeStart;
+        int nextEnd = safeStart + normalized.length();
+        if ("select".equalsIgnoreCase(selectionMode)) {
+            selectionStart = nextStart;
+            selectionEnd = nextEnd;
+            selectionDirection = "forward";
+            cursor = nextEnd;
+        } else if ("start".equalsIgnoreCase(selectionMode)) {
+            clearSelection();
+            cursor = nextStart;
+            clearSelection();
+        } else if ("end".equalsIgnoreCase(selectionMode)) {
+            clearSelection();
+            cursor = nextEnd;
+            clearSelection();
+        } else {
+            int delta = normalized.length() - (safeEnd - safeStart);
+            int cursorValue = clamp(cursor + delta, 0, value.length());
+            cursor = cursorValue;
+            clearSelection();
+        }
+        clampScroll();
+        getRenderer().text.clear();
+        dispatchInputEvent("insertReplacementText", normalized);
+    }
+
+    public void beginComposition(String data) {
+        Event composition = new Event.CompositionEvent(this, "compositionstart", true, data);
+        ((Event.CompositionEvent) composition).isComposing = true;
+        composing = true;
+        Event.tiggerEvent(composition);
+    }
+
+    public void updateComposition(String data) {
+        Event composition = new Event.CompositionEvent(this, "compositionupdate", true, data);
+        ((Event.CompositionEvent) composition).isComposing = true;
+        Event.tiggerEvent(composition);
+    }
+
+    public void endComposition(String data) {
+        Event composition = new Event.CompositionEvent(this, "compositionend", true, data);
+        ((Event.CompositionEvent) composition).isComposing = false;
+        Event.tiggerEvent(composition);
+        composing = false;
+    }
+
     public boolean hasSelection() {
         return selectionStart != selectionEnd;
     }
@@ -171,6 +271,7 @@ public abstract class AbstractText extends Element {
     public void clearSelection() {
         selectionStart = cursor;
         selectionEnd = cursor;
+        selectionDirection = "none";
         addDirtyFlags(Drawer.REPAINT);
     }
 
@@ -180,6 +281,7 @@ public abstract class AbstractText extends Element {
         selectionAnchor = 0;
         selectionStart = 0;
         selectionEnd = cursor;
+        selectionDirection = "forward";
         clampScroll();
     }
 
@@ -264,6 +366,7 @@ public abstract class AbstractText extends Element {
         if (keepSelection) {
             selectionStart = selectionAnchor;
             selectionEnd = cursor;
+            updateSelectionDirection();
         } else {
             selectionAnchor = cursor;
             clearSelection();
@@ -336,6 +439,7 @@ public abstract class AbstractText extends Element {
             selectionStart = clamp(state.selectionStart, 0, value.length());
             selectionEnd = clamp(state.selectionEnd, 0, value.length());
             selectionAnchor = clamp(state.selectionAnchor, 0, value.length());
+            selectionDirection = normalizeSelectionDirection(state.selectionDirection);
             clampScroll();
             getRenderer().text.clear();
             dispatchInputEvent("historyUndo", null);
@@ -347,6 +451,7 @@ public abstract class AbstractText extends Element {
 
     protected void dispatchInputEvent(String inputType, String data) {
         Event.InputEvent event = new Event.InputEvent(this, "input", true, inputType, data);
+        event.isComposing = composing;
         Event.markTrustedFromCurrentDispatch(event);
         Event.tiggerEvent(event);
     }
@@ -354,6 +459,7 @@ public abstract class AbstractText extends Element {
     protected boolean dispatchBeforeInputEvent(String inputType, String data) {
         Event.InputEvent event = new Event.InputEvent(this, "beforeinput", true, inputType, data);
         event.cancelable = true;
+        event.isComposing = composing;
         Event.markTrustedFromCurrentDispatch(event);
         Event.tiggerEvent(event);
         return !event.defaultPrevented;
@@ -368,7 +474,7 @@ public abstract class AbstractText extends Element {
     protected void pushUndoState() {
         if (restoringUndo) return;
         ensureValue();
-        TextState current = new TextState(value, cursor, selectionStart, selectionEnd, selectionAnchor);
+        TextState current = new TextState(value, cursor, selectionStart, selectionEnd, selectionAnchor, selectionDirection);
         TextState top = undoStack.peek();
         if (top != null && top.equals(current)) return;
         undoStack.push(current);
@@ -408,6 +514,17 @@ public abstract class AbstractText extends Element {
         clampScroll();
     }
 
+    private void updateSelectionDirection() {
+        if (selectionStart == selectionEnd) selectionDirection = "none";
+        else selectionDirection = selectionEnd < selectionStart ? "backward" : "forward";
+    }
+
+    private static String normalizeSelectionDirection(String direction) {
+        if ("backward".equalsIgnoreCase(direction)) return "backward";
+        if ("forward".equalsIgnoreCase(direction)) return "forward";
+        return "none";
+    }
+
     protected void clampScroll() {
         String text = getRenderText();
         if (cursor > text.length()) cursor = text.length();
@@ -415,15 +532,35 @@ public abstract class AbstractText extends Element {
 
         String textBeforeCursor = text.substring(0, cursor);
         double cursorX = Size.measureText(this, textBeforeCursor);
-
-        Size size = Size.getContentSize(this);
-        double visibleWidth = size.width();
-
-        if (cursorX < scrollLeft) setScrollLeft(cursorX);
-        else if (cursorX > scrollLeft + visibleWidth) setScrollLeft(cursorX - visibleWidth + 2);
-
         this.scrollWidth = Size.measureText(this, text);
+        double visibleWidth = Math.max(0, Box.of(this).innerSize().width());
+        double maxScrollLeft = Math.max(0, scrollWidth - visibleWidth);
+        double desiredScrollLeft = scrollLeft;
+
+        if (cursorX < desiredScrollLeft) desiredScrollLeft = cursorX;
+        else if (cursorX > desiredScrollLeft + visibleWidth) desiredScrollLeft = cursorX - visibleWidth + 2;
+
+        // Native text controls keep their internal scroll position synchronous.
+        // Do not route caret visibility through the page scroll model's easing
+        // and overscroll, which causes a one-frame horizontal jump on mousedown.
+        setTextScrollLeftImmediate(Math.max(0, Math.min(maxScrollLeft, desiredScrollLeft)));
         this.addDirtyFlags(Drawer.REPAINT);
+    }
+
+    protected final void setTextScrollLeftImmediate(double value) {
+        double visibleWidth = Math.max(0, Box.of(this).innerSize().width());
+        double maxScrollLeft = Math.max(0, scrollWidth - visibleWidth);
+        double clamped = Math.max(0, Math.min(maxScrollLeft, value));
+        scrollLeft = clamped;
+        targetScrollLeft = clamped;
+    }
+
+    protected final void setTextScrollTopImmediate(double value) {
+        double visibleHeight = Math.max(0, Box.of(this).innerSize().height());
+        double maxScrollTop = Math.max(0, scrollHeight - visibleHeight);
+        double clamped = Math.max(0, Math.min(maxScrollTop, value));
+        scrollTop = clamped;
+        targetScrollTop = clamped;
     }
 
     protected String getRenderText() {
@@ -431,7 +568,7 @@ public abstract class AbstractText extends Element {
         return value;
     }
 
-    protected void drawSingleLineSelection(PoseStack poseStack, Rect rectRenderer, String renderText, double lineHeight) {
+    protected void drawSingleLineSelection(PoseStack poseStack, Rect rectRenderer, String renderText, float drawY, double lineHeight) {
         if (!canSelectText()) return;
         if (!hasSelection()) return;
         int min = clamp(selMin(), 0, renderText.length());
@@ -444,7 +581,7 @@ public abstract class AbstractText extends Element {
 
         float x0 = (float) (contentPos.x + startX);
         float x1 = (float) (contentPos.x + endX);
-        float y0 = (float) contentPos.y;
+        float y0 = drawY;
         float y1 = y0 + (float) lineHeight;
         Graph.drawFillRect(poseStack.last().pose(), x0, y0, x1, y1, Text.getSelectionColor(this));
     }
@@ -498,6 +635,7 @@ public abstract class AbstractText extends Element {
         return true;
     }
 
-    protected record TextState(String value, int cursor, int selectionStart, int selectionEnd, int selectionAnchor) {
+    protected record TextState(String value, int cursor, int selectionStart, int selectionEnd,
+                               int selectionAnchor, String selectionDirection) {
     }
 }
