@@ -110,7 +110,183 @@ run/config/apricityui-client.toml
 run/apricity/debug.json
 ~~~
 
-### 2.3 apricity-debug-client.mjs
+### 2.3 底层 Apricity Debug Protocol
+
+`apricity-debug-client.mjs` 和 `apricity-mcp` 都只是这个协议的客户端封装。需要自己实现 IDE 插件、测试适配器或其他语言客户端时，可以直接连接 WebSocket 并发送 JSON-RPC 2.0 请求。
+
+连接地址和认证方式：
+
+~~~text
+ws://127.0.0.1:25321/apricity?token=<debug-token>
+~~~
+
+Token 也可以放在 `Authorization: Bearer <debug-token>` 请求头中。服务只绑定 `127.0.0.1`，但 token 仍然是当前客户端 UI 的操作凭据，不要转发给不可信进程。WebSocket 消息是 UTF-8 JSON 文本；客户端帧必须使用标准 WebSocket mask。
+
+最小请求和响应形状如下：
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "System.info",
+  "params": {}
+}
+~~~
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "name": "Apricity Debug Protocol",
+    "protocolVersion": 1,
+    "endpoint": "ws://127.0.0.1:25321/apricity",
+    "capabilities": ["target", "dom", "input"]
+  }
+}
+~~~
+
+请求的 `id` 可以是字符串、数字或 `null`。没有 `id` 的请求是 notification，服务端执行后不返回结果。协议版本目前为 `1`，方法名区分大小写。
+
+#### Target 和 session
+
+每个活动 Document 是一个 target。先调用 `Target.list`，再使用返回的完整 Document UUID 调用 `Target.attach`：
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": "attach-1",
+  "method": "Target.attach",
+  "params": {
+    "targetId": "<document-uuid>"
+  }
+}
+~~~
+
+成功结果包含 `sessionId`、`targetId` 和 `path`。所有 `DOM.*` 方法都必须携带这个 `sessionId`；`Target.detach` 也使用 `sessionId`。同一路径可以同时存在多个 Document，不能使用路径代替 UUID。
+
+`Target.list` 返回的 target 字段如下：
+
+| 字段 | 含义 |
+| --- | --- |
+| `targetId` | Document UUID |
+| `path` | 逻辑 HTML 路径 |
+| `active` | Document 是否仍然活动 |
+| `inWorld` | 是否是世界内 Document |
+| `refreshGeneration` | 当前刷新代次 |
+
+Document 刷新会重建 DOM。刷新后旧 `nodeId` 可能已经断开，即使 `sessionId` 仍存在，也应重新 `DOM.query` 或 `Target.list` 后获取新节点。
+
+#### 方法参考
+
+系统和目标方法：
+
+| 方法 | 必要参数 | 结果 |
+| --- | --- | --- |
+| `System.info` | 无 | 协议版本、端点和能力列表 |
+| `Target.list` | 无 | `{ targets: [...] }` |
+| `Target.attach` | `targetId` | `{ sessionId, targetId, path }` |
+| `Target.detach` | `sessionId` | `{ detached: boolean }` |
+
+DOM 查询和检查方法都把 `sessionId` 放在参数对象中：
+
+| 方法 | 其他参数 | 结果 |
+| --- | --- | --- |
+| `DOM.query` | `selector` | 第一个匹配节点的 `nodeId`，没有匹配时为 `null` |
+| `DOM.queryAll` | `selector` | `{ nodeIds: [...] }` |
+| `DOM.snapshot` | `maxDepth`、`maxNodes` | 从 `documentElement` 或 `body` 开始的树快照 |
+| `DOM.getAttributes` | `nodeId` | 按名称排序的 `{ attributes: {...} }` |
+| `DOM.getText` | `nodeId` | `{ text: "..." }` |
+| `DOM.getComputedStyle` | `nodeId` | `{ cssText: "..." }` |
+| `DOM.getBoxModel` | `nodeId` | `margin`、`border`、`padding`、`content` 四个屏幕坐标矩形 |
+
+`DOM.snapshot` 的 `maxDepth` 默认是 `32`，允许 `0..128`；`maxNodes` 默认是 `5000`，允许 `1..20000`。参数超出范围会返回 `INVALID_PARAMS` 或 `LIMIT_EXCEEDED`，调试器不应无限制请求整个页面。
+
+输入方法：
+
+| 方法 | 参数 | 行为 |
+| --- | --- | --- |
+| `DOM.hover` | `nodeId` | 把鼠标移动到元素 border box 中心并触发 `mousemove` |
+| `DOM.click` | `nodeId` | 在中心点依次触发 `mousemove`、`mousedown`、`mouseup` |
+| `DOM.fill` | `nodeId`、`value` | 聚焦可编辑 `input`/`textarea`，全选并替换值 |
+
+`hover` 和 `click` 要求元素可见且有正的布局尺寸。`click` 还要求元素允许 pointer events，且中心点没有被其他元素覆盖；`fill` 不能操作禁用控件或非可编辑元素。返回的输入结果通常包含实际使用的屏幕坐标 `point`，`fill` 返回写入后的 `value`。
+
+#### 原始调用示例
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "DOM.query",
+  "params": {
+    "sessionId": "<session-uuid>",
+    "selector": "#save"
+  }
+}
+~~~
+
+拿到 `nodeId` 后查询样式并点击：
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "DOM.getComputedStyle",
+  "params": {
+    "sessionId": "<session-uuid>",
+    "nodeId": "<node-uuid>"
+  }
+}
+~~~
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "method": "DOM.click",
+  "params": {
+    "sessionId": "<session-uuid>",
+    "nodeId": "<node-uuid>"
+  }
+}
+~~~
+
+#### 错误码和执行模型
+
+错误响应使用标准 JSON-RPC 形状：
+
+~~~json
+{
+  "jsonrpc": "2.0",
+  "id": 4,
+  "error": {
+    "code": -32003,
+    "message": "Element is not visible"
+  }
+}
+~~~
+
+| 错误码 | 含义 |
+| ---: | --- |
+| `-32700` | JSON 解析失败 |
+| `-32600` | JSON-RPC 请求格式无效 |
+| `-32601` | 方法不存在 |
+| `-32602` | 参数类型、必填字段或范围无效 |
+| `-32603` | 服务端内部错误 |
+| `-32000` | 调试服务已停止或命令队列已满 |
+| `-32001` | target 已关闭，或 session 已 detach |
+| `-32002` | node 已从当前 Document 脱离 |
+| `-32003` | 元素不可操作，例如不可见、被覆盖或禁用 |
+| `-32004` | 请求超过 DOM 深度/节点限制 |
+
+请求先进入线程安全的命令队列，再由客户端 tick 在主线程执行。服务端每个 tick 最多处理 256 条命令，并有约 4 ms 的处理预算；连接线程不会直接访问 DOM。客户端应接受请求延迟、在超时后重新读取 target/node 状态，并避免批量发送无界查询。
+
+当前协议明确不提供任意 JavaScript 执行、`evaluate`、文件读写、截图、网络代理或 Chrome DevTools Protocol 兼容层。需要执行页面脚本时，应修改测试页面或使用页面自身的日志 API；需要保存资源时，使用资源管理器或 DevTools 的可写入口。
+
+传输层还有以下保护：单个 WebSocket 消息最大约 `1 MiB`，HTTP 握手头最大 `64 KiB`，同时最多保留 64 个连接。服务端命令队列上限为 4096 条；超过后会返回 `-32000`，不会无限积压到客户端 tick。
+
+### 2.4 apricity-debug-client.mjs
 
 这是一个不依赖 Playwright 的轻量 Node.js 客户端，封装 Apricity Debug Protocol 的 WebSocket 和 JSON-RPC 调用。
 
@@ -231,7 +407,7 @@ try {
 
 该客户端只提供 DOM 查询、样式/盒模型检查和有限的鼠标/文本操作，不提供 evaluate、任意 JavaScript 执行、文件读写或 Chrome DevTools Protocol 兼容层。
 
-### 2.4 apricity-mcp
+### 2.5 apricity-mcp
 
 tools/apricity-mcp 是上述客户端的 MCP stdio 桥接，适合让支持 MCP 的开发工具直接查看和操作当前运行中的 ApricityUI。
 

@@ -160,6 +160,45 @@ config/apricityui/viewport-zoom.properties
 
 因此，同一路径的页面重新打开时可能保留上次缩放值。修改 HTML 中的 `zoom`、`min-zoom` 或 `max-zoom` 后，刷新页面会重新应用新的约束；排查“页面看起来仍然放大”时也要检查这个持久化值。
 
+### 2.6 页面开发快捷键：END 重载与左 Alt 释放鼠标
+
+ApricityUI 还注册了两个与页面调试和输入有关的客户端按键。它们是 Minecraft 的可重绑定按键，下面的按键是默认值：
+
+| 默认按键 | 注册名称 | 行为 |
+| --- | --- | --- |
+| `END` | `key.apricityui.reload` | 请求客户端资源重载 |
+| 左 `Alt` | `key.apricityui.release_mouse` | 按住时释放原生鼠标 |
+
+#### END 重载
+
+按下 `END` 后，框架不会只替换当前可见的一段 HTML，而是进入客户端资源重载流程：
+
+1. 显示重载进度提示，并让当前 UI 帧先完成；
+2. 重载客户端脚本；
+3. 清理静态资源清单、图片/样式/网络异步任务和旧资源代次；
+4. 重新扫描 HTML 模板；
+5. 刷新普通 Document、WorldWindow、DevTools 和资源管理器；
+6. 重新解析 HTML、CSS、扩展元素、页面脚本和绘制列表。
+
+重载会重建 DOM。旧的 `Element`、事件监听器、Observer 和依赖旧节点的 Java 引用不能继续使用；页面脚本应在初始化、`DOMContentLoaded` 或 `load` 阶段重新绑定。设置了 `reloadPersistent=true` 的 Document 可能被普通刷新流程跳过，详见 [Overlay Document 文档](overlay-document.md#11-资源重载和持久化取舍)。
+
+`END` 是开发重载键，不是业务状态同步机制。需要更新一条数据时，应直接修改现有元素的文本、属性或样式，不要通过每帧调用 `refresh()` 实现。
+
+#### 左 Alt 释放鼠标
+
+左 `Alt` 是“按住释放”，不是切换开关。只有以下条件同时满足时才会生效：
+
+- 已经进入 Minecraft 世界；
+- 当前没有普通 Minecraft Screen；
+- 当前没有 Overlay；
+- 游戏窗口处于激活状态。
+
+首次按住时，如果原生鼠标处于抓取状态，框架会记录这个状态并调用 `releaseMouse()`。松开左 `Alt` 后，只有鼠标在按下前确实被抓取过、且当前仍满足可恢复条件时，才会重新抓取鼠标；如果按下前鼠标已经是释放状态，松开按键不会强制抓取它。
+
+这项功能主要用于世界内页面和调试场景中临时移动系统准心。它不改变 Document 的 viewport、缩放或事件坐标；页面事件仍然收到经过宿主坐标变换后的 Document 逻辑坐标。若世界窗口出现 hover 偏移，应检查宿主投影和屏幕到 Document 的转换，不要因为使用了左 `Alt` 就再次对坐标乘缩放值。
+
+当 Screen、Overlay、世界或窗口激活状态发生变化时，释放控制器会自动撤销当前活动状态；它不会在不满足条件时替游戏重新抓取鼠标。
+
 ## 3. Overlay 的缩放穿透
 
 Overlay 文档通常位于被检视页面之上。若 Overlay 自己处理了 `Ctrl+滚轮`，页面就会出现“顶层 toast 或工具栏被缩放，底下页面不缩放”的现象。
@@ -489,6 +528,8 @@ observer.disconnect();
 
 ## 9. 与真实浏览器的差异
 
+HTML 元素、CSS 属性、选择器和布局模型的逐项支持度盘点见 [HTML / CSS 标准覆盖面](html-css-coverage.md)。
+
 为了让页面能够复用常见 HTML/CSS/JS 写法，ApricityUI 提供了浏览器式接口，但它仍运行在 Minecraft 客户端和 JavaScript 引擎中。开发页面时应明确以下差异：
 
 | 能力 | ApricityUI 行为 |
@@ -542,6 +583,8 @@ src/main/java/com/sighs/apricityui/init/Operation.java
 src/main/java/com/sighs/apricityui/init/TextSelection.java
 src/main/java/com/sighs/apricityui/event/KeyEvent.java
 src/main/java/com/sighs/apricityui/event/MouseEvent.java
+src/main/java/com/sighs/apricityui/registry/Keybindings.java
+src/main/java/com/sighs/apricityui/instance/CursorReleaseController.java
 src/main/java/com/sighs/apricityui/resource/HTML.java
 src/main/java/com/sighs/apricityui/instance/ApricityUIConfig.java
 src/main/resources/assets/apricityui/apricity/global.js

@@ -33,7 +33,10 @@ public class Box {
     private double paddingRight = 0d;
     private double paddingBottom = 0d;
     private double paddingLeft = 0d;
-    public final ArrayList<Integer> borderRadius = new ArrayList<>();
+    // 每角两个分量（水平/垂直）的原始 token，支持 px/%、calc/min/max/clamp。
+    // 百分比与 calc 在 getCalculatedRadii 中按盒尺寸解析（CSS Backgrounds 3 §5.4）。
+    private final String[] borderRadiusH = {"0", "0", "0", "0"};
+    private final String[] borderRadiusV = {"0", "0", "0", "0"};
     public final List<Shadow> shadows = new ArrayList<>();
     public Shadow shadow = null;
     public BorderImage borderImage = null;
@@ -133,29 +136,7 @@ public class Box {
 
         String radiusStr = style.borderRadius;
         if (!radiusStr.equals("unset")) {
-            String[] parts = radiusStr.trim().split("\\s+");
-            List<Integer> parsed = new ArrayList<>();
-            for (String p : parts) {
-                int val = Size.parse(p);
-                parsed.add(val == -1 ? 0 : val);
-            }
-
-            // 1值: [r, r, r, r]
-            // 2值: [TL, TR] -> [TL, TR, TL, TR] (对角)
-            // 3值: [TL, TR, BR] -> [TL, TR, BR, TR]
-            // 4值: [TL, TR, BR, BL]
-            if (parsed.size() == 1) {
-                int r = parsed.get(0);
-                resultBox.borderRadius.addAll(List.of(r, r, r, r));
-            } else if (parsed.size() == 2) {
-                resultBox.borderRadius.addAll(List.of(parsed.get(0), parsed.get(1), parsed.get(0), parsed.get(1)));
-            } else if (parsed.size() == 3) {
-                resultBox.borderRadius.addAll(List.of(parsed.get(0), parsed.get(1), parsed.get(2), parsed.get(1)));
-            } else if (parsed.size() >= 4) {
-                resultBox.borderRadius.addAll(parsed.subList(0, 4));
-            }
-        } else {
-            resultBox.borderRadius.addAll(List.of(0, 0, 0, 0));
+            parseBorderRadius(radiusStr, resultBox.borderRadiusH, resultBox.borderRadiusV);
         }
 
         resultBox.shadows.clear();
@@ -679,23 +660,105 @@ public class Box {
         return res;
     }
 
-    public float[] getCalculatedRadii(float w, float h, float offset) {
-        float tl = Math.max(0, borderRadius.get(0) - offset);
-        float tr = Math.max(0, borderRadius.get(1) - offset);
-        float br = Math.max(0, borderRadius.get(2) - offset);
-        float bl = Math.max(0, borderRadius.get(3) - offset);
+    /**
+     * 解析 border-radius：<length-percentage>{1,4} [ / <length-percentage>{1,4} ]。
+     * 无斜杠时垂直分量与水平分量相同；token 保留原始字符串，
+     * 百分比与 calc 在 getCalculatedRadii 中按盒尺寸解析。
+     * 框架的 calc 不支持除法，因此值内的 '/' 只会是椭圆分量分隔符。
+     */
+    static void parseBorderRadius(String value, String[] hOut, String[] vOut) {
+        String horizontal = value;
+        String vertical = null;
+        int slash = value.indexOf('/');
+        if (slash >= 0) {
+            horizontal = value.substring(0, slash);
+            vertical = value.substring(slash + 1);
+        }
+        String[] h = expandRadiusTokens(tokenizeRadius(horizontal));
+        String[] v = vertical == null ? h : expandRadiusTokens(tokenizeRadius(vertical));
+        for (int i = 0; i < 4; i++) {
+            hOut[i] = sanitizeRadiusToken(h[i]);
+            vOut[i] = sanitizeRadiusToken(v[i]);
+        }
+    }
 
-        // CSS 规范：如果两个半径之和超过边长，需要按比例缩小
+    /** 按空白切分 token，但不拆散 calc()/min() 等函数体内的空白。 */
+    private static List<String> tokenizeRadius(String s) {
+        List<String> tokens = new ArrayList<>();
+        int depth = 0;
+        int start = -1;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '(') depth++;
+            else if (c == ')') depth = Math.max(0, depth - 1);
+            if (Character.isWhitespace(c) && depth == 0) {
+                if (start >= 0) {
+                    tokens.add(s.substring(start, i));
+                    start = -1;
+                }
+            } else if (start < 0) {
+                start = i;
+            }
+        }
+        if (start >= 0) tokens.add(s.substring(start));
+        return tokens;
+    }
+
+    /** 1-4 值简写展开为 [TL, TR, BR, BL]；数量非法时整组回退为 0。 */
+    private static String[] expandRadiusTokens(List<String> tokens) {
+        String[] zero = {"0", "0", "0", "0"};
+        return switch (tokens.size()) {
+            case 1 -> new String[]{tokens.get(0), tokens.get(0), tokens.get(0), tokens.get(0)};
+            case 2 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(0), tokens.get(1)};
+            case 3 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(2), tokens.get(1)};
+            case 4 -> new String[]{tokens.get(0), tokens.get(1), tokens.get(2), tokens.get(3)};
+            default -> zero;
+        };
+    }
+
+    /** 无法解析的 token 回退为 0（百分比用 100 为基准做合法性校验）。 */
+    private static String sanitizeRadiusToken(String token) {
+        if (token == null || token.isBlank()) return "0";
+        Double resolved = Size.tryResolveLength(token.trim(), 100);
+        return resolved == null ? "0" : token.trim();
+    }
+
+    private static double resolveRadius(String token, double basis) {
+        Double resolved = Size.tryResolveLength(token, basis);
+        return resolved == null ? 0 : Math.max(0, resolved);
+    }
+
+    public float[] getCalculatedRadii(float w, float h, float offset) {
+        return calculateRadii(borderRadiusH, borderRadiusV, w, h, offset);
+    }
+
+    /**
+     * 返回 8 分量半径 [tlH, tlV, trH, trV, brH, brV, blH, blV]（每角水平/垂直）。
+     * 百分比水平分量相对盒宽、垂直分量相对盒高解析，可表达椭圆角。
+     * 按 CSS 规则：相邻两角半径之和超过对应边长时，全部半径等比缩小。
+     * offset 用于内缩（正文盒）或外扩（阴影 spread）。
+     */
+    static float[] calculateRadii(String[] hTokens, String[] vTokens, float w, float h, float offset) {
+        float[] r = new float[8];
+        for (int i = 0; i < 4; i++) {
+            r[i * 2] = (float) Math.max(0, resolveRadius(hTokens[i], w) - offset);
+            r[i * 2 + 1] = (float) Math.max(0, resolveRadius(vTokens[i], h) - offset);
+        }
+        float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
+        float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
+
         float scale = 1.0f;
-        scale = Math.min(scale, w / (tl + tr));
-        scale = Math.min(scale, h / (tr + br));
-        scale = Math.min(scale, w / (br + bl));
-        scale = Math.min(scale, h / (bl + tl));
+        if (tlH + trH > 0) scale = Math.min(scale, w / (tlH + trH));
+        if (trV + brV > 0) scale = Math.min(scale, h / (trV + brV));
+        if (brH + blH > 0) scale = Math.min(scale, w / (brH + blH));
+        if (blV + tlV > 0) scale = Math.min(scale, h / (blV + tlV));
 
         // 防止除以0或负数
-        if (scale < 0) scale = 0;
-
-        return new float[]{tl * scale, tr * scale, br * scale, bl * scale};
+        if (scale < 0 || Float.isNaN(scale)) scale = 0;
+        if (scale != 1.0f) {
+            for (int i = 0; i < 8; i++) r[i] *= scale;
+        }
+        return r;
     }
 
     public static boolean matchStyleName(String name) {

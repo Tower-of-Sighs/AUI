@@ -90,6 +90,10 @@ class ResourceManagerScrollTest {
             assertEquals("java", document.querySelector(".resource-reference-language-select").getValue());
             assertEquals("ApricityUI.screen(\"devtools/index.html\");",
                     document.querySelector(".resource-reference-code").getValue());
+            assertEquals("com.sighs.apricityui.element.TextArea",
+                    document.querySelector(".resource-reference-code").getClass().getName());
+            assertEquals("ApricityUI.screen(\"devtools/index.html\");",
+                    Text.of(document.querySelector(".resource-reference-code")).content);
             Element language = document.querySelector(".resource-reference-language-select");
             language.setValue("kjs");
             language.dispatchEvent(new Event(language, "change", true));

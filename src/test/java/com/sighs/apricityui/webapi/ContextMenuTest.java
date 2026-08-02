@@ -91,4 +91,41 @@ class ContextMenuTest {
             Size.clearViewportOverride();
         }
     }
+
+    @Test
+    void longHeaderStaysOnOneLineAndUsesEllipsis() {
+        Size.setViewportOverride(640, 360);
+        Document document = TestDocumentFactory.createDocument();
+        String longName = "THIS_IS_A_VERY_LONG_RESOURCE_FILE_NAME_THAT_MUST_NOT_WRAP.html";
+        ContextMenu menu = ContextMenu.show(document, new Position(20, 20), List.of(
+                ContextMenu.Item.header(longName),
+                ContextMenu.Item.action("OPEN", ContextMenu.Icons.OPEN, () -> {})
+        ));
+        try {
+            FrameTaskScheduler.tick();
+
+            Element rendered = document.querySelector(".ctx-menu");
+            Element header = document.querySelector(".ctx-header");
+            Element action = document.querySelector(".ctx-item");
+            assertNotNull(rendered);
+            assertNotNull(header);
+            assertNotNull(action);
+
+            String headerStyle = header.getAttribute("style");
+            assertTrue(headerStyle.contains("white-space:nowrap"), headerStyle);
+            assertTrue(headerStyle.contains("overflow:hidden"), headerStyle);
+            assertTrue(headerStyle.contains("text-overflow:ellipsis"), headerStyle);
+            assertTrue(headerStyle.contains("max-width:100%"), headerStyle);
+            assertTrue(header.getBoundingClientRect().height < 30,
+                    "long menu header must remain a single line");
+            assertTrue(action.getBoundingClientRect().y >= header.getBoundingClientRect().bottom,
+                    "menu item must remain below the single-line header");
+            assertTrue(rendered.getBoundingClientRect().width <= 360.01,
+                    "long header must not widen the menu without bound");
+        } finally {
+            menu.close();
+            document.remove();
+            Size.clearViewportOverride();
+        }
+    }
 }

@@ -399,7 +399,7 @@ run/config/apricityui-client.toml
 | --- | --- |
 | `debug.autoReload` | 允许本地文件变化触发开发自动重载 |
 | `debug.aiAutoScreenshot` | 开启 AI 辅助截图任务 |
-| `debug.frameTimingHud` | 显示 AUI 帧耗时 HUD |
+| `debug.frameTimingHud` | 显示 AUI 帧耗时 HUD；字段、采样窗口和解读方式见 [二次开发文档](secondary-development.md#5-frametiminghud-帧耗时-hud) |
 | `debug.remoteDebug` | 开启本机回环地址上的外部调试服务 |
 | `debug.resourceManagerWorldWindow` | 让资源管理器在游戏世界中以 WorldWindow 打开 |
 
