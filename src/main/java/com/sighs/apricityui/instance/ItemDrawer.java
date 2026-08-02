@@ -39,11 +39,12 @@ public final class ItemDrawer {
     public static void drawAll(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
         if (state == null || state.hidden() || state.isEmpty()) return;
 
-        draw(poseStack, state, context);
+        ItemRenderContext resolvedContext = context == null ? ItemRenderContext.forGui(state.stack()) : context;
+        draw(poseStack, state, resolvedContext);
         if (state.stack().hasFoil()) {
-            drawGlint(poseStack, state, context);
+            drawGlint(poseStack, state, resolvedContext);
         }
-        drawDecorations(poseStack, state, context);
+        drawDecorations(poseStack, state, resolvedContext);
     }
 
     private static void drawDecorations(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
@@ -51,7 +52,7 @@ public final class ItemDrawer {
         if (stack.isEmpty()) return;
 
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, ItemRenderContext.GUI_DECORATION_Z);
+        poseStack.translate(0.0F, 0.0F, context.decorationZ());
         try {
             ImageDrawer.flushBatch();
             if (state.ghost()) {

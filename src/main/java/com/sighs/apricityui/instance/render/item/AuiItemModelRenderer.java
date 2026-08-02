@@ -39,9 +39,10 @@ public final class AuiItemModelRenderer {
     public static void render(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
         ItemStack stack = state == null ? ItemStack.EMPTY : state.stack();
         if (stack.isEmpty()) return;
-        ResolvedItem resolved = resolve(stack, context);
+        ItemRenderContext resolvedContext = context == null ? ItemRenderContext.forGui(stack) : context;
+        ResolvedItem resolved = resolve(stack, resolvedContext);
         if (resolved == null) {
-            drawFallback(poseStack, stack, "model resolution failed");
+            drawFallback(poseStack, stack, resolvedContext, "model resolution failed");
             return;
         }
         renderResolved(poseStack, resolved, stack, false);
@@ -50,7 +51,8 @@ public final class AuiItemModelRenderer {
     public static void renderGlint(PoseStack poseStack, ItemRenderState state, ItemRenderContext context) {
         ItemStack stack = state == null ? ItemStack.EMPTY : state.stack();
         if (stack.isEmpty() || !stack.hasFoil()) return;
-        ResolvedItem resolved = resolve(stack, context);
+        ItemRenderContext resolvedContext = context == null ? ItemRenderContext.forGui(stack) : context;
+        ResolvedItem resolved = resolve(stack, resolvedContext);
         if (resolved == null) return;
         renderResolved(poseStack, resolved, stack, true);
     }
@@ -62,19 +64,18 @@ public final class AuiItemModelRenderer {
     private static ResolvedItem resolve(ItemStack stack, ItemRenderContext context) {
         try {
             Minecraft minecraft = Minecraft.getInstance();
-            ItemRenderContext resolvedContext = context == null ? ItemRenderContext.forGui(stack) : context;
             BakedModel model = minecraft.getItemRenderer().getModel(
                     stack,
-                    resolvedContext.level(),
-                    resolvedContext.entity(),
-                    resolvedContext.seed()
+                    context.level(),
+                    context.entity(),
+                    context.seed()
             );
             if (stack.is(Items.TRIDENT)) {
                 model = minecraft.getModelManager().getModel(TRIDENT_GUI_MODEL);
             } else if (stack.is(Items.SPYGLASS)) {
                 model = minecraft.getModelManager().getModel(SPYGLASS_GUI_MODEL);
             }
-            return new ResolvedItem(model, resolvedContext);
+            return new ResolvedItem(model, context);
         } catch (Throwable throwable) {
             reportFallback(stack, "model resolution threw " + throwable.getClass().getSimpleName());
             return null;
@@ -102,7 +103,7 @@ public final class AuiItemModelRenderer {
                         Lighting.setupFor3DItems();
                     }
                 }
-                poseStack.translate(0.0F, 0.0F, ItemRenderContext.GUI_MODEL_Z);
+                poseStack.translate(0.0F, 0.0F, resolved.context().modelZ());
                 poseStack.translate(8.0F, 8.0F, 0.0F);
                 poseStack.mulPoseMatrix(new Matrix4f().scaling(1.0F, -1.0F, 1.0F));
                 poseStack.scale(16.0F, 16.0F, 16.0F);
@@ -145,7 +146,7 @@ public final class AuiItemModelRenderer {
             poseStack.popPose();
         }
         if (fallback && !glint) {
-            drawFallback(poseStack, stack, fallbackReason);
+            drawFallback(poseStack, stack, resolved.context(), fallbackReason);
         }
     }
 
@@ -261,12 +262,13 @@ public final class AuiItemModelRenderer {
         );
     }
 
-    public static void drawFallback(PoseStack poseStack, ItemStack stack, String reason) {
+    public static void drawFallback(PoseStack poseStack, ItemStack stack, ItemRenderContext context, String reason) {
+        ItemRenderContext resolvedContext = context == null ? ItemRenderContext.forGui(stack) : context;
         reportFallback(stack, reason);
         ImageDrawer.flushBatch();
         Graph.endBatch();
         poseStack.pushPose();
-        poseStack.translate(0.0F, 0.0F, ItemRenderContext.GUI_MODEL_Z);
+        poseStack.translate(0.0F, 0.0F, resolvedContext.modelZ());
         try {
             final int purple = 0xFFFF00FF;
             final int black = 0xFF121212;

@@ -15,7 +15,7 @@ import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.Transform;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
@@ -28,13 +28,14 @@ import java.util.List;
 import java.util.Set;
 
 public class Base {
-    public static void drawScreenDocument(PoseStack poseStack, Document document) {
-        drawScreenDocument(poseStack, document, List.of());
-    }
-
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
     private static final float GLOBAL_DOCUMENT_Z_OFFSET = 1.0f;
+    // 物品层仍沿用 1.20.1 GUI 的相对深度；文档平面之间必须越过装饰层。
+    private static final float GUI_ITEM_MODEL_Z_OFFSET = 150.0f;
+    private static final float GUI_ITEM_DECORATION_Z_OFFSET = 200.0f;
+    private static final float FLAT_DOCUMENT_LAYER_STEP = GUI_ITEM_DECORATION_Z_OFFSET + 1.0f;
     private static final java.util.ArrayDeque<Float> DOCUMENT_Z_OFFSET_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<GuiItemZ> GUI_ITEM_Z_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
     private static float depthStep = DEFAULT_DEPTH_STEP;
     private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
@@ -44,11 +45,11 @@ public class Base {
     private static float depthCursor = 0.0f;
     private static boolean depthTestEnabled = true;
     private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
+    private static float guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
+    private static float guiItemDecorationZ = GUI_ITEM_DECORATION_Z_OFFSET;
 
-    public static void drawAllDocument(PoseStack poseStack) {
-        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-            if (!document.inWorld && !document.isManuallyRendered()) drawOverlayDocument(poseStack, document);
-        }
+    public static void drawScreenDocument(PoseStack poseStack, Document document) {
+        drawScreenDocument(poseStack, document, List.of());
     }
 
     public static void drawOverlayDocument(PoseStack poseStack, Document document) {
@@ -60,11 +61,26 @@ public class Base {
             Mask.pushScissorScale(viewport.scissorScale());
             try {
                 poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-                drawDocument(poseStack, document);
+                drawFlatDocumentInContext(poseStack, document, List.of());
             } finally {
                 Mask.popScissorScale();
                 poseStack.popPose();
             }
+        }
+    }
+
+    public static void drawAllDocument(PoseStack poseStack) {
+        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
+            if (!document.inWorld && !document.isManuallyRendered()) drawOverlayDocument(poseStack, document);
+        }
+    }
+
+    public static void drawScreenDocument(PoseStack poseStack, Document document, List<? extends RenderNode> overlayNodes) {
+        if (document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
+            Mask.resetDepth();
+            drawFlatDocumentInContext(poseStack, document, overlayNodes);
         }
     }
 
@@ -74,12 +90,20 @@ public class Base {
         BORDER
     }
 
-    public static void drawScreenDocument(PoseStack poseStack, Document document, List<? extends RenderNode> overlayNodes) {
-        if (document == null) return;
-        try (Document.ContextScope ignored = Document.withContext(document)) {
-            // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
-            Mask.resetDepth();
+    private static void drawFlatDocumentInContext(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes
+    ) {
+        float documentBaseZ = resolveFlatDocumentBaseZ(document);
+        pushDocumentZOffset(documentBaseZ);
+        // Item Z is relative to the document pose, which already occupies its own plane.
+        pushGuiItemZ(GUI_ITEM_MODEL_Z_OFFSET, GUI_ITEM_DECORATION_Z_OFFSET);
+        try {
             drawDocumentInContext(poseStack, document, overlayNodes);
+        } finally {
+            popGuiItemZ();
+            popDocumentZOffset();
         }
     }
 
@@ -88,6 +112,20 @@ public class Base {
         try (Document.ContextScope ignored = Document.withContext(document)) {
             drawDocumentInContext(poseStack, document, List.of());
         }
+    }
+
+    private static float resolveFlatDocumentBaseZ(Document document) {
+        List<Document> ordered = DocumentLayerOrder.backToFront(Document.getAll());
+        for (int index = 0; index < ordered.size(); index++) {
+            if (ordered.get(index) == document) {
+                return GLOBAL_DOCUMENT_Z_OFFSET + index * FLAT_DOCUMENT_LAYER_STEP;
+            }
+        }
+        return GLOBAL_DOCUMENT_Z_OFFSET;
+    }
+
+    public static float getGuiItemModelZ() {
+        return guiItemModelZ;
     }
 
     /**
@@ -527,6 +565,16 @@ public class Base {
         depthCursor = 0.0f;
     }
 
+    public static float getGuiItemDecorationZ() {
+        return guiItemDecorationZ;
+    }
+
+    private static void pushGuiItemZ(float modelZ, float decorationZ) {
+        GUI_ITEM_Z_STACK.push(new GuiItemZ(guiItemModelZ, guiItemDecorationZ));
+        guiItemModelZ = Float.isFinite(modelZ) ? modelZ : GUI_ITEM_MODEL_Z_OFFSET;
+        guiItemDecorationZ = Float.isFinite(decorationZ) ? decorationZ : GUI_ITEM_DECORATION_Z_OFFSET;
+    }
+
     /** Overrides the document-level Z offset for a nested render surface. */
     public static void pushDocumentZOffset(float offset) {
         DOCUMENT_Z_OFFSET_STACK.push(documentZOffset);
@@ -537,6 +585,20 @@ public class Base {
         documentZOffset = DOCUMENT_Z_OFFSET_STACK.isEmpty()
                 ? GLOBAL_DOCUMENT_Z_OFFSET
                 : DOCUMENT_Z_OFFSET_STACK.pop();
+    }
+
+    private static void popGuiItemZ() {
+        GuiItemZ previous = GUI_ITEM_Z_STACK.isEmpty() ? null : GUI_ITEM_Z_STACK.pop();
+        if (previous == null) {
+            guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
+            guiItemDecorationZ = GUI_ITEM_DECORATION_Z_OFFSET;
+        } else {
+            guiItemModelZ = previous.modelZ();
+            guiItemDecorationZ = previous.decorationZ();
+        }
+    }
+
+    private record GuiItemZ(float modelZ, float decorationZ) {
     }
 
     public static void pushDepthTest(boolean enabled) {

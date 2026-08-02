@@ -1,5 +1,6 @@
 package com.sighs.apricityui.instance.render.item;
 
+import com.sighs.apricityui.render.Base;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.renderer.LightTexture;
@@ -17,14 +18,12 @@ public record ItemRenderContext(
         int seed,
         int packedLight,
         int packedOverlay,
-        boolean guiLighting
+        boolean guiLighting,
+        float modelZ,
+        float decorationZ
 ) {
     public static final int GUI_LIGHT = LightTexture.FULL_BRIGHT;
     public static final int NO_OVERLAY = OverlayTexture.NO_OVERLAY;
-    // 对齐 1.20.1 ItemRenderer：100 + 临时 50 blit offset。
-    public static final float GUI_MODEL_Z = 150.0F;
-    // 原版数量、耐久和文字装饰位于独立的前景平面。
-    public static final float GUI_DECORATION_Z = 200.0F;
 
     public static ItemRenderContext forGui(ItemStack stack) {
         Minecraft minecraft = Minecraft.getInstance();
@@ -37,7 +36,9 @@ public record ItemRenderContext(
                 seed,
                 GUI_LIGHT,
                 NO_OVERLAY,
-                true
+                true,
+                Base.getGuiItemModelZ(),
+                Base.getGuiItemDecorationZ()
         );
     }
 
