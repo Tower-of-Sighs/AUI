@@ -6,6 +6,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import com.sighs.apricityui.parser.HTML;
 
 /** Public, DevTools-independent facade for the Ore visual editor. */
 public final class OreEditor {

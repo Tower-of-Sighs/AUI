@@ -1,6 +1,6 @@
 package com.sighs.apricityui.dev.devtools;
 
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

@@ -6,7 +6,7 @@ import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.instance.ApricityViewport;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
@@ -16,7 +16,7 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.resource.Font;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.parser.CSS;
 import org.junit.jupiter.api.Test;
 
 import java.awt.font.FontRenderContext;

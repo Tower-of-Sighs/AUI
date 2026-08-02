@@ -2,6 +2,7 @@ package com.sighs.apricityui.editor.ore.model;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.sighs.apricityui.parser.CSS;
 
 /** Author-provided CSS properties only; editor decorations never enter this map. */
 public final class OreNodeStyle {

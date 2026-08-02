@@ -5,12 +5,13 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import com.sighs.apricityui.style.Color;
-import com.sighs.apricityui.style.Gradient;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.Gradient;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.sighs.apricityui.parser.CSS;
 
 public class Graph {
     private static final int SEGMENTS = 12;

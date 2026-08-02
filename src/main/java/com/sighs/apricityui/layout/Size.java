@@ -7,7 +7,7 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.instance.client.Client;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
@@ -20,6 +20,8 @@ import java.util.Map;
 import java.util.Set;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
@@ -48,7 +50,7 @@ public record Size(double width, double height) {
         if (override != null) return override;
         Document context = Document.getContextDocument();
         if (context != null && context.isActive()) {
-            com.sighs.apricityui.instance.ApricityViewport viewport = context.getViewport();
+            com.sighs.apricityui.instance.viewport.ApricityViewport viewport = context.getViewport();
             return new Size(viewport.layoutWidth(), viewport.layoutHeight());
         }
         String widthOverride = System.getProperty("aui.test.viewport.width");

@@ -1,7 +1,7 @@
 package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.parser.HTML;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;

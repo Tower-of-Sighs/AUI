@@ -5,7 +5,7 @@ import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.style.Color;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;

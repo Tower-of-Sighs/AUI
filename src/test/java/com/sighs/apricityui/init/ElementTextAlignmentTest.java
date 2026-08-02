@@ -3,7 +3,7 @@ package com.sighs.apricityui.init;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Head;
 import com.sighs.apricityui.element.Html;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.test.TestRuntime;
 import org.junit.jupiter.api.Test;

@@ -18,7 +18,8 @@ import java.util.IdentityHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import com.sighs.apricityui.style.Selector;
+import com.sighs.apricityui.parser.Selector;
+import com.sighs.apricityui.parser.CSS;
 
 /**
  * 槽位 DOM 元素。

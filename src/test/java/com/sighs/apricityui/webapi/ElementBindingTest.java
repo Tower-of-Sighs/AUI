@@ -19,7 +19,7 @@ import com.sighs.apricityui.instance.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;

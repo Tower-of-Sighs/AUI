@@ -4,7 +4,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.ui.ToastManager;
@@ -12,6 +12,8 @@ import com.sighs.apricityui.ui.ToastManager;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.HTML;
 
 /** Builds copyable HTML/CSS references for image and font resources. */
 public final class ResourceReferenceDialog {

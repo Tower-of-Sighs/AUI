@@ -14,10 +14,10 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.instance.ClientLoader;
-import com.sighs.apricityui.instance.ApricityUIConfig;
-import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.instance.WorldWindow;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.instance.config.ApricityUIConfig;
+import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.instance.world.WorldWindow;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import com.sighs.apricityui.parser.HTML;
 
 public final class ResourceManager {
     private static final String PATH = "devtools/resource.html";

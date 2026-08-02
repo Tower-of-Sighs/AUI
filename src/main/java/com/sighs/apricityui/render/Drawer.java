@@ -13,6 +13,8 @@ import java.util.*;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.parser.CSS;
 
 public class Drawer {
     public static final int REPAINT = 1;

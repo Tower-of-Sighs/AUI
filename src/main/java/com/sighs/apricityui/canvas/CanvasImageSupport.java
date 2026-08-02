@@ -4,7 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.Canvas;
 import com.sighs.apricityui.element.Img;
 import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.awt.Color;

@@ -9,6 +9,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.CssString;
 
 public class Filter {
 
@@ -266,7 +268,7 @@ public class Filter {
 
         for (String token : tokens) {
             if (token == null || token.isBlank()) continue;
-            if (looksLikeColor(token)) {
+            if (CssString.isColorToken(token)) {
                 colorToken = token.trim();
                 continue;
             }
@@ -314,12 +316,6 @@ public class Filter {
         }
         if (!current.isEmpty()) result.add(current.toString());
         return result;
-    }
-
-    private static boolean looksLikeColor(String token) {
-        String lower = token.trim().toLowerCase(Locale.ROOT);
-        return lower.startsWith("#") || lower.startsWith("rgb(") || lower.startsWith("rgba(")
-                || lower.startsWith("hsl(") || lower.startsWith("hsla(");
     }
 
     private static Float parseLength(String token) {

@@ -7,7 +7,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.task.FrameTaskScheduler;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.parser.CSS;
 
 class DevToolsTest {
     private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/devtools.html");

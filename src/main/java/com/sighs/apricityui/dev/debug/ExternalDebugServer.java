@@ -6,7 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.ApricityUIConfig;
+import com.sighs.apricityui.instance.config.ApricityUIConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 

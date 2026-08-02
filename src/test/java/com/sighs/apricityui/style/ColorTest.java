@@ -3,6 +3,7 @@ package com.sighs.apricityui.style;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import com.sighs.apricityui.parser.Color;
 
 class ColorTest {
     @Test

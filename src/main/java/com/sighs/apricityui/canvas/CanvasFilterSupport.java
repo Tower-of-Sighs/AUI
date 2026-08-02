@@ -11,6 +11,7 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.sighs.apricityui.parser.Color;
 
 final class CanvasFilterSupport {
     private static final Pattern FILTER_PATTERN = Pattern.compile("([a-zA-Z-]+)\\(([^)]*)\\)");
@@ -334,7 +335,7 @@ final class CanvasFilterSupport {
         double offsetX = parts.length > 0 ? parseLength(parts[0]) : 0;
         double offsetY = parts.length > 1 ? parseLength(parts[1]) : 0;
         double blur = parts.length > 2 ? Math.max(0, parseLength(parts[2])) : 0;
-        return new DropShadowSpec(offsetX, offsetY, blur, com.sighs.apricityui.style.Color.parse(color));
+        return new DropShadowSpec(offsetX, offsetY, blur, com.sighs.apricityui.parser.Color.parse(color));
     }
 
     private static double clamp(double value, double min, double max) {

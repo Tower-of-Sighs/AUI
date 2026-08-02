@@ -1,6 +1,6 @@
 package com.sighs.apricityui.dev.resource;
 
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.io.IOException;
@@ -8,6 +8,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import com.sighs.apricityui.parser.HTML;
 
 /** Handles local HTML import and writes created resources under the active resource root. */
 public final class ResourceFileWriter {

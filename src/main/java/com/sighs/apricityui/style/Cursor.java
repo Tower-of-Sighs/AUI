@@ -3,8 +3,8 @@ package com.sighs.apricityui.style;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.Client;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.client.Client;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
+import com.sighs.apricityui.parser.CSS;
 
 public class Cursor {
     private static final float PSEUDO_CURSOR_Z = 1000.0F;

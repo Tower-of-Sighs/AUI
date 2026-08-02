@@ -1,6 +1,7 @@
 package com.sighs.apricityui.editor.ore.palette;
 
 import java.util.List;
+import com.sighs.apricityui.style.Text;
 
 public final class OreComponentRegistry {
     private static final List<OreComponentDefinition> DEFINITIONS = List.of(

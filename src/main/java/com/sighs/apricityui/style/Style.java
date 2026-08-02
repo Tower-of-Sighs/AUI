@@ -11,6 +11,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.HTML;
 
 public class Style implements Cloneable {
     public static final Style DEFAULT = new Style();

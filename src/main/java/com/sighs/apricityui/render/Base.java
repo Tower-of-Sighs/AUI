@@ -9,7 +9,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.style.StyleFrameCache;
-import com.sighs.apricityui.instance.ApricityViewport;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.layout.Position;
@@ -25,6 +25,9 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import com.sighs.apricityui.style.Transform;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.instance.world.WorldWindow;
 
 public class Base {
     public enum RenderPhase {

@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
+import com.sighs.apricityui.parser.HTML;
 
 /** Resource-browser dialog for editing the meta elements in an HTML head. */
 public final class ResourceMetaDialog {

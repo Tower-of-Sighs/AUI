@@ -6,7 +6,7 @@ import com.sighs.apricityui.editor.ore.model.OreContainerNode;
 import com.sighs.apricityui.editor.ore.model.OreEditorProject;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.parser.HTML;
 
 import java.util.LinkedHashMap;
 import java.util.Locale;

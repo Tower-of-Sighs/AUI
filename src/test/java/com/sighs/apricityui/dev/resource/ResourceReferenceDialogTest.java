@@ -1,6 +1,6 @@
 package com.sighs.apricityui.dev.resource;
 
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;

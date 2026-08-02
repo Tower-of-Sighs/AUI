@@ -7,8 +7,8 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.layout.Position;
@@ -26,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
 
 class ResourceManagerScrollTest {
     private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/resource.html");
@@ -308,7 +309,7 @@ class ResourceManagerScrollTest {
     private static void setViewport(Document document, int width, int height) throws Exception {
         Field viewport = Document.class.getDeclaredField("viewport");
         viewport.setAccessible(true);
-        viewport.set(document, new com.sighs.apricityui.instance.ApricityViewport(width, height, 1.0f, 1.0d));
+        viewport.set(document, new com.sighs.apricityui.instance.viewport.ApricityViewport(width, height, 1.0f, 1.0d));
     }
 
     private static List<Loader.StaticResourceEntry> sampleEntries() {

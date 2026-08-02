@@ -11,6 +11,7 @@ import java.util.Deque;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import com.sighs.apricityui.parser.HTML;
 
 /** Reads and updates only the meta elements owned by an HTML document's head. */
 public final class HtmlMetaEditor {

@@ -16,6 +16,8 @@ import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.dom.RenderElement;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.parser.CSS;
 
 public final class MotionTrack {
     private static final int FLAG_TRANSITION = 1;

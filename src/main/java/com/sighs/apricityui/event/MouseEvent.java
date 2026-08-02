@@ -21,6 +21,8 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.style.Interaction;
 
 // 鼠标事件，现在还没有做得很完善
 public class MouseEvent extends Event implements Cloneable {

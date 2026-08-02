@@ -3,10 +3,10 @@ package com.sighs.apricityui.resource.async.style;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.instance.ClientLoader;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.render.FontDrawer;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.layout.Size;
@@ -29,7 +29,6 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     private static final Pattern COMMENT_PATTERN = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
     private static final Pattern IMPORT_PATTERN = Pattern.compile("(?i)@import\\s+(?:url\\s*\\(\\s*)?['\"]?([^'\"\\)\\s;]+)['\"]?\\s*\\)?\\s*;");
     private static final Pattern FONT_FACE_PATTERN = Pattern.compile("(?is)@font-face\\s*\\{(.*?)}");
-    private static final Pattern URL_PATTERN = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
 
     private static final Map<UUID, StyleHandle> HANDLES = new ConcurrentHashMap<>();
 
@@ -337,7 +336,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             return null;
         }
 
-        Matcher matcher = URL_PATTERN.matcher(src);
+        Matcher matcher = CSS.URL_EXTRACTOR.matcher(src);
         if (!matcher.find()) {
             ApricityUI.LOGGER.warn("[AUI CSS] @font-face src has no url() path={} family={}", AuiLog.source(contextPath), family);
             return null;

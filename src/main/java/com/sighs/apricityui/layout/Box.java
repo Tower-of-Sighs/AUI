@@ -12,6 +12,11 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.Gradient;
+import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Transition;
+import com.sighs.apricityui.parser.CSS;
 
 public class Box {
     public static final List<String> SIDE = List.of("top", "bottom", "left", "right");

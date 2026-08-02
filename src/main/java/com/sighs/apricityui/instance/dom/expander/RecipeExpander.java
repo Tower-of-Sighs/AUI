@@ -18,6 +18,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
+import com.sighs.apricityui.instance.client.Client;
 
 /**
  * 在文档刷新阶段触发 recipe DOM 预览槽位生成。

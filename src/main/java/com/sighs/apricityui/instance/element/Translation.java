@@ -9,6 +9,7 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.network.chat.Component;
+import com.sighs.apricityui.parser.HTML;
 
 @ElementRegister(Translation.TAG_NAME)
 public class Translation extends Span {

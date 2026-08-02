@@ -1,8 +1,9 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.instance.WorldWindowDisplayPrecision;
+import com.sighs.apricityui.instance.world.WorldWindowDisplayPrecision;
 
 import java.util.ArrayDeque;
+import com.sighs.apricityui.parser.CSS;
 
 /**
  * Per-render state used to lower the cost of a world-space document without

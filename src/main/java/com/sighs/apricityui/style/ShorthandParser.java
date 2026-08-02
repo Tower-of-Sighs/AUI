@@ -1,13 +1,15 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.Color;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.CssString;
+import com.sighs.apricityui.parser.CSS;
 
 /**
  * CSS 简写属性（margin/padding/border/background/flex/gap/inset/animation/rotate）的
@@ -105,7 +107,7 @@ public final class ShorthandParser {
         String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
                 ? "0px solid #000000"
                 : current.trim();
-        String[] tokens = splitCssValueTokens(base).toArray(String[]::new);
+        String[] tokens = CssString.splitTopLevelTokens(base).toArray(String[]::new);
         if (tokens.length == 0) return normalizedWidth + " solid #000000";
 
         boolean replaced = false;
@@ -127,12 +129,12 @@ public final class ShorthandParser {
         String base = (current == null || current.isBlank() || "unset".equalsIgnoreCase(current.trim()))
                 ? "0px solid #000000"
                 : current.trim();
-        List<String> tokens = new ArrayList<>(splitCssValueTokens(base));
+        List<String> tokens = new ArrayList<>(CssString.splitTopLevelTokens(base));
         if (tokens.isEmpty()) return "0px solid " + normalizedColor;
 
         boolean replaced = false;
         for (int i = 0; i < tokens.size(); i++) {
-            if (looksLikeColorToken(tokens.get(i)) && !isVarToken(tokens.get(i))
+            if (CssString.isColorToken(tokens.get(i)) && !isVarToken(tokens.get(i))
                     || isBorderColorVariable(tokens, i)) {
                 tokens.set(i, normalizedColor);
                 replaced = true;
@@ -174,16 +176,6 @@ public final class ShorthandParser {
                 || lower.matches("-?\\d+(?:\\.\\d+)?(?:px|rem|em|vw|vh|%)?");
     }
 
-    private static boolean looksLikeColorToken(String token) {
-        if (token == null || token.isBlank()) return false;
-        String lower = token.trim().toLowerCase(Locale.ROOT);
-        return lower.startsWith("#")
-                || lower.startsWith("rgb")
-                || lower.startsWith("hsl(")
-                || lower.startsWith("var(")
-                || Color.isColorKeyword(lower);
-    }
-
     public static void applyBackground(Style style, String raw) {
         String value = raw == null ? "" : raw.trim();
 
@@ -204,13 +196,13 @@ public final class ShorthandParser {
         StringBuilder size = new StringBuilder();
         boolean afterSlash = false;
 
-        for (String token : splitCssValueTokens(value)) {
+        for (String token : CssString.splitTopLevelTokens(value)) {
             String lowerToken = token.toLowerCase(Locale.ROOT);
             if ("/".equals(token)) {
                 afterSlash = true;
                 continue;
             }
-            if (isColorToken(token) || isVarToken(token)) {
+            if (CssString.isColorToken(token) || isVarToken(token)) {
                 style.backgroundColor = token;
                 continue;
             }
@@ -425,14 +417,6 @@ public final class ShorthandParser {
         return Double.toString(value);
     }
 
-    private static boolean isColorToken(String token) {
-        if (token == null || token.isBlank()) return false;
-        String value = token.trim().toLowerCase(Locale.ROOT);
-        if (Color.isColorKeyword(value)) return true;
-        if (value.startsWith("#")) return true;
-        return value.startsWith("rgb(") || value.startsWith("rgba(") || value.startsWith("hsl(") || value.startsWith("hsla(");
-    }
-
     private static boolean isVarToken(String token) {
         if (token == null || token.isBlank()) return false;
         String value = token.trim().toLowerCase(Locale.ROOT);
@@ -450,41 +434,6 @@ public final class ShorthandParser {
             case "repeat", "repeat-x", "repeat-y", "no-repeat", "space", "round" -> true;
             default -> false;
         };
-    }
-
-    public static List<String> splitCssValueTokens(String raw) {
-        ArrayList<String> tokens = new ArrayList<>();
-        if (raw == null || raw.isBlank()) return tokens;
-
-        StringBuilder current = new StringBuilder();
-        int depth = 0;
-        for (int i = 0; i < raw.length(); i++) {
-            char ch = raw.charAt(i);
-            if (Character.isWhitespace(ch) && depth == 0) {
-                if (!current.isEmpty()) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
-                continue;
-            }
-            if (ch == '(') depth++;
-            else if (ch == ')' && depth > 0) depth--;
-
-            if (ch == '/' && depth == 0) {
-                if (!current.isEmpty()) {
-                    tokens.add(current.toString());
-                    current.setLength(0);
-                }
-                tokens.add("/");
-                continue;
-            }
-            current.append(ch);
-        }
-
-        if (!current.isEmpty()) {
-            tokens.add(current.toString());
-        }
-        return tokens;
     }
 
     public static boolean isCssWideKeyword(String value) {

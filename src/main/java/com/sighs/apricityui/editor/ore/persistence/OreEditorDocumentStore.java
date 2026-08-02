@@ -1,6 +1,6 @@
 package com.sighs.apricityui.editor.ore.persistence;
 
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

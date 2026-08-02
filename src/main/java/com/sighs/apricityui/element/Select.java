@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import com.sighs.apricityui.parser.Color;
 
 @ElementRegister(Select.TAG_NAME)
 public class Select extends Element {
@@ -73,7 +74,7 @@ public class Select extends Element {
                 + rectRenderer.box.elementSize().height() / 2.0d;
         float x = (float) (right - 7);
         float y = (float) (centerY - 2);
-        int color = new com.sighs.apricityui.style.Color(isDisabled() ? "#797A7D" : "#D8D8D8").getValue();
+        int color = new com.sighs.apricityui.parser.Color(isDisabled() ? "#797A7D" : "#D8D8D8").getValue();
         Graph.drawFillRect(poseStack.last().pose(), x, y, x + 7, y + 1, color);
         Graph.drawFillRect(poseStack.last().pose(), x + 1, y + 1, x + 6, y + 2, color);
         Graph.drawFillRect(poseStack.last().pose(), x + 2, y + 2, x + 5, y + 3, color);

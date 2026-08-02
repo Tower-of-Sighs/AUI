@@ -12,7 +12,7 @@ import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.style.Color;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.ui.ColorPicker;
@@ -23,6 +23,7 @@ import org.lwjgl.util.tinyfd.TinyFileDialogs;
 import java.util.Objects;
 import java.util.Locale;
 import java.util.ArrayList;
+import com.sighs.apricityui.parser.HTML;
 
 @ElementRegister(Input.TAG_NAME)
 public class Input extends AbstractText {

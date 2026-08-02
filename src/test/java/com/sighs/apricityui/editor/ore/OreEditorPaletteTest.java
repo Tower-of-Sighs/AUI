@@ -2,7 +2,7 @@ package com.sighs.apricityui.editor.ore;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.editor.ore.model.OreEditorProject;
 import com.sighs.apricityui.editor.ore.palette.OreComponentDefinition;
 import com.sighs.apricityui.editor.ore.palette.OreComponentRegistry;

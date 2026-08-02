@@ -10,7 +10,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.style.Color;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 

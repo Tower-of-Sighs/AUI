@@ -2,7 +2,7 @@ package com.sighs.apricityui.theme;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.webapi.TestDocumentFactory;
 import org.junit.jupiter.api.Test;
 

@@ -16,6 +16,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.parser.CSS;
 
 /** Java event bridge for the console markup copied from devtools0.html. */
 final class DevToolsConsole {

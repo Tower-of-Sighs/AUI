@@ -3,8 +3,8 @@ package com.sighs.apricityui.webapi;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.ApricityViewport;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
+import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.layout.Position;
 import org.junit.jupiter.api.Test;
 

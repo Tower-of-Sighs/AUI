@@ -6,13 +6,13 @@ import com.sighs.apricityui.dev.resource.ResourceReferenceDialog;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Selector;
+import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.style.StyleFrameCache;
-import com.sighs.apricityui.instance.ApricityViewport;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.style.Background;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -29,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.parser.Color;
 
 class ResourceDialogStyleTest {
     private static final Path TEMPLATE = Path.of(
@@ -158,7 +159,7 @@ class ResourceDialogStyleTest {
         Thread.sleep(10L);
 
         Background settled = sampleMotionFrame(document, root);
-        assertEquals(0, settled.color == null ? 0 : new com.sighs.apricityui.style.Color(settled.color).getA());
+        assertEquals(0, settled.color == null ? 0 : new com.sighs.apricityui.parser.Color(settled.color).getA());
         assertFalse(root.isHover);
     }
 

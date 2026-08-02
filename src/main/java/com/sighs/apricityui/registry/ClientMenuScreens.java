@@ -1,7 +1,7 @@
 package com.sighs.apricityui.registry;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.ApricityContainerMenu;
+import com.sighs.apricityui.instance.screen.ApricityContainerMenu;
 import net.minecraft.client.gui.screens.MenuScreens;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.network.chat.Component;
@@ -12,10 +12,11 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 
 import java.lang.reflect.Constructor;
+import com.sighs.apricityui.instance.screen.ApricityContainerScreen;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class ClientMenuScreens {
-    private static final String CONTAINER_SCREEN_CLASS = "com.sighs.apricityui.instance.ApricityContainerScreen";
+    private static final String CONTAINER_SCREEN_CLASS = "com.sighs.apricityui.instance.screen.ApricityContainerScreen";
 
     @SubscribeEvent
     public static void onClientSetup(FMLClientSetupEvent event) {

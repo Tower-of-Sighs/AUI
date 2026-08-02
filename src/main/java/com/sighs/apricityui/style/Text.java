@@ -4,8 +4,9 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.instance.element.Translation;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.instance.client.Client;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.Font;
@@ -22,6 +23,8 @@ import java.util.Map;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.CSS;
 
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
@@ -259,6 +262,21 @@ public class Text {
         return Color.parse(selection);
     }
 
+    /** 单次 route 遍历的解析状态：各字符串/布尔属性是否已从某祖先样式解析到。 */
+    private static final class ResolveState {
+        boolean fontStyle;
+        boolean lineHeight;
+        String lineHeightRaw;
+        boolean textStroke;
+        boolean textDecoration;
+        boolean direction;
+        boolean textAlign;
+        boolean verticalAlign;
+        boolean whiteSpace;
+        boolean textIndent;
+        boolean letterSpacing;
+    }
+
     public static Text of(Element element) {
         boolean naturalMeasurement = Size.isNaturalMeasurementContext();
         Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
@@ -268,120 +286,31 @@ public class Text {
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
-        String lineHeight = null;
-        boolean resolvedLineHeight = false;
-        boolean resolvedFontStyle = false;
-        boolean resolvedTextStroke = false;
-        boolean resolvedTextDecoration = false;
-        boolean resolvedDirection = false;
-        boolean resolvedTextAlign = false;
-        boolean resolvedVerticalAlign = false;
-        boolean resolvedWhiteSpace = false;
-        boolean resolvedTextIndent = false;
-        boolean resolvedLetterSpacing = false;
+        ResolveState state = new ResolveState();
         for (Element e : element.getRouteArray()) {
             Style style = e.getComputedStyle();
-            boolean shouldBreak = true;
-            if (text.fontFamily.equals("unset")) {
-                shouldBreak = false;
-                if (!style.fontFamily.equals("unset")) text.fontFamily = style.fontFamily;
-            }
-            if (text.fontSize == -1) {
-                shouldBreak = false;
-                String declaredFontSize = getDeclaredFontSize(e);
-                if (!declaredFontSize.equals("unset")) {
-                    Double parsed = Size.tryResolveLength(declaredFontSize, text.fontMode.defaultFontSize(), Size.getRootFontSize(element.document));
-                    if (parsed != null) text.fontSize = parsed;
-                }
-            }
-            if (text.fontWeight == -1) {
-                shouldBreak = false;
-                if (!style.fontWeight.equals("unset")) text.fontWeight = parseFontWeight(style.fontWeight);
-            }
-            if (!resolvedFontStyle) {
-                shouldBreak = false;
-                if (!style.fontStyle.equals("unset")) {
-                    text.oblique = isObliqueValue(style.fontStyle);
-                    resolvedFontStyle = true;
-                }
-            }
-            if (!resolvedTextStroke) {
-                shouldBreak = false;
-                if (!style.textStroke.equals("unset")) {
-                    Style.TextStroke stroke = parseTextStroke(style.textStroke);
-                    text.strokeWidth = stroke.width();
-                    text.strokeColor = new Color(stroke.color());
-                    resolvedTextStroke = true;
-                }
-            }
-            if (text.color == null) {
-                shouldBreak = false;
-                if (!style.color.equals("unset")) text.color = new Color(style.color);
-            }
-            if (!resolvedLineHeight) {
-                shouldBreak = false;
-                if (!style.lineHeight.equals("unset")) {
-                    lineHeight = style.lineHeight;
-                    resolvedLineHeight = true;
-                }
-            }
-            if (!resolvedTextDecoration) {
-                shouldBreak = false;
-                if (!style.textDecoration.equals("unset")) {
-                    text.textDecoration = normalizeTextDecoration(style.textDecoration);
-                    resolvedTextDecoration = true;
-                }
-            }
-            if (!resolvedDirection) {
-                shouldBreak = false;
-                if (!style.direction.equals("unset")) {
-                    text.direction = normalizeDirection(style.direction);
-                    resolvedDirection = true;
-                }
-            }
-            if (!resolvedTextAlign) {
-                shouldBreak = false;
-                if (!style.textAlign.equals("unset")) {
-                    text.textAlign = normalizeTextAlign(style.textAlign);
-                    resolvedTextAlign = true;
-                }
-            }
-            if (!resolvedVerticalAlign) {
-                shouldBreak = false;
-                if (!style.verticalAlign.equals("unset")) {
-                    text.verticalAlign = normalizeVerticalAlign(style.verticalAlign);
-                    resolvedVerticalAlign = true;
-                }
-            }
-            if (!resolvedWhiteSpace) {
-                shouldBreak = false;
-                if (!style.whiteSpace.equals("unset")) {
-                    text.whiteSpace = normalizeWhiteSpace(style.whiteSpace);
-                    resolvedWhiteSpace = true;
-                }
-            }
-            if (!resolvedTextIndent) {
-                shouldBreak = false;
-                if (!style.textIndent.equals("unset")) {
-                    Double indent = Size.tryResolveLength(style.textIndent, Size.getScaleWidth(element));
-                    text.textIndent = indent == null ? 0 : indent;
-                    resolvedTextIndent = true;
-                }
-            }
-            if (!resolvedLetterSpacing) {
-                shouldBreak = false;
-                if (!style.letterSpacing.equals("unset")) {
-                    text.letterSpacing = parseLetterSpacing(style.letterSpacing);
-                    resolvedLetterSpacing = true;
-                }
-            }
-            if (shouldBreak) break;
+            boolean unresolved = false;
+            unresolved |= resolveFontFamily(text, style);
+            unresolved |= resolveFontSize(text, style, e, element);
+            unresolved |= resolveFontWeight(text, style);
+            unresolved |= resolveFontStyle(text, style, state);
+            unresolved |= resolveTextStroke(text, style, state);
+            unresolved |= resolveColor(text, style);
+            unresolved |= resolveLineHeight(state, style);
+            unresolved |= resolveTextDecoration(text, style, state);
+            unresolved |= resolveDirection(text, style, state);
+            unresolved |= resolveTextAlign(text, style, state);
+            unresolved |= resolveVerticalAlign(text, style, state);
+            unresolved |= resolveWhiteSpace(text, style, state);
+            unresolved |= resolveTextIndent(text, style, element, state);
+            unresolved |= resolveLetterSpacing(text, style, state);
+            if (!unresolved) break;
         }
         if (text.fontSize == -1) text.fontSize = text.fontMode.defaultFontSize();
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
-        if (!resolvedWhiteSpace) {
+        if (!state.whiteSpace) {
             if (element.tagName.equals("PRE")) text.whiteSpace = "pre";
             else if (element.tagName.equals("TEXTAREA")) text.whiteSpace = "pre-wrap";
         }
@@ -390,13 +319,134 @@ public class Text {
         }
         text.rasterBackgroundColor = resolveRasterBackgroundColor(element);
 
-        if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text, lineHeight);
+        if (text.lineHeight == -1) text.lineHeight = calculateLineHeight(text, state.lineHeightRaw);
         text.size = measureSize(element, text);
 
         if (!naturalMeasurement) {
             element.getRenderer().text.set(text);
         }
         return text;
+    }
+
+    private static boolean resolveFontFamily(Text text, Style style) {
+        if (!text.fontFamily.equals("unset")) return false;
+        if (!style.fontFamily.equals("unset")) text.fontFamily = style.fontFamily;
+        return true;
+    }
+
+    private static boolean resolveFontSize(Text text, Style style, Element ancestor, Element root) {
+        if (text.fontSize != -1) return false;
+        String declaredFontSize = getDeclaredFontSize(ancestor);
+        if (!declaredFontSize.equals("unset")) {
+            Double parsed = Size.tryResolveLength(declaredFontSize, text.fontMode.defaultFontSize(), Size.getRootFontSize(root.document));
+            if (parsed != null) text.fontSize = parsed;
+        }
+        return true;
+    }
+
+    private static boolean resolveFontWeight(Text text, Style style) {
+        if (text.fontWeight != -1) return false;
+        if (!style.fontWeight.equals("unset")) text.fontWeight = parseFontWeight(style.fontWeight);
+        return true;
+    }
+
+    private static boolean resolveFontStyle(Text text, Style style, ResolveState state) {
+        if (state.fontStyle) return false;
+        if (!style.fontStyle.equals("unset")) {
+            text.oblique = isObliqueValue(style.fontStyle);
+            state.fontStyle = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveTextStroke(Text text, Style style, ResolveState state) {
+        if (state.textStroke) return false;
+        if (!style.textStroke.equals("unset")) {
+            Style.TextStroke stroke = parseTextStroke(style.textStroke);
+            text.strokeWidth = stroke.width();
+            text.strokeColor = new Color(stroke.color());
+            state.textStroke = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveColor(Text text, Style style) {
+        if (text.color != null) return false;
+        if (!style.color.equals("unset")) text.color = new Color(style.color);
+        return true;
+    }
+
+    private static boolean resolveLineHeight(ResolveState state, Style style) {
+        if (state.lineHeight) return false;
+        if (!style.lineHeight.equals("unset")) {
+            state.lineHeightRaw = style.lineHeight;
+            state.lineHeight = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveTextDecoration(Text text, Style style, ResolveState state) {
+        if (state.textDecoration) return false;
+        if (!style.textDecoration.equals("unset")) {
+            text.textDecoration = CssString.normalizeTextDecoration(style.textDecoration);
+            state.textDecoration = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveDirection(Text text, Style style, ResolveState state) {
+        if (state.direction) return false;
+        if (!style.direction.equals("unset")) {
+            text.direction = CssString.normalizeDirection(style.direction);
+            state.direction = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveTextAlign(Text text, Style style, ResolveState state) {
+        if (state.textAlign) return false;
+        if (!style.textAlign.equals("unset")) {
+            text.textAlign = CssString.normalizeTextAlign(style.textAlign);
+            state.textAlign = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveVerticalAlign(Text text, Style style, ResolveState state) {
+        if (state.verticalAlign) return false;
+        if (!style.verticalAlign.equals("unset")) {
+            text.verticalAlign = CssString.normalizeVerticalAlign(style.verticalAlign);
+            state.verticalAlign = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveWhiteSpace(Text text, Style style, ResolveState state) {
+        if (state.whiteSpace) return false;
+        if (!style.whiteSpace.equals("unset")) {
+            text.whiteSpace = CssString.normalizeWhiteSpace(style.whiteSpace);
+            state.whiteSpace = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveTextIndent(Text text, Style style, Element root, ResolveState state) {
+        if (state.textIndent) return false;
+        if (!style.textIndent.equals("unset")) {
+            Double indent = Size.tryResolveLength(style.textIndent, Size.getScaleWidth(root));
+            text.textIndent = indent == null ? 0 : indent;
+            state.textIndent = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveLetterSpacing(Text text, Style style, ResolveState state) {
+        if (state.letterSpacing) return false;
+        if (!style.letterSpacing.equals("unset")) {
+            text.letterSpacing = parseLetterSpacing(style.letterSpacing);
+            state.letterSpacing = true;
+        }
+        return true;
     }
 
     public static Size measureSize(Element element, Text text) {
@@ -620,13 +670,6 @@ public class Text {
             if (token.equals(line)) return true;
         }
         return false;
-    }
-
-    private static String normalizeTextDecoration(String raw) {
-        if (raw == null || raw.isBlank()) return "none";
-        String normalized = raw.trim().toLowerCase(Locale.ROOT);
-        if (normalized.equals("unset") || normalized.equals("initial")) return "none";
-        return normalized;
     }
 
     public boolean isBold() {
@@ -917,35 +960,6 @@ public class Text {
             resolved -= Math.abs(text.textIndent);
         }
         return Math.max(0, resolved);
-    }
-
-    private static String normalizeDirection(String raw) {
-        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        return "rtl".equals(value) ? "rtl" : "ltr";
-    }
-
-    private static String normalizeTextAlign(String raw) {
-        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        return switch (value) {
-            case "left", "right", "center", "justify", "start", "end" -> value;
-            default -> "start";
-        };
-    }
-
-    private static String normalizeVerticalAlign(String raw) {
-        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        return switch (value) {
-            case "baseline", "sub", "super", "top", "middle", "center", "bottom", "text-top", "text-bottom" -> value;
-            default -> "baseline";
-        };
-    }
-
-    private static String normalizeWhiteSpace(String raw) {
-        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
-        return switch (value) {
-            case "normal", "nowrap", "pre", "pre-wrap", "pre-line", "break-spaces" -> value;
-            default -> "normal";
-        };
     }
 
     private static double parseLetterSpacing(String raw) {

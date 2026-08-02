@@ -9,6 +9,9 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
+import com.sighs.apricityui.instance.world.WorldWindowDisplayPrecision;
+import com.sighs.apricityui.instance.world.WorldWindowVisibility;
 
 class WorldWindowViewportContractTest {
     @Test

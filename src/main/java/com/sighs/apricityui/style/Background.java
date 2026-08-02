@@ -2,11 +2,13 @@ package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import com.sighs.apricityui.parser.CssString;
+import com.sighs.apricityui.parser.Gradient;
 
 public class Background {
     public static class Layer {
@@ -166,24 +168,10 @@ public class Background {
         if (value == null || value.isBlank()) return parts;
         if ("unset".equalsIgnoreCase(value.trim())) return parts;
 
-        int depth = 0;
-        StringBuilder current = new StringBuilder();
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            if (c == '(') depth++;
-            else if (c == ')' && depth > 0) depth--;
-
-            if (c == ',' && depth == 0) {
-                String token = current.toString().trim();
-                if (!token.isEmpty()) parts.add(token);
-                current.setLength(0);
-                continue;
-            }
-            current.append(c);
+        for (String raw : CssString.splitTopLevel(value, ',')) {
+            String token = raw.trim();
+            if (!token.isEmpty()) parts.add(token);
         }
-
-        String last = current.toString().trim();
-        if (!last.isEmpty()) parts.add(last);
         return parts;
     }
 

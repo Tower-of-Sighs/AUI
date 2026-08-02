@@ -13,6 +13,7 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.CSS;
 
 public final class ScrollModel {
     private static final double SCROLL_EASING_FACTOR = 0.2;

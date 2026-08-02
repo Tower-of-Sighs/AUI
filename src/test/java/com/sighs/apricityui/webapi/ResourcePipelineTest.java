@@ -4,8 +4,8 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.resource.HTML;
-import com.sighs.apricityui.resource.JS;
+import com.sighs.apricityui.parser.HTML;
+import com.sighs.apricityui.parser.JS;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
@@ -276,7 +276,7 @@ class ResourcePipelineTest {
     @SuppressWarnings("unchecked")
     private static List<String> readCachedScriptContents(JS.Extractor extractor) {
         try {
-            Field field = JS.Extractor.class.getDeclaredField("cachedScriptContents");
+            Field field = JS.Extractor.class.getSuperclass().getDeclaredField("cachedContents");
             field.setAccessible(true);
             return (List<String>) field.get(extractor);
         } catch (ReflectiveOperationException e) {

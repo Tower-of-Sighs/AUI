@@ -4,7 +4,7 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.task.FrameTaskScheduler;
-import com.sighs.apricityui.instance.ApricityViewport;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.ui.Tooltip;

@@ -6,15 +6,15 @@ import com.sighs.apricityui.element.Head;
 import com.sighs.apricityui.element.Html;
 import com.sighs.apricityui.canvas.CanvasPath2D;
 import com.sighs.apricityui.canvas.DOMMatrix;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
 import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.resource.CSS;
-import com.sighs.apricityui.resource.HTML;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
-import com.sighs.apricityui.instance.ApricityViewport;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import dev.latvian.mods.rhino.Function;
@@ -27,7 +27,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import com.sighs.apricityui.util.BrowserLocation;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.style.Selector;
+import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.style.StyleScope;
@@ -42,6 +42,8 @@ import com.sighs.apricityui.dom.ElementTree;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.dom.MutationObserverManager;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Transition;
 
 public class Document {
 

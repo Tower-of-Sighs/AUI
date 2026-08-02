@@ -8,6 +8,7 @@ import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.ui.DialogWindow;
 
 import java.util.Locale;
+import com.sighs.apricityui.parser.HTML;
 
 /** Java-owned create/import overlay used by the resource browser. */
 public final class ResourceCreateDialog {

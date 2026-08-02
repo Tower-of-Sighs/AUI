@@ -4,7 +4,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.instance.ClientLoader;
+import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.ui.Tooltip;

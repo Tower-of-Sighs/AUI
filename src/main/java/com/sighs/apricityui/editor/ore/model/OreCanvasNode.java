@@ -5,6 +5,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import com.sighs.apricityui.parser.HTML;
 
 public abstract class OreCanvasNode {
     private final UUID id;

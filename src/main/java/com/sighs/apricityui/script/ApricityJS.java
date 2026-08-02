@@ -15,6 +15,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.function.Consumer;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.parser.JS;
 
 public class ApricityJS {
     // KubeJS 自带的 Rhino 版本不支持部分 ES6 语法（数组展开、默认参数等）。

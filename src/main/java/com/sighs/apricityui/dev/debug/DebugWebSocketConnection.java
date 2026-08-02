@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
+import com.sighs.apricityui.instance.client.Client;
 
 final class DebugWebSocketConnection implements Runnable {
     private static final String PATH = "/apricity";

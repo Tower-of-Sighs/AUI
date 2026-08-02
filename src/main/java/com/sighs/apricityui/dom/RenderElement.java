@@ -17,6 +17,12 @@ import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.Transform;
 
 public class RenderElement {
     private final Element element;

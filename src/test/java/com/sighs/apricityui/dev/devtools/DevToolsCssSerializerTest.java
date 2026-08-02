@@ -4,8 +4,8 @@ import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Html;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.parser.CSS;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

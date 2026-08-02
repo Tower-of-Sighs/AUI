@@ -10,6 +10,7 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
+import com.sighs.apricityui.style.Transform;
 
 public final class LayoutCommit {
     private LayoutCommit() {

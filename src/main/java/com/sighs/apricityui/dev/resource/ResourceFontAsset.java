@@ -1,8 +1,8 @@
 package com.sighs.apricityui.dev.resource;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.ClientLoader;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.resource.Font;
 
 import java.io.IOException;

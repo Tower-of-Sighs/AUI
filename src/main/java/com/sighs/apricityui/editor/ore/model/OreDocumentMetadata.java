@@ -3,6 +3,7 @@ package com.sighs.apricityui.editor.ore.model;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.sighs.apricityui.parser.HTML;
 
 /** Non-canvas document information retained when an existing HTML file is opened in Ore. */
 public final class OreDocumentMetadata {

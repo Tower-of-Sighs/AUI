@@ -1,7 +1,7 @@
 package com.sighs.apricityui.instance.network.handler;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.ApricityContainerMenu;
+import com.sighs.apricityui.instance.screen.ApricityContainerMenu;
 import com.sighs.apricityui.instance.container.SlotLayout;
 import com.sighs.apricityui.instance.container.bind.ContainerBindType;
 import com.sighs.apricityui.instance.container.datasource.ContainerDataSource;

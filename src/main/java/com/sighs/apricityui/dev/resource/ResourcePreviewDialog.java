@@ -8,12 +8,13 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.resource.Font;
 
 /** Owns the resource-browser preview window and renders its document into its content viewport. */
 public final class ResourcePreviewDialog {

@@ -25,8 +25,8 @@ import com.sighs.apricityui.util.HtmlSerializer;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.style.ConstraintText;
-import com.sighs.apricityui.style.CssString;
-import com.sighs.apricityui.style.Selector;
+import com.sighs.apricityui.parser.CssString;
+import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.render.DirtyFlags;
@@ -44,6 +44,14 @@ import com.sighs.apricityui.dom.NodeTree;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.util.TextMetrics;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.style.Transition;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.HTML;
 
 public class Element extends Node {
     private HashMap<String, String> attributes = new HashMap<>();

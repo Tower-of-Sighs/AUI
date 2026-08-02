@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
+import com.sighs.apricityui.style.Cursor;
 
 /** Bounded reversible model commands. Editor DOM is never captured or restored. */
 final class OreEditorHistory {

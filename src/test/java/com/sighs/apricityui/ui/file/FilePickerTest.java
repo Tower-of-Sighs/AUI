@@ -3,7 +3,7 @@ package com.sighs.apricityui.ui.file;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.ui.FilePicker;
 import com.sighs.apricityui.webapi.TestDocumentFactory;
 import org.junit.jupiter.api.Test;
@@ -17,6 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.HTML;
 
 class FilePickerTest {
     @Test

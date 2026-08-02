@@ -11,7 +11,7 @@ final class CanvasStyleUtil {
     }
 
     static Color parseAwtColor(String value) {
-        int rgba = com.sighs.apricityui.style.Color.parse(value == null ? "#000000" : value);
+        int rgba = com.sighs.apricityui.parser.Color.parse(value == null ? "#000000" : value);
         int a = (rgba >>> 24) & 0xFF;
         int r = (rgba >>> 16) & 0xFF;
         int g = (rgba >>> 8) & 0xFF;

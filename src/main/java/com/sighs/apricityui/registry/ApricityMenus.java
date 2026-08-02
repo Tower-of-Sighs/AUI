@@ -1,7 +1,7 @@
 package com.sighs.apricityui.registry;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.instance.ApricityContainerMenu;
+import com.sighs.apricityui.instance.screen.ApricityContainerMenu;
 import net.minecraft.world.inventory.MenuType;
 import net.minecraftforge.common.extensions.IForgeMenuType;
 import net.minecraftforge.eventbus.api.IEventBus;

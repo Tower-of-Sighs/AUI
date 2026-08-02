@@ -12,6 +12,9 @@ import com.sighs.apricityui.dom.TextNode;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.parser.CSS;
 
 public class Flex {
     /**

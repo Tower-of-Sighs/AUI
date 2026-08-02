@@ -2,6 +2,7 @@ package com.sighs.apricityui.style;
 
 import java.lang.reflect.Field;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.CssString;
 
 /**
  * var() 引用解析。从 Style 拆出；Style.resolveVarReferences 保留为 public 委托。
@@ -85,7 +86,7 @@ public final class VarResolver {
             // 分离变量名和 fallback（以第一个逗号为界）
             String varName;
             String fallback = null;
-            int commaIndex = findTopLevelComma(inner);
+            int commaIndex = CssString.findTopLevelDelimiter(inner, ',');
             if (commaIndex >= 0) {
                 varName = inner.substring(0, commaIndex).trim();
                 fallback = inner.substring(commaIndex + 1).trim();
@@ -110,18 +111,6 @@ public final class VarResolver {
         }
 
         return result.toString();
-    }
-
-    /** 在顶层（不进入嵌套括号）查找第一个逗号的位置。 */
-    private static int findTopLevelComma(String s) {
-        int depth = 0;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '(') depth++;
-            else if (c == ')') depth--;
-            else if (c == ',' && depth == 0) return i;
-        }
-        return -1;
     }
 
     /** 查找自定义属性值：先查当前 Style，再沿 DOM 继承链向上。 */

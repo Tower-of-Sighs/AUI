@@ -1,8 +1,8 @@
 package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.instance.ClientLoader;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.instance.loader.Loader;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.io.IOException;
@@ -13,6 +13,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
+import com.sighs.apricityui.parser.HTML;
 
 /** Resolves DevTools documents and stylesheets to existing, writable Apricity resources. */
 final class DevToolsDocumentStore {

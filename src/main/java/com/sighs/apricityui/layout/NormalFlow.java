@@ -12,6 +12,8 @@ import com.sighs.apricityui.instance.element.Translation;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.parser.CSS;
 
 public final class NormalFlow {
     private NormalFlow() {

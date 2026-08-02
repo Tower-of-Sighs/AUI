@@ -3,9 +3,9 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.Client;
+import com.sighs.apricityui.instance.client.Client;
 import com.sighs.apricityui.resource.Font;
-import com.sighs.apricityui.style.Color;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import com.sighs.apricityui.parser.CSS;
 
 public class FontDrawer {
     private static final String MODID = "apricityui";

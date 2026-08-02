@@ -10,6 +10,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
 import net.minecraft.resources.ResourceLocation;
+import com.sighs.apricityui.parser.CSS;
 
 /**
  * Renders a texture already managed by Minecraft's texture manager.

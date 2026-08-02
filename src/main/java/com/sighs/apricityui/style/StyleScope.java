@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Set;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.Selector;
+import com.sighs.apricityui.parser.CSS;
 
 public final class StyleScope {
     private enum RecalcMode {

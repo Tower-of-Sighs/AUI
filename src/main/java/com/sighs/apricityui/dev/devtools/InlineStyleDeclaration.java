@@ -3,6 +3,7 @@ package com.sighs.apricityui.dev.devtools;
 import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
+import com.sighs.apricityui.parser.CSS;
 
 /** Ordered CSS declaration-list parser used by the inspector's style editor. */
 final class InlineStyleDeclaration {

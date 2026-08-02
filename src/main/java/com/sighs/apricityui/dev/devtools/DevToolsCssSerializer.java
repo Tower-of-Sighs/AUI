@@ -1,8 +1,8 @@
 package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.instance.Loader;
-import com.sighs.apricityui.resource.CSS;
+import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.parser.CSS;
 
 import java.util.ArrayList;
 import java.util.Comparator;

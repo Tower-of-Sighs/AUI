@@ -2,7 +2,7 @@ package com.sighs.apricityui.util;
 
 import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
-import com.sighs.apricityui.style.Color;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.init.Element;
 

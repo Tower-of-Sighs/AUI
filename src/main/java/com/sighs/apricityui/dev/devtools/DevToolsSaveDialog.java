@@ -5,6 +5,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.ui.DialogWindow;
 
 import java.util.function.Consumer;
+import com.sighs.apricityui.parser.CSS;
 
 /** Confirmation dialog for saving the inspected document's CSS and optional DOM tree. */
 final class DevToolsSaveDialog {

@@ -5,8 +5,8 @@ import com.sighs.apricityui.dev.resource.ResourcePath;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.ClientLoader;
-import com.sighs.apricityui.instance.Loader;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.instance.loader.Loader;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

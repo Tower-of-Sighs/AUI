@@ -7,6 +7,8 @@ import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 
 import java.util.*;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.CSS;
 
 public record Transition(String name, double start, double end, double duration, double delay, long startTime,
                          String timing) {

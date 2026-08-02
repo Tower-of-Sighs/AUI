@@ -14,6 +14,8 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
 
 import java.util.*;
+import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.Text;
 
 public abstract class AbstractText extends Element {
     protected int maxLength = 256;

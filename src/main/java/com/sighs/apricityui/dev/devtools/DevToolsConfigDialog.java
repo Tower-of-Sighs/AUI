@@ -2,12 +2,13 @@ package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.ApricityUIConfig;
+import com.sighs.apricityui.instance.config.ApricityUIConfig;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.ui.ToastManager;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import com.sighs.apricityui.instance.client.Client;
 
 /** Visual editor for the client-side Forge configuration used by ApricityUI. */
 final class DevToolsConfigDialog {

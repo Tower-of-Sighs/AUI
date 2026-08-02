@@ -1,6 +1,6 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.instance.ApricityUIConfig;
+import com.sighs.apricityui.instance.config.ApricityUIConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 

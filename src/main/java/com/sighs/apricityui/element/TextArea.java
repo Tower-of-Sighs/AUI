@@ -18,6 +18,8 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
 
 import java.util.List;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.style.Text;
 
 @ElementRegister(TextArea.TAG_NAME)
 public class TextArea extends AbstractText {
