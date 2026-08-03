@@ -18,8 +18,8 @@ targetBuilds.each { targetName, targetBuild ->
     }
 }
 
-// common/ is a shared source tree compiled inside each target, not a
-// standalone project, so the root build only orchestrates targets.
+// common/ is a shared source tree that also compiles standalone
+// (`gradlew -p common build`); the root build orchestrates the target builds.
 tasks.register('build') {
     group = 'build'
     description = 'Builds the selected target (defaults to the only configured one).'

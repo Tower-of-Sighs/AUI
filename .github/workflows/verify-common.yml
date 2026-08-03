@@ -58,12 +58,11 @@ jobs:
           distribution: temurin
           java-version: '21'
       - uses: gradle/actions/setup-gradle@v4
-      # AUI: common/ is a shared source tree that cannot compile standalone
-      # (it references target-side classes), so its tests run through the
-      # default target instead of `gradlew -p common test`.
+      # common/ compiles standalone against the legacyforge classpath
+      # (common/build.gradle), so its tests run directly.
       - name: Run common unit tests
         shell: pwsh
-        run: .\gradlew.bat -p targets\forge-1.20.1 test --console plain --no-daemon
+        run: .\gradlew.bat -p common test --console plain --no-daemon
 
   target-builds:
     name: ${{ matrix.target }} (JDK ${{ matrix.java }})

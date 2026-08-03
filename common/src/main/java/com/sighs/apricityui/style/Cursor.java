@@ -3,7 +3,7 @@ package com.sighs.apricityui.style;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.Base;
@@ -97,7 +97,7 @@ public class Cursor {
     }
 
     public static void refreshFromDocuments() {
-        refreshFromDocuments(Client.getMousePositionDirectly());
+        refreshFromDocuments(AuiServices.client().getMousePositionDirectly());
     }
 
     public static void refreshFromDocuments(Position mousePosition) {
@@ -172,8 +172,8 @@ public class Cursor {
         float drawHotspotX = (float) (hotspotX / guiScale);
         float drawHotspotY = (float) (hotspotY / guiScale);
 
-        Position mouse = Client.getMousePositionDirectly();
-        if (mouse == null) mouse = Client.getMousePosition();
+        Position mouse = AuiServices.client().getMousePositionDirectly();
+        if (mouse == null) mouse = AuiServices.client().getMousePosition();
         float drawX = (float) mouse.x - drawHotspotX;
         float drawY = (float) mouse.y - drawHotspotY;
 

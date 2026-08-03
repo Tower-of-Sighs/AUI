@@ -6,7 +6,7 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.Font;
@@ -589,7 +589,7 @@ public class Text {
         double letterSpacingWidth = glyphCount > 0 ? text.letterSpacing * glyphCount : 0;
 
         if (text.fontFamily.equals("unset")) {
-            return Client.getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * text.defaultFontScale() + text.strokeWidth * 2.0 + letterSpacingWidth;
+            return AuiServices.client().getDefaultFontWidth(line, text.isBold(), text.isOblique(), 0) * text.defaultFontScale() + text.strokeWidth * 2.0 + letterSpacingWidth;
         }
 
         int fontStyle = java.awt.Font.PLAIN;

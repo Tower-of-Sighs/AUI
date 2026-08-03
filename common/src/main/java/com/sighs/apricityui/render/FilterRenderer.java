@@ -6,7 +6,7 @@ import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.*;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.world.ShaderRegistry;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.layout.Position;
@@ -127,8 +127,8 @@ public class FilterRenderer {
         }
 
         RenderTarget temp;
-        double width = Client.getWindow().getWidth();
-        double height = Client.getWindow().getHeight();
+        double width = AuiServices.client().getWindowWidth();
+        double height = AuiServices.client().getWindowHeight();
 
         if (poolPointer < fboPool.size()) {
             temp = fboPool.get(poolPointer);
@@ -217,16 +217,16 @@ public class FilterRenderer {
             // Blur is precomputed as two separable passes. The composite shader
             // only applies the inexpensive color/opacity/shadow operations.
             setupUniforms(shader, state, fbo, false, true,
-                    1.0f / Math.max(1, Client.getWindow().getGuiScaledWidth()),
-                    1.0f / Math.max(1, Client.getWindow().getGuiScaledHeight()));
+                    1.0f / Math.max(1, AuiServices.client().getScaledWidth()),
+                    1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
         }
 
         Base.setShaderTexture(0, fbo.getColorTextureId());
         Base.setShaderTexture(1, shadowFbo.getColorTextureId());
         Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
-        float guiW = (float) Client.getWindow().getGuiScaledWidth();
-        float guiH = (float) Client.getWindow().getGuiScaledHeight();
+        float guiW = (float) AuiServices.client().getScaledWidth();
+        float guiH = (float) AuiServices.client().getScaledHeight();
         Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
         Base.setProjectionMatrix(matrix);
 
@@ -285,8 +285,8 @@ public class FilterRenderer {
         Position p = rect.getBodyRectPosition();
         Size s = rect.getBodyRectSize();
 
-        float guiW = (float) Client.getWindow().getGuiScaledWidth();
-        float guiH = (float) Client.getWindow().getGuiScaledHeight();
+        float guiW = (float) AuiServices.client().getScaledWidth();
+        float guiH = (float) AuiServices.client().getScaledHeight();
         Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
         Base.setProjectionMatrix(matrix);
 
@@ -321,8 +321,8 @@ public class FilterRenderer {
 
     private static BackdropSource prepareBackdropSource(RenderTarget source, Rect rect, float cssBlurRadius) {
         if (source == null || source.width <= 0 || source.height <= 0) return null;
-        float guiW = (float) Client.getWindow().getGuiScaledWidth();
-        float guiH = (float) Client.getWindow().getGuiScaledHeight();
+        float guiW = (float) AuiServices.client().getScaledWidth();
+        float guiH = (float) AuiServices.client().getScaledHeight();
         if (guiW <= 0 || guiH <= 0) return null;
 
         Position position = rect.getBodyRectPosition();
@@ -374,8 +374,8 @@ public class FilterRenderer {
 
     private static RenderTarget prepareFullFilterSource(RenderTarget source, float cssBlurRadius) {
         if (source == null || cssBlurRadius < 0.5f) return source;
-        float guiW = Math.max(1.0f, (float) Client.getWindow().getGuiScaledWidth());
-        float guiH = Math.max(1.0f, (float) Client.getWindow().getGuiScaledHeight());
+        float guiW = Math.max(1.0f, (float) AuiServices.client().getScaledWidth());
+        float guiH = Math.max(1.0f, (float) AuiServices.client().getScaledHeight());
         float physicalRadius = Math.max(0, cssBlurRadius)
                 * Math.max(source.width / guiW, source.height / guiH);
         return blurTexture(source, physicalRadius);
@@ -499,7 +499,7 @@ public class FilterRenderer {
         if (shader.getUniform("ForceAlpha") != null) shader.getUniform("ForceAlpha").set(forceAlpha ? 1.0f : 0.0f);
         if (shader.getUniform("ClipEnabled") != null) shader.getUniform("ClipEnabled").set(0.0f);
         if (shader.getUniform("GuiSize") != null) {
-            shader.getUniform("GuiSize").set((float) Client.getWindow().getGuiScaledWidth(), (float) Client.getWindow().getGuiScaledHeight());
+            shader.getUniform("GuiSize").set((float) AuiServices.client().getScaledWidth(), (float) AuiServices.client().getScaledHeight());
         }
         if (shader.getUniform("UvPerGuiPixel") != null) {
             shader.getUniform("UvPerGuiPixel").set(uvPerGuiX, uvPerGuiY);

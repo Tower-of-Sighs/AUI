@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Set;
 import com.sighs.apricityui.style.Transform;
 import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.world.WorldWindow;
 
 public class Base {
     public enum RenderPhase {

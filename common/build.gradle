@@ -1,0 +1,77 @@
+// Standalone build for the shared source tree.
+//
+// AUI's common/ contains Minecraft/Forge/KubeJS types, so it cannot be the
+// loader-neutral Java-8 module of the upstream framework. It compiles against
+// the same legacyforge + mod dependency classpath as the Forge target. Targets
+// do NOT include this as a Gradle subproject; they compile common sources via
+// `sourceSets.main.java.srcDir '../../common/src/main/java'`.
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.91'
+}
+
+def properties = new Properties()
+file('../gradle.properties').withInputStream { properties.load(it) }
+file('gradle.properties').withInputStream { properties.load(it) }
+properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+
+group = mod_group_id
+version = mod_version
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(17)
+}
+
+legacyForge {
+    version = "${forge_minecraft_version}-${forge_version}"
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "Curse Maven"
+        url = "https://www.cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    modCompileOnly ("curse.maven:kubejs-238086:5853326")
+    modCompileOnly ("curse.maven:rhino-416294:6186971")
+    modCompileOnly ("curse.maven:architectury-api-419699:5137938")
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation ("curse.maven:rhino-416294:6186971")
+}
+
+configurations {
+    auiTestModRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom modDevRuntimeDependencies
+    }
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+    classpath = sourceSets.test.output + sourceSets.main.output + configurations.testRuntimeClasspath + configurations.auiTestModRuntime
+    // Tests resolve shared resource paths like `../../common/src/main/resources/...`
+    // relative to the Forge target's working directory. Run from the same CWD so
+    // standalone `gradlew -p common test` behaves identically to the target test task.
+    workingDir = file('../targets/forge-1.20.1')
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}

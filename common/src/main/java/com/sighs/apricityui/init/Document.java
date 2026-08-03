@@ -7,7 +7,7 @@ import com.sighs.apricityui.element.Html;
 import com.sighs.apricityui.canvas.CanvasPath2D;
 import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.loader.Loader;
-import com.sighs.apricityui.dom.DocumentExpander;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
@@ -329,7 +329,7 @@ public class Document {
                     style.recomputeSubtree(documentElement);
                 }
                 stage = "document expanders";
-                DocumentExpander.apply(this);
+                AuiServices.expander().apply(this);
 
                 // Final pass: apply styles once after expansion.
                 stage = "final style calculation";

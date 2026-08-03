@@ -16,10 +16,9 @@ import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nonnull;
-import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.viewport.ApricityViewport;
 
-public class ApricityScreen extends Screen {
+public class ApricityScreen extends Screen implements AuiLinkedScreen {
     private final String templatePath;
     private boolean pauseGame;
     private boolean showDefaultBackground;
@@ -123,7 +122,7 @@ public class ApricityScreen extends Screen {
                 }
                 Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             }
-            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            com.sighs.apricityui.spi.AuiServices.client().drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose());
             Cursor.drawPseudoCursor(guiGraphics);
         } finally {

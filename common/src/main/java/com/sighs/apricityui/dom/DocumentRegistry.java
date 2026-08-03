@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.world.WorldWindow;
 
 /**
  * Document 的静态注册表与上下文线程变量。从 Document 拆出，

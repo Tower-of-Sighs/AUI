@@ -1,7 +1,7 @@
 package com.sighs.apricityui.network.packet;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
-import com.sighs.apricityui.element.Container.ContainerDeclaration;
+import com.sighs.apricityui.element.ContainerDeclaration;
 import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;

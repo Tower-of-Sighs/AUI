@@ -4,7 +4,6 @@ import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.screen.ApricityScreen;
-import com.sighs.apricityui.world.FollowFacingWorldWindow;
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
@@ -133,41 +132,6 @@ public class ApricityUIClientUtil {
         WorldWindow window = new WorldWindow(path, new Vec3(x, y, z), maxDistance,
                 new Vec3(pitch, yaw, roll));
         WorldWindow.addWindow(window);
-        return window;
-    }
-
-    /** @deprecated Configure the logical size with the document's {@code aui-viewport} meta. */
-    @Deprecated
-    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance, float followFactor) {
-        FollowFacingWorldWindow window = new FollowFacingWorldWindow(path, new Vec3(x, y, z), width, height, maxDistance, followFactor);
-        WorldWindow.addWindow(window);
-        return window;
-    }
-
-    /**
-     * @deprecated Use {@link #createWorldWindow(String, double, double, double, int)}
-     *             and configure follow/facing on the returned window.
-     */
-    @Deprecated
-    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, int maxDistance, float followFactor) {
-        FollowFacingWorldWindow window = new FollowFacingWorldWindow(path, new Vec3(x, y, z), maxDistance, followFactor);
-        WorldWindow.addWindow(window);
-        return window;
-    }
-
-    /**
-     * @deprecated Use {@link #createWorldWindow(String, double, double, double, int)}
-     *             and configure follow/facing on the returned window.
-     */
-    @Deprecated
-    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path,
-                                                                         double x, double y, double z,
-                                                                         int maxDistance,
-                                                                         int maxDisplayDistance,
-                                                                         float followFactor) {
-        FollowFacingWorldWindow window = createFollowFacingWorldWindow(
-                path, x, y, z, maxDistance, followFactor);
-        window.setMaxDisplayDistance(maxDisplayDistance);
         return window;
     }
 

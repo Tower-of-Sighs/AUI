@@ -22,7 +22,6 @@ import java.util.function.Supplier;
  */
 public abstract class MinecraftElement extends Element {
     private static final Map<String, Object> GLOBAL_RUNTIME_CACHES = new ConcurrentHashMap<>();
-    private final HashMap<String, Object> runtimeCaches = new HashMap<>();
     private int attributeBatchDepth = 0;
     private boolean pendingCssUpdate = false;
 
@@ -64,34 +63,6 @@ public abstract class MinecraftElement extends Element {
 
     public final boolean hasAncestor(Class<? extends Element> type) {
         return findAncestor(type) != null;
-    }
-
-    public final Object getRuntimeCache(String key) {
-        if (key == null || key.isBlank()) return null;
-        return runtimeCaches.get(key);
-    }
-
-    public final void putRuntimeCache(String key, Object value) {
-        if (key == null || key.isBlank()) return;
-        if (value == null) {
-            runtimeCaches.remove(key);
-            return;
-        }
-        runtimeCaches.put(key, value);
-    }
-
-    public final Object computeRuntimeCacheIfAbsent(String key, Supplier<Object> factory) {
-        if (key == null || key.isBlank() || factory == null) return null;
-        return runtimeCaches.computeIfAbsent(key, ignored -> factory.get());
-    }
-
-    public final void removeRuntimeCache(String key) {
-        if (key == null || key.isBlank()) return;
-        runtimeCaches.remove(key);
-    }
-
-    public final void clearRuntimeCaches() {
-        runtimeCaches.clear();
     }
 
     public final void beginAttributeBatch() {

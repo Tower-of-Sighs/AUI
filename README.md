@@ -8,15 +8,20 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 
 本项目采用 `common + targets/<loader>-<minecraft-version>` 多加载器框架结构：
 
-- `common/`：共享源码树（Java、测试、loader 无关资源）。它不是独立 Gradle 项目，
-  不能单独编译，由 target 通过 `sourceSets` srcDir 编译进自身。
+- `common/`：共享源码树（Java、测试、loader 无关资源）。可**单独编译并跑测试**
+  （`gradlew -p common test`，见 `common/build.gradle`），不引用任何 target 侧类；
+  loader 绑定能力经 `com.sighs.apricityui.spi.AuiServices` 由 target 侧实现注册。
 - `targets/forge-1.20.1/`：Forge 1.20.1 目标，独立 Gradle 工程（自己的 wrapper 与配置）。
-  加载器 metadata（`META-INF/mods.toml`）保留在 target 中。
+  加载器 metadata（`META-INF/mods.toml`）、mixin 类与注册、@Mod 入口（`ApricityUIForge`）
+  保留在 target 中。
 
 IDEA：直接打开 `targets/forge-1.20.1/` 目录，IDE 会导入该 target 与 `../../common` 源码。
 
 ```powershell
-# 构建（在 target 目录下）
+# common 单独编译与测试（仓库根）
+.\gradlew.bat -p common test
+
+# 构建 target（在 target 目录下）
 cd targets\forge-1.20.1
 .\gradlew.bat clean build
 

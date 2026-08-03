@@ -6,7 +6,7 @@ import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.container.datasource.DataSourceFactory;
-import com.sighs.apricityui.element.Container.ContainerDeclaration;
+import com.sighs.apricityui.element.ContainerDeclaration;
 import com.sighs.apricityui.network.ApricityNetwork;
 import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;

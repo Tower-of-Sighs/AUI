@@ -2,19 +2,23 @@
 
 > **AUI 适配说明（优先于下文框架原文）**
 >
-> 本文档来自 SighsTemple 框架。AUI 的现状与其中两条规则存在**有意偏差**：
+> 本文档来自 SighsTemple 框架。AUI 的现状与框架原文存在**有意偏差**：
 >
-> 1. AUI 的 `common/` **包含** `net.minecraft.*` / Forge 类型，并且引用 target 侧的类
->    （`loader.Loader`、`client.Client` 等）。因此 common 不是独立 Gradle 项目、
->    不能单独编译，而是通过 target `build.gradle` 中的
->    `sourceSets.main.java.srcDir '../../common/src/main/java'` 编译进 target。
->    下文"非协商边界 / common 禁止包含 Minecraft 类型"一条对 AUI 暂不适用；
->    若未来做依赖倒置重构（接口下沉），再恢复该边界。
-> 2. AUI 目前只有 `targets/forge-1.20.1/` 一个 target，下文表格中的
+> 1. AUI 的 `common/` **包含** `net.minecraft.*` / Forge / KubeJS 类型，因此它不是
+>    框架原文要求的"Java 8 纯 loader 中立模块"。但它已经**不引用任何 target 侧类**：
+>    loader 绑定能力通过 `com.sighs.apricityui.spi.AuiServices` 接口下沉到 common，
+>    在 target 侧 `com.sighs.apricityui.forge` 包实现并注册（`ApricityUIForge` 为
+>    @Mod 入口，`AuiServicesBootstrap` 负责注册服务）。
+> 2. common 可以**单独编译并跑测试**：`gradlew -p common test`（见 `common/build.gradle`，
+>    使用 legacyforge 2.0.91 + curse maven compileOnly 类路径）。target 仍通过
+>    `sourceSets.main.java.srcDir '../../common/src/main/java'` 直接编译 common 源码，
+>    二者共用同一份源码。
+> 3. AUI 目前只有 `targets/forge-1.20.1/` 一个 target，下文表格中的
 >    fabric / neoforge target 行作为未来扩展的参考保留。
 >
 > 共享资源规则与框架一致：loader 无关资源放 `common/src/main/resources/`，
-> 加载器 metadata（`META-INF/mods.toml`）留在 target。
+> 加载器 metadata（`META-INF/mods.toml`）留在 target。mixin 类与 mixin 注册归
+> target（refmap 与加载器映射体系绑定）。
 
 ## 目标
 

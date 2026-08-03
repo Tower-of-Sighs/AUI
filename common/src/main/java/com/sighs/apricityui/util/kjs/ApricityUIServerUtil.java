@@ -1,9 +1,9 @@
 package com.sighs.apricityui.util.kjs;
 
-import com.sighs.apricityui.element.Container.ContainerDeclaration;
-import com.sighs.apricityui.network.handler.ApricityScreenNetworkHandler;
-import com.sighs.apricityui.network.handler.PendingMenu;
+import com.sighs.apricityui.element.ContainerDeclaration;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
+import com.sighs.apricityui.spi.AuiPendingMenu;
+import com.sighs.apricityui.spi.AuiServices;
 import net.minecraft.server.level.ServerPlayer;
 
 import java.util.List;
@@ -19,8 +19,8 @@ public class ApricityUIServerUtil {
      * ApricityUI.menu(player, "test/test.html").bind(b => b.blockEntity(pos).player())
      * </pre>
      */
-    public static PendingMenu menu(ServerPlayer player, String path) {
-        return new PendingMenu(player, path);
+    public static AuiPendingMenu menu(ServerPlayer player, String path) {
+        return AuiServices.network().pendingMenu(player, path);
     }
 
     /**
@@ -30,7 +30,7 @@ public class ApricityUIServerUtil {
      */
     @Deprecated
     public static void openScreen(ServerPlayer player, String path, List<ContainerDeclaration> declarations) {
-        ApricityScreenNetworkHandler.openScreen(player, path, declarations);
+        AuiServices.network().openScreen(player, path, declarations);
     }
 
     /**
@@ -40,6 +40,6 @@ public class ApricityUIServerUtil {
      */
     @Deprecated
     public static void openScreen(ServerPlayer player, String path) {
-        ApricityScreenNetworkHandler.openScreen(player, path, List.of());
+        AuiServices.network().openScreen(player, path, List.of());
     }
 }

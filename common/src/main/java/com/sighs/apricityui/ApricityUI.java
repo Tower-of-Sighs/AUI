@@ -1,74 +1,33 @@
 package com.sighs.apricityui;
 
 import com.mojang.logging.LogUtils;
-import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.config.ApricityUIConfig;
-import com.sighs.apricityui.world.FollowFacingWorldWindow;
-import com.sighs.apricityui.world.ShaderRegistry;
+import com.sighs.apricityui.spi.AuiPendingMenu;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.world.WorldWindow;
-import com.sighs.apricityui.network.ApricityNetwork;
-import com.sighs.apricityui.network.handler.PendingMenu;
 import com.sighs.apricityui.screen.ApricityScreen;
 import net.minecraft.client.Minecraft;
-import com.sighs.apricityui.registry.ApricityMenus;
-import com.sighs.apricityui.registry.ApricityUIRegistry;
-import com.sighs.apricityui.script.KubeJS;
-import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterShadersEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.fml.loading.FMLEnvironment;
-import org.slf4j.Logger;
 import org.joml.Quaternionf;
+import org.slf4j.Logger;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-@Mod(ApricityUI.MODID)
-public class ApricityUI {
+/**
+ * ApricityUI public API facade.
+ *
+ * <p>Loader-agnostic: the Forge entry point is {@code com.sighs.apricityui.forge.ApricityUIForge},
+ * which registers the loader-side services this class uses. Everything here compiles inside
+ * {@code common} without referencing loader source classes.</p>
+ */
+public final class ApricityUI {
     public static final String MODID = "apricityui";
     public static final Logger LOGGER = LogUtils.getLogger();
 
-    @HideFromJS
-    public ApricityUI() {
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC);
-        modEventBus.addListener(this::onConfigReload);
-        if (ModList.get().isLoaded("kubejs")) {
-            KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
-        }
-        ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.element");
-        ApricityMenus.register(modEventBus);
-        ApricityNetwork.register();
-
-        if (FMLEnvironment.dist == Dist.CLIENT) {
-            DevToolsLogBridge.install(LOGGER);
-            ApricityUIRegistry.register();
-            modEventBus.addListener(this::onRegisterShaders);
-        }
-    }
-
-    private void onRegisterShaders(RegisterShadersEvent event) {
-        try {
-            ShaderRegistry.register(event);
-        } catch (IOException ignored) {
-        }
-    }
-
-    private void onConfigReload(ModConfigEvent.Reloading event) {
-        if (event.getConfig().getSpec() != ApricityUIConfig.CLIENT_SPEC) return;
-        ApricityUIConfig.markClientReloadPending();
+    private ApricityUI() {
     }
 
     public static Window getWindow() {
@@ -119,8 +78,8 @@ public class ApricityUI {
      * @param templatePath 模板路径
      * @return 待绑定的菜单对象，调用 {@code .bind()} 后立即打开
      */
-    public static PendingMenu menu(ServerPlayer player, String templatePath) {
-        return new PendingMenu(player, templatePath);
+    public static AuiPendingMenu menu(ServerPlayer player, String templatePath) {
+        return AuiServices.network().pendingMenu(player, templatePath);
     }
 
     /**
@@ -206,44 +165,6 @@ public class ApricityUI {
                                                 int maxDistance, Quaternionf orientation) {
         WorldWindow window = new WorldWindow(documentPath, position, maxDistance, orientation);
         WorldWindow.addWindow(window);
-        return window;
-    }
-
-    /**
-     * @deprecated Configure the logical size through {@code aui-viewport} and use
-     *             {@link #createFollowFacingWorldWindow(String, Vec3, int, float)}.
-     */
-    @Deprecated
-    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance, float followFactor) {
-        FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, width, height, maxDistance, followFactor);
-        WorldWindow.addWindow(window);
-        return window;
-    }
-
-    /**
-     * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
-     *             follow/facing on the returned window.
-     */
-    @Deprecated
-    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, int maxDistance, float followFactor) {
-        FollowFacingWorldWindow window = new FollowFacingWorldWindow(documentPath, position, maxDistance, followFactor);
-        WorldWindow.addWindow(window);
-        return window;
-    }
-
-    /**
-     * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
-     *             follow/facing on the returned window.
-     */
-    @Deprecated
-    public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath,
-                                                                         Vec3 position,
-                                                                         int maxDistance,
-                                                                         int maxDisplayDistance,
-                                                                         float followFactor) {
-        FollowFacingWorldWindow window = createFollowFacingWorldWindow(
-                documentPath, position, maxDistance, followFactor);
-        window.setMaxDisplayDistance(maxDisplayDistance);
         return window;
     }
 

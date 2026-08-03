@@ -31,7 +31,6 @@ import org.lwjgl.opengl.GL11;
 import java.util.ArrayList;
 import java.util.List;
 import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.config.ApricityUIConfig;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
@@ -684,7 +683,7 @@ public class WorldWindow {
     /** Returns the current mouse position mapped to document coordinates for world events. */
     public Position getRealPos() {
         // A grabbed cursor reports virtual look coordinates; world picking uses the crosshair.
-        return getRealPos(Client.getMousePositionForWorldInteraction());
+        return getRealPos(com.sighs.apricityui.spi.AuiServices.client().getMousePositionForWorldInteraction());
     }
 
     /** Returns a screen position mapped to this window's event coordinate space. */

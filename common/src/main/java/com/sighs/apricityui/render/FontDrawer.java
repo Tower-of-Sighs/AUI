@@ -3,7 +3,7 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
@@ -129,7 +129,7 @@ public class FontDrawer {
         float y = (float) position.y;
 
         if ("unset".equals(text.fontFamily)) {
-            Client.drawDefaultFont(poseStack, text, content, position);
+            AuiServices.client().drawDefaultFont(poseStack, text, content, position);
             return;
         }
 
@@ -137,7 +137,7 @@ public class FontDrawer {
         TextQuadMode quadMode = resolveTextQuadMode();
         FontEntry entry = textureEntry(text, content, rasterMode, quadMode);
         if (entry == null) {
-            Client.drawDefaultFont(poseStack, text, content, position);
+            AuiServices.client().drawDefaultFont(poseStack, text, content, position);
             return;
         }
 

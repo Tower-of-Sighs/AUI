@@ -10,10 +10,9 @@ import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.parser.Selector;
-import com.sighs.apricityui.screen.ApricityContainerScreen;
 import com.sighs.apricityui.screen.ApricityScreen;
+import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.world.WorldWindow;
-import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
@@ -1633,22 +1632,22 @@ public final class DevToolsController {
     }
 
     private static void syncRuntimeInlineStyleCache(Element target) {
-        if (!(target instanceof MinecraftElement minecraftElement)) return;
+        if (target == null) return;
         String raw = target.getAttribute("style");
-        if (minecraftElement.getRuntimeCache("bound-base-inline-style") != null) {
-            minecraftElement.putRuntimeCache("bound-base-inline-style", raw == null ? "" : raw);
+        if (target.getRuntimeCache("bound-base-inline-style") != null) {
+            target.putRuntimeCache("bound-base-inline-style", raw == null ? "" : raw);
         }
-        if (minecraftElement.getRuntimeCache("bound-last-inline-style") != null) {
-            minecraftElement.putRuntimeCache("bound-last-inline-style", raw == null ? "" : raw);
+        if (target.getRuntimeCache("bound-last-inline-style") != null) {
+            target.putRuntimeCache("bound-last-inline-style", raw == null ? "" : raw);
         }
     }
 
     private Document resolvePreferredTarget() {
         try {
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft != null && minecraft.screen instanceof ApricityScreen screen
+            if (minecraft != null && minecraft.screen instanceof AuiLinkedScreen screen
                     && isDebuggable(screen.getLinkedDocument())) return screen.getLinkedDocument();
-            if (minecraft != null && minecraft.screen instanceof ApricityContainerScreen screen
+            if (minecraft != null && minecraft.screen instanceof ApricityScreen screen
                     && isDebuggable(screen.getLinkedDocument())) return screen.getLinkedDocument();
         } catch (RuntimeException | LinkageError ignored) {
         }

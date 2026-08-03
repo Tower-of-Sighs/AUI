@@ -12,7 +12,6 @@ import org.lwjgl.opengl.GL11;
 import java.util.ArrayDeque;
 import java.util.Stack;
 import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.world.WorldWindow;
 
 public class Mask {
     private static int depth = 0;

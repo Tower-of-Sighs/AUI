@@ -2,6 +2,7 @@ package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.screen.SlotDataBinder;
@@ -29,7 +30,7 @@ import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.world.ItemRender;
 
-public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> {
+public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> implements AuiLinkedScreen {
     private static final int QUICK_CRAFT_GHOST_COLOR = -2130706433;
     private static final float ICON_SCALE_EPSILON = 0.0001F;
 

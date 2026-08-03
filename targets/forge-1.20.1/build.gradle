@@ -25,9 +25,10 @@ java {
     withSourcesJar()
 }
 
-// common/ is a shared source tree (not a standalone project): it is compiled
-// as part of this target so it may reference target-side classes. Its shared
-// resources directory is wired in by gradle/target-conventions/publish.gradle.
+// common/ is a shared source tree that also compiles standalone
+// (`gradlew -p common build`, see common/build.gradle). It has no references to
+// loader classes, so it can be compiled into this target by source-set sharing.
+// Its shared resources directory is wired in by gradle/target-conventions/publish.gradle.
 sourceSets {
     main {
         java.srcDir '../../common/src/main/java'

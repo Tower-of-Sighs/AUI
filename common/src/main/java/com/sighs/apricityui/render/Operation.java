@@ -8,7 +8,7 @@ import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.layout.Position;
@@ -387,7 +387,7 @@ public class Operation {
     }
 
     public static Position getMousePositionDirectly() {
-        Position live = Client.getMousePositionDirectly();
+        Position live = AuiServices.client().getMousePositionDirectly();
         if (live != null) {
             if (cachedMousePosition == null) {
                 cachedMousePosition = live;
@@ -419,7 +419,7 @@ public class Operation {
     }
 
     public static boolean isKeyPressed(String key) {
-        return Client.isKeyPressed(key);
+        return AuiServices.client().isKeyPressed(key);
     }
 
     public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers, boolean repeat, KeyEvent.Source source) {

@@ -21,6 +21,7 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import com.sighs.apricityui.util.HtmlSerializer;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.event.Event;
@@ -55,6 +56,36 @@ import com.sighs.apricityui.parser.HTML;
 
 public class Element extends Node {
     private HashMap<String, String> attributes = new HashMap<>();
+    /** Per-element runtime cache used by DevTools and the loader element base. */
+    private final Map<String, Object> runtimeCaches = new HashMap<>();
+
+    public final Object getRuntimeCache(String key) {
+        if (key == null || key.isBlank()) return null;
+        return runtimeCaches.get(key);
+    }
+
+    public final void putRuntimeCache(String key, Object value) {
+        if (key == null || key.isBlank()) return;
+        if (value == null) {
+            runtimeCaches.remove(key);
+            return;
+        }
+        runtimeCaches.put(key, value);
+    }
+
+    public final Object computeRuntimeCacheIfAbsent(String key, Supplier<Object> factory) {
+        if (key == null || key.isBlank() || factory == null) return null;
+        return runtimeCaches.computeIfAbsent(key, ignored -> factory.get());
+    }
+
+    public final void removeRuntimeCache(String key) {
+        if (key == null || key.isBlank()) return;
+        runtimeCaches.remove(key);
+    }
+
+    public final void clearRuntimeCaches() {
+        runtimeCaches.clear();
+    }
     public String tagName;
     public String innerText = "";
     private String lastInnerText = "";

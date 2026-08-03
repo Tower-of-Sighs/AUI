@@ -18,7 +18,6 @@ import java.util.Map;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.sighs.apricityui.screen.ApricityScreen;
 
 public class CSS {
     /** 提取 CSS url(...) 引用的公共正则，resource 包共用。 */

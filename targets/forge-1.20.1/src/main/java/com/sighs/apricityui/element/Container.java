@@ -127,19 +127,4 @@ public class Container extends MinecraftElement {
         return parsedSize > 0 ? parsedSize : safeFallback;
     }
 
-    /**
-     * 容器声明记录，描述模板中一个容器的基本信息。
-     */
-    public record ContainerDeclaration(
-            String id,
-            ContainerBindType bindType,
-            int capacity,
-            boolean primary
-    ) {
-        public ContainerDeclaration {
-            id = id == null ? "" : id.trim();
-            bindType = bindType == null ? ContainerBindType.PLAYER : bindType;
-            capacity = Math.max(0, capacity);
-        }
-    }
 }

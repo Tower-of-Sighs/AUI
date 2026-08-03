@@ -7,7 +7,7 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
@@ -63,7 +63,7 @@ public record Size(double width, double height) {
             return new Size(width, height);
         }
         try {
-            return Client.getWindowSize();
+            return AuiServices.client().getWindowSize();
         } catch (NoClassDefFoundError | Exception ignored) {
             return new Size(1920, 1080);
         }
@@ -104,7 +104,7 @@ public record Size(double width, double height) {
             return parsedWidth == null ? 1920 : parsedWidth;
         }
         try {
-            return Client.getWindowSize().width();
+            return AuiServices.client().getWindowSize().width();
         } catch (NoClassDefFoundError | Exception ignored) {
             return 1920;
         }
@@ -125,7 +125,7 @@ public record Size(double width, double height) {
             return parsedHeight == null ? 1080 : parsedHeight;
         }
         try {
-            return Client.getWindowSize().height();
+            return AuiServices.client().getWindowSize().height();
         } catch (NoClassDefFoundError | Exception ignored) {
             return 1080;
         }
