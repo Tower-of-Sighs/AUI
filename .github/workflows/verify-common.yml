@@ -1,0 +1,92 @@
+name: Verify Common Changes
+
+on:
+  push:
+    paths:
+      - 'common/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'scripts/build-target.ps1'
+      - 'scripts/discover-targets.ps1'
+      - '.github/workflows/verify-common.yml'
+      - 'targets/**/ci.properties'
+  pull_request:
+    paths:
+      - 'common/**'
+      - 'build.gradle'
+      - 'settings.gradle'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'scripts/build-target.ps1'
+      - 'scripts/discover-targets.ps1'
+      - '.github/workflows/verify-common.yml'
+      - 'targets/**/ci.properties'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-common-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover-targets:
+    name: Discover Enabled Targets
+    runs-on: windows-latest
+    outputs:
+      matrix: ${{ steps.discover.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build target matrix
+        id: discover
+        shell: pwsh
+        run: |
+          $matrix = .\scripts\discover-targets.ps1
+          "matrix=$matrix" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+  common-tests:
+    name: Common Unit Tests
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      # AUI: common/ is a shared source tree that cannot compile standalone
+      # (it references target-side classes), so its tests run through the
+      # default target instead of `gradlew -p common test`.
+      - name: Run common unit tests
+        shell: pwsh
+        run: .\gradlew.bat -p targets\forge-1.20.1 test --console plain --no-daemon
+
+  target-builds:
+    name: ${{ matrix.target }} (JDK ${{ matrix.java }})
+    needs: [discover-targets, common-tests]
+    runs-on: windows-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.discover-targets.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build target and run tests
+        shell: pwsh
+        run: .\scripts\build-target.ps1 -Target ${{ matrix.target }} -Attempts ${{ matrix.attempts }}
+      - name: Upload build output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}-jdk-${{ matrix.java }}
+          path: targets/${{ matrix.target }}/build/libs/*.jar
+          if-no-files-found: ignore

@@ -14,8 +14,8 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class OreEditThemeTest {
-    private static final Path ORE = Path.of("src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
-    private static final Path EDIT = Path.of("src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore-edit.css");
+    private static final Path ORE = Path.of("../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
+    private static final Path EDIT = Path.of("../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore-edit.css");
 
     @Test
     void editableThemePreservesStableThemeComputedStyles() throws Exception {

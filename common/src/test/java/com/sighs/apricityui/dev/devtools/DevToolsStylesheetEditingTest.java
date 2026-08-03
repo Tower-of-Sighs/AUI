@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class DevToolsStylesheetEditingTest {
     private static final Path TEMPLATE = Path.of(
-            "src/main/resources/assets/apricityui/apricity/devtools/devtools.html");
+            "../../common/src/main/resources/assets/apricityui/apricity/devtools/devtools.html");
 
     @Test
     void exposesAuthorRulesAndMarksCascadeLosers() {

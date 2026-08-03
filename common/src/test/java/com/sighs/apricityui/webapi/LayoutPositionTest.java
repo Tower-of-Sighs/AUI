@@ -500,11 +500,11 @@ class LayoutPositionTest {
         Document document = TestDocumentFactory.createDocument();
         document.setFontMode(Document.FontMode.WEB);
         Path stylesheet = Path.of(
-                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
         assertTrue(Font.registerFont("OreRegular", Path.of(
-                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-regular.otf")));
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-regular.otf")));
         assertTrue(Font.registerFont("OreDisplay", Path.of(
-                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf")));
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf")));
         document.body.setAttribute("class", "ore-theme");
         document.body.setAttribute("style", "width: 1150px; font-family: OreRegular;");
 
@@ -658,7 +658,7 @@ class LayoutPositionTest {
     @Test
     void webFontMeasurementUsesBrowserFractionalAdvances() throws Exception {
         java.nio.file.Path fontPath = java.nio.file.Path.of(
-                "src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf");
+                "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/fonts/minecraft-ten.ttf");
         assertTrue(Font.registerFont("OreDisplayFractionalTest", fontPath));
         Text text = new Text();
         text.fontFamily = "OreDisplayFractionalTest";

@@ -4,6 +4,34 @@ Design UI with HTML, CSS, and maybe JavaScript along.
 
 通过经典的H5三剑客构建Minecraft的UI。
 
+## 构建（SighsTemple 框架）
+
+本项目采用 `common + targets/<loader>-<minecraft-version>` 多加载器框架结构：
+
+- `common/`：共享源码树（Java、测试、loader 无关资源）。它不是独立 Gradle 项目，
+  不能单独编译，由 target 通过 `sourceSets` srcDir 编译进自身。
+- `targets/forge-1.20.1/`：Forge 1.20.1 目标，独立 Gradle 工程（自己的 wrapper 与配置）。
+  加载器 metadata（`META-INF/mods.toml`）保留在 target 中。
+
+IDEA：直接打开 `targets/forge-1.20.1/` 目录，IDE 会导入该 target 与 `../../common` 源码。
+
+```powershell
+# 构建（在 target 目录下）
+cd targets\forge-1.20.1
+.\gradlew.bat clean build
+
+# 或从仓库根编排构建
+.\gradlew.bat build
+
+# 运行客户端 / 测试矩阵（target 目录下）
+.\gradlew.bat runClient
+.\gradlew.bat testMatrix
+```
+
+共享资源放在 `common/src/main/resources/`，构建 target 时会合并进最终 jar。
+target 自身 `libs/` 目录中的 `*.jar` 会自动作为 `implementation` 依赖。
+发布（Maven / CurseForge / Modrinth）见 `docs/PUBLISHING.md`。
+
 ### 计划：
 - 简单的svelte
 - 审查元素的调试台，能改attribute、innerText和行内css

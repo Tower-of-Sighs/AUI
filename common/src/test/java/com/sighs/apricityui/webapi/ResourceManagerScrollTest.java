@@ -29,8 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sighs.apricityui.viewport.ApricityViewport;
 
 class ResourceManagerScrollTest {
-    private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/resource.html");
-    private static final Path LEGACY_TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/resource-manager.html");
+    private static final Path TEMPLATE = Path.of("../../common/src/main/resources/assets/apricityui/apricity/devtools/resource.html");
+    private static final Path LEGACY_TEMPLATE = Path.of("../../common/src/main/resources/assets/apricityui/apricity/devtools/resource-manager.html");
 
     @Test
     void resourceTemplateIsScriptlessAndLegacyTemplateIsGone() throws Exception {
@@ -326,7 +326,7 @@ class ResourceManagerScrollTest {
                 path,
                 extension,
                 Loader.ResourceLayer.DEV_FOLDER,
-                Path.of("src/main/resources/assets/apricityui/apricity").toAbsolutePath().normalize().toString(),
+                Path.of("../../common/src/main/resources/assets/apricityui/apricity").toAbsolutePath().normalize().toString(),
                 "dev-source",
                 size
         );

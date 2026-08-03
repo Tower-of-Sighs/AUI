@@ -12,8 +12,6 @@ import com.sighs.apricityui.parser.HTML;
 
 /** Handles local HTML import and writes created resources under the active resource root. */
 public final class ResourceFileWriter {
-    private static final Path DEVELOPMENT_ROOT = Path.of("src/main/resources/assets/apricityui/apricity");
-
     private ResourceFileWriter() {
     }
 
@@ -53,10 +51,14 @@ public final class ResourceFileWriter {
     }
 
     public static Path writableRoot() {
-        Path root = FMLEnvironment.production
-                ? Loader.getGameDirectory().resolve("apricity")
-                : DEVELOPMENT_ROOT;
-        return root.toAbsolutePath().normalize();
+        if (FMLEnvironment.production) {
+            return Loader.getGameDirectory().resolve("apricity").toAbsolutePath().normalize();
+        }
+        // Dev-mode writes go to the shared common/ resource tree when it is
+        // discoverable, falling back to the local game directory otherwise.
+        Path devRoot = Loader.getPrimaryDevResourceRoot();
+        if (devRoot != null) return devRoot.toAbsolutePath().normalize();
+        return Loader.getGameDirectory().resolve("apricity").toAbsolutePath().normalize();
     }
 
     public static String validateHtmlPath(String requestedPath) {

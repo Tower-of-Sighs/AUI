@@ -17,7 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class OreEditorPaletteTest {
-    private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/editor/ore/ore-editor.html");
+    private static final Path TEMPLATE = Path.of("../../common/src/main/resources/assets/apricityui/apricity/editor/ore/ore-editor.html");
 
     @Test
     void paletteSeparatesContainersAndComponentsWithoutChangingSelection() throws Exception {

@@ -13,6 +13,10 @@ import java.util.stream.Stream;
 
 public class Loader {
     private static final String DEV_ASSET_ROOT = "src/main/resources/assets/apricityui/apricity";
+    // Shared resources live in the framework-level common/ source tree, so dev
+    // mode must also recognize <repo>/common/src/main/resources when walking up
+    // from the game directory.
+    private static final String COMMON_DEV_ASSET_ROOT = "common/" + DEV_ASSET_ROOT;
 
     public enum ResourceLayer {
         RESOURCE_PACK,
@@ -103,9 +107,11 @@ public class Loader {
         LinkedHashSet<Path> candidates = new LinkedHashSet<>();
         Path base = gameDir;
         for (int depth = 0; depth <= 6 && base != null; depth++) {
-            Path candidate = base.resolve(DEV_ASSET_ROOT).normalize();
-            if (Files.exists(candidate) && Files.isDirectory(candidate)) {
-                candidates.add(candidate);
+            for (String relativeRoot : List.of(DEV_ASSET_ROOT, COMMON_DEV_ASSET_ROOT)) {
+                Path candidate = base.resolve(relativeRoot).normalize();
+                if (Files.exists(candidate) && Files.isDirectory(candidate)) {
+                    candidates.add(candidate);
+                }
             }
             base = base.getParent();
         }
@@ -113,6 +119,12 @@ public class Loader {
         List<Path> roots = new ArrayList<>(candidates);
         roots.sort(Comparator.comparingInt((Path path) -> distanceFrom(gameDir, path)).reversed());
         return roots;
+    }
+
+    /** Returns the preferred writable dev-mode resource root, or null when none is found. */
+    public static Path getPrimaryDevResourceRoot() {
+        List<Path> roots = getDevResourceRoots();
+        return roots.isEmpty() ? null : roots.get(0);
     }
 
     static List<Path> getDevProjectRoots() {

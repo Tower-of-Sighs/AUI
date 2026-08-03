@@ -14,9 +14,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
 class OreEditorTranslationTest {
-    private static final Path ENGLISH = Path.of("src/main/resources/assets/apricityui/lang/en_us.json");
-    private static final Path CHINESE = Path.of("src/main/resources/assets/apricityui/lang/zh_cn.json");
-    private static final Path SHELL = Path.of("src/main/resources/assets/apricityui/apricity/editor/ore/ore-editor.html");
+    private static final Path ENGLISH = Path.of("../../common/src/main/resources/assets/apricityui/lang/en_us.json");
+    private static final Path CHINESE = Path.of("../../common/src/main/resources/assets/apricityui/lang/zh_cn.json");
+    private static final Path SHELL = Path.of("../../common/src/main/resources/assets/apricityui/apricity/editor/ore/ore-editor.html");
     private static final Pattern DIRECT_SHELL_TEXT = Pattern.compile(
             "(?is)<(?!translation\\b)[^>]+>\\s*([^<\\s][^<]*)\\s*</");
 

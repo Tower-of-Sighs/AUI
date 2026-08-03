@@ -24,8 +24,8 @@ import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.parser.CSS;
 
 class DevToolsTest {
-    private static final Path TEMPLATE = Path.of("src/main/resources/assets/apricityui/apricity/devtools/devtools.html");
-    private static final Path LEGACY = Path.of("src/main/resources/assets/apricityui/apricity/devtools/index.html");
+    private static final Path TEMPLATE = Path.of("../../common/src/main/resources/assets/apricityui/apricity/devtools/devtools.html");
+    private static final Path LEGACY = Path.of("../../common/src/main/resources/assets/apricityui/apricity/devtools/index.html");
 
     @Test
     void templateContainsNoRuntimeJavascriptAndKeepsRequiredMetadata() throws Exception {

@@ -33,9 +33,9 @@ import com.sighs.apricityui.parser.Color;
 
 class ResourceDialogStyleTest {
     private static final Path TEMPLATE = Path.of(
-            "src/main/resources/assets/apricityui/apricity/devtools/resource.html");
+            "../../common/src/main/resources/assets/apricityui/apricity/devtools/resource.html");
     private static final Path GLOBAL_STYLE = Path.of(
-            "src/main/resources/assets/apricityui/apricity/global.css");
+            "../../common/src/main/resources/assets/apricityui/apricity/global.css");
 
     @TempDir
     Path tempDir;

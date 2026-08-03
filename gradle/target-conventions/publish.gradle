@@ -1,0 +1,111 @@
+// Applied from an individual target project, not from the aggregate root project.
+apply plugin: 'maven-publish'
+
+repositories {
+    flatDir {
+        dirs layout.projectDirectory.dir('libs')
+    }
+}
+
+dependencies {
+    implementation fileTree(dir: file('libs'), include: ['*.jar'], exclude: ['*-sources.jar', '*-javadoc.jar'])
+}
+
+// AUI: common/ is a shared source tree (not an included Gradle project), so the
+// shared resources directory is referenced by relative path instead of project(':common').
+sourceSets.main.resources.srcDir file('../../common/src/main/resources')
+
+def publishLoader = project.projectDir.name.tokenize('-').first()
+def publishMinecraftVersion = [
+        forge    : providers.gradleProperty('forge_minecraft_version'),
+        fabric   : providers.gradleProperty('fabric_minecraft_version'),
+        neoforge : providers.gradleProperty('neoforge_121_minecraft_version')
+                .orElse(providers.gradleProperty('neoforge_261_minecraft_version'))
+][publishLoader]
+
+def publishFile = tasks.findByName('remapJar') != null ?
+        tasks.named('remapJar').flatMap { it.archiveFile } :
+        tasks.named('jar', Jar).flatMap { it.archiveFile }
+def curseforgeProjectId = providers.provider { findProperty('publish_curseforge_project_id')?.toString() }
+        .orElse(providers.environmentVariable('CURSEFORGE_PROJECT_ID'))
+def modrinthProjectId = providers.provider { findProperty('publish_modrinth_project_id')?.toString() }
+        .orElse(providers.environmentVariable('MODRINTH_PROJECT_ID'))
+
+publishMods {
+    file = publishFile
+    changelog = providers.environmentVariable('PUBLISH_CHANGELOG').getOrElse('See the project changelog for details.')
+    type = STABLE
+    modLoaders.add(publishLoader)
+
+    curseforge {
+        projectId = curseforgeProjectId
+        accessToken = providers.environmentVariable('CURSEFORGE_TOKEN')
+        minecraftVersions.add(publishMinecraftVersion)
+        client = true
+        server = true
+    }
+
+    modrinth {
+        projectId = modrinthProjectId
+        accessToken = providers.environmentVariable('MODRINTH_TOKEN')
+        minecraftVersions.add(publishMinecraftVersion)
+    }
+}
+
+tasks.named('publishMods').configure {
+    doFirst {
+        def missing = [
+                'publish_curseforge_project_id (or CURSEFORGE_PROJECT_ID)': curseforgeProjectId,
+                'publish_modrinth_project_id (or MODRINTH_PROJECT_ID)'    : modrinthProjectId,
+                'CURSEFORGE_TOKEN'                                        : providers.environmentVariable('CURSEFORGE_TOKEN'),
+                'MODRINTH_TOKEN'                                          : providers.environmentVariable('MODRINTH_TOKEN')
+        ].findAll { _, value -> !value.present || value.get().trim().isEmpty() }.keySet()
+
+        if (!missing.isEmpty()) {
+            throw new GradleException("Cannot publish mods; missing: ${missing.join(', ')}")
+        }
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            groupId = project.group.toString()
+            artifactId = base.archivesName.get()
+            version = project.version.toString()
+
+            // Loader and Minecraft dependencies are supplied by the game runtime,
+            // so the published mod POM must not expose the target build classpath.
+            pom.withXml {
+                def dependenciesNode = asNode().getAt('dependencies')[0]
+                if (dependenciesNode != null) {
+                    dependenciesNode.children().toList().each { dependency ->
+                        dependenciesNode.remove(dependency)
+                    }
+                }
+            }
+        }
+    }
+
+    repositories {
+        def isSnapshot = project.version.toString().toLowerCase().contains('snapshot')
+        def publishUrl = isSnapshot ?
+                'https://maven.sighs.cc/repository/maven-snapshots/' :
+                'https://maven.sighs.cc/repository/maven-releases/'
+
+        maven {
+            name = 'remoteRepo'
+            url = uri(publishUrl)
+            credentials {
+                username = System.getenv('SIGHS_PUBLISH_USER')
+                password = System.getenv('SIGHS_PUBLISH_PASSWORD')
+            }
+        }
+    }
+}
+
+tasks.withType(GenerateModuleMetadata).configureEach {
+    enabled = false
+}

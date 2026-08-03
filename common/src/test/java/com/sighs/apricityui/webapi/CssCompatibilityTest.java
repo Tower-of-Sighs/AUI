@@ -158,7 +158,7 @@ class CssCompatibilityTest {
     @Test
     void userAgentParagraphStyleDoesNotOverrideAuthorInheritedLineHeight() throws Exception {
         HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
-        Path globalStyle = Path.of("src/main/resources/assets/apricityui/apricity/global.css");
+        Path globalStyle = Path.of("../../common/src/main/resources/assets/apricityui/apricity/global.css");
         CSS.readCSS(Files.readString(globalStyle), cache, globalStyle.toString());
         CSS.readCSS(".theme { line-height: 1.5; }", cache, "test://author.css");
 
@@ -174,7 +174,7 @@ class CssCompatibilityTest {
     @Test
     void userAgentDisabledSelectUsesNativeFadedAppearance() throws Exception {
         HashMap<String, Map<String, CSS.Declaration>> cache = new HashMap<>();
-        Path globalStyle = Path.of("src/main/resources/assets/apricityui/apricity/global.css");
+        Path globalStyle = Path.of("../../common/src/main/resources/assets/apricityui/apricity/global.css");
         CSS.readCSS(Files.readString(globalStyle), cache, globalStyle.toString());
 
         Document document = TestDocumentFactory.createDocument();

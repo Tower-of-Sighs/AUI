@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class FilterRendererOptimizationTest {
     private static final Path SHADERS = Path.of(
-            "src/main/resources/assets/apricityui/shaders/core");
+            "../../common/src/main/resources/assets/apricityui/shaders/core");
 
     @Test
     void filterCompositeDoesNotContainQuadraticBlurLoops() throws Exception {

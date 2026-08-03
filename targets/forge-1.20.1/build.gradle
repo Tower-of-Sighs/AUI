@@ -5,6 +5,7 @@ plugins {
     id 'maven-publish'
     id 'jacoco'
     id 'net.neoforged.moddev.legacyforge' version '2.0.91'
+    id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
 }
 
 def properties = new Properties()
@@ -25,7 +26,8 @@ java {
 }
 
 // common/ is a shared source tree (not a standalone project): it is compiled
-// as part of this target so it may reference target-side classes.
+// as part of this target so it may reference target-side classes. Its shared
+// resources directory is wired in by gradle/target-conventions/publish.gradle.
 sourceSets {
     main {
         java.srcDir '../../common/src/main/java'
@@ -94,7 +96,7 @@ legacyForge {
 
         wptClient {
             client()
-            gameDirectory = file('wpt/runtime')
+            gameDirectory = file('../../wpt/runtime')
         }
 
         server {
@@ -111,7 +113,7 @@ legacyForge {
         data {
             data()
 
-            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath()
+            programArguments.addAll '--mod', project.mod_id, '--all', '--output', file('src/generated/resources/').getAbsolutePath(), '--existing', file('src/main/resources/').getAbsolutePath(), '--existing', file('../../common/src/main/resources/').getAbsolutePath()
         }
 
         configureEach {
@@ -139,6 +141,7 @@ jar {
 }
 
 repositories {
+    mavenCentral()
     maven {
         name = "Curse Maven"
         url = "https://www.cursemaven.com"
@@ -185,67 +188,6 @@ configurations {
         canBeResolved = true
         extendsFrom modDevRuntimeDependencies
     }
-}
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            from components.java
-
-            groupId = project.group
-            artifactId = base.archivesName.get()
-            version = project.version
-
-            pom.withXml {
-                def dependenciesNode = asNode().getAt("dependencies")[0]
-                if (dependenciesNode != null) {
-                    // 这里添加你希望保留在 POM 中的 groupId 或 artifactId，也就是从 Maven 拉依赖时会附带的库、模组啥的
-                    def whiteList = [
-                    ]
-
-                    def dependencies = dependenciesNode.children()
-                    def toRemove = []
-
-                    dependencies.each { dep ->
-                        def artifactId = dep.artifactId.text()
-                        def groupId = dep.groupId.text()
-
-                        if (!whiteList.contains(artifactId) && !whiteList.contains(groupId)) {
-                            toRemove.add(dep)
-                        }
-                    }
-
-                    toRemove.each { dependenciesNode.remove(it) }
-                }
-            }
-        }
-    }
-
-    repositories {
-        def modVersion = project.findProperty('mod_version') ?: 'unknown'
-
-        boolean isSnapshot = modVersion.toLowerCase().contains('snapshot')
-
-        def publishUrl = isSnapshot ?
-                "https://maven.sighs.cc/repository/maven-snapshots/" :
-                "https://maven.sighs.cc/repository/maven-releases/"
-
-        def publishUser = System.getenv("SIGHS_PUBLISH_USER")
-        def publishPassword = System.getenv("SIGHS_PUBLISH_PASSWORD")
-
-        maven {
-            name = "remoteRepo"
-            url = uri(publishUrl)
-            credentials {
-                username = publishUser
-                password = publishPassword
-            }
-        }
-    }
-}
-
-tasks.withType(GenerateModuleMetadata) {
-    enabled = false
 }
 
 tasks.named('processResources', ProcessResources).configure {
@@ -457,3 +399,5 @@ tasks.named('jacocoTestReport', JacocoReport).configure {
         csv.required = false
     }
 }
+
+apply from: file('../../gradle/target-conventions/publish.gradle')
