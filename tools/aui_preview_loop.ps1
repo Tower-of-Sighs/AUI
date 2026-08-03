@@ -8,8 +8,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
-$referencePath = Join-Path $root "run\apricity\apricityui\example.png"
-$screenshotsDir = Join-Path $root "run\screenshots\aui"
+$targetDir = Join-Path $root "targets\forge-1.20.1"
+$referencePath = Join-Path $targetDir "run\apricity\apricityui\example.png"
+$screenshotsDir = Join-Path $targetDir "run\screenshots\aui"
 $compareScript = Join-Path $root "tools\aui_compare.py"
 
 function Get-LatestScreenshot {
@@ -32,9 +33,14 @@ for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     $before = Get-LatestScreenshot
     Write-Host ("Attempt {0}/{1}: starting client" -f $attempt, $MaxAttempts)
 
-    & .\gradlew.bat runClient "-PauiAutoExitSeconds=$AutoExitSeconds" "-PauiViewportWidth=$ViewportWidth" "-PauiViewportHeight=$ViewportHeight" "-PauiLogStyles=true" "--console=plain"
-    if ($LASTEXITCODE -ne 0) {
-        throw "runClient failed with exit code $LASTEXITCODE"
+    Push-Location $targetDir
+    try {
+        & .\gradlew.bat runClient "-PauiAutoExitSeconds=$AutoExitSeconds" "-PauiViewportWidth=$ViewportWidth" "-PauiViewportHeight=$ViewportHeight" "-PauiLogStyles=true" "--console=plain"
+        if ($LASTEXITCODE -ne 0) {
+            throw "runClient failed with exit code $LASTEXITCODE"
+        }
+    } finally {
+        Pop-Location
     }
 
     $after = Get-LatestScreenshot

@@ -165,16 +165,16 @@ tooltip.apricityui.ore_editor.absolute_position
 ## 4. 目标文件结构
 
 ```text
-src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/
+targets/forge-1.20.1/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/
 ├─ ore.css                         # 现有稳定主题，不改语义
 ├─ ore-edit.css                    # 变量驱动的可编辑版本
 └─ ore-edit-example.html           # 变量覆盖与回归示例
 
-src/main/resources/assets/apricityui/apricity/editor/ore/
+targets/forge-1.20.1/src/main/resources/assets/apricityui/apricity/editor/ore/
 ├─ ore-editor.html                 # 无业务 JS 的静态壳
 └─ ore-editor.css                  # 仅编辑器布局、palette 排布和 overlay，不重做 Ore 控件
 
-src/main/java/com/sighs/apricityui/editor/ore/
+common/src/main/java/com/sighs/apricityui/editor/ore/
 ├─ OreEditor.java                  # 对外 open/close/toggle API
 ├─ OreEditorController.java        # 生命周期、绑定与顶层协调
 ├─ OreEditorDom.java               # DOM 辅助方法及 Translation 节点工厂
