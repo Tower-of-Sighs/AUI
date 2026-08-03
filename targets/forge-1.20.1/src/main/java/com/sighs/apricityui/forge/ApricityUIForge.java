@@ -29,6 +29,7 @@ import java.io.IOException;
 public class ApricityUIForge {
     public ApricityUIForge() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
+        AuiServicesBootstrap.init();
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC);
         modEventBus.addListener(this::onConfigReload);
         if (ModList.get().isLoaded("kubejs")) {

@@ -213,6 +213,9 @@ public class Mask {
         Base.setPositionColorShader();
         Graph.addUnifiedRoundedRectVertices(mesh, matrix, x, y, width, height, radii, 0xFFFFFFFF);
         mesh.submit();
+        // Keep currentMesh authoritative: a finalized builder must not linger as
+        // the "current" mesh for a later batch (1.21 allocates fresh builders).
+        Base.setMesh(null);
     }
 
     private static StencilDepthState setupStencilStatePush() {
@@ -344,6 +347,8 @@ public class Mask {
         Base.setPositionColorShader();
         ClipPath.drawToStencil(matrix, x, y, width, height, clipPath);
         mesh.submit();
+        // See drawToStencil: never leave a finalized builder as currentMesh.
+        Base.setMesh(null);
     }
 
     public static void enableScissor(double x, double y, double width, double height) {

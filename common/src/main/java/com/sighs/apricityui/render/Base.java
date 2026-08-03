@@ -281,7 +281,9 @@ public class Base {
 
     public static void applyTransform(PoseStack poseStack, Element element) {
         Matrix4f matrix = prepareWorldTransform(element);
-        poseStack.mulPoseMatrix(matrix);
+        // PoseStack.mulPoseMatrix renamed to mulPose in 1.20.5; the JOML
+        // equivalent (last().pose().mul) is stable across both.
+        poseStack.last().pose().mul(matrix);
     }
 
     public static Matrix4f prepareWorldTransform(Element element) {

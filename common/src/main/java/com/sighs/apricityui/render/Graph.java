@@ -104,6 +104,10 @@ public class Graph {
         if (batchStarted) {
             MeshBuilder mesh = Base.getMesh();
             if (mesh != null) mesh.submit();
+            // The builder is finalized after submit(); a stale reference would
+            // later fail addVertex("Not building!"). Each loader's begin() may
+            // allocate a fresh BufferBuilder, so never keep the old one around.
+            Base.setMesh(null);
             if (!batchDepthTest) {
                 if (Base.isDepthTestEnabled()) {
                     GlStateManager._enableDepthTest();
@@ -151,6 +155,7 @@ public class Graph {
         prepare(mesh);
         emitVertices.run();
         mesh.submit();
+        Base.setMesh(null);
         Base.finishRendering();
     }
 

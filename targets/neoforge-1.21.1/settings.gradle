@@ -1,0 +1,16 @@
+pluginManagement {
+    plugins {
+        id 'org.gradle.toolchains.foojay-resolver-convention' version '1.0.0'
+    }
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.neoforged.net/releases' }
+        mavenCentral()
+    }
+}
+
+plugins {
+    id 'org.gradle.toolchains.foojay-resolver-convention'
+}
+
+rootProject.name = 'apricityui-neoforge-1.21.1'

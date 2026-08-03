@@ -1,21 +1,21 @@
 package com.sighs.apricityui.script;
 
 import com.sighs.apricityui.ApricityUI;
-import dev.latvian.mods.kubejs.KubeJS;
-import dev.latvian.mods.rhino.Context;
-import dev.latvian.mods.rhino.Function;
-import dev.latvian.mods.rhino.Scriptable;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.parser.JS;
 import com.sighs.apricityui.util.AuiLog;
-import net.minecraftforge.fml.ModList;
+import dev.latvian.mods.kubejs.KubeJS;
+import dev.latvian.mods.kubejs.client.KubeJSClient;
+import dev.latvian.mods.kubejs.script.KubeJSContext;
+import dev.latvian.mods.rhino.Context;
+import dev.latvian.mods.rhino.Function;
+import dev.latvian.mods.rhino.Scriptable;
+import net.neoforged.fml.ModList;
 
 import java.util.function.Consumer;
 
 public class ApricityJS {
-    // 框架目前只给元素桥接了 textContent，页面脚本常用 innerText 来设置文本。
-    // 在页面脚本执行前，动态装饰器上补一个 innerText 的 getter/setter。
     public static void eval(String code) {
         eval(code, null, "<global>");
     }
@@ -30,24 +30,12 @@ public class ApricityJS {
             ApricityUI.LOGGER.warn("[AUI JS] empty script skipped source={}", AuiLog.source(source));
             return;
         }
-
-        if (event != null) {
-            // Event scripts get a stable source label while preserving the existing event binding.
-        }
         code = JS.rewriteForRhino(code);
 
         var manager = KubeJS.getClientScriptManager();
-        var context = manager.context;
-        var top = manager.topLevelScope;
-        Object previousEvent = null;
-        boolean hadEvent = false;
-        if (event != null) {
-            previousEvent = top.get(context, "event", top);
-            hadEvent = previousEvent != Scriptable.NOT_FOUND;
-            top.put(context, "event", top, event);
-        }
+        var context = (KubeJSContext) manager.contextFactory.enter();
         try {
-            context.evaluateString(top, code, AuiLog.source(source), 1, null);
+            context.evaluateString(context.topLevelScope, code, AuiLog.source(source), 1, null);
         } catch (RuntimeException exception) {
             ApricityUI.LOGGER.error(
                     "[AUI JS] script execution failed source={} event={} code={}",
@@ -57,21 +45,13 @@ public class ApricityJS {
                     exception
             );
             throw exception;
-        } finally {
-            if (event != null) {
-                if (hadEvent) {
-                    top.put(context, "event", top, previousEvent);
-                } else {
-                    top.delete(context, "event");
-                }
-            }
         }
     }
 
     public static void reload() {
         if (!isKubeJsLoaded()) return;
         try {
-            KubeJS.PROXY.reloadClientInternal();
+            KubeJSClient.reloadClientScripts();
         } catch (RuntimeException exception) {
             ApricityUI.LOGGER.error("[AUI JS] KubeJS client script reload failed", exception);
             throw exception;
@@ -103,14 +83,17 @@ public class ApricityJS {
         @Override
         public void accept(Event event) {
             var manager = KubeJS.getClientScriptManager();
-            var context = manager.context;
-            var scope = manager.topLevelScope;
-            Object eventArgument = Context.javaToJS(context, event, scope);
-            Scriptable scriptTarget = context.toObject(currentTarget, scope);
-            Object previousCurrentTarget = event.currentTarget;
-            event.currentTarget = scriptTarget;
+            var context = (KubeJSContext) manager.contextFactory.enter();
             try {
-                context.callSync(function, scope, scriptTarget, new Object[]{eventArgument});
+                Object eventArgument = context.javaToJS(event, context.topLevelScope);
+                Scriptable scriptTarget = context.toObject(currentTarget, context.topLevelScope);
+                Object previousCurrentTarget = event.currentTarget;
+                event.currentTarget = scriptTarget;
+                try {
+                    context.callSync(function, context.topLevelScope, scriptTarget, new Object[]{eventArgument});
+                } finally {
+                    event.currentTarget = previousCurrentTarget;
+                }
             } catch (RuntimeException exception) {
                 String documentPath = event != null && event.target instanceof Node node
                         && node.document != null ? node.document.getPath() : "<unknown>";
@@ -122,8 +105,6 @@ public class ApricityJS {
                         exception
                 );
                 throw exception;
-            } finally {
-                event.currentTarget = previousCurrentTarget;
             }
         }
 

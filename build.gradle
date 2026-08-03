@@ -1,5 +1,6 @@
 def targetBuilds = [
         'forge-1.20.1': [directory: 'targets/forge-1.20.1', task: 'buildForge1201'],
+        'neoforge-1.21.1': [directory: 'targets/neoforge-1.21.1', task: 'buildNeoForge1211'],
 ]
 
 def selectedTarget = providers.gradleProperty('target').orNull

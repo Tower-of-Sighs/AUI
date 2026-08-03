@@ -115,17 +115,15 @@ public final class AuiServices {
     }
 
     /**
-     * Loads the loader bootstrap class so its static initializer can register
-     * the real implementations. No-op when the loader is not on the classpath.
+     * No-op guard that keeps the default implementations until the loader entry
+     * point triggers its own bootstrap (e.g. {@code AuiServicesBootstrap} in the
+     * forge/neoforge targets). The loader target knows its bootstrap class; this
+     * class must not, so common stays loader-neutral. Headless test JVMs never
+     * trigger a bootstrap and simply keep the safe defaults.
      */
     private static void bootstrap() {
         if (bootstrapped) return;
         bootstrapped = true;
-        try {
-            Class.forName("com.sighs.apricityui.forge.AuiServicesBootstrap");
-        } catch (ClassNotFoundException | LinkageError | RuntimeException ignored) {
-            // Loader not present; keep the safe defaults.
-        }
     }
 
     /** Safe headless defaults. */

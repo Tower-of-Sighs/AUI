@@ -1,4 +1,4 @@
-package com.sighs.apricityui.forge;
+package com.sighs.apricityui.neoforge;
 
 import com.sighs.apricityui.dom.ForgeDocumentExpander;
 import com.sighs.apricityui.spi.AuiServices;

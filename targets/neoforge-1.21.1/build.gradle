@@ -1,0 +1,158 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'me.modmuss50.mod-publish-plugin' version '2.1.1'
+}
+
+def properties = new Properties()
+file('../../gradle.properties').withInputStream { properties.load(it) }
+file('gradle.properties').withInputStream { properties.load(it) }
+properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = "${mod_name}-neoforge-1.21.1"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+// common/ is a shared source tree that also compiles standalone
+// (`gradlew -p common build`, see common/build.gradle). It has no references to
+// loader classes, so it can be compiled into this target by source-set sharing.
+sourceSets {
+    main {
+        java.srcDir '../../common/src/main/java'
+        resources.srcDir '../../common/src/main/resources'
+    }
+    test {
+        java.srcDir '../../common/src/test/java'
+        resources.srcDir '../../common/src/test/resources'
+    }
+}
+
+neoForge {
+    version = neoforge_121_version
+
+    runs {
+        client {
+            client()
+            gameDirectory = file('run')
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+    // KubeJS / Rhino (see D:\work\reference\AUI for the reference coordinates)
+    maven {
+        name = "Latvian"
+        url = "https://maven.latvian.dev/releases"
+        content {
+            includeGroup "dev.latvian.mods"
+            includeGroup "dev.latvian.apps"
+        }
+    }
+    maven {
+        name = "JitPack"
+        url = "https://jitpack.io"
+        content {
+            includeGroup "com.github.rtyley"
+        }
+    }
+    maven {
+        name = "Curse Maven"
+        url = "https://www.cursemaven.com"
+        content {
+            includeGroup "curse.maven"
+        }
+    }
+    maven {
+        name = "Modrinth"
+        url = "https://api.modrinth.com/maven"
+        content {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+
+    // Tests compile against common/, whose public API exposes Rhino types
+    // (e.g. Element#addEventListener(String, Function)), so Rhino must be on
+    // the test compile classpath just like in the forge-1.20.1 target.
+    testImplementation "dev.latvian.mods:rhino:${rhino_121_version}"
+
+    // common/ compiles against the Rhino JS engine (KubeJS integration).
+    // Coordinates from D:\work\reference\AUI (1.21.1 NeoForge).
+    compileOnly "dev.latvian.mods:rhino:${rhino_121_version}"
+    compileOnly "dev.latvian.mods:kubejs-neoforge:${kubejs_121_version}"
+    runtimeOnly "dev.latvian.mods:rhino:${rhino_121_version}"
+    runtimeOnly "dev.latvian.mods:kubejs-neoforge:${kubejs_121_version}"
+}
+
+tasks.named('sourcesJar', Jar).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    def replaceProperties = [
+            minecraft_version: neoforge_121_minecraft_version,
+            neoforge_version: neoforge_121_version,
+            neoforge_version_range: neoforge_121_version_range,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    filesMatching('META-INF/neoforge.mods.toml') {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+// Resolvable view of the NeoForge/Minecraft runtime for the unit-test worker.
+// modDevRuntimeDependencies itself is non-resolvable (canBeResolved=false), so
+// extend it, mirroring the forge-1.20.1 target.
+configurations {
+    auiTestModRuntime {
+        canBeConsumed = false
+        canBeResolved = true
+        extendsFrom modDevRuntimeDependencies
+    }
+}
+
+tasks.withType(Test).configureEach {
+    useJUnitPlatform()
+    // common/ main code links against Minecraft/NeoForge classes (e.g.
+    // ApricityUI.LOGGER -> LogUtils), so the unit-test worker needs the mod
+    // runtime on its classpath.
+    classpath += configurations.auiTestModRuntime
+}
+
+apply from: file('../../gradle/target-conventions/publish.gradle')
