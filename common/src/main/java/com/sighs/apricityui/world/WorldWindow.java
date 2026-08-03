@@ -2,7 +2,6 @@ package com.sighs.apricityui.world;
 
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
@@ -18,10 +17,6 @@ import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RenderLevelStageEvent;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
@@ -31,9 +26,8 @@ import org.lwjgl.opengl.GL11;
 import java.util.ArrayList;
 import java.util.List;
 import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.config.ApricityUIConfig;
+import com.sighs.apricityui.spi.AuiServices;
 
-@Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class WorldWindow {
     public static final List<WorldWindow> windows = new ArrayList<>();
     private static final float DEFAULT_NEAR_DEPTH_STEP = 0.00035f;
@@ -334,7 +328,7 @@ public class WorldWindow {
      */
     public int getMaxDisplayDistance() {
         return WorldWindowVisibility.resolveDisplayDistance(
-                ApricityUIConfig.CLIENT.worldWindowMaxDisplayDistance(),
+                AuiServices.config().worldWindowMaxDisplayDistance(),
                 maxDisplayDistanceOverride);
     }
 
@@ -412,13 +406,13 @@ public class WorldWindow {
     public int getFullDetailDistance() {
         return fullDetailDistanceOverride != null
                 ? fullDetailDistanceOverride
-                : ApricityUIConfig.CLIENT.worldWindowFullDetailDistance();
+                : AuiServices.config().worldWindowFullDetailDistance();
     }
 
     public int getReducedDetailDistance() {
         return reducedDetailDistanceOverride != null
                 ? reducedDetailDistanceOverride
-                : ApricityUIConfig.CLIENT.worldWindowReducedDetailDistance();
+                : AuiServices.config().worldWindowReducedDetailDistance();
     }
 
     public void setDynamicDepthStep(float nearDepthStep, float farDepthStep, float nearDistance, float farDistance) {
@@ -566,7 +560,7 @@ public class WorldWindow {
         double distance = cameraPos.distanceTo(renderPosition);
         double t = Mth.inverseLerp(distance, depthNearDistance, depthFarDistance);
         float depth = (float) Mth.clampedLerp(nearDepthStep, farDepthStep, t);
-        return depth * ApricityUIConfig.CLIENT.worldWindowDepthOffsetScale() / DEFAULT_DEPTH_OFFSET_SCALE;
+        return depth * AuiServices.config().worldWindowDepthOffsetScale() / DEFAULT_DEPTH_OFFSET_SCALE;
     }
 
     public static void addWindow(WorldWindow window) {
@@ -581,17 +575,6 @@ public class WorldWindow {
     public static void clear() {
         for (WorldWindow window : new ArrayList<>(windows)) {
             removeWindow(window);
-        }
-    }
-
-    @SubscribeEvent
-    public static void onRenderWorld(RenderLevelStageEvent event) {
-        if (event.getStage() == RenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) {
-            if (windows.isEmpty()) return;
-
-            for (WorldWindow window : windows) {
-                window.render(event.getPoseStack(), event.getProjectionMatrix(), event.getPartialTick());
-            }
         }
     }
 
@@ -790,7 +773,7 @@ public class WorldWindow {
         return WorldWindowVisibility.resolveDisplayPrecision(
                 cameraPosition.distanceToSqr(renderPosition),
                 displayPrecision,
-                displayPrecisionOverride || ApricityUIConfig.CLIENT.worldWindowLodEnabled(),
+                displayPrecisionOverride || AuiServices.config().worldWindowLodEnabled(),
                 getFullDetailDistance(),
                 getReducedDetailDistance()
         );

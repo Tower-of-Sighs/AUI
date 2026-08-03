@@ -15,7 +15,7 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.loader.ClientLoader;
-import com.sighs.apricityui.config.ApricityUIConfig;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.layout.Position;
@@ -75,7 +75,7 @@ public final class ResourceManager {
     public static void reconcileConfiguredMode() {
         if (!isOpen()) return;
 
-        boolean wantsWorldWindow = ApricityUIConfig.CLIENT.resourceManagerWorldWindow.get();
+        boolean wantsWorldWindow = AuiServices.config().resourceManagerWorldWindow();
         boolean isWorldWindow = worldWindow != null && toolDocument == worldWindow.document;
         if (wantsWorldWindow == isWorldWindow) return;
 
@@ -115,7 +115,7 @@ public final class ResourceManager {
 
     private static boolean shouldOpenWorldWindow() {
         Minecraft minecraft = Minecraft.getInstance();
-        return ApricityUIConfig.CLIENT.resourceManagerWorldWindow.get()
+        return AuiServices.config().resourceManagerWorldWindow()
                 && minecraft != null
                 && minecraft.level != null
                 && minecraft.screen == null

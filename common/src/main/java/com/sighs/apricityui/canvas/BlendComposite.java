@@ -1,4 +1,5 @@
 package com.sighs.apricityui.canvas;
+import com.sighs.apricityui.util.MathUtil;
 
 import java.awt.Composite;
 import java.awt.CompositeContext;
@@ -47,14 +48,14 @@ final class BlendComposite implements Composite {
 
                     float srcA = (srcPixel[3] / 255f) * alpha;
                     float dstA = dstPixel[3] / 255f;
-                    float outA = clamp01(srcA + dstA - srcA * dstA);
+                    float outA = MathUtil.clamp01(srcA + dstA - srcA * dstA);
 
                     for (int i = 0; i < 3; i++) {
                         float srcC = srcPixel[i] / 255f;
                         float dstC = dstPixel[i] / 255f;
                         float blended = blend(mode, srcC, dstC);
                         float out = ((1 - srcA) * dstC) + ((1 - dstA) * srcC) + (srcA * dstA * blended);
-                        dstPixel[i] = clamp(Math.round(clamp01(out) * 255f));
+                        dstPixel[i] = clamp(Math.round(MathUtil.clamp01(out) * 255f));
                     }
                     dstPixel[3] = clamp(Math.round(outA * 255f));
                     dstOut.setPixel(x, y, dstPixel);
@@ -76,9 +77,5 @@ final class BlendComposite implements Composite {
             return Math.min(value, 255);
         }
 
-        private static float clamp01(float value) {
-            if (value < 0f) return 0f;
-            return Math.min(value, 1f);
-        }
     }
 }

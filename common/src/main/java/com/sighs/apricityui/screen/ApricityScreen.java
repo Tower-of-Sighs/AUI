@@ -3,7 +3,7 @@ package com.sighs.apricityui.screen;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.loader.ClientLoader;
-import com.sighs.apricityui.registry.Keybindings;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
@@ -140,7 +140,7 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
 
     @Override
     public boolean keyPressed(int keyCode, int scanCode, int modifiers) {
-        if (keyCode == Keybindings.RELOAD.getKey().getValue()) {
+        if (keyCode == AuiServices.keys().reloadKey()) {
             ClientLoader.reload();
             return true;
         }

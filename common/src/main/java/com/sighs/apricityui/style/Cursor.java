@@ -8,7 +8,6 @@ import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
-import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
@@ -155,7 +154,7 @@ public class Cursor {
         if (handle == null || handle.state() != com.sighs.apricityui.task.AbstractAsyncHandler.AsyncState.READY) return;
 
         Image.ITexture texture = handle.texture();
-        if (texture == null || texture.getLocation() == null) return;
+        if (texture == null || texture.getKey() == null) return;
 
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return;
@@ -178,11 +177,10 @@ public class Cursor {
         float drawY = (float) mouse.y - drawHotspotY;
 
         poseStack.pushPose();
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
         Base.resolveOffset(poseStack);
         poseStack.translate(0.0D, 0.0D, PSEUDO_CURSOR_Z);
-        ImageDrawer.drawOverlay(poseStack, texture.getLocation(), drawX, drawY, width, height, false);
+        ImageDrawer.drawOverlay(poseStack, AuiServices.resources().locationOf(texture.getKey()), drawX, drawY, width, height, false);
         ImageDrawer.flushBatch();
         poseStack.popPose();
     }

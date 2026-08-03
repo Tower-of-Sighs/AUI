@@ -13,7 +13,6 @@ import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
-import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
@@ -344,7 +343,7 @@ public class Document {
                 stage = "global javascript";
                 String globalJS = Loader.readGlobalJS();
                 if (globalJS != null && !globalJS.isBlank()) {
-                    ApricityJS.eval(
+                    AuiServices.script().eval(
                             globalJS.replace("__AUI_DOCUMENT_UUID__", uuid.toString()),
                             null,
                             "global.js"
@@ -352,7 +351,7 @@ public class Document {
                 }
                 stage = "document javascript";
                 for (String js : JSCache) {
-                    ApricityJS.eval(js, null, path + "#script");
+                    AuiServices.script().eval(js, null, path + "#script");
                 }
                 stage = "lifecycle events";
                 fireLifecycleEvent("DOMContentLoaded", false);
@@ -868,7 +867,7 @@ public class Document {
 
     public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
         if (body == null) return;
-        java.util.function.Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        java.util.function.Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
         if (wrapped != null) body.addEventListener(type, wrapped, useCapture, once);
     }
 
@@ -889,7 +888,7 @@ public class Document {
 
     public void removeEventListener(String type, Function listener, boolean useCapture) {
         if (body == null) return;
-        java.util.function.Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        java.util.function.Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
         if (wrapped != null) body.removeEventListener(type, wrapped, useCapture);
     }
 

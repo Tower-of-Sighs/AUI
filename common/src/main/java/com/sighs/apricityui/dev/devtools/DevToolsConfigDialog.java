@@ -2,7 +2,7 @@ package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.config.ApricityUIConfig;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.ui.ToastManager;
 
@@ -36,52 +36,52 @@ final class DevToolsConfigDialog {
         Element debugGrid = appendGrid(debug);
         appendBooleanField(debugGrid, "debugAutoReload", "devtools.apricityui.settings.debug_auto_reload",
                 "devtools.apricityui.settings.debug_auto_reload.description",
-                ApricityUIConfig.CLIENT.debugAutoReload.get());
+                AuiServices.config().debugAutoReload());
         appendBooleanField(debugGrid, "aiAutoScreenshot", "devtools.apricityui.settings.ai_auto_screenshot",
                 "devtools.apricityui.settings.ai_auto_screenshot.description",
-                ApricityUIConfig.CLIENT.aiAutoScreenshot.get());
+                AuiServices.config().aiAutoScreenshot());
         appendBooleanField(debugGrid, "frameTimingHud", "devtools.apricityui.settings.frame_timing_hud",
                 "devtools.apricityui.settings.frame_timing_hud.description",
-                ApricityUIConfig.CLIENT.frameTimingHud.get());
+                AuiServices.config().frameTimingHud());
         appendBooleanField(debugGrid, "remoteDebug", "devtools.apricityui.settings.remote_debug",
                 "devtools.apricityui.settings.remote_debug.description",
-                ApricityUIConfig.CLIENT.remoteDebug.get());
+                AuiServices.config().remoteDebug());
         appendBooleanField(debugGrid, "resourceManagerWorldWindow",
                 "devtools.apricityui.settings.resource_manager_world_window",
                 "devtools.apricityui.settings.resource_manager_world_window.description",
-                ApricityUIConfig.CLIENT.resourceManagerWorldWindow.get());
+                AuiServices.config().resourceManagerWorldWindow());
 
         Element input = appendSection(scroll, "devtools.apricityui.settings.section.input");
         Element inputGrid = appendGrid(input);
         appendBooleanField(inputGrid, "viewportZoomPassThrough",
                 "devtools.apricityui.settings.viewport_zoom_pass_through",
                 "devtools.apricityui.settings.viewport_zoom_pass_through.description",
-                ApricityUIConfig.CLIENT.viewportZoomPassThrough.get());
+                AuiServices.config().viewportZoomPassThrough());
 
         Element worldWindow = appendSection(scroll, "devtools.apricityui.settings.section.world_window");
         Element worldGrid = appendGrid(worldWindow);
         appendNumberField(worldGrid, "worldWindowDepthOffsetScale",
                 "devtools.apricityui.settings.world_window_depth_offset_scale",
                 "devtools.apricityui.settings.world_window_depth_offset_scale.description",
-                Double.toString(ApricityUIConfig.CLIENT.worldWindowDepthOffsetScale.get()), "0", "1", "0.01");
+                Double.toString(AuiServices.config().worldWindowDepthOffsetScale()), "0", "1", "0.01");
         appendNumberField(worldGrid, "worldWindowMaxDisplayDistance",
                 "devtools.apricityui.settings.world_window_max_display_distance",
                 "devtools.apricityui.settings.world_window_max_display_distance.description",
-                Integer.toString(ApricityUIConfig.CLIENT.worldWindowMaxDisplayDistance.get()), "0",
+                Integer.toString(AuiServices.config().worldWindowMaxDisplayDistance()), "0",
                 Integer.toString(Integer.MAX_VALUE), "1");
         appendBooleanField(worldGrid, "worldWindowLodEnabled",
                 "devtools.apricityui.settings.world_window_lod_enabled",
                 "devtools.apricityui.settings.world_window_lod_enabled.description",
-                ApricityUIConfig.CLIENT.worldWindowLodEnabled.get());
+                AuiServices.config().worldWindowLodEnabled());
         appendNumberField(worldGrid, "worldWindowFullDetailDistance",
                 "devtools.apricityui.settings.world_window_full_detail_distance",
                 "devtools.apricityui.settings.world_window_full_detail_distance.description",
-                Integer.toString(ApricityUIConfig.CLIENT.worldWindowFullDetailDistance.get()), "0",
+                Integer.toString(AuiServices.config().worldWindowFullDetailDistance()), "0",
                 Integer.toString(Integer.MAX_VALUE), "1");
         appendNumberField(worldGrid, "worldWindowReducedDetailDistance",
                 "devtools.apricityui.settings.world_window_reduced_detail_distance",
                 "devtools.apricityui.settings.world_window_reduced_detail_distance.description",
-                Integer.toString(ApricityUIConfig.CLIENT.worldWindowReducedDetailDistance.get()), "0",
+                Integer.toString(AuiServices.config().worldWindowReducedDetailDistance()), "0",
                 Integer.toString(Integer.MAX_VALUE), "1");
 
         root.append(scroll);
@@ -197,25 +197,24 @@ final class DevToolsConfigDialog {
             return;
         }
 
-        ApricityUIConfig.Client config = ApricityUIConfig.CLIENT;
         try {
-            config.debugAutoReload.set(isChecked("debugAutoReload"));
-            config.aiAutoScreenshot.set(isChecked("aiAutoScreenshot"));
-            config.frameTimingHud.set(isChecked("frameTimingHud"));
-            config.remoteDebug.set(isChecked("remoteDebug"));
-            config.resourceManagerWorldWindow.set(isChecked("resourceManagerWorldWindow"));
-            config.viewportZoomPassThrough.set(isChecked("viewportZoomPassThrough"));
-            config.worldWindowDepthOffsetScale.set(depthOffsetScale);
-            config.worldWindowMaxDisplayDistance.set(maxDisplayDistance);
-            config.worldWindowLodEnabled.set(isChecked("worldWindowLodEnabled"));
-            config.worldWindowFullDetailDistance.set(fullDetailDistance);
-            config.worldWindowReducedDetailDistance.set(reducedDetailDistance);
-            ApricityUIConfig.CLIENT_SPEC.save();
+            AuiServices.config().setDebugAutoReload(isChecked("debugAutoReload"));
+            AuiServices.config().setAiAutoScreenshot(isChecked("aiAutoScreenshot"));
+            AuiServices.config().setFrameTimingHud(isChecked("frameTimingHud"));
+            AuiServices.config().setRemoteDebug(isChecked("remoteDebug"));
+            AuiServices.config().setResourceManagerWorldWindow(isChecked("resourceManagerWorldWindow"));
+            AuiServices.config().setViewportZoomPassThrough(isChecked("viewportZoomPassThrough"));
+            AuiServices.config().setWorldWindowDepthOffsetScale(depthOffsetScale);
+            AuiServices.config().setWorldWindowMaxDisplayDistance(maxDisplayDistance);
+            AuiServices.config().setWorldWindowLodEnabled(isChecked("worldWindowLodEnabled"));
+            AuiServices.config().setWorldWindowFullDetailDistance(fullDetailDistance);
+            AuiServices.config().setWorldWindowReducedDetailDistance(reducedDetailDistance);
+            AuiServices.config().save();
         } catch (RuntimeException exception) {
             ToastManager.show(DevToolsTranslations.translate("devtools.apricityui.settings.save_failed"));
             return;
         }
-        ApricityUIConfig.markClientReloadPending();
+        AuiServices.config().markClientReloadPending();
         close();
         ToastManager.show(DevToolsTranslations.translate("devtools.apricityui.settings.saved"));
     }

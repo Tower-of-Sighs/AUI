@@ -1,6 +1,6 @@
 package com.sighs.apricityui.editor.ore.persistence;
 
-import com.sighs.apricityui.loader.Loader;
+import com.sighs.apricityui.spi.AuiServices;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -16,7 +16,7 @@ public final class OreEditorDocumentStore {
     private final Path root;
 
     public OreEditorDocumentStore() {
-        this(Loader.getGameDirectory().resolve("apricity").resolve("ore-projects"));
+        this(AuiServices.client().getGameDirectory().resolve("apricity").resolve("ore-projects"));
     }
 
     public OreEditorDocumentStore(Path root) {

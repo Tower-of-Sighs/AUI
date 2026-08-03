@@ -1,6 +1,6 @@
 package com.sighs.apricityui.init;
 
-import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.spi.AuiServices;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
@@ -334,7 +334,7 @@ public abstract class Node {
     }
 
     public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
-        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
         if (wrapped != null) events.addEventListener(type, wrapped, useCapture, once);
     }
 
@@ -361,7 +361,7 @@ public abstract class Node {
     }
 
     public void removeEventListener(String type, Function listener, boolean useCapture) {
-        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
         if (wrapped != null) events.removeEventListener(type, wrapped, useCapture);
     }
 

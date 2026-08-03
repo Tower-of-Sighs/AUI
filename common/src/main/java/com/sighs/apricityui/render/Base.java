@@ -48,12 +48,6 @@ public class Base {
     private static boolean depthTestEnabled = true;
     private static float documentZOffset = GLOBAL_DOCUMENT_Z_OFFSET;
 
-    public static void drawAllDocument(PoseStack poseStack) {
-        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-            if (!document.inWorld && !document.isManuallyRendered()) drawOverlayDocument(poseStack, document);
-        }
-    }
-
     public static void drawOverlayDocument(PoseStack poseStack, Document document) {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
@@ -140,9 +134,9 @@ public class Base {
             TopLayerDepthScope topLayerDepthScope = null;
             try {
                 for (RenderNode node : document.getPaintList()) {
-                    Element target = getRenderNodeTarget(node);
+                    Element target = RenderNode.getRenderNodeTarget(node);
                     if (skippedSubtree != null) {
-                        if (target != null && isSameOrDescendant(target, skippedSubtree)) {
+                        if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
                             continue;
                         }
                         skippedSubtree = null;
@@ -180,8 +174,7 @@ public class Base {
             LayoutMeasureCache.end();
             TransformFrameCache.end();
             RectFrameCache.end();
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
             FilterRenderer.endFrame();
             RenderBatchStats.endDocument();
             FrameTimingHud.record(System.nanoTime() - startNs);
@@ -215,8 +208,7 @@ public class Base {
 
         private static TopLayerDepthScope open() {
             if (!Base.isDepthTestEnabled()) return null;
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
 
             boolean previousDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
             boolean previousDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
@@ -229,8 +221,7 @@ public class Base {
         private void close() {
             if (closed) return;
             closed = true;
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
             Base.popDepthTest();
             if (previousDepthTest) RenderSystem.enableDepthTest();
             else RenderSystem.disableDepthTest();
@@ -251,28 +242,10 @@ public class Base {
         return !cachedRect.getVisualBounds().intersects(currentClip);
     }
 
-    private static Element getRenderNodeTarget(RenderNode node) {
-        if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
-        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
-        if (node instanceof RenderNode.ElementContentNode n) return n.target();
-        if (node instanceof RenderNode.MaskPushNode n) return n.target();
-        if (node instanceof RenderNode.MaskPopNode n) return n.target();
-        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
-        if (node instanceof RenderNode.FilterPushNode n) return n.target();
-        if (node instanceof RenderNode.FilterPopNode n) return n.target();
-        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
-        return null;
-    }
-
-    private static boolean isSameOrDescendant(Element element, Element ancestor) {
-        Element current = element;
-        while (current != null) {
-            if (current == ancestor) return true;
-            current = current.parentElement;
-        }
-        return false;
+    /** Flushes both the graph batch and the image batch before a state change. */
+    public static void commitDraws() {
+        Graph.endBatch();
+        ImageDrawer.flushBatch();
     }
 
     public static void beginRendering() {
@@ -561,10 +534,6 @@ public class Base {
 
     public static void setPositionColorShader() {
         RenderSystem.setShader(GameRenderer::getPositionColorShader);
-    }
-
-    public static void setPositionTexShader() {
-        RenderSystem.setShader(GameRenderer::getPositionTexShader);
     }
 
     public static void setShaderTexture(int i, int v) {

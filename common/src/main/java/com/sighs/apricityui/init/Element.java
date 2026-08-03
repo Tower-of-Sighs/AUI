@@ -10,7 +10,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.*;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
@@ -991,7 +991,7 @@ public class Element extends Node {
             String source = document == null
                     ? "<inline-event>"
                     : document.getPath() + "#" + type + "@" + tagName;
-            addEventListener(type, event -> ApricityJS.eval(code, event, source));
+            addEventListener(type, event -> AuiServices.script().eval(code, event, source));
         }
     }
 

@@ -2,8 +2,6 @@ package com.sighs.apricityui.loader;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
-import com.sighs.apricityui.dev.DevToolsLogBridge;
-import com.sighs.apricityui.dev.debug.ExternalDebugServer;
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
@@ -15,16 +13,9 @@ import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
-import com.sighs.apricityui.script.ApricityJS;
-import net.minecraft.client.Minecraft;
+import com.sighs.apricityui.spi.AuiServices;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
-import net.minecraft.server.packs.resources.ResourceManager;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -32,8 +23,6 @@ import java.util.*;
 import java.util.function.BiConsumer;
 import com.sighs.apricityui.world.WorldWindow;
 
-@OnlyIn(Dist.CLIENT)
-@Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class ClientLoader extends Loader {
     private static final Object STATIC_RESOURCE_CACHE_LOCK = new Object();
     private static List<StaticResourceEntry> cachedFinalStaticResources = null;
@@ -41,17 +30,6 @@ public class ClientLoader extends Loader {
     private static boolean reloadRequested;
     public ClientLoader(String extension) {
         super(extension);
-    }
-
-    @SubscribeEvent
-    public static void setup(FMLClientSetupEvent event) {
-        DevToolsLogBridge.install(ApricityUI.LOGGER);
-        // 初始加载时不调用 ApricityJS.reload()，因为此时其他模组的客户端资源
-        // （如模型层）可能尚未注册完毕，强制重载 KubeJS 客户端脚本会导致崩溃。
-        event.enqueueWork(() -> {
-            ExternalDebugServer.startIfEnabled();
-            reloadResources();
-        });
     }
 
     public static void reload() {
@@ -69,7 +47,7 @@ public class ClientLoader extends Loader {
                 do {
                     reloadRequested = false;
                     long beginNs = System.nanoTime();
-                    ApricityJS.reload();
+                    AuiServices.script().reload();
                     reloadResourcesInternal(beginNs);
                 } while (reloadRequested);
             } finally {
@@ -80,7 +58,8 @@ public class ClientLoader extends Loader {
         });
     }
 
-    private static void reloadResources() {
+    /** Reloads all client resources; invoked by the loader setup event. */
+    static void reloadResources() {
         reloadResourcesInternal(System.nanoTime());
     }
 
@@ -124,7 +103,7 @@ public class ClientLoader extends Loader {
         if (path == null || path.isEmpty()) return null;
         try {
             ResourceLocation resourceLocation = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
-            Optional<Resource> resource = Minecraft.getInstance().getResourceManager().getResource(resourceLocation);
+            Optional<Resource> resource = AuiServices.resources().getResource(resourceLocation);
             if (resource.isPresent()) return resource.get().open();
         } catch (IOException exception) {
             ApricityUI.LOGGER.warn("[AUI Resource] failed to open resource-pack resource path={}", path, exception);
@@ -165,8 +144,7 @@ public class ClientLoader extends Loader {
     }
 
     private static void loadResourcePackEntries(Map<String, StaticResourceEntry> merged) {
-        ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity", location -> true);
+        Map<ResourceLocation, Resource> resources = AuiServices.resources().listResources("apricity", location -> true);
         for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
             ResourceLocation location = entry.getKey();
             String path = location.getPath();
@@ -195,8 +173,7 @@ public class ClientLoader extends Loader {
     }
 
     private void loadFromResourcePack() {
-        ResourceManager manager = Minecraft.getInstance().getResourceManager();
-        Map<ResourceLocation, Resource> resources = manager.listResources("apricity",
+        Map<ResourceLocation, Resource> resources = AuiServices.resources().listResources("apricity",
                 location -> location.getPath().endsWith("." + extension));
 
         for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {

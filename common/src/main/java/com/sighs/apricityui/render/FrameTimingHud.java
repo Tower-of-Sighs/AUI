@@ -1,6 +1,6 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.config.ApricityUIConfig;
+import com.sighs.apricityui.spi.AuiServices;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 
@@ -112,7 +112,7 @@ public final class FrameTimingHud {
 
     private static boolean isEnabled() {
         try {
-            return ApricityUIConfig.CLIENT.frameTimingHud.get();
+            return AuiServices.config().frameTimingHud();
         } catch (IllegalStateException ignored) {
             return false;
         }

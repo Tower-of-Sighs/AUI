@@ -100,7 +100,7 @@ public class Drawer {
         // Detached nodes have already lost the ancestry used to find an incremental subtree boundary.
         // Remove them before replacing a connected subtree so stale paint nodes cannot survive the splice.
         globalList.removeIf(node -> {
-            Element target = getNodeTarget(node);
+            Element target = RenderNode.getRenderNodeTarget(node);
             return target != null && !target.isConnected();
         });
 
@@ -306,7 +306,7 @@ public class Drawer {
         for (Element candidate : list) {
             boolean covered = false;
             for (Element selected : result) {
-                if (isDescendantOf(candidate, selected)) {
+                if (RenderNode.isSameOrDescendant(candidate, selected)) {
                     covered = true;
                     break;
                 }
@@ -318,21 +318,6 @@ public class Drawer {
         return result;
     }
 
-    private static Element getNodeTarget(RenderNode node) {
-        if (node instanceof Element e) return e;
-        if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
-        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
-        if (node instanceof RenderNode.ElementContentNode n) return n.target();
-        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
-        if (node instanceof RenderNode.MaskPushNode n) return n.target();
-        if (node instanceof RenderNode.MaskPopNode n) return n.target();
-        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
-        if (node instanceof RenderNode.FilterPushNode n) return n.target();
-        if (node instanceof RenderNode.FilterPopNode n) return n.target();
-        return null;
-    }
 
     private static Element findNearestStackingContext(Element e) {
         Element paintRoot = getDocumentPaintRoot(e == null ? null : e.document);
@@ -350,7 +335,7 @@ public class Drawer {
     private static boolean updateGlobalPaintList(List<RenderNode> globalList, Element root, List<RenderNode> newSubtree) {
         int startIndex = -1;
         for (int i = 0; i < globalList.size(); i++) {
-            if (getNodeTarget(globalList.get(i)) == root) {
+            if (RenderNode.getRenderNodeTarget(globalList.get(i)) == root) {
                 startIndex = i;
                 break;
             }
@@ -376,22 +361,13 @@ public class Drawer {
     }
 
     private static boolean isNodeRelatedTo(RenderNode node, Element potentialParent) {
-        Element target = getNodeTarget(node);
+        Element target = RenderNode.getRenderNodeTarget(node);
         if (target != null) {
-            return isDescendantOf(target, potentialParent);
+            return RenderNode.isSameOrDescendant(target, potentialParent);
         }
         return false;
     }
 
-    private static boolean isDescendantOf(Element child, Element potentialParent) {
-        if (child == potentialParent) return true;
-        Element p = child.parentElement;
-        while (p != null) {
-            if (p == potentialParent) return true;
-            p = p.parentElement;
-        }
-        return false;
-    }
 
     private static boolean hasCompositedFilter(Element element, Style style) {
         if (!Filter.isDisabled(style.filter, style.opacity)) return true;

@@ -1,14 +1,13 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.layout.Box;
@@ -41,24 +40,13 @@ public class ImageDrawer {
         depthTest = depthTest && Base.isDepthTestEnabled();
         return RENDER_TYPE_CACHE.computeIfAbsent(
                 new RenderKey(texture, blur, depthTest),
-                key -> CustomRenderType.createSmooth(key.location(), key.blur(), key.depthTest())
+                key -> AuiServices.resources().smoothRenderType(key.location(), key.blur(), key.depthTest())
         );
     }
 
     public static void draw(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, boolean blur) {
         if (texture == null) return;
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, true);
-    }
-
-    public static void drawWithUvInset(PoseStack poseStack, ResourceLocation texture,
-                                       float x, float y, float width, float height, boolean blur,
-                                       int textureWidth, int textureHeight,
-                                       float rightTexelInset, float bottomTexelInset) {
-        if (texture == null || textureWidth <= 0 || textureHeight <= 0) return;
-        float sampleWidth = Math.max(0.0f, textureWidth - Math.max(0.0f, rightTexelInset));
-        float sampleHeight = Math.max(0.0f, textureHeight - Math.max(0.0f, bottomTexelInset));
-        innerBlit(poseStack, texture, x, y, width, height, 0, 0,
-                sampleWidth, sampleHeight, textureWidth, textureHeight, blur, true);
     }
 
     public static void drawWithUvWindow(PoseStack poseStack, ResourceLocation texture,
@@ -112,7 +100,7 @@ public class ImageDrawer {
         }
 
         Image.ITexture texture = handle.texture();
-        ResourceLocation currentLocation = texture.getLocation();
+        ResourceLocation currentLocation = AuiServices.resources().locationOf(texture.getKey());
         if (currentLocation == null) return;
         int textureWidth = texture.getWidth();
         int textureHeight = texture.getHeight();
@@ -249,10 +237,6 @@ public class ImageDrawer {
         batchBufferSource = null;
     }
 
-    public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background bg) {
-        drawComplexBackground(poseStack, (float) x, (float) y, (float) width, (float) height, bg);
-    }
-
     public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background bg) {
         drawComplexBackground(poseStack, x, y, width, height, bg, null);
     }
@@ -265,10 +249,6 @@ public class ImageDrawer {
         layer.size = bg.size;
         layer.position = bg.position;
         drawComplexBackground(poseStack, x, y, width, height, layer, requester);
-    }
-
-    public static void drawComplexBackground(PoseStack poseStack, int x, int y, int width, int height, Background.Layer layer) {
-        drawComplexBackground(poseStack, (float) x, (float) y, (float) width, (float) height, layer);
     }
 
     public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background.Layer layer) {
@@ -579,7 +559,7 @@ public class ImageDrawer {
         Image.ITexture texture = handle.texture();
         int textureWidth = texture.getWidth();
         int textureHeight = texture.getHeight();
-        ResourceLocation location = texture.getLocation();
+        ResourceLocation location = AuiServices.resources().locationOf(texture.getKey());
         if (textureWidth <= 0 || textureHeight <= 0 || location == null) return null;
         Base.resolveOffset(poseStack);
         return new ReadyTexture(location, textureWidth, textureHeight);
@@ -615,29 +595,6 @@ public class ImageDrawer {
         vertexConsumer.vertex(matrix, x + width, y + height, 0.0F).color(255, 255, 255, 255).uv(maxU, maxV).uv2(0xF000F0).endVertex();
         vertexConsumer.vertex(matrix, x + width, y, 0.0F).color(255, 255, 255, 255).uv(maxU, minV).uv2(0xF000F0).endVertex();
         vertexConsumer.vertex(matrix, x, y, 0.0F).color(255, 255, 255, 255).uv(minU, minV).uv2(0xF000F0).endVertex();
-    }
-
-    static class CustomRenderType extends RenderType {
-        public CustomRenderType(String name, VertexFormat format, VertexFormat.Mode mode, int bufferSize, boolean affectsCrumbling, boolean sortOnUpload, Runnable setupState, Runnable clearState) {
-            super(name, format, mode, bufferSize, affectsCrumbling, sortOnUpload, setupState, clearState);
-        }
-
-        public static RenderType createSmooth(ResourceLocation location, boolean blur, boolean depthTest) {
-            return create("apricity_image",
-                    DefaultVertexFormat.POSITION_COLOR_TEX_LIGHTMAP,
-                    VertexFormat.Mode.QUADS,
-                    256,
-                    true,
-                    true,
-                    RenderType.CompositeState.builder()
-                            .setTextureState(new TextureStateShard(location, blur, false))
-                            .setShaderState(POSITION_COLOR_TEX_LIGHTMAP_SHADER)
-                            .setDepthTestState(depthTest ? LEQUAL_DEPTH_TEST : NO_DEPTH_TEST)
-                            .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
-                            .setWriteMaskState(COLOR_WRITE)
-                            .createCompositeState(false)
-            );
-        }
     }
 
     private record ReadyTexture(ResourceLocation location, int width, int height) {

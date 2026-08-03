@@ -8,6 +8,9 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.spi.AuiClientService;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraftforge.fml.loading.FMLPaths;
+
+import java.nio.file.Path;
 
 /**
  * Forge implementation of {@link AuiClientService}, delegating to the loader's
@@ -129,6 +132,15 @@ public final class ClientService implements AuiClientService {
         try {
             Client.drawPersistentScreenDocuments(guiGraphics, excludedDocument);
         } catch (RuntimeException | LinkageError ignored) {
+        }
+    }
+
+    @Override
+    public Path getGameDirectory() {
+        try {
+            return FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();
+        } catch (RuntimeException | LinkageError ignored) {
+            return Path.of("").toAbsolutePath().normalize();
         }
     }
 }

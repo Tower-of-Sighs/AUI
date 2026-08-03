@@ -8,7 +8,7 @@ import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
-import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.task.ClientScheduler;
@@ -163,7 +163,7 @@ public class Window {
 
     public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
         if (type == null || listener == null) return;
-        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
         if (wrapped == null) return;
         listeners.computeIfAbsent(type, key -> new CopyOnWriteArrayList<>())
                 .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
@@ -189,7 +189,7 @@ public class Window {
 
     public void removeEventListener(String type, Function listener, boolean useCapture) {
         if (type == null || listener == null) return;
-        Consumer<Event> wrapped = ApricityJS.browserEventListener(listener, this);
+        Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
         CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
         if (wrapped == null || typeListeners == null) return;
         typeListeners.removeIf(candidate ->

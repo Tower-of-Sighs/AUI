@@ -6,7 +6,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.config.ApricityUIConfig;
+import com.sighs.apricityui.spi.AuiServices;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
@@ -173,7 +173,7 @@ public final class ExternalDebugServer {
         String override = System.getProperty("apricityui.debug.enabled");
         if (override != null) return Boolean.parseBoolean(override);
         try {
-            return ApricityUIConfig.CLIENT.remoteDebug.get();
+            return AuiServices.config().remoteDebug();
         } catch (IllegalStateException unavailableConfig) {
             return !FMLEnvironment.production;
         }

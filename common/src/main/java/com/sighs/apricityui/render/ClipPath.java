@@ -1,5 +1,7 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.layout.Size;
+
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import org.joml.Matrix4f;
 
@@ -84,13 +86,7 @@ public class ClipPath {
     }
 
     private static float parseLength(String val, float ref) {
-        val = val.trim();
-        if (val.endsWith("%")) return Float.parseFloat(val.substring(0, val.length() - 1)) / 100f * ref;
-        if (val.endsWith("px")) return Float.parseFloat(val.substring(0, val.length() - 2));
-        try {
-            return Float.parseFloat(val);
-        } catch (Exception e) {
-            return 0;
-        }
+        Double resolved = Size.tryResolveLength(val, ref);
+        return resolved == null ? 0 : resolved.floatValue();
     }
 }

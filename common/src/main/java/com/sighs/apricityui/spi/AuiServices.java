@@ -3,15 +3,23 @@ package com.sighs.apricityui.spi;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.dom.DocumentExpander;
 import com.sighs.apricityui.element.ContainerDeclaration;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.renderer.RenderType;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.server.packs.resources.Resource;
 
+import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Central holder for loader-side services used by {@code common}.
@@ -26,6 +34,10 @@ public final class AuiServices {
     private static volatile AuiClientService client = Defaults.CLIENT;
     private static volatile AuiNetworkService network = Defaults.NETWORK;
     private static volatile DocumentExpander expander = Defaults.EXPANDER;
+    private static volatile AuiConfigService config = Defaults.CONFIG;
+    private static volatile AuiResourceService resources = Defaults.RESOURCES;
+    private static volatile AuiKeyService keys = Defaults.KEYS;
+    private static volatile AuiScriptService script = Defaults.SCRIPT;
     private static volatile boolean bootstrapped;
 
     private AuiServices() {
@@ -43,6 +55,22 @@ public final class AuiServices {
         expander = implementation == null ? Defaults.EXPANDER : implementation;
     }
 
+    public static void setConfig(AuiConfigService implementation) {
+        config = implementation == null ? Defaults.CONFIG : implementation;
+    }
+
+    public static void setResources(AuiResourceService implementation) {
+        resources = implementation == null ? Defaults.RESOURCES : implementation;
+    }
+
+    public static void setKeys(AuiKeyService implementation) {
+        keys = implementation == null ? Defaults.KEYS : implementation;
+    }
+
+    public static void setScript(AuiScriptService implementation) {
+        script = implementation == null ? Defaults.SCRIPT : implementation;
+    }
+
     public static AuiClientService client() {
         bootstrap();
         return client;
@@ -56,6 +84,26 @@ public final class AuiServices {
     public static DocumentExpander expander() {
         bootstrap();
         return expander;
+    }
+
+    public static AuiConfigService config() {
+        bootstrap();
+        return config;
+    }
+
+    public static AuiResourceService resources() {
+        bootstrap();
+        return resources;
+    }
+
+    public static AuiKeyService keys() {
+        bootstrap();
+        return keys;
+    }
+
+    public static AuiScriptService script() {
+        bootstrap();
+        return script;
     }
 
     /**
@@ -140,6 +188,11 @@ public final class AuiServices {
             @Override
             public void drawPersistentScreenDocuments(GuiGraphics guiGraphics, Document excludedDocument) {
             }
+
+            @Override
+            public Path getGameDirectory() {
+                return Path.of("").toAbsolutePath().normalize();
+            }
         };
 
         static final AuiNetworkService NETWORK = new AuiNetworkService() {
@@ -158,7 +211,183 @@ public final class AuiServices {
             // No loader implementation available; pure expansion is loader-side.
         };
 
-        static final Consumer<Object> NOOP_BINDER = ignored -> {
+        static final AuiConfigService CONFIG = new AuiConfigService() {
+            @Override
+            public boolean debugAutoReload() {
+                return false;
+            }
+
+            @Override
+            public void setDebugAutoReload(boolean value) {
+            }
+
+            @Override
+            public boolean aiAutoScreenshot() {
+                return false;
+            }
+
+            @Override
+            public void setAiAutoScreenshot(boolean value) {
+            }
+
+            @Override
+            public boolean frameTimingHud() {
+                return false;
+            }
+
+            @Override
+            public void setFrameTimingHud(boolean value) {
+            }
+
+            @Override
+            public boolean remoteDebug() {
+                return false;
+            }
+
+            @Override
+            public void setRemoteDebug(boolean value) {
+            }
+
+            @Override
+            public boolean resourceManagerWorldWindow() {
+                return false;
+            }
+
+            @Override
+            public void setResourceManagerWorldWindow(boolean value) {
+            }
+
+            @Override
+            public boolean viewportZoomPassThrough() {
+                return true;
+            }
+
+            @Override
+            public void setViewportZoomPassThrough(boolean value) {
+            }
+
+            @Override
+            public float worldWindowDepthOffsetScale() {
+                return 0.01f;
+            }
+
+            @Override
+            public void setWorldWindowDepthOffsetScale(double value) {
+            }
+
+            @Override
+            public int worldWindowMaxDisplayDistance() {
+                return 128;
+            }
+
+            @Override
+            public void setWorldWindowMaxDisplayDistance(int value) {
+            }
+
+            @Override
+            public boolean worldWindowLodEnabled() {
+                return false;
+            }
+
+            @Override
+            public void setWorldWindowLodEnabled(boolean value) {
+            }
+
+            @Override
+            public int worldWindowFullDetailDistance() {
+                return 16;
+            }
+
+            @Override
+            public void setWorldWindowFullDetailDistance(int value) {
+            }
+
+            @Override
+            public int worldWindowReducedDetailDistance() {
+                return 48;
+            }
+
+            @Override
+            public void setWorldWindowReducedDetailDistance(int value) {
+            }
+
+            @Override
+            public void save() {
+            }
+
+            @Override
+            public void markClientReloadPending() {
+            }
+
+            @Override
+            public boolean consumeClientReloadPending() {
+                return false;
+            }
+        };
+
+        static final AuiResourceService RESOURCES = new AuiResourceService() {
+            @Override
+            public Optional<Resource> getResource(ResourceLocation location) {
+                return Optional.empty();
+            }
+
+            @Override
+            public Map<ResourceLocation, Resource> listResources(String path, Predicate<ResourceLocation> filter) {
+                return Map.of();
+            }
+
+            @Override
+            public ResourceLocation locationOf(String key) {
+                if (key == null) return null;
+                String sanitizedPath = key.toLowerCase().replaceAll("[^a-z0-9/._-]", "_");
+                int hash = Math.floorMod(key.hashCode(), 1 << 24);
+                return new ResourceLocation("apricityui", "dynamic/" + sanitizedPath + "-" + Integer.toHexString(hash));
+            }
+
+            @Override
+            public RenderType smoothRenderType(ResourceLocation location, boolean blur, boolean depthTest) {
+                // Image rendering requires the loader render backend; there is no
+                // loader-less fallback. The render path is never exercised headless.
+                throw new UnsupportedOperationException("AUI smooth image rendering requires the loader render backend");
+            }
+        };
+
+        static final AuiKeyService KEYS = new AuiKeyService() {
+            @Override
+            public boolean isReleaseMouseDown() {
+                return false;
+            }
+
+            @Override
+            public int devToolsKey() {
+                return -1;
+            }
+
+            @Override
+            public int resourceManagerKey() {
+                return -1;
+            }
+
+            @Override
+            public int reloadKey() {
+                return -1;
+            }
+        };
+
+        static final AuiScriptService SCRIPT = new AuiScriptService() {
+            @Override
+            public void eval(String code, Event event, String source) {
+                // No KubeJS runtime available; matches the "no KubeJS loaded" path.
+            }
+
+            @Override
+            public void reload() {
+            }
+
+            @Override
+            public Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
+                return null;
+            }
         };
     }
 }

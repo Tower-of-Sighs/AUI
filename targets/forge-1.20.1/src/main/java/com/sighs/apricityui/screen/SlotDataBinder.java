@@ -5,7 +5,6 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.screen.ApricityContainerMenu;
 import com.sighs.apricityui.element.Container;
 import com.sighs.apricityui.element.Slot;
-import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.world.item.ItemStack;
 
@@ -98,8 +97,9 @@ public final class SlotDataBinder {
             int elementY = (int) Math.round(pos.y * viewportScaleY) - topPos;
 
             if (force || menuSlot.x != elementX || menuSlot.y != elementY) {
-                ((SlotAccessor) menuSlot).setX(elementX);
-                ((SlotAccessor) menuSlot).setY(elementY);
+                // Slot#x / Slot#y made writable via META-INF/accesstransformer.cfg
+                menuSlot.x = elementX;
+                menuSlot.y = elementY;
             }
 
             // 同步 UiSlot 状态

@@ -1,4 +1,5 @@
 package com.sighs.apricityui.render;
+import com.sighs.apricityui.util.MathUtil;
 
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -142,18 +143,29 @@ public class Graph {
         batchStarted = true;
     }
 
-    public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
+    /**
+     * Emits vertices either into the active batch (when batching) or as a single
+     * immediate-mode draw. The emitter obtains the current buffer via
+     * {@link Base#getBuffer()}.
+     */
+    private static void withBatchOrImmediate(Runnable emitVertices) {
         if (batchActive) {
-            BufferBuilder buf = Base.getBuffer();
-            addRect(buf, matrix, x0, y0, x1, y1, color);
+            emitVertices.run();
             return;
         }
-        BufferBuilder bufferbuilder = Base.getBuffer();
+        BufferBuilder buf = Base.getBuffer();
         Base.beginRendering();
-        prepare(bufferbuilder);
-        addRect(bufferbuilder, matrix, x0, y0, x1, y1, color);
-        BufferUploader.drawWithShader(bufferbuilder.end());
+        prepare(buf);
+        emitVertices.run();
+        BufferUploader.drawWithShader(buf.end());
         Base.finishRendering();
+    }
+
+    public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
+        withBatchOrImmediate(() -> {
+            BufferBuilder buf = Base.getBuffer();
+            addRect(buf, matrix, x0, y0, x1, y1, color);
+        });
     }
 
     public static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, int color) {
@@ -166,17 +178,10 @@ public class Graph {
 
     public static void drawGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
         if (gradient == null || w <= 0 || h <= 0) return;
-        if (batchActive) {
+        withBatchOrImmediate(() -> {
             BufferBuilder buf = Base.getBuffer();
             addLinearGradientVertices(buf, mat, x, y, w, h, gradient);
-            return;
-        }
-        BufferBuilder buf = Base.getBuffer();
-        Base.beginRendering();
-        prepare(buf);
-        addLinearGradientVertices(buf, mat, x, y, w, h, gradient);
-        BufferUploader.drawWithShader(buf.end());
-        Base.finishRendering();
+        });
     }
 
     /** A single continuous interval can be represented by a rounded quad. */
@@ -190,58 +195,48 @@ public class Graph {
         Gradient.Stop second = gradient.stops().get(1);
         if (first.color == second.color) return false;
 
-        float angle = normalizeAngle(gradient.angle());
+        float angle = MathUtil.normalizeAngle(gradient.angle());
         boolean vertical = Math.abs(angle - 180f) < 0.01f || Math.abs(angle) < 0.01f;
         boolean horizontal = Math.abs(angle - 90f) < 0.01f || Math.abs(angle - 270f) < 0.01f;
         if (!vertical && !horizontal) return false;
 
         float axis = vertical ? h : w;
-        float firstPos = clamp01(first.position) * axis;
-        float secondPos = clamp01(second.position) * axis;
+        float firstPos = MathUtil.clamp01(first.position) * axis;
+        float secondPos = MathUtil.clamp01(second.position) * axis;
         if (Math.abs(firstPos - secondPos) > 0.001f) return false;
 
         float stop = Math.max(0f, Math.min(axis, firstPos));
         int beforeColor = first.color;
         int afterColor = second.color;
-        if (Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f) {
+        boolean reverse = Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f;
+        if (reverse) {
             stop = axis - stop;
             beforeColor = second.color;
             afterColor = first.color;
         }
+        final float stopValue = stop;
+        final int before = beforeColor;
+        final int after = afterColor;
 
-        if (batchActive) {
+        withBatchOrImmediate(() -> {
             BufferBuilder buf = Base.getBuffer();
-            addAxisAlignedHardStopVertices(buf, mat, x, y, w, h, vertical, stop, beforeColor, afterColor);
-            return true;
-        }
-        BufferBuilder buf = Base.getBuffer();
-        Base.beginRendering();
-        prepare(buf);
-        addAxisAlignedHardStopVertices(buf, mat, x, y, w, h, vertical, stop, beforeColor, afterColor);
-        BufferUploader.drawWithShader(buf.end());
-        Base.finishRendering();
+            addAxisAlignedHardStopVertices(buf, mat, x, y, w, h, vertical, stopValue, before, after);
+        });
         return true;
     }
 
     public static boolean drawAxisAlignedStopGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
         if (gradient == null || w <= 0 || h <= 0 || gradient.stops().size() < 2) return false;
 
-        float angle = normalizeAngle(gradient.angle());
+        float angle = MathUtil.normalizeAngle(gradient.angle());
         boolean vertical = Math.abs(angle - 180f) < 0.01f || Math.abs(angle) < 0.01f;
         boolean horizontal = Math.abs(angle - 90f) < 0.01f || Math.abs(angle - 270f) < 0.01f;
         if (!vertical && !horizontal) return false;
 
-        if (batchActive) {
+        withBatchOrImmediate(() -> {
             BufferBuilder buf = Base.getBuffer();
             addAxisAlignedStopGradientVertices(buf, mat, x, y, w, h, gradient, vertical, angle);
-            return true;
-        }
-        BufferBuilder buf = Base.getBuffer();
-        Base.beginRendering();
-        prepare(buf);
-        addAxisAlignedStopGradientVertices(buf, mat, x, y, w, h, gradient, vertical, angle);
-        BufferUploader.drawWithShader(buf.end());
-        Base.finishRendering();
+        });
         return true;
     }
 
@@ -252,8 +247,8 @@ public class Graph {
         for (int i = 0; i < gradient.stops().size() - 1; i++) {
             Gradient.Stop start = gradient.stops().get(i);
             Gradient.Stop end = gradient.stops().get(i + 1);
-            float a = clamp01(start.position) * axis;
-            float b = clamp01(end.position) * axis;
+            float a = MathUtil.clamp01(start.position) * axis;
+            float b = MathUtil.clamp01(end.position) * axis;
             if (Math.abs(b - a) <= 0.001f) continue;
             float from = Math.min(a, b);
             float to = Math.max(a, b);
@@ -298,14 +293,6 @@ public class Graph {
         }
     }
 
-    private static float normalizeAngle(float angle) {
-        float normalized = angle % 360f;
-        return normalized < 0 ? normalized + 360f : normalized;
-    }
-
-    private static float clamp01(float value) {
-        return Math.max(0f, Math.min(1f, value));
-    }
 
     /**
      * Emits one clipped polygon for every CSS color-stop interval.  The old
@@ -325,17 +312,17 @@ public class Graph {
 
         GradientVertex[] rectangle = gradientRectangle(x, y, w, h, gradient.angle());
         Gradient.Stop first = stops.get(0);
-        float firstPosition = clamp01(first.position);
+        float firstPosition = MathUtil.clamp01(first.position);
         addGradientBand(buf, mat, rectangle, 0f, firstPosition, first.color, first.color);
 
         for (int i = 0; i < stops.size() - 1; i++) {
             Gradient.Stop start = stops.get(i);
             Gradient.Stop end = stops.get(i + 1);
-            addGradientBand(buf, mat, rectangle, clamp01(start.position), clamp01(end.position), start.color, end.color);
+            addGradientBand(buf, mat, rectangle, MathUtil.clamp01(start.position), MathUtil.clamp01(end.position), start.color, end.color);
         }
 
         Gradient.Stop last = stops.get(stops.size() - 1);
-        addGradientBand(buf, mat, rectangle, clamp01(last.position), 1f, last.color, last.color);
+        addGradientBand(buf, mat, rectangle, MathUtil.clamp01(last.position), 1f, last.color, last.color);
     }
 
     private static GradientVertex[] gradientRectangle(float x, float y, float w, float h, float angle) {
@@ -358,7 +345,7 @@ public class Graph {
                                                  float cos, float sin, float maxDistance) {
         float projection = (x - centerX) * cos + (y - centerY) * -sin;
         float t = 0.5f + projection / (maxDistance * 2f);
-        return new GradientVertex(x, y, clamp01(t));
+        return new GradientVertex(x, y, MathUtil.clamp01(t));
     }
 
     private static void addGradientBand(BufferBuilder buf, Matrix4f mat, GradientVertex[] rectangle,
@@ -409,24 +396,17 @@ public class Graph {
 
     private static int gradientBandColor(float t, float from, float to, int fromColor, int toColor) {
         if (fromColor == toColor) return fromColor;
-        return lerpColor(fromColor, toColor, clamp01((t - from) / Math.max(0.000001f, to - from)));
+        return lerpColor(fromColor, toColor, MathUtil.clamp01((t - from) / Math.max(0.000001f, to - from)));
     }
 
     private record GradientVertex(float x, float y, float t) {
     }
 
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
-        if (batchActive) {
+        withBatchOrImmediate(() -> {
             BufferBuilder buf = Base.getBuffer();
             addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
-            return;
-        }
-        BufferBuilder buf = Base.getBuffer();
-        Base.beginRendering();
-        prepare(buf);
-        addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
-        BufferUploader.drawWithShader(buf.end());
-        Base.finishRendering();
+        });
     }
 
     public static void addUnifiedRoundedRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, int color) {
@@ -514,19 +494,11 @@ public class Graph {
     }
 
     public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
-        if (batchActive) {
+        withBatchOrImmediate(() -> {
             BufferBuilder buf = Base.getBuffer();
             addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, innerColor);
             addUnifiedShadowRingVertices(buf, mat, x, y, w, h, radii, blur, innerColor, outerColor);
-            return;
-        }
-        BufferBuilder buf = Base.getBuffer();
-        Base.beginRendering();
-        prepare(buf);
-        addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, innerColor);
-        addUnifiedShadowRingVertices(buf, mat, x, y, w, h, radii, blur, innerColor, outerColor);
-        BufferUploader.drawWithShader(buf.end());
-        Base.finishRendering();
+        });
     }
 
     public static void addUnifiedShadowRingVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, float blur, int inC, int outC) {
@@ -570,17 +542,8 @@ public class Graph {
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
-        if (batchActive) {
-            addComplexRoundedBorderVertices(Base.getBuffer(), mat, x, y, w, h, radii, borders, colors);
-            return;
-        }
-
-        BufferBuilder buf = Base.getBuffer();
-        Base.beginRendering();
-        prepare(buf);
-        addComplexRoundedBorderVertices(buf, mat, x, y, w, h, radii, borders, colors);
-        BufferUploader.drawWithShader(buf.end());
-        Base.finishRendering();
+        withBatchOrImmediate(() ->
+                addComplexRoundedBorderVertices(Base.getBuffer(), mat, x, y, w, h, radii, borders, colors));
     }
 
     private static void addComplexRoundedBorderVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
@@ -608,17 +571,10 @@ public class Graph {
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {
         boolean blink = (System.currentTimeMillis() - lastBlinkTime) % 1000 < 500;
         if (blink) {
-            if (batchActive) {
+            withBatchOrImmediate(() -> {
                 BufferBuilder buf = Base.getBuffer();
                 addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
-                return;
-            }
-            BufferBuilder buf = Base.getBuffer();
-            Base.beginRendering();
-            prepare(buf);
-            addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
-            BufferUploader.drawWithShader(buf.end());
-            Base.finishRendering();
+            });
         }
     }
 

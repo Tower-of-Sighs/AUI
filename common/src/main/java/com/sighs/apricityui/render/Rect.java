@@ -133,8 +133,7 @@ public class Rect {
             Position p = position.add(new Position(box.getMarginLeft(), box.getMarginTop()));
             Size s = getShadowSize();
             String path = Loader.resolve(documentPath, box.borderImage.source);
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
             ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage);
             return;
         }

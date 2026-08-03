@@ -253,7 +253,7 @@ public final class HitTestCache {
             if (root == null || !root.isConnected()) continue;
             boolean covered = false;
             for (Element selected : result) {
-                if (isDescendantOf(root, selected)) {
+                if (RenderNode.isSameOrDescendant(root, selected)) {
                     covered = true;
                     break;
                 }
@@ -266,21 +266,11 @@ public final class HitTestCache {
     private static boolean isInAnyRoot(Element element, Set<Element> roots) {
         if (element == null || roots == null || roots.isEmpty()) return false;
         for (Element root : roots) {
-            if (isDescendantOf(element, root)) return true;
+            if (RenderNode.isSameOrDescendant(element, root)) return true;
         }
         return false;
     }
 
-    private static boolean isDescendantOf(Element child, Element potentialParent) {
-        if (child == null || potentialParent == null) return false;
-        if (child == potentialParent) return true;
-        Element current = child.parentElement;
-        while (current != null) {
-            if (current == potentialParent) return true;
-            current = current.parentElement;
-        }
-        return false;
-    }
 
     private static boolean comesBeforeInPaintOrder(Element left, Element right, List<RenderNode> paintOrder) {
         int leftIndex = firstPaintIndex(left, paintOrder);

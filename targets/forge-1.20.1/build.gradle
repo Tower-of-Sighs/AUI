@@ -42,6 +42,10 @@ sourceSets {
 
 legacyForge {
     version = "${forge_minecraft_version}-${forge_version}"
+    validateAccessTransformers = true
+    accessTransformers {
+        file('src/main/resources/META-INF/accesstransformer.cfg')
+    }
 //
 //    parchment {
 //        mappingsVersion = project.parchment_mappings_version

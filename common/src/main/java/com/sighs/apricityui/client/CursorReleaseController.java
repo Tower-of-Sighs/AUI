@@ -1,6 +1,6 @@
 package com.sighs.apricityui.client;
 
-import com.sighs.apricityui.registry.Keybindings;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
@@ -22,7 +22,7 @@ public final class CursorReleaseController {
                 && minecraft.isWindowActive();
 
         update(
-                Keybindings.RELEASE_MOUSE.isDown(),
+                AuiServices.keys().isReleaseMouseDown(),
                 available,
                 mouseHandler.isMouseGrabbed(),
                 mouseHandler::releaseMouse,

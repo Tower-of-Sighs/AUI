@@ -346,20 +346,7 @@ public class Loader {
         }
     }
 
-    public static Path getGameDirectory() {
-        try {
-            Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
-            Object gameDirHolder = fmlPathsClass.getField("GAMEDIR").get(null);
-            Object path = gameDirHolder.getClass().getMethod("get").invoke(gameDirHolder);
-            if (path instanceof Path resolved) {
-                return resolved.toAbsolutePath().normalize();
-            }
-        } catch (Throwable ignored) {
-        }
-        return Path.of("").toAbsolutePath().normalize();
-    }
-
     private static Path getGameDir() {
-        return getGameDirectory();
+        return com.sighs.apricityui.spi.AuiServices.client().getGameDirectory();
     }
 }

@@ -31,8 +31,6 @@ public class FilterRenderer {
     private static int poolPointer = 0;
     private static final List<RenderTarget> backdropPool = new ArrayList<>();
     private static int backdropPoolPointer = 0;
-    private static final Map<String, Long> LOG_TIMES = new HashMap<>();
-    private static final long LOG_INTERVAL_MS = 2000L;
     private static final float MAX_REASONABLE_BACKDROP_BLUR = 32.0f;
     private static boolean stencilCapabilityResolved;
     private static boolean stencilAvailable = true;
@@ -69,16 +67,6 @@ public class FilterRenderer {
         }
     }
 
-    private static boolean shouldLog(String key, long intervalMs) {
-        long now = System.currentTimeMillis();
-        Long last = LOG_TIMES.get(key);
-        if (last == null || now - last >= intervalMs) {
-            LOG_TIMES.put(key, now);
-            return true;
-        }
-        return false;
-    }
-
     public static void beginFrame() {
         // 防御式清理：若上帧因异常或节点错配残留栈，避免 poolPointer 无界增长
         if (!fboStack.isEmpty()) {
@@ -90,12 +78,6 @@ public class FilterRenderer {
         }
         poolPointer = 0;
         backdropPoolPointer = 0;
-//        if (shouldLog("beginFrame", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] beginFrame mainTarget={} size={}x{} pool={} backdropPool={}",
-//                    mainRenderTarget, mainRenderTarget.width, mainRenderTarget.height, fboPool.size(), backdropPool.size()
-//            );
-//        }
     }
 
     public static void endFrame() {
@@ -105,12 +87,6 @@ public class FilterRenderer {
                 mainRenderTarget.bindWrite(false);
             }
         }
-//        if (shouldLog("endFrame", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] endFrame stackCleared={} poolPointer={} backdropPointer={}",
-//                    fboStack.isEmpty(), poolPointer, backdropPoolPointer
-//            );
-//        }
     }
 
     public static void pushFilter() {
@@ -137,19 +113,11 @@ public class FilterRenderer {
                 temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
                 if (isStencilAvailable()) temp.enableStencil();
                 fboPool.set(poolPointer, temp);
-//                com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                        "[FilterRenderer] pushFilter resized temp target index={} size={}x{}",
-//                        poolPointer, temp.width, temp.height
-//                );
             }
         } else {
             temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
             if (isStencilAvailable()) temp.enableStencil();
             fboPool.add(temp);
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] pushFilter created temp target index={} size={}x{}",
-//                    poolPointer, temp.width, temp.height
-//            );
         }
         poolPointer++;
 
@@ -158,12 +126,6 @@ public class FilterRenderer {
         temp.clear(ON_OSX);
         fboStack.push(temp);
         temp.bindWrite(false);
-//        if (shouldLog("pushFilter.bind", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] pushFilter bind target size={}x{} stackDepth={}",
-//                    temp.width, temp.height, fboStack.size()
-//            );
-//        }
     }
 
     public static RenderTarget getCurrentTarget() {
@@ -185,73 +147,76 @@ public class FilterRenderer {
                 ? prepareFullFilterSource(currentFbo, state.dropShadowBlur()) : currentFbo;
         parentFbo.bindWrite(true);
 
-//        if (shouldLog("popFilter", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] popFilter state={} current={}x{} parent={}x{} stackDepth={}",
-//                    state, currentFbo.width, currentFbo.height, parentFbo.width, parentFbo.height, fboStack.size()
-//            );
-//        }
         drawWithShader(filteredFbo, shadowFbo, state);
+    }
+
+    /** Runs a shader pass with the standard filter blend/depth state. */
+    private static void withBlendRenderState(boolean enableBlend, Runnable body) {
+        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
+        if (enableBlend) {
+            GlStateManager._enableBlend();
+            GlStateManager._blendFuncSeparate(
+                    GlStateManager.SourceFactor.SRC_ALPHA.value,
+                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
+                    GlStateManager.SourceFactor.ONE.value,
+                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
+            );
+        } else {
+            GlStateManager._disableBlend();
+        }
+        GlStateManager._disableDepthTest();
+        GlStateManager._depthMask(false);
+        GlStateManager._disableCull();
+        try {
+            body.run();
+        } finally {
+            GlStateManager._depthMask(true);
+            if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
+            else GlStateManager._disableDepthTest();
+            Base.setProjectionMatrix(oldProjection);
+        }
     }
 
     private static void drawWithShader(RenderTarget fbo, RenderTarget shadowFbo, Filter.FilterState state) {
         ShaderInstance shader = ShaderRegistry.getFilterShader();
 
-        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
+        withBlendRenderState(true, () -> {
+            if (shader == null) {
+                Base.setPositionColorShader();
+            } else {
+                Base.setShader(shader);
+                // Blur is precomputed as two separable passes. The composite shader
+                // only applies the inexpensive color/opacity/shadow operations.
+                setupUniforms(shader, state, fbo, false, true,
+                        1.0f / Math.max(1, AuiServices.client().getScaledWidth()),
+                        1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
+            }
 
-        GlStateManager._enableBlend();
-        GlStateManager._blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
-        );
-        GlStateManager._disableDepthTest();
-        GlStateManager._depthMask(false);
-        GlStateManager._disableCull();
+            Base.setShaderTexture(0, fbo.getColorTextureId());
+            Base.setShaderTexture(1, shadowFbo.getColorTextureId());
+            Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
-        if (shader == null) {
-            Base.setPositionColorShader();
-        } else {
-            Base.setShader(shader);
-            // Blur is precomputed as two separable passes. The composite shader
-            // only applies the inexpensive color/opacity/shadow operations.
-            setupUniforms(shader, state, fbo, false, true,
-                    1.0f / Math.max(1, AuiServices.client().getScaledWidth()),
-                    1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
-        }
+            float guiW = (float) AuiServices.client().getScaledWidth();
+            float guiH = (float) AuiServices.client().getScaledHeight();
+            Base.setProjectionMatrix(orthoProjection(guiW, guiH));
 
-        Base.setShaderTexture(0, fbo.getColorTextureId());
-        Base.setShaderTexture(1, shadowFbo.getColorTextureId());
-        Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            Tesselator tesselator = Tesselator.getInstance();
+            BufferBuilder bufferbuilder = tesselator.getBuilder();
 
-        float guiW = (float) AuiServices.client().getScaledWidth();
-        float guiH = (float) AuiServices.client().getScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
-        Base.setProjectionMatrix(matrix);
+            bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            bufferbuilder.vertex(0, guiH, 0).uv(0, 0).endVertex();
+            bufferbuilder.vertex(guiW, guiH, 0).uv(1, 0).endVertex();
+            bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
+            bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
 
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tesselator.getBuilder();
-
-        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferbuilder.vertex(0, guiH, 0).uv(0, 0).endVertex();
-        bufferbuilder.vertex(guiW, guiH, 0).uv(1, 0).endVertex();
-        bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
-        bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
-
-        BufferUploader.drawWithShader(bufferbuilder.end());
-
-        GlStateManager._depthMask(true);
-        if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
-        else GlStateManager._disableDepthTest();
-        Base.setProjectionMatrix(oldProjection);
+            BufferUploader.drawWithShader(bufferbuilder.end());
+        });
     }
 
     public static void renderBackdrop(Element target, PoseStack poseStack) {
         // A backdrop snapshot must include every draw submitted before this
         // element. It also creates a natural batch boundary for the FBO copy.
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
 
         RenderTarget currentBound = fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
@@ -269,54 +234,37 @@ public class FilterRenderer {
         ShaderInstance shader = ShaderRegistry.getFilterShader();
         if (shader == null) return;
 
-        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
+        withBlendRenderState(true, () -> {
+            Position p = rect.getBodyRectPosition();
+            Size s = rect.getBodyRectSize();
 
-        GlStateManager._enableBlend();
-        GlStateManager._blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
-        );
-        GlStateManager._disableDepthTest();
-        GlStateManager._depthMask(false);
-        GlStateManager._disableCull();
+            float guiW = (float) AuiServices.client().getScaledWidth();
+            float guiH = (float) AuiServices.client().getScaledHeight();
+            Base.setProjectionMatrix(orthoProjection(guiW, guiH));
 
-        Position p = rect.getBodyRectPosition();
-        Size s = rect.getBodyRectSize();
+            Base.setShader(shader);
+            setupUniforms(shader, state, source.target(), true, true, source.uvPerGuiX(), source.uvPerGuiY());
+            setupBackdropClipUniforms(shader, rect, guiW, guiH);
+            Base.setShaderTexture(0, source.target().getColorTextureId());
+            Base.setShaderTexture(1, shadowTarget.getColorTextureId());
+            Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            Base.setProjectionMatrix(orthoProjection(guiW, guiH));
 
-        float guiW = (float) AuiServices.client().getScaledWidth();
-        float guiH = (float) AuiServices.client().getScaledHeight();
-        Matrix4f matrix = new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000);
-        Base.setProjectionMatrix(matrix);
+            Tesselator tesselator = Tesselator.getInstance();
+            BufferBuilder bufferbuilder = tesselator.getBuilder();
+            float x0 = (float) p.x;
+            float y0 = (float) p.y;
+            float x1 = x0 + (float) s.width();
+            float y1 = y0 + (float) s.height();
 
-        Base.setShader(shader);
-        setupUniforms(shader, state, source.target(), true, true, source.uvPerGuiX(), source.uvPerGuiY());
-        setupBackdropClipUniforms(shader, rect, guiW, guiH);
-        Base.setShaderTexture(0, source.target().getColorTextureId());
-        Base.setShaderTexture(1, shadowTarget.getColorTextureId());
-        Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
-        Base.setProjectionMatrix(matrix);
+            bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            bufferbuilder.vertex(x0, y1, 0).uv(source.u0(), source.vBottom()).endVertex();
+            bufferbuilder.vertex(x1, y1, 0).uv(source.u1(), source.vBottom()).endVertex();
+            bufferbuilder.vertex(x1, y0, 0).uv(source.u1(), source.vTop()).endVertex();
+            bufferbuilder.vertex(x0, y0, 0).uv(source.u0(), source.vTop()).endVertex();
 
-        Tesselator tesselator = Tesselator.getInstance();
-        BufferBuilder bufferbuilder = tesselator.getBuilder();
-        float x0 = (float) p.x;
-        float y0 = (float) p.y;
-        float x1 = x0 + (float) s.width();
-        float y1 = y0 + (float) s.height();
-
-        bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        bufferbuilder.vertex(x0, y1, 0).uv(source.u0(), source.vBottom()).endVertex();
-        bufferbuilder.vertex(x1, y1, 0).uv(source.u1(), source.vBottom()).endVertex();
-        bufferbuilder.vertex(x1, y0, 0).uv(source.u1(), source.vTop()).endVertex();
-        bufferbuilder.vertex(x0, y0, 0).uv(source.u0(), source.vTop()).endVertex();
-
-        BufferUploader.drawWithShader(bufferbuilder.end());
-
-        GlStateManager._depthMask(true);
-        if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
-        else GlStateManager._disableDepthTest();
-        Base.setProjectionMatrix(oldProjection);
+            BufferUploader.drawWithShader(bufferbuilder.end());
+        });
     }
 
     private static BackdropSource prepareBackdropSource(RenderTarget source, Rect rect, float cssBlurRadius) {
@@ -436,35 +384,25 @@ public class FilterRenderer {
         ShaderInstance shader = ShaderRegistry.getFilterBlurShader();
         if (shader == null) return;
 
-        Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
         target.setClearColor(0, 0, 0, 0);
         target.clear(Minecraft.ON_OSX);
         target.bindWrite(true);
-        GlStateManager._disableBlend();
-        GlStateManager._disableDepthTest();
-        GlStateManager._depthMask(false);
-        GlStateManager._disableCull();
+        withBlendRenderState(false, () -> {
+            Base.setProjectionMatrix(orthoProjection(target.width, target.height));
+            Base.setShader(shader);
+            if (shader.getUniform("Direction") != null) shader.getUniform("Direction").set(directionX, directionY);
+            if (shader.getUniform("Radius") != null) shader.getUniform("Radius").set(Math.min(32.0f, radius));
+            Base.setShaderTexture(0, source.getColorTextureId());
+            Base.setShaderColor(1, 1, 1, 1);
 
-        Matrix4f projection = new Matrix4f().setOrtho(0, target.width, target.height, 0, -1000, 1000);
-        Base.setProjectionMatrix(projection);
-        Base.setShader(shader);
-        if (shader.getUniform("Direction") != null) shader.getUniform("Direction").set(directionX, directionY);
-        if (shader.getUniform("Radius") != null) shader.getUniform("Radius").set(Math.min(32.0f, radius));
-        Base.setShaderTexture(0, source.getColorTextureId());
-        Base.setShaderColor(1, 1, 1, 1);
-
-        BufferBuilder builder = Tesselator.getInstance().getBuilder();
-        builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-        builder.vertex(0, target.height, 0).uv(0, 0).endVertex();
-        builder.vertex(target.width, target.height, 0).uv(1, 0).endVertex();
-        builder.vertex(target.width, 0, 0).uv(1, 1).endVertex();
-        builder.vertex(0, 0, 0).uv(0, 1).endVertex();
-        BufferUploader.drawWithShader(builder.end());
-
-        GlStateManager._depthMask(true);
-        if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
-        else GlStateManager._disableDepthTest();
-        Base.setProjectionMatrix(oldProjection);
+            BufferBuilder builder = Tesselator.getInstance().getBuilder();
+            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
+            builder.vertex(0, target.height, 0).uv(0, 0).endVertex();
+            builder.vertex(target.width, target.height, 0).uv(1, 0).endVertex();
+            builder.vertex(target.width, 0, 0).uv(1, 1).endVertex();
+            builder.vertex(0, 0, 0).uv(0, 1).endVertex();
+            BufferUploader.drawWithShader(builder.end());
+        });
     }
 
     private static int clamp(int value, int min, int max) {
@@ -521,13 +459,9 @@ public class FilterRenderer {
         if (shader.getUniform("GuiSize") != null) {
             shader.getUniform("GuiSize").set(guiW, guiH);
         }
-//        if (shouldLog("drawBackdrop.clip", LOG_INTERVAL_MS)) {
-//            com.sighs.apricityui.ApricityUI.LOGGER.info(
-//                    "[FilterRenderer] drawBackdropWithShader clip rect=({}, {}) size=({}, {}) radii=({}, {}, {}, {}) gui=({}, {})",
-//                    p.x, p.y, s.width(), s.height(),
-//                    radii[0], radii[1], radii[2], radii[3],
-//                    guiW, guiH
-//            );
-//        }
+    }
+
+    private static Matrix4f orthoProjection(float width, float height) {
+        return new Matrix4f().setOrtho(0, width, height, 0, -1000, 1000);
     }
 }

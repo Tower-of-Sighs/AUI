@@ -97,8 +97,7 @@ public class Mask {
      * the current GUI surface.
      */
     public static void pushSurfaceClip(double width, double height, double offsetX, double offsetY, double scaleX, double scaleY) {
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
         surfaceClipStack.push(new SurfaceClipState(currentClip, currentScissor, surfaceScissorTransform));
         currentClip = new AABB(0, 0, (float) width, (float) height);
         currentScissor = currentClip;
@@ -108,8 +107,7 @@ public class Mask {
 
     /** Restores the parent document's clip and scissor coordinate space. */
     public static void popSurfaceClip() {
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
         if (surfaceClipStack.isEmpty()) return;
         SurfaceClipState previous = surfaceClipStack.pop();
         currentClip = previous.clip();
@@ -117,6 +115,18 @@ public class Mask {
         surfaceScissorTransform = previous.transform();
         if (currentScissor == null) disableScissor();
         else applyScissor(currentScissor);
+    }
+
+    /** Initializes the stencil buffer the first time a stencil mask is pushed. */
+    private static void beginStencilIfNeeded() {
+        if (depth == 0) {
+            RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
+            currentTarget.enableStencil();
+
+            GL11.glEnable(GL11.GL_STENCIL_TEST);
+            GL11.glStencilMask(0xFF);
+            GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
+        }
     }
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
@@ -130,8 +140,7 @@ public class Mask {
                 : (!forced && isRectMask(radii) ? MaskMode.SCISSOR : MaskMode.STENCIL);
         maskModeStack.push(mode);
         if (mode == MaskMode.SCISSOR) {
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
             scissorStack.push(currentScissor);
             AABB newMask = new AABB(x, y, width, height);
             clipStack.push(currentClip);
@@ -141,8 +150,7 @@ public class Mask {
             return;
         }
 
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
 
         // Keep the logical clip stack balanced with the stencil stack.  A
         // stencil mask can be nested in a scissor mask (for example, a
@@ -153,15 +161,7 @@ public class Mask {
 
         if (mode == MaskMode.NONE) return;
 
-        if (depth == 0) {
-            RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
-            currentTarget.enableStencil();
-
-            GL11.glEnable(GL11.GL_STENCIL_TEST);
-            GL11.glStencilMask(0xFF);
-            GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
-        }
-
+        beginStencilIfNeeded();
         pose.pushPose();
         StencilDepthState state = setupStencilStatePush();
 
@@ -178,8 +178,7 @@ public class Mask {
     public static void popMask(PoseStack pose, float x, float y, float width, float height, float[] radii) {
         MaskMode mode = maskModeStack.isEmpty() ? MaskMode.STENCIL : maskModeStack.pop();
         if (mode == MaskMode.SCISSOR) {
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
             if (!clipStack.isEmpty()) currentClip = clipStack.pop();
             currentScissor = scissorStack.isEmpty() ? null : scissorStack.pop();
             if (currentScissor == null) disableScissor();
@@ -187,8 +186,7 @@ public class Mask {
             return;
         }
 
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
         if (mode == MaskMode.NONE) return;
         if (depth <= 1) {
@@ -276,26 +274,16 @@ public class Mask {
         if (mode == MaskMode.NONE) return;
 
         if (mode == MaskMode.SCISSOR) {
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
             clipPathScissorStack.push(currentScissor);
             currentScissor = currentScissor == null ? newMask : currentScissor.intersection(newMask);
             applyScissor(currentScissor);
             return;
         }
 
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
 
-        if (depth == 0) {
-            RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
-            currentTarget.enableStencil();
-
-            GL11.glEnable(GL11.GL_STENCIL_TEST);
-            GL11.glStencilMask(0xFF);
-            GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
-        }
-
+        beginStencilIfNeeded();
         pose.pushPose();
         StencilDepthState state = setupStencilStatePush();
 
@@ -312,8 +300,7 @@ public class Mask {
     public static void popClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
         MaskMode mode = clipPathModeStack.isEmpty() ? MaskMode.STENCIL : clipPathModeStack.pop();
         if (mode == MaskMode.SCISSOR) {
-            Graph.endBatch();
-            ImageDrawer.flushBatch();
+            Base.commitDraws();
             if (!clipStack.isEmpty()) currentClip = clipStack.pop();
             currentScissor = clipPathScissorStack.isEmpty() ? null : clipPathScissorStack.pop();
             if (currentScissor == null) disableScissor();
@@ -321,8 +308,7 @@ public class Mask {
             return;
         }
 
-        Graph.endBatch();
-        ImageDrawer.flushBatch();
+        Base.commitDraws();
         if (!clipStack.isEmpty()) currentClip = clipStack.pop();
         if (mode == MaskMode.NONE) return;
         if (depth <= 1) {

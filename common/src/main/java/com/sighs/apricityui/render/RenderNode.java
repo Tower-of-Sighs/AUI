@@ -39,6 +39,34 @@ public interface RenderNode {
         target.isLoaded = true;
     }
 
+    /** Returns the element a render node paints, or {@code null} for node types without one. */
+    static Element getRenderNodeTarget(RenderNode node) {
+        if (node instanceof Element e) return e;
+        if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
+        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
+        if (node instanceof RenderNode.ElementContentNode n) return n.target();
+        if (node instanceof RenderNode.MaskPushNode n) return n.target();
+        if (node instanceof RenderNode.MaskPopNode n) return n.target();
+        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
+        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
+        if (node instanceof RenderNode.FilterPushNode n) return n.target();
+        if (node instanceof RenderNode.FilterPopNode n) return n.target();
+        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
+        return null;
+    }
+
+    /** Whether {@code element} equals or is a descendant of {@code ancestor}. */
+    static boolean isSameOrDescendant(Element element, Element ancestor) {
+        if (element == null || ancestor == null) return false;
+        Element current = element;
+        while (current != null) {
+            if (current == ancestor) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
     record MaskPushNode(Element target) implements RenderNode {
         @Override
         public boolean advancesPaintDepth() {

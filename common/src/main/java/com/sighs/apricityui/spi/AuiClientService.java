@@ -7,6 +7,8 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.gui.GuiGraphics;
 
+import java.nio.file.Path;
+
 /**
  * Loader-side client platform access.
  *
@@ -48,4 +50,7 @@ public interface AuiClientService {
 
     /** Renders persistent screen documents over the current GUI frame. */
     void drawPersistentScreenDocuments(GuiGraphics guiGraphics, Document excludedDocument);
+
+    /** Returns the loader's game directory (e.g. Forge {@code FMLPaths.GAMEDIR}). */
+    Path getGameDirectory();
 }

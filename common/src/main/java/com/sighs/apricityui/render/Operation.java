@@ -10,7 +10,6 @@ import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.ClientLoader;
-import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
@@ -124,14 +123,6 @@ public class Operation {
             }
         }
         return shouldCancel;
-    }
-
-    public static boolean onKeyPressed(int key) {
-        return onKeyPressed(key, false);
-    }
-
-    public static boolean onKeyPressed(int key, boolean repeat) {
-        return onKeyPressed(key, 0, 0, repeat, KeyEvent.Source.INPUT_EVENT);
     }
 
     public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, KeyEvent.Source source) {
@@ -316,7 +307,7 @@ public class Operation {
     }
 
     private static boolean handleFrameworkShortcut(int key, int modifiers) {
-        boolean devToolsShortcut = key == Keybindings.DEV_TOOLS.getKey().getValue()
+        boolean devToolsShortcut = key == AuiServices.keys().devToolsKey()
                 || (key == GLFW.GLFW_KEY_I
                 && (modifiers & (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT))
                 == (GLFW.GLFW_MOD_CONTROL | GLFW.GLFW_MOD_SHIFT));
@@ -324,11 +315,11 @@ public class Operation {
             DevTools.toggle();
             return true;
         }
-        if (key == Keybindings.RESOURCE_MANAGER.getKey().getValue()) {
+        if (key == AuiServices.keys().resourceManagerKey()) {
             ResourceManager.toggle();
             return true;
         }
-        if (key == Keybindings.RELOAD.getKey().getValue()) {
+        if (key == AuiServices.keys().reloadKey()) {
             ClientLoader.reload();
             return true;
         }

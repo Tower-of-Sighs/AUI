@@ -1,4 +1,5 @@
 package com.sighs.apricityui.canvas;
+import com.sighs.apricityui.util.MathUtil;
 
 import java.awt.Composite;
 import java.awt.CompositeContext;
@@ -47,10 +48,10 @@ final class AdditiveComposite implements Composite {
                     float dstPremulG = (dstPixel[1] / 255f) * dstA;
                     float dstPremulB = (dstPixel[2] / 255f) * dstA;
 
-                    float outPremulR = clamp01(srcPremulR + dstPremulR);
-                    float outPremulG = clamp01(srcPremulG + dstPremulG);
-                    float outPremulB = clamp01(srcPremulB + dstPremulB);
-                    float outA = clamp01(srcA + dstA);
+                    float outPremulR = MathUtil.clamp01(srcPremulR + dstPremulR);
+                    float outPremulG = MathUtil.clamp01(srcPremulG + dstPremulG);
+                    float outPremulB = MathUtil.clamp01(srcPremulB + dstPremulB);
+                    float outA = MathUtil.clamp01(srcA + dstA);
 
                     if (outA <= 1e-6f) {
                         dstPixel[0] = 0;
@@ -74,9 +75,5 @@ final class AdditiveComposite implements Composite {
             return Math.min(value, 255);
         }
 
-        private static float clamp01(float value) {
-            if (value < 0f) return 0f;
-            return Math.min(value, 1f);
-        }
     }
 }

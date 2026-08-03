@@ -29,7 +29,7 @@ public final class LayoutCommit {
         LayoutMeasureCache.begin();
         try {
             for (RenderNode node : paintList) {
-                Element target = getRenderNodeTarget(node);
+                Element target = RenderNode.getRenderNodeTarget(node);
                 if (target == null || target.document != document || !visited.add(target)) continue;
                 commitElement(target);
             }
@@ -60,7 +60,7 @@ public final class LayoutCommit {
         TransformFrameCache.begin();
         try {
             for (RenderNode node : paintList) {
-                Element target = getRenderNodeTarget(node);
+                Element target = RenderNode.getRenderNodeTarget(node);
                 if (target == null || target.document != document || !visited.add(target)) continue;
                 if (!isInTransformSubtree(target, roots)) continue;
                 commitTransformElement(target);
@@ -72,7 +72,7 @@ public final class LayoutCommit {
     }
 
     private static void commitElement(Element target) {
-        ensureRendererLoaded(target);
+        RenderNode.ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
 
         long rectDependency = target.getRenderer().rectDependency(target.document);
@@ -94,7 +94,7 @@ public final class LayoutCommit {
     }
 
     private static void commitTransformElement(Element target) {
-        ensureRendererLoaded(target);
+        RenderNode.ensureRendererLoaded(target);
         if (!Interaction.isDisplayed(target)) return;
 
         long transformDependency = target.getRenderer().transformDependency(target.document);
@@ -119,27 +119,6 @@ public final class LayoutCommit {
     private static boolean isOptionalRenderDependency(NoClassDefFoundError error) {
         String missing = error.getMessage();
         return missing != null && (missing.startsWith("org/joml/") || missing.startsWith("com/mojang/blaze3d/"));
-    }
-
-    private static void ensureRendererLoaded(Element target) {
-        if (target == null || target.isLoaded) return;
-        target.resetRenderer();
-        target.isLoaded = true;
-    }
-
-    private static Element getRenderNodeTarget(RenderNode node) {
-        if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
-        if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
-        if (node instanceof RenderNode.ElementContentNode n) return n.target();
-        if (node instanceof RenderNode.MaskPushNode n) return n.target();
-        if (node instanceof RenderNode.MaskPopNode n) return n.target();
-        if (node instanceof RenderNode.ScrollbarNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPushNode n) return n.target();
-        if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
-        if (node instanceof RenderNode.FilterPushNode n) return n.target();
-        if (node instanceof RenderNode.FilterPopNode n) return n.target();
-        if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
-        return null;
     }
 
 }

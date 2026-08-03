@@ -1,6 +1,7 @@
 package com.sighs.apricityui.dev.resource;
 
 import com.sighs.apricityui.loader.Loader;
+import com.sighs.apricityui.spi.AuiServices;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.io.IOException;
@@ -52,13 +53,13 @@ public final class ResourceFileWriter {
 
     public static Path writableRoot() {
         if (FMLEnvironment.production) {
-            return Loader.getGameDirectory().resolve("apricity").toAbsolutePath().normalize();
+            return AuiServices.client().getGameDirectory().resolve("apricity").toAbsolutePath().normalize();
         }
         // Dev-mode writes go to the shared common/ resource tree when it is
         // discoverable, falling back to the local game directory otherwise.
         Path devRoot = Loader.getPrimaryDevResourceRoot();
         if (devRoot != null) return devRoot.toAbsolutePath().normalize();
-        return Loader.getGameDirectory().resolve("apricity").toAbsolutePath().normalize();
+        return AuiServices.client().getGameDirectory().resolve("apricity").toAbsolutePath().normalize();
     }
 
     public static String validateHtmlPath(String requestedPath) {

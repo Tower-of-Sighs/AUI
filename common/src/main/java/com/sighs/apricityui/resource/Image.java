@@ -7,7 +7,6 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -88,7 +87,7 @@ public class Image {
                     for (NativeImage frameImage : decodedImage.getFrames()) {
                         TextureInfo info = uploadImage(cacheKey + "_frame_" + index, frameImage);
                         int delay = index < delays.length ? delays[index] : 100;
-                        frames.add(new AnimatedTexture.Frame(info.location, info.textureId, Math.max(delay, 20)));
+                        frames.add(new AnimatedTexture.Frame(info.key, info.textureId, Math.max(delay, 20)));
                         index++;
                     }
                 } catch (Exception e) {
@@ -115,7 +114,7 @@ public class Image {
             TextureInfo info = uploadImage(cacheKey, imageData);
             return new StaticTexture(
                     info.textureId,
-                    info.location,
+                    info.key,
                     info.width,
                     info.height,
                     decodedImage.getHotspotX(),
@@ -520,20 +519,18 @@ public class Image {
         int textureId = TextureUtil.generateTextureId();
         TextureUtil.prepareImage(textureId, image.getWidth(), image.getHeight());
         image.upload(0, 0, 0, false);
-
-        // 防止 ResourceLocation 报错
-        String sanitizedPath = cacheKey.toLowerCase().replaceAll("[^a-z0-9/._-]", "_");
-        ResourceLocation location = new ResourceLocation("apricityui", "dynamic/" + sanitizedPath);
-
-        Minecraft.getInstance().getTextureManager().register(location, new SimpleTextureWrapper(textureId));
-        return new TextureInfo(textureId, location, image.getWidth(), image.getHeight());
+        Minecraft.getInstance().getTextureManager().register(
+                com.sighs.apricityui.spi.AuiServices.resources().locationOf(cacheKey),
+                new SimpleTextureWrapper(textureId)
+        );
+        return new TextureInfo(textureId, cacheKey, image.getWidth(), image.getHeight());
     }
 
-    private record TextureInfo(int textureId, ResourceLocation location, int width, int height) {
+    private record TextureInfo(int textureId, String key, int width, int height) {
     }
 
     public interface ITexture {
-        ResourceLocation getLocation();
+        String getKey();
 
         int getWidth();
 
@@ -552,15 +549,15 @@ public class Image {
 
     public static class StaticTexture implements ITexture {
         private final int textureId;
-        private final ResourceLocation location;
+        private final String key;
         private final int width;
         private final int height;
         private final int hotspotX;
         private final int hotspotY;
 
-        public StaticTexture(int textureId, ResourceLocation location, int width, int height, int hotspotX, int hotspotY) {
+        public StaticTexture(int textureId, String key, int width, int height, int hotspotX, int hotspotY) {
             this.textureId = textureId;
-            this.location = location;
+            this.key = key;
             this.width = width;
             this.height = height;
             this.hotspotX = hotspotX;
@@ -568,8 +565,8 @@ public class Image {
         }
 
         @Override
-        public ResourceLocation getLocation() {
-            return location;
+        public String getKey() {
+            return key;
         }
 
         @Override
@@ -599,7 +596,7 @@ public class Image {
     }
 
     public static class AnimatedTexture implements ITexture {
-        public record Frame(ResourceLocation location, int textureId, int durationMs) {
+        public record Frame(String key, int textureId, int durationMs) {
         }
 
         private final List<Frame> frames;
@@ -619,17 +616,17 @@ public class Image {
         }
 
         @Override
-        public ResourceLocation getLocation() {
+        public String getKey() {
             if (frames.isEmpty()) return null;
-            if (totalDuration == 0) return frames.get(0).location;
+            if (totalDuration == 0) return frames.get(0).key;
             long now = System.currentTimeMillis();
             long cycleTime = now % totalDuration;
             int currentTimer = 0;
             for (Frame frame : frames) {
                 currentTimer += frame.durationMs;
-                if (cycleTime < currentTimer) return frame.location;
+                if (cycleTime < currentTimer) return frame.key;
             }
-            return frames.get(0).location;
+            return frames.get(0).key;
         }
 
         @Override

@@ -15,6 +15,10 @@ public final class AuiServicesBootstrap {
         AuiServices.setClient(ClientService.INSTANCE);
         AuiServices.setNetwork(NetworkService.INSTANCE);
         AuiServices.setExpander(new ForgeDocumentExpander());
+        AuiServices.setConfig(ConfigService.INSTANCE);
+        AuiServices.setResources(ResourceService.INSTANCE);
+        AuiServices.setKeys(KeyService.INSTANCE);
+        AuiServices.setScript(ScriptService.INSTANCE);
     }
 
     private AuiServicesBootstrap() {

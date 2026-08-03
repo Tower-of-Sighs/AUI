@@ -1,4 +1,5 @@
 package com.sighs.apricityui.style;
+import com.sighs.apricityui.util.MathUtil;
 
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Style;
@@ -128,7 +129,7 @@ public class Background {
     private static void applyRepeatingGradientTile(Layer layer) {
         float repeatLength = layer.gradient.repeatLengthPx();
         if (repeatLength <= 0) return;
-        float angle = normalizeAngle(layer.gradient.angle());
+        float angle = MathUtil.normalizeAngle(layer.gradient.angle());
         if (Math.abs(angle - 90f) < 0.01f || Math.abs(angle - 270f) < 0.01f) {
             layer.intrinsicRepeat = true;
             layer.intrinsicRepeatValue = "repeat-x";
@@ -140,10 +141,6 @@ public class Background {
         }
     }
 
-    private static float normalizeAngle(float angle) {
-        float normalized = angle % 360f;
-        return normalized < 0 ? normalized + 360f : normalized;
-    }
 
     private static String trimFloat(float value) {
         if (Math.abs(value - Math.round(value)) < 0.001f) return Integer.toString(Math.round(value));

@@ -6,7 +6,6 @@ import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.screen.SlotDataBinder;
-import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
@@ -181,13 +180,13 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private void drawMenuSlotItems(GuiGraphics guiGraphics) {
         if (slotBinder == null) return;
 
-        AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) this;
-        net.minecraft.world.inventory.Slot clicked = accessor.apricityui$getClickedSlot();
-        ItemStack draggingItem = accessor.apricityui$getDraggingItem();
-        boolean splitting = accessor.apricityui$isSplittingStack();
-        Set<net.minecraft.world.inventory.Slot> quickCraftSlots = accessor.apricityui$getQuickCraftSlots();
-        boolean quickCrafting = accessor.apricityui$isQuickCrafting();
-        int quickCraftingType = accessor.apricityui$getQuickCraftingType();
+        // Fields exposed via META-INF/accesstransformer.cfg
+        net.minecraft.world.inventory.Slot clicked = this.clickedSlot;
+        ItemStack draggingItem = this.draggingItem;
+        boolean splitting = this.isSplittingStack;
+        Set<net.minecraft.world.inventory.Slot> quickCraftSlots = this.quickCraftSlots;
+        boolean quickCrafting = this.isQuickCrafting;
+        int quickCraftingType = this.quickCraftingType;
         ItemStack carried = menu.getCarried();
 
         int quickCraftBasePlaceCount = 0;
