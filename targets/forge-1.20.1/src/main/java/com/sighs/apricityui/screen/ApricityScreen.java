@@ -1,5 +1,6 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.loader.ClientLoader;
@@ -122,11 +123,14 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
                 }
                 Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             }
-            com.sighs.apricityui.spi.AuiServices.client().drawPersistentScreenDocuments(guiGraphics, linkedDocument);
+            Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose());
-            Cursor.drawPseudoCursor(guiGraphics);
+            guiGraphics.flush();
+            Cursor.drawPseudoCursor(guiGraphics.pose());
+            guiGraphics.flush();
         } finally {
-            FrameTimingHud.endFrame(guiGraphics);
+            FrameTimingHud.endFrame();
+            Client.drawFrameTimingHud(guiGraphics);
         }
     }
 

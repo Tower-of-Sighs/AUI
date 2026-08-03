@@ -2,7 +2,6 @@ package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.layout.Size;
 
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import org.joml.Matrix4f;
 
 import java.util.regex.Matcher;
@@ -11,7 +10,7 @@ import java.util.regex.Pattern;
 public class ClipPath {
     private static final Pattern FUNC_PATTERN = Pattern.compile("([a-z-]+)\\((.*)\\)");
 
-    public static void drawToStencil(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, String clipPathValue) {
+    public static void drawToStencil(Matrix4f mat, float x, float y, float w, float h, String clipPathValue) {
         if (clipPathValue == null || clipPathValue.equals("none")) return;
 
         Matcher matcher = FUNC_PATTERN.matcher(clipPathValue.trim());
@@ -21,14 +20,14 @@ public class ClipPath {
         String args = matcher.group(2);
 
         switch (type) {
-            case "polygon" -> drawPolygon(buf, mat, x, y, w, h, args);
-            case "circle" -> drawCircle(buf, mat, x, y, w, h, args);
-            case "ellipse" -> drawEllipse(buf, mat, x, y, w, h, args);
-            case "inset" -> drawInset(buf, mat, x, y, w, h, args);
+            case "polygon" -> drawPolygon(mat, x, y, w, h, args);
+            case "circle" -> drawCircle(mat, x, y, w, h, args);
+            case "ellipse" -> drawEllipse(mat, x, y, w, h, args);
+            case "inset" -> drawInset(mat, x, y, w, h, args);
         }
     }
 
-    private static void drawPolygon(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, String args) {
+    private static void drawPolygon(Matrix4f mat, float x, float y, float w, float h, String args) {
         String[] points = args.split("\\s*,\\s*");
         if (points.length < 3) return;
 
@@ -47,36 +46,36 @@ public class ClipPath {
         cy /= points.length;
 
         for (int i = 0; i < points.length; i++) {
-            Graph.vtx(buf, mat, cx, cy, 0xFFFFFFFF);
-            Graph.vtx(buf, mat, px[i], py[i], 0xFFFFFFFF);
-            Graph.vtx(buf, mat, px[(i + 1) % points.length], py[(i + 1) % points.length], 0xFFFFFFFF);
+            Graph.vtx(Base.getMesh(), mat, cx, cy, 0xFFFFFFFF);
+            Graph.vtx(Base.getMesh(), mat, px[i], py[i], 0xFFFFFFFF);
+            Graph.vtx(Base.getMesh(), mat, px[(i + 1) % points.length], py[(i + 1) % points.length], 0xFFFFFFFF);
         }
     }
 
-    private static void drawCircle(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, String args) {
+    private static void drawCircle(Matrix4f mat, float x, float y, float w, float h, String args) {
         // 简化解析：[radius] [at pos pos]
         float r = parseLength(args.split(" at ")[0], (float) Math.sqrt(w * w + h * h) / 1.4142f);
         float[] center = parsePosition(args, x, y, w, h);
-        Graph.addEllipseGeometry(buf, mat, center[0], center[1], r, r, 0xFFFFFFFF);
+        Graph.addEllipseGeometry(Base.getMesh(), mat, center[0], center[1], r, r, 0xFFFFFFFF);
     }
 
-    private static void drawEllipse(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, String args) {
+    private static void drawEllipse(Matrix4f mat, float x, float y, float w, float h, String args) {
         String[] parts = args.split(" at ");
         String[] radii = parts[0].trim().split("\\s+");
         float rx = parseLength(radii[0], w);
         float ry = radii.length > 1 ? parseLength(radii[1], h) : rx;
         float[] center = parsePosition(args, x, y, w, h);
-        Graph.addEllipseGeometry(buf, mat, center[0], center[1], rx, ry, 0xFFFFFFFF);
+        Graph.addEllipseGeometry(Base.getMesh(), mat, center[0], center[1], rx, ry, 0xFFFFFFFF);
     }
 
-    private static void drawInset(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, String args) {
+    private static void drawInset(Matrix4f mat, float x, float y, float w, float h, String args) {
         String[] parts = args.split(" round ")[0].trim().split("\\s+");
         float t = parseLength(parts[0], h);
         float r = parts.length > 1 ? parseLength(parts[1], w) : t;
         float b = parts.length > 2 ? parseLength(parts[2], h) : t;
         float l = parts.length > 3 ? parseLength(parts[3], w) : r;
 
-        Graph.addRect(buf, mat, x + l, y + t, x + w - r, y + h - b, 0xFFFFFFFF);
+        Graph.addRect(Base.getMesh(), mat, x + l, y + t, x + w - r, y + h - b, 0xFFFFFFFF);
     }
 
     private static float[] parsePosition(String args, float x, float y, float w, float h) {

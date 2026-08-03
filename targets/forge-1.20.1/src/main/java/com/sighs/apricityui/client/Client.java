@@ -23,6 +23,7 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -206,9 +207,12 @@ public class Client {
             try {
                 drawPersistentScreenDocuments(event.getGuiGraphics());
                 com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
-                Cursor.drawPseudoCursor(event.getGuiGraphics());
+                event.getGuiGraphics().flush();
+                Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+                event.getGuiGraphics().flush();
             } finally {
-                FrameTimingHud.endFrame(event.getGuiGraphics());
+                FrameTimingHud.endFrame();
+                drawFrameTimingHud(event.getGuiGraphics());
             }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
@@ -228,9 +232,12 @@ public class Client {
                     renderOverlaySlotItems(event.getGuiGraphics(), document);
                 }
                 com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
-                Cursor.drawPseudoCursor(event.getGuiGraphics());
+                event.getGuiGraphics().flush();
+                Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
+                event.getGuiGraphics().flush();
             } finally {
-                FrameTimingHud.endFrame(event.getGuiGraphics());
+                FrameTimingHud.endFrame();
+                drawFrameTimingHud(event.getGuiGraphics());
             }
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.onRenderGuiPost();
         }
@@ -641,6 +648,20 @@ public class Client {
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
         drawDefaultFont(poseStack, text, text.content, position);
+    }
+
+    /** Draws the frame-timing HUD overlay, if enabled. */
+    public static void drawFrameTimingHud(GuiGraphics guiGraphics) {
+        if (guiGraphics == null || !FrameTimingHud.isEnabled()) return;
+        String text = FrameTimingHud.frameStatsText();
+        if (text == null) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        int width = minecraft.font.width(text) + 8;
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0, 0, 1000);
+        guiGraphics.fill(2, 2, 2 + width, 16, 0xCC000000);
+        guiGraphics.drawString(minecraft.font, text, 6, 6, 0xFF00FF66, false);
+        guiGraphics.pose().popPose();
     }
 }
 

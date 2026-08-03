@@ -1,4 +1,4 @@
-package com.sighs.apricityui.world;
+package com.sighs.apricityui.forge;
 
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import net.minecraft.client.renderer.ShaderInstance;

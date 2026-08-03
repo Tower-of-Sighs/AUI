@@ -7,6 +7,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.AbstractTexture;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.ResourceManager;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -519,8 +520,10 @@ public class Image {
         int textureId = TextureUtil.generateTextureId();
         TextureUtil.prepareImage(textureId, image.getWidth(), image.getHeight());
         image.upload(0, 0, 0, false);
+        com.sighs.apricityui.spi.AuiResourceService resources = com.sighs.apricityui.spi.AuiServices.resources();
+        com.sighs.apricityui.spi.TextureKey key = resources.locationOf(cacheKey);
         Minecraft.getInstance().getTextureManager().register(
-                com.sighs.apricityui.spi.AuiServices.resources().locationOf(cacheKey),
+                (ResourceLocation) resources.textureLocation(key),
                 new SimpleTextureWrapper(textureId)
         );
         return new TextureInfo(textureId, cacheKey, image.getWidth(), image.getHeight());

@@ -3,6 +3,7 @@ package com.sighs.apricityui.dev.devtools;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
@@ -10,7 +11,6 @@ import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.parser.Selector;
-import com.sighs.apricityui.screen.ApricityScreen;
 import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.element.AbstractText;
@@ -18,6 +18,7 @@ import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
+
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.ui.Tooltip;
@@ -28,7 +29,6 @@ import com.sighs.apricityui.editor.ore.OreEditor;
 import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
 import com.sighs.apricityui.loader.ClientLoader;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -1136,7 +1136,7 @@ public final class DevToolsController {
         }
         DevToolsCssSerializer.Result prepared = DevToolsCssSerializer.prepare(
                 document, original, target, ClientLoader.listFinalStaticResources(),
-                FMLEnvironment.production, saveDomTree);
+                AuiServices.client().isProduction(), saveDomTree);
         if (!prepared.success()) {
             showToast(prepared.message());
             return;
@@ -1646,8 +1646,6 @@ public final class DevToolsController {
         try {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft != null && minecraft.screen instanceof AuiLinkedScreen screen
-                    && isDebuggable(screen.getLinkedDocument())) return screen.getLinkedDocument();
-            if (minecraft != null && minecraft.screen instanceof ApricityScreen screen
                     && isDebuggable(screen.getLinkedDocument())) return screen.getLinkedDocument();
         } catch (RuntimeException | LinkageError ignored) {
         }

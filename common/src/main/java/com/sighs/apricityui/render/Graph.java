@@ -1,11 +1,11 @@
 package com.sighs.apricityui.render;
 import com.sighs.apricityui.util.MathUtil;
+import com.sighs.apricityui.spi.AuiServices;
+import com.sighs.apricityui.spi.MeshBuilder;
+import com.sighs.apricityui.spi.MeshFormat;
+import com.sighs.apricityui.spi.MeshMode;
 
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.Gradient;
 import org.joml.Matrix4f;
@@ -33,36 +33,35 @@ public class Graph {
         }
     }
 
-    public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color, float alphaMultiplier) {
+    public static void vtx(MeshBuilder mesh, Matrix4f mat, float x, float y, int color, float alphaMultiplier) {
         ensureBatchStarted();
-        int a = (int) (((color >> 24) & 0xFF) * alphaMultiplier);
-        int r = (color >> 16) & 0xFF;
-        int g = (color >> 8) & 0xFF;
-        int b = color & 0xFF;
-
-        buf.vertex(mat, x, y, 0f).color(r, g, b, a).endVertex();
+        // ensureBatchStarted 惰性创建 mesh 并 setMesh；调用方可能在 batch 首次
+        // 提交前就把 Base.getMesh()（当时为 null）快照成参数传入，这里回退到当前 mesh。
+        if (mesh == null) mesh = Base.getMesh();
+        if (mesh == null) return;
+        mesh.vertex(mat, x, y, color, alphaMultiplier);
         if (batchActive) batchHasVertices = true;
     }
 
-    public static void vtx(BufferBuilder buf, Matrix4f mat, float x, float y, int color) {
-        vtx(buf, mat, x, y, color, 1.0f);
+    public static void vtx(MeshBuilder mesh, Matrix4f mat, float x, float y, int color) {
+        vtx(mesh, mat, x, y, color, 1.0f);
     }
 
-    public static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int color) {
-        addRect(buf, mat, x0, y0, x1, y1, (x, y) -> color);
+    public static void addRect(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1, int color) {
+        addRect(mesh, mat, x0, y0, x1, y1, (x, y) -> color);
     }
 
-    private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, int cTL, int cBL, int cBR, int cTR) {
+    private static void addRect(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1, int cTL, int cBL, int cBR, int cTR) {
         if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
-        vtx(buf, mat, x0, y0, cTL);
-        vtx(buf, mat, x0, y1, cBL);
-        vtx(buf, mat, x1, y1, cBR);
-        vtx(buf, mat, x0, y0, cTL);
-        vtx(buf, mat, x1, y1, cBR);
-        vtx(buf, mat, x1, y0, cTR);
+        vtx(mesh, mat, x0, y0, cTL);
+        vtx(mesh, mat, x0, y1, cBL);
+        vtx(mesh, mat, x1, y1, cBR);
+        vtx(mesh, mat, x0, y0, cTL);
+        vtx(mesh, mat, x1, y1, cBR);
+        vtx(mesh, mat, x1, y0, cTR);
     }
 
-    private static void addRect(BufferBuilder buf, Matrix4f mat, float x0, float y0, float x1, float y1, ColorResolver colorRes) {
+    private static void addRect(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1, ColorResolver colorRes) {
         if (Math.abs(x1 - x0) < 0.001f || Math.abs(y1 - y0) < 0.001f) return;
 
         int cTL = colorRes.resolve(x0, y0);
@@ -70,24 +69,16 @@ public class Graph {
         int cBR = colorRes.resolve(x1, y1);
         int cTR = colorRes.resolve(x1, y0);
 
-        vtx(buf, mat, x0, y0, cTL);
-        vtx(buf, mat, x0, y1, cBL);
-        vtx(buf, mat, x1, y1, cBR);
-        vtx(buf, mat, x0, y0, cTL);
-        vtx(buf, mat, x1, y1, cBR);
-        vtx(buf, mat, x1, y0, cTR);
+        vtx(mesh, mat, x0, y0, cTL);
+        vtx(mesh, mat, x0, y1, cBL);
+        vtx(mesh, mat, x1, y1, cBR);
+        vtx(mesh, mat, x0, y0, cTL);
+        vtx(mesh, mat, x1, y1, cBR);
+        vtx(mesh, mat, x1, y0, cTR);
     }
 
-    private static void prepare(BufferBuilder buf) {
-        GlStateManager._enableBlend();
-        GlStateManager._blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
-        );
+    private static void prepare(MeshBuilder mesh) {
         Base.setPositionColorShader();
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION_COLOR);
     }
 
     public static void beginBatch() {
@@ -111,8 +102,8 @@ public class Graph {
     public static void endBatch() {
         if (!batchActive) return;
         if (batchStarted) {
-            BufferBuilder buf = Base.getBuffer();
-            BufferUploader.drawWithShader(buf.end());
+            MeshBuilder mesh = Base.getMesh();
+            if (mesh != null) mesh.submit();
             if (!batchDepthTest) {
                 if (Base.isDepthTestEnabled()) {
                     GlStateManager._enableDepthTest();
@@ -133,38 +124,40 @@ public class Graph {
 
     private static void ensureBatchStarted() {
         if (!batchActive || batchStarted) return;
-        BufferBuilder buf = Base.getBuffer();
+        MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.TRIANGLES, MeshFormat.POSITION_COLOR);
+        Base.setMesh(mesh);
         Base.beginRendering();
         if (!batchDepthTest) {
             GlStateManager._disableDepthTest();
             GlStateManager._depthMask(false);
         }
-        prepare(buf);
+        prepare(mesh);
         batchStarted = true;
     }
 
     /**
      * Emits vertices either into the active batch (when batching) or as a single
-     * immediate-mode draw. The emitter obtains the current buffer via
-     * {@link Base#getBuffer()}.
+     * immediate-mode draw. The emitter obtains the current mesh via
+     * {@link Base#getMesh()}.
      */
     private static void withBatchOrImmediate(Runnable emitVertices) {
         if (batchActive) {
             emitVertices.run();
             return;
         }
-        BufferBuilder buf = Base.getBuffer();
+        MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.TRIANGLES, MeshFormat.POSITION_COLOR);
+        Base.setMesh(mesh);
         Base.beginRendering();
-        prepare(buf);
+        prepare(mesh);
         emitVertices.run();
-        BufferUploader.drawWithShader(buf.end());
+        mesh.submit();
         Base.finishRendering();
     }
 
     public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
         withBatchOrImmediate(() -> {
-            BufferBuilder buf = Base.getBuffer();
-            addRect(buf, matrix, x0, y0, x1, y1, color);
+            MeshBuilder mesh = Base.getMesh();
+            addRect(mesh, matrix, x0, y0, x1, y1, color);
         });
     }
 
@@ -179,8 +172,8 @@ public class Graph {
     public static void drawGradientRect(Matrix4f mat, float x, float y, float w, float h, Gradient gradient) {
         if (gradient == null || w <= 0 || h <= 0) return;
         withBatchOrImmediate(() -> {
-            BufferBuilder buf = Base.getBuffer();
-            addLinearGradientVertices(buf, mat, x, y, w, h, gradient);
+            MeshBuilder mesh = Base.getMesh();
+            addLinearGradientVertices(mesh, mat, x, y, w, h, gradient);
         });
     }
 
@@ -219,8 +212,8 @@ public class Graph {
         final int after = afterColor;
 
         withBatchOrImmediate(() -> {
-            BufferBuilder buf = Base.getBuffer();
-            addAxisAlignedHardStopVertices(buf, mat, x, y, w, h, vertical, stopValue, before, after);
+            MeshBuilder mesh = Base.getMesh();
+            addAxisAlignedHardStopVertices(mesh, mat, x, y, w, h, vertical, stopValue, before, after);
         });
         return true;
     }
@@ -234,13 +227,13 @@ public class Graph {
         if (!vertical && !horizontal) return false;
 
         withBatchOrImmediate(() -> {
-            BufferBuilder buf = Base.getBuffer();
-            addAxisAlignedStopGradientVertices(buf, mat, x, y, w, h, gradient, vertical, angle);
+            MeshBuilder mesh = Base.getMesh();
+            addAxisAlignedStopGradientVertices(mesh, mat, x, y, w, h, gradient, vertical, angle);
         });
         return true;
     }
 
-    private static void addAxisAlignedStopGradientVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+    private static void addAxisAlignedStopGradientVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,
                                                           Gradient gradient, boolean vertical, float angle) {
         float axis = vertical ? h : w;
         boolean reverse = Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f;
@@ -263,33 +256,33 @@ public class Graph {
                 colorFrom = colorTo;
                 colorTo = tmp;
             }
-            addAxisAlignedSegment(buf, mat, x, y, w, h, vertical, from, to, colorFrom, colorTo);
+            addAxisAlignedSegment(mesh, mat, x, y, w, h, vertical, from, to, colorFrom, colorTo);
         }
     }
 
-    private static void addAxisAlignedSegment(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+    private static void addAxisAlignedSegment(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,
                                               boolean vertical, float from, float to, int colorFrom, int colorTo) {
         if (to - from <= 0.001f) return;
         if (colorFrom == colorTo) {
-            if (vertical) addRect(buf, mat, x, y + from, x + w, y + to, colorFrom);
-            else addRect(buf, mat, x + from, y, x + to, y + h, colorFrom);
+            if (vertical) addRect(mesh, mat, x, y + from, x + w, y + to, colorFrom);
+            else addRect(mesh, mat, x + from, y, x + to, y + h, colorFrom);
             return;
         }
         ColorResolver colorRes = vertical
                 ? (px, py) -> (int) Color.mixColors(colorFrom, colorTo, (py - (y + from)) / Math.max(1f, to - from))
                 : (px, py) -> (int) Color.mixColors(colorFrom, colorTo, (px - (x + from)) / Math.max(1f, to - from));
-        if (vertical) addRect(buf, mat, x, y + from, x + w, y + to, colorRes);
-        else addRect(buf, mat, x + from, y, x + to, y + h, colorRes);
+        if (vertical) addRect(mesh, mat, x, y + from, x + w, y + to, colorRes);
+        else addRect(mesh, mat, x + from, y, x + to, y + h, colorRes);
     }
 
-    private static void addAxisAlignedHardStopVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+    private static void addAxisAlignedHardStopVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,
                                                        boolean vertical, float stop, int beforeColor, int afterColor) {
         if (vertical) {
-            if (stop > 0.001f) addRect(buf, mat, x, y, x + w, y + stop, beforeColor);
-            if (h - stop > 0.001f) addRect(buf, mat, x, y + stop, x + w, y + h, afterColor);
+            if (stop > 0.001f) addRect(mesh, mat, x, y, x + w, y + stop, beforeColor);
+            if (h - stop > 0.001f) addRect(mesh, mat, x, y + stop, x + w, y + h, afterColor);
         } else {
-            if (stop > 0.001f) addRect(buf, mat, x, y, x + stop, y + h, beforeColor);
-            if (w - stop > 0.001f) addRect(buf, mat, x + stop, y, x + w, y + h, afterColor);
+            if (stop > 0.001f) addRect(mesh, mat, x, y, x + stop, y + h, beforeColor);
+            if (w - stop > 0.001f) addRect(mesh, mat, x + stop, y, x + w, y + h, afterColor);
         }
     }
 
@@ -301,28 +294,28 @@ public class Graph {
      * the rectangle against each stop interval preserves the same result with
      * O(number of stops) vertices, including diagonal and hard-stop gradients.
      */
-    private static void addLinearGradientVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
+    private static void addLinearGradientVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h,
                                                   Gradient gradient) {
         List<Gradient.Stop> stops = gradient.stops();
         if (stops.isEmpty()) return;
         if (stops.size() == 1) {
-            addRect(buf, mat, x, y, x + w, y + h, stops.get(0).color);
+            addRect(mesh, mat, x, y, x + w, y + h, stops.get(0).color);
             return;
         }
 
         GradientVertex[] rectangle = gradientRectangle(x, y, w, h, gradient.angle());
         Gradient.Stop first = stops.get(0);
         float firstPosition = MathUtil.clamp01(first.position);
-        addGradientBand(buf, mat, rectangle, 0f, firstPosition, first.color, first.color);
+        addGradientBand(mesh, mat, rectangle, 0f, firstPosition, first.color, first.color);
 
         for (int i = 0; i < stops.size() - 1; i++) {
             Gradient.Stop start = stops.get(i);
             Gradient.Stop end = stops.get(i + 1);
-            addGradientBand(buf, mat, rectangle, MathUtil.clamp01(start.position), MathUtil.clamp01(end.position), start.color, end.color);
+            addGradientBand(mesh, mat, rectangle, MathUtil.clamp01(start.position), MathUtil.clamp01(end.position), start.color, end.color);
         }
 
         Gradient.Stop last = stops.get(stops.size() - 1);
-        addGradientBand(buf, mat, rectangle, MathUtil.clamp01(last.position), 1f, last.color, last.color);
+        addGradientBand(mesh, mat, rectangle, MathUtil.clamp01(last.position), 1f, last.color, last.color);
     }
 
     private static GradientVertex[] gradientRectangle(float x, float y, float w, float h, float angle) {
@@ -348,7 +341,7 @@ public class Graph {
         return new GradientVertex(x, y, MathUtil.clamp01(t));
     }
 
-    private static void addGradientBand(BufferBuilder buf, Matrix4f mat, GradientVertex[] rectangle,
+    private static void addGradientBand(MeshBuilder mesh, Matrix4f mat, GradientVertex[] rectangle,
                                         float from, float to, int fromColor, int toColor) {
         if (to - from <= 0.0001f) return;
         List<GradientVertex> polygon = new ArrayList<>(6);
@@ -359,7 +352,7 @@ public class Graph {
 
         GradientVertex anchor = polygon.get(0);
         for (int i = 1; i < polygon.size() - 1; i++) {
-            addGradientTriangle(buf, mat, anchor, polygon.get(i), polygon.get(i + 1), from, to, fromColor, toColor);
+            addGradientTriangle(mesh, mat, anchor, polygon.get(i), polygon.get(i + 1), from, to, fromColor, toColor);
         }
     }
 
@@ -386,12 +379,12 @@ public class Graph {
         return clipped;
     }
 
-    private static void addGradientTriangle(BufferBuilder buf, Matrix4f mat,
+    private static void addGradientTriangle(MeshBuilder mesh, Matrix4f mat,
                                             GradientVertex a, GradientVertex b, GradientVertex c,
                                             float from, float to, int fromColor, int toColor) {
-        vtx(buf, mat, a.x, a.y, gradientBandColor(a.t, from, to, fromColor, toColor));
-        vtx(buf, mat, b.x, b.y, gradientBandColor(b.t, from, to, fromColor, toColor));
-        vtx(buf, mat, c.x, c.y, gradientBandColor(c.t, from, to, fromColor, toColor));
+        vtx(mesh, mat, a.x, a.y, gradientBandColor(a.t, from, to, fromColor, toColor));
+        vtx(mesh, mat, b.x, b.y, gradientBandColor(b.t, from, to, fromColor, toColor));
+        vtx(mesh, mat, c.x, c.y, gradientBandColor(c.t, from, to, fromColor, toColor));
     }
 
     private static int gradientBandColor(float t, float from, float to, int fromColor, int toColor) {
@@ -404,13 +397,13 @@ public class Graph {
 
     private static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, ColorResolver colorRes) {
         withBatchOrImmediate(() -> {
-            BufferBuilder buf = Base.getBuffer();
-            addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, colorRes);
+            MeshBuilder mesh = Base.getMesh();
+            addUnifiedRoundedRectVertices(mesh, mat, x, y, w, h, radii, colorRes);
         });
     }
 
-    public static void addUnifiedRoundedRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, int color) {
-        addUnifiedRoundedRectVertices(buf, mat, x, y, width, height, radii, (px, py) -> color);
+    public static void addUnifiedRoundedRectVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height, float[] radii, int color) {
+        addUnifiedRoundedRectVertices(mesh, mat, x, y, width, height, radii, (px, py) -> color);
     }
 
     /**
@@ -429,46 +422,46 @@ public class Graph {
         return expanded;
     }
 
-    public static void addUnifiedRoundedRectVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, ColorResolver colorRes) {
+    public static void addUnifiedRoundedRectVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height, float[] radii, ColorResolver colorRes) {
         float[] r = expandRadii(radii);
         float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
         float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
 
-        if (tlH > 0 && tlV > 0) addCorner(buf, mat, x + tlH, y + tlV, tlH, tlV, SEGMENTS * 2, colorRes);
-        if (trH > 0 && trV > 0) addCorner(buf, mat, x + width - trH, y + trV, trH, trV, SEGMENTS * 3, colorRes);
-        if (brH > 0 && brV > 0) addCorner(buf, mat, x + width - brH, y + height - brV, brH, brV, 0, colorRes);
-        if (blH > 0 && blV > 0) addCorner(buf, mat, x + blH, y + height - blV, blH, blV, SEGMENTS, colorRes);
+        if (tlH > 0 && tlV > 0) addCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, SEGMENTS * 2, colorRes);
+        if (trH > 0 && trV > 0) addCorner(mesh, mat, x + width - trH, y + trV, trH, trV, SEGMENTS * 3, colorRes);
+        if (brH > 0 && brV > 0) addCorner(mesh, mat, x + width - brH, y + height - brV, brH, brV, 0, colorRes);
+        if (blH > 0 && blV > 0) addCorner(mesh, mat, x + blH, y + height - blV, blH, blV, SEGMENTS, colorRes);
 
         float maxTopR = Math.max(tlV, trV), maxBottomR = Math.max(blV, brV);
 
         // 中间大矩形
-        addRect(buf, mat, x + tlH, y, x + width - trH, y + maxTopR, colorRes);
-        addRect(buf, mat, x + blH, y + height - maxBottomR, x + width - brH, y + height, colorRes);
+        addRect(mesh, mat, x + tlH, y, x + width - trH, y + maxTopR, colorRes);
+        addRect(mesh, mat, x + blH, y + height - maxBottomR, x + width - brH, y + height, colorRes);
 
         float midY1 = y + maxTopR, midY2 = y + height - maxBottomR;
-        if (midY1 < midY2) addRect(buf, mat, x, midY1, x + width, midY2, colorRes);
+        if (midY1 < midY2) addRect(mesh, mat, x, midY1, x + width, midY2, colorRes);
 
         // 填充角落留下的空隙
-        if (maxTopR > tlV) addRect(buf, mat, x, y + tlV, x + tlH, y + maxTopR, colorRes);
-        if (maxTopR > trV) addRect(buf, mat, x + width - trH, y + trV, x + width, y + maxTopR, colorRes);
-        if (maxBottomR > blV) addRect(buf, mat, x, y + height - maxBottomR, x + blH, y + height - blV, colorRes);
+        if (maxTopR > tlV) addRect(mesh, mat, x, y + tlV, x + tlH, y + maxTopR, colorRes);
+        if (maxTopR > trV) addRect(mesh, mat, x + width - trH, y + trV, x + width, y + maxTopR, colorRes);
+        if (maxBottomR > blV) addRect(mesh, mat, x, y + height - maxBottomR, x + blH, y + height - blV, colorRes);
         if (maxBottomR > brV)
-            addRect(buf, mat, x + width - brH, y + height - maxBottomR, x + width, y + height - brV, colorRes);
+            addRect(mesh, mat, x + width - brH, y + height - maxBottomR, x + width, y + height - brV, colorRes);
     }
 
-    public static void addEllipseGeometry(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, int color) {
+    public static void addEllipseGeometry(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rx, float ry, int color) {
         for (int i = 0; i < TOTAL_STEPS; i++) {
-            vtx(buf, mat, cx, cy, color);
-            vtx(buf, mat, cx + COS_TABLE[i] * rx, cy + SIN_TABLE[i] * ry, color);
-            vtx(buf, mat, cx + COS_TABLE[i + 1] * rx, cy + SIN_TABLE[i + 1] * ry, color);
+            vtx(mesh, mat, cx, cy, color);
+            vtx(mesh, mat, cx + COS_TABLE[i] * rx, cy + SIN_TABLE[i] * ry, color);
+            vtx(mesh, mat, cx + COS_TABLE[i + 1] * rx, cy + SIN_TABLE[i + 1] * ry, color);
         }
     }
 
-    private static void addCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float r, int startIndex, int color) {
-        addCorner(buf, mat, cx, cy, r, r, startIndex, (px, py) -> color);
+    private static void addCorner(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float r, int startIndex, int color) {
+        addCorner(mesh, mat, cx, cy, r, r, startIndex, (px, py) -> color);
     }
 
-    private static void addCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, int startIndex, ColorResolver colorRes) {
+    private static void addCorner(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rx, float ry, int startIndex, ColorResolver colorRes) {
         // 圆心的颜色
         int centerColor = colorRes.resolve(cx, cy);
 
@@ -487,38 +480,38 @@ public class Graph {
             int c0 = colorRes.resolve(x0, y0);
             int c1 = colorRes.resolve(x1, y1);
 
-            vtx(buf, mat, cx, cy, centerColor);
-            vtx(buf, mat, x0, y0, c0);
-            vtx(buf, mat, x1, y1, c1);
+            vtx(mesh, mat, cx, cy, centerColor);
+            vtx(mesh, mat, x0, y0, c0);
+            vtx(mesh, mat, x1, y1, c1);
         }
     }
 
     public static void drawUnifiedShadow(Matrix4f mat, float x, float y, float w, float h, float[] radii, float blur, int innerColor, int outerColor) {
         withBatchOrImmediate(() -> {
-            BufferBuilder buf = Base.getBuffer();
-            addUnifiedRoundedRectVertices(buf, mat, x, y, w, h, radii, innerColor);
-            addUnifiedShadowRingVertices(buf, mat, x, y, w, h, radii, blur, innerColor, outerColor);
+            MeshBuilder mesh = Base.getMesh();
+            addUnifiedRoundedRectVertices(mesh, mat, x, y, w, h, radii, innerColor);
+            addUnifiedShadowRingVertices(mesh, mat, x, y, w, h, radii, blur, innerColor, outerColor);
         });
     }
 
-    public static void addUnifiedShadowRingVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float width, float height, float[] radii, float blur, int inC, int outC) {
+    public static void addUnifiedShadowRingVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height, float[] radii, float blur, int inC, int outC) {
         float[] r = expandRadii(radii);
         float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
         float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
 
-        addRect(buf, mat, x + tlH, y - blur, x + width - trH, y, outC, inC, inC, outC);
-        addRect(buf, mat, x + blH, y + height, x + width - brH, y + height + blur, inC, outC, outC, inC);
-        addRect(buf, mat, x - blur, y + tlV, x, y + height - blV, outC, outC, inC, inC);
-        addRect(buf, mat, x + width, y + trV, x + width + blur, y + height - brV, inC, inC, outC, outC);
+        addRect(mesh, mat, x + tlH, y - blur, x + width - trH, y, outC, inC, inC, outC);
+        addRect(mesh, mat, x + blH, y + height, x + width - brH, y + height + blur, inC, outC, outC, inC);
+        addRect(mesh, mat, x - blur, y + tlV, x, y + height - blV, outC, outC, inC, inC);
+        addRect(mesh, mat, x + width, y + trV, x + width + blur, y + height - brV, inC, inC, outC, outC);
 
-        if ((tlH > 0 && tlV > 0) || blur > 0) addCornerShadow(buf, mat, x + tlH, y + tlV, tlH, tlV, tlH + blur, tlV + blur, SEGMENTS * 2, inC, outC);
+        if ((tlH > 0 && tlV > 0) || blur > 0) addCornerShadow(mesh, mat, x + tlH, y + tlV, tlH, tlV, tlH + blur, tlV + blur, SEGMENTS * 2, inC, outC);
         if ((trH > 0 && trV > 0) || blur > 0)
-            addCornerShadow(buf, mat, x + width - trH, y + trV, trH, trV, trH + blur, trV + blur, SEGMENTS * 3, inC, outC);
-        if ((brH > 0 && brV > 0) || blur > 0) addCornerShadow(buf, mat, x + width - brH, y + height - brV, brH, brV, brH + blur, brV + blur, 0, inC, outC);
-        if ((blH > 0 && blV > 0) || blur > 0) addCornerShadow(buf, mat, x + blH, y + height - blV, blH, blV, blH + blur, blV + blur, SEGMENTS, inC, outC);
+            addCornerShadow(mesh, mat, x + width - trH, y + trV, trH, trV, trH + blur, trV + blur, SEGMENTS * 3, inC, outC);
+        if ((brH > 0 && brV > 0) || blur > 0) addCornerShadow(mesh, mat, x + width - brH, y + height - brV, brH, brV, brH + blur, brV + blur, 0, inC, outC);
+        if ((blH > 0 && blV > 0) || blur > 0) addCornerShadow(mesh, mat, x + blH, y + height - blV, blH, blV, blH + blur, blV + blur, SEGMENTS, inC, outC);
     }
 
-    private static void addCornerShadow(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rInX, float rInY, float rOutX, float rOutY, int startIndex, int inC, int outC) {
+    private static void addCornerShadow(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rInX, float rInY, float rOutX, float rOutY, int startIndex, int inC, int outC) {
         for (int i = 0; i < SEGMENTS; i++) {
             int idx0 = startIndex + i;
             int idx1 = startIndex + i + 1;
@@ -532,53 +525,53 @@ public class Graph {
             float ox0 = cx + c0 * rOutX, oy0 = cy + s0 * rOutY;
             float ox1 = cx + c1 * rOutX, oy1 = cy + s1 * rOutY;
 
-            vtx(buf, mat, ix0, iy0, inC);
-            vtx(buf, mat, ox0, oy0, outC);
-            vtx(buf, mat, ix1, iy1, inC);
-            vtx(buf, mat, ox0, oy0, outC);
-            vtx(buf, mat, ox1, oy1, outC);
-            vtx(buf, mat, ix1, iy1, inC);
+            vtx(mesh, mat, ix0, iy0, inC);
+            vtx(mesh, mat, ox0, oy0, outC);
+            vtx(mesh, mat, ix1, iy1, inC);
+            vtx(mesh, mat, ox0, oy0, outC);
+            vtx(mesh, mat, ox1, oy1, outC);
+            vtx(mesh, mat, ix1, iy1, inC);
         }
     }
 
     public static void drawComplexRoundedBorder(Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
         withBatchOrImmediate(() ->
-                addComplexRoundedBorderVertices(Base.getBuffer(), mat, x, y, w, h, radii, borders, colors));
+                addComplexRoundedBorderVertices(Base.getMesh(), mat, x, y, w, h, radii, borders, colors));
     }
 
-    private static void addComplexRoundedBorderVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
+    private static void addComplexRoundedBorderVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float w, float h, float[] radii, float[] borders, int[] colors) {
         float tW = borders[0], rW = borders[1], bW = borders[2], lW = borders[3];
         int tC = colors[0], rC = colors[1], bC = colors[2], lC = colors[3];
         float[] r = expandRadii(radii);
         float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
         float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
 
-        if (tW > 0) addRect(buf, mat, x + tlH, y, x + w - trH, y + tW, tC);
-        if (bW > 0) addRect(buf, mat, x + blH, y + h - bW, x + w - brH, y + h, bC);
-        if (lW > 0) addRect(buf, mat, x, y + tlV, x + lW, y + h - blV, lC);
-        if (rW > 0) addRect(buf, mat, x + w - rW, y + trV, x + w, y + h - brV, rC);
+        if (tW > 0) addRect(mesh, mat, x + tlH, y, x + w - trH, y + tW, tC);
+        if (bW > 0) addRect(mesh, mat, x + blH, y + h - bW, x + w - brH, y + h, bC);
+        if (lW > 0) addRect(mesh, mat, x, y + tlV, x + lW, y + h - blV, lC);
+        if (rW > 0) addRect(mesh, mat, x + w - rW, y + trV, x + w, y + h - brV, rC);
 
         if ((tlH > 0 && tlV > 0) || tW > 0 || lW > 0)
-            addComplexCorner(buf, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+            addComplexCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
         if ((trH > 0 && trV > 0) || tW > 0 || rW > 0)
-            addComplexCorner(buf, mat, x + w - trH, y + trV, trH, trV, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+            addComplexCorner(mesh, mat, x + w - trH, y + trV, trH, trV, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
         if ((brH > 0 && brV > 0) || rW > 0 || bW > 0)
-            addComplexCorner(buf, mat, x + w - brH, y + h - brV, brH, brV, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+            addComplexCorner(mesh, mat, x + w - brH, y + h - brV, brH, brV, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
         if ((blH > 0 && blV > 0) || bW > 0 || lW > 0)
-            addComplexCorner(buf, mat, x + blH, y + h - blV, blH, blV, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+            addComplexCorner(mesh, mat, x + blH, y + h - blV, blH, blV, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
     }
 
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {
         boolean blink = (System.currentTimeMillis() - lastBlinkTime) % 1000 < 500;
         if (blink) {
             withBatchOrImmediate(() -> {
-                BufferBuilder buf = Base.getBuffer();
-                addRect(buf, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
+                MeshBuilder mesh = Base.getMesh();
+                addRect(mesh, mat, x - 0.7f, y, x, y + height, color | 0xFF000000);
             });
         }
     }
 
-    private static void addComplexCorner(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rx, float ry, float thX, float thY, int startIndex, int cS, int cE) {
+    private static void addComplexCorner(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rx, float ry, float thX, float thY, int startIndex, int cS, int cE) {
         for (int i = 0; i < SEGMENTS; i++) {
             int idx1 = startIndex + i;
             int idx2 = startIndex + i + 1;
@@ -595,12 +588,12 @@ public class Graph {
             int color1 = lerpColor(cS, cE, t1);
             int color2 = lerpColor(cS, cE, t2);
 
-            vtx(buf, mat, cx + cos1 * rx, cy + sin1 * ry, color1);
-            vtx(buf, mat, cx + cos1 * inRx, cy + sin1 * inRy, color1);
-            vtx(buf, mat, cx + cos2 * inRx, cy + sin2 * inRy, color2);
-            vtx(buf, mat, cx + cos1 * rx, cy + sin1 * ry, color1);
-            vtx(buf, mat, cx + cos2 * inRx, cy + sin2 * inRy, color2);
-            vtx(buf, mat, cx + cos2 * rx, cy + sin2 * ry, color2);
+            vtx(mesh, mat, cx + cos1 * rx, cy + sin1 * ry, color1);
+            vtx(mesh, mat, cx + cos1 * inRx, cy + sin1 * inRy, color1);
+            vtx(mesh, mat, cx + cos2 * inRx, cy + sin2 * inRy, color2);
+            vtx(mesh, mat, cx + cos1 * rx, cy + sin1 * ry, color1);
+            vtx(mesh, mat, cx + cos2 * inRx, cy + sin2 * inRy, color2);
+            vtx(mesh, mat, cx + cos2 * rx, cy + sin2 * ry, color2);
         }
     }
 

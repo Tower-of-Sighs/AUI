@@ -1,4 +1,4 @@
-package com.sighs.apricityui.util;
+package com.sighs.apricityui.forge;
 
 import com.sighs.apricityui.ApricityUI;
 import net.minecraftforge.fml.ModList;

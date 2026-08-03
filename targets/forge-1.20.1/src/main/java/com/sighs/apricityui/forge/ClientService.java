@@ -2,15 +2,20 @@ package com.sighs.apricityui.forge;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.client.Client;
-import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.screen.ApricityScreen;
 import com.sighs.apricityui.spi.AuiClientService;
 import com.sighs.apricityui.style.Text;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.Minecraft;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
 
+import java.lang.annotation.Annotation;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Forge implementation of {@link AuiClientService}, delegating to the loader's
@@ -128,9 +133,9 @@ public final class ClientService implements AuiClientService {
     }
 
     @Override
-    public void drawPersistentScreenDocuments(GuiGraphics guiGraphics, Document excludedDocument) {
+    public void openScreen(String templatePath) {
         try {
-            Client.drawPersistentScreenDocuments(guiGraphics, excludedDocument);
+            Minecraft.getInstance().setScreen(new ApricityScreen(templatePath));
         } catch (RuntimeException | LinkageError ignored) {
         }
     }
@@ -141,6 +146,41 @@ public final class ClientService implements AuiClientService {
             return FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();
         } catch (RuntimeException | LinkageError ignored) {
             return Path.of("").toAbsolutePath().normalize();
+        }
+    }
+
+    @Override
+    public Path getConfigDirectory() {
+        try {
+            return FMLPaths.CONFIGDIR.get().toAbsolutePath().normalize();
+        } catch (RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    @Override
+    public boolean isProduction() {
+        return FMLEnvironment.production;
+    }
+
+    @Override
+    public void addScanPackage(String basePackage) {
+        ReflectionUtils.addScanPackage(basePackage);
+    }
+
+    @Override
+    public void addScanPackages(String... basePackages) {
+        ReflectionUtils.addScanPackages(basePackages);
+    }
+
+    @Override
+    public void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
+                                      Predicate<Map<String, Object>> annotationPredicate,
+                                      Consumer<Class<?>> consumer,
+                                      Runnable onFinished) {
+        try {
+            ReflectionUtils.findAnnotationClasses(annotationClass, annotationPredicate, consumer, onFinished);
+        } catch (RuntimeException | LinkageError ignored) {
         }
     }
 }

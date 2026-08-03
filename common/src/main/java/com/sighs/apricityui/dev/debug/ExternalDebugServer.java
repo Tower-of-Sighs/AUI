@@ -8,7 +8,6 @@ import com.google.gson.JsonObject;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.spi.AuiServices;
 import net.minecraft.client.Minecraft;
-import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -175,7 +174,7 @@ public final class ExternalDebugServer {
         try {
             return AuiServices.config().remoteDebug();
         } catch (IllegalStateException unavailableConfig) {
-            return !FMLEnvironment.production;
+            return !AuiServices.client().isProduction();
         }
     }
 

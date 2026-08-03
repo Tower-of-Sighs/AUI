@@ -1,10 +1,14 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.spi.AuiServices;
+import com.sighs.apricityui.spi.FboHandle;
+import com.sighs.apricityui.spi.MeshBuilder;
+import com.sighs.apricityui.spi.MeshFormat;
+import com.sighs.apricityui.spi.MeshMode;
 import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
@@ -120,8 +124,8 @@ public class Mask {
     /** Initializes the stencil buffer the first time a stencil mask is pushed. */
     private static void beginStencilIfNeeded() {
         if (depth == 0) {
-            RenderTarget currentTarget = FilterRenderer.getCurrentTarget();
-            currentTarget.enableStencil();
+            FboHandle currentTarget = FilterRenderer.getCurrentTarget();
+            AuiServices.render().enableStencil(currentTarget);
 
             GL11.glEnable(GL11.GL_STENCIL_TEST);
             GL11.glStencilMask(0xFF);
@@ -204,14 +208,11 @@ public class Mask {
     }
 
     private static void drawToStencil(Matrix4f matrix, float x, float y, float width, float height, float[] radii) {
-        Tesselator tess = Tesselator.getInstance();
-        BufferBuilder buf = tess.getBuilder();
-
+        MeshBuilder mesh = com.sighs.apricityui.spi.AuiServices.render().beginMesh(MeshMode.TRIANGLES, MeshFormat.POSITION);
+        Base.setMesh(mesh);
         Base.setPositionColorShader();
-
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
-        Graph.addUnifiedRoundedRectVertices(buf, matrix, x, y, width, height, radii, 0xFFFFFFFF);
-        tess.end();
+        Graph.addUnifiedRoundedRectVertices(mesh, matrix, x, y, width, height, radii, 0xFFFFFFFF);
+        mesh.submit();
     }
 
     private static StencilDepthState setupStencilStatePush() {
@@ -338,14 +339,11 @@ public class Mask {
     }
 
     private static void drawClipToStencil(Matrix4f matrix, float x, float y, float width, float height, String clipPath) {
-        Tesselator tess = Tesselator.getInstance();
-        BufferBuilder buf = tess.getBuilder();
-
+        MeshBuilder mesh = com.sighs.apricityui.spi.AuiServices.render().beginMesh(MeshMode.TRIANGLES, MeshFormat.POSITION);
+        Base.setMesh(mesh);
         Base.setPositionColorShader();
-
-        buf.begin(VertexFormat.Mode.TRIANGLES, DefaultVertexFormat.POSITION);
-        ClipPath.drawToStencil(buf, matrix, x, y, width, height, clipPath);
-        tess.end();
+        ClipPath.drawToStencil(matrix, x, y, width, height, clipPath);
+        mesh.submit();
     }
 
     public static void enableScissor(double x, double y, double width, double height) {

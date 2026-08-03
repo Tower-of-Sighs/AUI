@@ -11,7 +11,6 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.layout.Position;
-import net.minecraft.client.Minecraft;
 import org.lwjgl.glfw.GLFW;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
@@ -397,16 +396,11 @@ public class Operation {
     }
 
     public static String getClipboardText() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft == null || minecraft.keyboardHandler == null) return "";
-        String text = minecraft.keyboardHandler.getClipboard();
-        return text == null ? "" : text;
+        return Base.getClipboardText();
     }
 
     public static void setClipboardText(String text) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft == null || minecraft.keyboardHandler == null) return;
-        minecraft.keyboardHandler.setClipboard(text == null ? "" : text);
+        Base.setClipboardText(text);
     }
 
     public static boolean isKeyPressed(String key) {

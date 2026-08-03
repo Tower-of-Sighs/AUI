@@ -7,7 +7,6 @@ import com.sighs.apricityui.network.ApricityNetwork;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
-import com.sighs.apricityui.world.ShaderRegistry;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.IEventBus;

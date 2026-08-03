@@ -13,7 +13,6 @@ import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.HashMap;
@@ -139,14 +138,7 @@ public class Cursor {
         return "default";
     }
 
-    public static void drawPseudoCursor(GuiGraphics guiGraphics) {
-        if (guiGraphics == null) return;
-        refreshFromDocuments();
-        guiGraphics.flush();
-        drawPseudoCursor(guiGraphics.pose());
-        guiGraphics.flush();
-    }
-
+    /** Flushes and draws the pseudo cursor. Loaders call this from their GUI render pass. */
     public static void drawPseudoCursor(PoseStack poseStack) {
         if (poseStack == null || pseudoCursorSpec == null) return;
 

@@ -1,8 +1,6 @@
 package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.spi.AuiServices;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphics;
 
 import java.util.Arrays;
 import java.util.Locale;
@@ -41,7 +39,7 @@ public final class FrameTimingHud {
         pushSample(elapsedNs);
     }
 
-    public static void endFrame(GuiGraphics guiGraphics) {
+    public static void endFrame() {
         if (!isEnabled()) {
             clear();
             return;
@@ -54,7 +52,6 @@ public final class FrameTimingHud {
             frameElapsedNs = 0L;
             RenderBatchStats.endFrame();
         }
-        draw(guiGraphics);
     }
 
     private static void pushSample(long elapsedNs) {
@@ -65,10 +62,9 @@ public final class FrameTimingHud {
         }
     }
 
-    public static void draw(GuiGraphics guiGraphics) {
-        if (!isEnabled()) return;
-        if (guiGraphics == null) return;
-        if (sampleSize == 0) return;
+    /** Returns the formatted frame-timing stats line, or {@code null} when empty. */
+    public static String frameStatsText() {
+        if (sampleSize == 0) return null;
 
         long min = Long.MAX_VALUE;
         long max = 0L;
@@ -80,10 +76,10 @@ public final class FrameTimingHud {
             max = Math.max(max, value);
             sum += value;
         }
-        if (min == Long.MAX_VALUE) return;
+        if (min == Long.MAX_VALUE) return null;
 
         double avg = (double) sum / sampleSize;
-        String text = String.format(
+        return String.format(
                 Locale.ROOT,
                 "max %.2f ms  min %.2f ms  avg %.2f ms  g %d img %d imm %d",
                 toMillis(max),
@@ -93,13 +89,6 @@ public final class FrameTimingHud {
                 RenderBatchStats.lastImageFlushes(),
                 RenderBatchStats.lastImmediateImageFlushes()
         );
-        Minecraft minecraft = Minecraft.getInstance();
-        int width = minecraft.font.width(text) + 8;
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate(0, 0, 1000);
-        guiGraphics.fill(2, 2, 2 + width, 16, 0xCC000000);
-        guiGraphics.drawString(minecraft.font, text, 6, 6, 0xFF00FF66, false);
-        guiGraphics.pose().popPose();
     }
 
     private static double toMillis(long nanos) {
@@ -110,7 +99,7 @@ public final class FrameTimingHud {
         return nanos / 1_000_000.0d;
     }
 
-    private static boolean isEnabled() {
+    public static boolean isEnabled() {
         try {
             return AuiServices.config().frameTimingHud();
         } catch (IllegalStateException ignored) {

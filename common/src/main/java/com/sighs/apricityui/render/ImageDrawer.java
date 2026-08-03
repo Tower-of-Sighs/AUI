@@ -1,23 +1,20 @@
 package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.spi.AuiServices;
+import com.sighs.apricityui.spi.RenderHandle;
+import com.sighs.apricityui.spi.TextureKey;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Style;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
 
 import java.util.Locale;
@@ -25,18 +22,18 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class ImageDrawer {
-    private static final Map<RenderKey, RenderType> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
+    private static final Map<RenderKey, RenderHandle> RENDER_TYPE_CACHE = new ConcurrentHashMap<>();
     private static final int PLACEHOLDER_COLOR = 0x33404040;
     // Empty radii array for rectangular mask clipping.
     public static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
-    private static RenderType batchRenderType = null;
-    private static MultiBufferSource.BufferSource batchBufferSource = null;
+    private static RenderHandle batchRenderHandle = null;
+    private static Object textureBatch = null;
 
-    private static RenderType getRenderType(ResourceLocation texture, boolean blur) {
-        return getRenderType(texture, blur, true);
+    private static RenderHandle getRenderHandle(TextureKey texture, boolean blur) {
+        return getRenderHandle(texture, blur, true);
     }
 
-    private static RenderType getRenderType(ResourceLocation texture, boolean blur, boolean depthTest) {
+    private static RenderHandle getRenderHandle(TextureKey texture, boolean blur, boolean depthTest) {
         depthTest = depthTest && Base.isDepthTestEnabled();
         return RENDER_TYPE_CACHE.computeIfAbsent(
                 new RenderKey(texture, blur, depthTest),
@@ -44,12 +41,12 @@ public class ImageDrawer {
         );
     }
 
-    public static void draw(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, boolean blur) {
+    public static void draw(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, boolean blur) {
         if (texture == null) return;
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, true);
     }
 
-    public static void drawWithUvWindow(PoseStack poseStack, ResourceLocation texture,
+    public static void drawWithUvWindow(PoseStack poseStack, TextureKey texture,
                                         float x, float y, float width, float height, boolean blur,
                                         int textureWidth, int textureHeight,
                                         float uTexel, float vTexel,
@@ -61,7 +58,7 @@ public class ImageDrawer {
                 textureWidth, textureHeight, blur, true);
     }
 
-    public static void drawOverlay(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, boolean blur) {
+    public static void drawOverlay(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, boolean blur) {
         if (texture == null) return;
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, false);
     }
@@ -100,7 +97,7 @@ public class ImageDrawer {
         }
 
         Image.ITexture texture = handle.texture();
-        ResourceLocation currentLocation = AuiServices.resources().locationOf(texture.getKey());
+        TextureKey currentLocation = AuiServices.resources().locationOf(texture.getKey());
         if (currentLocation == null) return;
         int textureWidth = texture.getWidth();
         int textureHeight = texture.getHeight();
@@ -230,11 +227,11 @@ public class ImageDrawer {
     }
 
     public static void flushBatch() {
-        if (batchRenderType == null || batchBufferSource == null) return;
-        batchBufferSource.endBatch(batchRenderType);
+        if (textureBatch == null || batchRenderHandle == null) return;
+        AuiServices.render().flushTextureBatch(textureBatch, batchRenderHandle);
         RenderBatchStats.recordImageFlush();
-        batchRenderType = null;
-        batchBufferSource = null;
+        batchRenderHandle = null;
+        textureBatch = null;
     }
 
     public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background bg) {
@@ -262,7 +259,7 @@ public class ImageDrawer {
         if (readyTexture == null) return;
         int tw = readyTexture.width();
         int th = readyTexture.height();
-        ResourceLocation loc = readyTexture.location();
+        TextureKey loc = readyTexture.location();
 
         float[] renderSize = resolveRenderSize(layer.size, width, height, tw, th);
         float renderW = renderSize[0];
@@ -466,7 +463,7 @@ public class ImageDrawer {
         if (readyTexture == null) return;
         int texW = readyTexture.width();
         int texH = readyTexture.height();
-        ResourceLocation loc = readyTexture.location();
+        TextureKey loc = readyTexture.location();
 
         int sT = bi.slice[0], sR = bi.slice[1], sB = bi.slice[2], sL = bi.slice[3];
         int bT = bi.width[0], bR = bi.width[1], bB = bi.width[2], bL = bi.width[3];
@@ -504,7 +501,7 @@ public class ImageDrawer {
         }
     }
 
-    private static void drawTiledPart(PoseStack poseStack, ResourceLocation loc,
+    private static void drawTiledPart(PoseStack poseStack, TextureKey loc,
                                       int dx, int dy, int dw, int dh,
                                       float sx, float sy, int sw, int sh,
                                       int texW, int texH, String repeatX, String repeatY) {
@@ -559,51 +556,40 @@ public class ImageDrawer {
         Image.ITexture texture = handle.texture();
         int textureWidth = texture.getWidth();
         int textureHeight = texture.getHeight();
-        ResourceLocation location = AuiServices.resources().locationOf(texture.getKey());
-        if (textureWidth <= 0 || textureHeight <= 0 || location == null) return null;
+        TextureKey key = AuiServices.resources().locationOf(texture.getKey());
+        if (textureWidth <= 0 || textureHeight <= 0 || key == null) return null;
         Base.resolveOffset(poseStack);
-        return new ReadyTexture(location, textureWidth, textureHeight);
+        return new ReadyTexture(key, textureWidth, textureHeight);
     }
 
-    private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
+    private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, int widthTexture, int heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
         innerBlit(poseStack, texture, x, y, width, height, uTexture, vTexture,
                 (float) widthTexture, (float) heightTexture, textureWidth, textureHeight, blur, depthTest);
     }
 
-    private static void innerBlit(PoseStack poseStack, ResourceLocation texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
+    private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
         Graph.endBatch();
-        RenderType renderType = getRenderType(texture, blur, depthTest);
-        if (batchRenderType == null || batchRenderType != renderType) {
+        RenderHandle renderHandle = getRenderHandle(texture, blur, depthTest);
+        if (batchRenderHandle != renderHandle) {
             flushBatch();
-            batchRenderType = renderType;
-            batchBufferSource = Minecraft.getInstance().renderBuffers().bufferSource();
+            batchRenderHandle = renderHandle;
+            textureBatch = AuiServices.render().beginTextureBatch(renderHandle);
         }
-        VertexConsumer vertexConsumer = batchBufferSource.getBuffer(renderType);
-        emitQuad(vertexConsumer, poseStack.last().pose(), x, y, width, height, uTexture, vTexture, widthTexture, heightTexture, textureWidth, textureHeight);
-    }
-
-    private static void emitQuad(VertexConsumer vertexConsumer, Matrix4f matrix,
-                                 float x, float y, float width, float height,
-                                 float uTexture, float vTexture, float widthTexture, float heightTexture,
-                                 int textureWidth, int textureHeight) {
         float minU = uTexture / (float) textureWidth;
         float maxU = (uTexture + widthTexture) / (float) textureWidth;
         float minV = vTexture / (float) textureHeight;
         float maxV = (vTexture + heightTexture) / (float) textureHeight;
-
-        vertexConsumer.vertex(matrix, x, y + height, 0.0F).color(255, 255, 255, 255).uv(minU, maxV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x + width, y + height, 0.0F).color(255, 255, 255, 255).uv(maxU, maxV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x + width, y, 0.0F).color(255, 255, 255, 255).uv(maxU, minV).uv2(0xF000F0).endVertex();
-        vertexConsumer.vertex(matrix, x, y, 0.0F).color(255, 255, 255, 255).uv(minU, minV).uv2(0xF000F0).endVertex();
+        AuiServices.render().emitTextureQuad(textureBatch, poseStack.last().pose(),
+                x, y, width, height, minU, minV, maxU, maxV);
     }
 
-    private record ReadyTexture(ResourceLocation location, int width, int height) {
+    private record ReadyTexture(TextureKey location, int width, int height) {
     }
 
     public record ObjectFitRect(float x, float y, float width, float height) {
     }
 
-    private record RenderKey(ResourceLocation location, boolean blur, boolean depthTest) {
+    private record RenderKey(TextureKey location, boolean blur, boolean depthTest) {
     }
 
     private record RepeatMode(boolean repeatX, boolean repeatY) {

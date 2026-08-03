@@ -83,9 +83,11 @@ public class LocalStorage extends Storage {
         synchronized (LocalStorage.class) {
             if (localStorageFilePath != null) return localStorageFilePath;
             try {
-                Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
-                Object configDirField = fmlPathsClass.getField("CONFIGDIR").get(null);
-                Path configDir = (Path) configDirField.getClass().getMethod("get").invoke(configDirField);
+                Path configDir = com.sighs.apricityui.spi.AuiServices.client().getConfigDirectory();
+                if (configDir == null) {
+                    // No loader runtime (pure unit tests): persistence is skipped.
+                    return null;
+                }
                 localStorageFilePath = configDir.resolve(ApricityUI.MODID).resolve("localStorage.nbt").toFile();
             } catch (Throwable ignored) {
                 // Pure unit tests can run without a Forge runtime; persistence is skipped there.

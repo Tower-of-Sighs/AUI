@@ -9,7 +9,7 @@ import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
-import net.minecraft.resources.ResourceLocation;
+import com.sighs.apricityui.spi.TextureKey;
 import com.sighs.apricityui.parser.CSS;
 
 /**
@@ -22,19 +22,19 @@ public class Texture extends Element {
     public static final String TAG_NAME = "TEXTURE";
 
     private String observedSrc = "";
-    private ResourceLocation textureLocation;
+    private TextureKey textureLocation;
 
     public Texture(Document document) {
         super(document, TAG_NAME);
     }
 
-    public ResourceLocation getTextureLocation() {
+    public TextureKey getTextureLocation() {
         syncSource();
         return textureLocation;
     }
 
     public String getCurrentSrc() {
-        ResourceLocation location = getTextureLocation();
+        TextureKey location = getTextureLocation();
         return location == null ? "" : location.toString();
     }
 
@@ -69,7 +69,7 @@ public class Texture extends Element {
     }
 
     private void drawTexture(PoseStack poseStack, Rect rectRenderer) {
-        ResourceLocation location = getTextureLocation();
+        TextureKey location = getTextureLocation();
         if (location == null) return;
 
         Position position = rectRenderer.getBodyRectPosition();
@@ -91,6 +91,6 @@ public class Texture extends Element {
         String src = getAttribute("src").trim();
         if (src.equals(observedSrc)) return;
         observedSrc = src;
-        textureLocation = src.isEmpty() ? null : ResourceLocation.tryParse(src);
+        textureLocation = com.sighs.apricityui.spi.AuiServices.resources().tryParseTextureKey(src);
     }
 }

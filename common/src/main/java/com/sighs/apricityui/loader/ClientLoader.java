@@ -14,8 +14,6 @@ import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.spi.AuiServices;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.Resource;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -102,10 +100,9 @@ public class ClientLoader extends Loader {
         }
         if (path == null || path.isEmpty()) return null;
         try {
-            ResourceLocation resourceLocation = new ResourceLocation(ApricityUI.MODID, "apricity/" + path);
-            Optional<Resource> resource = AuiServices.resources().getResource(resourceLocation);
-            if (resource.isPresent()) return resource.get().open();
-        } catch (IOException exception) {
+            Optional<InputStream> resource = AuiServices.resources().openResource("apricity/" + path);
+            return resource.orElse(null);
+        } catch (RuntimeException | LinkageError exception) {
             ApricityUI.LOGGER.warn("[AUI Resource] failed to open resource-pack resource path={}", path, exception);
         }
         return null;
@@ -144,14 +141,11 @@ public class ClientLoader extends Loader {
     }
 
     private static void loadResourcePackEntries(Map<String, StaticResourceEntry> merged) {
-        Map<ResourceLocation, Resource> resources = AuiServices.resources().listResources("apricity", location -> true);
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
-            ResourceLocation location = entry.getKey();
-            String path = location.getPath();
-            if (path.startsWith("apricity/")) path = path.substring(9);
+        Map<String, String> resources = AuiServices.resources().listResourcePaths("apricity", "");
+        for (Map.Entry<String, String> entry : resources.entrySet()) {
+            String path = entry.getKey();
             if (path.isBlank()) continue;
-            Resource resource = entry.getValue();
-            String sourcePack = Loader.safe(resource.sourcePackId());
+            String sourcePack = Loader.safe(entry.getValue());
             merged.put(path, new StaticResourceEntry(
                     path,
                     Loader.extensionOf(path),
@@ -173,20 +167,18 @@ public class ClientLoader extends Loader {
     }
 
     private void loadFromResourcePack() {
-        Map<ResourceLocation, Resource> resources = AuiServices.resources().listResources("apricity",
-                location -> location.getPath().endsWith("." + extension));
+        Map<String, String> paths = AuiServices.resources().listResourcePaths("apricity", "." + extension);
 
-        for (Map.Entry<ResourceLocation, Resource> entry : resources.entrySet()) {
-            try (InputStream stream = entry.getValue().open()) {
-                String path = entry.getKey().getPath();
-                if (path.startsWith("apricity/")) path = path.substring(9);
+        for (String path : paths.keySet()) {
+            try (InputStream stream = AuiServices.resources().openResource("apricity/" + path).orElse(null)) {
+                if (stream == null) continue;
                 handler.accept(path, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
                 loadedResourceCount++;
             } catch (IOException exception) {
                 ApricityUI.LOGGER.error(
                         "[AUI Resource] failed to read resource-pack {} path={}",
                         extension,
-                        entry.getKey(),
+                        path,
                         exception
                 );
             }

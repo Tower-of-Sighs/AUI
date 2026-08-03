@@ -4,16 +4,14 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.dom.DocumentExpander;
 import com.sighs.apricityui.element.ContainerDeclaration;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.renderer.RenderType;
-import net.minecraft.resources.ResourceLocation;
+import org.joml.Matrix4f;
 import net.minecraft.server.level.ServerPlayer;
-import net.minecraft.server.packs.resources.Resource;
 
+import java.io.InputStream;
+import java.lang.annotation.Annotation;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +36,7 @@ public final class AuiServices {
     private static volatile AuiResourceService resources = Defaults.RESOURCES;
     private static volatile AuiKeyService keys = Defaults.KEYS;
     private static volatile AuiScriptService script = Defaults.SCRIPT;
+    private static volatile AuiRenderService render = Defaults.RENDER;
     private static volatile boolean bootstrapped;
 
     private AuiServices() {
@@ -69,6 +68,10 @@ public final class AuiServices {
 
     public static void setScript(AuiScriptService implementation) {
         script = implementation == null ? Defaults.SCRIPT : implementation;
+    }
+
+    public static void setRender(AuiRenderService implementation) {
+        render = implementation == null ? Defaults.RENDER : implementation;
     }
 
     public static AuiClientService client() {
@@ -104,6 +107,11 @@ public final class AuiServices {
     public static AuiScriptService script() {
         bootstrap();
         return script;
+    }
+
+    public static AuiRenderService render() {
+        bootstrap();
+        return render;
     }
 
     /**
@@ -186,12 +194,37 @@ public final class AuiServices {
             }
 
             @Override
-            public void drawPersistentScreenDocuments(GuiGraphics guiGraphics, Document excludedDocument) {
+            public void openScreen(String templatePath) {
             }
 
             @Override
             public Path getGameDirectory() {
-                return Path.of("").toAbsolutePath().normalize();
+                return null;
+            }
+
+            @Override
+            public Path getConfigDirectory() {
+                return null;
+            }
+
+            @Override
+            public boolean isProduction() {
+                return true;
+            }
+
+            @Override
+            public void addScanPackage(String basePackage) {
+            }
+
+            @Override
+            public void addScanPackages(String... basePackages) {
+            }
+
+            @Override
+            public void scanAnnotationClasses(Class<? extends Annotation> annotationClass,
+                                              Predicate<Map<String, Object>> annotationPredicate,
+                                              Consumer<Class<?>> consumer,
+                                              Runnable onFinished) {
             }
         };
 
@@ -327,25 +360,47 @@ public final class AuiServices {
 
         static final AuiResourceService RESOURCES = new AuiResourceService() {
             @Override
-            public Optional<Resource> getResource(ResourceLocation location) {
+            public Optional<InputStream> openResource(String path) {
                 return Optional.empty();
             }
 
             @Override
-            public Map<ResourceLocation, Resource> listResources(String path, Predicate<ResourceLocation> filter) {
+            public Map<String, String> listResourcePaths(String path, String suffix) {
                 return Map.of();
             }
 
             @Override
-            public ResourceLocation locationOf(String key) {
+            public TextureKey locationOf(String key) {
                 if (key == null) return null;
                 String sanitizedPath = key.toLowerCase().replaceAll("[^a-z0-9/._-]", "_");
                 int hash = Math.floorMod(key.hashCode(), 1 << 24);
-                return new ResourceLocation("apricityui", "dynamic/" + sanitizedPath + "-" + Integer.toHexString(hash));
+                return TextureKey.of("dynamic/" + sanitizedPath + "-" + Integer.toHexString(hash));
             }
 
             @Override
-            public RenderType smoothRenderType(ResourceLocation location, boolean blur, boolean depthTest) {
+            public TextureKey tryParseTextureKey(String src) {
+                if (src == null || src.isBlank()) return null;
+                // Mirrors ResourceLocation's syntax rules without importing the
+                // version-bound MC type: optional "namespace:path", namespace
+                // allows [a-z0-9_.-], path allows [a-z0-9/._-].
+                int colon = src.indexOf(':');
+                if (colon >= 0) {
+                    String namespace = src.substring(0, colon);
+                    if (namespace.isEmpty() || !namespace.matches("[a-z0-9_.-]+")) return null;
+                }
+                String path = colon >= 0 ? src.substring(colon + 1) : src;
+                if (path.isEmpty() || !path.matches("[a-z0-9/._-]+")) return null;
+                return TextureKey.of(src);
+            }
+
+            @Override
+            public Object textureLocation(TextureKey key) {
+                // No loader location type exists headless.
+                return null;
+            }
+
+            @Override
+            public RenderHandle smoothRenderType(TextureKey key, boolean blur, boolean depthTest) {
                 // Image rendering requires the loader render backend; there is no
                 // loader-less fallback. The render path is never exercised headless.
                 throw new UnsupportedOperationException("AUI smooth image rendering requires the loader render backend");
@@ -386,6 +441,141 @@ public final class AuiServices {
 
             @Override
             public Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
+                return null;
+            }
+        };
+
+        static final AuiRenderService RENDER = new AuiRenderService() {
+            @Override
+            public void setProjectionMatrix(Matrix4f matrix) {
+            }
+
+            @Override
+            public Matrix4f getProjectionMatrix() {
+                return new Matrix4f();
+            }
+
+            @Override
+            public void enableDepthTest() {
+            }
+
+            @Override
+            public void disableDepthTest() {
+            }
+
+            @Override
+            public void enableBlend() {
+            }
+
+            @Override
+            public void setBlendFunc(int srcFactor, int dstFactor) {
+            }
+
+            @Override
+            public MeshBuilder beginMesh(MeshMode mode, MeshFormat format) {
+                return MeshBuilder.of(new Object());
+            }
+
+            @Override
+            public void emitVertex(Object mesh, Matrix4f mat, float x, float y, float z, int r, int g, int b, int a) {
+            }
+
+            @Override
+            public void submitMesh(Object mesh) {
+            }
+
+            @Override
+            public Object beginTextureBatch(RenderHandle render) {
+                return null;
+            }
+
+            @Override
+            public void emitTextureQuad(Object batch, Matrix4f mat, float x, float y, float width, float height,
+                                        float u0, float v0, float u1, float v1) {
+            }
+
+            @Override
+            public void flushTextureBatch(Object batch, RenderHandle render) {
+            }
+
+            @Override
+            public void emitVertexUV(Object mesh, Matrix4f mat, float x, float y, float z, float u, float v) {
+            }
+
+            @Override
+            public FboHandle createOffscreenTarget(int width, int height, boolean useDepth) {
+                return null;
+            }
+
+            @Override
+            public FboHandle getMainRenderTarget() {
+                return null;
+            }
+
+            @Override
+            public void enableStencil(FboHandle target) {
+            }
+
+            @Override
+            public void destroyBuffers(FboHandle target) {
+            }
+
+            @Override
+            public void clear(FboHandle target, float r, float g, float b, float a) {
+            }
+
+            @Override
+            public void bindWrite(FboHandle target, boolean setViewport) {
+            }
+
+            @Override
+            public void bindColorTexture(FboHandle target, int unit) {
+            }
+
+            @Override
+            public void blitFramebuffer(FboHandle source, FboHandle target, int srcX0, int srcY0, int srcX1, int srcY1) {
+            }
+
+            @Override
+            public Object createDynamicTexture(String name, Object nativeImage, boolean linear) {
+                return null;
+            }
+
+            @Override
+            public void uploadTextureRegion(Object texture, Object nativeImage, int x, int y, int width, int height, boolean linear) {
+            }
+
+            @Override
+            public void closeTexture(Object texture) {
+            }
+
+            @Override
+            public void registerTexture(Object texture, Object location) {
+            }
+
+            @Override
+            public void releaseTexture(Object location) {
+            }
+
+            @Override
+            public void setShader(Object shader) {
+            }
+
+            @Override
+            public void setPositionColorShader() {
+            }
+
+            @Override
+            public void setShaderColor(float a, float r, float g, float b) {
+            }
+
+            @Override
+            public Object getFilterShader() {
+                return null;
+            }
+
+            @Override
+            public Object getFilterBlurShader() {
                 return null;
             }
         };

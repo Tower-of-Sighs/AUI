@@ -16,7 +16,13 @@ public final class OreEditorDocumentStore {
     private final Path root;
 
     public OreEditorDocumentStore() {
-        this(AuiServices.client().getGameDirectory().resolve("apricity").resolve("ore-projects"));
+        this(resolveDefaultRoot());
+    }
+
+    private static Path resolveDefaultRoot() {
+        Path dir = AuiServices.client().getGameDirectory();
+        if (dir == null) return null;
+        return dir.resolve("apricity").resolve("ore-projects");
     }
 
     public OreEditorDocumentStore(Path root) {

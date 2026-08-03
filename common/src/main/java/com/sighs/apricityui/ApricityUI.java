@@ -6,7 +6,6 @@ import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.spi.AuiPendingMenu;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.world.WorldWindow;
-import com.sighs.apricityui.screen.ApricityScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
@@ -63,7 +62,7 @@ public final class ApricityUI {
      * 纯客户端直接渲染，无需服务端安装本 mod。
      */
     public static void screen(String path) {
-        Minecraft.getInstance().setScreen(new ApricityScreen(path));
+        AuiServices.client().openScreen(path);
     }
 
     /**

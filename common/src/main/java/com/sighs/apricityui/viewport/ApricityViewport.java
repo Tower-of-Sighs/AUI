@@ -449,16 +449,8 @@ public record ApricityViewport(
     }
 
     private static Path configDir() {
-        try {
-            Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
-            Object configDirHolder = fmlPathsClass.getField("CONFIGDIR").get(null);
-            Object path = configDirHolder.getClass().getMethod("get").invoke(configDirHolder);
-            if (path instanceof Path resolved) {
-                return resolved.toAbsolutePath().normalize();
-            }
-        } catch (Throwable ignored) {
-        }
-        return Path.of("config").toAbsolutePath().normalize();
+        Path dir = com.sighs.apricityui.spi.AuiServices.client().getConfigDirectory();
+        return dir != null ? dir : Path.of("config").toAbsolutePath().normalize();
     }
 
     private static double sanitizeZoom(double value, double fallback) {

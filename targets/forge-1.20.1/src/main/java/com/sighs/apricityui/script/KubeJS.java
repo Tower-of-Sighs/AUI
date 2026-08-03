@@ -1,7 +1,7 @@
 package com.sighs.apricityui.script;
 
+import com.sighs.apricityui.forge.ReflectionUtils;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
-import com.sighs.apricityui.util.ReflectionUtils;
 import dev.latvian.mods.kubejs.KubeJSPlugin;
 import dev.latvian.mods.kubejs.script.BindingsEvent;
 import dev.latvian.mods.kubejs.script.ScriptType;

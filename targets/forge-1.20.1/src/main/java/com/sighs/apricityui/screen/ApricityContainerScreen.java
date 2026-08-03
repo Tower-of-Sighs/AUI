@@ -147,9 +147,12 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             drawSlotHoverTooltipByElement(guiGraphics, mouseX, mouseY);
             Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose());
-            Cursor.drawPseudoCursor(guiGraphics);
+            guiGraphics.flush();
+            Cursor.drawPseudoCursor(guiGraphics.pose());
+            guiGraphics.flush();
         } finally {
-            FrameTimingHud.endFrame(guiGraphics);
+            FrameTimingHud.endFrame();
+            Client.drawFrameTimingHud(guiGraphics);
         }
     }
 

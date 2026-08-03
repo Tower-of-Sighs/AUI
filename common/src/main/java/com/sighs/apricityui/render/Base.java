@@ -1,10 +1,7 @@
 package com.sighs.apricityui.render;
 
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.task.FrameScheduler;
@@ -15,8 +12,7 @@ import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.*;
-import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.ShaderInstance;
+import net.minecraft.client.Minecraft;
 import org.joml.Matrix4f;
 import org.joml.Quaternionf;
 import org.lwjgl.opengl.GL11;
@@ -213,7 +209,7 @@ public class Base {
             boolean previousDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
             boolean previousDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
             Base.pushDepthTest(false);
-            RenderSystem.disableDepthTest();
+            com.sighs.apricityui.spi.AuiServices.render().disableDepthTest();
             GL11.glDepthMask(false);
             return new TopLayerDepthScope(previousDepthTest, previousDepthMask);
         }
@@ -223,8 +219,8 @@ public class Base {
             closed = true;
             Base.commitDraws();
             Base.popDepthTest();
-            if (previousDepthTest) RenderSystem.enableDepthTest();
-            else RenderSystem.disableDepthTest();
+            if (previousDepthTest) com.sighs.apricityui.spi.AuiServices.render().enableDepthTest();
+            else com.sighs.apricityui.spi.AuiServices.render().disableDepthTest();
             GL11.glDepthMask(previousDepthMask);
         }
     }
@@ -272,8 +268,15 @@ public class Base {
         GlStateManager._disableBlend();
     }
 
-    public static BufferBuilder getBuffer() {
-        return Tesselator.getInstance().getBuilder();
+    private static com.sighs.apricityui.spi.MeshBuilder currentMesh;
+
+    /** Returns the active vertex mesh (set by the batch/immediate draw contexts). */
+    public static com.sighs.apricityui.spi.MeshBuilder getMesh() {
+        return currentMesh;
+    }
+
+    public static void setMesh(com.sighs.apricityui.spi.MeshBuilder mesh) {
+        currentMesh = mesh;
     }
 
     public static void applyTransform(PoseStack poseStack, Element element) {
@@ -521,26 +524,39 @@ public class Base {
     }
 
     public static void setProjectionMatrix(Matrix4f matrix) {
-        RenderSystem.setProjectionMatrix(matrix, RenderSystem.getVertexSorting());
+        com.sighs.apricityui.spi.AuiServices.render().setProjectionMatrix(matrix);
     }
 
     public static Matrix4f getProjectionMatrix() {
-        return RenderSystem.getProjectionMatrix();
+        return com.sighs.apricityui.spi.AuiServices.render().getProjectionMatrix();
     }
 
-    public static void setShader(ShaderInstance shader) {
-        RenderSystem.setShader(() -> shader);
+    /** Binds the given shader program (loader's ShaderInstance/ShaderProgram). */
+    public static void setShader(Object shader) {
+        com.sighs.apricityui.spi.AuiServices.render().setShader(shader);
     }
 
     public static void setPositionColorShader() {
-        RenderSystem.setShader(GameRenderer::getPositionColorShader);
-    }
-
-    public static void setShaderTexture(int i, int v) {
-        RenderSystem.setShaderTexture(i, v);
+        com.sighs.apricityui.spi.AuiServices.render().setPositionColorShader();
     }
 
     public static void setShaderColor(float a, float r, float g, float b) {
-        RenderSystem.setShaderColor(a, r, g, b);
+        com.sighs.apricityui.spi.AuiServices.render().setShaderColor(a, r, g, b);
     }
+
+    /** Returns the system clipboard text, or an empty string when unavailable. */
+    public static String getClipboardText() {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.keyboardHandler == null) return "";
+        String text = minecraft.keyboardHandler.getClipboard();
+        return text == null ? "" : text;
+    }
+
+    /** Copies text to the system clipboard (no-op when unavailable). */
+    public static void setClipboardText(String text) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.keyboardHandler == null) return;
+        minecraft.keyboardHandler.setClipboard(text == null ? "" : text);
+    }
+
 }

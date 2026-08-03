@@ -1,21 +1,20 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.platform.GlStateManager;
-import com.mojang.blaze3d.vertex.*;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.spi.AuiServices;
-import com.sighs.apricityui.world.ShaderRegistry;
+import com.sighs.apricityui.spi.FboHandle;
+import com.sighs.apricityui.spi.MeshBuilder;
+import com.sighs.apricityui.spi.MeshFormat;
+import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
-import org.lwjgl.opengl.GL30;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -25,11 +24,11 @@ import java.util.Map;
 import java.util.Stack;
 
 public class FilterRenderer {
-    private static final Stack<RenderTarget> fboStack = new Stack<>();
-    private static RenderTarget mainRenderTarget;
-    private static final List<RenderTarget> fboPool = new ArrayList<>();
+    private static final Stack<FboHandle> fboStack = new Stack<>();
+    private static FboHandle mainRenderTarget;
+    private static final List<FboHandle> fboPool = new ArrayList<>();
     private static int poolPointer = 0;
-    private static final List<RenderTarget> backdropPool = new ArrayList<>();
+    private static final List<FboHandle> backdropPool = new ArrayList<>();
     private static int backdropPoolPointer = 0;
     private static final float MAX_REASONABLE_BACKDROP_BLUR = 32.0f;
     private static boolean stencilCapabilityResolved;
@@ -72,9 +71,9 @@ public class FilterRenderer {
         if (!fboStack.isEmpty()) {
             fboStack.clear();
         }
-        mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
+        mainRenderTarget = AuiServices.render().getMainRenderTarget();
         if (mainRenderTarget != null && isStencilAvailable()) {
-            mainRenderTarget.enableStencil();
+            AuiServices.render().enableStencil(mainRenderTarget);
         }
         poolPointer = 0;
         backdropPoolPointer = 0;
@@ -84,52 +83,49 @@ public class FilterRenderer {
         if (!fboStack.isEmpty()) {
             fboStack.clear();
             if (mainRenderTarget != null) {
-                mainRenderTarget.bindWrite(false);
+                AuiServices.render().bindWrite(mainRenderTarget, false);
             }
         }
     }
 
     public static void pushFilter() {
-        boolean ON_OSX = Minecraft.ON_OSX;
-
         // Pending parent draws must land in the parent target before the child
         // filter binds its offscreen target. Otherwise they inherit the child's opacity.
         ImageDrawer.flushBatch();
         Graph.endBatch();
 
         if (fboStack.isEmpty()) {
-            mainRenderTarget = Minecraft.getInstance().getMainRenderTarget();
+            mainRenderTarget = AuiServices.render().getMainRenderTarget();
             poolPointer = 0;
         }
 
-        RenderTarget temp;
+        FboHandle temp;
         double width = AuiServices.client().getWindowWidth();
         double height = AuiServices.client().getWindowHeight();
 
         if (poolPointer < fboPool.size()) {
             temp = fboPool.get(poolPointer);
             if (temp.width != (int) width || temp.height != (int) height) {
-                temp.destroyBuffers();
-                temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-                if (isStencilAvailable()) temp.enableStencil();
+                AuiServices.render().destroyBuffers(temp);
+                temp = AuiServices.render().createOffscreenTarget((int) width, (int) height, true);
+                if (isStencilAvailable()) AuiServices.render().enableStencil(temp);
                 fboPool.set(poolPointer, temp);
             }
         } else {
-            temp = new TextureTarget((int) width, (int) height, true, ON_OSX);
-            if (isStencilAvailable()) temp.enableStencil();
+            temp = AuiServices.render().createOffscreenTarget((int) width, (int) height, true);
+            if (isStencilAvailable()) AuiServices.render().enableStencil(temp);
             fboPool.add(temp);
         }
         poolPointer++;
 
-        temp.setClearColor(0f, 0f, 0f, 0f);
         // 注意：这里的 clear 会清除当前绑定的 FBO 的缓冲区
-        temp.clear(ON_OSX);
+        AuiServices.render().clear(temp, 0f, 0f, 0f, 0f);
         fboStack.push(temp);
-        temp.bindWrite(false);
+        AuiServices.render().bindWrite(temp, false);
     }
 
-    public static RenderTarget getCurrentTarget() {
-        return fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
+    public static FboHandle getCurrentTarget() {
+        return fboStack.isEmpty() ? AuiServices.render().getMainRenderTarget() : fboStack.peek();
     }
 
     public static void popFilter(Filter.FilterState state) {
@@ -140,12 +136,12 @@ public class FilterRenderer {
         ImageDrawer.flushBatch();
         Graph.endBatch();
 
-        RenderTarget currentFbo = fboStack.pop();
-        RenderTarget parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
-        RenderTarget filteredFbo = prepareFullFilterSource(currentFbo, state.blurRadius());
-        RenderTarget shadowFbo = state.hasDropShadow()
+        FboHandle currentFbo = fboStack.pop();
+        FboHandle parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
+        FboHandle filteredFbo = prepareFullFilterSource(currentFbo, state.blurRadius());
+        FboHandle shadowFbo = state.hasDropShadow()
                 ? prepareFullFilterSource(currentFbo, state.dropShadowBlur()) : currentFbo;
-        parentFbo.bindWrite(true);
+        AuiServices.render().bindWrite(parentFbo, true);
 
         drawWithShader(filteredFbo, shadowFbo, state);
     }
@@ -177,8 +173,8 @@ public class FilterRenderer {
         }
     }
 
-    private static void drawWithShader(RenderTarget fbo, RenderTarget shadowFbo, Filter.FilterState state) {
-        ShaderInstance shader = ShaderRegistry.getFilterShader();
+    private static void drawWithShader(FboHandle fbo, FboHandle shadowFbo, Filter.FilterState state) {
+        ShaderInstance shader = (ShaderInstance) AuiServices.render().getFilterShader();
 
         withBlendRenderState(true, () -> {
             if (shader == null) {
@@ -192,24 +188,21 @@ public class FilterRenderer {
                         1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
             }
 
-            Base.setShaderTexture(0, fbo.getColorTextureId());
-            Base.setShaderTexture(1, shadowFbo.getColorTextureId());
+            AuiServices.render().bindColorTexture(fbo, 0);
+            AuiServices.render().bindColorTexture(shadowFbo, 1);
             Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
 
             float guiW = (float) AuiServices.client().getScaledWidth();
             float guiH = (float) AuiServices.client().getScaledHeight();
             Base.setProjectionMatrix(orthoProjection(guiW, guiH));
 
-            Tesselator tesselator = Tesselator.getInstance();
-            BufferBuilder bufferbuilder = tesselator.getBuilder();
-
-            bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferbuilder.vertex(0, guiH, 0).uv(0, 0).endVertex();
-            bufferbuilder.vertex(guiW, guiH, 0).uv(1, 0).endVertex();
-            bufferbuilder.vertex(guiW, 0, 0).uv(1, 1).endVertex();
-            bufferbuilder.vertex(0, 0, 0).uv(0, 1).endVertex();
-
-            BufferUploader.drawWithShader(bufferbuilder.end());
+            MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+            Matrix4f identity = new Matrix4f();
+            mesh.vertexUV(identity, 0, guiH, 0, 0, 0);
+            mesh.vertexUV(identity, guiW, guiH, 0, 1, 0);
+            mesh.vertexUV(identity, guiW, 0, 0, 1, 1);
+            mesh.vertexUV(identity, 0, 0, 0, 0, 1);
+            mesh.submit();
         });
     }
 
@@ -218,20 +211,20 @@ public class FilterRenderer {
         // element. It also creates a natural batch boundary for the FBO copy.
         Base.commitDraws();
 
-        RenderTarget currentBound = fboStack.isEmpty() ? Minecraft.getInstance().getMainRenderTarget() : fboStack.peek();
+        FboHandle currentBound = fboStack.isEmpty() ? AuiServices.render().getMainRenderTarget() : fboStack.peek();
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
         Rect rect = Rect.of(target);
         BackdropSource source = prepareBackdropSource(currentBound, rect, state.blurRadius());
         if (source == null) return;
-        RenderTarget shadowTarget = prepareBackdropShadow(source, state);
+        FboHandle shadowTarget = prepareBackdropShadow(source, state);
 
-        currentBound.bindWrite(true);
+        AuiServices.render().bindWrite(currentBound, true);
         drawBackdropWithShader(source, shadowTarget, state, rect);
     }
 
-    private static void drawBackdropWithShader(BackdropSource source, RenderTarget shadowTarget,
+    private static void drawBackdropWithShader(BackdropSource source, FboHandle shadowTarget,
                                                Filter.FilterState state, Rect rect) {
-        ShaderInstance shader = ShaderRegistry.getFilterShader();
+        ShaderInstance shader = (ShaderInstance) AuiServices.render().getFilterShader();
         if (shader == null) return;
 
         withBlendRenderState(true, () -> {
@@ -245,29 +238,27 @@ public class FilterRenderer {
             Base.setShader(shader);
             setupUniforms(shader, state, source.target(), true, true, source.uvPerGuiX(), source.uvPerGuiY());
             setupBackdropClipUniforms(shader, rect, guiW, guiH);
-            Base.setShaderTexture(0, source.target().getColorTextureId());
-            Base.setShaderTexture(1, shadowTarget.getColorTextureId());
+            AuiServices.render().bindColorTexture(source.target(), 0);
+            AuiServices.render().bindColorTexture(shadowTarget, 1);
             Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
             Base.setProjectionMatrix(orthoProjection(guiW, guiH));
 
-            Tesselator tesselator = Tesselator.getInstance();
-            BufferBuilder bufferbuilder = tesselator.getBuilder();
+            MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+            Matrix4f identity = new Matrix4f();
             float x0 = (float) p.x;
             float y0 = (float) p.y;
             float x1 = x0 + (float) s.width();
             float y1 = y0 + (float) s.height();
 
-            bufferbuilder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            bufferbuilder.vertex(x0, y1, 0).uv(source.u0(), source.vBottom()).endVertex();
-            bufferbuilder.vertex(x1, y1, 0).uv(source.u1(), source.vBottom()).endVertex();
-            bufferbuilder.vertex(x1, y0, 0).uv(source.u1(), source.vTop()).endVertex();
-            bufferbuilder.vertex(x0, y0, 0).uv(source.u0(), source.vTop()).endVertex();
-
-            BufferUploader.drawWithShader(bufferbuilder.end());
+            mesh.vertexUV(identity, x0, y1, 0, source.u0(), source.vBottom());
+            mesh.vertexUV(identity, x1, y1, 0, source.u1(), source.vBottom());
+            mesh.vertexUV(identity, x1, y0, 0, source.u1(), source.vTop());
+            mesh.vertexUV(identity, x0, y0, 0, source.u0(), source.vTop());
+            mesh.submit();
         });
     }
 
-    private static BackdropSource prepareBackdropSource(RenderTarget source, Rect rect, float cssBlurRadius) {
+    private static BackdropSource prepareBackdropSource(FboHandle source, Rect rect, float cssBlurRadius) {
         if (source == null || source.width <= 0 || source.height <= 0) return null;
         float guiW = (float) AuiServices.client().getScaledWidth();
         float guiH = (float) AuiServices.client().getScaledHeight();
@@ -290,12 +281,12 @@ public class FilterRenderer {
         int downsample = chooseDownsample(physicalRadius);
         int targetWidth = Math.max(1, (int) Math.ceil((srcX1 - srcX0) / (double) downsample));
         int targetHeight = Math.max(1, (int) Math.ceil((srcY1 - srcY0) / (double) downsample));
-        RenderTarget ping = acquireBackdropTarget(targetWidth, targetHeight);
+        FboHandle ping = acquireBackdropTarget(targetWidth, targetHeight);
         blitRegion(source, ping, srcX0, srcY0, srcX1, srcY1);
 
         float reducedRadius = physicalRadius / downsample;
         if (reducedRadius >= 0.5f) {
-            RenderTarget pong = acquireBackdropTarget(targetWidth, targetHeight);
+            FboHandle pong = acquireBackdropTarget(targetWidth, targetHeight);
             drawBlurPass(ping, pong, reducedRadius, 1.0f / targetWidth, 0.0f);
             drawBlurPass(pong, ping, reducedRadius, 0.0f, 1.0f / targetHeight);
         }
@@ -311,7 +302,7 @@ public class FilterRenderer {
         return new BackdropSource(ping, u0, vBottom, u1, vTop, uvPerGuiX, uvPerGuiY);
     }
 
-    private static RenderTarget prepareBackdropShadow(BackdropSource source, Filter.FilterState state) {
+    private static FboHandle prepareBackdropShadow(BackdropSource source, Filter.FilterState state) {
         if (!state.hasDropShadow() || state.dropShadowBlur() < 0.5f) return source.target();
         float textureRadius = state.dropShadowBlur() * Math.max(
                 source.uvPerGuiX() * source.target().width,
@@ -320,7 +311,7 @@ public class FilterRenderer {
         return blurTexture(source.target(), textureRadius);
     }
 
-    private static RenderTarget prepareFullFilterSource(RenderTarget source, float cssBlurRadius) {
+    private static FboHandle prepareFullFilterSource(FboHandle source, float cssBlurRadius) {
         if (source == null || cssBlurRadius < 0.5f) return source;
         float guiW = Math.max(1.0f, (float) AuiServices.client().getScaledWidth());
         float guiH = Math.max(1.0f, (float) AuiServices.client().getScaledHeight());
@@ -329,13 +320,13 @@ public class FilterRenderer {
         return blurTexture(source, physicalRadius);
     }
 
-    private static RenderTarget blurTexture(RenderTarget source, float physicalRadius) {
+    private static FboHandle blurTexture(FboHandle source, float physicalRadius) {
         int downsample = chooseDownsample(physicalRadius);
         int width = Math.max(1, (int) Math.ceil(source.width / (double) downsample));
         int height = Math.max(1, (int) Math.ceil(source.height / (double) downsample));
-        RenderTarget ping = acquireBackdropTarget(width, height);
+        FboHandle ping = acquireBackdropTarget(width, height);
         blitRegion(source, ping, 0, 0, source.width, source.height);
-        RenderTarget pong = acquireBackdropTarget(width, height);
+        FboHandle pong = acquireBackdropTarget(width, height);
         float reducedRadius = Math.min(32.0f, physicalRadius / downsample);
         drawBlurPass(ping, pong, reducedRadius, 1.0f / width, 0.0f);
         drawBlurPass(pong, ping, reducedRadius, 0.0f, 1.0f / height);
@@ -348,60 +339,50 @@ public class FilterRenderer {
         return result;
     }
 
-    private static RenderTarget acquireBackdropTarget(int width, int height) {
-        boolean onOsx = Minecraft.ON_OSX;
-        RenderTarget target;
+    private static FboHandle acquireBackdropTarget(int width, int height) {
+        FboHandle target;
         if (backdropPoolPointer < backdropPool.size()) {
             target = backdropPool.get(backdropPoolPointer);
             if (target.width != width || target.height != height) {
-                target.destroyBuffers();
-                target = new TextureTarget(width, height, false, onOsx);
+                AuiServices.render().destroyBuffers(target);
+                target = AuiServices.render().createOffscreenTarget(width, height, false);
                 backdropPool.set(backdropPoolPointer, target);
             }
         } else {
-            target = new TextureTarget(width, height, false, onOsx);
+            target = AuiServices.render().createOffscreenTarget(width, height, false);
             backdropPool.add(target);
         }
         backdropPoolPointer++;
         return target;
     }
 
-    private static void blitRegion(RenderTarget source, RenderTarget target,
+    private static void blitRegion(FboHandle source, FboHandle target,
                                    int srcX0, int srcY0, int srcX1, int srcY1) {
-        int previousFbo = GlStateManager.getBoundFramebuffer();
-        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, source.frameBufferId);
-        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, target.frameBufferId);
-        GlStateManager._glBlitFrameBuffer(
-                srcX0, srcY0, srcX1, srcY1,
-                0, 0, target.width, target.height,
-                GL11.GL_COLOR_BUFFER_BIT, GL11.GL_LINEAR
-        );
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFbo);
+        AuiServices.render().blitFramebuffer(source, target, srcX0, srcY0, srcX1, srcY1);
     }
 
-    private static void drawBlurPass(RenderTarget source, RenderTarget target, float radius,
+    private static void drawBlurPass(FboHandle source, FboHandle target, float radius,
                                      float directionX, float directionY) {
-        ShaderInstance shader = ShaderRegistry.getFilterBlurShader();
+        ShaderInstance shader = (ShaderInstance) AuiServices.render().getFilterBlurShader();
         if (shader == null) return;
 
-        target.setClearColor(0, 0, 0, 0);
-        target.clear(Minecraft.ON_OSX);
-        target.bindWrite(true);
+        AuiServices.render().clear(target, 0, 0, 0, 0);
+        AuiServices.render().bindWrite(target, true);
         withBlendRenderState(false, () -> {
             Base.setProjectionMatrix(orthoProjection(target.width, target.height));
             Base.setShader(shader);
             if (shader.getUniform("Direction") != null) shader.getUniform("Direction").set(directionX, directionY);
             if (shader.getUniform("Radius") != null) shader.getUniform("Radius").set(Math.min(32.0f, radius));
-            Base.setShaderTexture(0, source.getColorTextureId());
+            AuiServices.render().bindColorTexture(source, 0);
             Base.setShaderColor(1, 1, 1, 1);
 
-            BufferBuilder builder = Tesselator.getInstance().getBuilder();
-            builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_TEX);
-            builder.vertex(0, target.height, 0).uv(0, 0).endVertex();
-            builder.vertex(target.width, target.height, 0).uv(1, 0).endVertex();
-            builder.vertex(target.width, 0, 0).uv(1, 1).endVertex();
-            builder.vertex(0, 0, 0).uv(0, 1).endVertex();
-            BufferUploader.drawWithShader(builder.end());
+            MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+            Matrix4f identity = new Matrix4f();
+            mesh.vertexUV(identity, 0, target.height, 0, 0, 0);
+            mesh.vertexUV(identity, target.width, target.height, 0, 1, 0);
+            mesh.vertexUV(identity, target.width, 0, 0, 1, 1);
+            mesh.vertexUV(identity, 0, 0, 0, 0, 1);
+            mesh.submit();
         });
     }
 
@@ -409,10 +390,10 @@ public class FilterRenderer {
         return Math.max(min, Math.min(max, value));
     }
 
-    private record BackdropSource(RenderTarget target, float u0, float vBottom, float u1, float vTop,
+    private record BackdropSource(FboHandle target, float u0, float vBottom, float u1, float vTop,
                                   float uvPerGuiX, float uvPerGuiY) {}
 
-    private static void setupUniforms(ShaderInstance shader, Filter.FilterState state, RenderTarget fbo,
+    private static void setupUniforms(ShaderInstance shader, Filter.FilterState state, FboHandle fbo,
                                       boolean forceAlpha, boolean preBlurred,
                                       float uvPerGuiX, float uvPerGuiY) {
         float blurRadius = preBlurred ? 0.0f

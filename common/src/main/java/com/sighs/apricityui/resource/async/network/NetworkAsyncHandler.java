@@ -285,16 +285,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
     }
 
     private static Path resolveGameDir() {
-        try {
-            Class<?> fmlPathsClass = Class.forName("net.minecraftforge.fml.loading.FMLPaths");
-            Object gameDirHolder = fmlPathsClass.getField("GAMEDIR").get(null);
-            Object path = gameDirHolder.getClass().getMethod("get").invoke(gameDirHolder);
-            if (path instanceof Path resolved) {
-                return resolved.toAbsolutePath().normalize();
-            }
-        } catch (Throwable ignored) {
-        }
-        return Path.of("").toAbsolutePath().normalize();
+        return com.sighs.apricityui.spi.AuiServices.client().getGameDirectory();
     }
 
     @Override

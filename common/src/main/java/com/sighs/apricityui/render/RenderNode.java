@@ -1,6 +1,5 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
@@ -152,8 +151,8 @@ public interface RenderNode {
 
             Base.applyTransform(poseStack, target);
 
-            RenderSystem.enableBlend();
-            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            com.sighs.apricityui.spi.AuiServices.render().enableBlend();
+            com.sighs.apricityui.spi.AuiServices.render().setBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
 
             if (Boolean.getBoolean("apricityui.test.logRenderPhases") && shouldLogTarget(target)) {
                 Position bodyPos = rect.getBodyRectPosition();
@@ -197,8 +196,8 @@ public interface RenderNode {
             if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
 
             Base.applyTransform(poseStack, target);
-            RenderSystem.enableBlend();
-            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            com.sighs.apricityui.spi.AuiServices.render().enableBlend();
+            com.sighs.apricityui.spi.AuiServices.render().setBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawBackgroundOnly(poseStack);
         }
     }
@@ -214,8 +213,8 @@ public interface RenderNode {
             if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
 
             Base.applyTransform(poseStack, target);
-            RenderSystem.enableBlend();
-            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            com.sighs.apricityui.spi.AuiServices.render().enableBlend();
+            com.sighs.apricityui.spi.AuiServices.render().setBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawContentOnly(poseStack);
         }
     }
@@ -229,8 +228,8 @@ public interface RenderNode {
             if (shouldSkip(target) || !target.mayRenderScrollbar()) return;
 
             Base.applyTransform(poseStack, target);
-            RenderSystem.enableBlend();
-            RenderSystem.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            com.sighs.apricityui.spi.AuiServices.render().enableBlend();
+            com.sighs.apricityui.spi.AuiServices.render().setBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawScrollbar(poseStack, Rect.of(target));
         }
     }

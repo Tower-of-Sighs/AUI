@@ -347,6 +347,9 @@ public class Loader {
     }
 
     private static Path getGameDir() {
-        return com.sighs.apricityui.spi.AuiServices.client().getGameDirectory();
+        Path dir = com.sighs.apricityui.spi.AuiServices.client().getGameDirectory();
+        // 无 loader 运行时（纯单测）返回 null；兜底到 cwd 保持非 null，
+        // 让 getResourceStream 的 apricity/ 探测静默 miss 后回退 classpath。
+        return dir != null ? dir : Path.of("").toAbsolutePath().normalize();
     }
 }

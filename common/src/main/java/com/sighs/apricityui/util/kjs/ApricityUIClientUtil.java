@@ -3,7 +3,7 @@ package com.sighs.apricityui.util.kjs;
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
-import com.sighs.apricityui.screen.ApricityScreen;
+import com.sighs.apricityui.screen.AuiLinkedScreen;
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
@@ -39,9 +39,9 @@ public class ApricityUIClientUtil {
         return Document.getByUUID(uuid);
     }
 
-    /** Returns the document currently bound to the active {@link ApricityScreen}, or {@code null}. */
+    /** Returns the document currently bound to the active AUI screen, or {@code null}. */
     public static Document getCurrentScreenDocument() {
-        if (Minecraft.getInstance().screen instanceof ApricityScreen screen) {
+        if (Minecraft.getInstance().screen instanceof AuiLinkedScreen screen) {
             return screen.getLinkedDocument();
         }
         return null;

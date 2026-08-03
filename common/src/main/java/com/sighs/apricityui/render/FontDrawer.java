@@ -8,9 +8,7 @@ import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.DynamicTexture;
-import net.minecraft.resources.ResourceLocation;
+import com.sighs.apricityui.spi.TextureKey;
 
 import java.awt.*;
 import java.awt.font.FontRenderContext;
@@ -466,15 +464,17 @@ public class FontDrawer {
                 return atlasEntry;
             }
 
-            DynamicTexture texture = new DynamicTexture(nativeImg);
-            texture.setFilter(filterMode.linear(), false);
+            Object texture = AuiServices.render().createDynamicTexture(
+                    "apricityui:font/" + UUID.nameUUIDFromBytes(cacheKey.getBytes(StandardCharsets.UTF_8)),
+                    nativeImg,
+                    filterMode.linear()
+            );
 
-            ResourceLocation location = new ResourceLocation(
-                    MODID,
+            TextureKey location = TextureKey.of(
                     "font/" + UUID.nameUUIDFromBytes(cacheKey.getBytes(StandardCharsets.UTF_8))
             );
 
-            Minecraft.getInstance().getTextureManager().register(location, texture);
+            AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(location));
 
             return new FontEntry(location, nativeImg, texture, imgW, imgH, textureStats,
                     new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height())));
@@ -685,7 +685,7 @@ public class FontDrawer {
         for (FontEntry entry : CACHE.values()) {
             if (entry == null) continue;
             try {
-                if (entry.dynamicTexture() != null) entry.dynamicTexture().close();
+                if (entry.dynamicTexture() != null) AuiServices.render().closeTexture(entry.dynamicTexture());
             } catch (Exception ignored) {
             }
         }
@@ -1691,9 +1691,9 @@ public class FontDrawer {
      */
     private static final class FontAtlas {
         private final boolean linear;
-        private final ResourceLocation location;
+        private final TextureKey location;
         private NativeImage pixels;
-        private DynamicTexture texture;
+        private Object texture;
         private boolean registered;
         private boolean disabled;
         private int cursorX;
@@ -1702,7 +1702,7 @@ public class FontDrawer {
 
         private FontAtlas(boolean linear) {
             this.linear = linear;
-            this.location = new ResourceLocation(MODID, linear ? "font/atlas-linear" : "font/atlas-nearest");
+            this.location = TextureKey.of(linear ? "font/atlas-linear" : "font/atlas-nearest");
         }
 
         private synchronized Region add(NativeImage source) {
@@ -1729,12 +1729,7 @@ public class FontDrawer {
                 source.copyRect(pixels, 0, 0, x, y, width, height, false, false);
                 copyPadding(source, x, y, width, height);
 
-                texture.bind();
-                pixels.upload(0,
-                        cursorX, cursorY,
-                        cursorX, cursorY,
-                        packedWidth, packedHeight,
-                        linear, false);
+                AuiServices.render().uploadTextureRegion(texture, pixels, cursorX, cursorY, packedWidth, packedHeight, linear);
 
                 cursorX += packedWidth;
                 rowHeight = Math.max(rowHeight, packedHeight);
@@ -1748,17 +1743,20 @@ public class FontDrawer {
         private void ensureTexture() {
             if (texture != null) return;
             NativeImage image = new NativeImage(NativeImage.Format.RGBA, FONT_ATLAS_SIZE, FONT_ATLAS_SIZE, true);
-            DynamicTexture created = new DynamicTexture(image);
-            created.setFilter(linear, false);
+            Object created = AuiServices.render().createDynamicTexture(
+                    "apricityui:font/atlas-" + (linear ? "linear" : "nearest"),
+                    image,
+                    linear
+            );
             pixels = image;
             texture = created;
             try {
-                Minecraft.getInstance().getTextureManager().register(location, created);
+                AuiServices.render().registerTexture(created, AuiServices.resources().textureLocation(location));
                 registered = true;
             } catch (RuntimeException exception) {
                 texture = null;
                 pixels = null;
-                created.close();
+                AuiServices.render().closeTexture(created);
                 throw exception;
             }
         }
@@ -1783,13 +1781,13 @@ public class FontDrawer {
             if (texture == null) return;
             try {
                 if (registered) {
-                    Minecraft.getInstance().getTextureManager().release(location);
+                    AuiServices.render().releaseTexture(AuiServices.resources().textureLocation(location));
                 } else {
-                    texture.close();
+                    AuiServices.render().closeTexture(texture);
                 }
             } catch (Exception ignored) {
                 try {
-                    texture.close();
+                    AuiServices.render().closeTexture(texture);
                 } catch (Exception ignoredAgain) {
                 }
             } finally {
@@ -1799,12 +1797,12 @@ public class FontDrawer {
             }
         }
 
-        private record Region(ResourceLocation location, int x, int y, int width, int height,
+        private record Region(TextureKey location, int x, int y, int width, int height,
                               int textureWidth, int textureHeight) {
         }
     }
 
-    public record FontEntry(ResourceLocation location, NativeImage nativeImage, DynamicTexture dynamicTexture,
+    public record FontEntry(TextureKey location, NativeImage nativeImage, Object dynamicTexture,
                             int width, int height, TextureStats textureStats, RasterLayout rasterLayout) {
         float verticalAnchorTexel() {
             return rasterLayout.glyphAnchorTexel();

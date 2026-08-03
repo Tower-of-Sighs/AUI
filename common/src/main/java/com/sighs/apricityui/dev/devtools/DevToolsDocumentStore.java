@@ -3,7 +3,7 @@ package com.sighs.apricityui.dev.devtools;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.loader.Loader;
-import net.minecraftforge.fml.loading.FMLEnvironment;
+import com.sighs.apricityui.spi.AuiServices;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,7 +23,7 @@ final class DevToolsDocumentStore {
     static Resolution resolve(Document document) {
         if (document == null) return Resolution.failure("No document selected");
         try {
-            return resolve(document.getPath(), ClientLoader.listFinalStaticResources(), FMLEnvironment.production);
+            return resolve(document.getPath(), ClientLoader.listFinalStaticResources(), AuiServices.client().isProduction());
         } catch (RuntimeException | LinkageError ignored) {
             return Resolution.failure("This document is not a writable Apricity resource");
         }
