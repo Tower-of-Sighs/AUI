@@ -39,8 +39,13 @@ public final class ApricityUINeoForge {
 
         if (dist == Dist.CLIENT) {
             ApricityUIRegistry.register();
-            NeoForge.EVENT_BUS.register(com.sighs.apricityui.client.Client.class);
-            NeoForge.EVENT_BUS.register(com.sighs.apricityui.world.WorldWindowRenderer.class);
+            // NOTE: Client and WorldWindowRenderer carry @EventBusSubscriber, so FML
+            // registers them automatically. Registering them here again would fire
+            // every handler twice per event — with the 26.1 PIP pool, the resulting
+            // duplicate per-frame PIP states overwrite each other in
+            // PictureInPictureRendererPool.renderersThisFrame and orphan (leak) a
+            // fullscreen-texture renderer every frame. Do NOT re-add manual
+            // NeoForge.EVENT_BUS.register calls for them.
             // MOD-bus handlers:
             modEventBus.register(com.sighs.apricityui.registry.Keybindings.class);
             modEventBus.register(com.sighs.apricityui.loader.ClientLoaderForge.class);

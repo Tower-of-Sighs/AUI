@@ -57,6 +57,7 @@ public final class ApricityGuiLayers {
      * is the z order in the 26.1 GUI renderer).
      */
     public static void submitUi(GuiGraphicsExtractor guiGraphics) {
+        if (isDuplicateThisFrame(guiGraphics, true)) return;
         Minecraft mc = Minecraft.getInstance();
         int w = mc.getWindow().getGuiScaledWidth();
         int h = mc.getWindow().getGuiScaledHeight();
@@ -66,10 +67,35 @@ public final class ApricityGuiLayers {
 
     /** Submits only the pseudo-cursor PIP state; always composited last. */
     public static void submitCursor(GuiGraphicsExtractor guiGraphics) {
+        if (isDuplicateThisFrame(guiGraphics, false)) return;
         Minecraft mc = Minecraft.getInstance();
         int w = mc.getWindow().getGuiScaledWidth();
         int h = mc.getWindow().getGuiScaledHeight();
         guiGraphics.submitPictureInPictureRenderState(
                 ApricityUiPipRenderState.cursor(0, 0, w, h, guiGraphics.peekScissorStack()));
+    }
+
+    // The extractor is created fresh per frame in GameRenderer.extractGui, so
+    // its identity doubles as a frame stamp.
+    private static GuiGraphicsExtractor lastUiExtractor;
+    private static GuiGraphicsExtractor lastCursorExtractor;
+
+    /**
+     * Guards against submitting two equal PIP states in one frame:
+     * NeoForge's {@code PictureInPictureRendererPool} keys renderers by state
+     * equality, and a second equal state overwrites the first one's pool entry
+     * without closing it — orphaning (leaking) a fullscreen-texture renderer
+     * every frame. This once bit the mod when an event handler was accidentally
+     * registered twice (GpuOutOfMemoryException within a minute).
+     */
+    private static boolean isDuplicateThisFrame(GuiGraphicsExtractor guiGraphics, boolean ui) {
+        if (ui) {
+            if (guiGraphics == lastUiExtractor) return true;
+            lastUiExtractor = guiGraphics;
+            return false;
+        }
+        if (guiGraphics == lastCursorExtractor) return true;
+        lastCursorExtractor = guiGraphics;
+        return false;
     }
 }
