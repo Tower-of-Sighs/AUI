@@ -1,21 +1,37 @@
-#version 150
+#version 330
+
+#moj_import <minecraft:dynamictransforms.glsl>
 
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
-uniform float Brightness;
-uniform float Grayscale;
-uniform float Invert;
-uniform float HueRotate;
-uniform float Opacity;
-uniform vec2 ShadowOffset;
-uniform vec4 ShadowColor;
-uniform float ForceAlpha;
-uniform vec4 ClipRect;
-uniform vec4 ClipRadii;
-uniform float ClipEnabled;
-uniform vec2 UvPerGuiPixel;
 
-in vec2 texCoord;
+layout(std140) uniform FilterParams {
+    vec4 FilterScalars;
+    vec4 FilterOpacity;
+    vec4 ShadowOffsetUv;
+    vec4 GuiInSize;
+    vec4 ShadowColorValue;
+    vec4 ClipRectValue;
+    vec4 ClipRadiiValue;
+    vec4 BlurDirection;
+};
+
+#define Brightness FilterScalars.x
+#define Grayscale FilterScalars.y
+#define Invert FilterScalars.z
+#define HueRotate FilterScalars.w
+#define Opacity FilterOpacity.x
+#define ForceAlpha FilterOpacity.y
+#define ClipEnabled FilterOpacity.z
+#define ShadowOffset ShadowOffsetUv.xy
+#define UvPerGuiPixel ShadowOffsetUv.zw
+#define GuiSize GuiInSize.xy
+#define InSize GuiInSize.zw
+#define ShadowColor ShadowColorValue
+#define ClipRect ClipRectValue
+#define ClipRadii ClipRadiiValue
+
+in vec2 texCoord0;
 in vec2 screenPos;
 out vec4 fragColor;
 
@@ -61,7 +77,7 @@ void main() {
         }
     }
 
-    vec4 rawColor = texture(Sampler0, texCoord);
+    vec4 rawColor = texture(Sampler0, texCoord0);
     if (ForceAlpha > 0.5) {
         rawColor.a = 1.0;
     }
@@ -74,7 +90,7 @@ void main() {
 
     vec4 shadow = vec4(0.0);
     if (ShadowColor.a > 0.001) {
-        vec2 shadowBaseUv = texCoord + vec2(-ShadowOffset.x * UvPerGuiPixel.x,
+        vec2 shadowBaseUv = texCoord0 + vec2(-ShadowOffset.x * UvPerGuiPixel.x,
                                              ShadowOffset.y * UvPerGuiPixel.y);
         vec4 sampleCol = texture(Sampler1, shadowBaseUv);
         float shadowAlpha = (ForceAlpha > 0.5) ? 1.0 : sampleCol.a;

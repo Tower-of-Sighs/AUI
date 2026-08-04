@@ -12,11 +12,8 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.DynamicTexture;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.TextureKey;
-import net.minecraft.resources.ResourceLocation;
 
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
@@ -43,11 +40,11 @@ public class Canvas extends Element {
 
     private BufferedImage surface;
     private NativeImage nativeImage;
-    private DynamicTexture texture;
+    private Object texture;
     protected TextureKey textureLocation;
 
-    private static ResourceLocation textureLocation(TextureKey key) {
-        return (ResourceLocation) AuiServices.resources().textureLocation(key);
+    private static Object textureLocation(TextureKey key) {
+        return AuiServices.resources().textureLocation(key);
     }
     private boolean surfaceDirty = true;
     private int bitmapWidth = DEFAULT_WIDTH;
@@ -284,29 +281,30 @@ public class Canvas extends Element {
                 || nativeImage.getWidth() != bitmapWidth || nativeImage.getHeight() != bitmapHeight) {
             destroyTexture();
             nativeImage = new NativeImage(NativeImage.Format.RGBA, bitmapWidth, bitmapHeight, true);
-            texture = new DynamicTexture(nativeImage);
-            texture.setFilter(true, false);
+            texture = AuiServices.render().createDynamicTexture(
+                    "canvas/" + uuid, nativeImage, true
+            );
             textureLocation = TextureKey.of(
                     "canvas/" + UUID.nameUUIDFromBytes(uuid.toString().getBytes(StandardCharsets.UTF_8))
             );
-            Minecraft.getInstance().getTextureManager().register(textureLocation(textureLocation), texture);
+            AuiServices.render().registerTexture(texture, textureLocation(textureLocation));
         }
 
         int[] pixels = ((DataBufferInt) surface.getRaster().getDataBuffer()).getData();
         int index = 0;
         for (int y = 0; y < bitmapHeight; y++) {
             for (int x = 0; x < bitmapWidth; x++) {
-                nativeImage.setPixelRGBA(x, y, argbToAbgr(pixels[index++]));
+                AuiServices.render().setImagePixel(nativeImage, x, y, argbToAbgr(pixels[index++]));
             }
         }
-        texture.upload();
+        AuiServices.render().uploadTextureRegion(texture, nativeImage, 0, 0, bitmapWidth, bitmapHeight, true);
         surfaceDirty = false;
     }
 
     private void destroyTexture() {
         if (texture != null) {
             try {
-                texture.close();
+                AuiServices.render().closeTexture(texture);
             } catch (Exception ignored) {
             }
         }

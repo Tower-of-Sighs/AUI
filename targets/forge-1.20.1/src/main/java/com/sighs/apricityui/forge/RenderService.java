@@ -189,6 +189,11 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public void setImagePixel(Object nativeImage, int x, int y, int pixel) {
+        ((NativeImage) nativeImage).setPixelRGBA(x, y, pixel);
+    }
+
+    @Override
     public void closeTexture(Object texture) {
         ((DynamicTexture) texture).close();
     }
@@ -226,5 +231,168 @@ public final class RenderService implements AuiRenderService {
     @Override
     public Object getFilterBlurShader() {
         return ShaderRegistry.getFilterBlurShader();
+    }
+
+    @Override
+    public void setDepthFunc(int func) {
+        RenderSystem.depthFunc(func);
+    }
+
+    @Override
+    public void setDepthMask(boolean write) {
+        GlStateManager._depthMask(write);
+    }
+
+    @Override
+    public boolean isDepthTestEnabled() {
+        return GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
+    }
+
+    @Override
+    public boolean isDepthMaskEnabled() {
+        return GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+    }
+
+    @Override
+    public void setBlendFuncSeparate(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
+        RenderSystem.blendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+    }
+
+    @Override
+    public void disableBlend() {
+        RenderSystem.disableBlend();
+    }
+
+    @Override
+    public void enableCull() {
+        RenderSystem.enableCull();
+    }
+
+    @Override
+    public void disableCull() {
+        RenderSystem.disableCull();
+    }
+
+    @Override
+    public boolean isCullEnabled() {
+        return GL11.glIsEnabled(GL11.GL_CULL_FACE);
+    }
+
+    @Override
+    public void enablePolygonOffset() {
+        RenderSystem.enablePolygonOffset();
+    }
+
+    @Override
+    public void disablePolygonOffset() {
+        RenderSystem.disablePolygonOffset();
+    }
+
+    @Override
+    public void polygonOffset(float factor, float units) {
+        RenderSystem.polygonOffset(factor, units);
+    }
+
+    @Override
+    public void enableScissorTest() {
+        GlStateManager._enableScissorTest();
+    }
+
+    @Override
+    public void scissorBox(int x, int y, int width, int height) {
+        GlStateManager._scissorBox(x, y, width, height);
+    }
+
+    @Override
+    public void disableScissorTest() {
+        GlStateManager._disableScissorTest();
+    }
+
+    @Override
+    public void enableStencilTest() {
+        GL11.glEnable(GL11.GL_STENCIL_TEST);
+    }
+
+    @Override
+    public void disableStencilTest() {
+        GL11.glDisable(GL11.GL_STENCIL_TEST);
+    }
+
+    @Override
+    public void setStencilMask(int mask) {
+        GL11.glStencilMask(mask);
+    }
+
+    @Override
+    public void setStencilFunc(int func, int ref, int mask) {
+        GL11.glStencilFunc(func, ref, mask);
+    }
+
+    @Override
+    public void setStencilOp(int sfail, int dpfail, int dppass) {
+        GL11.glStencilOp(sfail, dpfail, dppass);
+    }
+
+    @Override
+    public void clearStencilBuffer() {
+        GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
+    }
+
+    @Override
+    public void setColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+        GL11.glColorMask(red, green, blue, alpha);
+    }
+
+    @Override
+    public boolean isOnRenderThread() {
+        return RenderSystem.isOnRenderThread();
+    }
+
+    @Override
+    public void recordRenderCall(Runnable task) {
+        RenderSystem.recordRenderCall(task::run);
+    }
+
+    @Override
+    public String getGLVersionString() {
+        return GL11.glGetString(GL11.GL_VERSION);
+    }
+
+    @Override
+    public void flushSharedBuffers() {
+        Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+    }
+
+    private static void setShaderUniform(String name,
+                                         java.util.function.Consumer<com.mojang.blaze3d.shaders.Uniform> setter) {
+        ShaderInstance shader = RenderSystem.getShader();
+        if (shader == null) return;
+        com.mojang.blaze3d.shaders.Uniform uniform = shader.getUniform(name);
+        if (uniform != null) setter.accept(uniform);
+    }
+
+    @Override
+    public void setShaderUniformFloat(String name, float value) {
+        setShaderUniform(name, uniform -> uniform.set(value));
+    }
+
+    @Override
+    public void setShaderUniform2f(String name, float a, float b) {
+        setShaderUniform(name, uniform -> uniform.set(a, b));
+    }
+
+    @Override
+    public void setShaderUniform3f(String name, float a, float b, float c) {
+        setShaderUniform(name, uniform -> uniform.set(a, b, c));
+    }
+
+    @Override
+    public void setShaderUniform4f(String name, float a, float b, float c, float d) {
+        setShaderUniform(name, uniform -> uniform.set(a, b, c, d));
+    }
+
+    @Override
+    public void setShaderUniformI(String name, int value) {
+        setShaderUniform(name, uniform -> uniform.set(value));
     }
 }

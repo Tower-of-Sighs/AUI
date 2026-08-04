@@ -4,8 +4,12 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
+import net.minecraft.world.phys.Vec3;
+import org.joml.Vector3f;
 
+import java.io.File;
 import java.lang.annotation.Annotation;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -73,4 +77,25 @@ public interface AuiClientService {
                                Predicate<Map<String, Object>> annotationPredicate,
                                Consumer<Class<?>> consumer,
                                Runnable onFinished);
+
+    // ------------------------------------------------------------------
+    // Version-neutral client-platform ops (added for the 26.1 target).
+    // net.minecraft.Util / ResourceLocation / Window / Camera changed names
+    // or package across versions, so common asks the loader instead.
+    // ------------------------------------------------------------------
+
+    /** Opens a URI with the system default handler (best-effort). */
+    void openUri(URI uri);
+
+    /** Opens a file with the system default handler (best-effort). */
+    void openFile(File file);
+
+    /** Returns the GLFW window handle (0 when no window is available). */
+    long getWindowHandle();
+
+    /** Returns the current camera position in world space. */
+    Vec3 getCameraPosition();
+
+    /** Returns the current camera look (forward) vector in world space. */
+    Vector3f getCameraLookVector();
 }

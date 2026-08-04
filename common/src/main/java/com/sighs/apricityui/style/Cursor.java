@@ -192,7 +192,7 @@ public class Cursor {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return;
 
-        long window = mc.getWindow().getWindow();
+        long window = AuiServices.client().getWindowHandle();
         if (window == 0L) return;
 
         GLFW.glfwSetInputMode(window, GLFW.GLFW_CURSOR, hidden ? GLFW.GLFW_CURSOR_HIDDEN : GLFW.GLFW_CURSOR_NORMAL);
@@ -206,7 +206,7 @@ public class Cursor {
         Minecraft mc = Minecraft.getInstance();
         if (mc == null || mc.getWindow() == null) return;
 
-        long window = mc.getWindow().getWindow();
+        long window = AuiServices.client().getWindowHandle();
         if (window == 0L) return;
 
         GLFW.glfwSetCursor(window, handle);

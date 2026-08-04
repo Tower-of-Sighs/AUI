@@ -2,6 +2,7 @@ package com.sighs.apricityui.viewport;
 
 import com.mojang.blaze3d.platform.Window;
 import com.sighs.apricityui.parser.HTML;
+import com.sighs.apricityui.spi.AuiServices;
 import org.lwjgl.glfw.GLFW;
 import org.lwjgl.glfw.GLFWVidMode;
 
@@ -161,11 +162,11 @@ public record ApricityViewport(
     }
 
     private static double browserCssScale(Window window) {
-        if (window == null || window.getWindow() == 0L) return 1.0d;
+        if (window == null || AuiServices.client().getWindowHandle() == 0L) return 1.0d;
         float[] xScale = new float[1];
         float[] yScale = new float[1];
         try {
-            GLFW.glfwGetWindowContentScale(window.getWindow(), xScale, yScale);
+            GLFW.glfwGetWindowContentScale(AuiServices.client().getWindowHandle(), xScale, yScale);
             double scale = Math.max(xScale[0], yScale[0]);
             return scale > 0 && Double.isFinite(scale) ? scale : 1.0d;
         } catch (Throwable ignored) {
@@ -196,9 +197,9 @@ public record ApricityViewport(
     }
 
     private static GLFWVidMode resolveVideoMode(Window window) {
-        if (window == null || window.getWindow() == 0L) return null;
+        if (window == null || AuiServices.client().getWindowHandle() == 0L) return null;
         try {
-            long monitor = GLFW.glfwGetWindowMonitor(window.getWindow());
+            long monitor = GLFW.glfwGetWindowMonitor(AuiServices.client().getWindowHandle());
             if (monitor == 0L) {
                 monitor = GLFW.glfwGetPrimaryMonitor();
             }

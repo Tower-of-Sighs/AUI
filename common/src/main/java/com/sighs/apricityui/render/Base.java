@@ -1,9 +1,9 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.viewport.ApricityViewport;
@@ -144,8 +144,10 @@ public class Base {
                         continue;
                     }
 
-                    Element topLayerRoot = WorldWindowRenderContext.isWorldWindowRender()
-                            ? findTopLayerRoot(target) : null;
+                    // A top-layer element is a separate browser surface in both
+                    // screen/PIP and world-window renders. It must not compete
+                    // with the depth written by the document beneath it.
+                    Element topLayerRoot = findTopLayerRoot(target);
                     if (topLayerRoot != activeTopLayerRoot) {
                         if (topLayerDepthScope != null) topLayerDepthScope.close();
                         topLayerDepthScope = null;
@@ -206,11 +208,11 @@ public class Base {
             if (!Base.isDepthTestEnabled()) return null;
             Base.commitDraws();
 
-            boolean previousDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
-            boolean previousDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+            boolean previousDepthTest = AuiServices.render().isDepthTestEnabled();
+            boolean previousDepthMask = AuiServices.render().isDepthMaskEnabled();
             Base.pushDepthTest(false);
-            com.sighs.apricityui.spi.AuiServices.render().disableDepthTest();
-            GL11.glDepthMask(false);
+            AuiServices.render().disableDepthTest();
+            AuiServices.render().setDepthMask(false);
             return new TopLayerDepthScope(previousDepthTest, previousDepthMask);
         }
 
@@ -219,9 +221,9 @@ public class Base {
             closed = true;
             Base.commitDraws();
             Base.popDepthTest();
-            if (previousDepthTest) com.sighs.apricityui.spi.AuiServices.render().enableDepthTest();
-            else com.sighs.apricityui.spi.AuiServices.render().disableDepthTest();
-            GL11.glDepthMask(previousDepthMask);
+            if (previousDepthTest) AuiServices.render().enableDepthTest();
+            else AuiServices.render().disableDepthTest();
+            AuiServices.render().setDepthMask(previousDepthMask);
         }
     }
 
@@ -246,26 +248,26 @@ public class Base {
 
     public static void beginRendering() {
         if (depthTestEnabled) {
-            GlStateManager._enableDepthTest();
-            GlStateManager._depthMask(true);
+            AuiServices.render().enableDepthTest();
+            AuiServices.render().setDepthMask(true);
         } else {
-            GlStateManager._disableDepthTest();
-            GlStateManager._depthMask(false);
+            AuiServices.render().disableDepthTest();
+            AuiServices.render().setDepthMask(false);
         }
-        GlStateManager._disableCull();
-        GlStateManager._enableBlend();
-        GlStateManager._blendFuncSeparate(
-                GlStateManager.SourceFactor.SRC_ALPHA.value,
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                GlStateManager.SourceFactor.ONE.value, // Source Alpha 乘 1
-                GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value // Dest Alpha 乘 (1 - src)
+        AuiServices.render().disableCull();
+        AuiServices.render().enableBlend();
+        AuiServices.render().setBlendFuncSeparate(
+                GL11.GL_SRC_ALPHA,
+                GL11.GL_ONE_MINUS_SRC_ALPHA,
+                GL11.GL_ONE, // Source Alpha 乘 1
+                GL11.GL_ONE_MINUS_SRC_ALPHA // Dest Alpha 乘 (1 - src)
         );
         setPositionColorShader();
     }
 
     public static void finishRendering() {
-        GlStateManager._enableCull();
-        GlStateManager._disableBlend();
+        AuiServices.render().enableCull();
+        AuiServices.render().disableBlend();
     }
 
     private static com.sighs.apricityui.spi.MeshBuilder currentMesh;

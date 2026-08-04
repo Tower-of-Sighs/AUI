@@ -1,6 +1,5 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.platform.Window;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.layout.Size;
@@ -127,9 +126,9 @@ public class Mask {
             FboHandle currentTarget = FilterRenderer.getCurrentTarget();
             AuiServices.render().enableStencil(currentTarget);
 
-            GL11.glEnable(GL11.GL_STENCIL_TEST);
-            GL11.glStencilMask(0xFF);
-            GL11.glClear(GL11.GL_STENCIL_BUFFER_BIT);
+            AuiServices.render().enableStencilTest();
+            AuiServices.render().setStencilMask(0xFF);
+            AuiServices.render().clearStencilBuffer();
         }
     }
 
@@ -174,8 +173,8 @@ public class Mask {
         depth++;
         restoreRenderState(state);
 
-        GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
-        GL11.glStencilMask(0x00);
+        AuiServices.render().setStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
+        AuiServices.render().setStencilMask(0x00);
         pose.popPose();
     }
 
@@ -220,43 +219,43 @@ public class Mask {
 
     private static StencilDepthState setupStencilStatePush() {
         StencilDepthState state = captureStencilDepthState();
-        GL11.glColorMask(false, false, false, false);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-        GL11.glDepthMask(false);
-        GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
-        GL11.glStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_INCR);
-        GL11.glStencilMask(0xFF);
+        AuiServices.render().setColorMask(false, false, false, false);
+        AuiServices.render().disableDepthTest();
+        AuiServices.render().setDepthMask(false);
+        AuiServices.render().disableCull();
+        AuiServices.render().setStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
+        AuiServices.render().setStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_INCR);
+        AuiServices.render().setStencilMask(0xFF);
         return state;
     }
 
     private static StencilDepthState setupStencilStatePop() {
         StencilDepthState state = captureStencilDepthState();
-        GL11.glColorMask(false, false, false, false);
-        GL11.glDisable(GL11.GL_DEPTH_TEST);
-        GL11.glDepthMask(false);
-        GL11.glDisable(GL11.GL_CULL_FACE);
-        GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
-        GL11.glStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_DECR);
-        GL11.glStencilMask(0xFF);
+        AuiServices.render().setColorMask(false, false, false, false);
+        AuiServices.render().disableDepthTest();
+        AuiServices.render().setDepthMask(false);
+        AuiServices.render().disableCull();
+        AuiServices.render().setStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
+        AuiServices.render().setStencilOp(GL11.GL_KEEP, GL11.GL_KEEP, GL11.GL_DECR);
+        AuiServices.render().setStencilMask(0xFF);
         return state;
     }
 
     private static StencilDepthState captureStencilDepthState() {
         return new StencilDepthState(
-                GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
-                GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK),
-                GL11.glIsEnabled(GL11.GL_CULL_FACE)
+                AuiServices.render().isDepthTestEnabled(),
+                AuiServices.render().isDepthMaskEnabled(),
+                AuiServices.render().isCullEnabled()
         );
     }
 
     private static void restoreRenderState(StencilDepthState state) {
-        GL11.glColorMask(true, true, true, true);
-        GL11.glDepthMask(state.depthWriteEnabled());
-        if (state.depthTestEnabled()) GL11.glEnable(GL11.GL_DEPTH_TEST);
-        else GL11.glDisable(GL11.GL_DEPTH_TEST);
-        if (state.cullEnabled()) GL11.glEnable(GL11.GL_CULL_FACE);
-        else GL11.glDisable(GL11.GL_CULL_FACE);
+        AuiServices.render().setColorMask(true, true, true, true);
+        AuiServices.render().setDepthMask(state.depthWriteEnabled());
+        if (state.depthTestEnabled()) AuiServices.render().enableDepthTest();
+        else AuiServices.render().disableDepthTest();
+        if (state.cullEnabled()) AuiServices.render().enableCull();
+        else AuiServices.render().disableCull();
     }
 
     public static void pushClipPath(PoseStack pose, float x, float y, float width, float height, String clipPathValue) {
@@ -296,8 +295,8 @@ public class Mask {
         depth++;
         restoreRenderState(state);
 
-        GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
-        GL11.glStencilMask(0x00);
+        AuiServices.render().setStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
+        AuiServices.render().setStencilMask(0x00);
         pose.popPose();
     }
 
@@ -333,12 +332,12 @@ public class Mask {
 
     private static void finishStencilPop() {
         if (depth > 0) {
-            GL11.glStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
-            GL11.glStencilMask(0x00);
+            AuiServices.render().setStencilFunc(GL11.GL_EQUAL, depth, 0xFF);
+            AuiServices.render().setStencilMask(0x00);
             return;
         }
-        GL11.glDisable(GL11.GL_STENCIL_TEST);
-        GL11.glStencilMask(0xFF);
+        AuiServices.render().disableStencilTest();
+        AuiServices.render().setStencilMask(0xFF);
     }
 
     private static void drawClipToStencil(Matrix4f matrix, float x, float y, float width, float height, String clipPath) {
@@ -360,8 +359,8 @@ public class Mask {
         double bottom = (y + height) * scale;
         DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
 
-        GlStateManager._enableScissorTest();
-        GlStateManager._scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
+        AuiServices.render().enableScissorTest();
+        AuiServices.render().scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
     }
 
     /**
@@ -386,7 +385,7 @@ public class Mask {
     }
 
     public static void disableScissor() {
-        GlStateManager._disableScissorTest();
+        AuiServices.render().disableScissorTest();
     }
 
     private static void applyScissor(AABB rect) {
@@ -422,8 +421,8 @@ public class Mask {
             double right = (offsetX + (rect.x() + rect.width()) * scaleX) * guiScale;
             double bottom = (offsetY + (rect.y() + rect.height()) * scaleY) * guiScale;
             DeviceScissor scissor = quantizeScissor(left, top, right, bottom, window.getHeight());
-            GlStateManager._enableScissorTest();
-            GlStateManager._scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
+            AuiServices.render().enableScissorTest();
+            AuiServices.render().scissorBox(scissor.x(), scissor.y(), scissor.width(), scissor.height());
         }
     }
 

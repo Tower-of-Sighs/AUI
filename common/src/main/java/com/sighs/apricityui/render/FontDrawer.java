@@ -451,7 +451,7 @@ public class FontDrawer {
                     if (compositeMode.solidBackground()) {
                         argb = uncomposeSolidBackground(argb, color, compositeMode);
                     }
-                    nativeImg.setPixelRGBA(x, y, argbToAbgr(argb));
+                    com.sighs.apricityui.spi.AuiServices.render().setImagePixel(nativeImg, x, y, argbToAbgr(argb));
                 }
             }
 

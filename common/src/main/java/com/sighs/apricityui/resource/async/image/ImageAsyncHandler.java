@@ -1,6 +1,5 @@
 package com.sighs.apricityui.resource.async.image;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.init.*;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.loader.ClientLoader;
@@ -172,8 +171,8 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
     @Override
     protected void applyOnMainThread(ApplyTask task, long currentGeneration) {
         // 纹理上传必须在渲染线程执行，但 applyQueue 的 tick 发生在 ClientTick
-        if (!RenderSystem.isOnRenderThread()) {
-            RenderSystem.recordRenderCall(() -> applyOnRenderThread(task));
+        if (!com.sighs.apricityui.spi.AuiServices.render().isOnRenderThread()) {
+            com.sighs.apricityui.spi.AuiServices.render().recordRenderCall(() -> applyOnRenderThread(task));
             return;
         }
         applyOnRenderThread(task);

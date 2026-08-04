@@ -1,6 +1,5 @@
 package com.sighs.apricityui.render;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
@@ -12,7 +11,6 @@ import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 
@@ -53,7 +51,12 @@ public class FilterRenderer {
         // behavior rather than disabling stencil for the whole process.
         stencilCapabilityResolved = true;
         try {
-            String version = GL11.glGetString(GL11.GL_VERSION);
+            if (!AuiServices.render().supportsStencil()) {
+                stencilAvailable = false;
+                ApricityUI.LOGGER.warn("[ApricityUI] stencil masks are unavailable on this render backend; using scissor fallback");
+                return;
+            }
+            String version = AuiServices.render().getGLVersionString();
             if (version != null && version.toLowerCase(Locale.ROOT).contains("opengl es")) {
                 stencilAvailable = false;
                 ApricityUI.LOGGER.warn(
@@ -150,31 +153,29 @@ public class FilterRenderer {
     private static void withBlendRenderState(boolean enableBlend, Runnable body) {
         Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
         if (enableBlend) {
-            GlStateManager._enableBlend();
-            GlStateManager._blendFuncSeparate(
-                    GlStateManager.SourceFactor.SRC_ALPHA.value,
-                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value,
-                    GlStateManager.SourceFactor.ONE.value,
-                    GlStateManager.DestFactor.ONE_MINUS_SRC_ALPHA.value
+            AuiServices.render().enableBlend();
+            AuiServices.render().setBlendFuncSeparate(
+                    GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+                    GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA
             );
         } else {
-            GlStateManager._disableBlend();
+            AuiServices.render().disableBlend();
         }
-        GlStateManager._disableDepthTest();
-        GlStateManager._depthMask(false);
-        GlStateManager._disableCull();
+        AuiServices.render().disableDepthTest();
+        AuiServices.render().setDepthMask(false);
+        AuiServices.render().disableCull();
         try {
             body.run();
         } finally {
-            GlStateManager._depthMask(true);
-            if (Base.isDepthTestEnabled()) GlStateManager._enableDepthTest();
-            else GlStateManager._disableDepthTest();
+            AuiServices.render().setDepthMask(true);
+            if (Base.isDepthTestEnabled()) AuiServices.render().enableDepthTest();
+            else AuiServices.render().disableDepthTest();
             Base.setProjectionMatrix(oldProjection);
         }
     }
 
     private static void drawWithShader(FboHandle fbo, FboHandle shadowFbo, Filter.FilterState state) {
-        ShaderInstance shader = (ShaderInstance) AuiServices.render().getFilterShader();
+        Object shader = AuiServices.render().getFilterShader();
 
         withBlendRenderState(true, () -> {
             if (shader == null) {
@@ -224,7 +225,7 @@ public class FilterRenderer {
 
     private static void drawBackdropWithShader(BackdropSource source, FboHandle shadowTarget,
                                                Filter.FilterState state, Rect rect) {
-        ShaderInstance shader = (ShaderInstance) AuiServices.render().getFilterShader();
+        Object shader = AuiServices.render().getFilterShader();
         if (shader == null) return;
 
         withBlendRenderState(true, () -> {
@@ -363,7 +364,7 @@ public class FilterRenderer {
 
     private static void drawBlurPass(FboHandle source, FboHandle target, float radius,
                                      float directionX, float directionY) {
-        ShaderInstance shader = (ShaderInstance) AuiServices.render().getFilterBlurShader();
+        Object shader = AuiServices.render().getFilterBlurShader();
         if (shader == null) return;
 
         AuiServices.render().clear(target, 0, 0, 0, 0);
@@ -371,8 +372,8 @@ public class FilterRenderer {
         withBlendRenderState(false, () -> {
             Base.setProjectionMatrix(orthoProjection(target.width, target.height));
             Base.setShader(shader);
-            if (shader.getUniform("Direction") != null) shader.getUniform("Direction").set(directionX, directionY);
-            if (shader.getUniform("Radius") != null) shader.getUniform("Radius").set(Math.min(32.0f, radius));
+            AuiServices.render().setShaderUniform2f("Direction", directionX, directionY);
+            AuiServices.render().setShaderUniformFloat("Radius", Math.min(32.0f, radius));
             AuiServices.render().bindColorTexture(source, 0);
             Base.setShaderColor(1, 1, 1, 1);
 
@@ -393,53 +394,44 @@ public class FilterRenderer {
     private record BackdropSource(FboHandle target, float u0, float vBottom, float u1, float vTop,
                                   float uvPerGuiX, float uvPerGuiY) {}
 
-    private static void setupUniforms(ShaderInstance shader, Filter.FilterState state, FboHandle fbo,
+    private static void setupUniforms(Object shader, Filter.FilterState state, FboHandle fbo,
                                       boolean forceAlpha, boolean preBlurred,
                                       float uvPerGuiX, float uvPerGuiY) {
         float blurRadius = preBlurred ? 0.0f
                 : (forceAlpha ? Math.min(state.blurRadius(), MAX_REASONABLE_BACKDROP_BLUR) : state.blurRadius());
-        if (shader.getUniform("BlurRadius") != null) shader.getUniform("BlurRadius").set(blurRadius);
-        if (shader.getUniform("Brightness") != null) shader.getUniform("Brightness").set(state.brightness());
-        if (shader.getUniform("Grayscale") != null) shader.getUniform("Grayscale").set(state.grayscale());
-        if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
-        if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
-        if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
-        if (shader.getUniform("ShadowOffset") != null) shader.getUniform("ShadowOffset").set(state.dropShadowX(), state.dropShadowY());
-        if (shader.getUniform("ShadowBlur") != null) shader.getUniform("ShadowBlur").set(state.dropShadowBlur());
-        if (shader.getUniform("ShadowColor") != null) {
-            int c = state.dropShadowColor();
-            float a = ((c >>> 24) & 0xFF) / 255f;
-            float r = ((c >>> 16) & 0xFF) / 255f;
-            float g = ((c >>> 8) & 0xFF) / 255f;
-            float b = (c & 0xFF) / 255f;
-            shader.getUniform("ShadowColor").set(r, g, b, a);
-        }
-        if (shader.getUniform("InSize") != null) shader.getUniform("InSize").set((float) fbo.width, (float) fbo.height);
-        if (shader.getUniform("ForceAlpha") != null) shader.getUniform("ForceAlpha").set(forceAlpha ? 1.0f : 0.0f);
-        if (shader.getUniform("ClipEnabled") != null) shader.getUniform("ClipEnabled").set(0.0f);
-        if (shader.getUniform("GuiSize") != null) {
-            shader.getUniform("GuiSize").set((float) AuiServices.client().getScaledWidth(), (float) AuiServices.client().getScaledHeight());
-        }
-        if (shader.getUniform("UvPerGuiPixel") != null) {
-            shader.getUniform("UvPerGuiPixel").set(uvPerGuiX, uvPerGuiY);
-        }
+        AuiServices.render().setShaderUniformFloat("BlurRadius", blurRadius);
+        AuiServices.render().setShaderUniformFloat("Brightness", state.brightness());
+        AuiServices.render().setShaderUniformFloat("Grayscale", state.grayscale());
+        AuiServices.render().setShaderUniformFloat("Invert", state.invert());
+        AuiServices.render().setShaderUniformFloat("HueRotate", state.hueRotate());
+        AuiServices.render().setShaderUniformFloat("Opacity", state.opacity());
+        AuiServices.render().setShaderUniform2f("ShadowOffset", state.dropShadowX(), state.dropShadowY());
+        AuiServices.render().setShaderUniformFloat("ShadowBlur", state.dropShadowBlur());
+        int c = state.dropShadowColor();
+        float a = ((c >>> 24) & 0xFF) / 255f;
+        float r = ((c >>> 16) & 0xFF) / 255f;
+        float g = ((c >>> 8) & 0xFF) / 255f;
+        float b = (c & 0xFF) / 255f;
+        AuiServices.render().setShaderUniform4f("ShadowColor", r, g, b, a);
+        AuiServices.render().setShaderUniform2f("InSize", (float) fbo.width, (float) fbo.height);
+        AuiServices.render().setShaderUniformFloat("ForceAlpha", forceAlpha ? 1.0f : 0.0f);
+        AuiServices.render().setShaderUniformFloat("ClipEnabled", 0.0f);
+        AuiServices.render().setShaderUniform2f("GuiSize",
+                (float) AuiServices.client().getScaledWidth(), (float) AuiServices.client().getScaledHeight());
+        AuiServices.render().setShaderUniform2f("UvPerGuiPixel", uvPerGuiX, uvPerGuiY);
     }
 
-    private static void setupBackdropClipUniforms(ShaderInstance shader, Rect rect, float guiW, float guiH) {
-        if (shader.getUniform("ClipEnabled") == null) return;
+    private static void setupBackdropClipUniforms(Object shader, Rect rect, float guiW, float guiH) {
         Position p = rect.getBodyRectPosition();
         Size s = rect.getBodyRectSize();
         float[] radii = rect.getBodyRadius();
-        shader.getUniform("ClipEnabled").set(1.0f);
-        if (shader.getUniform("ClipRect") != null) {
-            shader.getUniform("ClipRect").set((float) p.x, (float) p.y, (float) s.width(), (float) s.height());
+        AuiServices.render().setShaderUniformFloat("ClipEnabled", 1.0f);
+        AuiServices.render().setShaderUniform4f("ClipRect",
+                (float) p.x, (float) p.y, (float) s.width(), (float) s.height());
+        if (radii != null && radii.length >= 4) {
+            AuiServices.render().setShaderUniform4f("ClipRadii", radii[0], radii[1], radii[2], radii[3]);
         }
-        if (shader.getUniform("ClipRadii") != null && radii != null && radii.length >= 4) {
-            shader.getUniform("ClipRadii").set(radii[0], radii[1], radii[2], radii[3]);
-        }
-        if (shader.getUniform("GuiSize") != null) {
-            shader.getUniform("GuiSize").set(guiW, guiH);
-        }
+        AuiServices.render().setShaderUniform2f("GuiSize", guiW, guiH);
     }
 
     private static Matrix4f orthoProjection(float width, float height) {

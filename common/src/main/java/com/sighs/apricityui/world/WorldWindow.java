@@ -1,6 +1,5 @@
 package com.sighs.apricityui.world;
 
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
@@ -9,9 +8,7 @@ import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.WorldWindowRenderContext;
 import com.sighs.apricityui.render.WorldPaintDepth;
 import com.sighs.apricityui.layout.Position;
-import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.util.Mth;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.BlockHitResult;
@@ -229,11 +226,10 @@ public class WorldWindow {
         return followFactor;
     }
 
-    private Vec3 resolveRenderPosition(Camera camera) {
-        if (position == null || !followEnabled || camera == null) return position;
-        Vector3f lookVector = camera.getLookVector();
+    private Vec3 resolveRenderPosition(Vec3 cameraPosition, Vector3f lookVector) {
+        if (position == null || !followEnabled || cameraPosition == null) return position;
         Vec3 look = new Vec3(lookVector.x, lookVector.y, lookVector.z);
-        return resolveFollowPosition(position, camera.getPosition(), look, followFactor);
+        return resolveFollowPosition(position, cameraPosition, look, followFactor);
     }
 
     private Quaternionf resolveRenderRotation(Vec3 cameraPosition, Vec3 renderPosition) {
@@ -380,9 +376,8 @@ public class WorldWindow {
     public WorldWindowDisplayPrecision getEffectiveDisplayPrecision() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null || minecraft.gameRenderer == null) return WorldWindowDisplayPrecision.MINIMAL;
-        Camera camera = minecraft.gameRenderer.getMainCamera();
-        Vec3 cameraPosition = camera.getPosition();
-        Vec3 renderPosition = resolveRenderPosition(camera);
+        Vec3 cameraPosition = AuiServices.client().getCameraPosition();
+        Vec3 renderPosition = resolveRenderPosition(cameraPosition, AuiServices.client().getCameraLookVector());
         if (!isWithinDisplayDistance(cameraPosition, renderPosition)) return WorldWindowDisplayPrecision.MINIMAL;
         return resolveDisplayPrecision(cameraPosition, renderPosition);
     }
@@ -450,10 +445,8 @@ public class WorldWindow {
 
     public void render(PoseStack poseStack, Matrix4f projectionMatrix, float partialTick) {
         clearInteractionTransform();
-        Minecraft mc = Minecraft.getInstance();
-        Camera camera = mc.gameRenderer.getMainCamera();
-        Vec3 cameraPos = camera.getPosition();
-        Vec3 renderPosition = resolveRenderPosition(camera);
+        Vec3 cameraPos = AuiServices.client().getCameraPosition();
+        Vec3 renderPosition = resolveRenderPosition(cameraPos, AuiServices.client().getCameraLookVector());
         if (!isWithinDisplayDistance(cameraPos, renderPosition)) return;
         WorldWindowDisplayPrecision precision = resolveDisplayPrecision(cameraPos, renderPosition);
         float documentScale = worldDocumentScale();
@@ -484,26 +477,27 @@ public class WorldWindow {
 
         poseStack.translate(-viewportWidth / 2.0f, -viewportHeight / 2.0f, 0);
 
-        MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
-
         poseStack.last().pose().set(poseStack.last().pose());
         poseStack.last().normal().set(poseStack.last().normal());
 
-        boolean previousDepthTest = GL11.glIsEnabled(GL11.GL_DEPTH_TEST);
-        boolean previousDepthMask = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        boolean previousDepthTest = AuiServices.render().isDepthTestEnabled();
+        boolean previousDepthMask = AuiServices.render().isDepthMaskEnabled();
         if (depthTest) {
-            RenderSystem.enableDepthTest();
-            RenderSystem.depthFunc(GL11.GL_LEQUAL);
-            GL11.glDepthMask(true);
+            AuiServices.render().enableDepthTest();
+            AuiServices.render().setDepthFunc(GL11.GL_LEQUAL);
+            AuiServices.render().setDepthMask(true);
         } else {
-            RenderSystem.disableDepthTest();
-            GL11.glDepthMask(false);
+            AuiServices.render().disableDepthTest();
+            AuiServices.render().setDepthMask(false);
         }
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
+        AuiServices.render().enableBlend();
+        AuiServices.render().setBlendFuncSeparate(
+                GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA,
+                GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA
+        );
         // Depth bias to avoid z-fighting with world geometry.
-        RenderSystem.enablePolygonOffset();
-        RenderSystem.polygonOffset(POLYGON_OFFSET, POLYGON_OFFSET);
+        AuiServices.render().enablePolygonOffset();
+        AuiServices.render().polygonOffset(POLYGON_OFFSET, POLYGON_OFFSET);
 
         float documentDepthBudget = computeDepthStep(cameraPos, renderPosition);
         float safeScale = Math.max(1.0e-4f, renderScale);
@@ -545,12 +539,12 @@ public class WorldWindow {
             Base.popDocumentZOffset();
         }
 
-        bufferSource.endBatch();
-        RenderSystem.polygonOffset(0.0f, 0.0f);
-        RenderSystem.disablePolygonOffset();
-        if (previousDepthTest) RenderSystem.enableDepthTest();
-        else RenderSystem.disableDepthTest();
-        GL11.glDepthMask(previousDepthMask);
+        AuiServices.render().flushSharedBuffers();
+        AuiServices.render().polygonOffset(0.0f, 0.0f);
+        AuiServices.render().disablePolygonOffset();
+        if (previousDepthTest) AuiServices.render().enableDepthTest();
+        else AuiServices.render().disableDepthTest();
+        AuiServices.render().setDepthMask(previousDepthMask);
 
         poseStack.popPose();
     }
@@ -588,9 +582,7 @@ public class WorldWindow {
 
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft == null || minecraft.gameRenderer == null) return null;
-        Camera camera = minecraft.gameRenderer.getMainCamera();
-        if (camera == null) return null;
-        Vec3 rayOrigin = camera.getPosition();
+        Vec3 rayOrigin = AuiServices.client().getCameraPosition();
         Vec3 renderPosition = interactionPosition == null ? position : interactionPosition;
         if (!isWithinDisplayDistance(rayOrigin, renderPosition)) return null;
 

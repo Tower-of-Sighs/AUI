@@ -8,7 +8,9 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
 import org.joml.Matrix4f;
+import org.joml.Vector3f;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.phys.Vec3;
 
 import java.io.InputStream;
 import java.lang.annotation.Annotation;
@@ -223,6 +225,29 @@ public final class AuiServices {
                                               Predicate<Map<String, Object>> annotationPredicate,
                                               Consumer<Class<?>> consumer,
                                               Runnable onFinished) {
+            }
+
+            @Override
+            public void openUri(java.net.URI uri) {
+            }
+
+            @Override
+            public void openFile(java.io.File file) {
+            }
+
+            @Override
+            public long getWindowHandle() {
+                return 0L;
+            }
+
+            @Override
+            public Vec3 getCameraPosition() {
+                return new Vec3(0.0, 0.0, 0.0);
+            }
+
+            @Override
+            public Vector3f getCameraLookVector() {
+                return new Vector3f(0.0F, 0.0F, -1.0F);
             }
         };
 
@@ -544,6 +569,10 @@ public final class AuiServices {
             }
 
             @Override
+            public void setImagePixel(Object nativeImage, int x, int y, int pixel) {
+            }
+
+            @Override
             public void closeTexture(Object texture) {
             }
 
@@ -575,6 +604,136 @@ public final class AuiServices {
             @Override
             public Object getFilterBlurShader() {
                 return null;
+            }
+
+            @Override
+            public void setDepthFunc(int func) {
+            }
+
+            @Override
+            public void setDepthMask(boolean write) {
+            }
+
+            @Override
+            public boolean isDepthTestEnabled() {
+                return true;
+            }
+
+            @Override
+            public boolean isDepthMaskEnabled() {
+                return true;
+            }
+
+            @Override
+            public void setBlendFuncSeparate(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha) {
+            }
+
+            @Override
+            public void disableBlend() {
+            }
+
+            @Override
+            public void enableCull() {
+            }
+
+            @Override
+            public void disableCull() {
+            }
+
+            @Override
+            public boolean isCullEnabled() {
+                return false;
+            }
+
+            @Override
+            public void enablePolygonOffset() {
+            }
+
+            @Override
+            public void disablePolygonOffset() {
+            }
+
+            @Override
+            public void polygonOffset(float factor, float units) {
+            }
+
+            @Override
+            public void enableScissorTest() {
+            }
+
+            @Override
+            public void scissorBox(int x, int y, int width, int height) {
+            }
+
+            @Override
+            public void disableScissorTest() {
+            }
+
+            @Override
+            public void enableStencilTest() {
+            }
+
+            @Override
+            public void disableStencilTest() {
+            }
+
+            @Override
+            public void setStencilMask(int mask) {
+            }
+
+            @Override
+            public void setStencilFunc(int func, int ref, int mask) {
+            }
+
+            @Override
+            public void setStencilOp(int sfail, int dpfail, int dppass) {
+            }
+
+            @Override
+            public void clearStencilBuffer() {
+            }
+
+            @Override
+            public void setColorMask(boolean red, boolean green, boolean blue, boolean alpha) {
+            }
+
+            @Override
+            public boolean isOnRenderThread() {
+                return true;
+            }
+
+            @Override
+            public void recordRenderCall(Runnable task) {
+                task.run();
+            }
+
+            @Override
+            public String getGLVersionString() {
+                return "1.0";
+            }
+
+            @Override
+            public void flushSharedBuffers() {
+            }
+
+            @Override
+            public void setShaderUniformFloat(String name, float value) {
+            }
+
+            @Override
+            public void setShaderUniform2f(String name, float a, float b) {
+            }
+
+            @Override
+            public void setShaderUniform3f(String name, float a, float b, float c) {
+            }
+
+            @Override
+            public void setShaderUniform4f(String name, float a, float b, float c, float d) {
+            }
+
+            @Override
+            public void setShaderUniformI(String name, int value) {
             }
         };
     }

@@ -76,6 +76,13 @@ public interface AuiRenderService {
     /** Uploads a native-image region into the bound texture. */
     void uploadTextureRegion(Object texture, Object nativeImage, int x, int y, int width, int height, boolean linear);
 
+    /**
+     * Sets one ABGR-packed pixel of a native image (native image name differs
+     * across versions: {@code setPixelRGBA} on 1.20.x/1.21.x, {@code setPixelABGR}
+     * on 1.21.5+).
+     */
+    void setImagePixel(Object nativeImage, int x, int y, int pixel);
+
     /** Releases a dynamic texture's GPU resources. */
     void closeTexture(Object texture);
 
@@ -102,4 +109,109 @@ public interface AuiRenderService {
 
     /** Returns the loader's filter blur shader, or {@code null}. */
     Object getFilterBlurShader();
+
+    // ------------------------------------------------------------------
+    // Version-neutral render-state passthrough (added for the 26.1 target).
+    // The pre-1.21.5 RenderSystem/GlStateManager global-state model was
+    // removed in favour of per-draw RenderPipeline/RenderPass objects; common
+    // expresses only the state intent here and the loader applies it.
+    // ------------------------------------------------------------------
+
+    /** Sets the depth comparison function (OpenGL constant value, e.g. GL_LEQUAL). */
+    void setDepthFunc(int func);
+
+    /** Sets whether the depth buffer is writable. */
+    void setDepthMask(boolean write);
+
+    /** Returns whether depth testing is currently enabled. */
+    boolean isDepthTestEnabled();
+
+    /** Returns whether the depth buffer is currently writable. */
+    boolean isDepthMaskEnabled();
+
+    /** Sets the source/destination blend factors separately for RGB and alpha (OpenGL constant values). */
+    void setBlendFuncSeparate(int srcRgb, int dstRgb, int srcAlpha, int dstAlpha);
+
+    /** Disables alpha blending. */
+    void disableBlend();
+
+    /** Enables back-face culling. */
+    void enableCull();
+
+    /** Disables back-face culling. */
+    void disableCull();
+
+    /** Returns whether back-face culling is currently enabled. */
+    boolean isCullEnabled();
+
+    /** Enables the depth polygon offset. */
+    void enablePolygonOffset();
+
+    /** Disables the depth polygon offset. */
+    void disablePolygonOffset();
+
+    /** Sets the polygon offset factor/units. */
+    void polygonOffset(float factor, float units);
+
+    /** Enables the scissor test. */
+    void enableScissorTest();
+
+    /** Sets the scissor box in device pixels. */
+    void scissorBox(int x, int y, int width, int height);
+
+    /** Disables the scissor test. */
+    void disableScissorTest();
+
+    /** Enables the stencil test (best-effort; unavailable on some backends). */
+    void enableStencilTest();
+
+    /** Disables the stencil test. */
+    void disableStencilTest();
+
+    /** Sets the stencil write mask. */
+    void setStencilMask(int mask);
+
+    /** Sets the stencil comparison function/ref/mask. */
+    void setStencilFunc(int func, int ref, int mask);
+
+    /** Sets the stencil operation on fail/stencil-fail/depth-fail. */
+    void setStencilOp(int sfail, int dpfail, int dppass);
+
+    /** Clears the stencil buffer of the bound target. */
+    void clearStencilBuffer();
+
+    /** Sets the color write mask. */
+    void setColorMask(boolean red, boolean green, boolean blue, boolean alpha);
+
+    /** Returns whether the current thread is the render thread. */
+    boolean isOnRenderThread();
+
+    /** Runs the task on the render thread (or immediately if already there). */
+    void recordRenderCall(Runnable task);
+
+    /** Returns the GL version string, or {@code null} if unavailable (used for GLES detection). */
+    String getGLVersionString();
+
+    /** Whether this loader can attach and draw against a stencil buffer. */
+    default boolean supportsStencil() {
+        return true;
+    }
+
+    /** Flushes the loader's shared buffer source (e.g. {@code bufferSource().endBatch()}). */
+    void flushSharedBuffers();
+
+    /** Sets a float shader uniform on the current shader (tolerates missing uniforms). */
+    void setShaderUniformFloat(String name, float value);
+
+    /** Sets a vec2 shader uniform on the current shader (tolerates missing uniforms). */
+    void setShaderUniform2f(String name, float a, float b);
+
+    /** Sets a vec3 shader uniform on the current shader (tolerates missing uniforms). */
+    void setShaderUniform3f(String name, float a, float b, float c);
+
+    /** Sets a vec4 shader uniform on the current shader (tolerates missing uniforms). */
+    void setShaderUniform4f(String name, float a, float b, float c, float d);
+
+    /** Sets an int shader uniform on the current shader (tolerates missing uniforms). */
+    void setShaderUniformI(String name, int value);
 }

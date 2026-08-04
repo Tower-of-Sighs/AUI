@@ -5,7 +5,6 @@ import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.spi.MeshFormat;
 import com.sighs.apricityui.spi.MeshMode;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.Gradient;
 import org.joml.Matrix4f;
@@ -110,11 +109,11 @@ public class Graph {
             Base.setMesh(null);
             if (!batchDepthTest) {
                 if (Base.isDepthTestEnabled()) {
-                    GlStateManager._enableDepthTest();
-                    GlStateManager._depthMask(true);
+                    AuiServices.render().enableDepthTest();
+                    AuiServices.render().setDepthMask(true);
                 } else {
-                    GlStateManager._disableDepthTest();
-                    GlStateManager._depthMask(false);
+                    AuiServices.render().disableDepthTest();
+                    AuiServices.render().setDepthMask(false);
                 }
             }
             Base.finishRendering();
@@ -132,8 +131,8 @@ public class Graph {
         Base.setMesh(mesh);
         Base.beginRendering();
         if (!batchDepthTest) {
-            GlStateManager._disableDepthTest();
-            GlStateManager._depthMask(false);
+            AuiServices.render().disableDepthTest();
+            AuiServices.render().setDepthMask(false);
         }
         prepare(mesh);
         batchStarted = true;

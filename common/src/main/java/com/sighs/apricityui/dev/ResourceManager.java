@@ -19,9 +19,7 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.layout.Position;
-import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.Util;
 import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Files;
@@ -128,11 +126,9 @@ public final class ResourceManager {
             toolDocument = null;
         }
         if (worldWindow == null || worldWindow.document == null || worldWindow.document.isDisposed()) {
-            Minecraft minecraft = Minecraft.getInstance();
             // Place the panel along the actual render camera direction in third person.
-            Camera camera = minecraft.gameRenderer.getMainCamera();
-            Vec3 cameraPosition = camera.getPosition();
-            var lookVector = camera.getLookVector();
+            Vec3 cameraPosition = com.sighs.apricityui.spi.AuiServices.client().getCameraPosition();
+            var lookVector = com.sighs.apricityui.spi.AuiServices.client().getCameraLookVector();
             Vec3 look = new Vec3(lookVector.x, lookVector.y, lookVector.z).normalize();
             Vec3 position = cameraPosition.add(look.scale(3.0d));
             Vec3 toCamera = cameraPosition.subtract(position);
@@ -687,7 +683,7 @@ public final class ResourceManager {
         Path openTarget = Files.isDirectory(localPath) ? localPath : localPath.getParent();
         if (openTarget == null) openTarget = localPath;
         try {
-            Util.getPlatform().openFile(openTarget.toFile());
+            com.sighs.apricityui.spi.AuiServices.client().openFile(openTarget.toFile());
             ToastManager.show("Opened local folder");
         } catch (Exception ignored) {
             ToastManager.show("Failed to open folder");

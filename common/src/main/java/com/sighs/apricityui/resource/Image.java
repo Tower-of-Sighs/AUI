@@ -1,14 +1,8 @@
 package com.sighs.apricityui.resource;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import com.mojang.blaze3d.platform.TextureUtil;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.resource.async.image.DecodedImage;
-import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.texture.AbstractTexture;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.server.packs.resources.ResourceManager;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
@@ -88,7 +82,7 @@ public class Image {
                     for (NativeImage frameImage : decodedImage.getFrames()) {
                         TextureInfo info = uploadImage(cacheKey + "_frame_" + index, frameImage);
                         int delay = index < delays.length ? delays[index] : 100;
-                        frames.add(new AnimatedTexture.Frame(info.key, info.textureId, Math.max(delay, 20)));
+                        frames.add(new AnimatedTexture.Frame(info.key, info.texture, Math.max(delay, 20)));
                         index++;
                     }
                 } catch (Exception e) {
@@ -114,7 +108,7 @@ public class Image {
             if (imageData == null) return null;
             TextureInfo info = uploadImage(cacheKey, imageData);
             return new StaticTexture(
-                    info.textureId,
+                    info.texture,
                     info.key,
                     info.width,
                     info.height,
@@ -294,7 +288,7 @@ public class Image {
                 int g = (argb >> 8) & 0xFF;
                 int b = (argb) & 0xFF;
                 int abgr = (a << 24) | (b << 16) | (g << 8) | r;
-                nativeImage.setPixelRGBA(x, y, abgr);
+                com.sighs.apricityui.spi.AuiServices.render().setImagePixel(nativeImage, x, y, abgr);
             }
         }
         return nativeImage;
@@ -457,7 +451,7 @@ public class Image {
                     }
                 }
                 int abgr = (a << 24) | (b << 16) | (g << 8) | r;
-                image.setPixelRGBA(x, y, abgr);
+                com.sighs.apricityui.spi.AuiServices.render().setImagePixel(image, x, y, abgr);
             }
         }
 
@@ -517,19 +511,16 @@ public class Image {
     }
 
     private static TextureInfo uploadImage(String cacheKey, NativeImage image) {
-        int textureId = TextureUtil.generateTextureId();
-        TextureUtil.prepareImage(textureId, image.getWidth(), image.getHeight());
-        image.upload(0, 0, 0, false);
+        com.sighs.apricityui.spi.AuiRenderService render = com.sighs.apricityui.spi.AuiServices.render();
         com.sighs.apricityui.spi.AuiResourceService resources = com.sighs.apricityui.spi.AuiServices.resources();
+        Object texture = render.createDynamicTexture(cacheKey, image, false);
+        render.uploadTextureRegion(texture, image, 0, 0, image.getWidth(), image.getHeight(), false);
         com.sighs.apricityui.spi.TextureKey key = resources.locationOf(cacheKey);
-        Minecraft.getInstance().getTextureManager().register(
-                (ResourceLocation) resources.textureLocation(key),
-                new SimpleTextureWrapper(textureId)
-        );
-        return new TextureInfo(textureId, cacheKey, image.getWidth(), image.getHeight());
+        render.registerTexture(texture, resources.textureLocation(key));
+        return new TextureInfo(texture, cacheKey, image.getWidth(), image.getHeight());
     }
 
-    private record TextureInfo(int textureId, String key, int width, int height) {
+    private record TextureInfo(Object texture, String key, int width, int height) {
     }
 
     public interface ITexture {
@@ -551,15 +542,15 @@ public class Image {
     }
 
     public static class StaticTexture implements ITexture {
-        private final int textureId;
+        private final Object texture;
         private final String key;
         private final int width;
         private final int height;
         private final int hotspotX;
         private final int hotspotY;
 
-        public StaticTexture(int textureId, String key, int width, int height, int hotspotX, int hotspotY) {
-            this.textureId = textureId;
+        public StaticTexture(Object texture, String key, int width, int height, int hotspotX, int hotspotY) {
+            this.texture = texture;
             this.key = key;
             this.width = width;
             this.height = height;
@@ -594,12 +585,14 @@ public class Image {
 
         @Override
         public void destroy() {
-            RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(textureId));
+            Object texture = this.texture;
+            com.sighs.apricityui.spi.AuiServices.render().recordRenderCall(() ->
+                    com.sighs.apricityui.spi.AuiServices.render().closeTexture(texture));
         }
     }
 
     public static class AnimatedTexture implements ITexture {
-        public record Frame(String key, int textureId, int durationMs) {
+        public record Frame(String key, Object texture, int durationMs) {
         }
 
         private final List<Frame> frames;
@@ -655,25 +648,10 @@ public class Image {
         @Override
         public void destroy() {
             for (Frame frame : frames) {
-                RenderSystem.recordRenderCall(() -> TextureUtil.releaseTextureId(frame.textureId));
+                Object texture = frame.texture();
+                com.sighs.apricityui.spi.AuiServices.render().recordRenderCall(() ->
+                        com.sighs.apricityui.spi.AuiServices.render().closeTexture(texture));
             }
-        }
-    }
-
-    public static class SimpleTextureWrapper extends AbstractTexture {
-        private final int textureId;
-
-        public SimpleTextureWrapper(int textureId) {
-            this.textureId = textureId;
-        }
-
-        @Override
-        public int getId() {
-            return textureId;
-        }
-
-        @Override
-        public void load(ResourceManager manager) {
         }
     }
 

@@ -8,10 +8,14 @@ import com.sighs.apricityui.screen.ApricityScreen;
 import com.sighs.apricityui.spi.AuiClientService;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 import net.minecraftforge.fml.loading.FMLPaths;
+import org.joml.Vector3f;
 
+import java.io.File;
 import java.lang.annotation.Annotation;
+import java.net.URI;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -181,6 +185,49 @@ public final class ClientService implements AuiClientService {
         try {
             ReflectionUtils.findAnnotationClasses(annotationClass, annotationPredicate, consumer, onFinished);
         } catch (RuntimeException | LinkageError ignored) {
+        }
+    }
+
+    @Override
+    public void openUri(URI uri) {
+        try {
+            net.minecraft.Util.getPlatform().openUri(uri);
+        } catch (RuntimeException | LinkageError ignored) {
+        }
+    }
+
+    @Override
+    public void openFile(File file) {
+        try {
+            net.minecraft.Util.getPlatform().openFile(file);
+        } catch (RuntimeException | LinkageError ignored) {
+        }
+    }
+
+    @Override
+    public long getWindowHandle() {
+        try {
+            return Minecraft.getInstance().getWindow().getWindow();
+        } catch (RuntimeException | LinkageError ignored) {
+            return 0L;
+        }
+    }
+
+    @Override
+    public Vec3 getCameraPosition() {
+        try {
+            return Minecraft.getInstance().gameRenderer.getMainCamera().getPosition();
+        } catch (RuntimeException | LinkageError ignored) {
+            return new Vec3(0.0, 0.0, 0.0);
+        }
+    }
+
+    @Override
+    public Vector3f getCameraLookVector() {
+        try {
+            return Minecraft.getInstance().gameRenderer.getMainCamera().getLookVector();
+        } catch (RuntimeException | LinkageError ignored) {
+            return new Vector3f(0.0F, 0.0F, -1.0F);
         }
     }
 }

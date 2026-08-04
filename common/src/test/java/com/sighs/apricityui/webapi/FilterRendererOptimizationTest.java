@@ -21,7 +21,8 @@ class FilterRendererOptimizationTest {
 
         assertFalse(composite.contains("for (int x"));
         assertFalse(composite.contains("for (int y"));
-        assertTrue(blur.contains("uniform vec2 Direction"));
+        assertTrue(blur.contains("layout(std140) uniform FilterParams"));
+        assertTrue(blur.contains("#define Direction BlurDirection.xy"));
         assertTrue(blur.contains("for (int i = -32; i <= 32; i++)"));
     }
 
