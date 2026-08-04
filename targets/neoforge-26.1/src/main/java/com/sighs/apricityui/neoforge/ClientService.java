@@ -4,7 +4,6 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.client.Client;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.screen.ApricityScreen;
 import com.sighs.apricityui.spi.AuiClientService;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
@@ -112,10 +111,6 @@ public final class ClientService implements AuiClientService {
 
     @Override
     public void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
-        try {
-            Client.drawDefaultFont(poseStack, text, content, position);
-        } catch (RuntimeException | LinkageError ignored) {
-        }
     }
 
     @Override
@@ -138,10 +133,6 @@ public final class ClientService implements AuiClientService {
 
     @Override
     public void openScreen(String templatePath) {
-        try {
-            Minecraft.getInstance().setScreen(new ApricityScreen(templatePath));
-        } catch (RuntimeException | LinkageError ignored) {
-        }
     }
 
     @Override

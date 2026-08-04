@@ -10,42 +10,29 @@ import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
-import com.sighs.apricityui.render.FrameTimingHud;
-import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.ui.Tooltip;
 import net.minecraft.ChatFormatting;
 import net.minecraft.util.StringUtil;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.MouseHandler;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.InputEvent;
-import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.common.EventBusSubscriber;
-import org.joml.Matrix4f;
 import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.config.ApricityUIConfig;
-import com.sighs.apricityui.screen.ApricityContainerScreen;
-import com.sighs.apricityui.screen.ApricityScreen;
-import com.sighs.apricityui.viewport.ApricityViewport;
-import com.sighs.apricityui.world.ItemRender;
 import com.sighs.apricityui.world.WorldWindow;
 
 @EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
@@ -187,69 +174,6 @@ public class Client {
         KEY_MAP.put("key.keyboard.print.screen", 283);
         KEY_MAP.put("key.keyboard.world.1", 161);
         KEY_MAP.put("key.keyboard.world.2", 162);
-    }
-
-    @SubscribeEvent
-    public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
-        Position mousePosition = new Position(event.getMouseX(), event.getMouseY());
-        Tooltip.moveActiveFromScreen(mousePosition);
-        DevTools.handleInspectMouseMove(mousePosition);
-    }
-
-    @SubscribeEvent
-    public static void drawScreen(ScreenEvent.Render.Post event) {
-        // 26.1 GUI is render-state based: immediate draws here would be covered
-        // by the GuiRenderer's render phase. Submit Picture-in-Picture states so
-        // the vanilla renderer composites AUI content (all non-world documents,
-        // including screen-bound ones) at the right depth.
-        com.sighs.apricityui.client.gui.ApricityGuiLayers.submitOverlay(event.getGuiGraphics());
-    }
-
-    /**
-     * In 26.1 the GUI projection is set up by the GuiRenderer during its render
-     * phase, which runs after our overlay event. Immediate RenderType draws must
-     * set the orthographic GUI projection (and an identity model view, since AUI
-     * pre-transforms its vertices) themselves or all geometry lands outside clip
-     * space and nothing is visible.
-     */
-    public static void setupGuiProjection() {
-        Window window = Minecraft.getInstance().getWindow();
-        float guiW = window.getGuiScaledWidth();
-        float guiH = window.getGuiScaledHeight();
-        com.sighs.apricityui.spi.AuiServices.render().setProjectionMatrix(
-                new Matrix4f().setOrtho(0, guiW, guiH, 0, -1000, 1000));
-        com.mojang.blaze3d.systems.RenderSystem.getModelViewStack().identity();
-    }
-
-    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics) {
-        drawPersistentScreenDocuments(guiGraphics, null);
-    }
-
-    public static void drawPersistentScreenDocuments(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics, Document excludedDocument) {
-        for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-            if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
-                continue;
-            }
-            Base.drawOverlayDocument(new PoseStack(), document);
-            renderOverlaySlotItems(guiGraphics, document);
-        }
-    }
-
-    private static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics, Document document) {
-        if (guiGraphics == null || document == null) return;
-        try (Document.ContextScope ignored = Document.withContext(document)) {
-        ApricityViewport viewport = document.getViewport();
-        PoseStack pose = new PoseStack();
-        pose.pushPose();
-        Mask.pushScissorScale(viewport.scissorScale());
-        try {
-            pose.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-            ItemRender.renderDocumentSlotItems(guiGraphics, document);
-        } finally {
-            Mask.popScissorScale();
-            pose.popPose();
-        }
-        }
     }
 
     @SubscribeEvent
@@ -450,10 +374,7 @@ public class Client {
             com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
             FrameScheduler.tick();
             ResourceManager.reconcileConfiguredMode();
-            ClientRuntimeSelfTest.tick();
-//            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
             DebugReloadWatcher.tick();
-            DebugAIScreenshotTicker.tick();
             DevTools.drainLogs();
             Window mcWindow = Minecraft.getInstance().getWindow();
             int w = mcWindow.getScreenWidth();
@@ -596,50 +517,10 @@ public class Client {
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
-        poseStack.pushPose();
-        poseStack.translate(position.x, position.y, 0);
-        // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
-        float scale = (float) text.defaultFontScale();
-        poseStack.scale(scale, scale, 1f);
-        MutableComponent renderText = Component.literal(content == null ? "" : content);
-        if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
-        if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
-        if (text.isUnderlined()) renderText = renderText.withStyle(ChatFormatting.UNDERLINE);
-        if (text.isStrikethrough()) renderText = renderText.withStyle(ChatFormatting.STRIKETHROUGH);
-        int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
-        if (stroke > 0) {
-            int strokeColor = text.strokeColor.getValue();
-            for (int ox = -stroke; ox <= stroke; ox++) {
-                for (int oy = -stroke; oy <= stroke; oy++) {
-                    if (ox == 0 && oy == 0) continue;
-                    if (ox * ox + oy * oy > stroke * stroke) continue;
-                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), ox, oy, strokeColor, false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
-                }
-            }
-        }
-        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
-        poseStack.popPose();
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
         drawDefaultFont(poseStack, text, text.content, position);
     }
 
-    /** Draws the frame-timing HUD overlay, if enabled. */
-    public static void drawFrameTimingHud(GuiGraphicsExtractor guiGraphics) {
-        if (guiGraphics == null || !FrameTimingHud.isEnabled()) return;
-        String text = FrameTimingHud.frameStatsText();
-        if (text == null) return;
-        Minecraft minecraft = Minecraft.getInstance();
-        int width = minecraft.font.width(text) + 8;
-        PoseStack pose = new PoseStack();
-        pose.pushPose();
-        pose.translate(0, 0, 1000);
-        guiGraphics.fill(2, 2, 2 + width, 16, 0xCC000000);
-        guiGraphics.text(minecraft.font, text, 6, 6, 0xFF00FF66, false);
-        pose.popPose();
-    }
 }
-
-
-

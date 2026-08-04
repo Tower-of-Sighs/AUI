@@ -19,7 +19,6 @@ public final class AuiServicesBootstrap {
         AuiServices.setResources(ResourceService.INSTANCE);
         AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setScript(ScriptService.INSTANCE);
-        AuiServices.setRender(RenderService.INSTANCE);
     }
 
     private AuiServicesBootstrap() {

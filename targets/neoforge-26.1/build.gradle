@@ -42,17 +42,6 @@ neoForge {
         client {
             client()
             gameDirectory = file('run')
-            systemProperty 'apricityui.clientSelfTest', System.getProperty('apricityui.clientSelfTest', 'false')
-            systemProperty 'apricityui.clientSelfTest.openResourceManager',
-                    System.getProperty('apricityui.clientSelfTest.openResourceManager', 'false')
-            systemProperty 'apricityui.clientSelfTest.openCanvasPreview',
-                    System.getProperty('apricityui.clientSelfTest.openCanvasPreview', 'true')
-            systemProperty 'apricityui.clientSelfTest.exitOnFinish',
-                    System.getProperty('apricityui.clientSelfTest.exitOnFinish', 'false')
-            systemProperty 'apricityui.clientSelfTest.resultFile',
-                    System.getProperty('apricityui.clientSelfTest.resultFile', '')
-            systemProperty 'apricityui.clientSelfTest.previewPath',
-                    System.getProperty('apricityui.clientSelfTest.previewPath', 'tests/canvas-doodle-board.html')
         }
         server {
             server()

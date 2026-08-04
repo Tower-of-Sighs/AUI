@@ -1,6 +1,5 @@
 package com.sighs.apricityui.neoforge;
 
-import com.sighs.apricityui.render.SmoothRenderType;
 import com.sighs.apricityui.spi.AuiResourceService;
 import com.sighs.apricityui.spi.RenderHandle;
 import com.sighs.apricityui.spi.TextureKey;
@@ -91,7 +90,7 @@ public final class ResourceService implements AuiResourceService {
 
     @Override
     public RenderHandle smoothRenderType(TextureKey key, boolean blur, boolean depthTest) {
-        return RenderHandle.of(SmoothRenderType.createSmooth(parseLocation(key.value()), blur, depthTest));
+        return RenderHandle.of(null);
     }
 
     private static Identifier parseLocation(String value) {
