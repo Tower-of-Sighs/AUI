@@ -90,7 +90,9 @@ public final class ResourceService implements AuiResourceService {
 
     @Override
     public RenderHandle smoothRenderType(TextureKey key, boolean blur, boolean depthTest) {
-        return RenderHandle.of(null);
+        Identifier location = parseLocation(key.value());
+        if (location == null) return RenderHandle.of(null);
+        return RenderHandle.of(com.sighs.apricityui.render.SmoothRenderType.createSmooth(location, blur, depthTest));
     }
 
     private static Identifier parseLocation(String value) {

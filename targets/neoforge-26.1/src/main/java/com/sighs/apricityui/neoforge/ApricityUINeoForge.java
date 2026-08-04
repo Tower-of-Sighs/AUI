@@ -17,8 +17,9 @@ import net.neoforged.neoforge.common.NeoForge;
  *
  * <p>This is the loader-specific bootstrap for the 26.1 target. The loader
  * service wiring (config, registry scan, and network) is registered through
- * {@code AuiServicesBootstrap}; rendering is intentionally not registered in
- * this target until the 26.1 render migration is rebuilt.</p>
+ * {@code AuiServicesBootstrap}; the render wiring (main-target stencil, filter
+ * pipelines, GUI overlay layer, PIP renderer) is registered on the mod event
+ * bus below.</p>
  */
 @Mod(ApricityUI.MODID)
 public final class ApricityUINeoForge {
@@ -39,9 +40,21 @@ public final class ApricityUINeoForge {
         if (dist == Dist.CLIENT) {
             ApricityUIRegistry.register();
             NeoForge.EVENT_BUS.register(com.sighs.apricityui.client.Client.class);
+            NeoForge.EVENT_BUS.register(com.sighs.apricityui.world.WorldWindowRenderer.class);
             // MOD-bus handlers:
             modEventBus.register(com.sighs.apricityui.registry.Keybindings.class);
             modEventBus.register(com.sighs.apricityui.loader.ClientLoaderForge.class);
+            // 26.1 render wiring: stencil on the main target (Mask's rounded
+            // clips), filter pipelines, the HUD overlay layer and its
+            // Picture-in-Picture renderer.
+            modEventBus.addListener((net.neoforged.neoforge.client.event.ConfigureMainRenderTargetEvent event) ->
+                    event.enableStencil());
+            modEventBus.addListener((net.neoforged.neoforge.client.event.RegisterRenderPipelinesEvent event) ->
+                    PipelineRegistry.registerPipelines(event));
+            modEventBus.addListener((net.neoforged.neoforge.client.event.RegisterGuiLayersEvent event) ->
+                    com.sighs.apricityui.client.gui.ApricityGuiLayers.register(event));
+            modEventBus.addListener((net.neoforged.neoforge.client.event.RegisterPictureInPictureRenderersEvent event) ->
+                    com.sighs.apricityui.client.gui.ApricityGuiLayers.registerPictureInPictureRenderers(event));
         }
     }
 

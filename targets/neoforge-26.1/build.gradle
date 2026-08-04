@@ -42,6 +42,15 @@ neoForge {
         client {
             client()
             gameDirectory = file('run')
+            // Render smoke test: `./gradlew -p targets/neoforge-26.1 runClient -PauiSelfTest`
+            // auto-opens the resource manager, validates it, screenshots the main
+            // target to run/aui-selftest.png, writes run/aui-selftest-result.txt and exits.
+            if (project.hasProperty('auiSelfTest')) {
+                systemProperty 'apricityui.clientSelfTest', 'true'
+                systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
+                systemProperty 'apricityui.clientSelfTest.resultFile', file('run/aui-selftest-result.txt').absolutePath
+                systemProperty 'apricityui.clientSelfTest.screenshotFile', file('run/aui-selftest.png').absolutePath
+            }
         }
         server {
             server()

@@ -111,6 +111,10 @@ public final class ClientService implements AuiClientService {
 
     @Override
     public void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
+        try {
+            Client.drawDefaultFont(poseStack, text, content, position);
+        } catch (RuntimeException | LinkageError ignored) {
+        }
     }
 
     @Override
@@ -133,6 +137,10 @@ public final class ClientService implements AuiClientService {
 
     @Override
     public void openScreen(String templatePath) {
+        try {
+            Minecraft.getInstance().setScreen(new com.sighs.apricityui.screen.ApricityScreen(templatePath));
+        } catch (RuntimeException | LinkageError ignored) {
+        }
     }
 
     @Override

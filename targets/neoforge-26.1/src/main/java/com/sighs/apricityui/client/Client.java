@@ -365,9 +365,53 @@ public class Client {
         );
     }
 
+    /**
+     * 26.1 screens only collect render states; AUI's documents are rasterised
+     * by the fullscreen Picture-in-Picture overlay, so while a screen is open
+     * this submits the overlay states (HUD layers do not run for screens) and
+     * extracts the slot items of persistent documents on top of them.
+     */
     @SubscribeEvent
-    public static void tick(ClientTickEvent.Pre event) {
-        CursorReleaseController.tick();
+    public static void drawScreen(ScreenEvent.Render.Post event) {
+        com.sighs.apricityui.render.FrameTimingHud.beginFrame();
+        try {
+            // AuiLinkedScreens submit the UI PIP state themselves during
+            // extractRenderState so their slot items (extractor states) land
+            // above the document; for all other screens it is submitted here.
+            if (!(Minecraft.getInstance().screen instanceof com.sighs.apricityui.screen.AuiLinkedScreen)) {
+                com.sighs.apricityui.client.gui.ApricityGuiLayers.submitUi(event.getGuiGraphics());
+            }
+            com.sighs.apricityui.client.gui.ApricityGuiLayers.submitCursor(event.getGuiGraphics());
+            for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
+                if (document == null || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
+                    continue;
+                }
+                renderOverlaySlotItems(event.getGuiGraphics(), document);
+            }
+        } finally {
+            com.sighs.apricityui.render.FrameTimingHud.endFrame();
+            drawFrameTimingHud(event.getGuiGraphics());
+        }
+    }
+
+    /** Extracts the item stacks of a document's slot elements (26.1 render-state API). */
+    public static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics, Document document) {
+        if (guiGraphics == null || document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            com.sighs.apricityui.viewport.ApricityViewport viewport = document.getViewport();
+            guiGraphics.pose().pushMatrix();
+            try {
+                guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale());
+                com.sighs.apricityui.world.ItemRender.renderDocumentSlotItems(guiGraphics, document);
+            } finally {
+                guiGraphics.pose().popMatrix();
+            }
+        }
+    }
+
+    @SubscribeEvent
+    public static void tick(ClientTickEvent.Pre event) {        CursorReleaseController.tick();
+            ClientRuntimeSelfTest.tick();
             if (ApricityUIConfig.consumeClientReloadPending()) {
                 com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
             }
@@ -517,10 +561,46 @@ public class Client {
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) {
+        poseStack.pushPose();
+        poseStack.translate(position.x, position.y, 0);
+        // 默认字体也要保留 z 轴缩放，避免在容器 Screen 中把文本深度压扁后被后续菜单/物品绘制覆盖。
+        float scale = (float) text.defaultFontScale();
+        poseStack.scale(scale, scale, 1f);
+        MutableComponent renderText = Component.literal(content == null ? "" : content);
+        if (text.isBold()) renderText = renderText.withStyle(ChatFormatting.BOLD);
+        if (text.isOblique()) renderText = renderText.withStyle(ChatFormatting.ITALIC);
+        if (text.isUnderlined()) renderText = renderText.withStyle(ChatFormatting.UNDERLINE);
+        if (text.isStrikethrough()) renderText = renderText.withStyle(ChatFormatting.STRIKETHROUGH);
+        int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
+        if (stroke > 0) {
+            int strokeColor = text.strokeColor.getValue();
+            for (int ox = -stroke; ox <= stroke; ox++) {
+                for (int oy = -stroke; oy <= stroke; oy++) {
+                    if (ox == 0 && oy == 0) continue;
+                    if (ox * ox + oy * oy > stroke * stroke) continue;
+                    Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), ox, oy, strokeColor, false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+                }
+            }
+        }
+        Minecraft.getInstance().font.drawInBatch(renderText.getVisualOrderText(), 0, 0, text.color.getValue(), false, poseStack.last().pose(), Minecraft.getInstance().renderBuffers().bufferSource(), net.minecraft.client.gui.Font.DisplayMode.NORMAL, 0, 15728880);
+        poseStack.popPose();
     }
 
     public static void drawDefaultFont(PoseStack poseStack, Text text, Position position) {
         drawDefaultFont(poseStack, text, text.content, position);
+    }
+
+    /** Draws the frame-timing HUD overlay, if enabled. */
+    public static void drawFrameTimingHud(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics) {
+        if (guiGraphics == null || !com.sighs.apricityui.render.FrameTimingHud.isEnabled()) return;
+        String text = com.sighs.apricityui.render.FrameTimingHud.frameStatsText();
+        if (text == null) return;
+        Minecraft minecraft = Minecraft.getInstance();
+        int width = minecraft.font.width(text) + 8;
+        guiGraphics.pose().pushMatrix();
+        guiGraphics.fill(2, 2, 2 + width, 16, 0xCC000000);
+        guiGraphics.text(minecraft.font, text, 6, 6, 0xFF00FF66, false);
+        guiGraphics.pose().popMatrix();
     }
 
 }
