@@ -70,6 +70,9 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public MeshBuilder beginMesh(MeshMode mode, MeshFormat format) {
+        // Tesselator owns one reusable BufferBuilder on 1.20.1. Reusing it is
+        // important here because BufferUploader consumes the finished mesh but
+        // does not require a new builder for the next batch.
         VertexFormat.Mode m = mode == MeshMode.QUADS ? VertexFormat.Mode.QUADS : VertexFormat.Mode.TRIANGLES;
         VertexFormat fmt = format == MeshFormat.POSITION ? DefaultVertexFormat.POSITION
                 : format == MeshFormat.POSITION_TEX ? DefaultVertexFormat.POSITION_TEX

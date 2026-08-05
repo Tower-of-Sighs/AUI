@@ -26,8 +26,7 @@ public class ImageDrawer {
     private static final int PLACEHOLDER_COLOR = 0x33404040;
     // Empty radii array for rectangular mask clipping.
     public static final float[] NO_RADIUS = new float[]{0, 0, 0, 0};
-    private static RenderHandle batchRenderHandle = null;
-    private static Object textureBatch = null;
+    private static final TextureRenderQueue TEXTURE_QUEUE = new TextureRenderQueue();
 
     private static RenderHandle getRenderHandle(TextureKey texture, boolean blur) {
         return getRenderHandle(texture, blur, true);
@@ -227,11 +226,7 @@ public class ImageDrawer {
     }
 
     public static void flushBatch() {
-        if (textureBatch == null || batchRenderHandle == null) return;
-        AuiServices.render().flushTextureBatch(textureBatch, batchRenderHandle);
-        RenderBatchStats.recordImageFlush();
-        batchRenderHandle = null;
-        textureBatch = null;
+        TEXTURE_QUEUE.flush();
     }
 
     public static void drawComplexBackground(PoseStack poseStack, float x, float y, float width, float height, Background bg) {
@@ -570,17 +565,13 @@ public class ImageDrawer {
     private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
         Graph.endBatch();
         RenderHandle renderHandle = getRenderHandle(texture, blur, depthTest);
-        if (batchRenderHandle != renderHandle) {
-            flushBatch();
-            batchRenderHandle = renderHandle;
-            textureBatch = AuiServices.render().beginTextureBatch(renderHandle);
-        }
         float minU = uTexture / (float) textureWidth;
         float maxU = (uTexture + widthTexture) / (float) textureWidth;
         float minV = vTexture / (float) textureHeight;
         float maxV = (vTexture + heightTexture) / (float) textureHeight;
-        AuiServices.render().emitTextureQuad(textureBatch, poseStack.last().pose(),
-                x, y, width, height, minU, minV, maxU, maxV);
+        TEXTURE_QUEUE.add(renderHandle, depthTest && Base.isDepthTestEnabled(),
+                poseStack.last().pose(), x, y, width, height,
+                minU, minV, maxU, maxV);
     }
 
     private record ReadyTexture(TextureKey location, int width, int height) {

@@ -7,9 +7,9 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.spi.AuiRenderService;
@@ -35,6 +35,7 @@ import org.lwjgl.opengl.GL30;
  */
 public final class RenderService implements AuiRenderService {
     public static final RenderService INSTANCE = new RenderService();
+    private final ByteBufferBuilder meshByteBuffer = new ByteBufferBuilder(786432);
 
     private RenderService() {
     }
@@ -75,7 +76,10 @@ public final class RenderService implements AuiRenderService {
         VertexFormat fmt = format == MeshFormat.POSITION ? DefaultVertexFormat.POSITION
                 : format == MeshFormat.POSITION_TEX ? DefaultVertexFormat.POSITION_TEX
                 : DefaultVertexFormat.POSITION_COLOR;
-        BufferBuilder buf = Tesselator.getInstance().begin(m, fmt);
+        // BufferBuilder is a lightweight view over this reusable native byte
+        // buffer. The finished MeshData is closed by BufferUploader, while the
+        // backing allocation remains available for the next AUI batch.
+        BufferBuilder buf = new BufferBuilder(meshByteBuffer, m, fmt);
         return MeshBuilder.of(buf);
     }
 

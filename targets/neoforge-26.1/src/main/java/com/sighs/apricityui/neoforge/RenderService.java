@@ -4,6 +4,7 @@ import com.mojang.blaze3d.ProjectionType;
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.buffers.Std140Builder;
+import com.mojang.blaze3d.opengl.GlStateManager;
 import com.mojang.blaze3d.pipeline.RenderPipeline;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
@@ -17,9 +18,9 @@ import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.textures.GpuTextureView;
 import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.MeshData;
-import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.render.OutputTargets;
@@ -96,6 +97,7 @@ public final class RenderService implements AuiRenderService {
     private GpuBuffer filterVertexBuffer;
     private long filterVertexCapacity;
     private GpuBuffer filterUniformBuffer;
+    private final ByteBufferBuilder meshByteBuffer = new ByteBufferBuilder(786432);
     private int blitReadFbo;
     private int blitDrawFbo;
 
@@ -217,6 +219,11 @@ public final class RenderService implements AuiRenderService {
     public void clearStencilBuffer() {
         GpuTexture depthTexture = currentDepthTexture();
         if (depthTexture == null || !depthTexture.getFormat().hasStencilAspect()) return;
+        // glClear(GL_STENCIL_BUFFER_BIT) is masked by the GL stencil write mask.
+        // On 26.1 that mask only exists inside render passes (content pipelines
+        // leave it at 0x00), so without forcing it here the clear silently
+        // no-ops and stale mask regions leak into later masks' EQUAL tests.
+        GlStateManager._stencilMask(0xFF);
         RenderSystem.getDevice().createCommandEncoder().clearStencilTexture(depthTexture, 0);
     }
 
@@ -347,7 +354,9 @@ public final class RenderService implements AuiRenderService {
         VertexFormat.Mode vertexMode = mode == MeshMode.QUADS
                 ? VertexFormat.Mode.QUADS
                 : VertexFormat.Mode.TRIANGLES;
-        return MeshBuilder.of(Tesselator.getInstance().begin(vertexMode, vertexFormat));
+        // Match vanilla GuiRenderer: reuse the native byte-buffer allocator
+        // while creating a short-lived format/mode view for each mesh.
+        return MeshBuilder.of(new BufferBuilder(meshByteBuffer, vertexMode, vertexFormat));
     }
 
     @Override

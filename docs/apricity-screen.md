@@ -1,40 +1,24 @@
 # ApricityScreen 使用文档
 
-ApricityScreen 是 ApricityUI 对 Minecraft Screen 的直接封装。它负责把一个 HTML 资源加载成 Document，绘制到当前 Minecraft 界面，并把鼠标、键盘、焦点和滚轮输入转发给这个文档。
+ApricityScreen 是 AUI 对 Minecraft Screen 的封装：把一个 HTML 加载成 Document，画到当前界面上，并把鼠标、键盘、滚轮输入转发给它。
 
-本文只介绍客户端直接使用的 ApricityScreen。如果页面需要真实菜单、玩家背包或服务端容器槽位，请使用文末介绍的 ApricityContainerScreen 方案。
+## 三种页面宿主
 
-## 1. 两种 Screen 的区别
+AUI 的页面可以由不同的宿主承载，DOM API 完全一样，区别只在"页面出现在哪、谁来提供数据"：
 
-| 类型 | 创建方式 | 适用场景 | 是否有 Minecraft 菜单槽位 |
-| --- | --- | --- | --- |
-| ApricityScreen | 客户端直接 new ApricityScreen(path) | 纯 UI、设置页、调试页、客户端工具 | 否 |
-| ApricityContainerScreen | ApricityUI.screen(path) 或 ApricityUI.menu(...).bind(...) | UI-only 菜单或真实容器绑定 | 前者没有真实槽位，后者可以有 |
-| WorldWindow | ApricityUI.createWorldWindow(...) | 渲染在世界中的 HTML 窗口 | 否 |
+| 宿主 | 创建方式 | 适用场景 |
+| --- | --- | --- |
+| ApricityScreen | 客户端直接 `new ApricityScreen(path)` | 纯 UI：设置页、调试页、客户端工具 |
+| ApricityContainerScreen | `ApricityUI.screen(path)` 或 `ApricityUI.menu(...)` | 需要真实容器槽位或服务端数据 |
+| WorldWindow | `ApricityUI.createWorldWindow(...)` | 渲染在世界中的窗口 |
 
-当前实现中，ApricityUI.screen(path) 会发送请求给服务端，最终通过网络打开 ApricityContainerScreen。即使页面没有 container，它也是 UI-only 的容器 Screen，不是 ApricityScreen。
+注意：`ApricityUI.screen(path)` 走的是网络请求，最终打开的是 ApricityContainerScreen，哪怕页面里没有 container。想要真正的 ApricityScreen，只能在客户端直接 setScreen。容器和 WorldWindow 各有自己的文档，本文只讲 ApricityScreen。
 
-要得到真正的 ApricityScreen，需要在客户端直接设置 Minecraft 当前 Screen：
+## 最小示例
 
-~~~java
-Minecraft.getInstance().setScreen(
-        new ApricityScreen("screens/example.html")
-);
-~~~
+HTML 放在 `src/main/resources/assets/apricityui/apricity/screens/example.html`：
 
-## 2. 最小可运行示例
-
-### 2.1 HTML
-
-将文件保存为：
-
-~~~text
-src/main/resources/assets/apricityui/apricity/screens/example.html
-~~~
-
-内容可以从下面的最小示例开始：
-
-~~~html
+```html
 <!doctype html>
 <html>
 <head>
@@ -43,23 +27,8 @@ src/main/resources/assets/apricityui/apricity/screens/example.html
     <meta name="aui-viewport" content="mode=browser">
     <meta name="aui-mouse-events" content="intercept">
     <style>
-        body {
-            margin: 0;
-            color: #eeeeee;
-            background: #20242b;
-            font-size: 16px;
-        }
-
-        .panel {
-            width: 360px;
-            margin: 40px auto;
-            padding: 16px;
-            background: #303640;
-        }
-
-        button {
-            padding: 6px 12px;
-        }
+        body { margin: 0; color: #eee; background: #20242b; font-size: 16px; }
+        .panel { width: 360px; margin: 40px auto; padding: 16px; background: #303640; }
     </style>
 </head>
 <body>
@@ -68,7 +37,6 @@ src/main/resources/assets/apricityui/apricity/screens/example.html
         <p id="status">Ready</p>
         <button id="reload">Click me</button>
     </main>
-
     <script>
         document.getElementById("reload").addEventListener("click", function () {
             document.getElementById("status").textContent = "Clicked";
@@ -76,561 +44,173 @@ src/main/resources/assets/apricityui/apricity/screens/example.html
     </script>
 </body>
 </html>
-~~~
+```
 
-资源路径写的是逻辑路径 screens/example.html，不要把 assets/apricityui/apricity/ 写进 ApricityScreen 的构造参数。
+Java 侧打开：
 
-### 2.2 Java 打开页面
-
-~~~java
-import com.sighs.apricityui.instance.ApricityScreen;
-import net.minecraft.client.Minecraft;
-
-public final class ExampleScreens {
-    private ExampleScreens() {
-    }
-
-    public static void open() {
-        Minecraft minecraft = Minecraft.getInstance();
-        minecraft.setScreen(
-                new ApricityScreen("screens/example.html")
-                        .setPauseGame(true)
-                        .setShowDefaultBackground(false)
-        );
-    }
-}
-~~~
-
-setPauseGame 和 setShowDefaultBackground 都返回当前 Screen，因此可以链式调用。
-
-如果调用发生在非 Minecraft 客户端线程，应切回客户端线程：
-
-~~~java
-Minecraft minecraft = Minecraft.getInstance();
-minecraft.execute(() -> minecraft.setScreen(
+```java
+Minecraft.getInstance().setScreen(
         new ApricityScreen("screens/example.html")
-));
-~~~
+                .setPauseGame(true)
+                .setShowDefaultBackground(false)
+);
+```
 
-## 3. HTML 资源路径
+路径写的是逻辑路径 `screens/example.html`，不要把 `assets/apricityui/apricity/` 前缀写进去。逻辑路径怎么解析、资源目录怎么组织，见[资源管理文档](resource-manager.md)。如果调用发生在别的线程，先 `minecraft.execute(...)` 切回客户端线程。
 
-HTML 的逻辑路径统一使用 /，例如：
+## API
 
-~~~text
-screens/example.html
-devtools/resource.html
-tests/form-controls-test.html
-~~~
-
-开发时常用的实际位置有：
-
-~~~text
-src/main/resources/assets/apricityui/apricity/screens/example.html
-run/apricity/screens/example.html
-~~~
-
-资源加载层按以下顺序合并：
-
-1. 模组或其他资源包中的 assets/apricityui/apricity/...。
-2. 游戏实例目录的 apricity/...。
-3. 开发环境资源目录 src/main/resources/assets/apricityui/apricity/...。
-
-后加载的同路径资源会覆盖先加载的资源。因此开发目录通常优先级最高，实例目录适合在不重新打包模组的情况下覆盖资源。
-
-HTML、CSS、JS 和图片的相对路径以当前资源所在目录为基准。HTML 入口必须以 .html 结尾。通过网络请求打开页面时，路径还必须经过规范化校验：不能包含 ..，不能使用不完整的文件名路径。
-
-资源会在客户端初始化时扫描。修改本地 HTML、CSS 或 JS 后，按 END 会触发客户端资源重载，当前普通 Document 会重新执行解析、样式计算和脚本。
-
-## 4. ApricityScreen API
-
-### 4.1 构造和显示选项
-
-~~~java
+```java
 public ApricityScreen(String templatePath)
-public ApricityScreen setPauseGame(boolean pauseGame)
-public ApricityScreen setShowDefaultBackground(boolean showDefaultBackground)
-public boolean isPauseGame()
-public boolean isShowDefaultBackground()
-~~~
-
-| 方法 | 默认值 | 说明 |
-| --- | --- | --- |
-| ApricityScreen(path) | 无 | 创建 Screen 对象；此时还没有创建 Document |
-| setPauseGame(value) | false | 控制 isPauseScreen()，决定打开页面时是否暂停游戏 |
-| setShowDefaultBackground(value) | false | 是否先绘制 Minecraft 的标准 Screen 背景 |
-| isPauseGame() | - | 读取暂停设置 |
-| isShowDefaultBackground() | - | 读取背景设置 |
-
-默认情况下，页面不暂停游戏，也不绘制 Minecraft 默认背景。纯 UI 页面通常保持默认值；设置页或需要暂停世界的页面可以显式设置 true。
-
-### 4.2 Document 和缩放
-
-~~~java
+public ApricityScreen setPauseGame(boolean pauseGame)           // 默认 false，是否暂停游戏
+public ApricityScreen setShowDefaultBackground(boolean show)    // 默认 false，是否画 MC 原版背景
 public Document getLinkedDocument()
 public boolean handleViewportZoom(boolean zoomIn)
 public boolean resetViewportZoom()
-~~~
+```
 
-getLinkedDocument() 返回当前 Screen 在 init() 中创建的 Document。以下时机可能返回 null：
+`getLinkedDocument()` 在 Screen 还没被 Minecraft 初始化、HTML 缺失或解析失败、Screen 已关闭时都会返回 null。别在构造函数里缓存它。
 
-- Screen 刚构造但还没有被 Minecraft 初始化；
-- HTML 资源不存在或解析失败；
-- Screen 已关闭或被移除。
+`handleViewportZoom` / `resetViewportZoom` 受 meta 里的 `user-scalable`、`min-zoom`、`max-zoom` 限制。Java 侧想直接设置任意缩放值，用 `document.setViewportZoom(1.25)`——它不受 `user-scalable=false` 限制，但仍被 min/max 夹在范围内。
 
-handleViewportZoom 和 resetViewportZoom 会遵守 HTML 中 aui-viewport 的 user-scalable、min-zoom、max-zoom 和 zoom-step 设置。缩放成功返回 true，没有 Document、禁止用户缩放或已经到达边界时返回 false。
+## 生命周期
 
-如果需要由 Java 或开发工具设置任意缩放值，可以从 Document 调用：
+```text
+new ApricityScreen(path)      // 只保存路径，不读 HTML
+  -> setScreen -> init()      // 创建 Document，解析 HTML/CSS/JS
+  -> DOMContentLoaded -> load
+  -> render() / 输入 / resize()
+  -> onClose()                // 先向 body 派发 unload，再移除 Document
+```
 
-~~~java
-Document document = screen.getLinkedDocument();
-if (document != null) {
-    document.setViewportZoom(1.25d);
-}
-~~~
+几个容易踩的点：
 
-setViewportZoom 是编辑器控制接口，即使 user-scalable=false 也可以设置；它仍然会被 min-zoom 和 max-zoom 限制。
+- `init()` 可能被重复调用（比如 resize），每次都会重建 Document；
+- `Document.refresh()` 保留 Document 本身但重建 DOM、重跑脚本。刷新后旧的 Element 引用和事件监听器全部失效，用 `document.getRefreshGeneration()` / `isCurrentGeneration(gen)` 判断代数；
+- 覆盖 `init()` / `onClose()` / `removed()` 时必须调 super，否则 Document 不会创建或不会清理；
+- 不要在子类里再调一次 `Document.create(同路径)`，会同时存在两个 Document，绘制和输入都翻倍。
 
-## 5. Screen 和 Document 生命周期
+## 页面 Meta 配置
 
-生命周期的关键关系如下：
+这三个 meta 标签是 AUI 的页面级配置，**所有宿主通用**（Screen、Overlay、Container、WorldWindow 都读它们）。完整说明只在这里维护一份，其他文档不再重复。
 
-~~~text
-new ApricityScreen(path)
-        |
-        | Minecraft.setScreen(...)
-        v
-init()
-  -> Document.create(path)
-  -> 解析 HTML、CSS、JS
-  -> DOMContentLoaded
-  -> load
-        |
-        v
-render() / 输入事件 / resize()
-        |
-        v
-onClose()
-  -> body unload
-  -> Document.remove()
-  -> 清理 viewport 覆盖和光标
-~~~
+### aui-viewport：逻辑视口
 
-具体行为：
-
-1. 构造函数只保存模板路径，不读取 HTML。
-2. init() 创建并绑定新的 Document；如果 init() 被重复调用，旧 Document 会先被移除。
-3. Document 创建后会执行 HTML 解析、CSS 计算、DOM 扩展器和页面脚本。
-4. DOMContentLoaded 和 load 在页面脚本执行后依次触发。
-5. 窗口大小改变时，resize() 会重新应用 viewport，并请求布局刷新。
-6. 正常关闭时，onClose() 会先向 body 触发 unload，再移除 Document。
-7. removed() 会兜底移除 Document，即使调用路径没有经过完整的关闭流程。
-
-不要在 Screen 构造函数中缓存 getLinkedDocument()。应在 init() 之后读取，并考虑 resize、重新初始化和资源重载导致的 DOM 重建。
-
-如果逻辑需要识别同一个 Document 是否已经被重载，可以保存：
-
-~~~java
-long generation = document.getRefreshGeneration();
-if (document.isCurrentGeneration(generation)) {
-    // Document 仍然处于活动状态，且没有被 refresh() 重建
-}
-~~~
-
-Document.refresh() 会保留 Document 本身和 UUID，但会重建 DOM，重新执行页面脚本，并递增 refresh generation。重新打开 Screen 或 Screen 再次 init() 时，通常会得到新的 Document UUID。
-
-## 6. Viewport 配置
-
-在 head 中加入：
-
-~~~html
+```html
 <meta name="aui-viewport" content="mode=browser">
-~~~
+```
 
-content 是逗号或分号分隔的键值列表。没有 mode 时默认为 gui。
-
-### 6.1 模式
+`content` 是逗号分隔的键值列表。`mode` 缺省为 `gui`：
 
 | 模式 | 别名 | 行为 |
 | --- | --- | --- |
-| gui | mc、default | 使用 Minecraft GUI 尺寸作为逻辑 viewport，兼容旧页面 |
-| browser | css、web | 使用 CSS viewport 宽度，并按当前 GUI 窗口宽度缩放；未指定高度时按窗口高度推导 |
-| window | native、screen、fullscreen | 使用监视器推导的 CSS 宽度和当前窗口高度，保持固定的渲染比例，窗口改变时横向布局更稳定 |
-| fixed | 无 | 使用显式的逻辑宽度、高度和缩放比例 |
+| `gui` | mc、default | 用 Minecraft GUI 尺寸作逻辑视口，适合 MC 风格小界面 |
+| `browser` | css、web | 用 CSS 视口宽度，按窗口宽度缩放，适合类网页的设置页 |
+| `window` | native、screen、fullscreen | 用显示器推导的 CSS 宽度，窗口变化时横向布局不重算 |
+| `fixed` | — | 固定设计稿尺寸：`mode=fixed,width=427,height=249,scale=fit` |
 
-推荐选择：
+fixed 模式的 `scale` 可以是数值（`scale=1`）、`fit`（等比放进窗口，别名 `contain`）、`gui`（别名 `mc`）或 `window`（别名 `native`）。`width`/`height` 缺省 427×249。
 
-- Minecraft 风格的小型界面：mode=gui。
-- 类网页的设置页、开发工具：mode=browser。
-- 需要固定设计稿尺寸：mode=fixed,width=427,height=249。
-- 希望窗口改变时 CSS 横向布局不随宽度重新计算：mode=window。
+所有模式都支持缩放参数：
 
-### 6.2 fixed 模式
-
-~~~html
-<meta name="aui-viewport"
-      content="mode=fixed,width=427,height=249,scale=fit">
-~~~
-
-fixed 支持：
-
-| 选项 | 示例 | 说明 |
-| --- | --- | --- |
-| width | width=427 | 逻辑宽度，默认 427 |
-| height | height=249 | 逻辑高度，默认 249 |
-| scale 数值 | scale=1 | 使用指定渲染比例 |
-| scale=fit | scale=fit | 等比缩放，完整放入当前 GUI 窗口 |
-| scale=contain | scale=contain | fit 的兼容别名 |
-| scale=gui | scale=gui | 使用 GUI 坐标比例 |
-| scale=window | scale=window | 使用窗口比例 |
-| scale=mc | scale=mc | gui 的兼容别名 |
-| scale=native | scale=native | window 的兼容别名 |
-
-### 6.3 用户缩放
-
-所有 viewport 模式都支持：
-
-~~~html
+```html
 <meta name="aui-viewport"
       content="mode=browser,zoom=1,min-zoom=0.75,max-zoom=2,zoom-step=0.1,user-scalable=true">
-~~~
+```
 
 | 选项 | 默认值 | 说明 |
 | --- | --- | --- |
-| zoom | 1 | 初始缩放，也作为 Ctrl+0 的重置目标 |
-| min-zoom | 0.5 | 最小用户缩放 |
-| max-zoom | 3 | 最大用户缩放 |
-| zoom-step | 0.1 | 每次缩放的步进 |
-| user-scalable | true | 是否允许用户通过快捷键缩放 |
+| `zoom` | 1 | 初始缩放，也是 Ctrl+0 的重置目标 |
+| `min-zoom` / `max-zoom` | 0.5 / 3 | 用户缩放范围 |
+| `zoom-step` | 0.1 | 每次缩放步进 |
+| `user-scalable` | true | 是否允许快捷键缩放 |
 
-允许用户缩放时，ApricityScreen 支持：
+允许缩放时：Ctrl+滚轮、Ctrl+`+`/`-` 缩放，Ctrl+`0` 重置。缩放值按页面路径存到 `config/apricityui/viewport-zoom.properties`，重开页面会记住上次的值。
 
-- Ctrl + 鼠标滚轮：放大或缩小；
-- Ctrl + = 或 Ctrl + +：放大；
-- Ctrl + -：缩小；
-- Ctrl + 0：恢复到 meta 中的 zoom 值。
+### aui-font-mode：字体模式
 
-缩放值按模板路径保存到客户端配置目录下的 apricityui/viewport-zoom.properties，因此重新打开同一路径页面时可能保留上次缩放值。修改 meta 后，新的范围会对已保存值重新限制。
-
-## 7. 字体模式
-
-在 head 中加入：
-
-~~~html
+```html
 <meta name="aui-font-mode" content="web">
-~~~
+```
 
-| 值 | 默认字体大小 | 适用情况 |
+| 值 | 默认字号 | 适用 |
 | --- | ---: | --- |
-| mc | 9 | 兼容 Minecraft 风格的旧 UI |
-| web | 16 | 按网页常见的逻辑字号布局 |
-| web-scaled | 16 | 网页逻辑字号，并按 ApricityUI 的 Minecraft 字形比例绘制；默认值 |
+| `mc` | 9 | MC 原生风格的小控件 |
+| `web` | 16 | 按网页逻辑字号布局 |
+| `web-scaled` | 16 | 网页字号 + MC 字形比例绘制，**默认值** |
 
-aui-font-mode 影响默认字号、根字号和文字栅格化比例。显式设置 CSS font-size 后，字号仍以 CSS 声明为准，但文字的基础渲染模式仍来自该 meta。
+它影响默认字号和文字栅格化方式；CSS 里显式写的 `font-size` 永远优先。从浏览器设计稿迁移的页面，一般就是 `web` + `mode=browser` 这对组合。
 
-如果页面是从浏览器设计稿迁移，通常使用：
+### aui-mouse-events：输入拦截
 
-~~~html
-<meta name="aui-font-mode" content="web">
-<meta name="aui-viewport" content="mode=browser">
-~~~
-
-如果页面是 Minecraft 原生风格的小控件，使用 mc 往往更容易与现有尺寸对齐。
-
-## 8. 鼠标、滚轮和键盘事件
-
-### 8.1 鼠标事件
-
-常用事件包括：
-
-~~~javascript
-const button = document.getElementById("button");
-
-button.addEventListener("click", function (event) {
-    event.preventDefault();
-});
-
-button.addEventListener("mousedown", function (event) {
-    console.log(event.clientX, event.clientY, event.button);
-});
-
-button.addEventListener("wheel", function (event) {
-    console.log(event.deltaY);
-});
-~~~
-
-支持常见的 mousemove、mousedown、mouseup、click、dblclick、wheel、mouseover、mouseout、mouseenter 和 mouseleave，并提供对应的 pointer 兼容事件。
-
-viewport 的缩放和偏移会在命中测试前自动反变换。事件回调中的坐标是 Document 的逻辑坐标，通常不需要自行乘以 renderScale。
-
-### 8.2 事件拦截
-
-如果页面需要阻止鼠标事件继续传给下方的 Minecraft 输入或其他 Document，可以在 HTML 中设置：
-
-~~~html
+```html
 <meta name="aui-mouse-events" content="intercept">
-~~~
+```
 
-intercept 也接受 block、true、yes、on 和 1。默认不设置时，AUI 仍会尝试派发 HTML 鼠标事件，但不会对所有命中区域强制消费原生 Minecraft 输入。
+`intercept`（也接受 `block`、`true`、`yes`、`on`、`1`）让命中区域的鼠标事件不再传给下方的 Minecraft 输入或其他 Document。不设它，HTML 事件照样派发，只是不强制消费原生输入。
 
-拦截是按命中区域生效的。若要让整个页面都接收输入，应确保页面的可交互区域覆盖整个 viewport，并且没有被 display、visibility、裁剪或 pointer 设置排除。
+两点注意：拦截按命中区域生效，不可见、被裁剪或 `pointer-events: none` 的元素不会因此获得命中；想让整个页面都吃输入，就保证可交互区域盖满视口。这是个"是否消费原生输入"的开关，不是事件监听器的开关。
 
-### 8.3 滚轮缩放和穿透
+## 输入事件
 
-Ctrl + 鼠标滚轮的缩放目标按鼠标所在的最前层 Document 选择。对持久化 overlay，客户端配置可以允许缩放目标穿透未声明拦截的 overlay：
+页面里就是熟悉的写法：
 
-~~~toml
-[input]
-viewportZoomPassThrough = true
-~~~
+```javascript
+button.addEventListener("click", function (event) { ... });
+input.addEventListener("input", function () { console.log(input.value); });
+```
 
-配置文件通常是：
+鼠标、滚轮、键盘、焦点、表单事件都有，事件坐标已经是 Document 逻辑坐标，**不要再乘 GUI scale 或页面缩放**。完整的事件类型、字段和坑见 [Web API 文档](web-api.md)。
 
-~~~text
-run/config/apricityui-client.toml
-~~~
+Ctrl+滚轮的缩放目标是鼠标下最上层的 Document。对 overlay 页面，客户端配置 `[input] viewportZoomPassThrough = true`（`config/apricityui-client.toml`）允许缩放穿透没声明 intercept 的 overlay。
 
-要让一个 overlay 成为稳定的缩放目标，或者不允许输入穿透，可以在页面中使用：
+## 拿到当前 Screen 的 Document
 
-~~~html
-<meta name="aui-mouse-events" content="intercept">
-~~~
+Java：
 
-user-scalable=false 只禁止用户快捷键缩放，不会禁止开发工具或 Java 代码通过 setViewportZoom 设置值。
-
-### 8.4 键盘和焦点
-
-页面支持 keydown、keyup、focus、blur 以及表单控件的 input、change、提交等事件。
-
-文本输入控件获得焦点后，AUI 会处理字符输入、退格、删除、左右移动、选择，以及常用的剪贴板快捷键：
-
-~~~javascript
-const input = document.getElementById("name");
-
-input.addEventListener("input", function () {
-    console.log(input.value);
-});
-
-input.focus();
-~~~
-
-需要注意：
-
-- keydown 中调用 preventDefault() 可以阻止对应的默认处理；
-- 页面脚本不要假设存在浏览器线程或真实 DOM；
-- Minecraft 的 Screen 快捷键和 HTML 键盘事件共用输入入口，处理文本输入时应让输入控件保持焦点；
-- 如果自定义 Screen 还要处理原生按键，应先确认该按键没有被 HTML 文档消费。
-
-## 9. 获取当前 Screen 的 Document
-
-### 9.1 Java
-
-~~~java
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.instance.ApricityScreen;
-import net.minecraft.client.Minecraft;
-
+```java
 if (Minecraft.getInstance().screen instanceof ApricityScreen screen) {
     Document document = screen.getLinkedDocument();
-    if (document != null && document.body != null) {
-        document.body.setAttribute("data-state", "open");
-    }
 }
-~~~
+```
 
-getLinkedDocument() 只表示当前这个 ApricityScreen 的 Document，不会从所有 Document 中按路径猜测目标。
+KubeJS 客户端脚本：
 
-### 9.2 KubeJS 客户端脚本
-
-客户端绑定提供：
-
-~~~javascript
+```javascript
 const document = ApricityUI.getCurrentScreenDocument();
-if (document !== null) {
-    const button = document.getElementById("button");
-}
-~~~
+```
 
-该方法只在当前 Screen 真的是 ApricityScreen 时返回 Document。通过 ApricityUI.screen(path) 打开的页面通常是 ApricityContainerScreen，此时会返回 null。
+两者都只在当前 Screen 真的是 ApricityScreen 时有值。`ApricityUI.screen(path)` 打开的是容器 Screen，会返回 null——别用路径匹配代替这个方法。
 
-如果只是需要获取或创建普通 Overlay Document，可以使用：
+## 需要容器时
 
-~~~javascript
-const documents = ApricityUI.getDocument("screens/example.html");
-const document = ApricityUI.createDocument("overlays/status.html");
-~~~
+ApricityScreen 没有 Menu 和真实槽位。页面要操作玩家背包、方块实体容器或服务端数据，走容器入口：
 
-这两个 API 与当前 ApricityScreen 的绑定关系不同，不应使用路径匹配来代替 getCurrentScreenDocument()。
+```java
+ApricityUI.menu(player, "screens/inventory.html").bind(binding -> binding.player());
+```
 
-## 10. 需要容器或槽位时的写法
+或客户端脚本 `ApricityUI.screen("screens/inventory.html")`。详见[容器文档](container.md)。
 
-ApricityScreen 不继承 AbstractContainerScreen，也没有 Menu 和真实槽位。如果页面需要玩家背包、方块实体容器或服务端数据源，应使用菜单入口：
+## END 重载
 
-~~~java
-ApricityUI.menu(player, "screens/inventory.html")
-        .bind(binding -> binding.player());
-~~~
+开发时按 END 会重扫资源并 refresh 所有普通 Document：重跑脚本、重建 DOM。所以 JS 顶层变量、动态加的节点、输入框的值都不会保留——需要留的数据放到 Java/KubeJS 侧，在 `load` 里写回页面。`document.setReloadPersistent(true)` 可以让独立 Overlay 跳过重载，但 Screen 绑定的 Document 别这么干，容易让页面代码和资源版本对不上。
 
-或者在客户端请求打开页面：
+## 常见问题
 
-~~~javascript
-ApricityUI.screen("screens/inventory.html");
-~~~
+**页面空白**：按顺序查——路径是不是逻辑路径；文件在不在 `assets/apricityui/apricity/` 或 `run/apricity/` 下；扩展名是不是 `.html`；改完有没有按 END；日志里搜 `[AUI Resource]` / `[AUI HTML]` / `[AUI Document]`。
 
-后者会走服务端网络处理器；模板中的 container 声明决定需要绑定哪些数据源。相关页面实际由 ApricityContainerScreen 承载。
+**鼠标事件没触发**：先看元素是不是真的在鼠标下面、有没有被 `display:none` / 裁剪 / `pointer-events` 排除，再看页面是不是被更上层的 Document 盖住了。事件坐标不要再手动乘 renderScale。
 
-不要把以下需求塞进 ApricityScreen：
+**Ctrl+滚轮缩放了错的页面**：检查鼠标下是不是有 overlay、`viewportZoomPassThrough` 配置、以及页面自己的 `user-scalable` 设置。
 
-- 直接操作 menu.slots；
-- 依赖服务端 authoritative inventory；
-- 使用 AbstractContainerScreen 的槽位点击和拖拽状态；
-- 期望 ApricityUI.getCurrentScreenDocument() 在容器 Screen 上返回值。
+**END 之后状态没了**：预期行为，见上一节。
 
-## 11. 继承 ApricityScreen 的注意事项
+**窗口变化后布局/文字偏移**：选定一个 viewport 模式让框架自己处理 resize，不要在 CSS 和 Java 里同时手动补偿缩放。
 
-### 11.1 覆盖 init
+## 性能建议
 
-覆盖 init() 时必须先调用 super.init()，否则 Document 不会创建：
-
-~~~java
-@Override
-protected void init() {
-    super.init();
-    Document document = getLinkedDocument();
-    if (document != null) {
-        // 添加自定义的客户端侧初始化
-    }
-}
-~~~
-
-不要在子类中再次调用 Document.create(templatePath)，否则会同时存在两个同路径 Document，导致绘制和输入重复。
-
-### 11.2 覆盖 render
-
-默认 render() 会负责：
-
-- 绘制可选的 Minecraft 默认背景；
-- 应用 viewport 的 render scale 和 scissor；
-- 绘制主 Document；
-- 绘制持久化 Screen Document；
-- 绘制资源预览和伪光标；
-- 结束缓冲区批次和帧计时。
-
-如果必须自定义渲染，至少要保留 Document 的 viewport 缩放、裁剪和正确的 buffer flush，否则会出现显示尺寸与鼠标命中坐标不一致。
-
-### 11.3 覆盖关闭流程
-
-覆盖 onClose() 或 removed() 时必须调用父类实现：
-
-~~~java
-@Override
-public void onClose() {
-    // 自定义清理
-    super.onClose();
-}
-~~~
-
-onClose() 会触发 unload、移除 Document、清理 viewport 覆盖并恢复默认光标；removed() 会移除 Document 并清理 viewport 覆盖，但不额外触发 unload。漏掉 super 可能留下已失效的 Document 或输入状态。
-
-## 12. 重载、状态和持久化
-
-按 END 重载时，客户端会：
-
-1. 重新扫描 HTML、CSS、JS；
-2. 清理异步资源和字体缓存；
-3. 调用普通 Document 的 refresh()；
-4. 重新执行页面脚本和生命周期事件；
-5. 刷新 DevTools 和资源管理器。
-
-因此以下状态默认不会保留：
-
-- JavaScript 顶层变量；
-- 动态创建但没有重新创建的 DOM 节点；
-- 输入框当前值；
-- 页面脚本注册的运行时对象。
-
-如果某个独立 Overlay Document 需要在 END 时保留，可以调用：
-
-~~~java
-document.setReloadPersistent(true);
-~~~
-
-但 ApricityScreen 绑定的 Document 通常不应设置为持久化：Screen 关闭时仍会移除它，且持久化 Document 会跳过普通资源重载，容易让页面代码和资源版本不一致。
-
-开发阶段如果发现 END 后页面出现空白、重复监听器或状态复位，优先检查页面脚本是否假设只执行一次。refresh() 每次都会重新执行 HTML 内联脚本和外链脚本。
-
-## 13. HTML 文本转义
-
-普通 HTML 文本支持常见字符引用和数字字符引用：
-
-~~~html
-<p>&lt;button&gt; &amp; &quot;文字&quot;</p>
-<p>&#x4F60;&#x597D;</p>
-~~~
-
-显示结果分别包含 <button> & "文字" 和中文字符。script、style 等原始文本区域不会按普通正文方式解码，以免改变脚本和样式内容。
-
-## 14. 常见问题排查
-
-### 页面空白
-
-按顺序检查：
-
-1. 构造参数是否是 screens/example.html 这种逻辑路径；
-2. 文件是否位于 src/main/resources/assets/apricityui/apricity/ 或 run/apricity/；
-3. 文件扩展名是否为 .html；
-4. 资源是否在 END 后重新扫描；
-5. 日志中是否出现 [AUI Resource]、[AUI HTML] 或 [AUI Document] 错误。
-
-缺少 HTML 资源会记录 template resource is missing；空文件、错误标签嵌套、CSS/JS 抽取失败和脚本异常也会记录对应阶段和路径。
-
-### 鼠标事件没有触发
-
-检查：
-
-- 鼠标是否真的落在元素的布局盒内；
-- 元素是否被 display:none、visibility:hidden、裁剪或不可交互样式排除；
-- 是否在自定义 Screen 中遗漏了父类的输入处理；
-- 页面是否被另一个更前面的 Document 覆盖；
-- 是否把屏幕坐标再次乘了 renderScale，导致手动坐标偏移。
-
-aui-mouse-events=intercept 主要控制原生事件消费，不是事件监听器开关。没有设置它时，HTML 事件仍可能触发；设置它也不能让不可见元素命中。
-
-### Ctrl+滚轮缩放了错误的页面
-
-检查：
-
-1. 鼠标位置是否同时命中了持久化 overlay；
-2. config/apricityui-client.toml 的 [input] viewportZoomPassThrough 是否符合预期；
-3. 覆盖层是否设置了 aui-mouse-events=intercept；
-4. 页面是否设置了 user-scalable=false。
-
-### 调整窗口后文字或布局偏移
-
-不要在 CSS 和 Java 中同时手动补偿 viewport 缩放。先选择一个明确的 aui-viewport 模式，并让 ApricityScreen 的默认 resize() 执行。只有在自定义渲染时，才需要同步使用 Document 的 viewport 变换。
-
-### END 后页面状态消失
-
-这是普通 Document 的预期行为：END 会调用 refresh()，DOM 和页面脚本都会重建。需要保留的数据应保存到 KubeJS/Java 状态中，并在 load 或 DOMContentLoaded 中重新写回页面，而不是依赖 JavaScript 顶层变量。
-
-### unload 没有触发
-
-ApricityScreen.onClose() 会向 body 触发 unload。如果代码直接走了非标准移除流程，只能保证 removed() 清理 Document，不保证额外触发同一个生命周期事件。页面关闭清理逻辑应尽量绑定在标准关闭流程中，并避免把关键持久化数据只放在 unload。
-
-## 15. 性能建议
-
-- 一个 Screen 创建一次 Document，运行过程中优先修改已有元素、属性、class 和文本，不要每帧重新 Document.create()。
-- 动画优先使用 CSS transition/animation 或已有的增量更新机制。
-- 不要在每帧遍历完整 DOM 并重建整个 body。
-- 页面尺寸稳定时优先使用合适的 fixed 或 browser viewport，减少频繁的布局尺寸变化。
-- END 只用于开发重载，不要把它当作运行时状态同步机制。
-- 大量动态列表应复用节点，避免反复创建和销毁同规模的 DOM。
-
-## 16. 相关源码
-
-- [ApricityScreen.java](../src/main/java/com/sighs/apricityui/instance/ApricityScreen.java)
-- [ApricityContainerScreen.java](../src/main/java/com/sighs/apricityui/instance/ApricityContainerScreen.java)
-- [ApricityViewport.java](../src/main/java/com/sighs/apricityui/instance/ApricityViewport.java)
-- [Document.java](../src/main/java/com/sighs/apricityui/init/Document.java)
-- [HTML.java](../src/main/java/com/sighs/apricityui/resource/HTML.java)
-- [ApricityUIClientUtil.java](../src/main/java/com/sighs/apricityui/util/kjs/ApricityUIClientUtil.java)
-- [ApricityScreenNetworkHandler.java](../src/main/java/com/sighs/apricityui/instance/network/handler/ApricityScreenNetworkHandler.java)
+- 一个 Screen 只创建一次 Document，更新时改已有元素，别每帧 `Document.create()`；
+- 动画用 CSS transition/animation，别每帧重建 body；
+- 长列表复用节点；
+- END 是开发用的重载键，不是运行时状态同步机制。
