@@ -171,12 +171,28 @@ public final class NormalFlow {
             if (run == null) return;
         }
 
+        // Text runs on the same line share a painted baseline (the paint
+        // backends anchor at Text.renderedBaselineOffset), so each run
+        // participates in the line's ascent the same way atomic inlines do.
+        double runAscent = Text.renderedBaselineOffset(run.text());
+        double runDescent = Math.max(0, run.text().lineHeight - runAscent);
+        includeBaselineMetrics(state, runAscent, runDescent);
+        run = run.withY(state.cursorY + Math.max(0, state.lineAscent - runAscent));
         state.textRuns.add(run);
+        state.lineTextRunAscents.put(run, runAscent);
         if (run.lineCount() > 1) {
             state.maxLineWidth = Math.max(state.maxLineWidth, run.maxWidth());
             state.cursorY = run.y() + (run.lineCount() - 1) * run.text().lineHeight;
             state.cursorX = run.lastLineWidth();
             state.lineHeight = Math.max(state.lineHeight, run.text().lineHeight);
+            // The continuation line starts with fresh baseline context; entries
+            // from the run's first line must not be re-shifted against the new
+            // cursorY.
+            state.lineAscent = 0;
+            state.lineDescent = 0;
+            state.lineStrutIncluded = false;
+            state.lineAtomicAscents.clear();
+            state.lineTextRunAscents.clear();
         } else {
             state.cursorX += run.lastLineWidth();
             state.lineHeight = Math.max(state.lineHeight, run.text().lineHeight);
@@ -264,6 +280,25 @@ public final class NormalFlow {
                     state.cursorY + state.lineAscent - entry.getValue()
             ));
         }
+        if (state.lineTextRunAscents.isEmpty()) return;
+        // Records are immutable: rebuild the already-placed runs of this line
+        // with their baseline re-aligned to the grown line ascent.
+        var shiftedRuns = new IdentityHashMap<TextRunLayout, Double>();
+        for (var entry : state.lineTextRunAscents.entrySet()) {
+            TextRunLayout shifted = entry.getKey().withY(state.cursorY + Math.max(0, state.lineAscent - entry.getValue()));
+            int index = indexOfIdentity(state.textRuns, entry.getKey());
+            if (index >= 0) state.textRuns.set(index, shifted);
+            shiftedRuns.put(shifted, entry.getValue());
+        }
+        state.lineTextRunAscents.clear();
+        state.lineTextRunAscents.putAll(shiftedRuns);
+    }
+
+    private static int indexOfIdentity(List<TextRunLayout> runs, TextRunLayout target) {
+        for (int i = 0; i < runs.size(); i++) {
+            if (runs.get(i) == target) return i;
+        }
+        return -1;
     }
 
     private static double atomicInlineBaseline(Element element, Box box, Size outerSize) {
@@ -387,6 +422,7 @@ public final class NormalFlow {
         state.lineDescent = 0;
         state.lineStrutIncluded = false;
         state.lineAtomicAscents.clear();
+        state.lineTextRunAscents.clear();
     }
 
     private static double collapseAdjacentMargins(double previousBottom, double currentTop) {
@@ -537,6 +573,10 @@ public final class NormalFlow {
         public int lineCount() {
             return lines == null ? 0 : lines.size();
         }
+
+        public TextRunLayout withY(double newY) {
+            return new TextRunLayout(node, owner, text, x, newY, lines, maxWidth, lastLineWidth, startedOnNewLine);
+        }
     }
 
     private static final class FlowState {
@@ -555,6 +595,7 @@ public final class NormalFlow {
         private boolean foundTarget = false;
         private final IdentityHashMap<Element, Position> childPositions = new IdentityHashMap<>();
         private final IdentityHashMap<Element, Double> lineAtomicAscents = new IdentityHashMap<>();
+        private final IdentityHashMap<TextRunLayout, Double> lineTextRunAscents = new IdentityHashMap<>();
         private double previousBlockMarginBottom = 0;
         private boolean previousFlowWasBlock = false;
 

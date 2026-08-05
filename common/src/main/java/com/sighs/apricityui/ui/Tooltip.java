@@ -21,7 +21,7 @@ public final class Tooltip {
                     "padding:8px 10px;min-width:40px;background:#ffffff;color:#1a1a1a;" +
                     "border:2px solid #1a1a1a;border-left:3px solid #8b5cf6;" +
                     "box-shadow:4px 4px 0 rgba(139,92,246,0.25);" +
-                    "font-family:'Chakra Petch',sans-serif;font-size:11px;line-height:15px;" +
+                    "font-family:'Microsoft YaHei',sans-serif;font-size:11px;line-height:15px;" +
                     "font-weight:600;letter-spacing:0;white-space:normal;overflow-wrap:break-word;";
 
     private static Tooltip activeTooltip;

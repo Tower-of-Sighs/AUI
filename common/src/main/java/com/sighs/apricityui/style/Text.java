@@ -543,6 +543,44 @@ public class Text {
         return Math.floor(Math.max(0, halfLeading + ascent) + 1.0e-6d);
     }
 
+    /**
+     * Ascent of the actually rendered glyphs, in logical (layout) pixels.
+     * Unlike {@link #baselineOffset(Text)}, which works in CSS font-size space
+     * for strut/atomic-inline alignment, this reflects what the paint backends
+     * draw: the MC font renders at {@link Text#renderedFontSize()}, and custom
+     * fonts raster at {@link Font#getBaseFontSize()} then scale by the same
+     * factor the raster pipeline uses.
+     */
+    public static double renderedAscent(Text text) {
+        if (text == null) return 0;
+        double rendered = text.renderedFontSize();
+        if (text.fontFamily == null || text.fontFamily.equals("unset")) {
+            return rendered * 0.8d;
+        }
+        int fontStyle = java.awt.Font.PLAIN;
+        if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
+        if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+        java.awt.Font base = Font.resolveBaseFont(text.fontFamily);
+        if (base == null) return rendered * 0.8d;
+        double baseSize = Font.getBaseFontSize();
+        if (baseSize <= 0) return rendered * 0.8d;
+        java.awt.Font measured = base.deriveFont(fontStyle, (float) baseSize);
+        return METRICS_CANVAS.getFontMetrics(measured).getAscent() * (rendered / baseSize);
+    }
+
+    /**
+     * Distance from the CSS line-box top to the painted baseline, in logical
+     * pixels. Both font backends anchor their baseline at this offset when
+     * painting text runs, so runs sharing a line stay baseline-aligned.
+     * Half-leading is computed from the CSS font size (browser convention);
+     * the ascent is the rendered ascent so scaled font modes stay consistent.
+     */
+    public static double renderedBaselineOffset(Text text) {
+        if (text == null) return 0;
+        double halfLeading = Math.max(0, (text.lineHeight - text.fontSize) / 2.0d);
+        return halfLeading + renderedAscent(text);
+    }
+
 
     public static double measureText(Element element, String content) {
         Text text = Text.of(element);

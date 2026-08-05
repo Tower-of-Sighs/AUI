@@ -145,6 +145,14 @@ public final class ClientService implements AuiClientService {
     }
 
     @Override
+    public void closeScreen() {
+        try {
+            Minecraft.getInstance().setScreen(null);
+        } catch (RuntimeException | LinkageError ignored) {
+        }
+    }
+
+    @Override
     public Path getGameDirectory() {
         try {
             return FMLPaths.GAMEDIR.get().toAbsolutePath().normalize();

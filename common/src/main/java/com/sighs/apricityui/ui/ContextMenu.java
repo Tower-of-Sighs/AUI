@@ -29,11 +29,11 @@ public final class ContextMenu {
             "position:fixed;min-width:200px;max-width:360px;box-sizing:border-box;" +
                     "background:#ffffff;border:2px solid #1a1a1a;" +
                     "padding:4px 0;box-shadow:6px 6px 0 rgba(0,0,0,0.15);" +
-                    "font-family:'Chakra Petch',sans-serif;color:#1a1a1a;overflow:hidden;" +
+                    "font-family:'Microsoft YaHei',sans-serif;color:#1a1a1a;overflow:hidden;" +
                     "transform-origin:center;transition:opacity 0.15s cubic-bezier(0.4,0,0.2,1)," +
                     "transform 0.15s cubic-bezier(0.4,0,0.2,1);";
     private static final String HEADER_STYLE =
-            "padding:6px 16px 8px;font-family:'Chakra Petch',sans-serif;font-size:10px;line-height:14px;" +
+            "padding:6px 16px 8px;font-family:'Microsoft YaHei',sans-serif;font-size:10px;line-height:14px;" +
                     "color:#8b5cf6;letter-spacing:2px;" +
                     "text-transform:uppercase;border-bottom:1px solid #e0e0e0;margin-bottom:4px;font-weight:600;" +
                     "white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;max-width:100%;";
@@ -54,14 +54,14 @@ public final class ContextMenu {
             "position:relative;z-index:1;width:14px;height:14px;flex:0 0 14px;display:flex;" +
                     "align-items:center;justify-content:center;";
     private static final String LABEL_STYLE =
-            "position:relative;z-index:1;font-family:'Chakra Petch',sans-serif;" +
+            "position:relative;z-index:1;font-family:'Microsoft YaHei',sans-serif;" +
                     "white-space:nowrap;";
     private static final String SHORTCUT_STYLE =
-            "position:relative;z-index:1;margin-left:auto;padding-left:16px;font-family:'Chakra Petch',sans-serif;" +
+            "position:relative;z-index:1;margin-left:auto;padding-left:16px;font-family:'Microsoft YaHei',sans-serif;" +
                     "min-width:72px;text-align:right;font-size:10px;line-height:14px;" +
                     "color:#999999;font-weight:400;letter-spacing:0.5px;white-space:nowrap;";
     private static final String SHORTCUT_HOVER_STYLE =
-            "position:relative;z-index:1;margin-left:auto;padding-left:16px;font-family:'Chakra Petch',sans-serif;" +
+            "position:relative;z-index:1;margin-left:auto;padding-left:16px;font-family:'Microsoft YaHei',sans-serif;" +
                     "min-width:72px;text-align:right;font-size:10px;line-height:14px;" +
                     "color:rgba(255,255,255,0.7);font-weight:400;letter-spacing:0.5px;" +
                     "white-space:nowrap;";

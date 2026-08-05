@@ -66,6 +66,20 @@ public class FontDrawer {
     }
 
     public static void drawFont(PoseStack poseStack, Text text, Position position) {
+        drawFont(poseStack, text, position, Double.NaN);
+    }
+
+    /**
+     * Baseline-anchored variant used by normal-flow text runs: position.y is
+     * the CSS line-box top and each backend anchors its rendered baseline at
+     * position.y + baselineOffset (see {@link Text#renderedBaselineOffset}).
+     * Runs sharing a line are shifted by the layout so their baselines meet.
+     */
+    public static void drawFontOnBaseline(PoseStack poseStack, Text text, Position position, double baselineOffset) {
+        drawFont(poseStack, text, position, baselineOffset);
+    }
+
+    private static void drawFont(PoseStack poseStack, Text text, Position position, double baselineOffset) {
         String content = text.content;
         if (content == null || content.isEmpty()) return;
 
@@ -78,7 +92,7 @@ public class FontDrawer {
 
         int firstNl = content.indexOf('\n');
         if (firstNl < 0) {
-            drawLine(poseStack, text, content, linePos);
+            drawLine(poseStack, text, content, linePos, baselineOffset);
             return;
         }
 
@@ -88,26 +102,26 @@ public class FontDrawer {
             int nl = content.indexOf('\n', start);
             if (nl < 0) {
                 // last line (including empty tail)
-                drawLine(poseStack, text, start < len ? content.substring(start) : "", linePos);
+                drawLine(poseStack, text, start < len ? content.substring(start) : "", linePos, baselineOffset);
                 break;
             }
 
-            drawLine(poseStack, text, content.substring(start, nl), linePos);
+            drawLine(poseStack, text, content.substring(start, nl), linePos, baselineOffset);
             linePos.y += text.lineHeight;
             start = nl + 1;
         }
     }
 
-    private static void drawLine(PoseStack poseStack, Text text, String content, Position position) {
+    private static void drawLine(PoseStack poseStack, Text text, String content, Position position, double baselineOffset) {
         if (content == null || content.isEmpty()) return;
         if (Math.abs(text.letterSpacing) <= 1e-4) {
-            drawSingleRun(poseStack, text, content, position);
+            drawSingleRun(poseStack, text, content, position, baselineOffset);
             return;
         }
 
         // Custom font path: render one whole line texture with baked-in letter spacing.
         if (!"unset".equals(text.fontFamily)) {
-            drawSingleRun(poseStack, text, content, position);
+            drawSingleRun(poseStack, text, content, position, baselineOffset);
             return;
         }
 
@@ -116,18 +130,22 @@ public class FontDrawer {
         for (int i = 0; i < content.length(); ) {
             int cp = content.codePointAt(i);
             String glyph = new String(Character.toChars(cp));
-            drawSingleRun(poseStack, text, glyph, new Position(cursor, position.y));
+            drawSingleRun(poseStack, text, glyph, new Position(cursor, position.y), baselineOffset);
             cursor += Text.measureLine(text, glyph);
             i += Character.charCount(cp);
         }
     }
 
-    private static void drawSingleRun(PoseStack poseStack, Text text, String content, Position position) {
+    private static void drawSingleRun(PoseStack poseStack, Text text, String content, Position position, double baselineOffset) {
         float x = (float) position.x;
         float y = (float) position.y;
+        boolean baselineAnchored = !Double.isNaN(baselineOffset);
 
         if ("unset".equals(text.fontFamily)) {
-            AuiServices.client().drawDefaultFont(poseStack, text, content, position);
+            Position drawPosition = baselineAnchored
+                    ? new Position(position.x, position.y + baselineOffset - Text.renderedAscent(text))
+                    : position;
+            AuiServices.client().drawDefaultFont(poseStack, text, content, drawPosition);
             return;
         }
 
@@ -135,7 +153,10 @@ public class FontDrawer {
         TextQuadMode quadMode = resolveTextQuadMode();
         FontEntry entry = textureEntry(text, content, rasterMode, quadMode);
         if (entry == null) {
-            AuiServices.client().drawDefaultFont(poseStack, text, content, position);
+            Position drawPosition = baselineAnchored
+                    ? new Position(position.x, position.y + baselineOffset - Text.renderedAscent(text))
+                    : position;
+            AuiServices.client().drawDefaultFont(poseStack, text, content, drawPosition);
             return;
         }
 
@@ -146,8 +167,12 @@ public class FontDrawer {
         // Align the actual glyph ink with the CSS line box.  AWT's metrics box contains
         // asymmetric ascender/descender space, so centering that box leaves the visible
         // glyphs optically high.  Opaque raster modes fall back to the metrics box.
+        // Baseline-anchored callers (normal-flow text runs) instead land the raster's
+        // AWT baseline on the shared line baseline so mixed fonts stay aligned.
         float drawX = x - layout.pad() * drawScale;
-        float drawY = y + (float) (text.lineHeight / 2.0d) - entry.verticalAnchorTexel() * drawScale;
+        float drawY = baselineAnchored
+                ? y + (float) baselineOffset - layout.baselineTexel() * drawScale
+                : y + (float) (text.lineHeight / 2.0d) - entry.verticalAnchorTexel() * drawScale;
         if (quadMode.snapsAnyPhysicalEdge()) {
             double pixelScale = rasterMode.pixelScale();
             if (pixelScale > 0.0d && Double.isFinite(pixelScale)) {
@@ -459,11 +484,11 @@ public class FontDrawer {
             if (atlasRegion != null) {
                 nativeImg.close();
                 FontEntry atlasEntry = new FontEntry(atlasRegion.location(), null, null, imgW, imgH, textureStats,
-                        new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height())));
+                        new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height()),
+                                pad + metrics.ascent()));
                 ATLAS_REGIONS.put(atlasEntry, atlasRegion);
                 return atlasEntry;
             }
-
             Object texture = AuiServices.render().createDynamicTexture(
                     "apricityui:font/" + UUID.nameUUIDFromBytes(cacheKey.getBytes(StandardCharsets.UTF_8)),
                     nativeImg,
@@ -477,7 +502,8 @@ public class FontDrawer {
             AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(location));
 
             return new FontEntry(location, nativeImg, texture, imgW, imgH, textureStats,
-                    new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height())));
+                    new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height()),
+                            pad + metrics.ascent()));
 
         } catch (Exception e) {
             return null;
@@ -1682,7 +1708,7 @@ public class FontDrawer {
         }
     }
 
-    private record RasterLayout(int pad, int lineHeight, float glyphAnchorTexel) {
+    private record RasterLayout(int pad, int lineHeight, float glyphAnchorTexel, int baselineTexel) {
     }
 
     /**

@@ -2,13 +2,11 @@ package com.sighs.apricityui.forge;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.config.ApricityUIConfig;
-import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.network.ApricityNetwork;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.client.event.RegisterShadersEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -18,7 +16,6 @@ import net.minecraftforge.fml.event.config.ModConfigEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
-import java.io.IOException;
 
 /**
  * Forge entry point. The mod loading wiring (config registration, KubeJS
@@ -30,6 +27,9 @@ public class ApricityUIForge {
     public ApricityUIForge() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         AuiServicesBootstrap.init();
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            ClientServicesBootstrap.init(modEventBus);
+        }
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ApricityUIConfig.CLIENT_SPEC);
         modEventBus.addListener(this::onConfigReload);
         if (ModList.get().isLoaded("kubejs")) {
@@ -39,18 +39,6 @@ public class ApricityUIForge {
         ApricityMenus.register(modEventBus);
         ApricityNetwork.register();
 
-        if (FMLEnvironment.dist == Dist.CLIENT) {
-            DevToolsLogBridge.install(ApricityUI.LOGGER);
-            ApricityUIRegistry.register();
-            modEventBus.addListener(this::onRegisterShaders);
-        }
-    }
-
-    private void onRegisterShaders(RegisterShadersEvent event) {
-        try {
-            ShaderRegistry.register(event);
-        } catch (IOException ignored) {
-        }
     }
 
     private void onConfigReload(ModConfigEvent.Reloading event) {

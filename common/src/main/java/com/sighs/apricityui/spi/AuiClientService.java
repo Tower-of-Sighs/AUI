@@ -57,6 +57,10 @@ public interface AuiClientService {
     /** Opens the loader's WebUI screen for the given template path. */
     void openScreen(String templatePath);
 
+    /** Closes the current loader screen when a client is available. */
+    default void closeScreen() {
+    }
+
     /** Returns the loader's game directory (e.g. Forge {@code FMLPaths.GAMEDIR}). */
     Path getGameDirectory();
 

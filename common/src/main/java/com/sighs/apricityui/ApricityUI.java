@@ -6,7 +6,6 @@ import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.spi.AuiPendingMenu;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.world.WorldWindow;
-import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
@@ -96,7 +95,7 @@ public final class ApricityUI {
      * 容器屏幕关闭时 vanilla 会自动向服务端发送容器关闭包。
      */
     public static void closeScreen() {
-        Minecraft.getInstance().setScreen(null);
+        AuiServices.client().closeScreen();
     }
 
     /**

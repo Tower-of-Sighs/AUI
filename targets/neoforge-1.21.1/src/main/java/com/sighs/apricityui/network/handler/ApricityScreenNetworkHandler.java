@@ -7,11 +7,9 @@ import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.container.datasource.DataSourceFactory;
 import com.sighs.apricityui.element.ContainerDeclaration;
-import com.sighs.apricityui.network.ApricityNetwork;
 import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
 import com.sighs.apricityui.util.common.NormalizeUtil;
-import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
@@ -31,20 +29,10 @@ public final class ApricityScreenNetworkHandler {
     /**
      * 客户端请求打开 Screen（发送网络包到服务端）。
      */
-    public static void requestOpenScreen(String path) {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) return;
-        ApricityNetwork.sendToServer(new OpenScreenRequestPacket(path));
-    }
 
     /**
      * 客户端请求关闭 Screen。
      */
-    public static void requestCloseScreen() {
-        Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null) return;
-        ApricityNetwork.sendToServer(new CloseContainerRequestPacket());
-    }
 
     /**
      * 服务端 API 入口：根据容器声明列表打开 Screen。

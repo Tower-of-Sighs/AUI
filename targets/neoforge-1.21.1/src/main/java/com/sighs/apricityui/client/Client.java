@@ -207,7 +207,6 @@ public class Client {
             FrameTimingHud.beginFrame();
             try {
                 drawPersistentScreenDocuments(event.getGuiGraphics());
-                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
                 Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
@@ -231,8 +230,10 @@ public class Client {
                     if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                     Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
                     renderOverlaySlotItems(event.getGuiGraphics(), document);
+                    // Draw the resource preview right after its owning document so the
+                    // previewed HTML stays below the DevTools tool document (and toasts).
+                    com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose(), document);
                 }
-                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
                 Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
@@ -255,6 +256,8 @@ public class Client {
             }
             Base.drawOverlayDocument(guiGraphics.pose(), document);
             renderOverlaySlotItems(guiGraphics, document);
+            // Keep the resource preview directly above its owning document.
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), document);
         }
     }
 

@@ -2693,7 +2693,10 @@ public class Element extends Node {
         Position contentPos = rectRenderer.getContentPosition();
         boolean alignDirectTextRuns = shouldAlignDirectNormalFlowTextRuns();
         double contentWidth = alignDirectTextRuns ? Box.of(this).innerSize().width() : 0;
-        for (NormalFlow.TextRunLayout run : NormalFlow.computeTextRuns(this)) {
+        List<NormalFlow.TextRunLayout> textRuns = NormalFlow.computeTextRuns(this);
+        boolean[] baselineAnchors = resolveRunBaselineAnchors(textRuns);
+        for (int r = 0; r < textRuns.size(); r++) {
+            NormalFlow.TextRunLayout run = textRuns.get(r);
             if (run == null || run.text() == null || run.lines() == null) continue;
             Position drawPos = new Position(0, 0);
             for (int i = 0; i < run.lines().size(); i++) {
@@ -2707,9 +2710,52 @@ public class Element extends Node {
                 drawPos.y = contentPos.y + run.y() + i * run.text().lineHeight;
                 drawInlineFragmentBackground(poseStack, run.owner(), drawPos, lineWidth, run.text().lineHeight);
                 Text lineText = TextMetrics.cloneTextForSegment(run.text(), line, Color.BLACK);
-                FontDrawer.drawFont(poseStack, lineText, drawPos);
+                if (baselineAnchors[r]) {
+                    FontDrawer.drawFontOnBaseline(poseStack, lineText, drawPos, Text.renderedBaselineOffset(lineText));
+                } else {
+                    FontDrawer.drawFont(poseStack, lineText, drawPos);
+                }
             }
         }
+    }
+
+    /**
+     * Per-run paint anchor decision for normal-flow text. Baseline anchoring is
+     * only needed when one painted line mixes the two font backends (MC default
+     * font vs rasterized custom font): same-backend runs already share the
+     * legacy anchor (custom fonts are ink-centered in the line box, MC glyphs
+     * paint from the line-box top), and baseline anchoring would trust font
+     * ascent metrics that substituted/fallback fonts routinely inflate, pushing
+     * single-font text off its visually centered position.
+     * Fragments are grouped by their painted baseline ({@code run.y + i*lineHeight
+     * + renderedBaselineOffset}), which the layout equalizes across each line.
+     */
+    public static boolean[] resolveRunBaselineAnchors(List<NormalFlow.TextRunLayout> runs) {
+        boolean[] flags = new boolean[runs.size()];
+        Map<Long, Integer> backendMasks = new HashMap<>();
+        Map<Long, List<Integer>> lineMembers = new HashMap<>();
+        for (int r = 0; r < runs.size(); r++) {
+            NormalFlow.TextRunLayout run = runs.get(r);
+            if (run == null || run.text() == null || run.lines() == null) continue;
+            int backend = usesDefaultFontBackend(run.text()) ? 1 : 2;
+            double baselineOffset = Text.renderedBaselineOffset(run.text());
+            for (int i = 0; i < run.lines().size(); i++) {
+                String line = run.lines().get(i);
+                if (line == null || line.isBlank()) continue;
+                long lineKey = Math.round((run.y() + i * run.text().lineHeight + baselineOffset) * 1000.0d);
+                backendMasks.merge(lineKey, backend, (a, b) -> a | b);
+                lineMembers.computeIfAbsent(lineKey, key -> new ArrayList<>()).add(r);
+            }
+        }
+        for (Map.Entry<Long, List<Integer>> entry : lineMembers.entrySet()) {
+            if (backendMasks.get(entry.getKey()) != 3) continue;
+            for (int r : entry.getValue()) flags[r] = true;
+        }
+        return flags;
+    }
+
+    private static boolean usesDefaultFontBackend(Text text) {
+        return text.fontFamily == null || text.fontFamily.equals("unset");
     }
 
     /**

@@ -12,13 +12,9 @@ import com.sighs.apricityui.spi.AuiServices;
  */
 public final class AuiServicesBootstrap {
     static {
-        AuiServices.setClient(ClientService.INSTANCE);
-        AuiServices.setRender(RenderService.INSTANCE);
         AuiServices.setNetwork(NetworkService.INSTANCE);
         AuiServices.setExpander(new ForgeDocumentExpander());
         AuiServices.setConfig(ConfigService.INSTANCE);
-        AuiServices.setResources(ResourceService.INSTANCE);
-        AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setScript(ScriptService.INSTANCE);
     }
 

@@ -65,14 +65,16 @@ public final class ResourcePreviewDialog {
 
     public void close() {
         if (active == this) active = null;
-        if (dialog != null) dialog.close();
+        DialogWindow current = dialog;
+        // Clear before closing: DialogWindow.close() re-invokes this via onClose.
+        dialog = null;
+        if (current != null) current.close();
         if (preview != null && !preview.isDisposed()) preview.remove();
         owner = null;
         preview = null;
         viewport = null;
         imageView = null;
         fontTextArea = null;
-        dialog = null;
         sourcePath = "";
         fontFamily = "";
         imagePreview = false;
@@ -85,6 +87,7 @@ public final class ResourcePreviewDialog {
     }
 
     public static void draw(PoseStack poseStack) {
+        sweepClosed();
         if (active != null && active.owner != null && !active.owner.inWorld) {
             active.drawPreview(poseStack);
         }
@@ -96,6 +99,7 @@ public final class ResourcePreviewDialog {
      * instead of floating above every overlay document.
      */
     public static void draw(PoseStack poseStack, Document ownerDocument) {
+        sweepClosed();
         if (active != null && active.owner == ownerDocument && ownerDocument != null && !ownerDocument.inWorld) {
             active.drawPreview(poseStack);
         }
@@ -103,9 +107,19 @@ public final class ResourcePreviewDialog {
 
     /** Draws the preview in the owning world document's local surface. */
     public static void drawInWorld(PoseStack poseStack, Document owner) {
+        sweepClosed();
         if (active != null && active.owner == owner && owner != null && owner.inWorld) {
             active.drawPreview(poseStack);
         }
+    }
+
+    /**
+     * Releases the preview document when the dialog DOM vanished without going
+     * through {@link DialogWindow#close()} (e.g. the owning document reloaded),
+     * so it does not linger in the document registry.
+     */
+    private static void sweepClosed() {
+        if (active != null && !active.isOpen()) active.close();
     }
 
     private void createWindow() {
@@ -128,7 +142,7 @@ public final class ResourcePreviewDialog {
                 "dialog-title-icon",
                 true
         );
-        dialog = DialogWindow.open(owner, options, null);
+        dialog = DialogWindow.open(owner, options, this::close);
         Element body = dialog.content();
         body.setAttribute("style", "position:relative;flex:1;min-height:0;display:flex;");
         viewport = element("DIV", "resource-preview-viewport");
@@ -198,13 +212,14 @@ public final class ResourcePreviewDialog {
         float y = (float) (rect.y() * hostScale);
         float w = (float) (rect.width() * hostScale);
         float h = (float) (rect.height() * hostScale);
-        double scale = Math.min(w / Math.max(1, preview.getViewport().layoutWidth()), h / Math.max(1, preview.getViewport().layoutHeight()));
-        if (!Double.isFinite(scale) || scale <= 0) return;
-        double contentWidth = preview.getViewport().layoutWidth() * scale;
-        double contentHeight = preview.getViewport().layoutHeight() * scale;
-        double contentX = x + Math.max(0, w - contentWidth) * 0.5d;
-        double contentY = y + Math.max(0, h - contentHeight) * 0.5d;
-        preview.setViewportTransform(scale, scale, contentX, contentY);
+        double scaleX = w / Math.max(1, preview.getViewport().layoutWidth());
+        double scaleY = h / Math.max(1, preview.getViewport().layoutHeight());
+        if (!Double.isFinite(scaleX) || !Double.isFinite(scaleY) || scaleX <= 0 || scaleY <= 0) return;
+        double contentWidth = w;
+        double contentHeight = h;
+        double contentX = x;
+        double contentY = y;
+        preview.setViewportTransform(scaleX, scaleY, contentX, contentY);
         poseStack.pushPose();
         if (owner.inWorld) {
             float[] clipRadii = new float[]{0.0f, 0.0f, 0.0f, 0.0f};
@@ -212,7 +227,7 @@ public final class ResourcePreviewDialog {
                     (float) contentWidth, (float) contentHeight, clipRadii);
             try {
                 poseStack.translate(contentX, contentY, 0);
-                poseStack.scale((float) scale, (float) scale, 1);
+                poseStack.scale((float) scaleX, (float) scaleY, 1);
                 Base.drawDocument(poseStack, preview);
             } finally {
                 Mask.popMask(poseStack, (float) contentX, (float) contentY,
@@ -222,10 +237,10 @@ public final class ResourcePreviewDialog {
             return;
         }
 
-        Mask.pushSurfaceClip(preview.getViewport().layoutWidth(), preview.getViewport().layoutHeight(), contentX, contentY, scale, scale);
+        Mask.pushSurfaceClip(preview.getViewport().layoutWidth(), preview.getViewport().layoutHeight(), contentX, contentY, scaleX, scaleY);
         try {
             poseStack.translate(contentX, contentY, 0);
-            poseStack.scale((float) scale, (float) scale, 1);
+            poseStack.scale((float) scaleX, (float) scaleY, 1);
             Base.drawDocument(poseStack, preview);
         } finally {
             Mask.popSurfaceClip();

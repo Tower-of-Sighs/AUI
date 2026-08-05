@@ -20,7 +20,7 @@ public final class ToastManager {
             "pointer-events:auto;display:flex;align-items:flex-start;gap:10px;width:100%;" +
                     "padding:10px 12px;border:2px solid #1a1a1a;border-left:6px solid #8b5cf6;" +
                     "background-color:#ffffff;color:#1a1a1a;box-shadow:4px 4px 0 #1a1a1a;" +
-                    "font-family:'Chakra Petch',sans-serif;font-size:12px;font-weight:600;line-height:18px;" +
+                    "font-family:'Microsoft YaHei',sans-serif;font-size:12px;font-weight:600;line-height:18px;" +
                     "letter-spacing:0.7px;text-transform:uppercase;overflow:hidden;";
     private static final String MARKER_STYLE =
             "flex:0 0 18px;width:18px;height:18px;background-color:#8b5cf6;color:#ffffff;" +

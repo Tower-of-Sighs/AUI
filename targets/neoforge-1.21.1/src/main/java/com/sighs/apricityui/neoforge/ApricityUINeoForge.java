@@ -12,9 +12,6 @@ import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.fml.event.config.ModConfigEvent;
-import net.neoforged.neoforge.client.event.RegisterShadersEvent;
-
-import java.io.IOException;
 
 /**
  * NeoForge 1.21.1 entry point.
@@ -30,6 +27,9 @@ public final class ApricityUINeoForge {
         // Register the loader SPI implementations before any common code touches
         // them; otherwise AuiServices falls back to its headless defaults.
         AuiServicesBootstrap.init();
+        if (dist == Dist.CLIENT) {
+            ClientServicesBootstrap.init(modEventBus);
+        }
         // Element/container scanning is a loader-service concern (see
         // ReflectionUtils); menus must be bound to the mod event bus before any
         // client code touches APRICITY_CONTAINER, or the holder stays unbound.
@@ -45,14 +45,6 @@ public final class ApricityUINeoForge {
 
         if (dist == Dist.CLIENT) {
             ApricityUIRegistry.register();
-            modEventBus.addListener(this::onRegisterShaders);
-        }
-    }
-
-    private void onRegisterShaders(RegisterShadersEvent event) {
-        try {
-            ShaderRegistry.register(event);
-        } catch (IOException ignored) {
         }
     }
 
