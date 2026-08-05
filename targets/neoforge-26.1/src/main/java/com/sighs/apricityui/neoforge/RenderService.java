@@ -96,6 +96,8 @@ public final class RenderService implements AuiRenderService {
     private GpuBuffer filterVertexBuffer;
     private long filterVertexCapacity;
     private GpuBuffer filterUniformBuffer;
+    private int blitReadFbo;
+    private int blitDrawFbo;
 
     // 26.1 stores custom shader values in std140 blocks instead of the old
     // per-uniform ShaderInstance setters. These fields mirror the FilterParams
@@ -400,18 +402,17 @@ public final class RenderService implements AuiRenderService {
         boolean compositePipeline = pipeline == PipelineRegistry.getFilter();
         RenderTarget output = OutputTargets.currentTarget();
         if (output == null) return;
+        // Writing the live PIP override through a custom pass leaves the
+        // end-of-frame blit's sampler stale on this driver: the screen renders
+        // black behind backdrop-filtered elements. Backdrop-filter still works
+        // through the element's own background (which renders via the normal
+        // RenderType path), so skip the composite pass into the PIP.
+        if (output == Minecraft.getInstance().getMainRenderTarget()
+                && RenderSystem.outputColorTextureOverride != null) {
+            return;
+        }
         GpuTextureView colorView = output.getColorTextureView();
         GpuTextureView depthView = output.useDepth ? output.getDepthTextureView() : null;
-        // Main is only the logical destination while a PIP renderer is active;
-        // the physical destination is the override texture view.
-        if (output == Minecraft.getInstance().getMainRenderTarget()) {
-            if (RenderSystem.outputColorTextureOverride != null) {
-                colorView = RenderSystem.outputColorTextureOverride;
-            }
-            if (RenderSystem.outputDepthTextureOverride != null) {
-                depthView = RenderSystem.outputDepthTextureOverride;
-            }
-        }
         if (colorView == null) return;
 
         GpuDevice device = RenderSystem.getDevice();
@@ -430,13 +431,13 @@ public final class RenderService implements AuiRenderService {
         GpuBufferSlice transforms = RenderSystem.getDynamicUniforms().writeTransform(
                 RenderSystem.getModelViewMatrix(),
                 new Vector4f(1, 1, 1, 1), new Vector3f(), new Matrix4f());
+        ScissorState scissor = RenderSystem.getScissorStateForRenderTypeDraws();
         RenderPass pass = device.createCommandEncoder().createRenderPass(
                 () -> "apricityui_filter", colorView, OptionalInt.empty(),
                 depthView, OptionalDouble.empty());
         try {
             pass.setPipeline(pipeline);
             if (uniforms != null) pass.setUniform("FilterParams", uniforms);
-            ScissorState scissor = RenderSystem.getScissorStateForRenderTypeDraws();
             if (scissor.enabled()) {
                 pass.enableScissor(scissor.x(), scissor.y(), scissor.width(), scissor.height());
             }
@@ -588,6 +589,69 @@ public final class RenderService implements AuiRenderService {
         samplers[unit] = view;
     }
 
+    /**
+     * Copies a source region into {@code destination}, scaled, via a hardware
+     * framebuffer blit (DSA {@code glBlitNamedFramebuffer}) instead of a shader
+     * sampling pass.
+     *
+     * <p>Backdrop-filter must snapshot the PIP texture while it is still the
+     * active render target (the {@code outputColorTextureOverride}). On some
+     * drivers sampling a texture that was just rendered to through an FBO
+     * attachment returns stale contents (the pre-render cleared state) from the
+     * sampler cache — every later sample of that texture in the frame reads
+     * black. A framebuffer blit reads the attachment storage directly (the same
+     * path as glReadPixels), so it always sees the freshly rendered content and
+     * additionally forces the driver to sync the texture for later samples. A
+     * full-size readback, glMemoryBarrier and glFlush/glFinish all fail to
+     * un-stick the sampler cache; only this resolve path works.</p>
+     *
+     * @return true if the blit happened; false if the hardware path is unusable
+     *         and the caller should fall back to the sampling quad.
+     */
+    private boolean blitRegionHardware(GpuTextureView sourceView, GpuTexture sourceTexture,
+                                       RenderTarget destination, int srcX0, int srcY0,
+                                       int srcX1, int srcY1) {
+        if (!(sourceTexture instanceof com.mojang.blaze3d.opengl.GlTexture glSrc)) return false;
+        GpuTexture destinationTexture = destination.getColorTexture();
+        if (!(destinationTexture instanceof com.mojang.blaze3d.opengl.GlTexture glDst)) return false;
+        int dstW = destination.width;
+        int dstH = destination.height;
+        if (dstW <= 0 || dstH <= 0) return false;
+
+        int readFbo = blitReadFbo();
+        int drawFbo = blitDrawFbo();
+        org.lwjgl.opengl.ARBDirectStateAccess.glNamedFramebufferTexture(readFbo, 36064, glSrc.glId(), 0);
+        org.lwjgl.opengl.ARBDirectStateAccess.glNamedFramebufferTexture(drawFbo, 36064, glDst.glId(), 0);
+        if (org.lwjgl.opengl.ARBDirectStateAccess.glCheckNamedFramebufferStatus(readFbo, 36009) != 36053
+                || org.lwjgl.opengl.ARBDirectStateAccess.glCheckNamedFramebufferStatus(drawFbo, 36009) != 36053) {
+            return false;
+        }
+
+        ScissorState previous = RenderSystem.getScissorStateForRenderTypeDraws();
+        if (previous.enabled()) RenderSystem.disableScissorForRenderTypeDraws();
+        try {
+            // 36009 = GL_FRAMEBUFFER, 0x4000 = GL_COLOR_BUFFER_BIT, 0x2601 = GL_LINEAR
+            org.lwjgl.opengl.ARBDirectStateAccess.glBlitNamedFramebuffer(
+                    readFbo, drawFbo, srcX0, srcY0, srcX1, srcY1, 0, 0, dstW, dstH, 0x4000, 0x2601);
+            return true;
+        } finally {
+            if (previous.enabled()) {
+                RenderSystem.enableScissorForRenderTypeDraws(
+                        previous.x(), previous.y(), previous.width(), previous.height());
+            }
+        }
+    }
+
+    private int blitReadFbo() {
+        if (blitReadFbo == 0) blitReadFbo = org.lwjgl.opengl.ARBDirectStateAccess.glCreateFramebuffers();
+        return blitReadFbo;
+    }
+
+    private int blitDrawFbo() {
+        if (blitDrawFbo == 0) blitDrawFbo = org.lwjgl.opengl.ARBDirectStateAccess.glCreateFramebuffers();
+        return blitDrawFbo;
+    }
+
     @Override
     public void blitFramebuffer(FboHandle source, FboHandle target,
                                 int srcX0, int srcY0, int srcX1, int srcY1) {
@@ -599,8 +663,9 @@ public final class RenderService implements AuiRenderService {
         // the world framebuffer behind it.
         GpuTextureView sourceView = src.getColorTextureView();
         GpuTexture sourceTexture = sourceView == null ? null : sourceView.texture();
-        if (src == Minecraft.getInstance().getMainRenderTarget()
-                && RenderSystem.outputColorTextureOverride != null) {
+        boolean sourceIsLiveOverride = src == Minecraft.getInstance().getMainRenderTarget()
+                && RenderSystem.outputColorTextureOverride != null;
+        if (sourceIsLiveOverride) {
             sourceView = RenderSystem.outputColorTextureOverride;
             sourceTexture = sourceView.texture();
         }
@@ -626,6 +691,17 @@ public final class RenderService implements AuiRenderService {
             RenderSystem.getDevice().createCommandEncoder().copyTextureToTexture(
                     sourceTexture, destinationTexture, boundedSrcX0, boundedSrcY0, 0,
                     0, 0, copyW, copyH);
+            return;
+        }
+
+        // Sampling the PIP texture while it is the active render target returns
+        // stale (black) contents from the sampler cache on this driver. Use a
+        // hardware framebuffer blit for that case; the generic sampling quad
+        // remains for offscreen-to-offscreen copies (blur passes), which are
+        // unaffected.
+        if (sourceIsLiveOverride
+                && blitRegionHardware(sourceView, sourceTexture, dst,
+                boundedSrcX0, boundedSrcY0, boundedSrcX1, boundedSrcY1)) {
             return;
         }
 

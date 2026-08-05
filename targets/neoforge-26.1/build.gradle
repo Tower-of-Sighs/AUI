@@ -45,11 +45,17 @@ neoForge {
             // Render smoke test: `./gradlew -p targets/neoforge-26.1 runClient -PauiSelfTest`
             // auto-opens the resource manager, validates it, screenshots the main
             // target to run/aui-selftest.png, writes run/aui-selftest-result.txt and exits.
+            // Optional: `-PauiSelfTestScenario=metaDialog` additionally opens DevTools on
+            // the resource manager and clicks the title-bar meta button, so the
+            // screenshot shows the meta dialog with its dimmed backdrop.
             if (project.hasProperty('auiSelfTest')) {
                 systemProperty 'apricityui.clientSelfTest', 'true'
                 systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
                 systemProperty 'apricityui.clientSelfTest.resultFile', file('run/aui-selftest-result.txt').absolutePath
                 systemProperty 'apricityui.clientSelfTest.screenshotFile', file('run/aui-selftest.png').absolutePath
+                if (project.hasProperty('auiSelfTestScenario')) {
+                    systemProperty 'apricityui.clientSelfTest.scenario', project.property('auiSelfTestScenario').toString()
+                }
             }
         }
         server {

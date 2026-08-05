@@ -37,11 +37,14 @@ public final class ClientRuntimeSelfTest {
     private static final String EXIT_PROPERTY = "apricityui.clientSelfTest.exitOnFinish";
     private static final String RESULT_PROPERTY = "apricityui.clientSelfTest.resultFile";
     private static final String SCREENSHOT_PROPERTY = "apricityui.clientSelfTest.screenshotFile";
+    private static final String SCENARIO_PROPERTY = "apricityui.clientSelfTest.scenario";
+    private static final String SCENARIO_META_DIALOG = "metaDialog";
     private static final String RESOURCE_MANAGER_PATH = "devtools/resource.html";
 
     private static final long START_DELAY_TICKS = 10L;
     private static final long TEMPLATE_WAIT_TICKS = 200L;
     private static final long RENDER_WARMUP_TICKS = 120L;
+    private static final long DIALOG_WAIT_TICKS = 60L;
 
     private static State state = State.IDLE;
     private static long tickCounter;
@@ -59,10 +62,15 @@ public final class ClientRuntimeSelfTest {
 
         switch (state) {
             case IDLE -> maybeOpen();
+            case OPENING_DIALOG -> maybeOpenDialog();
             case WAITING -> maybeAssert();
             case DONE -> {
             }
         }
+    }
+
+    private static boolean isMetaDialogScenario() {
+        return SCENARIO_META_DIALOG.equals(System.getProperty(SCENARIO_PROPERTY));
     }
 
     private static void maybeOpen() {
@@ -74,26 +82,69 @@ public final class ClientRuntimeSelfTest {
             ResourceManager.close();
             ResourceManager.open();
             ApricityUI.LOGGER.info("[AUI SelfTest] opened resource manager");
+            if (isMetaDialogScenario()) {
+                openDevToolsOnResourceManager();
+            }
         } catch (Throwable failure) {
             openFailure = "resource manager open threw " + failure.getClass().getSimpleName()
                     + ": " + safe(failure.getMessage());
         }
 
         openTick = tickCounter;
+        state = isMetaDialogScenario() ? State.OPENING_DIALOG : State.WAITING;
+    }
+
+    /** Opens DevTools with the resource manager as the inspected document. */
+    private static void openDevToolsOnResourceManager() {
+        Document target = latestDocument(RESOURCE_MANAGER_PATH);
+        if (target == null) {
+            openFailure = "resource manager document not found for devtools selection";
+            return;
+        }
+        if (!com.sighs.apricityui.dev.DevTools.selectDocument(target)) {
+            openFailure = "DevTools.selectDocument(resource manager) returned false";
+            return;
+        }
+        ApricityUI.LOGGER.info("[AUI SelfTest] devtools opened on resource manager");
+    }
+
+    /** Clicks the title-bar meta button once DevTools has rendered. */
+    private static void maybeOpenDialog() {
+        if (tickCounter - openTick < RENDER_WARMUP_TICKS) return;
+
+        Document toolDocument = com.sighs.apricityui.dev.DevTools.getToolDocument();
+        Element metaButton = toolDocument == null ? null : toolDocument.querySelector("#metaButton");
+        if (metaButton == null) {
+            openFailure = "devtools #metaButton not found";
+        } else {
+            try {
+                captureScreenshot("-predialog");
+                Document inspected = latestDocument(RESOURCE_MANAGER_PATH);
+                ApricityUI.LOGGER.info("[AUI SelfTest] pre-click: resource manager doc={} disposed={}",
+                        inspected != null, inspected != null && inspected.isDisposed());
+                metaButton.click();
+                ApricityUI.LOGGER.info("[AUI SelfTest] clicked devtools #metaButton");
+            } catch (Throwable failure) {
+                openFailure = "metaButton click threw " + failure.getClass().getSimpleName()
+                        + ": " + safe(failure.getMessage());
+            }
+        }
+        openTick = tickCounter;
         state = State.WAITING;
     }
 
     private static void maybeAssert() {
-        if (tickCounter - openTick < RENDER_WARMUP_TICKS) return;
+        if (tickCounter - openTick < (isMetaDialogScenario() ? DIALOG_WAIT_TICKS : RENDER_WARMUP_TICKS)) return;
 
         List<String> failures = new ArrayList<>();
         if (openFailure != null) failures.add(openFailure);
         if (openFailure == null && !ResourceManager.isOpen()) {
             failures.add("resource manager did not remain open");
         }
-        validateResourceManagerDocument(failures);
+        if (isMetaDialogScenario()) validateMetaDialog(failures);
+        else validateResourceManagerDocument(failures);
 
-        captureScreenshot();
+        captureScreenshot("");
 
         if (failures.isEmpty()) {
             ApricityUI.LOGGER.info("[AUI SelfTest] PASS 26.1 render smoke test");
@@ -107,6 +158,21 @@ public final class ClientRuntimeSelfTest {
         if (Boolean.getBoolean(EXIT_PROPERTY)) {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft != null) minecraft.stop();
+        }
+    }
+
+    /** Structural check that the meta dialog actually opened (visual check is the screenshot). */
+    private static void validateMetaDialog(List<String> failures) {
+        Document toolDocument = com.sighs.apricityui.dev.DevTools.getToolDocument();
+        if (toolDocument == null || toolDocument.body == null) {
+            failures.add("devtools document/body missing at assert time");
+            return;
+        }
+        if (toolDocument.querySelector(".dialog-overlay") == null) {
+            failures.add("meta dialog overlay (.dialog-overlay) not present in devtools document");
+        }
+        if (toolDocument.querySelector(".dialog") == null) {
+            failures.add("meta dialog window (.dialog) not present in devtools document");
         }
     }
 
@@ -141,9 +207,14 @@ public final class ClientRuntimeSelfTest {
      * so the target still holds the previous fully-composited frame — including
      * the PIP overlay — which is exactly what we want to eyeball.
      */
-    private static void captureScreenshot() {
+    private static void captureScreenshot(String suffix) {
         String rawPath = System.getProperty(SCREENSHOT_PROPERTY);
         if (rawPath == null || rawPath.isBlank()) return;
+        if (suffix != null && !suffix.isEmpty()) {
+            rawPath = rawPath.endsWith(".png")
+                    ? rawPath.substring(0, rawPath.length() - 4) + suffix + ".png"
+                    : rawPath + suffix;
+        }
         Path target = Path.of(rawPath).toAbsolutePath().normalize();
         Minecraft minecraft = Minecraft.getInstance();
         RenderTarget mainTarget = minecraft.getMainRenderTarget();
@@ -200,6 +271,7 @@ public final class ClientRuntimeSelfTest {
 
     private enum State {
         IDLE,
+        OPENING_DIALOG,
         WAITING,
         DONE
     }
