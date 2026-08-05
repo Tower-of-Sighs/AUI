@@ -171,6 +171,7 @@ public class CSS {
                 ApricityUI.LOGGER.error("[AUI CSS] cannot attach styles without a document path={}", AuiLog.source(contextPath));
                 return;
             }
+            ResourceUsageIndex.recordCss(contextPath, cachedSrcs);
             StyleAsyncHandler.INSTANCE.attach(document, contextPath, cachedSrcs, cachedContents);
         }
     }

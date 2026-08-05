@@ -77,7 +77,8 @@ rAF 目标间隔约 16ms，但不保证浏览器帧时机。Document 移除后�
 ```javascript
 var style = getComputedStyle(el);
 style.getPropertyValue("display");
-style.fontSize;   // 常见字段也可直接读
+style.get("font-size");   // 等价写法
+style.fontSize;           // 常见字段也可直接读（fontSize/fontWeight/fontFamily/lineHeight/display/color 等）
 ```
 
 改样式用 `element.style` 或 `setAttribute("style", ...)`，别指望完整 CSSOM。
@@ -155,7 +156,17 @@ classList 有 `length/contains/add/remove/toggle/item/toString`；dataset 方法
 
 `new Event("x", {cancelable: true})` 不会得到完整可取消语义。要阻止默认行为，尽量用框架生成的真实输入事件。
 
-字段和方法都是常见的那些：`type/target/currentTarget/bubbles/defaultPrevented/detail/eventPhase/isTrusted/timeStamp`，`stopPropagation()` / `stopImmediatePropagation()` / `preventDefault()` / `composedPath()`。捕获、at-target、冒泡三阶段都有；once 监听器执行后自动移除。`isTrusted` 区分真实输入和脚本合成事件。
+字段和方法都是常见的那些：`type/target/currentTarget/bubbles/cancelable/defaultPrevented/detail/eventPhase/cancelBubble/returnValue/isTrusted/timeStamp`，`stopPropagation()` / `stopImmediatePropagation()` / `preventDefault()` / `composedPath()`。捕获、at-target、冒泡三阶段都有；once 监听器执行后自动移除；`dispatchEvent` 在最终 `defaultPrevented` 为真时返回 false。`isTrusted` 区分真实输入和脚本合成事件——`element.click()` 这类程序化触发别指望获得真实输入的全部权限。
+
+鼠标/滚轮/指针事件可读的字段：
+
+```text
+clientX clientY pageX pageY offsetX offsetY
+movementX movementY button buttons
+deltaX deltaY deltaMode
+pointerId pointerType isPrimary
+altKey shiftKey controlKey metaKey
+```
 
 键盘事件由 GLFW 输入生成，可监听但没有构造器：
 
@@ -165,7 +176,7 @@ document.addEventListener("keydown", function (event) {
 });
 ```
 
-注意是 `controlKey` 不是 `ctrlKey`——从浏览器迁代码时这是个高频坑。字段：`key/code/keyCode/scanCode/repeat/altKey/shiftKey/controlKey/metaKey`。
+注意是 `controlKey` 不是 `ctrlKey`——从浏览器迁代码时这是个高频坑。字段：`key/code/keyCode/scanCode/repeat/altKey/shiftKey/controlKey/metaKey`。不同键盘布局下 `key` 由 GLFW 名称解析，可能是 `"Unidentified"`。
 
 支持的事件类型：
 
@@ -194,20 +205,24 @@ select.selectedIndex = 1;
 input.setSelectionRange(0, 3);
 ```
 
-支持的属性和方法包括：`value/defaultValue/checked/defaultChecked/disabled/name/type`、`multiple/required/readOnly/pattern/min/max/step`、`placeholder/accept/autocomplete/inputMode`、`selectionStart/selectionEnd/setSelectionRange/setRangeText/select`、`valueAsNumber/stepUp/stepDown`、约束校验（`validity/validationMessage/checkValidity/reportValidity/setCustomValidity`）。`files` 是路径近似的 FileList，不是真 File 对象。不支持的 input type 会降级成普通文本框，也没有浏览器原生的日期/颜色/文件选择弹窗。
+支持的属性和方法包括：`value/defaultValue/checked/defaultChecked/disabled/name/type`、`multiple/required/readOnly/pattern/min/max/step`、`placeholder/accept/autocomplete/inputMode`、`selectionStart/selectionEnd/selectionDirection/setSelectionRange/setRangeText/select`、`valueAsNumber/stepUp/stepDown`、`focus()/blur()/click()`、约束校验（`validity/validationMessage/willValidate/checkValidity/reportValidity/setCustomValidity`）。select 另有 `options/selectedOptions/selectedIndex`，option 有 `selected`。`files` 是路径近似的 FileList，不是真 File 对象。不支持的 input type 会降级成普通文本框，也没有浏览器原生的日期/颜色/文件选择弹窗。
 
 提交和重置：
 
 ```javascript
 form.addEventListener("submit", function (e) {
     e.preventDefault();
+    console.log(e.submitter);        // 触发提交的按钮
 });
-form.requestSubmit();   // 先跑约束校验
+form.addEventListener("formdata", function (e) {
+    console.log(e.formData.get("name"));
+});
+form.requestSubmit();   // 先跑约束校验，可传 submit 按钮
 form.submit();          // 直接派发 submit
 form.reset();           // 可取消，未取消则恢复默认值
 ```
 
-AUI 不会因为 form 的 action 发 HTTP 请求。表单外控件可以用 `form="id"` 关联。
+AUI 不会因为 form 的 action 发 HTTP 请求。取消 submit 后不会再派 formdata。表单外控件可以用 `form="id"` 关联。
 
 FormData：
 
@@ -231,7 +246,7 @@ sessionStorage.setItem("draft", "text");
 
 localStorage 持久化到 `config/apricityui/localStorage.nbt`，sessionStorage 只在本次客户端运行有效。空 key 被忽略；传 null 可能存成字符串 "null"；没有 storage 事件。
 
-`window.location` 由资源路径生成，能读 `href/protocol/host/pathname/search/hash/searchParams`。`assign/replace/reload` 是空操作，没有真实导航。
+`window.location` 由资源路径生成，能读 `href/protocol/host/hostname/port/origin/pathname/search/hash/searchParams`。`assign/replace/reload` 是空操作，没有真实导航。要字符串形式就读 `href`，它没有自定义 toString。
 
 URLSearchParams 只有这几个方法：`append / getAll / sort / forEach / toString`。没有 `get/set/delete/has/keys/values/entries`，别按标准用。
 
@@ -261,16 +276,19 @@ var ro = new ResizeObserver(function (entries) {
 ro.observe(el);  ro.unobserve(el);  ro.disconnect();
 ```
 
-entry 有 `target/contentRect/borderBoxSize/contentBoxSize`。
+entry 有 `target/contentRect/borderBoxSize/contentBoxSize`；contentRect 除了常规矩形字段还有 `borderBoxWidth/borderBoxHeight`。没有实际尺寸变化不会重复回调。
 
 ```javascript
 var mo = new MutationObserver(function (records) { ... });
 mo.observe(document.documentElement, {
     childList: true, attributes: true, characterData: true, subtree: true,
-    attributeOldValue: true, attributeFilter: ["class", "style"]
+    attributeOldValue: true, characterDataOldValue: true,
+    attributeFilter: ["class", "style"]
 });
 mo.takeRecords();  mo.disconnect();
 ```
+
+record 可读 `type/target/addedNodes/removedNodes/previousSibling/nextSibling/attributeName/oldValue`。
 
 两者都按文档帧批量派发，不是浏览器微任务时机。Document 刷新后观察器被清理，必须重新查询节点重新 observe。
 
@@ -287,11 +305,11 @@ mo.takeRecords();  mo.disconnect();
 </script>
 ```
 
-`getContext("2d")` 是唯一 context（没有 WebGL）。能力清单：rect 三件套、文本（`fillText/strokeText/measureText`）、路径（`beginPath/moveTo/lineTo/rect/roundRect/arc/arcTo/ellipse/quadraticCurveTo/bezierCurveTo/fill/stroke/clip`）、变换（`save/restore/translate/rotate/scale/transform/setTransform/resetTransform`）、渐变和 pattern、ImageData 三件套、`drawImage`、`globalAlpha/globalCompositeOperation/filter/阴影`，导出 `toDataURL()` / `toBlob()`。
+`getContext("2d")` 是唯一 context（没有 WebGL）。能力清单：rect 三件套、文本（`fillText/strokeText/measureText`）、路径（`beginPath/closePath/moveTo/lineTo/rect/roundRect/arc/arcTo/ellipse/quadraticCurveTo/bezierCurveTo/fill/stroke/clip/isPointInPath/isPointInStroke`）、变换（`save/restore/translate/rotate/scale/transform/setTransform/resetTransform`）、渐变和 pattern、ImageData 三件套、`drawImage`、`globalAlpha/globalCompositeOperation/filter/阴影`，导出 `toDataURL()` / `toBlob()`。toBlob 给出的 Blob 兼容对象有 `size/type/arrayBuffer()/text()/toDataURL()`。
 
 底层是 Java2D，颜色、滤镜、合成效果可能和浏览器有出入。位图尺寸由 `width/height` 属性定（默认 300×150），CSS 只控制显示缩放——别只改 CSS 然后假设绘图坐标变了。
 
-Path2D 支持路径方法和 SVG path 字符串构造；DOMMatrix 是 2D 仿射矩阵（a~f 字段，`translateSelf/scaleSelf/rotateSelf/multiplySelf/invertSelf`）：
+Path2D 支持路径方法（含 `addPath`）和 SVG path 字符串构造；DOMMatrix 是 2D 仿射矩阵（a~f 字段，`translateSelf/scaleSelf/rotateSelf/multiplySelf/invertSelf`）：
 
 ```javascript
 var path = new Path2D("M0 0 L40 20 Z");
@@ -306,7 +324,9 @@ OffscreenCanvas 和 createImageBitmap：
 ```javascript
 var off = new OffscreenCanvas(128, 64);
 var bitmap = off.getContext("2d").transferToImageBitmap();  // 先画再转
+bitmap.close();                                             // 用完可释放
 var bmp = createImageBitmap(canvas);              // 同步
+var cropped = createImageBitmap(canvas, 0, 0, 32, 32);  // 裁剪重载
 createImageBitmapAsync(canvas).then(function (b) { ... });  // 异步版
 ```
 

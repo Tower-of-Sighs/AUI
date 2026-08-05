@@ -286,6 +286,19 @@ public class Document {
         return true;
     }
 
+    /**
+     * 只重新加载样式：从模板重新提取 CSS 并异步重挂，不重建 DOM、不重跑脚本。
+     * 用于热重载中纯 CSS 变化的场景，页面状态完整保留。
+     */
+    public void refreshStyles() {
+        String rawHtml = HTML.getTemple(path);
+        if (rawHtml == null) return;
+        CSS.Extractor cssExtractor = new CSS.Extractor(path);
+        cssExtractor.handle(rawHtml);
+        cssExtractor.pushToDocument(this);
+        reapplyStylesFromCache();
+    }
+
     public void refresh() {
         beginRefreshLifecycle();
         ApricityViewport.spec(path).createState(path);

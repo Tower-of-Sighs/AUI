@@ -301,6 +301,7 @@ public class JS {
                 ApricityUI.LOGGER.error("[AUI JS] cannot attach scripts without a document path={}", AuiLog.source(contextPath));
                 return;
             }
+            ResourceUsageIndex.recordJs(contextPath, cachedSrcs);
             for (String src : cachedSrcs) {
                 String resolvedPath = Loader.resolve(contextPath, src);
                 try (InputStream is = ClientLoader.getResourceStream(resolvedPath)) {

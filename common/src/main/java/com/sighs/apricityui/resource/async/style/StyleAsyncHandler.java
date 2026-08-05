@@ -7,6 +7,7 @@ import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.ResourceUsageIndex;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.layout.Size;
@@ -266,6 +267,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             for (String importPath : imports) {
                 String resolved = Loader.resolve(normalized, importPath);
                 if (resolved == null || resolved.isBlank()) continue;
+                ResourceUsageIndex.recordImport(normalized, resolved);
                 try {
                     String imported = loadCssWithImports(resolved, depth + 1, visited);
                     if (!imported.isBlank()) merged.append(imported).append('\n');
