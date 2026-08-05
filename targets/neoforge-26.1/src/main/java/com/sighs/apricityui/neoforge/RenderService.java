@@ -770,6 +770,15 @@ public final class RenderService implements AuiRenderService {
         }
     }
 
+    @Override
+    public boolean currentTargetHasStencil() {
+        // The live draw target may be the PIP override rather than the main
+        // target; vanilla allocates the PIP depth attachment as DEPTH32 (no
+        // stencil bits), so Mask's stencil clips would silently no-op there.
+        GpuTexture depthTexture = currentDepthTexture();
+        return depthTexture != null && depthTexture.getFormat().hasStencilAspect();
+    }
+
     private GpuTexture currentDepthTexture() {
         if (RenderSystem.outputDepthTextureOverride != null) {
             return RenderSystem.outputDepthTextureOverride.texture();

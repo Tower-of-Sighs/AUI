@@ -109,6 +109,22 @@ public interface Transform {
         return transform != null && !transform.isBlank() && !"none".equalsIgnoreCase(transform.trim());
     }
 
+    /**
+     * Whether the transform moves or reshapes content on screen in the XY
+     * plane. Pure Z transforms (e.g. {@code translateZ(50px)}) are
+     * stacking-order-only under AUI's orthographic projection, so axis-aligned
+     * scissor clips stay valid beneath them.
+     */
+    static boolean affectsXY(String transform) {
+        if (!createsStackingContext(transform)) return false;
+        for (Transform item : parse(transform)) {
+            if (item instanceof Translate t && (t.x() != 0 || t.y() != 0)) return true;
+            if (item instanceof Rotate r && (r.x() != 0 || r.y() != 0 || r.z() != 0)) return true;
+            if (item instanceof Scale s && (s.x() != 1 || s.y() != 1)) return true;
+        }
+        return false;
+    }
+
     static double getTranslateZ(String transform) {
         if (!createsStackingContext(transform)) return 0;
         double z = 0;

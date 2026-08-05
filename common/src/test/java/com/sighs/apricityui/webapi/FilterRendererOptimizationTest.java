@@ -21,8 +21,11 @@ class FilterRendererOptimizationTest {
 
         assertFalse(composite.contains("for (int x"));
         assertFalse(composite.contains("for (int y"));
-        assertTrue(blur.contains("layout(std140) uniform FilterParams"));
-        assertTrue(blur.contains("#define Direction BlurDirection.xy"));
+        // The shared common shader serves the legacy ShaderInstance targets
+        // (1.20/1.21) and uses classic uniforms; the 26.1 target carries its own
+        // std140 FilterParams variant. Either way the blur must stay separable.
+        assertTrue(blur.contains("uniform vec2 Direction"));
+        assertTrue(blur.contains("uniform float Radius"));
         assertTrue(blur.contains("for (int i = -32; i <= 32; i++)"));
     }
 

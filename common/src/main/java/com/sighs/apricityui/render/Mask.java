@@ -138,7 +138,7 @@ public class Mask {
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii, boolean forceStencil) {
         boolean forced = forceStencil || forceStencilDepth.get() > 0;
-        MaskMode mode = !FilterRenderer.isStencilAvailable()
+        MaskMode mode = !stencilUsable()
                 ? (forced ? MaskMode.NONE : MaskMode.SCISSOR)
                 : (!forced && isRectMask(radii) ? MaskMode.SCISSOR : MaskMode.STENCIL);
         maskModeStack.push(mode);
@@ -265,7 +265,7 @@ public class Mask {
     public static void pushClipPath(PoseStack pose, float x, float y, float width, float height,
                                     String clipPathValue, boolean forceStencil) {
         boolean forced = forceStencil || forceStencilDepth.get() > 0;
-        MaskMode mode = !FilterRenderer.isStencilAvailable()
+        MaskMode mode = !stencilUsable()
                 ? (forced ? MaskMode.NONE : MaskMode.SCISSOR)
                 : MaskMode.STENCIL;
         clipPathModeStack.push(mode);
@@ -446,5 +446,15 @@ public class Mask {
             if (r > 0.001f) return false;
         }
         return true;
+    }
+
+    /**
+     * Stencil masks require both a capable context and stencil bits on the
+     * target currently being drawn into. A context-wide check alone misses
+     * targets like 26.1's vanilla PIP depth attachment (depth-only), where the
+     * stencil test silently no-ops and clipped content escapes.
+     */
+    private static boolean stencilUsable() {
+        return FilterRenderer.isStencilAvailable() && AuiServices.render().currentTargetHasStencil();
     }
 }

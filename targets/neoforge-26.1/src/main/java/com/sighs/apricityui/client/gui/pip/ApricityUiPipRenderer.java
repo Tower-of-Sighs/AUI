@@ -1,6 +1,11 @@
 package com.sighs.apricityui.client.gui.pip;
 
+import com.mojang.blaze3d.systems.CommandEncoder;
+import com.mojang.blaze3d.systems.GpuDevice;
 import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.textures.GpuTextureView;
+import com.mojang.blaze3d.textures.TextureFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
 import com.sighs.apricityui.init.Document;
@@ -29,6 +34,9 @@ import org.jspecify.annotations.NonNull;
  * window coordinate system.</p>
  */
 public final class ApricityUiPipRenderer extends PictureInPictureRenderer<ApricityUiPipRenderState> {
+    private GpuTexture stencilDepthTexture;
+    private GpuTextureView stencilDepthTextureView;
+
     public ApricityUiPipRenderer(MultiBufferSource.BufferSource bufferSource) {
         super(bufferSource);
     }
@@ -38,8 +46,58 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
         return ApricityUiPipRenderState.class;
     }
 
+    /**
+     * Vanilla allocates the PIP depth attachment as {@code DEPTH32} (no stencil
+     * bits), which silently disables {@link Mask}'s stencil clips (rounded
+     * corners, masks under transformed ancestors) for every overlay document.
+     * Swap in our own depth-stencil texture while the PIP pass renders; vanilla
+     * resets the override to null right after {@code renderToTexture}.
+     */
+    private void installStencilDepthOverride() {
+        GpuTextureView override = RenderSystem.outputDepthTextureOverride;
+        if (override == null) return;
+        GpuTexture vanilla = override.texture();
+        if (vanilla.getFormat().hasStencilAspect()) return;
+        int width = vanilla.getWidth(0);
+        int height = vanilla.getHeight(0);
+        if (stencilDepthTexture == null || stencilDepthTexture.getWidth(0) != width
+                || stencilDepthTexture.getHeight(0) != height) {
+            closeStencilDepth();
+            GpuDevice device = RenderSystem.getDevice();
+            stencilDepthTexture = device.createTexture(
+                    () -> "apricityui_pip_depth_stencil",
+                    GpuTexture.USAGE_RENDER_ATTACHMENT | GpuTexture.USAGE_COPY_DST,
+                    TextureFormat.DEPTH32_STENCIL8, width, height, 1, 1);
+            stencilDepthTextureView = device.createTextureView(stencilDepthTexture);
+        }
+        RenderSystem.outputDepthTextureOverride = stencilDepthTextureView;
+        // Vanilla cleared its own depth texture before renderToTexture; ours
+        // needs the same per-frame reset (depth + stencil).
+        CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        encoder.clearDepthTexture(stencilDepthTexture, 1.0);
+        encoder.clearStencilTexture(stencilDepthTexture, 0);
+    }
+
+    private void closeStencilDepth() {
+        if (stencilDepthTextureView != null) {
+            stencilDepthTextureView.close();
+            stencilDepthTextureView = null;
+        }
+        if (stencilDepthTexture != null) {
+            stencilDepthTexture.close();
+            stencilDepthTexture = null;
+        }
+    }
+
+    @Override
+    public void close() {
+        closeStencilDepth();
+        super.close();
+    }
+
     @Override
     protected void renderToTexture(ApricityUiPipRenderState renderState, @NonNull PoseStack poseStack) {
+        installStencilDepthOverride();
         var modelView = RenderSystem.getModelViewStack();
         modelView.pushMatrix();
         try {

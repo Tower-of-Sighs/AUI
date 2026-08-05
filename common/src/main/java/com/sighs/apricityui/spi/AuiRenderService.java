@@ -197,6 +197,16 @@ public interface AuiRenderService {
         return true;
     }
 
+    /**
+     * Whether the render target currently being drawn into actually has stencil
+     * bits. Unlike {@link #supportsStencil()} (a static loader capability) this
+     * reflects the live target — e.g. 26.1's vanilla PIP depth attachment is
+     * depth-only even though the main target has stencil.
+     */
+    default boolean currentTargetHasStencil() {
+        return true;
+    }
+
     /** Flushes the loader's shared buffer source (e.g. {@code bufferSource().endBatch()}). */
     void flushSharedBuffers();
 

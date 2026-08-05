@@ -129,10 +129,17 @@ public interface RenderNode {
         }
     }
 
+    /**
+     * Stencil masks exist for transforms that move content in the XY plane:
+     * an axis-aligned scissor rect is computed from layout coordinates and
+     * would clip the wrong region beneath them. Pure Z transforms (the
+     * translateZ stacking-order trick) leave XY untouched, so the cheaper
+     * scissor path stays correct.
+     */
     private static boolean hasTransformedAncestor(Element target) {
         if (target == null) return false;
         for (Element element : target.getRouteArray()) {
-            if (Transform.createsStackingContext(element.getComputedStyle().transform)) {
+            if (Transform.affectsXY(element.getComputedStyle().transform)) {
                 return true;
             }
         }

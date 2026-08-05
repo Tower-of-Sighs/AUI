@@ -11,8 +11,11 @@ public class CloseContainerRequestPacket implements CustomPacketPayload {
     public static final Type<CloseContainerRequestPacket> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(ApricityUI.MODID, "close_container_request"));
 
+    // Empty payload: encode ignores whatever instance is sent (unit() would
+    // reject any instance other than the one it captured, crashing the second
+    // time openScreen sends this packet). Decode returns a fresh instance.
     public static final StreamCodec<ByteBuf, CloseContainerRequestPacket> STREAM_CODEC =
-            StreamCodec.unit(new CloseContainerRequestPacket());
+            StreamCodec.of((buf, packet) -> { }, buf -> new CloseContainerRequestPacket());
 
     @Override
     public @NotNull Type<? extends CustomPacketPayload> type() {
