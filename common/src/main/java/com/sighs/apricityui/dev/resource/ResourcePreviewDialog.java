@@ -90,6 +90,17 @@ public final class ResourcePreviewDialog {
         }
     }
 
+    /**
+     * Draws the preview immediately after its owning document is drawn, so the
+     * previewed HTML stays below the DevTools tool document (and the toast layer)
+     * instead of floating above every overlay document.
+     */
+    public static void draw(PoseStack poseStack, Document ownerDocument) {
+        if (active != null && active.owner == ownerDocument && ownerDocument != null && !ownerDocument.inWorld) {
+            active.drawPreview(poseStack);
+        }
+    }
+
     /** Draws the preview in the owning world document's local surface. */
     public static void drawInWorld(PoseStack poseStack, Document owner) {
         if (active != null && active.owner == owner && owner != null && owner.inWorld) {

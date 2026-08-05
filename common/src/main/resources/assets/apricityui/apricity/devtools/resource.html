@@ -787,6 +787,12 @@
                     repeating-linear-gradient(90deg, transparent, transparent 19px, rgba(139,92,246,0.06) 19px, rgba(139,92,246,0.06) 20px);
         }
 
+        /* The resource preview window shows its content edge-to-edge; keep only a
+           hair of inset so the viewport border reads as the window frame. */
+        .dialog-body.resource-preview-body {
+            padding: 2px;
+        }
+
         .dialog-field {
             margin-bottom: 18px;
             position: relative;

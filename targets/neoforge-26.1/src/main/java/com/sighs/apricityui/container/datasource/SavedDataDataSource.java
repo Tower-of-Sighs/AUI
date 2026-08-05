@@ -10,6 +10,7 @@ import net.neoforged.neoforge.items.SlotItemHandler;
 /**
  * SavedData 物品槽数据源，支持扩缩容（截断策略）。
  */
+@SuppressWarnings("removal")
 public final class SavedDataDataSource implements ContainerDataSource {
     private final ContainerBindType bindType;
     private final ApricitySavedData savedData;

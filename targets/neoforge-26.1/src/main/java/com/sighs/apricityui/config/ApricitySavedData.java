@@ -22,6 +22,7 @@ import java.util.Map;
  * <p>NeoForge 26.1 使用 codec 驱动的 {@link SavedDataType}，因此序列化改为
  * {@link #CODEC}，数据格式为 {@code Map<String, List<ItemStack>>}（每个库存一个列表）。</p>
  */
+@SuppressWarnings("removal")
 public class ApricitySavedData extends SavedData {
     private static final String INVENTORIES_KEY = "inventories";
 

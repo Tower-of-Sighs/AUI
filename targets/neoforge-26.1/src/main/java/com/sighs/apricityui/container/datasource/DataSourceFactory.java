@@ -11,6 +11,7 @@ import java.util.Map;
 /**
  * 数据源工厂：根据绑定类型创建对应的 ContainerDataSource。
  */
+@SuppressWarnings("removal")
 public final class DataSourceFactory {
     /**
      * 根据绑定类型解析并创建数据源。

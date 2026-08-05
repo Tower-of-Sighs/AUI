@@ -259,6 +259,21 @@ public class Client {
         }
     }
 
+    /**
+     * Tracks the pointer for DevTools element-inspection and screen tooltips
+     * while a Minecraft Screen is open. The GUI layer (which calls
+     * {@code DevTools.handleInspectMouseMove}) is disabled whenever a screen is
+     * showing, so without this hook the translucent box-model highlight never
+     * updates while inspecting on the title screen, a container screen, or the
+     * pause screen (regression from the 1.21 {@code updateTooltipPosition}).
+     */
+    @SubscribeEvent
+    public static void updateTooltipPosition(ScreenEvent.Render.Pre event) {
+        Position mousePosition = new Position(event.getMouseX(), event.getMouseY());
+        com.sighs.apricityui.ui.Tooltip.moveActiveFromScreen(mousePosition);
+        DevTools.handleInspectMouseMove(mousePosition);
+    }
+
     @SubscribeEvent
     public static void onKeyPressed(InputEvent.Key event) {
         if (Minecraft.getInstance().screen != null) {

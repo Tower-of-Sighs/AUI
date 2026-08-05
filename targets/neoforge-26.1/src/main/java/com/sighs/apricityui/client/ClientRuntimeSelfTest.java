@@ -122,6 +122,7 @@ public final class ClientRuntimeSelfTest {
                 Document inspected = latestDocument(RESOURCE_MANAGER_PATH);
                 ApricityUI.LOGGER.info("[AUI SelfTest] pre-click: resource manager doc={} disposed={}",
                         inspected != null, inspected != null && inspected.isDisposed());
+                runInspectPickTest();
                 metaButton.click();
                 ApricityUI.LOGGER.info("[AUI SelfTest] clicked devtools #metaButton");
             } catch (Throwable failure) {
@@ -131,6 +132,28 @@ public final class ClientRuntimeSelfTest {
         }
         openTick = tickCounter;
         state = State.WAITING;
+    }
+
+    /** Turns on devtools element-pick mode and parks the cursor over the target
+     *  document centre. The {@code ScreenEvent.Render.Pre} hook in Client then
+     *  drives {@code handleInspectMouseMove} while the scenario runs (the GUI
+     *  layer path is disabled whenever a Screen is open, e.g. the title screen). */
+    private static void runInspectPickTest() {
+        try {
+            Document tool = com.sighs.apricityui.dev.DevTools.getToolDocument();
+            if (tool == null) return;
+            Element pickBtn = tool.querySelector("#pickBtn");
+            if (pickBtn == null) return;
+            pickBtn.click();
+            net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getInstance();
+            long handle = mc.getWindow().handle();
+            double guiScale = mc.getWindow().getGuiScale();
+            double cx = mc.getWindow().getGuiScaledWidth() / 2.0 * guiScale;
+            double cy = mc.getWindow().getGuiScaledHeight() / 2.0 * guiScale;
+            org.lwjgl.glfw.GLFW.glfwSetCursorPos(handle, cx, cy);
+        } catch (Throwable failure) {
+            ApricityUI.LOGGER.error("[AUI SelfTest] inspect pick test failed", failure);
+        }
     }
 
     private static void maybeAssert() {
@@ -173,6 +196,15 @@ public final class ClientRuntimeSelfTest {
         }
         if (toolDocument.querySelector(".dialog") == null) {
             failures.add("meta dialog window (.dialog) not present in devtools document");
+        }
+        // Element-pick regression check: with pick mode enabled and the cursor
+        // parked over the target, the box-model highlight must be showing.
+        Element highlight = toolDocument.querySelector("#inspectHighlight");
+        if (highlight != null) {
+            String cls = highlight.getAttribute("class");
+            if (cls == null || !cls.contains("show")) {
+                failures.add("inspect highlight (#inspectHighlight) not shown (class='" + cls + "')");
+            }
         }
     }
 

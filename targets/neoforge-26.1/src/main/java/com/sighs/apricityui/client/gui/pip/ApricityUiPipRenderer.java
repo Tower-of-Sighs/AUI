@@ -55,10 +55,12 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
                 for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
                     if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                     Base.drawOverlayDocument(guiPose, document);
+                    // Resource previews are intentionally excluded from the
+                    // normal document pass and draw themselves inside the owner's
+                    // viewport. Draw them right after the owner so the previewed
+                    // HTML stays below the DevTools tool document and the toast.
+                    ResourcePreviewDialog.draw(guiPose, document);
                 }
-                // Resource previews are intentionally excluded from the normal
-                // document pass and draw themselves inside the manager viewport.
-                ResourcePreviewDialog.draw(guiPose);
                 // Ensure scissor/mask state never leaks into later GUI rendering.
                 Mask.resetDepth();
             } else if (renderState.mode() == ApricityUiPipRenderState.Mode.CURSOR) {

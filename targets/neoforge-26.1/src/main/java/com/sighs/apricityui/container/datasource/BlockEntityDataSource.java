@@ -17,6 +17,7 @@ import net.neoforged.neoforge.transfer.item.ItemResource;
  * 方块实体物品槽数据源。
  * 通过 Forge IItemHandler capability 访问方块实体的物品存储。
  */
+@SuppressWarnings("removal")
 public final class BlockEntityDataSource implements ContainerDataSource {
     private final BlockEntity blockEntity;
     private final IItemHandler itemHandler;

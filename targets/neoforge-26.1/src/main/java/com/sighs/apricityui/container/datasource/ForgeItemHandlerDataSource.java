@@ -12,6 +12,7 @@ import java.util.function.Predicate;
 /**
  * 基于 Forge IItemHandler 的通用数据源（block_entity/entity）。
  */
+@SuppressWarnings("removal")
 public final class ForgeItemHandlerDataSource implements ContainerDataSource {
     private final ContainerBindType bindType;
     private final IItemHandler handler;
