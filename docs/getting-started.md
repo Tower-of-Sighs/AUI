@@ -10,7 +10,7 @@
 - Modrinth: https://modrinth.com/mod/apricityui
 
 官方Maven：
-```
+```groovy
 repositories {
     maven {
         url "https://maven.sighs.cc/repository/maven-public/"
@@ -67,13 +67,13 @@ dependencies {
 
 就是一段普通网页。只有三件事需要解释：
 
-**三个 meta 是页面配置**：`aui-font-mode=web` 让字体按网页规则来；`aui-viewport` 给页面一个浏览器式逻辑视口；`aui-mouse-events=intercept` 让页面拦截鼠标——不加这行，点击可能落不到页面上。完整解释在 [ApricityScreen 的 meta 章节](apricity-screen.md#页面-meta-配置)，现在知道各管一件事就够。
+**三个 meta 是页面配置**：`aui-font-mode=web` 让字体按网页规则来；`aui-viewport` 给页面一个浏览器式逻辑视口；`aui-mouse-events=intercept` 让页面拦截鼠标——不加这行，点击可能落不到页面上。完整解释在 [ApricityScreen 的 meta 章节](guide/apricity-screen#页面-meta-配置)，现在知道各管一件事就够。
 
-**没有浏览器默认样式**：`h2`、`p`、`button` 不自带任何外观，字号、颜色、间距全自己写。哪些 CSS 写法能用、哪些会被忽略，见 [HTML/CSS 覆盖面](html-css-coverage.md)。
+**没有浏览器默认样式**：`h2`、`p`、`button` 不自带任何外观，字号、颜色、间距全自己写。哪些 CSS 写法能用、哪些会被忽略，见 [HTML/CSS 覆盖面](guide/html-css-coverage)。
 
-**脚本由 Rhino 执行**：API 是浏览器的子集，写法建议 `var` + 普通 `function`。能力清单见 [Web API](web-api.md)。
+**脚本由 Rhino 执行**：API 是浏览器的子集，写法建议 `var` + 普通 `function`。能力清单见 [Web API](guide/web-api)。
 
-**路径**：模组按**逻辑路径**找文件，不按磁盘位置。文件在 `<游戏目录>/apricity/screens/hello.html`，代码里就写 `screens/hello.html`——不带 `assets/...` 前缀，不写盘符。页面里引 CSS、图片同理。规则见[资源管理](resource-manager.md)。
+**路径**：模组按**逻辑路径**找文件，不按磁盘位置。文件在 `<游戏目录>/apricity/screens/hello.html`，代码里就写 `screens/hello.html`——不带 `assets/...` 前缀，不写盘符。页面里引 CSS、图片同理。规则见[资源管理](guide/resource-manager)。
 
 写完按 END（或 F10 里刷新），在资源管理器里双击 `screens/hello.html` 预览：居中的面板，点按钮，文字变"被点击了"。
 
@@ -88,7 +88,7 @@ dependencies {
 
 然后套类名：`<button class="button button-primary">`、`<div class="card">`、`<table class="table">`。展示页 `apricityui/theme/ore/example.html`（F10 里双击打开）把全部组件演示了一遍，照着抄就行。
 
-想改配色和间距，直接改 `--ore-*` 变量（见第 9 节的覆写方式）。组件清单：[ore-theme.md](ore-theme.md)。
+想改配色和间距，直接改 `--ore-*` 变量（见第 9 节的覆写方式）。组件清单：[ore-theme.md](guide/ore-theme)。
 
 ## 5. 让页面真正打开
 
@@ -98,10 +98,10 @@ dependencies {
 
 | 宿主 | 场景 | 文档 |
 | --- | --- | --- |
-| Screen | 全屏界面：设置页、菜单 | [apricity-screen.md](apricity-screen.md) |
-| Overlay | 悬浮层：HUD、常驻状态、通知 | [overlay-document.md](overlay-document.md) |
-| 容器 Screen | 背包、机器——操作真实物品 | [container.md](container.md) |
-| WorldWindow | 世界里的显示屏、实体头顶标签 | [world-window.md](world-window.md) |
+| Screen | 全屏界面：设置页、菜单 | [apricity-screen.md](guide/apricity-screen) |
+| Overlay | 悬浮层：HUD、常驻状态、通知 | [overlay-document.md](guide/overlay-document) |
+| 容器 Screen | 背包、机器——操作真实物品 | [container.md](guide/container) |
+| WorldWindow | 世界里的显示屏、实体头顶标签 | [world-window.md](guide/world-window) |
 
 HTML 写法四种宿主通用，差别只在页面出现在哪、数据谁来给。多个页面可以同时活着：全屏界面开着，HUD 上的悬浮层照跑，世界里还能飘着窗口，互不影响。
 
@@ -134,9 +134,9 @@ if (!docs.isEmpty()) {
 两个坑：
 
 - **页面得先存在**。没打开过时 `getDocument` 返回空列表，先 `createDocument` 或等页面加载；
-- **刷新后旧引用全部失效**。重载会重建整个页面，异步回调里改 DOM 前先确认代次——见[模组 API 的"线程、空值、刷新"](apricity-api.md#线程空值刷新)。
+- **刷新后旧引用全部失效**。重载会重建整个页面，异步回调里改 DOM 前先确认代次——见[模组 API 的"线程、空值、刷新"](guide/apricity-api#线程空值刷新)。
 
-完整 API：[apricity-api.md](apricity-api.md)。
+完整 API：[apricity-api.md](guide/apricity-api)。
 
 ## 7. 日常改动：走 DevTools
 
@@ -153,13 +153,13 @@ if (!docs.isEmpty()) {
 
 想重跑当前页面用工具栏的"重载文档"按钮；**END 是改了源文件要全局生效时才用的兜底全量重载**。
 
-不管哪种重载都会重建页面，脚本里的旧元素引用全部失效——初始化逻辑放进 `DOMContentLoaded`，每次重建重新绑定。见 [Web API 的生命周期章节](web-api.md#生命周期和刷新)。完整功能说明见 [devtools.md](devtools.md)。
+不管哪种重载都会重建页面，脚本里的旧元素引用全部失效——初始化逻辑放进 `DOMContentLoaded`，每次重建重新绑定。见 [Web API 的生命周期章节](guide/web-api#生命周期和刷新)。完整功能说明见 [devtools.md](guide/devtools)。
 
 ## 8. 让 AI 帮你写
 
 模组内置了一整套 AI 辅助开发支持，配一次，之后写页面的大部分活可以交给 AI。
 
-**第一步：把 skill 给 AI。** [docs/ai-skill.md](ai-skill.md) 是给 AI 看的自包含说明书——路径规则、meta、四种宿主、容器、调试流程全在里面。三选一：贴进对话、放到 AI 能读到的目录、或直接给 GitHub 链接（`https://github.com/Tower-of-Sighs/AUI/blob/snow/docs/ai-skill.md`）。给完就不用你再转述规则了。
+**第一步：把 skill 给 AI。** [docs/ai-skill.md](ai-skill) 是给 AI 看的自包含说明书——路径规则、meta、四种宿主、容器、调试流程全在里面。三选一：贴进对话、放到 AI 能读到的目录、或直接给 GitHub 链接（`https://github.com/Tower-of-Sighs/AUI/blob/snow/docs/ai-skill.md`）。给完就不用你再转述规则了。
 
 **第二步：打开两个开关**（`config/apricityui-client.toml`）：
 
@@ -197,14 +197,14 @@ Ore 主题有两个文件对 AI 特别重要，给它这两个，它就能写出
 
 按顺序来：
 
-1. **F12 DevTools**：样式不对就看 Inspector 的"匹配规则"列表——哪条生效、被谁覆盖、来自哪个文件；结构不对用拾取模式点一下元素直接定位到 DOM 树；脚本报错和控制台输出都在控制台页签。功能明细见第 7 节和 [devtools.md](devtools.md)；
+1. **F12 DevTools**：样式不对就看 Inspector 的"匹配规则"列表——哪条生效、被谁覆盖、来自哪个文件；结构不对用拾取模式点一下元素直接定位到 DOM 树；脚本报错和控制台输出都在控制台页签。功能明细见第 7 节和 [devtools.md](guide/devtools)；
 2. **翻日志**：`logs/latest.log` 搜 `[AUI HTML]`、`[AUI JS]`、`[AUI CSS]` 前缀，报错带资源路径；
-3. **游戏外调试**：模组能起本机调试服务，`tools/` 里带了 Node 客户端和 MCP 桥，AI 工具能直连运行中的页面查 DOM、模拟点击。开法和用法见 [tools.md](tools.md)。
+3. **游戏外调试**：模组能起本机调试服务，`tools/` 里带了 Node 客户端和 MCP 桥，AI 工具能直连运行中的页面查 DOM、模拟点击。开法和用法见 [tools.md](guide/tools)。
 
 ## 接下来
 
-- 页面做得像样：[Ore 主题](ore-theme.md) → [HTML/CSS 覆盖面](html-css-coverage.md) → [Web API](web-api.md)；
-- 宿主进阶：[Screen](apricity-screen.md)、[Overlay](overlay-document.md)、[WorldWindow](world-window.md)、[容器](container.md)（最进阶，涉及服务端）；
-- 模组侧完整 API：[apricity-api.md](apricity-api.md)；
-- 交给 AI 开发：[ai-skill.md](ai-skill.md)，用法见第 8、9 节；
-- 全部文档的地图：[overview.md](overview.md)。
+- 页面做得像样：[Ore 主题](guide/ore-theme) → [HTML/CSS 覆盖面](guide/html-css-coverage) → [Web API](guide/web-api)；
+- 宿主进阶：[Screen](guide/apricity-screen)、[Overlay](guide/overlay-document)、[WorldWindow](guide/world-window)、[容器](guide/container)（最进阶，涉及服务端）；
+- 模组侧完整 API：[apricity-api.md](guide/apricity-api)；
+- 交给 AI 开发：[ai-skill.md](ai-skill)，用法见第 8、9 节；
+- 全部文档的地图：[overview.md](guide/overview)。

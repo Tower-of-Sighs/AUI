@@ -126,7 +126,7 @@ reducedDetailDistance = 48
 
 事件类型就是常见的那套（mousemove/down/up/click/dblclick/contextmenu/wheel/over/out/enter/leave + pointer 兼容）。`clientX/clientY` 已经反投影成 Document 逻辑坐标，**别再乘世界缩放、renderScale 或 devicePixelRatio**。
 
-要消费原生输入（可点击的世界按钮通常要），HTML 里加 `<meta name="aui-mouse-events" content="intercept">`，规则见 [ApricityScreen 的 meta 章节](apricity-screen.md#页面-meta-配置)。
+要消费原生输入（可点击的世界按钮通常要），HTML 里加 `<meta name="aui-mouse-events" content="intercept">`，规则见 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)。
 
 两个限制：
 

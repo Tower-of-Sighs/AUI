@@ -56,7 +56,7 @@ Minecraft.getInstance().setScreen(
 );
 ```
 
-路径写的是逻辑路径 `screens/example.html`，不要把 `assets/apricityui/apricity/` 前缀写进去。逻辑路径怎么解析、资源目录怎么组织，见[资源管理文档](resource-manager.md)。如果调用发生在别的线程，先 `minecraft.execute(...)` 切回客户端线程。
+路径写的是逻辑路径 `screens/example.html`，不要把 `assets/apricityui/apricity/` 前缀写进去。逻辑路径怎么解析、资源目录怎么组织，见[资源管理文档](resource-manager)。如果调用发生在别的线程，先 `minecraft.execute(...)` 切回客户端线程。
 
 ## API
 
@@ -160,7 +160,7 @@ button.addEventListener("click", function (event) { ... });
 input.addEventListener("input", function () { console.log(input.value); });
 ```
 
-鼠标、滚轮、键盘、焦点、表单事件都有，事件坐标已经是 Document 逻辑坐标，**不要再乘 GUI scale 或页面缩放**。完整的事件类型、字段和坑见 [Web API 文档](web-api.md)。
+鼠标、滚轮、键盘、焦点、表单事件都有，事件坐标已经是 Document 逻辑坐标，**不要再乘 GUI scale 或页面缩放**。完整的事件类型、字段和坑见 [Web API 文档](web-api)。
 
 Ctrl+滚轮的缩放目标是鼠标下最上层的 Document。对 overlay 页面，客户端配置 `[input] viewportZoomPassThrough = true`（`config/apricityui-client.toml`）允许缩放穿透没声明 intercept 的 overlay。
 
@@ -190,7 +190,7 @@ ApricityScreen 没有 Menu 和真实槽位。页面要操作玩家背包、方�
 ApricityUI.menu(player, "screens/inventory.html").bind(binding -> binding.player());
 ```
 
-或客户端脚本 `ApricityUI.screen("screens/inventory.html")`。详见[容器文档](container.md)。
+或客户端脚本 `ApricityUI.screen("screens/inventory.html")`。详见[容器文档](container)。
 
 ## END 重载
 

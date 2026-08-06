@@ -1,10 +1,10 @@
 # 模组专属 API（KJS / Java 入口）
 
-AUI 在页面脚本 API 之外提供两层模组接口：KubeJS 绑定（全局 `ApricityUI`）和 Java 统一入口（`com.sighs.apricityui.ApricityUI`）。页面内的 DOM、事件、fetch、Canvas 见 [Web API 文档](web-api.md)；各页面宿主的语义见对应专题文档，本文不重复。
+AUI 在页面脚本 API 之外提供两层模组接口：KubeJS 绑定（全局 `ApricityUI`）和 Java 统一入口（`com.sighs.apricityui.ApricityUI`）。页面内的 DOM、事件、fetch、Canvas 见 [Web API 文档](web-api)；各页面宿主的语义见对应专题文档，本文不重复。
 
 ## 先搞清楚的三件事
 
-**路径**：所有 API 用逻辑路径（`screens/example.html`），不写 `assets/apricityui/apricity/` 前缀，更不写磁盘路径。规则见[资源管理文档](resource-manager.md)。
+**路径**：所有 API 用逻辑路径（`screens/example.html`），不写 `assets/apricityui/apricity/` 前缀，更不写磁盘路径。规则见[资源管理文档](resource-manager)。
 
 **运行侧**：KJS 的 `ApricityUI` 在客户端脚本和服务端脚本里注册的是两组不同方法，方法名相同也不能跨侧调用：
 
@@ -51,7 +51,7 @@ ApricityUI.screen("screens/settings.html");   // 走服务端打开 UI-only 容�
 ApricityUI.closeScreen();
 ```
 
-`screen(path)` 不是客户端直接开 ApricityScreen——区别见 [ApricityScreen 文档](apricity-screen.md)。旧的 `openScreen(path)` 已废弃。
+`screen(path)` 不是客户端直接开 ApricityScreen——区别见 [ApricityScreen 文档](apricity-screen)。旧的 `openScreen(path)` 已废弃。
 
 **WorldWindow**：
 
@@ -67,7 +67,7 @@ ApricityUI.removeWorldWindow(win);
 ApricityUI.clearWorldWindows();
 ```
 
-创建即注册，移除连带销毁 Document。完整的距离、LOD、遮挡语义见 [WorldWindow 文档](world-window.md)。
+创建即注册，移除连带销毁 Document。完整的距离、LOD、遮挡语义见 [WorldWindow 文档](world-window)。
 
 ## KJS 服务端 API
 
@@ -87,7 +87,7 @@ ApricityUI.menu(player, "screens/machine.html")
 | `blockEntity(pos)` / `blockEntity(pos, cap)` | `block_entity` |
 | `entity(id)` / `entity(id, cap)` | `entity` |
 
-`saveddata("machine_data")` 的参数是服务端数据名，不是 HTML 的 id。容器 id、槽位、数据源的完整规则见[容器文档](container.md)。旧的 `openScreen(player, ...)` 已废弃。
+`saveddata("machine_data")` 的参数是服务端数据名，不是 HTML 的 id。容器 id、槽位、数据源的完整规则见[容器文档](container)。旧的 `openScreen(player, ...)` 已废弃。
 
 ## Java API
 
@@ -112,13 +112,13 @@ ApricityUI.removeWorldWindow(win);
 
 细节分散在各专题文档里，别在这篇里找：
 
-- Document 的生命周期、刷新代次、DOM 操作 → [Overlay 文档](overlay-document.md)和 [Web API 文档](web-api.md)
-- `new ApricityScreen(path)`、pause/背景/缩放 → [ApricityScreen 文档](apricity-screen.md)
-- 容器声明、高级 `ApricityScreenNetworkHandler.openScreen(...)` → [容器文档](container.md)
-- WorldWindow 的旋转、Follow/Facing、LOD、坐标转换 → [WorldWindow 文档](world-window.md)
-- Loader / ClientLoader / HTML 的资源读取 → [资源管理文档](resource-manager.md)
-- 自定义元素注册（`@ElementRegister`、扫描包）→ [二次开发文档](secondary-development.md)
-- DialogWindow、ContextMenu、ToastManager、ColorPicker 等内置组件 → [内置 UI 库](ui-library.md)
+- Document 的生命周期、刷新代次、DOM 操作 → [Overlay 文档](overlay-document)和 [Web API 文档](web-api)
+- `new ApricityScreen(path)`、pause/背景/缩放 → [ApricityScreen 文档](apricity-screen)
+- 容器声明、高级 `ApricityScreenNetworkHandler.openScreen(...)` → [容器文档](container)
+- WorldWindow 的旋转、Follow/Facing、LOD、坐标转换 → [WorldWindow 文档](world-window)
+- Loader / ClientLoader / HTML 的资源读取 → [资源管理文档](resource-manager)
+- 自定义元素注册（`@ElementRegister`、扫描包）→ [二次开发文档](secondary-development)
+- DialogWindow、ContextMenu、ToastManager、ColorPicker 等内置组件 → [内置 UI 库](ui-library)
 
 ## 线程、空值、刷新
 

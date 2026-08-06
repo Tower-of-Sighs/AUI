@@ -1,6 +1,6 @@
 # 二次开发：自定义元素与 KubeJS 绑定
 
-面向想给 AUI 加东西的模组作者。三个扩展点：自定义 DOM 元素、KubeJS 全局绑定、帧耗时 HUD。页面侧 API 见 [Web API 文档](web-api.md)，内置扩展标签的用法见[扩展元素文档](extension-elements.md)。
+面向想给 AUI 加东西的模组作者。三个扩展点：自定义 DOM 元素、KubeJS 全局绑定、帧耗时 HUD。页面侧 API 见 [Web API 文档](web-api)，内置扩展标签的用法见[扩展元素文档](extension-elements)。
 
 ## 先守住的两条边界
 

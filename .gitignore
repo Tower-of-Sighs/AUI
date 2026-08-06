@@ -133,3 +133,6 @@ node_modules/
 common/src/main/java/com/sighs/apricityui/event/Test.java
 
 profiler
+
+# Publish tokens (publish-all.sh)
+.env

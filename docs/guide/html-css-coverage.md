@@ -31,7 +31,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 - ✅ 属性各种写法、注释、doctype 剥离、自闭合与 void 标签、script/style raw text、总是合成 html/head/body；
 - 🟡 命名实体只有 `amp apos gt lt nbsp quot` 六个 + 数字实体；有弹栈错误恢复，但**没有浏览器的隐含标签生成**——不会自动闭合 `<p>`、不补 `<tbody>`；
 - 🟡 `<script>` 带 src 又写内联时**两个都执行**（非标准）；没有 defer/async/module；
-- `<head>` 子节点（title 等）不进 DOM，没有 `document.title`；`<meta>` 只读三个 aui-* 专用配置（见 [meta 章节](apricity-screen.md#页面-meta-配置)），charset 固定 UTF-8。
+- `<head>` 子节点（title 等）不进 DOM，没有 `document.title`；`<meta>` 只读三个 aui-* 专用配置（见 [meta 章节](apricity-screen#页面-meta-配置)），charset 固定 UTF-8。
 
 ## HTML 元素
 
@@ -57,7 +57,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
 
-扩展标签（texture、sprite、container、slot、recipe、translation 等）见[扩展元素文档](extension-elements.md)。未知标签按通用 Element 渲染，不警告。
+扩展标签（texture、sprite、container、slot、recipe、translation 等）见[扩展元素文档](extension-elements)。未知标签按通用 Element 渲染，不警告。
 
 ## CSS 选择器
 
@@ -142,4 +142,4 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 关于像素级一致性
 
-框架内部用 WPT 几何快照对比验证布局（机制见 [wpt.md](wpt.md)）。现状是和 Chromium 像素级一致的页面极少，差异几乎全部来自上面列出的缺口（无 UA 样式、负 margin、vertical-align 等）。这不影响它的目标场景——手写 UI——但意味着**别指望任意第三方网页搬过来能看**。
+框架内部用 WPT 几何快照对比验证布局（机制见 [wpt.md](wpt)）。现状是和 Chromium 像素级一致的页面极少，差异几乎全部来自上面列出的缺口（无 UA 样式、负 margin、vertical-align 等）。这不影响它的目标场景——手写 UI——但意味着**别指望任意第三方网页搬过来能看**。

@@ -2,7 +2,7 @@
 
 AUI 在标准 HTML 之外注册了一组扩展标签，都是普通 DOM 元素，能正常参与 CSS、布局、命中测试和脚本操作。它们解决一类共同问题：**把游戏资源和动画画进页面**。
 
-标准元素的能力边界见 [HTML/CSS 覆盖面](html-css-coverage.md)，容器/槽位/配方见[容器文档](container.md)，注册自己的元素见[二次开发文档](secondary-development.md)，这里都不重复。
+标准元素的能力边界见 [HTML/CSS 覆盖面](html-css-coverage)，容器/槽位/配方见[容器文档](container)，注册自己的元素见[二次开发文档](secondary-development)，这里都不重复。
 
 ## 怎么选
 
@@ -92,7 +92,7 @@ SVG 会缓存栅格结果，属性或子树变化才重画。大尺寸复杂路�
 <canvas id="chart" width="320" height="160"></canvas>
 ```
 
-标准 Canvas 2D 子集（Java2D 后端）。`width`/`height` 属性设位图尺寸，CSS 设显示尺寸，两者不同会缩放——别只改 CSS 就当坐标系变了。完整的 API 支持度和限制见 [Web API 文档](web-api.md)。
+标准 Canvas 2D 子集（Java2D 后端）。`width`/`height` 属性设位图尺寸，CSS 设显示尺寸，两者不同会缩放——别只改 CSS 就当坐标系变了。完整的 API 支持度和限制见 [Web API 文档](web-api)。
 
 大画布频繁重绘有上传成本。静态矢量用 svg，游戏纹理用 texture——canvas 是这几个里最贵的，只留给真正需要逐帧计算的画面。
 

@@ -100,7 +100,7 @@ src/main/resources/assets/apricityui/apricity/
 - `document.setReloadPersistent(true)`：让某个 Document 跳过全量刷新，适合需要自己维护状态的工具页面；
 - `HTML.reload("screens/home.html")`：只重读单个模板，不刷新任何 Document，之后还要手动 `refresh()`。
 
-刷新会重建 DOM，旧的 Element 引用全部失效，这是[生命周期](web-api.md#生命周期和刷新)里讲过的规则。
+刷新会重建 DOM，旧的 Element 引用全部失效，这是[生命周期](web-api#生命周期和刷新)里讲过的规则。
 
 ## 内置资源管理器
 
@@ -118,7 +118,7 @@ src/main/resources/assets/apricityui/apricity/
 
 **新建 HTML**：NEW FILE 支持三种内容来源——本地文件导入、剪贴板、空白模板（可顺带配好常用 meta）。保存路径必须是 `.html` 结尾的相对路径，`../` 绕不出去。保存后自动触发重载，新页面立刻可用。
 
-**EDIT META**：编辑 HTML head 里的 AUI meta（`aui-font-mode`、`aui-viewport`、`aui-mouse-events` 和 charset），非 AUI 的 meta 和 body 原样保留。资源包里的文件没有可写来源，此项禁用。各 meta 的含义见 [ApricityScreen 文档](apricity-screen.md#页面-meta-配置)。
+**EDIT META**：编辑 HTML head 里的 AUI meta（`aui-font-mode`、`aui-viewport`、`aui-mouse-events` 和 charset），非 AUI 的 meta 和 body 原样保留。资源包里的文件没有可写来源，此项禁用。各 meta 的含义见 [ApricityScreen 文档](apricity-screen#页面-meta-配置)。
 
 **REFERENCE**：一键生成引用代码并复制到剪贴板——图片给 CSS 背景和 `<img>` 两种写法，字体给 `@font-face` 注册 + `font-family` 使用，HTML 给 Screen / Overlay / WorldWindow / KubeJS 等各种打开方式。
 

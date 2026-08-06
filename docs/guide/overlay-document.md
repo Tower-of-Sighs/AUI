@@ -1,6 +1,6 @@
 # Overlay Document 使用文档
 
-Overlay 是不依附于任何 Minecraft Screen 的 Document：`ApricityUI.createDocument(path)` 创建后加入全局列表，由客户端在 GUI/HUD 绘制阶段自动渲染。适合做 HUD、Toast、提示条、浮动面板、全屏遮罩、开发工具。不打开新 Screen，也没有容器槽位——要槽位请走[容器文档](container.md)。
+Overlay 是不依附于任何 Minecraft Screen 的 Document：`ApricityUI.createDocument(path)` 创建后加入全局列表，由客户端在 GUI/HUD 绘制阶段自动渲染。适合做 HUD、Toast、提示条、浮动面板、全屏遮罩、开发工具。不打开新 Screen，也没有容器槽位——要槽位请走[容器文档](container)。
 
 ## 和 ApricityScreen 的区别
 
@@ -115,7 +115,7 @@ dialog.setTopLayer(true);
 
 两个常用模式：
 
-**模态遮罩**——meta 开拦截（见 [ApricityScreen 的 meta 章节](apricity-screen.md#页面-meta-配置)），遮罩盖满视口：
+**模态遮罩**——meta 开拦截（见 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)），遮罩盖满视口：
 
 ```html
 <meta name="aui-mouse-events" content="intercept">

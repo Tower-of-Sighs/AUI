@@ -191,7 +191,7 @@ type 缺失、配方不存在或类型不匹配时会记日志并在元素上设
 
 ## 视口与坐标
 
-容器页面和普通 Screen 用同一套 meta（见 [ApricityScreen 的 meta 章节](apricity-screen.md#页面-meta-配置)）。槽位 DOM 坐标是逻辑坐标，框架读取 viewport 缩放后同步给菜单——别在脚本里手动乘 renderScale。
+容器页面和普通 Screen 用同一套 meta（见 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)）。槽位 DOM 坐标是逻辑坐标，框架读取 viewport 缩放后同步给菜单——别在脚本里手动乘 renderScale。
 
 另外，`ApricityUI.getCurrentScreenDocument()` 对容器 Screen 返回 null 是正常的，它只认 ApricityScreen。
 

@@ -1,6 +1,6 @@
 # 内置 DevTools
 
-游戏内的页面调试器，能检视普通 Screen、Overlay、容器页面和命中条件下的 WorldWindow 文档：看 DOM、改样式、查日志、把修改存回源文件。外部调试协议和 Node 工具是另一条链路，见[附加工具说明](tools.md)。
+游戏内的页面调试器，能检视普通 Screen、Overlay、容器页面和命中条件下的 WorldWindow 文档：看 DOM、改样式、查日志、把修改存回源文件。外部调试协议和 Node 工具是另一条链路，见[附加工具说明](tools)。
 
 打开/关闭：`F12` 或 `Ctrl+Shift+I`（可在 MC 控制设置里重绑）。Java 侧用 `DevTools.toggle()` / `ensureOpen()` / `selectDocument(doc)` / `selectElement(element)`。
 
@@ -39,7 +39,7 @@ DevTools 自己也是一个 Document（`devtools/devtools.html`），它检视�
 
 ## Meta 编辑器
 
-工具栏 Meta 按钮编辑当前 HTML 的 meta（只支持可写本地源文件）。能改 charset、三个 aui-* meta 和当前运行时缩放（ZOOM 字段，走 `setViewportZoom` 立即生效）。三个 meta 的含义见 [ApricityScreen 的 meta 章节](apricity-screen.md#页面-meta-配置)。其他 meta 标签原样保留。保存后触发资源重载。
+工具栏 Meta 按钮编辑当前 HTML 的 meta（只支持可写本地源文件）。能改 charset、三个 aui-* meta 和当前运行时缩放（ZOOM 字段，走 `setViewportZoom` 立即生效）。三个 meta 的含义见 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)。其他 meta 标签原样保留。保存后触发资源重载。
 
 ## Console
 
@@ -59,11 +59,11 @@ DevTools 自己也是一个 Document（`devtools/devtools.html`），它检视�
 | `count()` / `tree` | 节点统计 / 文本 DOM 树 |
 | `echo` / `warn` / `error <text>` | 写日志 |
 
-外加简单四则运算和字面量。Enter 执行，上下方向键翻历史，Ctrl+L 清空。要调真正的脚本逻辑，看页面日志或用[外部调试工具](tools.md)。
+外加简单四则运算和字面量。Enter 执行，上下方向键翻历史，Ctrl+L 清空。要调真正的脚本逻辑，看页面日志或用[外部调试工具](tools)。
 
 ## 设置
 
-设置按钮直接编辑 `config/apricityui-client.toml`：debug 开关（autoReload、frameTimingHud、remoteDebug、资源管理器 WorldWindow 模式）、input（viewportZoomPassThrough）、worldWindow（距离、LOD、深度偏移）。各键含义见[模组 API 文档的配置表](apricity-api.md#客户端配置键)。
+设置按钮直接编辑 `config/apricityui-client.toml`：debug 开关（autoReload、frameTimingHud、remoteDebug、资源管理器 WorldWindow 模式）、input（viewportZoomPassThrough）、worldWindow（距离、LOD、深度偏移）。各键含义见[模组 API 文档的配置表](apricity-api#客户端配置键)。
 
 ## 一个标准调试流程
 

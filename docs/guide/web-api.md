@@ -6,7 +6,7 @@ AUI 不是 Chromium，也没有浏览器内核。页面 JavaScript 由 Rhino 执
 - **轻量兼容**：名字和常用调法和浏览器一样，但返回值、时机或参数范围有缩减；
 - **未提供**：没实现，别假设存在。
 
-CSS 属性和布局见 [HTML/CSS 覆盖面](html-css-coverage.md)，页面级的 viewport/字体/鼠标 meta 配置见 [ApricityScreen 文档](apricity-screen.md#页面-meta-配置)。
+CSS 属性和布局见 [HTML/CSS 覆盖面](html-css-coverage)，页面级的 viewport/字体/鼠标 meta 配置见 [ApricityScreen 文档](apricity-screen#页面-meta-配置)。
 
 ## 快速开始
 
@@ -261,7 +261,7 @@ fetch("data.json").then(function (response) {
 });
 ```
 
-只有 `fetch(url)` 单参数——没有 init、没有 method/headers/body、没有 AbortController。相对路径按当前 Document 的 baseURI 解析；远程只走受限 HTTPS 管线（限制见[资源管理文档](resource-manager.md)）。
+只有 `fetch(url)` 单参数——没有 init、没有 method/headers/body、没有 AbortController。相对路径按当前 Document 的 baseURI 解析；远程只走受限 HTTPS 管线（限制见[资源管理文档](resource-manager)）。
 
 返回的不是标准 Promise：支持 `then(onOk, onErr)` 和 `catchError`，页面桥提供了 `catch` 别名，但别做复杂的链式变换。读 JSON 就在同一个 then 里调 `response.json()`。
 
@@ -361,7 +361,7 @@ document.addEventListener("DOMContentLoaded", installPage);
 
 **手动渲染**：宿主可以把 Document 设为手动渲染，之后它退出全局绘制和输入分发，由调用方自己画、自己转发事件。普通页面别用。
 
-**扩展元素**：AUI 注册了 `<texture>`、`<sprite>`、`<translation>`、`<svg>`、`<canvas>`、`<container>` 等 Minecraft 向的标签，不是浏览器原生 HTML。见[扩展元素文档](extension-elements.md)。
+**扩展元素**：AUI 注册了 `<texture>`、`<sprite>`、`<translation>`、`<svg>`、`<canvas>`、`<container>` 等 Minecraft 向的标签，不是浏览器原生 HTML。见[扩展元素文档](extension-elements)。
 
 **宿主**：页面 DOM API 不管创建宿主。Screen、Overlay、Container、WorldWindow 分别见各自文档。
 

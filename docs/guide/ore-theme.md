@@ -63,9 +63,9 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 - `.progress` > `.progress-bar`（宽度自己设 style），`.progress-purple` 变体；
 - `.list-group` > `.list-group-item`（`.active` 绿色）。
 
-**MC 风格**：`.inventory-grid`（九列 44px 格）+ `.slot`。**这只是视觉方格**，真实槽位用容器系统的 `<slot>`，见[容器文档](container.md)。
+**MC 风格**：`.inventory-grid`（九列 44px 格）+ `.slot`。**这只是视觉方格**，真实槽位用容器系统的 `<slot>`，见[容器文档](container)。
 
-**Tabs / Modal / 分页**：`.tabs` + `.tab`（`.active` 紫边）、`.modal-backdrop.open` + `.modal` + `-header/-body/-footer`、`.pagination` + `.page-button`。同样**只有样式**：切换面板、开关 modal、Escape/遮罩点击、页码逻辑全部自己写。要现成的弹窗行为用 Java 侧的 [DialogWindow](ui-library.md)。
+**Tabs / Modal / 分页**：`.tabs` + `.tab`（`.active` 紫边）、`.modal-backdrop.open` + `.modal` + `-header/-body/-footer`、`.pagination` + `.page-button`。同样**只有样式**：切换面板、开关 modal、Escape/遮罩点击、页码逻辑全部自己写。要现成的弹窗行为用 Java 侧的 [DialogWindow](ui-library)。
 
 **工具类**：`.text-left/-center/-right`、`.text-success/-warning/-danger/-info/-muted`、`.font-sm/-lg/-display`、`.hidden`、`.invisible`、`.w-full`、`.m-0`、间距 `mt/mb/p-1..4`（4/8/16/24px）。
 
@@ -98,7 +98,7 @@ Java 侧入口 `OreEditor`：`open()` / `toggle()` / `close()` / `isOpen()` / `g
 
 **字体不像 MC**：主题目录的 `fonts/` 资源没解析到，看日志。有颜色但字体不对基本就是它。
 
-**按钮点了没反应 / Modal 关不掉 / Tab 不切换**：预期行为，Ore 是纯 CSS。交互自己写，或用 [内置 UI 库](ui-library.md)。
+**按钮点了没反应 / Modal 关不掉 / Tab 不切换**：预期行为，Ore 是纯 CSS。交互自己写，或用 [内置 UI 库](ui-library)。
 
 **表格列错位**：内置 table 是四列 grid，见上面的覆写说明。
 

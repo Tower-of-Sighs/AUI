@@ -2,7 +2,7 @@
 
 AUI 不是浏览器，但给页面配了一层浏览器式的辅助行为：缩放、文字选择、剪贴板、表单默认动作、滚动。这篇讲这些行为本身和它们的边界。
 
-页面的 viewport/字体/鼠标拦截三个 meta 的完整说明在 [ApricityScreen 文档](apricity-screen.md#页面-meta-配置)，DOM 和 JS API 的细节在 [Web API 文档](web-api.md)，这里都不重复。
+页面的 viewport/字体/鼠标拦截三个 meta 的完整说明在 [ApricityScreen 文档](apricity-screen#页面-meta-配置)，DOM 和 JS API 的细节在 [Web API 文档](web-api)，这里都不重复。
 
 ## 页面缩放
 
@@ -26,7 +26,7 @@ AUI 不是浏览器，但给页面配了一层浏览器式的辅助行为：缩�
 | `END` | 客户端资源重载 |
 | 左 `Alt` | 按住时释放原生鼠标 |
 
-**END** 触发完整重载：重扫资源、清缓存、刷新所有普通 Document 和内置工具。它是开发键，不是状态同步机制——`reloadPersistent=true` 的 Document 会被跳过（见 [Overlay 文档](overlay-document.md)）。
+**END** 触发完整重载：重扫资源、清缓存、刷新所有普通 Document 和内置工具。它是开发键，不是状态同步机制——`reloadPersistent=true` 的 Document 会被跳过（见 [Overlay 文档](overlay-document)）。
 
 **左 Alt** 是"按住释放"，不是切换：在世界中、没开 Screen、没有 Overlay 时按住它释放鼠标，松开后恢复原状态。用来在世界内页面的调试场景里临时移动系统光标。它不改 viewport 也不改事件坐标。
 
@@ -67,7 +67,7 @@ Operation.setClipboardText(value);
 
 ## 鼠标和滚动
 
-鼠标/指针事件类型和坐标规则见 [Web API 文档](web-api.md#事件)。这里只说滚动：
+鼠标/指针事件类型和坐标规则见 [Web API 文档](web-api#事件)。这里只说滚动：
 
 - 滚轮默认作用于命中元素的可滚动祖先；
 - Shift+滚轮优先横向滚动，没横向范围就回退纵向；
