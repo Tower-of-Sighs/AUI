@@ -427,6 +427,7 @@ public class Client {
     @SubscribeEvent
     public static void tick(ClientTickEvent.Pre event) {        CursorReleaseController.tick();
             ClientRuntimeSelfTest.tick();
+            com.sighs.apricityui.loader.ClientLoaderForge.tickTemplateScanRetry();
             if (ApricityUIConfig.consumeClientReloadPending()) {
                 com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
             }
