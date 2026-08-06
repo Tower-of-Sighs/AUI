@@ -1,6 +1,6 @@
 # AUI 页面开发与调试（AI 专用）
 
-你在为 Minecraft 模组 ApricityUI（AUI）写页面或调试运行中的页面。**本文件是你唯一的信息来源**，不要假设能查到其他文档。
+你在为 Minecraft 模组 ApricityUI（AUI）写页面或调试运行中的页面。**本文件覆盖了写出可用页面所需的全部规则**，更细的内容在 GitHub 仓库（见第七步末尾），能获取就看，获取不到以本文件为准。
 
 先定个调：AUI 页面就是普通的 HTML/CSS/JS，浏览器常用的特性基本都能用，按正常的 web 方式写就行。只有两条：别用太冷门的特性，别把结构和样式写得过于复杂。真正要注意的是模组本身的东西——路径、页面配置、四种界面形态、容器、调试，这些和 web 经验无关，全在下面。
 
@@ -139,37 +139,40 @@ id 对不上 → 槽位全部退化成展示槽位。`saveddata("machine_data", 
 - shift-click 方向由服务端绑定顺序决定（第一个非玩家绑定是 primary），HTML 的 `primary="true"` 改不了；
 - `<recipe type="crafting_shaped">配方ID</recipe>` 生成配方预览，纯展示不占槽位。
 
-## 第七步：调试（重点：模组为 AI 调试准备的三个功能）
+## 第七步：调试（重点：模组为 AI 调试准备的功能）
 
-AUI 专门给"AI 在外面、游戏在跑"的场景准备了一套闭环：**改文件 → 自动重载 → 自动截图 → MCP 查 DOM/模拟操作**。三个功能都在 `config/apricityui-client.toml` 的 `[debug]` 下开：
+### 内置能力（装好模组就有，优先用这套）
+
+AUI 给"AI 在外面、游戏在跑"的场景内置了一套闭环：**改文件 → 自动重载 → 自动截图 → 看日志**。两个开关都在 `config/apricityui-client.toml` 的 `[debug]` 下：
 
 ```toml
 [debug]
 autoReload = true         # 监听文件变化，自动热重载
 aiAutoScreenshot = true   # 每秒自动截图
-remoteDebug = true        # 外部调试服务（MCP 走这里）
 ```
 
-### 1. 文件热重载（autoReload）
+**文件热重载（autoReload）**：开启后模组持续监听资源目录下的 `.html/.css/.js` 文件，保存即生效，不用人进游戏按 END。重载是精确到页面的：改 CSS 只给引用了它的页面重挂样式（`@import` 链上游也算），**DOM 和 JS 状态完整保留**——调样式不会丢页面现场；改 HTML/JS 只刷新对应的页面；新建 HTML 只注册模板、不动任何页面；改没被任何打开页面引用的文件则完全不动。这就是 AI 的开发循环：直接改 `<游戏目录>/apricity/` 下的页面文件，改动自动生效，然后截图验证。
 
-开启后模组持续监听资源目录下的 `.html/.css/.js` 文件，保存即生效，不用人进游戏按 END。重载是精确到页面的：改 CSS 只给引用了它的页面重挂样式（`@import` 链上游也算），**DOM 和 JS 状态完整保留**——调样式不会丢页面现场；改 HTML/JS 只刷新对应的页面；新建 HTML 只注册模板、不动任何页面；改没被任何打开页面引用的文件则完全不动。这就是 AI 的开发循环：直接改 `<游戏目录>/apricity/` 下的页面文件，改动自动生效，然后截图或走 MCP 验证。
+**自动截图（aiAutoScreenshot）**：开启后**每秒自动截一张游戏画面**，写到 `<游戏目录>/screenshots/aui/`（只保留最新 20 张）。你直接读目录里最新的 PNG 就能看到页面实际渲染效果——布局对不对、样式生没生效、报错长什么样，不用让用户描述。
 
-### 2. 自动截图（aiAutoScreenshot）
+**日志**：脚本报错、CSS 解析问题都在 `logs/latest.log`，搜 `[AUI JS]`/`[AUI CSS]`/`[AUI HTML]` 前缀，报错带资源路径。
 
-开启后**每秒自动截一张游戏画面**，写到 `<游戏目录>/screenshots/aui/`（只保留最新 20 张）。你直接读目录里最新的 PNG 就能看到页面实际渲染效果——布局对不对、样式生没生效、报错长什么样，不用让用户描述。想截特定状态，先用 MCP 操作页面（点开界面、填个输入框），等一两秒再读最新截图。
+这三样不需要任何外部工具，是调试的 baseline。
 
-### 3. MCP 直连运行中的页面（remoteDebug）
+### MCP 直连运行中的页面（外部工具，能获取就用，获取不到就算了）
 
-`remoteDebug = true` 后，游戏在本机 `ws://127.0.0.1:25321/apricity` 起调试服务，并把 endpoint + token 写进 `run/apricity/debug.json`（**这是访问凭据，别提交别分享**）。仓库自带 MCP 桥 `tools/apricity-mcp/server.mjs`，配进 MCP 客户端（env 指向 debug.json）后你直接获得这些工具：
+模组内置了调试服务（`[debug] remoteDebug = true`，本机 `ws://127.0.0.1:25321/apricity`，连接凭据写在 `run/apricity/debug.json`——**别提交别分享**），但**连它的客户端工具不随模组分发**，在 GitHub 仓库 [Tower-of-Sighs/AUI](https://github.com/Tower-of-Sighs/AUI) 的 `tools/` 目录里：
 
-- `apricity_documents`：列出所有打开的 Document，拿 targetId（UUID）；
-- `apricity_snapshot(targetId)`：DOM 树快照；`apricity_query` / `apricity_inspect`：查元素属性、文本、盒模型、计算样式；
-- `apricity_wait_for(targetId, selector, state)`：等元素出现/可见；
-- `apricity_hover` / `apricity_click` / `apricity_fill`：模拟输入。
+- 你就在这个仓库的克隆里工作（本地有 `tools/`）→ 直接用；
+- 不在 → 尝试从 GitHub 获取（raw 文件形如 `https://raw.githubusercontent.com/Tower-of-Sighs/AUI/snow/tools/apricity-mcp/server.mjs`，需要 Node 20+ 并 `npm install`）；
+- **获取不到就放弃这条路**——内置三件套已经覆盖"看渲染结果、看报错、改文件验证"，需要点按钮之类的交互验证时，让用户开 F12 DevTools 代为操作。
 
-不用 MCP 的话，仓库还有 Node 客户端 `tools/apricity-debug-client.mjs`（`connect()` 默认读 debug.json，`documents()` → `attach(targetId)` → `page.locator("#save").click()`）。
+能用时，两种方式接：
 
-**调试纪律**：
+1. **MCP 桥** `tools/apricity-mcp/server.mjs`，配进 MCP 客户端（env 指向 debug.json），工具：`apricity_documents`（列 Document 拿 targetId）、`apricity_snapshot`（DOM 树）、`apricity_query`/`apricity_inspect`（查元素）、`apricity_wait_for`（等元素）、`apricity_hover/click/fill`（模拟输入）；
+2. **Node 客户端** `tools/apricity-debug-client.mjs`：`connect()` 默认读 debug.json，`documents()` → `attach(targetId)` → `page.locator("#save").click()`。
+
+**调试纪律**（只在接上调试服务后适用）：
 
 - targetId 页面重载/重建后失效——autoReload 每次触发后 targetId 就变了，**先重新 `documents()` 再操作**，别写死；
 - 协议**没有 evaluate**，不能执行任意 JS。验证逻辑的办法：改页面加 console 输出（配合热重载立刻生效），或用 inspect/query 观察 DOM 结果；
@@ -178,13 +181,15 @@ remoteDebug = true        # 外部调试服务（MCP 走这里）
 
 ### 典型 AI 调试流程
 
-1. 确认三个开关都开了；
-2. 改页面文件 → autoReload 自动重载；
+1. 确认 `autoReload` 和 `aiAutoScreenshot` 开了；
+2. 改页面文件 → 自动重载生效；
 3. 读 `screenshots/aui/` 最新截图，看渲染结果；
-4. 需要细节就 MCP：`documents()` → `snapshot`/`inspect` 查结构，`click`/`fill` 模拟操作；
-5. 脚本报错看 `logs/latest.log`，搜 `[AUI JS]`/`[AUI CSS]`/`[AUI HTML]` 前缀，报错带资源路径。
+4. 报错看 `logs/latest.log`；
+5. 有 MCP 就用它查 DOM、模拟操作做交互验证；没有就让用户开 F12 DevTools 帮你看——它的 DOM 树、拾取模式（点页面元素定位到树）、Inspector 的匹配 CSS 规则列表（哪条生效、被谁覆盖、来自哪个文件）和控制台（脚本输出与报错）能覆盖大部分排查，你告诉用户看什么、把结果转述给你。
 
-人参与的调试走 F12 DevTools（DOM 树、元素拾取、改样式存回源文件），AI 优先用上面这套，不用麻烦人。
+### 详细文档也在 GitHub
+
+更细的内容（完整模组 API、CSS 支持度清单、扩展元素属性表、各宿主的完整参数等）在同一个 GitHub 仓库的 `docs/` 目录。**能访问 GitHub 就拉对应的专题文档看，访问不到就以本文件为准**——本文件覆盖了写出可用页面所需的全部规则。
 
 ## 交付前自查
 
@@ -193,4 +198,4 @@ remoteDebug = true        # 外部调试服务（MCP 走这里）
 3. 初始化挂在 `DOMContentLoaded`？没写 `ctrlKey`？没给事件坐标乘缩放？
 4. 样式套了 Ore 而不是从零写？
 5. 容器页面：固定 id 和服务端绑定对得上？真实容器走服务端打开？
-6. 实际跑过、看过渲染结果了吗（autoReload + 自动截图 + MCP，别只交付代码）？
+6. 实际跑过、看过渲染结果了吗（autoReload + 自动截图，有 MCP 就做交互验证，别只交付代码）？
