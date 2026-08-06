@@ -56,8 +56,8 @@ public class ClientLoader extends Loader {
         });
     }
 
-    /** Reloads all client resources; invoked by the loader setup event. */
-    static void reloadResources() {
+    /** Reloads all client resources after the loader's resource manager is ready. */
+    public static void reloadResources() {
         reloadResourcesInternal(System.nanoTime());
     }
 
