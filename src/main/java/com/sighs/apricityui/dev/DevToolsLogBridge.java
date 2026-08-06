@@ -21,7 +21,9 @@ import java.util.Locale;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
-/** Bridges ApricityUI log events to the client-only DevTools console. */
+/**
+ * Bridges ApricityUI log events to the client-only DevTools console.
+ */
 public final class DevToolsLogBridge {
     private static final String APPENDER_NAME = "ApricityUI-DevToolsConsole";
     private static final int MAX_PENDING_LOGS = 2048;
@@ -35,7 +37,9 @@ public final class DevToolsLogBridge {
     private DevToolsLogBridge() {
     }
 
-    /** Installs an additional appender without changing the game's existing logging pipeline. */
+    /**
+     * Installs an additional appender without changing the game's existing logging pipeline.
+     */
     public static void install(org.slf4j.Logger sourceLogger) {
         if (sourceLogger == null) return;
 
@@ -99,12 +103,16 @@ public final class DevToolsLogBridge {
         }
     }
 
-    /** Drains pending events. This method is called only from the client thread. */
+    /**
+     * Drains pending events. This method is called only from the client thread.
+     */
     public static List<ConsoleLog> drain() {
         return drain(Integer.MAX_VALUE);
     }
 
-    /** Drains at most maxEntries events for one client tick. */
+    /**
+     * Drains at most maxEntries events for one client tick.
+     */
     public static List<ConsoleLog> drain(int maxEntries) {
         if (maxEntries <= 0) return List.of();
         ArrayList<ConsoleLog> drained = new ArrayList<>();

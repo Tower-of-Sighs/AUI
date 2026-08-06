@@ -5,15 +5,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
-import com.sighs.apricityui.parser.HTML;
+import java.util.*;
 
-/** Reads and updates only the meta elements owned by an HTML document's head. */
+/**
+ * Reads and updates only the meta elements owned by an HTML document's head.
+ */
 public final class HtmlMetaEditor {
     private static final Set<String> VOID_ELEMENTS = Set.of(
             "area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",

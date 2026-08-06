@@ -1,16 +1,17 @@
 package com.sighs.apricityui.dev.resource;
 
-import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.ui.DialogWindow;
+import com.sighs.apricityui.ui.ToastManager;
 
 import java.util.Locale;
-import com.sighs.apricityui.parser.HTML;
 
-/** Java-owned create/import overlay used by the resource browser. */
+/**
+ * Java-owned create/import overlay used by the resource browser.
+ */
 public final class ResourceCreateDialog {
     private static final String LOCAL_FILE_ICON = "<svg viewBox=\"0 0 48 48\" fill=\"none\"><path d=\"M12 5h16l8 8v30H12z\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><path d=\"M28 5v10h8\" stroke=\"#8b5cf6\" stroke-width=\"2\"/><path d=\"M17 24h14M17 30h14M17 36h9\" stroke=\"#8b5cf6\" stroke-width=\"2\"/></svg>";
     private static final String CLIPBOARD_ICON = "<svg viewBox=\"0 0 48 48\" fill=\"none\"><rect x=\"11\" y=\"9\" width=\"26\" height=\"34\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><rect x=\"17\" y=\"4\" width=\"14\" height=\"9\" fill=\"#8b5cf6\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><path d=\"M17 23h14M17 30h14M17 37h9\" stroke=\"#8b5cf6\" stroke-width=\"2\"/></svg>";
@@ -60,23 +61,30 @@ public final class ResourceCreateDialog {
         pathInput.value = normalizedCurrentPath.isBlank() ? "/" : normalizedCurrentPath + "/";
         pathInput.addEventListener("input", event -> refreshSubmit(document));
         pathInput.addEventListener("change", event -> refreshSubmit(document));
-        pathField.append(pathInput); root.append(pathField);
+        pathField.append(pathInput);
+        root.append(pathField);
         Element importGrid = element(document, "DIV", "resource-import-grid");
         localCard = importCard(document, "LOCAL FILE", "OPEN FILE PICKER", LOCAL_FILE_ICON, "resource-import-local");
         localFileInput = element(document, "INPUT", "resource-create-file-input");
-        localFileInput.setAttribute("type", "file"); localFileInput.setAttribute("accept", ".html,text/html");
+        localFileInput.setAttribute("type", "file");
+        localFileInput.setAttribute("accept", ".html,text/html");
         localFileInput.addEventListener("change", event -> importLocal(document, localFileInput.value));
         localCard.addEventListener("click", event -> localFileInput.click());
         clipboardCard = importCard(document, "CLIPBOARD", "IMPORT HTML TEXT", CLIPBOARD_ICON, "resource-import-clipboard");
         clipboardCard.addEventListener("click", event -> importClipboard(document));
         blankTemplateCard = importCard(document, "BLANK TEMPLATE", "CONFIGURE META", BLANK_TEMPLATE_ICON, "resource-import-template");
         blankTemplateCard.addEventListener("click", event -> openBlankTemplate(document));
-        importGrid.append(localCard); importGrid.append(clipboardCard); importGrid.append(blankTemplateCard); root.append(importGrid); root.append(localFileInput);
+        importGrid.append(localCard);
+        importGrid.append(clipboardCard);
+        importGrid.append(blankTemplateCard);
+        root.append(importGrid);
+        root.append(localFileInput);
         Element submitRow = element(document, "DIV", "dialog-footer");
         submitButton = element(document, "BUTTON", "dialog-btn dialog-btn-confirm");
         submitButton.append(text(document, "SPAN", "CREATE", "dialog-btn-label"));
         submitButton.addEventListener("click", event -> submit(afterCreate));
-        submitRow.append(submitButton); dialog.window().append(submitRow);
+        submitRow.append(submitButton);
+        dialog.window().append(submitRow);
         refreshSubmit(document);
         markDirty(document);
     }

@@ -3,24 +3,15 @@ package com.sighs.apricityui.ui;
 import com.sighs.apricityui.dev.resource.ResourceFileWriter;
 import com.sighs.apricityui.dev.resource.ResourcePath;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.render.Drawer;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import com.sighs.apricityui.event.Event;
 
 /**
  * Global, resource-manager-backed file selection UI. The result is empty when the
@@ -35,6 +26,7 @@ public final class FilePicker {
         public Options(String title, Set<String> extensions, boolean includeResourcePackFiles) {
             this(title, null, extensions, includeResourcePackFiles);
         }
+
         public Options {
             boolean missingTitle = title == null || title.isBlank();
             title = missingTitle ? "" : title.trim();
@@ -99,9 +91,11 @@ public final class FilePicker {
         return open(document, options, ClientLoader.listFinalStaticResources());
     }
 
-    /** Opens inside a caller-owned document; useful for embedded tools and tests. */
+    /**
+     * Opens inside a caller-owned document; useful for embedded tools and tests.
+     */
     public static synchronized CompletableFuture<Optional<Selection>> pickIn(Document document, Options options,
-                                                                                List<Loader.StaticResourceEntry> entries) {
+                                                                             List<Loader.StaticResourceEntry> entries) {
         return open(document, options, entries);
     }
 
@@ -114,7 +108,7 @@ public final class FilePicker {
     }
 
     private static CompletableFuture<Optional<Selection>> open(Document document, Options options,
-                                                                  List<Loader.StaticResourceEntry> entries) {
+                                                               List<Loader.StaticResourceEntry> entries) {
         if (document == null || document.body == null) return CompletableFuture.completedFuture(Optional.empty());
         Tooltip.hide();
         if (active != null) active.finish(Optional.empty());
@@ -229,7 +223,9 @@ public final class FilePicker {
         appendTemplateTreeChildren(treeContainer, buildFolderTree(), 0);
     }
 
-    /** Mirrors ResourceManager.appendTreeChildren; this class only supplies filtered data. */
+    /**
+     * Mirrors ResourceManager.appendTreeChildren; this class only supplies filtered data.
+     */
     private void appendTemplateTreeChildren(Element parent, FolderNode folder, int depth) {
         for (FolderNode child : folder.sortedFolders()) {
             boolean expanded = expandedPaths.contains(child.path);
@@ -309,8 +305,10 @@ public final class FilePicker {
         if (grid == null) return;
         grid.clearChildren();
         for (String folder : directFolders()) grid.appendChild(templateCard(fileName(folder), true, null));
-        for (Loader.StaticResourceEntry entry : directFiles()) grid.appendChild(templateCard(fileName(entry.path()), false, entry));
-        if (grid.children.isEmpty()) grid.appendChild(translation("DIV", "file_picker.apricityui.empty", "dialog-empty"));
+        for (Loader.StaticResourceEntry entry : directFiles())
+            grid.appendChild(templateCard(fileName(entry.path()), false, entry));
+        if (grid.children.isEmpty())
+            grid.appendChild(translation("DIV", "file_picker.apricityui.empty", "dialog-empty"));
     }
 
     private Element templateCard(String name, boolean folder, Loader.StaticResourceEntry entry) {
@@ -381,7 +379,8 @@ public final class FilePicker {
 
     private void appendSvg(Element parent, String tag, String... attributes) {
         Element child = Element.init(document.createElement(tag));
-        for (int index = 0; index + 1 < attributes.length; index += 2) child.setAttribute(attributes[index], attributes[index + 1]);
+        for (int index = 0; index + 1 < attributes.length; index += 2)
+            child.setAttribute(attributes[index], attributes[index + 1]);
         parent.appendChild(child);
     }
 
@@ -494,7 +493,8 @@ public final class FilePicker {
             list.appendChild(item);
         }
         for (Loader.StaticResourceEntry entry : directFiles()) list.appendChild(fileItem(entry));
-        if (list.children.isEmpty()) list.appendChild(translation("DIV", "file_picker.apricityui.empty", "aui-file-picker-empty"));
+        if (list.children.isEmpty())
+            list.appendChild(translation("DIV", "file_picker.apricityui.empty", "aui-file-picker-empty"));
         details.appendChild(list);
 
         Element footer = element("DIV", "aui-file-picker-footer");
@@ -634,7 +634,8 @@ public final class FilePicker {
     }
 
     private static Path resolveLocalPath(Loader.StaticResourceEntry entry) {
-        if (entry == null || entry.layer() == Loader.ResourceLayer.RESOURCE_PACK || entry.sourceRoot() == null || entry.sourceRoot().isBlank()) return null;
+        if (entry == null || entry.layer() == Loader.ResourceLayer.RESOURCE_PACK || entry.sourceRoot() == null || entry.sourceRoot().isBlank())
+            return null;
         try {
             Path root = Path.of(entry.sourceRoot()).toAbsolutePath().normalize();
             if (!Files.exists(root)) return null;
@@ -665,7 +666,8 @@ public final class FilePicker {
     }
 
     private void dirty() {
-        if (document != null && document.body != null) document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+        if (document != null && document.body != null)
+            document.markDirty(document.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
     }
 
     private static String fileName(String value) {

@@ -1,10 +1,10 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.init.Element;
+
 import java.lang.reflect.Field;
 import java.util.Locale;
 import java.util.Map;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.parser.CSS;
 
 /**
  * 计算值定型：CSS 层叠关键字（inherit/initial/revert）解析、继承/初始值回退、

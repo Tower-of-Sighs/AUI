@@ -2,11 +2,10 @@ package com.sighs.apricityui.instance.screen;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.instance.screen.ApricityContainerMenu;
 import com.sighs.apricityui.instance.element.Container;
 import com.sighs.apricityui.instance.element.Slot;
-import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.mixin.accessor.SlotAccessor;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.*;

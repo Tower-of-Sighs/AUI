@@ -1,14 +1,14 @@
 package com.sighs.apricityui.behavior;
 
 import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 
 public final class FocusRing {
     private final Document owner;

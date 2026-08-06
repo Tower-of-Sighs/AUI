@@ -1,7 +1,5 @@
 package com.sighs.apricityui.instance.world;
 
-import com.sighs.apricityui.init.Document;
-
 /**
  * Rendering detail level for a {@link WorldWindow}.
  *
@@ -9,13 +7,21 @@ import com.sighs.apricityui.init.Document;
  * hit testing and DOM events continue to use the complete document.</p>
  */
 public enum WorldWindowDisplayPrecision {
-    /** Follow the global LOD switch and distance thresholds. */
+    /**
+     * Follow the global LOD switch and distance thresholds.
+     */
     AUTO,
-    /** Paint the complete document, including expensive visual effects. */
+    /**
+     * Paint the complete document, including expensive visual effects.
+     */
     FULL,
-    /** Keep text and primary content, but omit expensive visual effects. */
+    /**
+     * Keep text and primary content, but omit expensive visual effects.
+     */
     REDUCED,
-    /** Keep the window's basic background and border only. */
+    /**
+     * Keep the window's basic background and border only.
+     */
     MINIMAL;
 
     public static WorldWindowDisplayPrecision parse(String value) {

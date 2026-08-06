@@ -1,14 +1,13 @@
 package com.sighs.apricityui.parser;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.concurrent.ConcurrentHashMap;
-import com.sighs.apricityui.init.Element;
 
 public class Selector {
     private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new HashMap<>();
@@ -90,7 +89,9 @@ public class Selector {
         }
     }
 
-    /** The three selector-specificity columns, excluding source order. */
+    /**
+     * The three selector-specificity columns, excluding source order.
+     */
     private record SpecificityParts(int ids, int classes, int tags) implements Comparable<SpecificityParts> {
         private static final SpecificityParts ZERO = new SpecificityParts(0, 0, 0);
 
@@ -124,8 +125,10 @@ public class Selector {
                 case "optional" -> !e.hasAttribute("required");
                 case "valid" -> e.isValid();
                 case "invalid" -> e.isWillValidate() && !e.isValid();
-                case "in-range" -> e.isWillValidate() && !e.getValidity().rangeUnderflow && !e.getValidity().rangeOverflow;
-                case "out-of-range" -> e.isWillValidate() && (e.getValidity().rangeUnderflow || e.getValidity().rangeOverflow);
+                case "in-range" ->
+                        e.isWillValidate() && !e.getValidity().rangeUnderflow() && !e.getValidity().rangeOverflow();
+                case "out-of-range" ->
+                        e.isWillValidate() && (e.getValidity().rangeUnderflow() || e.getValidity().rangeOverflow());
                 case "read-only" -> e.hasAttribute("readonly");
                 case "read-write" -> !e.hasAttribute("readonly") && e.isWillValidate();
                 case "placeholder-shown" -> e.hasAttribute("placeholder") && e.getValue().isEmpty();
@@ -135,7 +138,8 @@ public class Selector {
                         || e.getAttributes().containsKey("selected");
                 case "root" -> e.parentElement == null;
                 case "first-child", "last-child", "nth-child", "nth-last-child", "only-child",
-                     "first-of-type", "last-of-type", "only-of-type", "nth-of-type", "nth-last-of-type" -> e.parentElement != null;
+                     "first-of-type", "last-of-type", "only-of-type", "nth-of-type", "nth-last-of-type" ->
+                        e.parentElement != null;
                 case "not", "is", "where" -> true;
                 default -> false;
             };
@@ -169,8 +173,10 @@ public class Selector {
                 case "optional" -> !e.hasAttribute("required");
                 case "valid" -> e.isValid();
                 case "invalid" -> e.isWillValidate() && !e.isValid();
-                case "in-range" -> e.isWillValidate() && !e.getValidity().rangeUnderflow && !e.getValidity().rangeOverflow;
-                case "out-of-range" -> e.isWillValidate() && (e.getValidity().rangeUnderflow || e.getValidity().rangeOverflow);
+                case "in-range" ->
+                        e.isWillValidate() && !e.getValidity().rangeUnderflow() && !e.getValidity().rangeOverflow();
+                case "out-of-range" ->
+                        e.isWillValidate() && (e.getValidity().rangeUnderflow() || e.getValidity().rangeOverflow());
                 case "read-only" -> e.hasAttribute("readonly");
                 case "read-write" -> !e.hasAttribute("readonly") && e.isWillValidate();
                 case "placeholder-shown" -> e.hasAttribute("placeholder") && e.getValue().isEmpty();
@@ -305,7 +311,8 @@ public class Selector {
         }
     }
 
-    private record CompiledSelector(List<Component> components, List<Combinator> combinators, PseudoElement pseudoElement,
+    private record CompiledSelector(List<Component> components, List<Combinator> combinators,
+                                    PseudoElement pseudoElement,
                                     int ids, int classesAndPseudos, int tags) {
         public Specificity specificity(int order) {
             return new Specificity(ids, classesAndPseudos, tags, order);
@@ -658,7 +665,9 @@ public class Selector {
         return results;
     }
 
-    /** Splits a selector list without treating commas inside [] or () as groups. */
+    /**
+     * Splits a selector list without treating commas inside [] or () as groups.
+     */
     public static List<String> splitSelectorList(String value) {
         if (value == null || value.isBlank()) return List.of();
         return CssString.splitTopLevel(value, ',');
@@ -733,17 +742,43 @@ public class Selector {
                 if (ch == quote && (i == 0 || selector.charAt(i - 1) != '\\')) quote = 0;
                 continue;
             }
-            if (ch == '\'' || ch == '"') { quote = ch; atom.append(ch); continue; }
-            if (ch == '[') { brackets++; atom.append(ch); continue; }
-            if (ch == ']') { brackets = Math.max(0, brackets - 1); atom.append(ch); continue; }
-            if (ch == '(') { parentheses++; atom.append(ch); continue; }
-            if (ch == ')') { parentheses = Math.max(0, parentheses - 1); atom.append(ch); continue; }
+            if (ch == '\'' || ch == '"') {
+                quote = ch;
+                atom.append(ch);
+                continue;
+            }
+            if (ch == '[') {
+                brackets++;
+                atom.append(ch);
+                continue;
+            }
+            if (ch == ']') {
+                brackets = Math.max(0, brackets - 1);
+                atom.append(ch);
+                continue;
+            }
+            if (ch == '(') {
+                parentheses++;
+                atom.append(ch);
+                continue;
+            }
+            if (ch == ')') {
+                parentheses = Math.max(0, parentheses - 1);
+                atom.append(ch);
+                continue;
+            }
             if (brackets == 0 && parentheses == 0 && Character.isWhitespace(ch)) {
-                if (!atom.isEmpty()) { tokens.add(atom.toString()); atom.setLength(0); }
+                if (!atom.isEmpty()) {
+                    tokens.add(atom.toString());
+                    atom.setLength(0);
+                }
                 continue;
             }
             if (brackets == 0 && parentheses == 0 && (ch == '>' || ch == '+' || ch == '~')) {
-                if (!atom.isEmpty()) { tokens.add(atom.toString()); atom.setLength(0); }
+                if (!atom.isEmpty()) {
+                    tokens.add(atom.toString());
+                    atom.setLength(0);
+                }
                 tokens.add(String.valueOf(ch));
                 continue;
             }

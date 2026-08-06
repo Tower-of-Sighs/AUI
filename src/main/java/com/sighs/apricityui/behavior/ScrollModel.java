@@ -3,17 +3,16 @@ package com.sighs.apricityui.behavior;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.Graph;
-import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.render.Graph;
+import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.Style;
 
 public final class ScrollModel {
     private static final double SCROLL_EASING_FACTOR = 0.2;
@@ -21,7 +20,9 @@ public final class ScrollModel {
     private static final double SCROLL_STOP_EPSILON = 0.01;
     private static final double BASE_FRAME_MS = 16.6666666667;
     private static final double MAX_FRAME_MS = 50.0;
-    /** Scrollbar dimensions are expressed in device pixels, then converted to document pixels. */
+    /**
+     * Scrollbar dimensions are expressed in device pixels, then converted to document pixels.
+     */
     private static final double SCROLLBAR_GUTTER = 8.0;
     private static final double SCROLLBAR_EPSILON = 0.5;
     private static final double SCROLLBAR_TRACK_SIZE = 6.0;
@@ -328,7 +329,9 @@ public final class ScrollModel {
         return resolveViewportOverflow(false);
     }
 
-    /** 有效 overflow：viewport 滚动器走 viewport 解析，普通元素走自身样式。 */
+    /**
+     * 有效 overflow：viewport 滚动器走 viewport 解析，普通元素走自身样式。
+     */
     private String resolveOverflowX() {
         return isViewportScroller() ? resolveViewportOverflowX() : Interaction.resolveOverflowX(owner.getComputedStyle());
     }
@@ -337,7 +340,9 @@ public final class ScrollModel {
         return isViewportScroller() ? resolveViewportOverflowY() : Interaction.resolveOverflowY(owner.getComputedStyle());
     }
 
-    /** CSS Overflow propagates body overflow to the viewport while html remains visible. */
+    /**
+     * CSS Overflow propagates body overflow to the viewport while html remains visible.
+     */
     private String resolveViewportOverflow(boolean horizontal) {
         String rootOverflow = horizontal
                 ? Interaction.resolveOverflowX(owner.getComputedStyle())
@@ -356,7 +361,9 @@ public final class ScrollModel {
         return !"hidden".equals(normalized) && !"clip".equals(normalized);
     }
 
-    /** Commits the scroll area from used layout boxes, never from paint bounds. */
+    /**
+     * Commits the scroll area from used layout boxes, never from paint bounds.
+     */
     public void commitLayoutMetrics() {
         if (!(owner instanceof AbstractText)) {
             Size contentSize = measureLayoutScrollArea();
@@ -481,7 +488,9 @@ public final class ScrollModel {
         return axisGeometry(vertical, rect.getBodyRectPosition(), rect.getBodyRectSize());
     }
 
-    /** 按轴参数化的轨道/滑块几何：vertical=true 对应原 verticalGeometry，否则 horizontalGeometry。 */
+    /**
+     * 按轴参数化的轨道/滑块几何：vertical=true 对应原 verticalGeometry，否则 horizontalGeometry。
+     */
     private AxisGeometry axisGeometry(boolean vertical, Position bodyPos, Size bodySize) {
         double scrollport = vertical ? getScrollportHeight() : getScrollportWidth();
         double trackSize = scrollbarTrackSize();
@@ -493,7 +502,7 @@ public final class ScrollModel {
         double thumbExtent = scrollExtent <= scrollport + SCROLLBAR_EPSILON
                 ? trackExtent
                 : Math.max(scrollbarMinThumbLength(),
-                        trackExtent * (scrollport / Math.max(scrollport, scrollExtent)));
+                trackExtent * (scrollport / Math.max(scrollport, scrollExtent)));
         thumbExtent = Math.min(trackExtent, thumbExtent);
         double maxTravel = Math.max(0, trackExtent - thumbExtent);
         double scrollLimit = Math.max(0, scrollExtent - scrollport);

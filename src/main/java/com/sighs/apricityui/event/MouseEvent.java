@@ -1,28 +1,20 @@
 package com.sighs.apricityui.event;
 
-import com.sighs.apricityui.element.Select;
-import com.sighs.apricityui.init.*;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.render.DocumentLayerOrder;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.StyleFrameCache;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.style.StyleFrameCache;
-import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.style.Interaction;
 
 // 鼠标事件，现在还没有做得很完善
 public class MouseEvent extends Event implements Cloneable {
@@ -82,7 +74,9 @@ public class MouseEvent extends Event implements Cloneable {
         this.button = button;
     }
 
-    /** Prevents the originating Minecraft input event after AUI dispatch completes. */
+    /**
+     * Prevents the originating Minecraft input event after AUI dispatch completes.
+     */
     public void consumeNative() {
         nativeDispatchState.consumed = true;
     }
@@ -124,17 +118,17 @@ public class MouseEvent extends Event implements Cloneable {
         StyleFrameCache.begin();
         try {
             try (Document.ContextScope ignored = Document.withContext(document)) {
-            double originalClientX = event == null ? 0 : event.clientX;
-            double originalClientY = event == null ? 0 : event.clientY;
-            event = adaptToDocumentViewport(event, document);
-            Element activeElement = document.getPressedElement();
-            Position detectionPos = new Position(event.clientX, event.clientY);
-            Element target = document.hitTest(detectionPos);
-            boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
-            if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
-                event.consumeNative();
-            }
-            return consumed;
+                double originalClientX = event == null ? 0 : event.clientX;
+                double originalClientY = event == null ? 0 : event.clientY;
+                event = adaptToDocumentViewport(event, document);
+                Element activeElement = document.getPressedElement();
+                Position detectionPos = new Position(event.clientX, event.clientY);
+                Element target = document.hitTest(detectionPos);
+                boolean consumed = triggerResolvedEvent(event, document, target, activeElement, true);
+                if (document.interceptsMouseEventsAt(new Position(originalClientX, originalClientY))) {
+                    event.consumeNative();
+                }
+                return consumed;
             }
         } finally {
             StyleFrameCache.end();
@@ -166,7 +160,7 @@ public class MouseEvent extends Event implements Cloneable {
         StyleFrameCache.begin();
         try {
             try (Document.ContextScope ignored = Document.withContext(document)) {
-            return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
+                return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
             }
         } finally {
             StyleFrameCache.end();

@@ -1,11 +1,11 @@
 package com.sighs.apricityui.element;
 
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.task.FrameTaskScheduler;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.ui.Tooltip;
 
 import java.util.ArrayList;
@@ -13,7 +13,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
 
-/** Top-level native popup used by {@link Select}; OPTION nodes remain DOM data nodes. */
+/**
+ * Top-level native popup used by {@link Select}; OPTION nodes remain DOM data nodes.
+ */
 final class SelectPopup {
     private static final double VIEWPORT_GAP = 4;
     private static final double MIN_POPUP_WIDTH = 80;
@@ -247,8 +249,8 @@ final class SelectPopup {
         String foreground = highlighted
                 ? "#ffffff"
                 : hasAuthorOptionColor(option)
-                ? inherited(optionStyle.color, "#000000")
-                : "#000000";
+                  ? inherited(optionStyle.color, "#000000")
+                  : "#000000";
         String background = highlighted
                 ? "#1967d2"
                 : selected ? "#e8f0fe" : inherited(optionStyle.backgroundColor, "transparent");
@@ -322,7 +324,8 @@ final class SelectPopup {
 
     private int initialActiveIndex() {
         int selected = select.getSelectedIndex();
-        if (selected >= 0 && selected < options.size() && !options.get(selected).isOptionEffectivelyDisabled()) return selected;
+        if (selected >= 0 && selected < options.size() && !options.get(selected).isOptionEffectivelyDisabled())
+            return selected;
         return findEnabled(-1, 1, false);
     }
 

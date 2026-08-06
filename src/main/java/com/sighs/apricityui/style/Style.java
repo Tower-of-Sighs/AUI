@@ -1,7 +1,7 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.init.Element;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -10,10 +10,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.parser.HTML;
 
 public class Style implements Cloneable {
     public static final Style DEFAULT = new Style();
@@ -473,7 +469,9 @@ public class Style implements Cloneable {
         return TEXT_PROPS;
     }
 
-    /** Copies the mutable CSS fields without allocating another Style object. */
+    /**
+     * Copies the mutable CSS fields without allocating another Style object.
+     */
     public void copyFrom(Style other) {
         if (other == null || other == this) return;
         for (Field field : STYLE_FIELDS) {

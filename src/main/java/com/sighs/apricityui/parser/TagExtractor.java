@@ -45,7 +45,9 @@ abstract class TagExtractor {
         return extract(html);
     }
 
-    /** 用 tagPattern 移除所有匹配的标签，逐个回调 onTag。 */
+    /**
+     * 用 tagPattern 移除所有匹配的标签，逐个回调 onTag。
+     */
     protected String removeTags(String html, Pattern tagPattern) {
         Matcher matcher = tagPattern.matcher(html);
         StringBuffer sb = new StringBuffer();

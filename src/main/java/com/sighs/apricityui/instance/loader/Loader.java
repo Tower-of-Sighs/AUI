@@ -65,8 +65,7 @@ public class Loader {
         }
         InputStream bundled = Loader.class.getClassLoader()
                 .getResourceAsStream("assets/apricityui/apricity/" + (path.startsWith("/") ? path.substring(1) : path));
-        if (bundled != null) return bundled;
-        return null;
+        return bundled;
     }
 
     public static boolean isRemotePath(String path) {
@@ -228,7 +227,7 @@ public class Loader {
                                         exception
                                 );
                             }
-                    });
+                        });
             }
         } catch (IOException exception) {
             ApricityUI.LOGGER.error("[AUI Resource] failed to scan local resource root={}", root, exception);
@@ -267,7 +266,7 @@ public class Loader {
                                         exception
                                 );
                             }
-                    });
+                        });
             }
         } catch (IOException exception) {
             ApricityUI.LOGGER.error("[AUI Resource] failed to scan dev resource root={}", root, exception);
@@ -317,7 +316,7 @@ public class Loader {
                             } catch (IOException exception) {
                                 ApricityUI.LOGGER.warn("[AUI Resource] failed to inspect static resource file={}", path, exception);
                             }
-                    });
+                        });
             }
         } catch (IOException exception) {
             ApricityUI.LOGGER.warn("[AUI Resource] failed to enumerate static resources root={}", root, exception);

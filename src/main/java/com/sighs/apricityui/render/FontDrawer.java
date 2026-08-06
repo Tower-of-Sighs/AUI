@@ -4,9 +4,9 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.client.Client;
-import com.sighs.apricityui.resource.Font;
-import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.style.Text;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
@@ -20,13 +20,8 @@ import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import com.sighs.apricityui.parser.CSS;
 
 public class FontDrawer {
     private static final String MODID = "apricityui";
@@ -778,7 +773,7 @@ public class FontDrawer {
 
     private static FontRenderContext fontRenderContext(Graphics2D g, FontRenderContextMode mode) {
         if (mode == null || mode == FontRenderContextMode.GRAPHICS) return g.getFontRenderContext();
-        return new FontRenderContext((AffineTransform) null, mode.antialiasHint(), mode.fractionalMetricsHint());
+        return new FontRenderContext(null, mode.antialiasHint(), mode.fractionalMetricsHint());
     }
 
     private static void drawGlyphVectorWithSpacing(Graphics2D g, java.awt.Font font, String content, double x, int y,
@@ -1127,8 +1122,10 @@ public class FontDrawer {
         }
         String normalized = mode.trim().toLowerCase(java.util.Locale.ROOT);
         return switch (normalized) {
-            case "opaque-white", "opaque_white", "white", "background-white", "background_white" -> TextCompositeMode.OPAQUE_WHITE;
-            case "solid-bg", "solid_bg", "solid-background", "solid_background" -> TextCompositeMode.solidBackground(text == null ? null : text.rasterBackgroundColor);
+            case "opaque-white", "opaque_white", "white", "background-white", "background_white" ->
+                    TextCompositeMode.OPAQUE_WHITE;
+            case "solid-bg", "solid_bg", "solid-background", "solid_background" ->
+                    TextCompositeMode.solidBackground(text == null ? null : text.rasterBackgroundColor);
             case "transparent", "alpha", "default" -> TextCompositeMode.TRANSPARENT;
             default -> TextCompositeMode.TRANSPARENT;
         };
@@ -1357,9 +1354,12 @@ public class FontDrawer {
         String normalized = mode.trim().toLowerCase(java.util.Locale.ROOT);
         return switch (normalized) {
             case "glyph-vector", "glyph_vector", "outline", "shape" -> GlyphRasterSourceMode.GLYPH_VECTOR;
-            case "outline-coverage-4x-row-clamp", "outline_coverage_4x_row_clamp", "coverage-4x-row-clamp", "coverage_4x_row_clamp", "row-clamp" -> GlyphRasterSourceMode.OUTLINE_COVERAGE_4X_ROW_CLAMP;
-            case "outline-coverage-4x", "outline_coverage_4x", "coverage-4x", "coverage_4x" -> GlyphRasterSourceMode.OUTLINE_COVERAGE_4X;
-            case "oversample-2x", "oversample_2x", "oversample", "supersample-2x", "supersample_2x" -> GlyphRasterSourceMode.OVERSAMPLE_2X;
+            case "outline-coverage-4x-row-clamp", "outline_coverage_4x_row_clamp", "coverage-4x-row-clamp",
+                 "coverage_4x_row_clamp", "row-clamp" -> GlyphRasterSourceMode.OUTLINE_COVERAGE_4X_ROW_CLAMP;
+            case "outline-coverage-4x", "outline_coverage_4x", "coverage-4x", "coverage_4x" ->
+                    GlyphRasterSourceMode.OUTLINE_COVERAGE_4X;
+            case "oversample-2x", "oversample_2x", "oversample", "supersample-2x", "supersample_2x" ->
+                    GlyphRasterSourceMode.OVERSAMPLE_2X;
             case "draw-string", "draw_string", "string", "default" -> GlyphRasterSourceMode.DRAW_STRING;
             default -> GlyphRasterSourceMode.DRAW_STRING;
         };
@@ -1514,51 +1514,69 @@ public class FontDrawer {
         }
         String normalized = mode.trim().toLowerCase(java.util.Locale.ROOT);
         return switch (normalized) {
-            case "snap-physical", "physical-snap", "snap_physical", "pixel-snap", "pixel_snap" -> TextQuadMode.SNAP_PHYSICAL;
-            case "snap-physical-y", "physical-snap-y", "snap_physical_y", "pixel-snap-y", "pixel_snap_y" -> TextQuadMode.SNAP_PHYSICAL_Y;
+            case "snap-physical", "physical-snap", "snap_physical", "pixel-snap", "pixel_snap" ->
+                    TextQuadMode.SNAP_PHYSICAL;
+            case "snap-physical-y", "physical-snap-y", "snap_physical_y", "pixel-snap-y", "pixel_snap_y" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y;
             case "snap-physical-y-right-inset-1", "physical-snap-y-right-inset-1", "snap_physical_y_right_inset_1",
-                 "pixel-snap-y-right-inset-1", "pixel_snap_y_right_inset_1" -> TextQuadMode.SNAP_PHYSICAL_Y_RIGHT_INSET_1;
+                 "pixel-snap-y-right-inset-1", "pixel_snap_y_right_inset_1" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_RIGHT_INSET_1;
             case "snap-physical-y-uv-half-open", "physical-snap-y-uv-half-open", "snap_physical_y_uv_half_open",
                  "pixel-snap-y-uv-half-open", "pixel_snap_y_uv_half_open" -> TextQuadMode.SNAP_PHYSICAL_Y_UV_HALF_OPEN;
-            case "snap-physical-y-texture-gutter-1", "physical-snap-y-texture-gutter-1", "snap_physical_y_texture_gutter_1",
-                 "pixel-snap-y-texture-gutter-1", "pixel_snap_y_texture_gutter_1" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1;
+            case "snap-physical-y-texture-gutter-1", "physical-snap-y-texture-gutter-1",
+                 "snap_physical_y_texture_gutter_1",
+                 "pixel-snap-y-texture-gutter-1", "pixel_snap_y_texture_gutter_1" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1;
             case "snap-physical-y-texture-gutter-1-right-inset-1", "physical-snap-y-texture-gutter-1-right-inset-1",
                  "snap_physical_y_texture_gutter_1_right_inset_1", "pixel-snap-y-texture-gutter-1-right-inset-1",
-                 "pixel_snap_y_texture_gutter_1_right_inset_1" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RIGHT_INSET_1;
-            case "snap-physical-y-texture-gutter-1-edge-attenuate-2", "physical-snap-y-texture-gutter-1-edge-attenuate-2",
+                 "pixel_snap_y_texture_gutter_1_right_inset_1" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RIGHT_INSET_1;
+            case "snap-physical-y-texture-gutter-1-edge-attenuate-2",
+                 "physical-snap-y-texture-gutter-1-edge-attenuate-2",
                  "snap_physical_y_texture_gutter_1_edge_attenuate_2", "pixel-snap-y-texture-gutter-1-edge-attenuate-2",
-                 "pixel_snap_y_texture_gutter_1_edge_attenuate_2" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_EDGE_ATTENUATE_2;
-            case "snap-physical-y-texture-gutter-1-uv-shift-right-half", "physical-snap-y-texture-gutter-1-uv-shift-right-half",
-                 "snap_physical_y_texture_gutter_1_uv_shift_right_half", "pixel-snap-y-texture-gutter-1-uv-shift-right-half",
-                 "pixel_snap_y_texture_gutter_1_uv_shift_right_half" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_UV_SHIFT_RIGHT_HALF;
+                 "pixel_snap_y_texture_gutter_1_edge_attenuate_2" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_EDGE_ATTENUATE_2;
+            case "snap-physical-y-texture-gutter-1-uv-shift-right-half",
+                 "physical-snap-y-texture-gutter-1-uv-shift-right-half",
+                 "snap_physical_y_texture_gutter_1_uv_shift_right_half",
+                 "pixel-snap-y-texture-gutter-1-uv-shift-right-half",
+                 "pixel_snap_y_texture_gutter_1_uv_shift_right_half" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_UV_SHIFT_RIGHT_HALF;
             case "snap-physical-y-texture-gutter-1-right-crop-1", "physical-snap-y-texture-gutter-1-right-crop-1",
                  "snap_physical_y_texture_gutter_1_right_crop_1", "pixel-snap-y-texture-gutter-1-right-crop-1",
-                 "pixel_snap_y_texture_gutter_1_right_crop_1" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RIGHT_CROP_1;
+                 "pixel_snap_y_texture_gutter_1_right_crop_1" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RIGHT_CROP_1;
             case "snap-physical-y-texture-gutter-1-right-crop-2", "physical-snap-y-texture-gutter-1-right-crop-2",
                  "snap_physical_y_texture_gutter_1_right_crop_2", "pixel-snap-y-texture-gutter-1-right-crop-2",
-                 "pixel_snap_y_texture_gutter_1_right_crop_2" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RIGHT_CROP_2;
+                 "pixel_snap_y_texture_gutter_1_right_crop_2" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RIGHT_CROP_2;
             case "snap-physical-y-texture-gutter-1-source-cutoff-1", "physical-snap-y-texture-gutter-1-source-cutoff-1",
                  "snap_physical_y_texture_gutter_1_source_cutoff_1", "pixel-snap-y-texture-gutter-1-source-cutoff-1",
-                 "pixel_snap_y_texture_gutter_1_source_cutoff_1" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_SOURCE_CUTOFF_1;
+                 "pixel_snap_y_texture_gutter_1_source_cutoff_1" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_SOURCE_CUTOFF_1;
             case "snap-physical-y-texture-gutter-1-source-cutoff-2", "physical-snap-y-texture-gutter-1-source-cutoff-2",
                  "snap_physical_y_texture_gutter_1_source_cutoff_2", "pixel-snap-y-texture-gutter-1-source-cutoff-2",
-                 "pixel_snap_y_texture_gutter_1_source_cutoff_2" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_SOURCE_CUTOFF_2;
+                 "pixel_snap_y_texture_gutter_1_source_cutoff_2" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_SOURCE_CUTOFF_2;
             case "snap-physical-y-texture-gutter-1-runtime-right-frac-cutoff-0p75",
                  "physical-snap-y-texture-gutter-1-runtime-right-frac-cutoff-0p75",
                  "snap_physical_y_texture_gutter_1_runtime_right_frac_cutoff_0p75",
                  "pixel-snap-y-texture-gutter-1-runtime-right-frac-cutoff-0p75",
-                 "pixel_snap_y_texture_gutter_1_runtime_right_frac_cutoff_0p75" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RUNTIME_RIGHT_FRAC_CUTOFF_0P75;
+                 "pixel_snap_y_texture_gutter_1_runtime_right_frac_cutoff_0p75" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RUNTIME_RIGHT_FRAC_CUTOFF_0P75;
             case "snap-physical-y-texture-gutter-1-runtime-right-frac-or-long-12px-source-cutoff",
                  "physical-snap-y-texture-gutter-1-runtime-right-frac-or-long-12px-source-cutoff",
                  "snap_physical_y_texture_gutter_1_runtime_right_frac_or_long_12px_source_cutoff",
                  "pixel-snap-y-texture-gutter-1-runtime-right-frac-or-long-12px-source-cutoff",
-                 "pixel_snap_y_texture_gutter_1_runtime_right_frac_or_long_12px_source_cutoff" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RUNTIME_RIGHT_FRAC_OR_LONG_12PX_SOURCE_CUTOFF;
+                 "pixel_snap_y_texture_gutter_1_runtime_right_frac_or_long_12px_source_cutoff" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RUNTIME_RIGHT_FRAC_OR_LONG_12PX_SOURCE_CUTOFF;
             case "snap-physical-y-texture-gutter-1-runtime-12px-physical-phase",
                  "physical-snap-y-texture-gutter-1-runtime-12px-physical-phase",
                  "snap_physical_y_texture_gutter_1_runtime_12px_physical_phase",
                  "pixel-snap-y-texture-gutter-1-runtime-12px-physical-phase",
                  "pixel_snap_y_texture_gutter_1_runtime_12px_physical_phase",
-                 "runtime12pxphysicalphasev1" -> TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RUNTIME_12PX_PHYSICAL_PHASE;
+                 "runtime12pxphysicalphasev1" ->
+                    TextQuadMode.SNAP_PHYSICAL_Y_TEXTURE_GUTTER_1_RUNTIME_12PX_PHYSICAL_PHASE;
             case "default", "none" -> TextQuadMode.DEFAULT;
             default -> TextQuadMode.DEFAULT;
         };

@@ -1,11 +1,11 @@
 package com.sighs.apricityui.dev.devtools;
 
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.ui.ColorPicker;
 
 import java.util.LinkedHashMap;
@@ -436,7 +436,8 @@ final class DevToolsInspector {
     }
 
     private static String sourceName(String source) {
-        if (source == null || source.isBlank()) return DevToolsTranslations.translate("devtools.apricityui.inline_stylesheet");
+        if (source == null || source.isBlank())
+            return DevToolsTranslations.translate("devtools.apricityui.inline_stylesheet");
         int slash = Math.max(source.lastIndexOf('/'), source.lastIndexOf('\\'));
         return slash >= 0 && slash < source.length() - 1 ? source.substring(slash + 1) : source;
     }

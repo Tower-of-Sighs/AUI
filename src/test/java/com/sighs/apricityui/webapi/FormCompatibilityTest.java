@@ -60,7 +60,7 @@ class FormCompatibilityTest {
         document.body.appendChild(number);
 
         assertFalse(number.isValid());
-        assertTrue(number.getValidity().rangeUnderflow);
+        assertTrue(number.getValidity().rangeUnderflow());
         number.setValue("6");
         assertTrue(number.isValid());
         number.setCustomValidity("blocked");
@@ -68,7 +68,7 @@ class FormCompatibilityTest {
         assertEquals("blocked", number.getValidationMessage());
         number.setCustomValidity("");
         number.setValue("");
-        assertTrue(number.getValidity().valueMissing);
+        assertTrue(number.getValidity().valueMissing());
     }
 
     @Test

@@ -1,12 +1,8 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.Style;
 
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import com.sighs.apricityui.parser.CSS;
 
 public interface Transform {
     record Translate(double x, double y, double z) implements Transform {

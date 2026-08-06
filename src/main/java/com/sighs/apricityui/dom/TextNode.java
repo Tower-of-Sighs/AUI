@@ -1,10 +1,11 @@
 package com.sighs.apricityui.dom;
 
-import java.util.Objects;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.render.Drawer;
+
+import java.util.Objects;
 
 public class TextNode extends Node {
     private String data;

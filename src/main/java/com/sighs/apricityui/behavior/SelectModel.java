@@ -1,9 +1,9 @@
 package com.sighs.apricityui.behavior;
 
+import com.sighs.apricityui.init.Element;
+
 import java.util.ArrayList;
 import java.util.List;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.parser.JS;
 
 /**
  * {@code <select>}/<option> 的选项收集、选中规整与展示参数。从 Element 拆出；

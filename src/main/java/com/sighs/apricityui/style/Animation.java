@@ -1,9 +1,8 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -220,8 +219,7 @@ public class Animation {
                         changes, vS, vE, fraction,
                         transformBasis.width(), transformBasis.height()
                 );
-            }
-            else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
+            } else if (p.equals("filter")) Filter.interpolateFilter(changes, vS, vE, fraction);
             else if (p.equals("box-shadow")) Box.interpolateShadow(changes, vS, vE, fraction);
             else {
                 double val = Transition.getOffset(p, parseAnimationStyle(element, p, vS), parseAnimationStyle(element, p, vE), fraction);
@@ -450,39 +448,21 @@ public class Animation {
         };
     }
 
-    private static final class StepsTiming implements TimingFunction {
-        private final int steps;
-        private final String mode;
-
-        private StepsTiming(int steps, String mode) {
-            this.steps = steps;
-            this.mode = mode;
-        }
+    private record StepsTiming(int steps, String mode) implements TimingFunction {
 
         @Override
-        public double apply(double progress) {
-            return applySteps(progress, steps, mode);
+            public double apply(double progress) {
+                return applySteps(progress, steps, mode);
+            }
         }
-    }
 
-    private static final class CubicBezierTiming implements TimingFunction {
-        private final double x1;
-        private final double y1;
-        private final double x2;
-        private final double y2;
-
-        private CubicBezierTiming(double x1, double y1, double x2, double y2) {
-            this.x1 = x1;
-            this.y1 = y1;
-            this.x2 = x2;
-            this.y2 = y2;
-        }
+    private record CubicBezierTiming(double x1, double y1, double x2, double y2) implements TimingFunction {
 
         @Override
-        public double apply(double progress) {
-            return cubicBezierAtTime(progress, x1, y1, x2, y2);
+            public double apply(double progress) {
+                return cubicBezierAtTime(progress, x1, y1, x2, y2);
+            }
         }
-    }
 
     private static boolean isNumberToken(String t) {
         if (t.isEmpty()) return false;

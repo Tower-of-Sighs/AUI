@@ -4,9 +4,9 @@ import net.minecraft.world.phys.Vec3;
 
 /**
  * @deprecated Configure {@link WorldWindow#setFollow(boolean)},
- *             {@link WorldWindow#setFollowFactor(float)} and
- *             {@link WorldWindow#setFacing(boolean)} directly on a
- *             {@link WorldWindow} instead.
+ * {@link WorldWindow#setFollowFactor(float)} and
+ * {@link WorldWindow#setFacing(boolean)} directly on a
+ * {@link WorldWindow} instead.
  */
 @Deprecated
 public class FollowFacingWorldWindow extends WorldWindow {
@@ -21,7 +21,7 @@ public class FollowFacingWorldWindow extends WorldWindow {
 
     /**
      * @deprecated Use the viewport defined by the document meta tag and configure
-     *             follow/facing on {@link WorldWindow}.
+     * follow/facing on {@link WorldWindow}.
      */
     @Deprecated
     public FollowFacingWorldWindow(String documentPath, Vec3 position, float width, float height,

@@ -1,7 +1,5 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.render.RenderNode;
-
 import java.util.List;
 
 /**

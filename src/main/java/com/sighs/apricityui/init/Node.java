@@ -1,5 +1,10 @@
 package com.sighs.apricityui.init;
 
+import com.sighs.apricityui.dom.CommentNode;
+import com.sighs.apricityui.dom.DocumentFragment;
+import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.event.EventRegistry;
 import com.sighs.apricityui.script.ApricityJS;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.util.HideFromJS;
@@ -10,11 +15,6 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.event.EventRegistry;
-import com.sighs.apricityui.dom.CommentNode;
-import com.sighs.apricityui.dom.DocumentFragment;
-import com.sighs.apricityui.dom.TextNode;
 
 public abstract class Node {
     public static final short ELEMENT_NODE = 1;

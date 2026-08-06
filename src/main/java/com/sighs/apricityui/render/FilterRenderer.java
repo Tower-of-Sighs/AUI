@@ -8,21 +8,16 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.client.Client;
 import com.sighs.apricityui.instance.world.ShaderRegistry;
-import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.Filter;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Stack;
+import java.util.*;
 
 public class FilterRenderer {
     private static final Stack<RenderTarget> fboStack = new Stack<>();
@@ -472,7 +467,8 @@ public class FilterRenderer {
     }
 
     private record BackdropSource(RenderTarget target, float u0, float vBottom, float u1, float vTop,
-                                  float uvPerGuiX, float uvPerGuiY) {}
+                                  float uvPerGuiX, float uvPerGuiY) {
+    }
 
     private static void setupUniforms(ShaderInstance shader, Filter.FilterState state, RenderTarget fbo,
                                       boolean forceAlpha, boolean preBlurred,
@@ -485,7 +481,8 @@ public class FilterRenderer {
         if (shader.getUniform("Invert") != null) shader.getUniform("Invert").set(state.invert());
         if (shader.getUniform("HueRotate") != null) shader.getUniform("HueRotate").set(state.hueRotate());
         if (shader.getUniform("Opacity") != null) shader.getUniform("Opacity").set(state.opacity());
-        if (shader.getUniform("ShadowOffset") != null) shader.getUniform("ShadowOffset").set(state.dropShadowX(), state.dropShadowY());
+        if (shader.getUniform("ShadowOffset") != null)
+            shader.getUniform("ShadowOffset").set(state.dropShadowX(), state.dropShadowY());
         if (shader.getUniform("ShadowBlur") != null) shader.getUniform("ShadowBlur").set(state.dropShadowBlur());
         if (shader.getUniform("ShadowColor") != null) {
             int c = state.dropShadowColor();

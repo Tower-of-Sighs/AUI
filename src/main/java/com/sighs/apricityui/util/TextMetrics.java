@@ -1,10 +1,10 @@
 package com.sighs.apricityui.util;
 
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.init.Element;
 
 /**
  * 文本对齐、省略号、Text 字段复制的纯函数工具（从 Element 拆出）。
@@ -36,7 +36,9 @@ public final class TextMetrics {
         out.rasterBackgroundColor = base.rasterBackgroundColor;
     }
 
-    /** copyTextForRun 之上再补 content 与颜色回退，用于按行/片段克隆。 */
+    /**
+     * copyTextForRun 之上再补 content 与颜色回退，用于按行/片段克隆。
+     */
     public static Text cloneTextForSegment(Text base, String content, Color fallbackStrokeColor) {
         Text copy = new Text();
         copyTextForRun(base, copy);

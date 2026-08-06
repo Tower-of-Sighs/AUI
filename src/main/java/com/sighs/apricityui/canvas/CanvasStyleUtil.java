@@ -1,8 +1,6 @@
 package com.sighs.apricityui.canvas;
 
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Font;
+import java.awt.*;
 import java.util.List;
 import java.util.Locale;
 
@@ -20,7 +18,8 @@ final class CanvasStyleUtil {
     }
 
     static Object normalizeStyle(Object style) {
-        if (style instanceof CanvasLinearGradient || style instanceof CanvasRadialGradient || style instanceof CanvasPattern) return style;
+        if (style instanceof CanvasLinearGradient || style instanceof CanvasRadialGradient || style instanceof CanvasPattern)
+            return style;
         return style == null ? "#000000" : style.toString();
     }
 

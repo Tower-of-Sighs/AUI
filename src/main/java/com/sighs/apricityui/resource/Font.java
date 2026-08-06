@@ -368,7 +368,9 @@ public class Font {
         return Math.max(0, width);
     }
 
-    /** Measures web-font advances with the fractional metrics used by browsers. */
+    /**
+     * Measures web-font advances with the fractional metrics used by browsers.
+     */
     public static double measureFontRuns(List<FontRun> runs,
                                          FontRenderContext renderContext,
                                          double letterSpacing,

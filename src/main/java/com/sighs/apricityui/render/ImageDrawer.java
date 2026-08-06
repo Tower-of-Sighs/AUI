@@ -4,17 +4,17 @@ import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
-import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.Image;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
 import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
@@ -336,11 +336,11 @@ public class ImageDrawer {
                 : backgroundSize.trim().toLowerCase(Locale.ROOT);
         switch (size) {
             case "cover" -> {
-                float scale = Math.max((float) boxW / texW, (float) boxH / texH);
+                float scale = Math.max(boxW / texW, boxH / texH);
                 return new float[]{texW * scale, texH * scale};
             }
             case "contain" -> {
-                float scale = Math.min((float) boxW / texW, (float) boxH / texH);
+                float scale = Math.min(boxW / texW, boxH / texH);
                 return new float[]{texW * scale, texH * scale};
             }
             case "auto" -> {

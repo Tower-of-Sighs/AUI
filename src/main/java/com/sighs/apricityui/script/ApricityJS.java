@@ -1,21 +1,20 @@
 package com.sighs.apricityui.script;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.util.AuiLog;
 import dev.latvian.mods.kubejs.KubeJS;
 import dev.latvian.mods.rhino.Context;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.Scriptable;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.util.AuiLog;
 import net.minecraftforge.fml.ModList;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.function.Consumer;
-import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.parser.JS;
 
 public class ApricityJS {
     // KubeJS 自带的 Rhino 版本不支持部分 ES6 语法（数组展开、默认参数等）。
@@ -104,54 +103,47 @@ public class ApricityJS {
         return new RhinoEventListener(function, currentTarget);
     }
 
-    private static final class RhinoEventListener implements Consumer<Event> {
-        private final Function function;
-        private final Object currentTarget;
-
-        private RhinoEventListener(Function function, Object currentTarget) {
-            this.function = function;
-            this.currentTarget = currentTarget;
-        }
+    private record RhinoEventListener(Function function, Object currentTarget) implements Consumer<Event> {
 
         @Override
-        public void accept(Event event) {
-            var manager = KubeJS.getClientScriptManager();
-            var context = manager.context;
-            var scope = manager.topLevelScope;
-            Object eventArgument = Context.javaToJS(context, event, scope);
-            Scriptable scriptTarget = context.toObject(currentTarget, scope);
-            Object previousCurrentTarget = event.currentTarget;
-            event.currentTarget = scriptTarget;
-            try {
-                context.callSync(function, scope, scriptTarget, new Object[]{eventArgument});
-            } catch (RuntimeException exception) {
-                String documentPath = event != null && event.target instanceof com.sighs.apricityui.init.Node node
-                        && node.document != null ? node.document.getPath() : "<unknown>";
-                ApricityUI.LOGGER.error(
-                        "[AUI JS] event listener failed document={} event={} target={}",
-                        AuiLog.source(documentPath),
-                        event == null ? "<unknown>" : event.type,
-                        event == null ? "<null>" : String.valueOf(event.currentTarget),
-                        exception
-                );
-                throw exception;
-            } finally {
-                event.currentTarget = previousCurrentTarget;
+            public void accept(Event event) {
+                var manager = KubeJS.getClientScriptManager();
+                var context = manager.context;
+                var scope = manager.topLevelScope;
+                Object eventArgument = Context.javaToJS(context, event, scope);
+                Scriptable scriptTarget = context.toObject(currentTarget, scope);
+                Object previousCurrentTarget = event.currentTarget;
+                event.currentTarget = scriptTarget;
+                try {
+                    context.callSync(function, scope, scriptTarget, new Object[]{eventArgument});
+                } catch (RuntimeException exception) {
+                    String documentPath = event != null && event.target instanceof Node node
+                            && node.document != null ? node.document.getPath() : "<unknown>";
+                    ApricityUI.LOGGER.error(
+                            "[AUI JS] event listener failed document={} event={} target={}",
+                            AuiLog.source(documentPath),
+                            event == null ? "<unknown>" : event.type,
+                            event == null ? "<null>" : String.valueOf(event.currentTarget),
+                            exception
+                    );
+                    throw exception;
+                } finally {
+                    event.currentTarget = previousCurrentTarget;
+                }
+            }
+
+            @Override
+            public boolean equals(Object object) {
+                return object instanceof RhinoEventListener other
+                        && function == other.function
+                        && currentTarget == other.currentTarget;
+            }
+
+            @Override
+            public int hashCode() {
+                return 31 * System.identityHashCode(function) + System.identityHashCode(currentTarget);
             }
         }
-
-        @Override
-        public boolean equals(Object object) {
-            return object instanceof RhinoEventListener other
-                    && function == other.function
-                    && currentTarget == other.currentTarget;
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * System.identityHashCode(function) + System.identityHashCode(currentTarget);
-        }
-    }
 
     /**
      * 将函数声明中的默认参数改写为函数体内的 typeof 检查赋值。
@@ -242,10 +234,22 @@ public class ApricityJS {
                 // 若后续需要可再补全。
                 continue;
             }
-            if (c == '\'') { inSingle = true; continue; }
-            if (c == '"') { inDouble = true; continue; }
-            if (c == '`') { inTemplate = true; continue; }
-            if (c == '(') { depth++; continue; }
+            if (c == '\'') {
+                inSingle = true;
+                continue;
+            }
+            if (c == '"') {
+                inDouble = true;
+                continue;
+            }
+            if (c == '`') {
+                inTemplate = true;
+                continue;
+            }
+            if (c == '(') {
+                depth++;
+                continue;
+            }
             if (c == ')') {
                 depth--;
                 if (depth == 0) return i;
@@ -296,15 +300,51 @@ public class ApricityJS {
                 if (c == '`') inTemplate = false;
                 continue;
             }
-            if (c == '\'') { current.append(c); inSingle = true; continue; }
-            if (c == '"') { current.append(c); inDouble = true; continue; }
-            if (c == '`') { current.append(c); inTemplate = true; continue; }
-            if (c == '(') { paren++; current.append(c); continue; }
-            if (c == ')') { paren--; current.append(c); continue; }
-            if (c == '[') { bracket++; current.append(c); continue; }
-            if (c == ']') { bracket--; current.append(c); continue; }
-            if (c == '{') { brace++; current.append(c); continue; }
-            if (c == '}') { brace--; current.append(c); continue; }
+            if (c == '\'') {
+                current.append(c);
+                inSingle = true;
+                continue;
+            }
+            if (c == '"') {
+                current.append(c);
+                inDouble = true;
+                continue;
+            }
+            if (c == '`') {
+                current.append(c);
+                inTemplate = true;
+                continue;
+            }
+            if (c == '(') {
+                paren++;
+                current.append(c);
+                continue;
+            }
+            if (c == ')') {
+                paren--;
+                current.append(c);
+                continue;
+            }
+            if (c == '[') {
+                bracket++;
+                current.append(c);
+                continue;
+            }
+            if (c == ']') {
+                bracket--;
+                current.append(c);
+                continue;
+            }
+            if (c == '{') {
+                brace++;
+                current.append(c);
+                continue;
+            }
+            if (c == '}') {
+                brace--;
+                current.append(c);
+                continue;
+            }
             if (c == delimiter && paren == 0 && bracket == 0 && brace == 0) {
                 result.add(current.toString());
                 current.setLength(0);
@@ -331,20 +371,62 @@ public class ApricityJS {
 
         for (int i = 0; i < text.length(); i++) {
             char c = text.charAt(i);
-            if (escape) { escape = false; continue; }
-            if (c == '\\') { escape = true; continue; }
-            if (inSingle) { if (c == '\'') inSingle = false; continue; }
-            if (inDouble) { if (c == '"') inDouble = false; continue; }
-            if (inTemplate) { if (c == '`') inTemplate = false; continue; }
-            if (c == '\'') { inSingle = true; continue; }
-            if (c == '"') { inDouble = true; continue; }
-            if (c == '`') { inTemplate = true; continue; }
-            if (c == '(') { paren++; continue; }
-            if (c == ')') { paren--; continue; }
-            if (c == '[') { bracket++; continue; }
-            if (c == ']') { bracket--; continue; }
-            if (c == '{') { brace++; continue; }
-            if (c == '}') { brace--; continue; }
+            if (escape) {
+                escape = false;
+                continue;
+            }
+            if (c == '\\') {
+                escape = true;
+                continue;
+            }
+            if (inSingle) {
+                if (c == '\'') inSingle = false;
+                continue;
+            }
+            if (inDouble) {
+                if (c == '"') inDouble = false;
+                continue;
+            }
+            if (inTemplate) {
+                if (c == '`') inTemplate = false;
+                continue;
+            }
+            if (c == '\'') {
+                inSingle = true;
+                continue;
+            }
+            if (c == '"') {
+                inDouble = true;
+                continue;
+            }
+            if (c == '`') {
+                inTemplate = true;
+                continue;
+            }
+            if (c == '(') {
+                paren++;
+                continue;
+            }
+            if (c == ')') {
+                paren--;
+                continue;
+            }
+            if (c == '[') {
+                bracket++;
+                continue;
+            }
+            if (c == ']') {
+                bracket--;
+                continue;
+            }
+            if (c == '{') {
+                brace++;
+                continue;
+            }
+            if (c == '}') {
+                brace--;
+                continue;
+            }
             if (c == '=' && paren == 0 && bracket == 0 && brace == 0) {
                 // 排除 ==、===、!=、!==、<=、>=、=>
                 boolean prevIsOp = i > 0 && "=!<>".indexOf(text.charAt(i - 1)) >= 0;

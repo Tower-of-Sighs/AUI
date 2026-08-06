@@ -10,8 +10,8 @@ import com.sighs.apricityui.parser.Gradient;
 import org.joml.Matrix4f;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import com.sighs.apricityui.parser.CSS;
 
 public class Graph {
     private static final int SEGMENTS = 12;
@@ -179,7 +179,9 @@ public class Graph {
         Base.finishRendering();
     }
 
-    /** A single continuous interval can be represented by a rounded quad. */
+    /**
+     * A single continuous interval can be represented by a rounded quad.
+     */
     public static boolean requiresStopGeometry(Gradient gradient) {
         return gradient != null && (gradient.hasHardStops() || gradient.stops().size() > 2);
     }
@@ -246,7 +248,7 @@ public class Graph {
     }
 
     private static void addAxisAlignedStopGradientVertices(BufferBuilder buf, Matrix4f mat, float x, float y, float w, float h,
-                                                          Gradient gradient, boolean vertical, float angle) {
+                                                           Gradient gradient, boolean vertical, float angle) {
         float axis = vertical ? h : w;
         boolean reverse = Math.abs(angle) < 0.01f || Math.abs(angle - 270f) < 0.01f;
         for (int i = 0; i < gradient.stops().size() - 1; i++) {
@@ -365,7 +367,7 @@ public class Graph {
                                         float from, float to, int fromColor, int toColor) {
         if (to - from <= 0.0001f) return;
         List<GradientVertex> polygon = new ArrayList<>(6);
-        for (GradientVertex vertex : rectangle) polygon.add(vertex);
+        Collections.addAll(polygon, rectangle);
         polygon = clipGradientPolygon(polygon, from, true);
         polygon = clipGradientPolygon(polygon, to, false);
         if (polygon.size() < 3) return;
@@ -539,11 +541,14 @@ public class Graph {
         addRect(buf, mat, x - blur, y + tlV, x, y + height - blV, outC, outC, inC, inC);
         addRect(buf, mat, x + width, y + trV, x + width + blur, y + height - brV, inC, inC, outC, outC);
 
-        if ((tlH > 0 && tlV > 0) || blur > 0) addCornerShadow(buf, mat, x + tlH, y + tlV, tlH, tlV, tlH + blur, tlV + blur, SEGMENTS * 2, inC, outC);
+        if ((tlH > 0 && tlV > 0) || blur > 0)
+            addCornerShadow(buf, mat, x + tlH, y + tlV, tlH, tlV, tlH + blur, tlV + blur, SEGMENTS * 2, inC, outC);
         if ((trH > 0 && trV > 0) || blur > 0)
             addCornerShadow(buf, mat, x + width - trH, y + trV, trH, trV, trH + blur, trV + blur, SEGMENTS * 3, inC, outC);
-        if ((brH > 0 && brV > 0) || blur > 0) addCornerShadow(buf, mat, x + width - brH, y + height - brV, brH, brV, brH + blur, brV + blur, 0, inC, outC);
-        if ((blH > 0 && blV > 0) || blur > 0) addCornerShadow(buf, mat, x + blH, y + height - blV, blH, blV, blH + blur, blV + blur, SEGMENTS, inC, outC);
+        if ((brH > 0 && brV > 0) || blur > 0)
+            addCornerShadow(buf, mat, x + width - brH, y + height - brV, brH, brV, brH + blur, brV + blur, 0, inC, outC);
+        if ((blH > 0 && blV > 0) || blur > 0)
+            addCornerShadow(buf, mat, x + blH, y + height - blV, blH, blV, blH + blur, blV + blur, SEGMENTS, inC, outC);
     }
 
     private static void addCornerShadow(BufferBuilder buf, Matrix4f mat, float cx, float cy, float rInX, float rInY, float rOutX, float rOutY, int startIndex, int inC, int outC) {

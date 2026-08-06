@@ -2,7 +2,9 @@ package com.sighs.apricityui.render;
 
 import java.util.ArrayDeque;
 
-/** Keeps flat-world transform state independent from the graphics backend. */
+/**
+ * Keeps flat-world transform state independent from the graphics backend.
+ */
 public final class WorldPaintDepth {
     private static final ThreadLocal<ArrayDeque<Boolean>> FLAT_TRANSFORM_STACK =
             ThreadLocal.withInitial(ArrayDeque::new);
@@ -19,7 +21,7 @@ public final class WorldPaintDepth {
 
     public static void popFlatTransforms() {
         ArrayDeque<Boolean> stack = FLAT_TRANSFORM_STACK.get();
-        FLAT_TRANSFORMS.set(stack.isEmpty() ? false : stack.pop());
+        FLAT_TRANSFORMS.set(!stack.isEmpty() && stack.pop());
         if (stack.isEmpty() && !FLAT_TRANSFORMS.get()) {
             FLAT_TRANSFORM_STACK.remove();
             FLAT_TRANSFORMS.remove();

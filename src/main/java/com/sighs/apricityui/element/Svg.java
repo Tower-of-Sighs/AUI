@@ -5,24 +5,17 @@ import com.sighs.apricityui.canvas.CanvasPath2D;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.layout.Size;
 
-import java.awt.BasicStroke;
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
-import java.awt.Shape;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Ellipse2D;
-import java.awt.geom.Line2D;
-import java.awt.geom.Path2D;
-import java.awt.geom.Rectangle2D;
+import java.awt.*;
+import java.awt.geom.*;
 import java.util.Locale;
 
 @ElementRegister(Svg.TAG_NAME)
@@ -57,7 +50,7 @@ public class Svg extends Canvas {
     @Override
     public void setAttribute(String name, String value) {
         super.setAttribute(name, value);
-        if (name != null && ("viewbox".equalsIgnoreCase(name) || "width".equalsIgnoreCase(name) || "height".equalsIgnoreCase(name))) {
+        if (("viewbox".equalsIgnoreCase(name) || "width".equalsIgnoreCase(name) || "height".equalsIgnoreCase(name))) {
             syncViewportAttributes();
         }
     }
@@ -65,7 +58,7 @@ public class Svg extends Canvas {
     @Override
     public void removeAttribute(String name) {
         super.removeAttribute(name);
-        if (name != null && ("viewbox".equalsIgnoreCase(name) || "width".equalsIgnoreCase(name) || "height".equalsIgnoreCase(name))) {
+        if (("viewbox".equalsIgnoreCase(name) || "width".equalsIgnoreCase(name) || "height".equalsIgnoreCase(name))) {
             syncViewportAttributes();
         }
     }
@@ -400,7 +393,8 @@ public class Svg extends Canvas {
         return Math.max(0.0, Math.min(1.0, value));
     }
 
-    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap, String lineJoin,
+    private record SvgPaint(int currentColor, String fill, String stroke, double strokeWidth, String lineCap,
+                            String lineJoin,
                             double opacity, double fillOpacity, double strokeOpacity) {
         private static SvgPaint fromElement(Element element, int inheritedColor, String inheritedFill, String inheritedStroke,
                                             double inheritedStrokeWidth, String inheritedLineCap, String inheritedLineJoin,

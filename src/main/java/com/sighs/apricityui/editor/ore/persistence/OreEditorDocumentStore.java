@@ -9,7 +9,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
-/** Writes editor-owned documents below the game directory without accepting arbitrary paths. */
+/**
+ * Writes editor-owned documents below the game directory without accepting arbitrary paths.
+ */
 public final class OreEditorDocumentStore {
     private static final String PROJECT_NAME = "untitled.ore.json";
     private static final String EXPORT_NAME = "untitled.html";
@@ -23,13 +25,19 @@ public final class OreEditorDocumentStore {
         this.root = root == null ? null : root.toAbsolutePath().normalize();
     }
 
-    public Result saveProject(String content) { return write(PROJECT_NAME, content); }
-    public Result exportHtml(String content) { return write(EXPORT_NAME, content); }
+    public Result saveProject(String content) {
+        return write(PROJECT_NAME, content);
+    }
+
+    public Result exportHtml(String content) {
+        return write(EXPORT_NAME, content);
+    }
 
     public ReadResult readProject() {
         if (root == null) return ReadResult.failure("Editor directory is unavailable");
         Path target = root.resolve(PROJECT_NAME).normalize();
-        if (!target.startsWith(root) || !Files.isRegularFile(target)) return ReadResult.failure("Saved editor project was not found");
+        if (!target.startsWith(root) || !Files.isRegularFile(target))
+            return ReadResult.failure("Saved editor project was not found");
         try {
             return ReadResult.success(target, Files.readString(target, StandardCharsets.UTF_8));
         } catch (IOException | RuntimeException ignored) {
@@ -58,11 +66,22 @@ public final class OreEditorDocumentStore {
     }
 
     public record Result(boolean success, Path file, String message) {
-        static Result success(Path file) { return new Result(true, file, ""); }
-        static Result failure(String message) { return new Result(false, null, message); }
+        static Result success(Path file) {
+            return new Result(true, file, "");
+        }
+
+        static Result failure(String message) {
+            return new Result(false, null, message);
+        }
     }
+
     public record ReadResult(boolean success, Path file, String content, String message) {
-        static ReadResult success(Path file, String content) { return new ReadResult(true, file, content, ""); }
-        static ReadResult failure(String message) { return new ReadResult(false, null, null, message); }
+        static ReadResult success(Path file, String content) {
+            return new ReadResult(true, file, content, "");
+        }
+
+        static ReadResult failure(String message) {
+            return new ReadResult(false, null, null, message);
+        }
     }
 }

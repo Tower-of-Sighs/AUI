@@ -15,7 +15,9 @@ import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Imports the editable body subset emitted by Ore's clean HTML exporter. */
+/**
+ * Imports the editable body subset emitted by Ore's clean HTML exporter.
+ */
 public final class OreEditorHtmlImporter {
     private static final Pattern DOCTYPE = Pattern.compile("(?is)<!doctype\\s+[^>]+>");
     private static final Pattern HEAD = Pattern.compile("(?is)<head\\b[^>]*>(.*?)</head\\s*>");
@@ -80,7 +82,7 @@ public final class OreEditorHtmlImporter {
         while (attributes.find()) {
             String value = attributes.group(2) != null ? attributes.group(2)
                     : attributes.group(3) != null ? attributes.group(3)
-                    : attributes.group(4) == null ? "" : attributes.group(4);
+                      : attributes.group(4) == null ? "" : attributes.group(4);
             target.accept(attributes.group(1), value);
         }
     }

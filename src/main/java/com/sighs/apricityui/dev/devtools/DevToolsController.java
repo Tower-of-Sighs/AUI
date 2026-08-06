@@ -1,45 +1,37 @@
 package com.sighs.apricityui.dev.devtools;
 
+import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
+import com.sighs.apricityui.editor.ore.OreEditor;
+import com.sighs.apricityui.element.AbstractText;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.parser.Selector;
+import com.sighs.apricityui.instance.element.MinecraftElement;
+import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.instance.screen.ApricityContainerScreen;
 import com.sighs.apricityui.instance.screen.ApricityScreen;
 import com.sighs.apricityui.instance.world.WorldWindow;
-import com.sighs.apricityui.instance.element.MinecraftElement;
-import com.sighs.apricityui.element.AbstractText;
-import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.HTML;
+import com.sighs.apricityui.parser.Selector;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.ui.Tooltip;
+import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.ui.ContextMenu;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.ui.FilePicker;
-import com.sighs.apricityui.editor.ore.OreEditor;
-import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
-import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.ui.Tooltip;
 import net.minecraft.client.Minecraft;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import com.sighs.apricityui.style.Style;
+import java.util.*;
 
 public final class DevToolsController {
     public static final String PATH = "devtools/devtools.html";
@@ -1687,7 +1679,8 @@ public final class DevToolsController {
 
     private static Element findElement(Document document, UUID uuid) {
         if (document == null || uuid == null) return null;
-        if (document.documentElement != null && uuid.equals(document.documentElement.uuid)) return document.documentElement;
+        if (document.documentElement != null && uuid.equals(document.documentElement.uuid))
+            return document.documentElement;
         if (document.head != null && uuid.equals(document.head.uuid)) return document.head;
         if (document.body != null && uuid.equals(document.body.uuid)) return document.body;
         for (Element element : document.getElements()) {
@@ -1725,7 +1718,7 @@ public final class DevToolsController {
     private void revealTreeRow(UUID elementUuid) {
         Element domTree = toolDocument == null ? null : toolDocument.querySelector("#domTree");
         Element row = domTree == null ? null : domTree.querySelector(".dom-node[data-node-id=\""
-                + elementUuid + "\"]");
+                                                                     + elementUuid + "\"]");
         if (domTree == null || row == null) return;
         Element.DOMRect treeRect = domTree.getBoundingClientRect();
         Element.DOMRect rowRect = row.getBoundingClientRect();

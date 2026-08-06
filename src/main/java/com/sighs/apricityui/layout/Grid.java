@@ -1,18 +1,11 @@
 package com.sighs.apricityui.layout;
 
-import com.sighs.apricityui.style.*;
-
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Set;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.Style;
+
+import java.util.*;
 
 /**
  * Global Grid layout (MVP + alignment + placement/span)
@@ -73,12 +66,12 @@ public final class Grid {
     }
 
     private record GridLayout(List<Element> flow,
-                          List<Placement> placements,
-                          List<Track> cols,
-                          List<Track> rows,
-                          double[] colW,
-                          double[] rowH,
-                          Gaps gaps) {
+                              List<Placement> placements,
+                              List<Track> cols,
+                              List<Track> rows,
+                              double[] colW,
+                              double[] rowH,
+                              Gaps gaps) {
     }
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {
@@ -163,7 +156,7 @@ public final class Grid {
     }
 
     private static boolean hasContentBasedAutomaticMinimum(Style style, List<Track> tracks,
-                                                            int start, int span, boolean horizontal) {
+                                                           int start, int span, boolean horizontal) {
         String minimum = horizontal ? style.minWidth : style.minHeight;
         if (Size.tryResolveLength(minimum, 0) != null) return false;
         String overflow = horizontal
@@ -388,8 +381,8 @@ public final class Grid {
     }
 
     private static double[] computeTrackSizes(List<Track> tracks, List<Placement> placements, List<Element> flow,
-                                           int gap, double availableSpace, boolean columnAxis,
-                                           double[] resolvedColumns, int columnGap) {
+                                              int gap, double availableSpace, boolean columnAxis,
+                                              double[] resolvedColumns, int columnGap) {
         int count = tracks.size();
         double[] resolved = new double[count];
         boolean[] growable = new boolean[count];
@@ -545,7 +538,9 @@ public final class Grid {
         };
     }
 
-    /** 网格项在其单元格内的对齐偏移：container 提供默认，self 可覆盖。 */
+    /**
+     * 网格项在其单元格内的对齐偏移：container 提供默认，self 可覆盖。
+     */
     private static double computeAlignmentOffset(String containerRaw, String selfRaw,
                                                  double cellExtent, double itemExtent) {
         Align container = Align.normalize(containerRaw, Align.START);

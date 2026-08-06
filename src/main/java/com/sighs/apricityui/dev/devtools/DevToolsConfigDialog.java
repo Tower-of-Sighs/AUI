@@ -8,9 +8,10 @@ import com.sighs.apricityui.ui.ToastManager;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import com.sighs.apricityui.instance.client.Client;
 
-/** Visual editor for the client-side Forge configuration used by ApricityUI. */
+/**
+ * Visual editor for the client-side Forge configuration used by ApricityUI.
+ */
 final class DevToolsConfigDialog {
     private final Map<String, Element> booleanInputs = new LinkedHashMap<>();
     private final Map<String, Element> numberInputs = new LinkedHashMap<>();

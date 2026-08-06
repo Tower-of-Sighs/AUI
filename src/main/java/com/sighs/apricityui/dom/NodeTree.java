@@ -1,14 +1,13 @@
 package com.sighs.apricityui.dom;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.function.Consumer;
-import com.sighs.apricityui.parser.Selector;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.parser.Selector;
+import com.sighs.apricityui.style.Style;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.Consumer;
 
 public final class NodeTree {
     private final Element owner;

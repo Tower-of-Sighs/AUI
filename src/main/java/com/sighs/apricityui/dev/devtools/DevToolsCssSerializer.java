@@ -4,16 +4,13 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.parser.CSS;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Writes stylesheet edits without serializing the inspected DOM unless requested. */
+/**
+ * Writes stylesheet edits without serializing the inspected DOM unless requested.
+ */
 final class DevToolsCssSerializer {
     private static final Pattern STYLE_TAG = Pattern.compile(
             "(?is)(<style\\b[^>]*>)(.*?)(</style\\s*>)"
@@ -106,7 +103,7 @@ final class DevToolsCssSerializer {
     }
 
     private static String rewriteStylesheet(String css, String sourcePath,
-                                             List<CSS.DebugRule> rules, MediaViewport viewport) {
+                                            List<CSS.DebugRule> rules, MediaViewport viewport) {
         return rewriteStylesheet(css, sourcePath, new RuleCursor(rules), viewport);
     }
 
@@ -200,19 +197,33 @@ final class DevToolsCssSerializer {
             String feature = part.substring(0, colon).trim();
             int value = parseMediaLength(part.substring(colon + 1).trim());
             switch (feature) {
-                case "min-width" -> { if (viewport.width() < value) return false; }
-                case "max-width" -> { if (viewport.width() > value) return false; }
-                case "min-height" -> { if (viewport.height() < value) return false; }
-                case "max-height" -> { if (viewport.height() > value) return false; }
-                case "width" -> { if (viewport.width() != value) return false; }
-                case "height" -> { if (viewport.height() != value) return false; }
+                case "min-width" -> {
+                    if (viewport.width() < value) return false;
+                }
+                case "max-width" -> {
+                    if (viewport.width() > value) return false;
+                }
+                case "min-height" -> {
+                    if (viewport.height() < value) return false;
+                }
+                case "max-height" -> {
+                    if (viewport.height() > value) return false;
+                }
+                case "width" -> {
+                    if (viewport.width() != value) return false;
+                }
+                case "height" -> {
+                    if (viewport.height() != value) return false;
+                }
                 case "orientation" -> {
                     String orientation = part.substring(colon + 1).trim();
                     boolean landscape = viewport.width() >= viewport.height();
                     if ("landscape".equals(orientation) && !landscape) return false;
                     if ("portrait".equals(orientation) && landscape) return false;
                 }
-                default -> { return false; }
+                default -> {
+                    return false;
+                }
             }
         }
         return true;
@@ -231,8 +242,8 @@ final class DevToolsCssSerializer {
     private static MediaViewport mediaViewport(Document document) {
         try {
             return new MediaViewport(
-                    (int) Math.round(document.getViewport().layoutWidth()),
-                    (int) Math.round(document.getViewport().layoutHeight()));
+                    Math.round(document.getViewport().layoutWidth()),
+                    Math.round(document.getViewport().layoutHeight()));
         } catch (RuntimeException ignored) {
             return new MediaViewport(1024, 768);
         }
@@ -336,11 +347,11 @@ final class DevToolsCssSerializer {
     }
 
     private static boolean sameDeclarations(Map<String, CSS.Declaration> left,
-                                             Map<String, CSS.Declaration> right) {
+                                            Map<String, CSS.Declaration> right) {
         if (left == null || right == null || left.size() != right.size()) return false;
         for (Map.Entry<String, CSS.Declaration> entry : left.entrySet()) {
             CSS.Declaration other = right.get(entry.getKey());
-            if (other == null || !entry.getValue().equals(other)) return false;
+            if (!entry.getValue().equals(other)) return false;
         }
         return true;
     }

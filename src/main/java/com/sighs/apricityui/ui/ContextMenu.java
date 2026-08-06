@@ -1,13 +1,13 @@
 package com.sighs.apricityui.ui;
 
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.task.FrameTaskScheduler;
 
 import java.util.List;
 import java.util.Locale;
@@ -118,7 +118,9 @@ public final class ContextMenu {
         }
     }
 
-    /** Icons copied from the resource2.html context-menu language. */
+    /**
+     * Icons copied from the resource2.html context-menu language.
+     */
     public static final class Icons {
         public static final String OPEN = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><path d=\"M2 3h4l1.5 1.5H12v7H2V3zm1 1v6h8V5H7l-1.5-1.5H3z\"/></svg>";
         public static final String COPY = "<svg viewBox=\"0 0 14 14\" fill=\"currentColor\"><rect x=\"4\" y=\"4\" width=\"8\" height=\"8\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.2\"/><path d=\"M2 10V3h6v1H3v6H2z\"/></svg>";

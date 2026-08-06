@@ -1,16 +1,13 @@
 package com.sighs.apricityui.editor.ore.persistence;
 
-import com.sighs.apricityui.editor.ore.model.OreCanvasNode;
-import com.sighs.apricityui.editor.ore.model.OreComponentNode;
-import com.sighs.apricityui.editor.ore.model.OreContainerNode;
-import com.sighs.apricityui.editor.ore.model.OreEditorProject;
-import com.sighs.apricityui.editor.ore.model.OreDocumentMetadata;
-import com.sighs.apricityui.editor.ore.model.OreNodeStyle;
+import com.sighs.apricityui.editor.ore.model.*;
 
 import java.util.EnumMap;
 import java.util.Map;
 
-/** Produces a normal standalone AUI document without editor IDs, overlays or helper nodes. */
+/**
+ * Produces a normal standalone AUI document without editor IDs, overlays or helper nodes.
+ */
 public final class OreEditorHtmlExporter {
     public String export(OreEditorProject project) {
         OreEditorProject source = project == null ? new OreEditorProject() : project;
@@ -70,7 +67,8 @@ public final class OreEditorHtmlExporter {
             if ("class".equals(name)) {
                 wroteClass = true;
                 String value = entry.getValue();
-                if (appendedClass != null) value = (value == null || value.isBlank()) ? appendedClass : value + " " + appendedClass;
+                if (appendedClass != null)
+                    value = (value == null || value.isBlank()) ? appendedClass : value + " " + appendedClass;
                 html.append(" class=\"").append(attribute(value)).append('\"');
             } else {
                 html.append(' ').append(name).append("=\"").append(attribute(entry.getValue())).append('\"');
@@ -155,7 +153,11 @@ public final class OreEditorHtmlExporter {
     private String safeTag(String tag) {
         return tag != null && tag.matches("[A-Za-z][A-Za-z0-9-]*") ? tag.toLowerCase() : "div";
     }
-    private String text(String value) { return attribute(value); }
+
+    private String text(String value) {
+        return attribute(value);
+    }
+
     private String attribute(String value) {
         return (value == null ? "" : value).replace("&", "&amp;").replace("<", "&lt;")
                 .replace(">", "&gt;").replace("\"", "&quot;");

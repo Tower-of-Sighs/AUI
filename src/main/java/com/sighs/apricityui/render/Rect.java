@@ -6,11 +6,9 @@ import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.*;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.Gradient;
 import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.parser.CSS;
 
 public class Rect {
     public Element element;
@@ -136,7 +134,6 @@ public class Rect {
             Graph.endBatch();
             ImageDrawer.flushBatch();
             ImageDrawer.drawNineSlice(poseStack, path, (int) p.x, (int) p.y, (int) s.width(), (int) s.height(), box.borderImage);
-            return;
         }
     }
 
@@ -211,7 +208,6 @@ public class Rect {
         if (!background.imagePath.equals("unset")) {
             Graph.endBatch();
             ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), background, element);
-            return;
         }
     }
 

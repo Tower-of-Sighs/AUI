@@ -1,27 +1,15 @@
 package com.sighs.apricityui.layout;
 
-import com.sighs.apricityui.style.*;
-
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.client.Client;
-import com.sighs.apricityui.resource.Font;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.Text;
 
 import java.awt.*;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.dom.TextNode;
-import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.instance.viewport.ApricityViewport;
+import java.util.*;
 
 public record Size(double width, double height) {
     public static final double DEFAULT_LINE_HEIGHT = 16;
@@ -855,9 +843,7 @@ public record Size(double width, double height) {
 
         if (Layout.isFlexDisplay(parent.getComputedStyle().display)) {
             Flex parentFlex = Flex.of(parent);
-            if (parentFlex.flexDirection.contains("column") && Flex.shouldStretchCrossAxis(element, parent)) {
-                return true;
-            }
+            return parentFlex.flexDirection.contains("column") && Flex.shouldStretchCrossAxis(element, parent);
         }
 
         return false;

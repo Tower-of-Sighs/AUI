@@ -1,21 +1,18 @@
 package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.dom.CommentNode;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.dom.TextNode;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Serializes the live DOM while restoring source blocks extracted by the runtime loader. */
+/**
+ * Serializes the live DOM while restoring source blocks extracted by the runtime loader.
+ */
 final class DevToolsHtmlSerializer {
     private static final Set<String> VOID_ELEMENTS = Set.of(
             "area", "base", "basefont", "bgsound", "br", "col", "embed", "frame", "hr", "img",

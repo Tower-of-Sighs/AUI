@@ -1,13 +1,13 @@
 package com.sighs.apricityui.dev.devtools;
 
 import com.sighs.apricityui.dev.DevToolsLogBridge;
+import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.dom.TextNode;
 
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
@@ -16,10 +16,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.sighs.apricityui.style.Filter;
-import com.sighs.apricityui.parser.CSS;
 
-/** Java event bridge for the console markup copied from devtools0.html. */
+/**
+ * Java event bridge for the console markup copied from devtools0.html.
+ */
 final class DevToolsConsole {
     private static final int MAX_LOG_ENTRIES = 2000;
     private static final int MAX_EXTERNAL_LOGS_PER_TICK = 128;
@@ -249,7 +249,8 @@ final class DevToolsConsole {
                 case "dir" -> dir(trimmed);
                 case "table" -> addLog("info", "Table view (simulated)", "command", null);
                 case "keys" -> keys(trimmed);
-                case "count" -> addLog("info", "Total nodes: " + countNodes(controller.targetDocument()), "stats", null);
+                case "count" ->
+                        addLog("info", "Total nodes: " + countNodes(controller.targetDocument()), "stats", null);
                 case "tree" -> addLog("result", treeText(controller.targetDocument()), "tree", null);
                 case "echo" -> addLog("log", argument(trimmed), "echo", null);
                 case "warn" -> addLog("warn", argument(trimmed), "warn", null);
@@ -498,7 +499,8 @@ final class DevToolsConsole {
         meta.append(DevToolsDom.text(document, "SPAN", "log-source", log.source));
         body.append(meta);
         body.append(DevToolsDom.text(document, "DIV", "log-text", log.text));
-        if (log.stack != null && !log.stack.isBlank()) body.append(DevToolsDom.text(document, "DIV", "log-stack", log.stack));
+        if (log.stack != null && !log.stack.isBlank())
+            body.append(DevToolsDom.text(document, "DIV", "log-stack", log.stack));
         entry.append(body);
         return entry;
     }
@@ -622,7 +624,8 @@ final class DevToolsConsole {
         if (node == null) return 0;
         int count = 1;
         for (Node child : node.getChildNodes()) {
-            if (child instanceof TextNode text && (text.getTextContent() == null || text.getTextContent().isBlank())) continue;
+            if (child instanceof TextNode text && (text.getTextContent() == null || text.getTextContent().isBlank()))
+                continue;
             count += countNodes(child);
         }
         return count;

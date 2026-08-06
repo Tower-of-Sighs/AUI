@@ -1,22 +1,19 @@
 package com.sighs.apricityui.dev.resource;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.ui.ToastManager;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.render.AABB;
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.Mask;
-import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.resource.Font;
+import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.ui.DialogWindow;
+import com.sighs.apricityui.ui.ToastManager;
 
-/** Owns the resource-browser preview window and renders its document into its content viewport. */
+/**
+ * Owns the resource-browser preview window and renders its document into its content viewport.
+ */
 public final class ResourcePreviewDialog {
     private static final double MIN_WIDTH = 360;
     private static final double MIN_HEIGHT = 240;
@@ -90,7 +87,9 @@ public final class ResourcePreviewDialog {
         }
     }
 
-    /** Draws the preview in the owning world document's local surface. */
+    /**
+     * Draws the preview in the owning world document's local surface.
+     */
     public static void drawInWorld(PoseStack poseStack, Document owner) {
         if (active != null && active.owner == owner && owner != null && owner.inWorld) {
             active.drawPreview(poseStack);
@@ -227,7 +226,12 @@ public final class ResourcePreviewDialog {
         element.setAttribute("class", className);
         return element;
     }
-    private void markDirty() { if (owner != null && owner.body != null) owner.markDirty(owner.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER); }
+
+    private void markDirty() {
+        if (owner != null && owner.body != null)
+            owner.markDirty(owner.body, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
+    }
+
     private void applyImageSource() {
         if (!imagePreview || preview == null || preview.isDisposed()) return;
         Element image = preview.querySelector("#previewImage");
@@ -235,6 +239,13 @@ public final class ResourcePreviewDialog {
         image.setAttribute("src", "/" + sourcePath);
         preview.markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
     }
-    private static boolean isImage(Loader.StaticResourceEntry entry) { String ext = safe(entry.extension()).toLowerCase(java.util.Locale.ROOT); return ext.equals("png") || ext.equals("jpg") || ext.equals("jpeg") || ext.equals("bmp") || ext.equals("gif") || ext.equals("webp"); }
-    private static String safe(String value) { return value == null ? "" : value; }
+
+    private static boolean isImage(Loader.StaticResourceEntry entry) {
+        String ext = safe(entry.extension()).toLowerCase(java.util.Locale.ROOT);
+        return ext.equals("png") || ext.equals("jpg") || ext.equals("jpeg") || ext.equals("bmp") || ext.equals("gif") || ext.equals("webp");
+    }
+
+    private static String safe(String value) {
+        return value == null ? "" : value;
+    }
 }

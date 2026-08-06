@@ -2,9 +2,11 @@ package com.sighs.apricityui.instance.client;
 
 import com.mojang.brigadier.CommandDispatcher;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.instance.world.WorldWindow;
+import com.sighs.apricityui.instance.world.WorldWindowDisplayPrecision;
 import net.minecraft.client.Minecraft;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -17,10 +19,10 @@ import net.minecraftforge.fml.common.Mod;
 
 import java.util.Locale;
 import java.util.function.Consumer;
-import com.sighs.apricityui.instance.world.WorldWindow;
-import com.sighs.apricityui.instance.world.WorldWindowDisplayPrecision;
 
-/** Client-only commands used to exercise ApricityUI's in-world surfaces. */
+/**
+ * Client-only commands used to exercise ApricityUI's in-world surfaces.
+ */
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public final class ApricityUIClientCommands {
     private static final String TEST_DOCUMENT_PATH = "tests/world-window-command.html";

@@ -6,17 +6,17 @@ import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
 import com.sighs.apricityui.element.Select;
 import com.sighs.apricityui.element.TextArea;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.instance.client.Client;
-import com.sighs.apricityui.instance.loader.ClientLoader;
-import com.sighs.apricityui.registry.Keybindings;
-import com.sighs.apricityui.layout.Position;
-import net.minecraft.client.Minecraft;
-import org.lwjgl.glfw.GLFW;
-import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.instance.client.Client;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.registry.Keybindings;
+import net.minecraft.client.Minecraft;
+import org.lwjgl.glfw.GLFW;
 
 public class Operation {
     public static Position cachedMousePosition = null;
@@ -64,7 +64,9 @@ public class Operation {
         return event.isNativeConsumed();
     }
 
-    /** Returns whether the most recent mouse press/release was consumed by DevTools picking. */
+    /**
+     * Returns whether the most recent mouse press/release was consumed by DevTools picking.
+     */
     public static boolean wasDevToolsInspectConsumed() {
         return lastDevToolsInspectConsumed;
     }

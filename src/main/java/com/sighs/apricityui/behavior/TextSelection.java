@@ -1,21 +1,22 @@
 package com.sighs.apricityui.behavior;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.util.TextMetrics;
 
 import java.util.List;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.util.TextMetrics;
-import com.sighs.apricityui.dom.TextNode;
+import java.util.Objects;
 
 public final class TextSelection {
     private final Element owner;
@@ -277,8 +278,7 @@ public final class TextSelection {
         String whiteSpace = text.whiteSpace;
 
         boolean sameSource = normalizedSource == raw;
-        boolean sameWhiteSpace = (normalizedWhiteSpace == whiteSpace)
-                || (normalizedWhiteSpace != null && normalizedWhiteSpace.equals(whiteSpace));
+        boolean sameWhiteSpace = Objects.equals(normalizedWhiteSpace, whiteSpace);
         if (normalizedCache != null && sameSource && sameWhiteSpace) {
             return normalizedCache;
         }

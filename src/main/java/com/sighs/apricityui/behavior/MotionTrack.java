@@ -1,23 +1,16 @@
 package com.sighs.apricityui.behavior;
 
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.layout.Layout;
-import com.sighs.apricityui.style.Transition;
-
-import java.util.ArrayDeque;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.dom.RenderElement;
-import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.layout.Layout;
+import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.Transition;
+
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class MotionTrack {
     private static final int FLAG_TRANSITION = 1;

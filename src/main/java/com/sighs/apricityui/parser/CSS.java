@@ -2,26 +2,20 @@ package com.sighs.apricityui.parser;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.util.AuiLog;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Locale;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.sighs.apricityui.instance.screen.ApricityScreen;
 
 public class CSS {
-    /** 提取 CSS url(...) 引用的公共正则，resource 包共用。 */
+    /**
+     * 提取 CSS url(...) 引用的公共正则，resource 包共用。
+     */
     public static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
 
     /**
@@ -56,7 +50,9 @@ public class CSS {
         return Parser.parse(css, targetCache, debugRules, contextPath, orderStart, viewport);
     }
 
-    /** Rebuilds the selector cache from the author declarations exposed to DevTools. */
+    /**
+     * Rebuilds the selector cache from the author declarations exposed to DevTools.
+     */
     public static void rebuildCacheFromDebugRules(List<DebugRule> debugRules,
                                                   Map<String, Map<String, Declaration>> targetCache) {
         if (targetCache == null) return;
@@ -82,7 +78,7 @@ public class CSS {
         private static final Pattern STYLE_TAG_PATTERN =
                 Pattern.compile("(?i)<style\\b([^>]*)>(.*?)</style\\s*>", Pattern.DOTALL);
         private static final Pattern LINK_TAG_PATTERN =
-            Pattern.compile("(?i)<link\\b([^>]*?)>", Pattern.DOTALL);
+                Pattern.compile("(?i)<link\\b([^>]*?)>", Pattern.DOTALL);
         private static final Pattern STYLE_OPEN_MARKER = Pattern.compile("(?i)<style\\b");
         private static final Pattern STYLE_CLOSE_MARKER = Pattern.compile("(?i)</style\\s*>");
 
@@ -111,7 +107,9 @@ public class CSS {
             }
         }
 
-        /** 处理 <link rel="stylesheet">：缓存 href，移除或保留非样式表链接。 */
+        /**
+         * 处理 <link rel="stylesheet">：缓存 href，移除或保留非样式表链接。
+         */
         private String extractLinks(String html) {
             Matcher linkMatcher = LINK_TAG_PATTERN.matcher(html);
             StringBuffer linkFree = new StringBuffer();
@@ -260,61 +258,61 @@ public class CSS {
             }
             try {
                 if (css == null || css.isBlank()) return orderStart;
-            String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath), viewport, contextPath);
-            int openBraces = countCharacter(normalizedCss, '{');
-            int closeBraces = countCharacter(normalizedCss, '}');
-            if (openBraces != closeBraces) {
-                ApricityUI.LOGGER.error(
-                        "[AUI CSS] unmatched braces path={} open={} close={} snippet={}",
-                        AuiLog.source(contextPath),
-                        openBraces,
-                        closeBraces,
-                        AuiLog.compact(normalizedCss)
-                );
-            }
-
-            Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
-            int order = orderStart;
-
-            while (matcher.find()) {
-                String selector = matcher.group(1).trim();
-                // 忽略空的或可能是残留的 @ 规则
-                if (selector.isEmpty()) continue;
-                if (selector.startsWith("@")) {
-                    ApricityUI.LOGGER.warn(
-                            "[AUI CSS] unsupported or leftover at-rule was ignored path={} rule={}",
+                String normalizedCss = evaluateMediaRules(parseAndRegisterAnimations(css, contextPath), viewport, contextPath);
+                int openBraces = countCharacter(normalizedCss, '{');
+                int closeBraces = countCharacter(normalizedCss, '}');
+                if (openBraces != closeBraces) {
+                    ApricityUI.LOGGER.error(
+                            "[AUI CSS] unmatched braces path={} open={} close={} snippet={}",
                             AuiLog.source(contextPath),
-                            AuiLog.compact(selector)
+                            openBraces,
+                            closeBraces,
+                            AuiLog.compact(normalizedCss)
                     );
-                    continue;
                 }
 
-                String rules = matcher.group(2).trim();
-                List<String> selectors = Selector.splitSelectorList(selector);
-                if (selectors.isEmpty()) {
-                    ApricityUI.LOGGER.warn(
-                            "[AUI CSS] rule has no selector path={} rule={}",
-                            AuiLog.source(contextPath),
-                            AuiLog.compact(selector)
-                    );
-                    continue;
-                }
-                Map<String, Declaration> authoredProperties = parseProperties(rules, contextPath, false);
-                Map<String, Declaration> properties = expandAuthorProperties(authoredProperties);
+                Matcher matcher = RULE_PATTERN.matcher(normalizedCss);
+                int order = orderStart;
 
-                for (String sel : selectors) {
-                    String normalizedSelector = sel.trim();
-                    if (normalizedSelector.isEmpty()) continue;
-                    targetCache.merge(normalizedSelector, new LinkedHashMap<>(properties), (oldMap, newMap) -> {
-                        newMap.forEach((property, declaration) -> putDeclaration(oldMap, property, declaration));
-                        return oldMap;
-                    });
+                while (matcher.find()) {
+                    String selector = matcher.group(1).trim();
+                    // 忽略空的或可能是残留的 @ 规则
+                    if (selector.isEmpty()) continue;
+                    if (selector.startsWith("@")) {
+                        ApricityUI.LOGGER.warn(
+                                "[AUI CSS] unsupported or leftover at-rule was ignored path={} rule={}",
+                                AuiLog.source(contextPath),
+                                AuiLog.compact(selector)
+                        );
+                        continue;
+                    }
+
+                    String rules = matcher.group(2).trim();
+                    List<String> selectors = Selector.splitSelectorList(selector);
+                    if (selectors.isEmpty()) {
+                        ApricityUI.LOGGER.warn(
+                                "[AUI CSS] rule has no selector path={} rule={}",
+                                AuiLog.source(contextPath),
+                                AuiLog.compact(selector)
+                        );
+                        continue;
+                    }
+                    Map<String, Declaration> authoredProperties = parseProperties(rules, contextPath, false);
+                    Map<String, Declaration> properties = expandAuthorProperties(authoredProperties);
+
+                    for (String sel : selectors) {
+                        String normalizedSelector = sel.trim();
+                        if (normalizedSelector.isEmpty()) continue;
+                        targetCache.merge(normalizedSelector, new LinkedHashMap<>(properties), (oldMap, newMap) -> {
+                            newMap.forEach((property, declaration) -> putDeclaration(oldMap, property, declaration));
+                            return oldMap;
+                        });
+                    }
+                    int ruleOrder = order++;
+                    if (debugRules != null) {
+                        debugRules.add(new DebugRule(selector, authoredProperties, contextPath, ruleOrder));
+                    }
                 }
-                int ruleOrder = order++;
-                if (debugRules != null) {
-                    debugRules.add(new DebugRule(selector, authoredProperties, contextPath, ruleOrder));
-                }
-            }
                 return order;
             } catch (RuntimeException exception) {
                 ApricityUI.LOGGER.error(
@@ -507,7 +505,7 @@ public class CSS {
         }
 
         private static Map<String, Declaration> parseProperties(String rules, String contextPath,
-                                                                 boolean expand) {
+                                                                boolean expand) {
             Map<String, Declaration> properties = new LinkedHashMap<>();
             if (rules == null || rules.isBlank()) return properties;
             int malformedPairs = 0;

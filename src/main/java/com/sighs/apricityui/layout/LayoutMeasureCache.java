@@ -1,7 +1,5 @@
 package com.sighs.apricityui.layout;
 
-import com.sighs.apricityui.style.*;
-
 import com.sighs.apricityui.init.Element;
 
 import java.util.LinkedHashMap;

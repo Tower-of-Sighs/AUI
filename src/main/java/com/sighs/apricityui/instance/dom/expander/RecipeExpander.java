@@ -2,10 +2,10 @@ package com.sighs.apricityui.instance.dom.expander;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.instance.element.Recipe;
 import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.render.Drawer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -18,7 +18,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 
 import java.util.*;
-import com.sighs.apricityui.instance.client.Client;
 
 /**
  * 在文档刷新阶段触发 recipe DOM 预览槽位生成。

@@ -1,6 +1,9 @@
 package com.sighs.apricityui.instance.client;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.instance.config.ApricityUIConfig;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.instance.loader.Loader;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -10,9 +13,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
-import com.sighs.apricityui.instance.config.ApricityUIConfig;
-import com.sighs.apricityui.instance.loader.ClientLoader;
-import com.sighs.apricityui.instance.loader.Loader;
 
 public final class DebugReloadWatcher {
     private static final long SCAN_INTERVAL_MS = 500L;
@@ -50,22 +50,22 @@ public final class DebugReloadWatcher {
             stream.filter(Files::isRegularFile)
                     .filter(DebugReloadWatcher::isWatchedExtension)
                     .forEach(path -> {
-                try {
-                    FileTime time = Files.getLastModifiedTime(path);
-                    long lastModified = time.toMillis();
-                    Long cached = LAST_MODIFIED.get(path);
-                    if (cached == null) {
-                        LAST_MODIFIED.put(path, lastModified);
-                        return;
-                    }
-                    if (lastModified != cached) {
-                        LAST_MODIFIED.put(path, lastModified);
-                        triggerReload(path, now);
-                    }
-                } catch (IOException exception) {
-                    ApricityUI.LOGGER.warn("[DebugReload] failed to inspect file={}", path, exception);
-                }
-            });
+                        try {
+                            FileTime time = Files.getLastModifiedTime(path);
+                            long lastModified = time.toMillis();
+                            Long cached = LAST_MODIFIED.get(path);
+                            if (cached == null) {
+                                LAST_MODIFIED.put(path, lastModified);
+                                return;
+                            }
+                            if (lastModified != cached) {
+                                LAST_MODIFIED.put(path, lastModified);
+                                triggerReload(path, now);
+                            }
+                        } catch (IOException exception) {
+                            ApricityUI.LOGGER.warn("[DebugReload] failed to inspect file={}", path, exception);
+                        }
+                    });
         } catch (IOException exception) {
             ApricityUI.LOGGER.warn("[DebugReload] failed to scan root={}", root, exception);
         }

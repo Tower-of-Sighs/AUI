@@ -1,10 +1,9 @@
 package com.sighs.apricityui.canvas;
 
+import java.awt.*;
 import java.awt.geom.AffineTransform;
-import java.awt.Paint;
-import java.awt.TexturePaint;
-import java.awt.image.BufferedImage;
 import java.awt.geom.Rectangle2D;
+import java.awt.image.BufferedImage;
 import java.util.Locale;
 
 public class CanvasPattern {

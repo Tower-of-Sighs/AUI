@@ -1,8 +1,9 @@
 package com.sighs.apricityui.event;
 
+import com.sighs.apricityui.init.Node;
+
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import com.sighs.apricityui.init.Node;
 
 public final class EventRegistry {
     private final Node owner;

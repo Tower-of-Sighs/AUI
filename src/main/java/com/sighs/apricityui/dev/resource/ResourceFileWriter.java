@@ -8,9 +8,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import com.sighs.apricityui.parser.HTML;
 
-/** Handles local HTML import and writes created resources under the active resource root. */
+/**
+ * Handles local HTML import and writes created resources under the active resource root.
+ */
 public final class ResourceFileWriter {
     private static final Path DEVELOPMENT_ROOT = Path.of("src/main/resources/assets/apricityui/apricity");
 

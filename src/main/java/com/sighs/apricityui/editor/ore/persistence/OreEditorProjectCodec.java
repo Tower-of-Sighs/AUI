@@ -9,11 +9,13 @@ import com.sighs.apricityui.editor.ore.model.OreComponentNode;
 import com.sighs.apricityui.editor.ore.model.OreContainerNode;
 import com.sighs.apricityui.editor.ore.model.OreEditorProject;
 
-import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
-/** Versioned, structured project codec. Editor decoration is never serialized. */
+/**
+ * Versioned, structured project codec. Editor decoration is never serialized.
+ */
 public final class OreEditorProjectCodec {
     public static final int FORMAT_VERSION = 1;
 
@@ -43,12 +45,14 @@ public final class OreEditorProjectCodec {
 
     public OreEditorProject read(String source) {
         JsonObject document = JsonParser.parseString(source == null ? "" : source).getAsJsonObject();
-        if (!"ore-editor-project".equals(string(document, "format"))) throw new IllegalArgumentException("Not an Ore editor project");
+        if (!"ore-editor-project".equals(string(document, "format")))
+            throw new IllegalArgumentException("Not an Ore editor project");
         if (document.get("version") == null || document.get("version").getAsInt() != FORMAT_VERSION) {
             throw new IllegalArgumentException("Unsupported Ore editor project version");
         }
         OreCanvasNode decoded = readNode(requiredObject(document, "root"), true);
-        if (!(decoded instanceof OreContainerNode root)) throw new IllegalArgumentException("Project root must be a container");
+        if (!(decoded instanceof OreContainerNode root))
+            throw new IllegalArgumentException("Project root must be a container");
         OreEditorProject project = new OreEditorProject(root);
         JsonObject theme = object(document, "theme");
         if (theme != null) for (Map.Entry<String, JsonElement> entry : theme.entrySet()) {
@@ -61,11 +65,13 @@ public final class OreEditorProjectCodec {
             project.documentMetadata().setBodyScriptContent(string(metadata, "bodyScripts"));
             JsonObject htmlAttributes = object(metadata, "htmlAttributes");
             if (htmlAttributes != null) for (Map.Entry<String, JsonElement> entry : htmlAttributes.entrySet()) {
-                if (entry.getValue().isJsonPrimitive()) project.documentMetadata().setHtmlAttribute(entry.getKey(), entry.getValue().getAsString());
+                if (entry.getValue().isJsonPrimitive())
+                    project.documentMetadata().setHtmlAttribute(entry.getKey(), entry.getValue().getAsString());
             }
             JsonObject bodyAttributes = object(metadata, "bodyAttributes");
             if (bodyAttributes != null) for (Map.Entry<String, JsonElement> entry : bodyAttributes.entrySet()) {
-                if (entry.getValue().isJsonPrimitive()) project.documentMetadata().setBodyAttribute(entry.getKey(), entry.getValue().getAsString());
+                if (entry.getValue().isJsonPrimitive())
+                    project.documentMetadata().setBodyAttribute(entry.getKey(), entry.getValue().getAsString());
             }
         }
         return project;
@@ -120,8 +126,11 @@ public final class OreEditorProjectCodec {
 
     private OreCanvasNode readNode(JsonObject value, boolean root) {
         UUID id;
-        try { id = UUID.fromString(string(value, "id")); }
-        catch (IllegalArgumentException exception) { throw new IllegalArgumentException("Invalid node UUID", exception); }
+        try {
+            id = UUID.fromString(string(value, "id"));
+        } catch (IllegalArgumentException exception) {
+            throw new IllegalArgumentException("Invalid node UUID", exception);
+        }
         OreCanvasNode node;
         if ("container".equals(string(value, "kind"))) {
             OreContainerNode container = new OreContainerNode(root, id);
@@ -150,7 +159,8 @@ public final class OreEditorProjectCodec {
             }
             node = component;
         } else throw new IllegalArgumentException("Unknown Ore node kind");
-        if (value.has("locked") && value.get("locked").isJsonPrimitive()) node.setLocked(value.get("locked").getAsBoolean());
+        if (value.has("locked") && value.get("locked").isJsonPrimitive())
+            node.setLocked(value.get("locked").getAsBoolean());
         JsonObject attributes = object(value, "attributes");
         if (attributes != null) for (Map.Entry<String, JsonElement> entry : attributes.entrySet()) {
             if (entry.getValue().isJsonPrimitive()) node.setAttribute(entry.getKey(), entry.getValue().getAsString());
@@ -177,9 +187,11 @@ public final class OreEditorProjectCodec {
                     OreComponentNode.VisualState state = OreComponentNode.VisualState.valueOf(entry.getKey());
                     if (!entry.getValue().isJsonObject()) continue;
                     for (Map.Entry<String, JsonElement> property : entry.getValue().getAsJsonObject().entrySet()) {
-                        if (property.getValue().isJsonPrimitive()) component.stateStyle(state).set(property.getKey(), property.getValue().getAsString());
+                        if (property.getValue().isJsonPrimitive())
+                            component.stateStyle(state).set(property.getKey(), property.getValue().getAsString());
                     }
-                } catch (IllegalArgumentException ignored) { }
+                } catch (IllegalArgumentException ignored) {
+                }
             }
         }
         return node;
@@ -190,14 +202,17 @@ public final class OreEditorProjectCodec {
         if (result == null) throw new IllegalArgumentException("Missing " + name);
         return result;
     }
+
     private static JsonObject object(JsonObject object, String name) {
         JsonElement value = object.get(name);
         return value != null && value.isJsonObject() ? value.getAsJsonObject() : null;
     }
+
     private static JsonArray array(JsonObject object, String name) {
         JsonElement value = object.get(name);
         return value != null && value.isJsonArray() ? value.getAsJsonArray() : null;
     }
+
     private static String string(JsonObject object, String name) {
         JsonElement value = object.get(name);
         return value == null || !value.isJsonPrimitive() ? "" : value.getAsString();

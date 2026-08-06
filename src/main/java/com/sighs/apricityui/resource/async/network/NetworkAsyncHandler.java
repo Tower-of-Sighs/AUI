@@ -1,8 +1,8 @@
 package com.sighs.apricityui.resource.async.network;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 import javax.net.ssl.HttpsURLConnection;
 import java.io.ByteArrayOutputStream;

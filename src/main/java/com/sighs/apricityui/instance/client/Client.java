@@ -8,16 +8,18 @@ import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.task.FrameScheduler;
-import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.DocumentLayerOrder;
-import com.sighs.apricityui.render.FrameTimingHud;
-import com.sighs.apricityui.render.Mask;
-import com.sighs.apricityui.style.Cursor;
+import com.sighs.apricityui.instance.config.ApricityUIConfig;
+import com.sighs.apricityui.instance.screen.ApricityContainerScreen;
+import com.sighs.apricityui.instance.screen.ApricityScreen;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
+import com.sighs.apricityui.instance.world.ItemRender;
+import com.sighs.apricityui.instance.world.WorldWindow;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.ui.Tooltip;
 import net.minecraft.ChatFormatting;
 import net.minecraft.SharedConstants;
@@ -37,13 +39,6 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import com.sighs.apricityui.resource.Font;
-import com.sighs.apricityui.instance.config.ApricityUIConfig;
-import com.sighs.apricityui.instance.screen.ApricityContainerScreen;
-import com.sighs.apricityui.instance.screen.ApricityScreen;
-import com.sighs.apricityui.instance.viewport.ApricityViewport;
-import com.sighs.apricityui.instance.world.ItemRender;
-import com.sighs.apricityui.instance.world.WorldWindow;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
 public class Client {
@@ -253,16 +248,16 @@ public class Client {
     private static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphics guiGraphics, Document document) {
         if (guiGraphics == null || document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
-        ApricityViewport viewport = document.getViewport();
-        guiGraphics.pose().pushPose();
-        Mask.pushScissorScale(viewport.scissorScale());
-        try {
-            guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-            ItemRender.renderDocumentSlotItems(guiGraphics, document);
-        } finally {
-            Mask.popScissorScale();
-            guiGraphics.pose().popPose();
-        }
+            ApricityViewport viewport = document.getViewport();
+            guiGraphics.pose().pushPose();
+            Mask.pushScissorScale(viewport.scissorScale());
+            try {
+                guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                ItemRender.renderDocumentSlotItems(guiGraphics, document);
+            } finally {
+                Mask.popScissorScale();
+                guiGraphics.pose().popPose();
+            }
         }
     }
 
@@ -357,7 +352,8 @@ public class Client {
             return;
         }
         int action = event.getAction();
-        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE)
+            return;
         if (action == InputConstants.PRESS && handleViewportZoomKeyAtMouse(event.getKey(), event.getModifiers())) {
             return;
         }
@@ -532,7 +528,9 @@ public class Client {
         return getMousePosition();
     }
 
-    /** Returns the live cursor position directly from the GLFW window handle. */
+    /**
+     * Returns the live cursor position directly from the GLFW window handle.
+     */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
         long handle = window.getWindow();

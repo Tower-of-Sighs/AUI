@@ -1,6 +1,6 @@
 package com.sighs.apricityui.canvas;
 
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class CanvasImageBitmap implements AutoCloseable {

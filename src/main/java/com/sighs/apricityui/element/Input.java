@@ -1,29 +1,28 @@
 package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.ui.ColorPicker;
 import org.lwjgl.PointerBuffer;
 import org.lwjgl.system.MemoryStack;
 import org.lwjgl.util.tinyfd.TinyFileDialogs;
 
-import java.util.Objects;
-import java.util.Locale;
 import java.util.ArrayList;
-import com.sighs.apricityui.parser.HTML;
+import java.util.Locale;
+import java.util.Objects;
 
 @ElementRegister(Input.TAG_NAME)
 public class Input extends AbstractText {
@@ -581,13 +580,17 @@ public class Input extends AbstractText {
         return event.clientY < contentTop + contentHeight / 2d ? 1 : -1;
     }
 
-    /** Handles a click in the number input's up/down spinner area. */
+    /**
+     * Handles a click in the number input's up/down spinner area.
+     */
     public boolean handleNumberSpinner(MouseEvent event) {
         int direction = numberSpinnerDirection(event);
         return direction != 0 && adjustNumber(direction);
     }
 
-    /** Handles a wheel event while this number control is the hit target. */
+    /**
+     * Handles a wheel event while this number control is the hit target.
+     */
     public boolean handleNumberWheel(MouseEvent event) {
         if (event == null || getMode() != Mode.NUMBER || isDisabled() || hasAttribute("readonly")) return false;
         double delta = event.deltaY;
@@ -699,15 +702,27 @@ public class Input extends AbstractText {
         return !Objects.equals(Double.toString(previous), Double.toString(current));
     }
 
-    private double rangeMin() { return parseNumberAttribute("min", 0d); }
-    private double rangeMax() { return parseNumberAttribute("max", 100d); }
-    private double rangeStep() { return parseNumberAttribute("step", 1d); }
+    private double rangeMin() {
+        return parseNumberAttribute("min", 0d);
+    }
+
+    private double rangeMax() {
+        return parseNumberAttribute("max", 100d);
+    }
+
+    private double rangeStep() {
+        return parseNumberAttribute("step", 1d);
+    }
+
     private double parseNumberAttribute(String name, double fallback) {
         try {
             double value = Double.parseDouble(getAttribute(name));
             return Double.isFinite(value) ? value : fallback;
-        } catch (Exception ignored) { return fallback; }
+        } catch (Exception ignored) {
+            return fallback;
+        }
     }
+
     private double rangeFraction() {
         double min = rangeMin();
         double max = rangeMax();

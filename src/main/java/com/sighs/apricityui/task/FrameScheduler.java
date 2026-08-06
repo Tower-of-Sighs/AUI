@@ -1,10 +1,10 @@
 package com.sighs.apricityui.task;
 
-import com.sighs.apricityui.ui.ToastManager;
-import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
-import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
+import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.ui.ToastManager;
 
 /**
  * AUI 的帧调度器。

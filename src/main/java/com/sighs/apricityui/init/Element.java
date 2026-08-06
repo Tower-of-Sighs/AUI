@@ -1,17 +1,27 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.layout.Flex;
-import com.sighs.apricityui.layout.Layout;
-import com.sighs.apricityui.layout.NormalFlow;
-import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.FontDrawer;
-import com.sighs.apricityui.render.Graph;
-import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.behavior.ScrollModel;
+import com.sighs.apricityui.behavior.SelectModel;
+import com.sighs.apricityui.behavior.TextSelection;
+import com.sighs.apricityui.dom.CommentNode;
+import com.sighs.apricityui.dom.NodeTree;
+import com.sighs.apricityui.dom.RenderElement;
+import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.form.ConstraintValidator;
+import com.sighs.apricityui.form.FormData;
+import com.sighs.apricityui.form.FormDataEntry;
+import com.sighs.apricityui.form.ValidityState;
+import com.sighs.apricityui.layout.*;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.CssString;
+import com.sighs.apricityui.parser.Selector;
+import com.sighs.apricityui.render.*;
 import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.util.HtmlSerializer;
+import com.sighs.apricityui.util.TextMetrics;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
 import java.time.LocalDate;
@@ -21,37 +31,6 @@ import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
-import com.sighs.apricityui.util.HtmlSerializer;
-import com.sighs.apricityui.task.FrameScheduler;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.style.ConstraintText;
-import com.sighs.apricityui.parser.CssString;
-import com.sighs.apricityui.parser.Selector;
-import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.style.StyleFrameCache;
-import com.sighs.apricityui.render.DirtyFlags;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.form.ConstraintValidator;
-import com.sighs.apricityui.form.FormData;
-import com.sighs.apricityui.form.FormDataEntry;
-import com.sighs.apricityui.form.ValidityState;
-import com.sighs.apricityui.behavior.ScrollModel;
-import com.sighs.apricityui.behavior.SelectModel;
-import com.sighs.apricityui.behavior.TextSelection;
-import com.sighs.apricityui.dom.CommentNode;
-import com.sighs.apricityui.dom.ElementTree;
-import com.sighs.apricityui.dom.NodeTree;
-import com.sighs.apricityui.dom.RenderElement;
-import com.sighs.apricityui.dom.TextNode;
-import com.sighs.apricityui.util.TextMetrics;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.style.Transition;
-import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.parser.HTML;
 
 public class Element extends Node {
     private HashMap<String, String> attributes = new HashMap<>();
@@ -118,7 +97,9 @@ public class Element extends Node {
         textSelection.addEventListeners();
     }
 
-    /** 子类以继承方式调用的入口，实现见 {@link CssString#parseClassNames}。 */
+    /**
+     * 子类以继承方式调用的入口，实现见 {@link CssString#parseClassNames}。
+     */
     protected static Set<String> parseClassNames(String value) {
         return CssString.parseClassNames(value);
     }
@@ -536,7 +517,9 @@ public class Element extends Node {
         return scroll.getHorizontalScrollbarGutter();
     }
 
-    /** Commits scroll extents from the element's used layout boxes. */
+    /**
+     * Commits scroll extents from the element's used layout boxes.
+     */
     @HideFromJS
     public void commitScrollMetricsFromLayout() {
         scroll.commitLayoutMetrics();
@@ -619,8 +602,8 @@ public class Element extends Node {
             String normalized = type.toLowerCase(Locale.ROOT);
             return switch (normalized) {
                 case "button", "checkbox", "color", "date", "datetime-local", "email", "file",
-                        "hidden", "image", "month", "number", "password", "radio", "range",
-                        "reset", "search", "submit", "tel", "text", "time", "url", "week" -> normalized;
+                     "hidden", "image", "month", "number", "password", "radio", "range",
+                     "reset", "search", "submit", "tel", "text", "time", "url", "week" -> normalized;
                 default -> "text";
             };
         }
@@ -661,7 +644,9 @@ public class Element extends Node {
         setBooleanAttribute("disabled", disabled);
     }
 
-    /** Returns the owning FORM, honoring an explicit form=id association. */
+    /**
+     * Returns the owning FORM, honoring an explicit form=id association.
+     */
     public Element getFormOwner() {
         if ("FORM".equalsIgnoreCase(tagName)) return null;
         if (!isFormControl()) return null;
@@ -681,7 +666,9 @@ public class Element extends Node {
         return null;
     }
 
-    /** Browser-style form property name used by the JavaScript bridge. */
+    /**
+     * Browser-style form property name used by the JavaScript bridge.
+     */
     public Element getForm() {
         return getFormOwner();
     }
@@ -872,7 +859,9 @@ public class Element extends Node {
         }
     }
 
-    /** Draw this element's native scrollbars after its content clip has been popped. */
+    /**
+     * Draw this element's native scrollbars after its content clip has been popped.
+     */
     @HideFromJS
     public void drawScrollbar(PoseStack poseStack, Rect rectRenderer) {
         scroll.drawScrollbar(poseStack, rectRenderer);
@@ -1548,13 +1537,17 @@ public class Element extends Node {
         }
     }
 
-    /** Programmatic submission, matching the legacy AUI behavior. */
+    /**
+     * Programmatic submission, matching the legacy AUI behavior.
+     */
     public boolean submit() {
         if (!"FORM".equalsIgnoreCase(tagName)) return false;
         return dispatchSubmitEvent(null);
     }
 
-    /** Interactive submission with constraint validation and an optional submitter. */
+    /**
+     * Interactive submission with constraint validation and an optional submitter.
+     */
     public boolean requestSubmit() {
         return requestSubmit(null);
     }
@@ -1601,7 +1594,9 @@ public class Element extends Node {
         return true;
     }
 
-    /** Returns successful controls in document order for FormData and submission. */
+    /**
+     * Returns successful controls in document order for FormData and submission.
+     */
     public List<FormDataEntry> getFormDataEntries() {
         return getFormDataEntries(null);
     }
@@ -1660,7 +1655,8 @@ public class Element extends Node {
             if ("file".equals(type)) {
                 List<String> files = control.getFileList();
                 if (files.isEmpty()) entries.add(new FormDataEntry(name, "", ""));
-                else for (String file : files) entries.add(new FormDataEntry(name, file, ConstraintText.fileName(file)));
+                else
+                    for (String file : files) entries.add(new FormDataEntry(name, file, ConstraintText.fileName(file)));
                 return;
             }
         } else if ("BUTTON".equals(tag)) {
@@ -1683,9 +1679,8 @@ public class Element extends Node {
         if ("BUTTON".equalsIgnoreCase(tagName)) {
             return false;
         }
-        if (("INPUT".equalsIgnoreCase(tagName) || "TEXTAREA".equalsIgnoreCase(tagName))
-                && hasAttribute("readonly")) return false;
-        return true;
+        return (!"INPUT".equalsIgnoreCase(tagName) && !"TEXTAREA".equalsIgnoreCase(tagName))
+                || !hasAttribute("readonly");
     }
 
     public ValidityState getValidity() {
@@ -1702,7 +1697,7 @@ public class Element extends Node {
     }
 
     public boolean isValid() {
-        return getValidity().valid;
+        return getValidity().valid();
     }
 
     public boolean checkValidity() {
@@ -1736,15 +1731,15 @@ public class Element extends Node {
         if (!isWillValidate() || isValid()) return "";
         if (!customValidityMessage.isBlank()) return customValidityMessage;
         ValidityState state = getValidity();
-        if (state.valueMissing) return "Please fill out this field.";
-        if (state.typeMismatch) return "Please enter a valid value.";
-        if (state.badInput) return "Please enter a number.";
-        if (state.rangeUnderflow) return "Value is too small.";
-        if (state.rangeOverflow) return "Value is too large.";
-        if (state.stepMismatch) return "Please enter a valid value.";
-        if (state.patternMismatch) return "Please match the requested format.";
-        if (state.tooShort) return "Value is too short.";
-        if (state.tooLong) return "Value is too long.";
+        if (state.valueMissing()) return "Please fill out this field.";
+        if (state.typeMismatch()) return "Please enter a valid value.";
+        if (state.badInput()) return "Please enter a number.";
+        if (state.rangeUnderflow()) return "Value is too small.";
+        if (state.rangeOverflow()) return "Value is too large.";
+        if (state.stepMismatch()) return "Please enter a valid value.";
+        if (state.patternMismatch()) return "Please match the requested format.";
+        if (state.tooShort()) return "Value is too short.";
+        if (state.tooLong()) return "Value is too long.";
         return "Please enter a valid value.";
     }
 
@@ -1759,7 +1754,7 @@ public class Element extends Node {
             case "month" -> {
                 long monthIndex = Math.round(parsed);
                 int year = (int) Math.floorDiv(monthIndex, 12);
-                int month = (int) Math.floorMod(monthIndex, 12) + 1;
+                int month = Math.floorMod(monthIndex, 12) + 1;
                 yield YearMonth.of(year, month).atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
             }
             default -> parsed;
@@ -1783,16 +1778,14 @@ public class Element extends Node {
         else if ("datetime-local".equals(type)) {
             setValue(java.time.Instant.ofEpochMilli(Math.round(number))
                     .atZone(java.time.ZoneOffset.UTC).toLocalDateTime().toString());
-        }
-        else if ("month".equals(type)) {
+        } else if ("month".equals(type)) {
             java.time.Instant instant = java.time.Instant.ofEpochMilli(Math.round(number));
             setValue(YearMonth.from(instant.atZone(java.time.ZoneOffset.UTC)).toString());
         } else if ("week".equals(type)) {
             LocalDate date = LocalDate.ofEpochDay(Math.round(internal));
             setValue(String.format(Locale.ROOT, "%04d-W%02d",
                     date.get(IsoFields.WEEK_BASED_YEAR), date.get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)));
-        }
-        else setValue(ConstraintText.serializeNumberValue(number));
+        } else setValue(ConstraintText.serializeNumberValue(number));
     }
 
     public void stepUp() {
@@ -1828,7 +1821,7 @@ public class Element extends Node {
             case "time" -> next * 1_000d;
             case "month" -> {
                 int year = (int) Math.floorDiv(Math.round(next), 12);
-                int month = (int) Math.floorMod(Math.round(next), 12) + 1;
+                int month = Math.floorMod(Math.round(next), 12) + 1;
                 yield YearMonth.of(year, month).atDay(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant().toEpochMilli();
             }
             default -> next;
@@ -2782,8 +2775,7 @@ public class Element extends Node {
         String textOverflow = getComputedStyle().textOverflow;
         if (!Interaction.clipsOverflow(overflow)) return false;
         if (!"ellipsis".equalsIgnoreCase(textOverflow)) return false;
-        if (Text.allowsSoftWrap(text.whiteSpace)) return false;
-        return true;
+        return !Text.allowsSoftWrap(text.whiteSpace);
     }
 
     private boolean shouldApplyClampedEllipsis(double contentWidth, int lineClamp, boolean truncated) {

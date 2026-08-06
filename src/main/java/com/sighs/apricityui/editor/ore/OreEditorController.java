@@ -1,46 +1,42 @@
 package com.sighs.apricityui.editor.ore;
 
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.instance.loader.ClientLoader;
-import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.event.KeyEvent;
-import com.sighs.apricityui.ui.Tooltip;
-import com.sighs.apricityui.ui.ToastManager;
-import com.sighs.apricityui.ui.UiTranslations;
-import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.editor.ore.canvas.OreCanvasHitTester;
 import com.sighs.apricityui.editor.ore.canvas.OreCanvasRenderer;
 import com.sighs.apricityui.editor.ore.canvas.OreFlexInsertionResolver;
 import com.sighs.apricityui.editor.ore.drag.OreDragController;
-import com.sighs.apricityui.editor.ore.model.OreCanvasNode;
-import com.sighs.apricityui.editor.ore.model.OreAbsoluteConstraints;
-import com.sighs.apricityui.editor.ore.model.OreComponentNode;
-import com.sighs.apricityui.editor.ore.model.OreContainerNode;
-import com.sighs.apricityui.editor.ore.model.OreEditorProject;
+import com.sighs.apricityui.editor.ore.model.*;
 import com.sighs.apricityui.editor.ore.palette.OreComponentDefinition;
 import com.sighs.apricityui.editor.ore.palette.OreComponentRegistry;
 import com.sighs.apricityui.editor.ore.persistence.OreEditorDocumentStore;
 import com.sighs.apricityui.editor.ore.persistence.OreEditorHtmlExporter;
 import com.sighs.apricityui.editor.ore.persistence.OreEditorHtmlImporter;
 import com.sighs.apricityui.editor.ore.persistence.OreEditorProjectCodec;
+import com.sighs.apricityui.event.KeyEvent;
+import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.ui.ToastManager;
+import com.sighs.apricityui.ui.Tooltip;
+import com.sighs.apricityui.ui.UiTranslations;
+import org.lwjgl.glfw.GLFW;
 
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
-import org.lwjgl.glfw.GLFW;
-import com.sighs.apricityui.event.Event;
-
-/** Owns only the editor document and shell interactions. Canvas behavior is added separately. */
+/**
+ * Owns only the editor document and shell interactions. Canvas behavior is added separately.
+ */
 final class OreEditorController {
     static final OreEditorController INSTANCE = new OreEditorController();
     static final String PATH = "editor/ore/ore-editor.html";
@@ -140,8 +136,13 @@ final class OreEditorController {
         return document != null && document.isActive() && Document.get(PATH).contains(document);
     }
 
-    synchronized Document getDocument() { return isOpen() ? document : null; }
-    synchronized OreEditorSession getSession() { return session; }
+    synchronized Document getDocument() {
+        return isOpen() ? document : null;
+    }
+
+    synchronized OreEditorSession getSession() {
+        return session;
+    }
 
     synchronized boolean loadSavedProject() {
         OreEditorDocumentStore.ReadResult result = documentStore.readProject();
@@ -240,7 +241,8 @@ final class OreEditorController {
     }
 
     synchronized void toggle() {
-        if (isOpen()) close(); else open();
+        if (isOpen()) close();
+        else open();
     }
 
     private void bindShell() {
@@ -322,7 +324,8 @@ final class OreEditorController {
                 || (keyEvent.keyCode == GLFW.GLFW_KEY_Z && keyEvent.shiftKey);
         boolean undo = keyEvent.keyCode == GLFW.GLFW_KEY_Z && !keyEvent.shiftKey;
         if (!undo && !redo) return;
-        if (undo) undo(); else redo();
+        if (undo) undo();
+        else redo();
         event.preventDefault();
         event.stopPropagation();
     }
@@ -429,8 +432,14 @@ final class OreEditorController {
         String title;
         String message;
         switch (session.mode()) {
-            case INSPECT -> { title = "ore_editor.apricityui.inspector.title"; message = "ore_editor.apricityui.empty.inspect"; }
-            case THEME -> { title = "ore_editor.apricityui.theme.title"; message = "ore_editor.apricityui.empty.theme"; }
+            case INSPECT -> {
+                title = "ore_editor.apricityui.inspector.title";
+                message = "ore_editor.apricityui.empty.inspect";
+            }
+            case THEME -> {
+                title = "ore_editor.apricityui.theme.title";
+                message = "ore_editor.apricityui.empty.theme";
+            }
             default -> {
                 title = showingPaletteContainers ? "ore_editor.apricityui.palette.containers" : "ore_editor.apricityui.palette.components";
                 message = "ore_editor.apricityui.empty.add";
@@ -486,7 +495,7 @@ final class OreEditorController {
             String key = entry instanceof OreContainerNode container && container.isRoot()
                     ? "ore_editor.apricityui.breadcrumb.canvas"
                     : entry instanceof OreContainerNode ? "ore_editor.apricityui.breadcrumb.container"
-                    : "ore_editor.apricityui.breadcrumb.component";
+                      : "ore_editor.apricityui.breadcrumb.component";
             breadcrumb.appendChild(OreEditorDom.translation(document, key, null));
         }
         document.markDirty(breadcrumb, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER | Drawer.HITTEST);
@@ -497,7 +506,8 @@ final class OreEditorController {
         Element state = document.querySelector(".editor-document-state");
         if (state == null) return;
         for (Node child : new ArrayList<>(state.children)) child.remove();
-        if (openedHtmlPath == null) state.appendChild(OreEditorDom.translation(document, "ore_editor.apricityui.document.untitled", null));
+        if (openedHtmlPath == null)
+            state.appendChild(OreEditorDom.translation(document, "ore_editor.apricityui.document.untitled", null));
         else state.appendChild(document.createTextNode(openedHtmlPath.getFileName().toString()));
         if (session.dirty()) {
             Element dirty = Element.init(document.createElement("SPAN"));
@@ -664,7 +674,7 @@ final class OreEditorController {
         stateStatus.setAttribute("class", overridden ? "badge badge-purple editor-state-status" : "badge editor-state-status");
         stateStatus.appendChild(OreEditorDom.translation(document, editingVisualState == OreComponentNode.VisualState.DEFAULT
                 ? "ore_editor.apricityui.state.base" : overridden
-                ? "ore_editor.apricityui.state.overridden" : "ore_editor.apricityui.state.no_override", null));
+                                                       ? "ore_editor.apricityui.state.overridden" : "ore_editor.apricityui.state.no_override", null));
         body.appendChild(stateStatus);
         appendNumberStyleInput(body, component, "ore_editor.apricityui.property.order", "order", component.style().get("order"), null, null, 1);
         appendNumberStyleInput(body, component, "ore_editor.apricityui.property.flex_grow", "flex-grow", component.style().get("flex-grow"), 0D, null, 0.1D);
@@ -813,8 +823,14 @@ final class OreEditorController {
         session.select(node.id());
         updateProject();
         commitHistory(OreEditorHistory.action("MoveNode", node.id(), node.id(),
-                () -> { parent.remove(node); parent.insert(beforeIndex, node); },
-                () -> { parent.remove(node); parent.insert(afterIndex, node); }));
+                () -> {
+                    parent.remove(node);
+                    parent.insert(beforeIndex, node);
+                },
+                () -> {
+                    parent.remove(node);
+                    parent.insert(afterIndex, node);
+                }));
         renderMode();
         renderBreadcrumb();
     }
@@ -832,8 +848,14 @@ final class OreEditorController {
         session.select(node.id());
         updateProject();
         commitHistory(OreEditorHistory.action("ReparentNode", node.id(), node.id(),
-                () -> { target.remove(node); source.insert(sourceIndex, node); },
-                () -> { source.remove(node); target.insert(targetIndex, node); }));
+                () -> {
+                    target.remove(node);
+                    source.insert(sourceIndex, node);
+                },
+                () -> {
+                    source.remove(node);
+                    target.insert(targetIndex, node);
+                }));
         renderMode();
         renderBreadcrumb();
     }
@@ -1447,6 +1469,7 @@ final class OreEditorController {
                     container.flex().alignItems(), container.flex().alignContent(), container.flex().gap(),
                     container.flex().rowGap(), container.flex().columnGap());
         }
+
         void apply(OreContainerNode container) {
             container.flex().setDirection(direction);
             container.flex().setWrap(wrap);
@@ -1465,8 +1488,10 @@ final class OreEditorController {
             return new ComponentState(component.absolute(), component.flowIndex(), component.style().properties(),
                     component.hasFlowStyleSnapshot() ? component.flowStyleSnapshot() : java.util.Map.of());
         }
+
         void apply(OreComponentNode component) {
-            for (String property : new ArrayList<>(component.style().properties().keySet())) component.style().set(property, null);
+            for (String property : new ArrayList<>(component.style().properties().keySet()))
+                component.style().set(property, null);
             styles.forEach(component.style()::set);
             if (absolute) component.enterAbsolute(flowIndex);
             else component.leaveAbsolute();
@@ -1539,7 +1564,8 @@ final class OreEditorController {
     private void moveAbsoluteNode(double x, double y) {
         if (absoluteDragNode == null) return;
         OreCanvasNode node = project.find(absoluteDragNode);
-        if (!(node instanceof com.sighs.apricityui.editor.ore.model.OreComponentNode component) || component.locked()) return;
+        if (!(node instanceof com.sighs.apricityui.editor.ore.model.OreComponentNode component) || component.locked())
+            return;
         double dx = x - absoluteDragStartX;
         double dy = y - absoluteDragStartY;
         if (hasPixelOffset(component, "right")) component.style().set("right", px(absoluteDragRight - dx));
@@ -1586,7 +1612,8 @@ final class OreEditorController {
     private void moveAbsoluteResize(double x, double y) {
         if (absoluteResizeNode == null) return;
         OreCanvasNode node = project.find(absoluteResizeNode);
-        if (!(node instanceof com.sighs.apricityui.editor.ore.model.OreComponentNode component) || component.locked()) return;
+        if (!(node instanceof com.sighs.apricityui.editor.ore.model.OreComponentNode component) || component.locked())
+            return;
         double dx = x - absoluteResizeStartX;
         double dy = y - absoluteResizeStartY;
         component.style().set("width", px(Math.max(16, absoluteResizeWidth + dx)));
@@ -1618,8 +1645,11 @@ final class OreEditorController {
 
     private static double number(String value) {
         if (value == null) return 0;
-        try { return Double.parseDouble(value.replace("px", "").trim()); }
-        catch (NumberFormatException ignored) { return 0; }
+        try {
+            return Double.parseDouble(value.replace("px", "").trim());
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
     }
 
     private static boolean hasPixelOffset(com.sighs.apricityui.editor.ore.model.OreComponentNode component,
@@ -1628,15 +1658,23 @@ final class OreEditorController {
         return value != null && value.trim().endsWith("px");
     }
 
-    private static String px(double value) { return Math.round(value * 100.0) / 100.0 + "px"; }
+    private static String px(double value) {
+        return Math.round(value * 100.0) / 100.0 + "px";
+    }
 
     private void updateProject() {
         setDirty(true);
         renderCanvas();
     }
 
-    private void undo() { applyHistory(history.undo()); }
-    private void redo() { applyHistory(history.redo()); }
+    private void undo() {
+        applyHistory(history.undo());
+    }
+
+    private void redo() {
+        applyHistory(history.redo());
+    }
+
     private void applyHistory(OreEditorHistory.Result result) {
         if (!result.changed()) return;
         setDirty(!history.isAtSavedRevision());
@@ -1702,8 +1740,11 @@ final class OreEditorController {
                 ? "ore_editor.apricityui.notice.exported" : "ore_editor.apricityui.notice.export_failed");
     }
 
-    private record ThemeToken(String name, String defaultValue, String translationSuffix) { }
-    private record ThemeGroup(String translationSuffix, List<String> tokens) { }
+    private record ThemeToken(String name, String defaultValue, String translationSuffix) {
+    }
+
+    private record ThemeGroup(String translationSuffix, List<String> tokens) {
+    }
 
     private static ThemeToken themeToken(String name) {
         for (ThemeToken token : THEME_TOKENS) if (token.name().equals(name)) return token;
@@ -1814,7 +1855,7 @@ final class OreEditorController {
                 String red = source.substring(1, 2);
                 String green = source.substring(2, 3);
                 String blue = source.substring(3, 4);
-                double alpha = source.length() == 5 ? Integer.parseInt(source.substring(4, 5) + source.substring(4, 5), 16) / 255D : 1D;
+                double alpha = source.length() == 5 ? Integer.parseInt(source.charAt(4) + source.charAt(4), 16) / 255D : 1D;
                 return new ColorValue("#" + red + red + green + green + blue + blue, alpha);
             }
             if (source.matches("#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?")) {
@@ -1822,7 +1863,7 @@ final class OreEditorController {
                 return new ColorValue(source.substring(0, 7), alpha);
             }
             java.util.regex.Matcher matcher = java.util.regex.Pattern.compile(
-                    "(?i)^rgba?\\(\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})(?:\\s*,\\s*(0(?:\\.\\d+)?|1(?:\\.0+)?))?\\s*\\)$")
+                            "(?i)^rgba?\\(\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})\\s*,\\s*(\\d{1,3})(?:\\s*,\\s*(0(?:\\.\\d+)?|1(?:\\.0+)?))?\\s*\\)$")
                     .matcher(source);
             if (!matcher.matches()) return new ColorValue("#000000", 1D);
             int red = Integer.parseInt(matcher.group(1));
@@ -1910,6 +1951,7 @@ final class OreEditorController {
                     valueOr(node.style().get(property + "-bottom"), parsed.bottom),
                     valueOr(node.style().get(property + "-left"), parsed.left));
         }
+
         static BoxValue parse(String shorthand) {
             if (shorthand == null || shorthand.isBlank()) return new BoxValue("", "", "", "");
             String[] values = shorthand.trim().split("\\s+");
@@ -1921,6 +1963,7 @@ final class OreEditorController {
                 default -> new BoxValue(values[0], values[1], values[2], values[3]);
             };
         }
+
         private static String valueOr(String value, String fallback) {
             return value == null || value.isBlank() ? fallback : value;
         }
@@ -2065,7 +2108,8 @@ final class OreEditorController {
         if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) return null;
         UUID hit = hitTester.hit(canvasRenderer.elements(), x, y);
         OreCanvasNode node = hit == null ? project.root() : project.find(hit);
-        while (node != null && (!(node instanceof OreContainerNode container) || structureLocked(container))) node = node.parent();
+        while (node != null && (!(node instanceof OreContainerNode container) || structureLocked(container)))
+            node = node.parent();
         return node instanceof OreContainerNode container ? container : project.root();
     }
 
@@ -2079,7 +2123,9 @@ final class OreEditorController {
         return true;
     }
 
-    /** The root is locked against structural deletion, but remains the editable canvas drop target. */
+    /**
+     * The root is locked against structural deletion, but remains the editable canvas drop target.
+     */
     private static boolean structureLocked(OreContainerNode container) {
         return container != null && !container.acceptsStructuralChildren();
     }

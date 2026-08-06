@@ -1,25 +1,19 @@
 package com.sighs.apricityui.instance.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.instance.slot.SlotDisplaySpec;
 import com.sighs.apricityui.instance.slot.SlotExpressionCompiler;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import com.sighs.apricityui.parser.Selector;
-import com.sighs.apricityui.parser.CSS;
+import java.util.*;
 
 /**
  * 槽位 DOM 元素。

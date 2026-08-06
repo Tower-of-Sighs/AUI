@@ -1,40 +1,27 @@
 package com.sighs.apricityui.dev;
 
-import com.sighs.apricityui.dev.resource.ResourceCreateDialog;
-import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
-import com.sighs.apricityui.dev.resource.ResourceFontAsset;
-import com.sighs.apricityui.dev.resource.ResourcePath;
-import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
-import com.sighs.apricityui.dev.resource.ResourceReferenceDialog;
-import com.sighs.apricityui.ui.ToastManager;
-import com.sighs.apricityui.ui.ContextMenu;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.dev.resource.*;
 import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.instance.config.ApricityUIConfig;
+import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.instance.world.WorldWindow;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.Operation;
+import com.sighs.apricityui.ui.ContextMenu;
+import com.sighs.apricityui.ui.ToastManager;
+import net.minecraft.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
-import net.minecraft.Util;
 import net.minecraft.world.phys.Vec3;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import com.sighs.apricityui.parser.HTML;
+import java.util.*;
 
 public final class ResourceManager {
     private static final String PATH = "devtools/resource.html";
@@ -56,7 +43,9 @@ public final class ResourceManager {
     private static final List<String> history = new ArrayList<>(List.of(ROOT_PATH));
     private static int historyIndex;
     private static final Set<String> expandedPaths = new LinkedHashSet<>();
-    /** Direct references avoid selector misses falling back to a full tree rebuild. */
+    /**
+     * Direct references avoid selector misses falling back to a full tree rebuild.
+     */
     private static final Map<String, TreeBranch> treeBranches = new LinkedHashMap<>();
     private static final ResourceCreateDialog createDialog = new ResourceCreateDialog();
     private static final ResourcePreviewDialog previewDialog = new ResourcePreviewDialog();
@@ -71,7 +60,9 @@ public final class ResourceManager {
         return toolDocument != null && !toolDocument.isDisposed();
     }
 
-    /** Switches an already-open resource manager when its display-mode config changes. */
+    /**
+     * Switches an already-open resource manager when its display-mode config changes.
+     */
     public static void reconcileConfiguredMode() {
         if (!isOpen()) return;
 
@@ -256,7 +247,9 @@ public final class ResourceManager {
         markSelectionDirty();
     }
 
-    /** Selecting an existing tile must not replace it before its double-click can be dispatched. */
+    /**
+     * Selecting an existing tile must not replace it before its double-click can be dispatched.
+     */
     private static void refreshSelectionClasses() {
         if (toolDocument == null) return;
         for (Element element : toolDocument.querySelectorAll(".file-card")) {
@@ -292,7 +285,9 @@ public final class ResourceManager {
         if (detail != null) toolDocument.markDirty(detail, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
     }
 
-    /** Folder navigation changes the content panes, never the document root. */
+    /**
+     * Folder navigation changes the content panes, never the document root.
+     */
     private static void markNavigationDirty() {
         if (toolDocument == null) return;
         int mask = Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER;
@@ -505,7 +500,8 @@ public final class ResourceManager {
             Element card = fileCard(fileName(entry.path()), formatSize(entry.sizeBytes()), iconFor(entry), entry, fileItem, animate, index++);
             card.setAttribute("data-path", safe(entry.path()));
             card.setAttribute("data-resource-key", resourceKey(entry));
-            if (isPreviewable(entry) && !PATH.equals(safe(entry.path()))) card.addEventListener("dblclick", event -> openPreview(entry));
+            if (isPreviewable(entry) && !PATH.equals(safe(entry.path())))
+                card.addEventListener("dblclick", event -> openPreview(entry));
             grid.append(card);
         }
     }
@@ -752,7 +748,9 @@ public final class ResourceManager {
         }
     }
 
-    /** Opens only ancestors that are not already present in the rendered tree. */
+    /**
+     * Opens only ancestors that are not already present in the rendered tree.
+     */
     private static void expandAncestorsLocally(String path) {
         Set<String> previous = new LinkedHashSet<>(expandedPaths);
         expandAncestors(path);
@@ -775,8 +773,10 @@ public final class ResourceManager {
         String extension = safe(entry.extension()).toLowerCase(Locale.ROOT);
         if (isImagePreviewable(entry)) return IMAGE_ICON;
         if (extension.equals("lock")) return LOCK_ICON;
-        if (extension.equals("zip") || extension.equals("jar") || extension.equals("rar") || extension.equals("7z")) return ARCHIVE_ICON;
-        if (extension.equals("json") || extension.equals("toml") || extension.equals("properties") || extension.equals("cfg") || extension.equals("conf")) return CONFIG_ICON;
+        if (extension.equals("zip") || extension.equals("jar") || extension.equals("rar") || extension.equals("7z"))
+            return ARCHIVE_ICON;
+        if (extension.equals("json") || extension.equals("toml") || extension.equals("properties") || extension.equals("cfg") || extension.equals("conf"))
+            return CONFIG_ICON;
         return FILE_ICON;
     }
 
@@ -911,47 +911,42 @@ public final class ResourceManager {
         }
     }
 
-    private static final class SelectedItem {
-        private final String key;
-        private final String name;
-        private final String path;
-        private final FolderNode folder;
-        private final Loader.StaticResourceEntry entry;
-
-        private SelectedItem(String key, String name, String path, FolderNode folder, Loader.StaticResourceEntry entry) {
-            this.key = key;
-            this.name = name;
-            this.path = normalizePath(path);
-            this.folder = folder;
-            this.entry = entry;
-        }
-
-        private static SelectedItem folder(FolderNode folder) {
-            return new SelectedItem("folder|" + folder.path, folder.name, folder.path, folder, null);
-        }
-
-        private static SelectedItem file(Loader.StaticResourceEntry entry) {
-            return new SelectedItem("file|" + resourceKey(entry), fileName(entry.path()), entry.path(), null, entry);
-        }
-
-        private boolean matches(Loader.StaticResourceEntry other) {
-            return entry != null && resourceKey(entry).equals(resourceKey(other));
-        }
-
-        private boolean existsIn(FolderNode tree) {
-            if (folder != null) return findFolder(path) != null;
-            if (entry == null) return false;
-            return findEntry(tree, resourceKey(entry));
-        }
-
-        private static boolean findEntry(FolderNode folder, String key) {
-            for (Loader.StaticResourceEntry entry : folder.files) {
-                if (resourceKey(entry).equals(key)) return true;
+    private record SelectedItem(String key, String name, String path, FolderNode folder,
+                                Loader.StaticResourceEntry entry) {
+            private SelectedItem(String key, String name, String path, FolderNode folder, Loader.StaticResourceEntry entry) {
+                this.key = key;
+                this.name = name;
+                this.path = normalizePath(path);
+                this.folder = folder;
+                this.entry = entry;
             }
-            for (FolderNode child : folder.folders.values()) {
-                if (findEntry(child, key)) return true;
+
+            private static SelectedItem folder(FolderNode folder) {
+                return new SelectedItem("folder|" + folder.path, folder.name, folder.path, folder, null);
             }
-            return false;
+
+            private static SelectedItem file(Loader.StaticResourceEntry entry) {
+                return new SelectedItem("file|" + resourceKey(entry), fileName(entry.path()), entry.path(), null, entry);
+            }
+
+            private boolean matches(Loader.StaticResourceEntry other) {
+                return entry != null && resourceKey(entry).equals(resourceKey(other));
+            }
+
+            private boolean existsIn(FolderNode tree) {
+                if (folder != null) return findFolder(path) != null;
+                if (entry == null) return false;
+                return findEntry(tree, resourceKey(entry));
+            }
+
+            private static boolean findEntry(FolderNode folder, String key) {
+                for (Loader.StaticResourceEntry entry : folder.files) {
+                    if (resourceKey(entry).equals(key)) return true;
+                }
+                for (FolderNode child : folder.folders.values()) {
+                    if (findEntry(child, key)) return true;
+                }
+                return false;
+            }
         }
-    }
 }

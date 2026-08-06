@@ -1,8 +1,9 @@
 package com.sighs.apricityui.dom;
 
+import com.sighs.apricityui.init.Document;
+
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import com.sighs.apricityui.init.Document;
 
 /**
  * Document 的 MutationObserver 注册表（创建/入队/刷新/清空）。

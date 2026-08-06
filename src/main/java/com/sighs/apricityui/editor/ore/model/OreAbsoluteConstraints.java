@@ -1,6 +1,8 @@
 package com.sighs.apricityui.editor.ore.model;
 
-/** Maintains mutually exclusive horizontal and vertical absolute-position anchors. */
+/**
+ * Maintains mutually exclusive horizontal and vertical absolute-position anchors.
+ */
 public final class OreAbsoluteConstraints {
     private OreAbsoluteConstraints() {
     }
@@ -15,7 +17,8 @@ public final class OreAbsoluteConstraints {
             case "right" -> component.style().set("left", null);
             case "top" -> component.style().set("bottom", null);
             case "bottom" -> component.style().set("top", null);
-            default -> { }
+            default -> {
+            }
         }
     }
 }

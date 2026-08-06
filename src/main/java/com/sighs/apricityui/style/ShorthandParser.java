@@ -1,15 +1,13 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.CssString;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.parser.CssString;
-import com.sighs.apricityui.parser.CSS;
 
 /**
  * CSS 简写属性（margin/padding/border/background/flex/gap/inset/animation/rotate）的

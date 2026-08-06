@@ -1,6 +1,7 @@
 package com.sighs.apricityui.event;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.util.ArrayList;
@@ -8,10 +9,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 import java.util.function.Consumer;
-import com.sighs.apricityui.form.FormData;
-import com.sighs.apricityui.init.Node;
+import java.util.function.Supplier;
 
 public class Event implements Cloneable {
     private static final ThreadLocal<Integer> TRUSTED_CONTEXT_DEPTH = ThreadLocal.withInitial(() -> 0);
@@ -28,9 +27,13 @@ public class Event implements Cloneable {
     public boolean cancelable = false;
     public boolean defaultPrevented = false;
     public Object detail = null;
-    /** Submit button that initiated a submit event, when applicable. */
+    /**
+     * Submit button that initiated a submit event, when applicable.
+     */
     public Object submitter = null;
-    /** FormData snapshot exposed on a formdata event. */
+    /**
+     * FormData snapshot exposed on a formdata event.
+     */
     public Object formData = null;
     public short eventPhase = NONE;
     public boolean cancelBubble = false;

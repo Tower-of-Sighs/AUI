@@ -1,8 +1,9 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.init.Element;
+
 import java.util.IdentityHashMap;
 import java.util.Map;
-import com.sighs.apricityui.init.Element;
 
 public final class StyleFrameCache {
     private static final ThreadLocal<Map<Element, Style>> CACHE = new ThreadLocal<>();

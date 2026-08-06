@@ -1,14 +1,11 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.init.Element;
+
 import java.math.BigDecimal;
-import java.time.DayOfWeek;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.YearMonth;
+import java.time.*;
 import java.time.temporal.IsoFields;
 import java.util.Locale;
-import com.sighs.apricityui.init.Element;
 
 /**
  * 表单控件的类型/约束解析纯函数（input type 归一化、数值/日期/时间解析、
@@ -18,7 +15,9 @@ public final class ConstraintText {
     private ConstraintText() {
     }
 
-    /** 把纯整数值的 "N.0" 归一化为 "N"，避免 count/page 显示不友好。 */
+    /**
+     * 把纯整数值的 "N.0" 归一化为 "N"，避免 count/page 显示不友好。
+     */
     public static String normalizeNumericText(String value) {
         if (value == null || value.isEmpty()) return "";
         int len = value.length();
@@ -64,7 +63,9 @@ public final class ConstraintText {
         return "submit".equals(type) || "image".equals(type);
     }
 
-    /** Keeps interactive numeric values decimal-safe without preserving redundant trailing zeroes. */
+    /**
+     * Keeps interactive numeric values decimal-safe without preserving redundant trailing zeroes.
+     */
     public static String serializeNumberValue(double number) {
         if (number == 0d) return "0";
         return BigDecimal.valueOf(number).stripTrailingZeros().toPlainString();
@@ -91,7 +92,7 @@ public final class ConstraintText {
                     YearMonth month = YearMonth.parse(raw);
                     yield (double) (month.getYear() * 12L + month.getMonthValue() - 1);
                 }
-                case "time" -> (double) parseTimeSeconds(raw);
+                case "time" -> parseTimeSeconds(raw);
                 case "datetime-local" -> LocalDateTime.parse(raw)
                         .toInstant(java.time.ZoneOffset.UTC).toEpochMilli() / 1_000d;
                 case "week" -> {

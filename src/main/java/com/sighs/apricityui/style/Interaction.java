@@ -1,7 +1,6 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
 
 import java.util.Locale;
 

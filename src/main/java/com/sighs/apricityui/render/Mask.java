@@ -11,8 +11,6 @@ import org.lwjgl.opengl.GL11;
 
 import java.util.ArrayDeque;
 import java.util.Stack;
-import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.instance.world.WorldWindow;
 
 public class Mask {
     private static int depth = 0;
@@ -33,7 +31,9 @@ public class Mask {
         resetDepth(window.width(), window.height());
     }
 
-    /** Resets mask state for a document-local surface such as a WorldWindow. */
+    /**
+     * Resets mask state for a document-local surface such as a WorldWindow.
+     */
     public static void resetDepth(double width, double height) {
         depth = 0;
         clipStack.clear();
@@ -107,7 +107,9 @@ public class Mask {
         applyScissor(currentScissor);
     }
 
-    /** Restores the parent document's clip and scissor coordinate space. */
+    /**
+     * Restores the parent document's clip and scissor coordinate space.
+     */
     public static void popSurfaceClip() {
         Graph.endBatch();
         ImageDrawer.flushBatch();
@@ -439,7 +441,7 @@ public class Mask {
         }
     }
 
-    static record DeviceScissor(int x, int y, int width, int height) {
+    record DeviceScissor(int x, int y, int width, int height) {
     }
 
     private static double getScissorScale(Window window) {
@@ -454,7 +456,7 @@ public class Mask {
     }
 
     private static boolean isRectMask(float[] radii) {
-        if (radii == null || radii.length == 0) return true;
+        if (radii == null) return true;
         for (float r : radii) {
             if (r > 0.001f) return false;
         }

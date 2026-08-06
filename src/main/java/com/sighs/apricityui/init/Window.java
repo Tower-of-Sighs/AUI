@@ -5,14 +5,16 @@ import com.sighs.apricityui.canvas.CanvasImageBitmap;
 import com.sighs.apricityui.canvas.CanvasImageSupport;
 import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.canvas.OffscreenCanvas;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.instance.loader.Loader;
-import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
-import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
+import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.task.ClientScheduler;
-import com.sighs.apricityui.util.AuiLog;
+import com.sighs.apricityui.util.*;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.util.HideFromJS;
 
@@ -26,12 +28,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
-import com.sighs.apricityui.util.BrowserLocation;
-import com.sighs.apricityui.util.LocalStorage;
-import com.sighs.apricityui.util.SimpleJsonParser;
-import com.sighs.apricityui.util.Storage;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.style.Style;
 
 public class Window {
     public static final Window window = new Window();
@@ -331,18 +327,13 @@ public class Window {
         return null;
     }
 
-    private static final class WindowListenerAdapter implements Consumer<Event> {
-        private final Consumer<Object> delegate;
-
-        private WindowListenerAdapter(Consumer<Object> delegate) {
-            this.delegate = delegate;
-        }
+    private record WindowListenerAdapter(Consumer<Object> delegate) implements Consumer<Event> {
 
         @Override
-        public void accept(Event event) {
-            delegate.accept(event);
+            public void accept(Event event) {
+                delegate.accept(event);
+            }
         }
-    }
 
     public static class Performance {
         public double now() {
@@ -561,46 +552,35 @@ public class Window {
         }
     }
 
-    public static class FetchResponse {
-        private final String url;
-        private final int status;
-        private final byte[] bytes;
+    public record FetchResponse(String url, int status, byte[] bytes) {
+            public FetchResponse(String url, int status, byte[] bytes) {
+                this.url = url;
+                this.status = status;
+                this.bytes = bytes == null ? new byte[0] : bytes;
+            }
 
-        public FetchResponse(String url, int status, byte[] bytes) {
-            this.url = url;
-            this.status = status;
-            this.bytes = bytes == null ? new byte[0] : bytes;
-        }
+            public boolean isOk() {
+                return status >= 200 && status < 300;
+            }
 
-        public boolean isOk() {
-            return status >= 200 && status < 300;
-        }
+            public String text() {
+                return new String(bytes, StandardCharsets.UTF_8);
+            }
 
-        public int getStatus() {
-            return status;
-        }
+            public Object json() {
+                try {
+                    return new SimpleJsonParser(text()).parse();
+                } catch (RuntimeException exception) {
+                    ApricityUI.LOGGER.error("[AUI Fetch] JSON parse failed url={} body={}", url, AuiLog.compact(text()), exception);
+                    throw exception;
+                }
+            }
 
-        public String getUrl() {
-            return url;
-        }
-
-        public String text() {
-            return new String(bytes, StandardCharsets.UTF_8);
-        }
-
-        public Object json() {
-            try {
-                return new SimpleJsonParser(text()).parse();
-            } catch (RuntimeException exception) {
-                ApricityUI.LOGGER.error("[AUI Fetch] JSON parse failed url={} body={}", url, AuiLog.compact(text()), exception);
-                throw exception;
+            @Override
+            public byte[] bytes() {
+                return bytes.clone();
             }
         }
-
-        public byte[] bytes() {
-            return bytes.clone();
-        }
-    }
 
     public static class SessionStorage extends Storage {
     }
@@ -685,14 +665,7 @@ public class Window {
         }
     }
 
-    public static class ResizeObserverEntry {
-        public final Element target;
-        public final ResizeObserverRect contentRect;
-
-        public ResizeObserverEntry(Element target, ResizeObserverRect contentRect) {
-            this.target = target;
-            this.contentRect = contentRect;
-        }
+    public record ResizeObserverEntry(Element target, ResizeObserverRect contentRect) {
     }
 
     public static class ResizeObserverRect {

@@ -51,8 +51,8 @@ public final class BlockEntityDataSource implements ContainerDataSource {
     /**
      * 从方块坐标解析数据源。
      *
-     * @param player 服务端玩家
-     * @param pos    方块坐标
+     * @param player   服务端玩家
+     * @param pos      方块坐标
      * @param capacity 请求容量；小于等于 0 时自动使用 handler 的完整容量
      * @return 数据源实例，无法解析时返回 null
      */

@@ -1,19 +1,16 @@
 package com.sighs.apricityui.layout;
 
-import com.sighs.apricityui.style.*;
-
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.util.TextMetrics;
-import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.instance.element.Translation;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.util.TextMetrics;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
-import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.parser.CSS;
 
 public final class NormalFlow {
     private NormalFlow() {
@@ -613,7 +610,8 @@ public final class NormalFlow {
         return opacity != null && Math.abs(opacity - 1.0d) < 0.0001d;
     }
 
-    private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions, List<TextRunLayout> textRuns) {
+    private record FlowResult(FlowMetrics metrics, IdentityHashMap<Element, Position> childPositions,
+                              List<TextRunLayout> textRuns) {
     }
 
     private record HorizontalBlockMargins(double left, double right) {

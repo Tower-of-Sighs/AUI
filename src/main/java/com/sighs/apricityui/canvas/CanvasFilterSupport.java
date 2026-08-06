@@ -2,7 +2,7 @@ package com.sighs.apricityui.canvas;
 
 import com.sighs.apricityui.element.Canvas;
 
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
@@ -11,7 +11,6 @@ import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import com.sighs.apricityui.parser.Color;
 
 final class CanvasFilterSupport {
     private static final Pattern FILTER_PATTERN = Pattern.compile("([a-zA-Z-]+)\\(([^)]*)\\)");

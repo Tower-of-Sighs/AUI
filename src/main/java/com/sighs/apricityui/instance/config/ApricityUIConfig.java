@@ -4,8 +4,6 @@ import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.fml.loading.FMLEnvironment;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.sighs.apricityui.instance.client.Client;
-import com.sighs.apricityui.instance.world.WorldWindow;
 
 public final class ApricityUIConfig {
     public static final ForgeConfigSpec CLIENT_SPEC;

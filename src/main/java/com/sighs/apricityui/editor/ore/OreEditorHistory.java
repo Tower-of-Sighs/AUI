@@ -4,27 +4,41 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
-import com.sighs.apricityui.style.Cursor;
 
-/** Bounded reversible model commands. Editor DOM is never captured or restored. */
+/**
+ * Bounded reversible model commands. Editor DOM is never captured or restored.
+ */
 final class OreEditorHistory {
     private static final int LIMIT = 100;
 
     interface Command {
         String type();
+
         UUID undoSelection();
+
         UUID redoSelection();
+
         void undo();
+
         void redo();
-        default String mergeKey() { return null; }
-        default Command merge(Command next) { return null; }
+
+        default String mergeKey() {
+            return null;
+        }
+
+        default Command merge(Command next) {
+            return null;
+        }
     }
 
-    record Result(boolean changed, UUID selection) { }
+    record Result(boolean changed, UUID selection) {
+    }
 
     private final List<Command> commands = new ArrayList<>();
     private int cursor;
-    /** Cursor that corresponds to the last successfully persisted project, or -1 when discarded. */
+    /**
+     * Cursor that corresponds to the last successfully persisted project, or -1 when discarded.
+     */
     private int savedCursor;
     private String activeMergeKey;
 
@@ -35,13 +49,33 @@ final class OreEditorHistory {
         activeMergeKey = null;
     }
 
-    void beginMerge(String key) { activeMergeKey = key == null || key.isBlank() ? null : key; }
-    void endMerge() { activeMergeKey = null; }
-    String activeMergeKey() { return activeMergeKey; }
-    boolean canUndo() { return cursor > 0; }
-    boolean canRedo() { return cursor < commands.size(); }
-    void markSaved() { savedCursor = cursor; }
-    boolean isAtSavedRevision() { return savedCursor >= 0 && cursor == savedCursor; }
+    void beginMerge(String key) {
+        activeMergeKey = key == null || key.isBlank() ? null : key;
+    }
+
+    void endMerge() {
+        activeMergeKey = null;
+    }
+
+    String activeMergeKey() {
+        return activeMergeKey;
+    }
+
+    boolean canUndo() {
+        return cursor > 0;
+    }
+
+    boolean canRedo() {
+        return cursor < commands.size();
+    }
+
+    void markSaved() {
+        savedCursor = cursor;
+    }
+
+    boolean isAtSavedRevision() {
+        return savedCursor >= 0 && cursor == savedCursor;
+    }
 
     void recordExecuted(Command command) {
         if (command == null) return;
@@ -61,8 +95,7 @@ final class OreEditorHistory {
         if (commands.size() > LIMIT) {
             commands.remove(0);
             savedCursor = savedCursor <= 0 ? -1 : savedCursor - 1;
-        }
-        else cursor++;
+        } else cursor++;
         if (commands.size() == LIMIT) cursor = commands.size();
     }
 
@@ -100,11 +133,21 @@ final class OreEditorHistory {
         return action(type, undoSelection, redoSelection, () -> setter.accept(before), () -> setter.accept(after));
     }
 
-    private record ActionCommand(String type, String mergeKey, UUID undoSelection, UUID redoSelection, Runnable undoAction,
+    private record ActionCommand(String type, String mergeKey, UUID undoSelection, UUID redoSelection,
+                                 Runnable undoAction,
                                  Runnable redoAction) implements Command {
-        @Override public void undo() { undoAction.run(); }
-        @Override public void redo() { redoAction.run(); }
-        @Override public Command merge(Command next) {
+        @Override
+        public void undo() {
+            undoAction.run();
+        }
+
+        @Override
+        public void redo() {
+            redoAction.run();
+        }
+
+        @Override
+        public Command merge(Command next) {
             if (!(next instanceof ActionCommand action) || mergeKey == null || !mergeKey.equals(action.mergeKey)
                     || !type.equals(action.type)) return null;
             return new ActionCommand(type, mergeKey, undoSelection, action.redoSelection, undoAction, action.redoAction);
@@ -113,9 +156,18 @@ final class OreEditorHistory {
 
     private record StringValueCommand(String type, String mergeKey, UUID undoSelection, UUID redoSelection,
                                       String before, String after, Consumer<String> setter) implements Command {
-        @Override public void undo() { setter.accept(before); }
-        @Override public void redo() { setter.accept(after); }
-        @Override public Command merge(Command next) {
+        @Override
+        public void undo() {
+            setter.accept(before);
+        }
+
+        @Override
+        public void redo() {
+            setter.accept(after);
+        }
+
+        @Override
+        public Command merge(Command next) {
             if (!(next instanceof StringValueCommand value) || !mergeKey.equals(value.mergeKey)
                     || !type.equals(value.type)) return null;
             return new StringValueCommand(type, mergeKey, undoSelection, value.redoSelection, before, value.after, setter);

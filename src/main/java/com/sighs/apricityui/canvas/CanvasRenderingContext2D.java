@@ -3,19 +3,8 @@ package com.sighs.apricityui.canvas;
 import com.sighs.apricityui.element.Canvas;
 import com.sighs.apricityui.init.Window;
 
-import java.awt.AlphaComposite;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Composite;
-import java.awt.Graphics2D;
-import java.awt.Paint;
-import java.awt.RenderingHints;
-import java.awt.Shape;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.Area;
-import java.awt.geom.Arc2D;
-import java.awt.geom.Path2D;
-import java.awt.geom.Rectangle2D;
+import java.awt.*;
+import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -122,8 +111,8 @@ public class CanvasRenderingContext2D {
         String normalized = globalCompositeOperation.trim().toLowerCase(Locale.ROOT);
         state.globalCompositeOperation = switch (normalized) {
             case "source-in", "source-out", "source-atop", "destination-over", "destination-in",
-                    "destination-out", "destination-atop", "xor", "copy", "lighter",
-                    "multiply", "screen", "darken", "lighten" -> normalized;
+                 "destination-out", "destination-atop", "xor", "copy", "lighter",
+                 "multiply", "screen", "darken", "lighten" -> normalized;
             default -> "source-over";
         };
     }

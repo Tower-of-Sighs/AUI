@@ -2,14 +2,13 @@ package com.sighs.apricityui.instance.world;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.element.Slot;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.AABB;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;

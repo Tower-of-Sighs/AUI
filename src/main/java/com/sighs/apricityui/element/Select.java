@@ -1,23 +1,22 @@
 package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.KeyEvent;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import com.sighs.apricityui.parser.Color;
 
 @ElementRegister(Select.TAG_NAME)
 public class Select extends Element {

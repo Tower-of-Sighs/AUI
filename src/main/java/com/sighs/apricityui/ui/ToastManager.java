@@ -1,8 +1,8 @@
 package com.sighs.apricityui.ui;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.task.FrameTaskScheduler;
 
 import java.util.Map;
@@ -49,7 +49,9 @@ public final class ToastManager {
         return show(message, null, options);
     }
 
-    /** Shows a message that remains a live translation DOM node. */
+    /**
+     * Shows a message that remains a live translation DOM node.
+     */
     public static String showTranslation(String translationKey) {
         return show(null, translationKey, ToastOptions.defaults());
     }
@@ -101,7 +103,9 @@ public final class ToastManager {
         return id;
     }
 
-    /** Runs on the client tick, so startup and reload do not depend on a background timer. */
+    /**
+     * Runs on the client tick, so startup and reload do not depend on a background timer.
+     */
     public static void tick() {
         if (ACTIVE.isEmpty()) return;
         long now = System.nanoTime();

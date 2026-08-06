@@ -1,8 +1,8 @@
 package com.sighs.apricityui.resource.async.image;
 
-import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.resource.Image;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;

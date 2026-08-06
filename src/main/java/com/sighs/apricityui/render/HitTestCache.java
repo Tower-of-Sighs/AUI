@@ -1,22 +1,13 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.layout.Box;
-import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.layout.Position;
-import com.sighs.apricityui.layout.Size;
-
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.IdentityHashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.layout.Box;
+import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.Interaction;
+
+import java.util.*;
 
 public final class HitTestCache {
     private final Document owner;

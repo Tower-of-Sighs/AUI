@@ -1,14 +1,11 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.parser.Color;
 
 import java.util.*;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.parser.CSS;
 
 public record Transition(String name, double start, double end, double duration, double delay, long startTime,
                          String timing) {

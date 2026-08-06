@@ -1,18 +1,21 @@
 package com.sighs.apricityui.ui;
 
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.task.FrameTaskScheduler;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.task.FrameTaskScheduler;
+
 import java.util.Locale;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-/** Reusable cursor-following tooltip owned by the built-in UI layer. */
+/**
+ * Reusable cursor-following tooltip owned by the built-in UI layer.
+ */
 public final class Tooltip {
     private static final double VIEWPORT_GAP = 6;
     private static final int Z_INDEX = 11000;
@@ -43,7 +46,9 @@ public final class Tooltip {
         }
     }
 
-    /** Removable event binding returned by {@link #bind}. */
+    /**
+     * Removable event binding returned by {@link #bind}.
+     */
     public static final class Binding implements AutoCloseable {
         private final Element target;
         private final Consumer<Event> enterListener;
@@ -151,7 +156,9 @@ public final class Tooltip {
         if (activeTooltip != null) activeTooltip.move(pointer);
     }
 
-    /** Moves the active tooltip from Minecraft GUI coordinates into its document viewport. */
+    /**
+     * Moves the active tooltip from Minecraft GUI coordinates into its document viewport.
+     */
     public static synchronized void moveActiveFromScreen(Position screenPointer) {
         if (activeTooltip == null || screenPointer == null) return;
         Position documentPointer = activeTooltip.document == null
@@ -239,7 +246,7 @@ public final class Tooltip {
         double totalWidth = 0;
         double longestLine = 0;
         int wrappedLines = 0;
-        for (int offset = 0; offset < text.length();) {
+        for (int offset = 0; offset < text.length(); ) {
             int codePoint = text.codePointAt(offset);
             offset += Character.charCount(codePoint);
             if (codePoint == '\n') {

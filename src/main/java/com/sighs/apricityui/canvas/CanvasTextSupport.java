@@ -2,10 +2,7 @@ package com.sighs.apricityui.canvas;
 
 import com.sighs.apricityui.element.Canvas;
 
-import java.awt.Font;
-import java.awt.FontMetrics;
-import java.awt.Graphics2D;
-import java.awt.Shape;
+import java.awt.*;
 import java.awt.font.FontRenderContext;
 import java.awt.font.GlyphVector;
 import java.util.Locale;

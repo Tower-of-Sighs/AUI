@@ -1,45 +1,33 @@
 package com.sighs.apricityui.layout;
 
-import com.sighs.apricityui.style.*;
-
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.util.TextMetrics;
-import com.sighs.apricityui.dom.TextNode;
 
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.parser.CSS;
 
 public class Flex {
     /**
-     * flex 关键字值（flex-direction/flex-wrap/align-content/justify-content/align-items）
-     * 统一封装。方向类用 contains（row/column/reverse），其余用 is 精确匹配。
-     */
-    public static final class KeywordValue {
-        public final String value;
-
-        public KeywordValue(String value) {
-            this.value = value;
-        }
+         * flex 关键字值（flex-direction/flex-wrap/align-content/justify-content/align-items）
+         * 统一封装。方向类用 contains（row/column/reverse），其余用 is 精确匹配。
+         */
+        public record KeywordValue(String value) {
 
         public boolean is(String keyword) {
-            return keyword.equals(value);
-        }
+                return keyword.equals(value);
+            }
 
-        public boolean contains(String part) {
-            return value != null && value.contains(part);
+            public boolean contains(String part) {
+                return value != null && value.contains(part);
+            }
         }
-
-        public String value() {
-            return value;
-        }
-    }
 
     public KeywordValue flexDirection;
     public KeywordValue flexWrap;
@@ -473,7 +461,7 @@ public class Flex {
     }
 
     private static Size measureNaturalFlexItem(Element parent, Element item, Flex flex) {
-        if (parent == null || item == null || flex == null || !flex.flexDirection.contains("column")
+        if (parent == null || flex == null || !flex.flexDirection.contains("column")
                 || !shouldStretchCrossAxis(item, parent)) {
             return Size.natural(item);
         }
@@ -552,8 +540,8 @@ public class Flex {
         double outer = box.isBorderBox()
                 ? resolved
                 : resolved + (columnMainAxis
-                ? box.getBorderVertical() + box.getPaddingVertical()
-                : box.getBorderHorizontal() + box.getPaddingHorizontal());
+                              ? box.getBorderVertical() + box.getPaddingVertical()
+                              : box.getBorderHorizontal() + box.getPaddingHorizontal());
         outer += columnMainAxis ? box.getMarginVertical() : box.getMarginHorizontal();
         return Math.max(0, outer);
     }
@@ -594,7 +582,7 @@ public class Flex {
         double total = borderBox
                 ? resolved
                 : resolved + (columnMainAxis ? box.getBorderVertical() + box.getPaddingVertical()
-                : box.getBorderHorizontal() + box.getPaddingHorizontal());
+                              : box.getBorderHorizontal() + box.getPaddingHorizontal());
 
         total += columnMainAxis ? box.getMarginVertical() : box.getMarginHorizontal();
         return Math.max(0, total);
@@ -930,7 +918,8 @@ public class Flex {
     public record DirectTextLayout(Text text, Position position) {
     }
 
-    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions, List<DirectTextLayout> directTextLayouts) {
+    private record FlexLayoutResult(IdentityHashMap<Element, Position> positions,
+                                    List<DirectTextLayout> directTextLayouts) {
         private static final FlexLayoutResult EMPTY = new FlexLayoutResult(new IdentityHashMap<>(), List.of());
     }
 

@@ -75,7 +75,7 @@ public class DOMMatrix {
     }
 
     public static DOMMatrix fromAffineTransform(AffineTransform transform) {
-        return new DOMMatrix(transform == null ? null : transform);
+        return new DOMMatrix(transform);
     }
 
     public static AffineTransform from(Object init) {

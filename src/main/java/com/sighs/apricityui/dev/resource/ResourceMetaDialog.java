@@ -1,8 +1,8 @@
 package com.sighs.apricityui.dev.resource;
 
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.ui.DialogWindow;
 import com.sighs.apricityui.ui.ToastManager;
 import com.sighs.apricityui.ui.Tooltip;
@@ -12,9 +12,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Consumer;
-import com.sighs.apricityui.parser.HTML;
 
-/** Resource-browser dialog for editing the meta elements in an HTML head. */
+/**
+ * Resource-browser dialog for editing the meta elements in an HTML head.
+ */
 public final class ResourceMetaDialog {
     private static final double MIN_ZOOM = 0.01d;
     private static final double MAX_ZOOM = 10.0d;
@@ -63,7 +64,9 @@ public final class ResourceMetaDialog {
                 Double.NaN, null);
     }
 
-    /** Opens the editor with a live document zoom field, used by DevTools. */
+    /**
+     * Opens the editor with a live document zoom field, used by DevTools.
+     */
     public void open(Document document, String resourcePath, Path target, Runnable afterSave,
                      double currentZoom, Consumer<Double> onZoomSave) {
         close();
@@ -78,7 +81,9 @@ public final class ResourceMetaDialog {
                 currentZoom, onZoomSave);
     }
 
-    /** Opens the same editor for a not-yet-created document and returns its meta markup. */
+    /**
+     * Opens the same editor for a not-yet-created document and returns its meta markup.
+     */
     public void openTemplate(Document document, Consumer<String> onSave) {
         close();
         if (document == null || document.body == null) return;

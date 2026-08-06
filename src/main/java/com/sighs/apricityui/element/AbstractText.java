@@ -1,21 +1,20 @@
 package com.sighs.apricityui.element;
 
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.event.MouseEvent;
-import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.*;
-
-import java.util.*;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Text;
+
+import java.util.*;
 
 public abstract class AbstractText extends Element {
     protected int maxLength = 256;

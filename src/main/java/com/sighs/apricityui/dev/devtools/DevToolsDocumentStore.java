@@ -13,9 +13,10 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Locale;
-import com.sighs.apricityui.parser.HTML;
 
-/** Resolves DevTools documents and stylesheets to existing, writable Apricity resources. */
+/**
+ * Resolves DevTools documents and stylesheets to existing, writable Apricity resources.
+ */
 final class DevToolsDocumentStore {
     private DevToolsDocumentStore() {
     }

@@ -7,14 +7,13 @@ import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.util.AuiLog;
 
-import java.awt.Color;
-import java.awt.Graphics2D;
+import javax.imageio.ImageIO;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Base64;
-import javax.imageio.ImageIO;
 
 public final class CanvasImageSupport {
     private CanvasImageSupport() {

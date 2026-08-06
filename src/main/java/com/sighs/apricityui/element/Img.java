@@ -1,10 +1,9 @@
 package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.task.AbstractAsyncHandler;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
@@ -12,6 +11,7 @@ import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 
 @ElementRegister(Img.TAG_NAME)
 public class Img extends Element {
@@ -31,13 +31,15 @@ public class Img extends Element {
 
     public int getNaturalWidth() {
         ImageHandle handle = resolveCurrentHandle();
-        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) return 0;
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null)
+            return 0;
         return handle.texture().getWidth();
     }
 
     public int getNaturalHeight() {
         ImageHandle handle = resolveCurrentHandle();
-        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) return 0;
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null)
+            return 0;
         return handle.texture().getHeight();
     }
 

@@ -1,15 +1,13 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.render.LayoutCommit;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
 
 public final class RenderQueue {
     private static final int VISUAL_DIRTY_MASK =

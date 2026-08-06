@@ -7,14 +7,14 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.task.FrameScheduler;
-import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.instance.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.Transform;
+import com.sighs.apricityui.task.FrameScheduler;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.ShaderInstance;
 import org.joml.Matrix4f;
@@ -25,9 +25,6 @@ import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import com.sighs.apricityui.style.Transform;
-import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.instance.world.WorldWindow;
 
 public class Base {
     public enum RenderPhase {
@@ -484,7 +481,9 @@ public class Base {
         return depthCursor;
     }
 
-    /** Moves within the current paint layer without consuming another paint-list slot. */
+    /**
+     * Moves within the current paint layer without consuming another paint-list slot.
+     */
     public static void offsetPaintDepth(PoseStack poseStack, float fraction) {
         if (!accumulateDepth || poseStack == null || !Float.isFinite(fraction)) return;
         poseStack.translate(0, 0, depthStep * fraction);
@@ -510,7 +509,9 @@ public class Base {
         depthCursor = 0.0f;
     }
 
-    /** Overrides the document-level Z offset for a nested render surface. */
+    /**
+     * Overrides the document-level Z offset for a nested render surface.
+     */
     public static void pushDocumentZOffset(float offset) {
         DOCUMENT_Z_OFFSET_STACK.push(documentZOffset);
         documentZOffset = Float.isFinite(offset) ? offset : GLOBAL_DOCUMENT_Z_OFFSET;
@@ -528,7 +529,7 @@ public class Base {
     }
 
     public static void popDepthTest() {
-        depthTestEnabled = DEPTH_TEST_STACK.isEmpty() ? true : DEPTH_TEST_STACK.pop();
+        depthTestEnabled = DEPTH_TEST_STACK.isEmpty() || DEPTH_TEST_STACK.pop();
     }
 
     public static boolean isDepthTestEnabled() {

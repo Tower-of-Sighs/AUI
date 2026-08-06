@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import com.sighs.apricityui.init.Window;
 
 /**
  * 极简 JSON 解析器（fetch 响应体专用）。从 Window 拆出，纯函数、无状态依赖。

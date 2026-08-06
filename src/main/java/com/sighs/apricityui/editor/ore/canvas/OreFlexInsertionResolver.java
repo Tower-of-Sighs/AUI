@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
-import com.sighs.apricityui.parser.CSS;
 
 /**
  * Resolves an insertion point from rendered Flex item rectangles. The caller
@@ -15,16 +14,31 @@ public final class OreFlexInsertionResolver {
     private static final double LINE_TOLERANCE = 2.0;
 
     public record Bounds(double left, double top, double width, double height) {
-        public double right() { return left + width; }
-        public double bottom() { return top + height; }
-        public double centerX() { return left + width / 2.0; }
-        public double centerY() { return top + height / 2.0; }
+        public double right() {
+            return left + width;
+        }
+
+        public double bottom() {
+            return top + height;
+        }
+
+        public double centerX() {
+            return left + width / 2.0;
+        }
+
+        public double centerY() {
+            return top + height / 2.0;
+        }
     }
 
-    public record Item(UUID id, Bounds bounds, boolean absolute) { }
+    public record Item(UUID id, Bounds bounds, boolean absolute) {
+    }
 
-    /** beforeId is null when the point is after every item on the selected visual line. */
-    public record Insertion(UUID beforeId, boolean row, double coordinate, double crossStart, double crossSize) { }
+    /**
+     * beforeId is null when the point is after every item on the selected visual line.
+     */
+    public record Insertion(UUID beforeId, boolean row, double coordinate, double crossStart, double crossSize) {
+    }
 
     public Insertion resolve(String direction, String wrap, List<Item> candidates, double x, double y) {
         boolean row = !"column".equals(direction) && !"column-reverse".equals(direction);
@@ -74,8 +88,14 @@ public final class OreFlexInsertionResolver {
         return new Insertion(null, row, coordinate, row ? bounds.top() : bounds.left(), row ? bounds.height() : bounds.width());
     }
 
-    private double mainCenter(Item item, boolean row) { return row ? item.bounds().centerX() : item.bounds().centerY(); }
-    private double crossCenter(Item item, boolean row) { return row ? item.bounds().centerY() : item.bounds().centerX(); }
+    private double mainCenter(Item item, boolean row) {
+        return row ? item.bounds().centerX() : item.bounds().centerY();
+    }
+
+    private double crossCenter(Item item, boolean row) {
+        return row ? item.bounds().centerY() : item.bounds().centerX();
+    }
+
     private double lineCrossCenter(List<Item> line, boolean row) {
         return line.stream().mapToDouble(item -> crossCenter(item, row)).average().orElse(0);
     }

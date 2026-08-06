@@ -1,7 +1,6 @@
 package com.sighs.apricityui.instance.client;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.util.LocalStorage;
 import com.sighs.apricityui.init.Window;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.event.TickEvent;

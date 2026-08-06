@@ -2,15 +2,14 @@ package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.LayoutMeasureCache;
+import com.sighs.apricityui.style.Interaction;
 import org.joml.Matrix4f;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Set;
-import com.sighs.apricityui.style.Transform;
 
 public final class LayoutCommit {
     private LayoutCommit() {

@@ -2,7 +2,6 @@ package com.sighs.apricityui.event;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.render.Operation;
 import org.lwjgl.glfw.GLFW;
 

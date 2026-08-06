@@ -1,8 +1,9 @@
 package com.sighs.apricityui.dom;
 
-import java.util.Objects;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Node;
+
+import java.util.Objects;
 
 public class CommentNode extends Node {
     private String data;

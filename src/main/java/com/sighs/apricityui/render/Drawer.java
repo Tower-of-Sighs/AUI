@@ -1,20 +1,11 @@
 package com.sighs.apricityui.render;
 
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Filter;
-import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.Transform;
-import com.sighs.apricityui.style.Transition;
-
-import java.util.*;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.*;
+
+import java.util.*;
 
 public class Drawer {
     public static final int REPAINT = 1;

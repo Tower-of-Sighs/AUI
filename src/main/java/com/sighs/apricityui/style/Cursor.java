@@ -21,8 +21,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import com.sighs.apricityui.task.AbstractAsyncHandler;
-import com.sighs.apricityui.parser.CSS;
 
 public class Cursor {
     private static final float PSEUDO_CURSOR_Z = 1000.0F;

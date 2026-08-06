@@ -3,14 +3,11 @@ package com.sighs.apricityui.dev.devtools;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 
-import java.util.ArrayDeque;
-import java.util.Deque;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.*;
 
-/** Per-document history for all edits made by DevTools. */
+/**
+ * Per-document history for all edits made by DevTools.
+ */
 final class DevToolsEditHistory {
     private static final int MAX_ENTRIES = 200;
     private final Map<UUID, History> histories = new LinkedHashMap<>();

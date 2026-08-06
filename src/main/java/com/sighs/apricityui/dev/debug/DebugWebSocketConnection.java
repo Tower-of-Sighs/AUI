@@ -5,12 +5,7 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonParser;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.EOFException;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.net.Socket;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -23,7 +18,6 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import com.sighs.apricityui.instance.client.Client;
 
 final class DebugWebSocketConnection implements Runnable {
     private static final String PATH = "/apricity";

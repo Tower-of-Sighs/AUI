@@ -1,13 +1,13 @@
 package com.sighs.apricityui.util.kjs;
 
-import com.sighs.apricityui.ui.ToastManager;
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.screen.ApricityScreen;
 import com.sighs.apricityui.instance.world.FollowFacingWorldWindow;
 import com.sighs.apricityui.instance.world.WorldWindow;
-import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.registry.annotation.KJSBindings;
+import com.sighs.apricityui.ui.ToastManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.phys.Vec3;
 
@@ -40,7 +40,9 @@ public class ApricityUIClientUtil {
         return Document.getByUUID(uuid);
     }
 
-    /** Returns the document currently bound to the active {@link ApricityScreen}, or {@code null}. */
+    /**
+     * Returns the document currently bound to the active {@link ApricityScreen}, or {@code null}.
+     */
     public static Document getCurrentScreenDocument() {
         if (Minecraft.getInstance().screen instanceof ApricityScreen screen) {
             return screen.getLinkedDocument();
@@ -99,7 +101,9 @@ public class ApricityUIClientUtil {
         ApricityUI.closeScreen();
     }
 
-    /** @deprecated Configure the logical size with the document's {@code aui-viewport} meta. */
+    /**
+     * @deprecated Configure the logical size with the document's {@code aui-viewport} meta.
+     */
     @Deprecated
     public static WorldWindow createWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance) {
         WorldWindow window = new WorldWindow(path, new Vec3(x, y, z), width, height, maxDistance);
@@ -136,7 +140,9 @@ public class ApricityUIClientUtil {
         return window;
     }
 
-    /** @deprecated Configure the logical size with the document's {@code aui-viewport} meta. */
+    /**
+     * @deprecated Configure the logical size with the document's {@code aui-viewport} meta.
+     */
     @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, float width, float height, int maxDistance, float followFactor) {
         FollowFacingWorldWindow window = new FollowFacingWorldWindow(path, new Vec3(x, y, z), width, height, maxDistance, followFactor);
@@ -146,7 +152,7 @@ public class ApricityUIClientUtil {
 
     /**
      * @deprecated Use {@link #createWorldWindow(String, double, double, double, int)}
-     *             and configure follow/facing on the returned window.
+     * and configure follow/facing on the returned window.
      */
     @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path, double x, double y, double z, int maxDistance, float followFactor) {
@@ -157,14 +163,14 @@ public class ApricityUIClientUtil {
 
     /**
      * @deprecated Use {@link #createWorldWindow(String, double, double, double, int)}
-     *             and configure follow/facing on the returned window.
+     * and configure follow/facing on the returned window.
      */
     @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String path,
-                                                                         double x, double y, double z,
-                                                                         int maxDistance,
-                                                                         int maxDisplayDistance,
-                                                                         float followFactor) {
+                                                                        double x, double y, double z,
+                                                                        int maxDistance,
+                                                                        int maxDisplayDistance,
+                                                                        float followFactor) {
         FollowFacingWorldWindow window = createFollowFacingWorldWindow(
                 path, x, y, z, maxDistance, followFactor);
         window.setMaxDisplayDistance(maxDisplayDistance);

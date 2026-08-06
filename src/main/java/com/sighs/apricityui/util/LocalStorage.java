@@ -3,7 +3,6 @@ package com.sighs.apricityui.util;
 import com.sighs.apricityui.ApricityUI;
 
 import java.io.File;
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.file.Path;
 import java.util.Map;

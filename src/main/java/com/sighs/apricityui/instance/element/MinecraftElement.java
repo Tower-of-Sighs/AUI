@@ -2,17 +2,15 @@ package com.sighs.apricityui.instance.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.render.Rect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.world.item.ItemStack;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;

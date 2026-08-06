@@ -1,19 +1,12 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.util.AuiLog;
-
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Set;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.Selector;
-import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.util.AuiLog;
+
+import java.util.*;
 
 public final class StyleScope {
     private enum RecalcMode {

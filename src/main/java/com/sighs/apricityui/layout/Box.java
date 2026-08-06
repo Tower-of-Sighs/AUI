@@ -1,22 +1,13 @@
 package com.sighs.apricityui.layout;
 
-import com.sighs.apricityui.style.*;
-
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.Gradient;
 import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.Transition;
-import com.sighs.apricityui.parser.CSS;
+
+import java.util.*;
 
 public class Box {
     public static final List<String> SIDE = List.of("top", "bottom", "left", "right");
@@ -205,7 +196,9 @@ public class Box {
         return cachedInnerSize;
     }
 
-    /** Content-box size before classic scrollbars consume their gutter. */
+    /**
+     * Content-box size before classic scrollbars consume their gutter.
+     */
     public Size rawInnerSize() {
         Size elementSize = Size.of(element);
         double borderHorizontal = getBorderHorizontal();
@@ -270,7 +263,9 @@ public class Box {
             {0, 1, 2, 3},
     };
 
-    /** 1-4 值简写展开为 [TL,TR,BR,BL]；数量不在 [1,4] 时整体填 zero。 */
+    /**
+     * 1-4 值简写展开为 [TL,TR,BR,BL]；数量不在 [1,4] 时整体填 zero。
+     */
     private static <T> T[] expandFourSideShorthand(List<T> values, java.util.function.IntFunction<T[]> allocator, T zero) {
         T[] out = allocator.apply(4);
         int count = values.size();
@@ -283,7 +278,9 @@ public class Box {
         return out;
     }
 
-    /** 按空白切分最多 4 个 token，逐 token 映射后做 1-4 简写展开。 */
+    /**
+     * 按空白切分最多 4 个 token，逐 token 映射后做 1-4 简写展开。
+     */
     private <T> T[] parseFourSideShorthand(String raw, java.util.function.Function<String, T> mapper,
                                            java.util.function.IntFunction<T[]> allocator, T zero) {
         if (raw == null || raw.isBlank() || "unset".equals(raw)) {
@@ -679,17 +676,23 @@ public class Box {
         }
     }
 
-    /** 按顶层空白切分 token，但不拆散 calc()/min() 等函数体内的空白。 */
+    /**
+     * 按顶层空白切分 token，但不拆散 calc()/min() 等函数体内的空白。
+     */
     private static List<String> tokenizeRadius(String s) {
         return Layout.splitTopLevelWhitespace(s);
     }
 
-    /** 1-4 值简写展开为 [TL, TR, BR, BL]；数量非法时整组回退为 0。 */
+    /**
+     * 1-4 值简写展开为 [TL, TR, BR, BL]；数量非法时整组回退为 0。
+     */
     private static String[] expandRadiusTokens(List<String> tokens) {
         return expandFourSideShorthand(tokens, String[]::new, "0");
     }
 
-    /** 无法解析的 token 回退为 0（百分比用 100 为基准做合法性校验）。 */
+    /**
+     * 无法解析的 token 回退为 0（百分比用 100 为基准做合法性校验）。
+     */
     private static String sanitizeRadiusToken(String token) {
         if (token == null || token.isBlank()) return "0";
         Double resolved = Size.tryResolveLength(token.trim(), 100);

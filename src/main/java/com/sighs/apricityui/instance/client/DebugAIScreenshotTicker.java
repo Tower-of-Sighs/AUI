@@ -2,6 +2,7 @@ package com.sighs.apricityui.instance.client;
 
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.instance.config.ApricityUIConfig;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.Screenshot;
 import net.minecraft.network.chat.Component;
@@ -13,7 +14,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Comparator;
-import com.sighs.apricityui.instance.config.ApricityUIConfig;
 
 public final class DebugAIScreenshotTicker {
     private static final long CAPTURE_INTERVAL_MS = 1000L;

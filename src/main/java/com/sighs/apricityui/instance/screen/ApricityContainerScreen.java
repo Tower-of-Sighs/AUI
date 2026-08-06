@@ -1,16 +1,18 @@
 package com.sighs.apricityui.instance.screen;
 
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.instance.client.Client;
 import com.sighs.apricityui.instance.element.MinecraftElement;
-import com.sighs.apricityui.instance.screen.SlotDataBinder;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
+import com.sighs.apricityui.instance.world.ItemRender;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.layout.Size;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,9 +27,6 @@ import javax.annotation.Nonnull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
-import com.sighs.apricityui.instance.client.Client;
-import com.sighs.apricityui.instance.viewport.ApricityViewport;
-import com.sighs.apricityui.instance.world.ItemRender;
 
 public class ApricityContainerScreen extends AbstractContainerScreen<ApricityContainerMenu> {
     private static final int QUICK_CRAFT_GHOST_COLOR = -2130706433;

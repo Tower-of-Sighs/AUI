@@ -1,25 +1,19 @@
 package com.sighs.apricityui.element;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.FontDrawer;
-import com.sighs.apricityui.render.Graph;
-import com.sighs.apricityui.render.Rect;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.render.*;
+import com.sighs.apricityui.style.Text;
 
 import java.util.List;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.style.Text;
 
 @ElementRegister(TextArea.TAG_NAME)
 public class TextArea extends AbstractText {
@@ -282,7 +276,8 @@ public class TextArea extends AbstractText {
     }
 
     private void beginResize(Event event) {
-        if (!(event instanceof MouseEvent mouseEvent) || !isResizeHandleOffset(mouseEvent.offsetX, mouseEvent.offsetY)) return;
+        if (!(event instanceof MouseEvent mouseEvent) || !isResizeHandleOffset(mouseEvent.offsetX, mouseEvent.offsetY))
+            return;
         Box box = Box.of(this);
         resizing = true;
         resizeStartX = mouseEvent.clientX;

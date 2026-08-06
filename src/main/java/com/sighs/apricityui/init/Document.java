@@ -1,22 +1,32 @@
 package com.sighs.apricityui.init;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.behavior.FocusRing;
+import com.sighs.apricityui.behavior.MotionTrack;
+import com.sighs.apricityui.canvas.CanvasPath2D;
+import com.sighs.apricityui.canvas.DOMMatrix;
+import com.sighs.apricityui.dom.*;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Head;
 import com.sighs.apricityui.element.Html;
-import com.sighs.apricityui.canvas.CanvasPath2D;
-import com.sighs.apricityui.canvas.DOMMatrix;
-import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.instance.dom.DocumentExpander;
-import com.sighs.apricityui.render.RenderNode;
-import com.sighs.apricityui.parser.CSS;
-import com.sighs.apricityui.parser.HTML;
-import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
-import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
-import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.instance.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.HTML;
+import com.sighs.apricityui.parser.Selector;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.render.RenderQueue;
+import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
+import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
+import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.style.StyleFrameCache;
+import com.sighs.apricityui.style.StyleScope;
+import com.sighs.apricityui.util.BrowserLocation;
 import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraft.client.Minecraft;
@@ -25,25 +35,6 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
-import com.sighs.apricityui.util.BrowserLocation;
-import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.parser.Selector;
-import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.style.StyleFrameCache;
-import com.sighs.apricityui.style.StyleScope;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.render.RenderQueue;
-import com.sighs.apricityui.behavior.FocusRing;
-import com.sighs.apricityui.behavior.MotionTrack;
-import com.sighs.apricityui.dom.CommentNode;
-import com.sighs.apricityui.dom.DocumentFragment;
-import com.sighs.apricityui.dom.DocumentRegistry;
-import com.sighs.apricityui.dom.ElementTree;
-import com.sighs.apricityui.dom.RenderElement;
-import com.sighs.apricityui.dom.TextNode;
-import com.sighs.apricityui.dom.MutationObserverManager;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Transition;
 
 public class Document {
 
@@ -111,7 +102,9 @@ public class Document {
     public final boolean inWorld;
     private volatile boolean reloadPersistent = false;
     private volatile boolean interceptMouseEvents;
-    /** A document rendered by an owning surface instead of the global document pass. */
+    /**
+     * A document rendered by an owning surface instead of the global document pass.
+     */
     private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
@@ -271,7 +264,9 @@ public class Document {
         return true;
     }
 
-    /** Applies an editor-controlled zoom value without requiring user-scalable metadata. */
+    /**
+     * Applies an editor-controlled zoom value without requiring user-scalable metadata.
+     */
     public boolean setViewportZoom(double zoom) {
         boolean changed = viewportState.setZoom(zoom);
         if (!changed) return false;
@@ -585,7 +580,9 @@ public class Document {
         return motion.drainGeometryRoots();
     }
 
-    /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */
+    /**
+     * Advances smooth scrolling once per paint frame and reports whether a visible offset changed.
+     */
     public boolean stepScrollRender() {
         if (!isActive()) return false;
         if (activeScrollElements.isEmpty()) return false;
@@ -1104,6 +1101,7 @@ public class Document {
     public void clearAllTextSelectionsExcept(Element keep) {
         focus.clearAllTextSelectionsExcept(keep);
     }
+
     // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
     public void clearFocus() {
         focus.clearFocus();
@@ -1161,14 +1159,16 @@ public class Document {
         }
 
         public void enqueue(MutationRecord record) {
-            if (disconnected || record == null || owner == null || !owner.isCurrentGeneration(ownerGeneration) || !matches(record)) return;
+            if (disconnected || record == null || owner == null || !owner.isCurrentGeneration(ownerGeneration) || !matches(record))
+                return;
             synchronized (pending) {
                 pending.add(adapt(record));
             }
         }
 
         public void flush() {
-            if (disconnected || callback == null || owner == null || !owner.isCurrentGeneration(ownerGeneration)) return;
+            if (disconnected || callback == null || owner == null || !owner.isCurrentGeneration(ownerGeneration))
+                return;
             List<MutationRecord> snapshot = takeRecords();
             if (snapshot.isEmpty()) return;
             callback.accept(snapshot);

@@ -1,15 +1,15 @@
 package com.sighs.apricityui.resource.async.style;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.instance.loader.Loader;
-import com.sighs.apricityui.render.FontDrawer;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
-import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.io.ByteArrayInputStream;

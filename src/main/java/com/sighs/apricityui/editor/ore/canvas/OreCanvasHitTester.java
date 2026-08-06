@@ -5,7 +5,9 @@ import com.sighs.apricityui.init.Element;
 import java.util.Map;
 import java.util.UUID;
 
-/** Resolves the smallest rendered canvas node containing the document-space point. */
+/**
+ * Resolves the smallest rendered canvas node containing the document-space point.
+ */
 public final class OreCanvasHitTester {
     public UUID hit(Map<UUID, Element> elements, double x, double y) {
         UUID hit = null;

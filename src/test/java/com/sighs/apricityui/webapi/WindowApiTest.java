@@ -314,8 +314,8 @@ class WindowApiTest {
         Window.FetchResponse response = new Window.FetchResponse("test://data.json", 200, bytes);
 
         assertTrue(response.isOk());
-        assertEquals(200, response.getStatus());
-        assertEquals("test://data.json", response.getUrl());
+        assertEquals(200, response.status());
+        assertEquals("test://data.json", response.url());
         assertEquals("{\"ok\":true,\"count\":2}", response.text());
 
         Object json = response.json();
@@ -356,9 +356,9 @@ class WindowApiTest {
         assertEquals(1, callbackCalls.get());
         assertNotNull(observed.get());
         assertEquals(1, observed.get().size());
-        assertSame(target, observed.get().get(0).target);
-        assertEquals(25, observed.get().get(0).contentRect.width);
-        assertEquals(20, observed.get().get(0).contentRect.height);
+        assertSame(target, observed.get().get(0).target());
+        assertEquals(25, observed.get().get(0).contentRect().width);
+        assertEquals(20, observed.get().get(0).contentRect().height);
 
         window.tickResizeObservers();
         assertEquals(1, callbackCalls.get());

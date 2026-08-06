@@ -4,11 +4,9 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.Body;
 import com.sighs.apricityui.element.Head;
 import com.sighs.apricityui.element.Html;
-import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.instance.loader.ClientLoader;
 import com.sighs.apricityui.util.AuiLog;
 
@@ -56,7 +54,9 @@ public class HTML {
         new ClientLoader("html").loadResources(HTML::putTemple);
     }
 
-    /** Refreshes one resource template without rescanning or rebuilding other documents. */
+    /**
+     * Refreshes one resource template without rescanning or rebuilding other documents.
+     */
     public static boolean reload(String path) {
         if (path == null || path.isBlank()) return false;
         try (InputStream stream = ClientLoader.getResourceStream(path)) {
@@ -136,7 +136,9 @@ public class HTML {
         return null;
     }
 
-    /** 统计正则在字符串中的匹配次数。 */
+    /**
+     * 统计正则在字符串中的匹配次数。
+     */
     public static int countMatches(Pattern pattern, String value) {
         int count = 0;
         Matcher matcher = pattern.matcher(value);
@@ -356,7 +358,7 @@ public class HTML {
             if (value == null || value.indexOf('&') < 0) return value;
 
             StringBuilder decoded = new StringBuilder(value.length());
-            for (int index = 0; index < value.length();) {
+            for (int index = 0; index < value.length(); ) {
                 char current = value.charAt(index);
                 if (current != '&') {
                     decoded.append(current);

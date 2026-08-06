@@ -1,14 +1,16 @@
 package com.sighs.apricityui.instance.screen;
 
-import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.instance.client.Client;
 import com.sighs.apricityui.instance.loader.ClientLoader;
+import com.sighs.apricityui.instance.viewport.ApricityViewport;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
-import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
@@ -16,8 +18,6 @@ import net.minecraft.network.chat.Component;
 import org.lwjgl.glfw.GLFW;
 
 import javax.annotation.Nonnull;
-import com.sighs.apricityui.instance.client.Client;
-import com.sighs.apricityui.instance.viewport.ApricityViewport;
 
 public class ApricityScreen extends Screen {
     private final String templatePath;
@@ -32,13 +32,17 @@ public class ApricityScreen extends Screen {
         this.templatePath = templatePath;
     }
 
-    /** Sets whether Minecraft should pause while this screen is open. */
+    /**
+     * Sets whether Minecraft should pause while this screen is open.
+     */
     public ApricityScreen setPauseGame(boolean pauseGame) {
         this.pauseGame = pauseGame;
         return this;
     }
 
-    /** Sets whether Minecraft's standard screen background should be drawn first. */
+    /**
+     * Sets whether Minecraft's standard screen background should be drawn first.
+     */
     public ApricityScreen setShowDefaultBackground(boolean showDefaultBackground) {
         this.showDefaultBackground = showDefaultBackground;
         return this;

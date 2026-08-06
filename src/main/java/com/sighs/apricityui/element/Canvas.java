@@ -3,35 +3,34 @@ package com.sighs.apricityui.element;
 import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.registry.annotation.ElementRegister;
-import com.sighs.apricityui.render.Base;
-import com.sighs.apricityui.render.ImageDrawer;
-import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.registry.annotation.ElementRegister;
+import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.ImageDrawer;
+import com.sighs.apricityui.render.Rect;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 
-import java.awt.Graphics2D;
-import java.awt.RenderingHints;
+import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.stream.MemoryCacheImageOutputStream;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Base64;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.stream.MemoryCacheImageOutputStream;
 
 @ElementRegister(Canvas.TAG_NAME)
 public class Canvas extends Element {

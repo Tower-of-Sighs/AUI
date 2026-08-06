@@ -1,30 +1,21 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.element.AbstractText;
-import com.sighs.apricityui.instance.element.Translation;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.parser.CssString;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.client.Client;
+import com.sighs.apricityui.instance.element.Translation;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.Color;
+import com.sighs.apricityui.parser.CssString;
 import com.sighs.apricityui.resource.Font;
 
 import java.awt.*;
 import java.awt.font.FontRenderContext;
 import java.awt.geom.AffineTransform;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
+import java.util.*;
 import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.dom.RenderElement;
-import com.sighs.apricityui.dom.TextNode;
-import com.sighs.apricityui.parser.Color;
-import com.sighs.apricityui.parser.CSS;
 
 public class Text {
     private static final Canvas METRICS_CANVAS = new Canvas();
@@ -262,7 +253,9 @@ public class Text {
         return Color.parse(selection);
     }
 
-    /** 单次 route 遍历的解析状态：各字符串/布尔属性是否已从某祖先样式解析到。 */
+    /**
+     * 单次 route 遍历的解析状态：各字符串/布尔属性是否已从某祖先样式解析到。
+     */
     private static final class ResolveState {
         boolean fontStyle;
         boolean lineHeight;
@@ -632,25 +625,24 @@ public class Text {
         h = 31 * h + (rasterBackgroundColor == null ? 0 : rasterBackgroundColor.hashCode());
         if (cachedKey != null && cachedKeyHash == h) return cachedKey;
 
-        StringBuilder sb = new StringBuilder(64);
-        sb.append(fontSize).append('/')
-                .append(fontWeight).append('/')
-                .append(oblique).append('/')
-                .append(strokeWidth).append('/')
-                .append(strokeColor == null ? 0 : strokeColor.getValue()).append('/')
-                .append(color == null ? 0 : color.getValue()).append('/')
-                .append(textDecoration == null ? "" : textDecoration).append('/')
-                .append(fontFamily == null ? "" : fontFamily).append('/')
-                .append(content == null ? "" : content).append('/')
-                .append(direction == null ? "" : direction).append('/')
-                .append(textAlign == null ? "" : textAlign).append('/')
-                .append(verticalAlign == null ? "" : verticalAlign).append('/')
-                .append(whiteSpace == null ? "" : whiteSpace).append('/')
-                .append(textIndent).append('/')
-                .append(letterSpacing).append('/')
-                .append(fontMode == null ? "" : fontMode.value()).append('/')
-                .append(rasterBackgroundColor == null ? "" : rasterBackgroundColor);
-        cachedKey = sb.toString();
+        String sb = String.valueOf(fontSize) + '/' +
+                fontWeight + '/' +
+                oblique + '/' +
+                strokeWidth + '/' +
+                (strokeColor == null ? 0 : strokeColor.getValue()) + '/' +
+                (color == null ? 0 : color.getValue()) + '/' +
+                (textDecoration == null ? "" : textDecoration) + '/' +
+                (fontFamily == null ? "" : fontFamily) + '/' +
+                (content == null ? "" : content) + '/' +
+                (direction == null ? "" : direction) + '/' +
+                (textAlign == null ? "" : textAlign) + '/' +
+                (verticalAlign == null ? "" : verticalAlign) + '/' +
+                (whiteSpace == null ? "" : whiteSpace) + '/' +
+                textIndent + '/' +
+                letterSpacing + '/' +
+                (fontMode == null ? "" : fontMode.value()) + '/' +
+                (rasterBackgroundColor == null ? "" : rasterBackgroundColor);
+        cachedKey = sb;
         cachedKeyHash = h;
         return cachedKey;
     }
@@ -749,7 +741,8 @@ public class Text {
         return wrapCachedInternal(element, text, resolveWrapWidth(element, text));
     }
 
-    public record WrappedTextCache(int metricsHash, int contentHash, int contentLen, long wrapWidthBits, WrappedText wrapped) {
+    public record WrappedTextCache(int metricsHash, int contentHash, int contentLen, long wrapWidthBits,
+                                   WrappedText wrapped) {
     }
 
     /**
@@ -1067,7 +1060,8 @@ public class Text {
         return c == ' ' || c == '\t' || c == '\u000B' || c == '\f';
     }
 
-    private record LineMeasureKey(long fontRevision, double fontSize, int fontWeight, boolean oblique, double strokeWidth,
+    private record LineMeasureKey(long fontRevision, double fontSize, int fontWeight, boolean oblique,
+                                  double strokeWidth,
                                   double letterSpacing, Document.FontMode fontMode, String fontFamily, String line) {
     }
 

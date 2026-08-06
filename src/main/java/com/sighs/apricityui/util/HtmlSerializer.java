@@ -1,12 +1,12 @@
 package com.sighs.apricityui.util;
 
-import java.util.Locale;
-import java.util.Map;
 import com.sighs.apricityui.dom.CommentNode;
+import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
-import com.sighs.apricityui.dom.TextNode;
-import com.sighs.apricityui.parser.HTML;
+
+import java.util.Locale;
+import java.util.Map;
 
 /**
  * 把 DOM 节点序列化为 HTML 字符串的纯函数工具（从 Element 拆出）。

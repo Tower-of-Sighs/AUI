@@ -1,7 +1,6 @@
 package com.sighs.apricityui.canvas;
 
-import java.awt.BasicStroke;
-import java.awt.Shape;
+import java.awt.*;
 import java.awt.geom.Arc2D;
 import java.awt.geom.Path2D;
 import java.awt.geom.Point2D;

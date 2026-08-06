@@ -1,5 +1,8 @@
 package com.sighs.apricityui.form;
 
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.style.ConstraintText;
+
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -8,8 +11,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
-import com.sighs.apricityui.style.ConstraintText;
-import com.sighs.apricityui.init.Element;
 
 /**
  * 表单控件的约束校验状态计算。从 Element 拆出：

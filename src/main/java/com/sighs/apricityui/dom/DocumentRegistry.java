@@ -1,14 +1,13 @@
 package com.sighs.apricityui.dom;
 
 import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.parser.HTML;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.instance.world.WorldWindow;
 
 /**
  * Document 的静态注册表与上下文线程变量。从 Document 拆出，

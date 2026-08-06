@@ -15,7 +15,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
-import com.sighs.apricityui.parser.CSS;
 
 /**
  * Resolves the logical document viewport and the render transform used by screen documents.
@@ -282,7 +281,9 @@ public record ApricityViewport(
             return applyZoom(resolveBase(mode, options, window), clamp(sanitizeZoom(zoom, initialZoom), minZoom, maxZoom));
         }
 
-        /** Resolves the same CSS viewport contract when no Minecraft window is available. */
+        /**
+         * Resolves the same CSS viewport contract when no Minecraft window is available.
+         */
         public ApricityViewport resolveHeadless(int availableWidth, int availableHeight, double zoom) {
             int fallbackWidth = Math.max(1, availableWidth);
             int fallbackHeight = Math.max(1, availableHeight);
@@ -392,7 +393,9 @@ public record ApricityViewport(
             }
         }
 
-        /** Sets an editor-controlled zoom value, even when wheel scaling is disabled. */
+        /**
+         * Sets an editor-controlled zoom value, even when wheel scaling is disabled.
+         */
         public synchronized boolean setZoom(double nextZoom) {
             double clamped = clamp(sanitizeZoom(nextZoom, zoom), spec.minZoom(), spec.maxZoom());
             if (Math.abs(clamped - zoom) < 0.000001d) return false;

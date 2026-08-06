@@ -5,23 +5,18 @@ import com.sighs.apricityui.editor.ore.model.OreCanvasNode;
 import com.sighs.apricityui.editor.ore.model.OreComponentNode;
 import com.sighs.apricityui.editor.ore.model.OreContainerNode;
 import com.sighs.apricityui.editor.ore.model.OreEditorProject;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.MouseEvent;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.function.Consumer;
+import java.util.*;
 import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
-/** Projects canvas data into DOM while keeping editor-only decoration outside canvas nodes. */
+/**
+ * Projects canvas data into DOM while keeping editor-only decoration outside canvas nodes.
+ */
 public final class OreCanvasRenderer {
     private final Document document;
     private final Element canvas;
@@ -50,13 +45,21 @@ public final class OreCanvasRenderer {
                              BiConsumer<UUID, MouseEvent> resizeStartConsumer) {
         this.document = document;
         this.canvas = canvas;
-        this.selectionConsumer = selectionConsumer == null ? ignored -> { } : selectionConsumer;
-        this.dragStartConsumer = dragStartConsumer == null ? (ignored, event) -> { } : dragStartConsumer;
-        this.resizeStartConsumer = resizeStartConsumer == null ? (ignored, event) -> { } : resizeStartConsumer;
+        this.selectionConsumer = selectionConsumer == null ? ignored -> {
+        } : selectionConsumer;
+        this.dragStartConsumer = dragStartConsumer == null ? (ignored, event) -> {
+        } : dragStartConsumer;
+        this.resizeStartConsumer = resizeStartConsumer == null ? (ignored, event) -> {
+        } : resizeStartConsumer;
     }
 
-    public Element elementFor(UUID id) { return elements.get(id); }
-    public Map<UUID, Element> elements() { return Map.copyOf(elements); }
+    public Element elementFor(UUID id) {
+        return elements.get(id);
+    }
+
+    public Map<UUID, Element> elements() {
+        return Map.copyOf(elements);
+    }
 
     public void renderInsertion(OreFlexInsertionResolver.Insertion insertion) {
         if (insertion == null) {
@@ -72,9 +75,9 @@ public final class OreCanvasRenderer {
         Element.DOMRect canvasRect = canvas.getBoundingClientRect();
         String style = insertion.row()
                 ? "left:" + (insertion.coordinate() - canvasRect.x - 1) + "px;top:" + (insertion.crossStart() - canvasRect.y)
-                + "px;width:3px;height:" + Math.max(16, insertion.crossSize()) + "px;"
+                  + "px;width:3px;height:" + Math.max(16, insertion.crossSize()) + "px;"
                 : "left:" + (insertion.crossStart() - canvasRect.x) + "px;top:" + (insertion.coordinate() - canvasRect.y - 1)
-                + "px;width:" + Math.max(16, insertion.crossSize()) + "px;height:3px;";
+                  + "px;width:" + Math.max(16, insertion.crossSize()) + "px;height:3px;";
         insertionOverlay.setAttribute("style", style);
         canvas.appendChild(insertionOverlay);
         document.markDirty(insertionOverlay, Drawer.RELAYOUT | Drawer.REPAINT | Drawer.HITTEST);
@@ -339,9 +342,18 @@ public final class OreCanvasRenderer {
         flexOverlay.appendChild(part);
     }
 
-    private static double mainStart(Element.DOMRect rect, boolean row) { return row ? rect.left : rect.top; }
-    private static double mainEnd(Element.DOMRect rect, boolean row) { return row ? rect.right : rect.bottom; }
-    private static double crossCenter(Element.DOMRect rect, boolean row) { return row ? rect.top + rect.height / 2 : rect.left + rect.width / 2; }
+    private static double mainStart(Element.DOMRect rect, boolean row) {
+        return row ? rect.left : rect.top;
+    }
+
+    private static double mainEnd(Element.DOMRect rect, boolean row) {
+        return row ? rect.right : rect.bottom;
+    }
+
+    private static double crossCenter(Element.DOMRect rect, boolean row) {
+        return row ? rect.top + rect.height / 2 : rect.left + rect.width / 2;
+    }
+
     private static double lineCrossCenter(List<Element> line, boolean row) {
         return line.stream().map(Element::getBoundingClientRect).mapToDouble(rect -> crossCenter(rect, row)).average().orElse(0);
     }

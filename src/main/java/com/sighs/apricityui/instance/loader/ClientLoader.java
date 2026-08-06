@@ -4,18 +4,19 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.dev.debug.ExternalDebugServer;
-import com.sighs.apricityui.ui.ToastManager;
-import com.sighs.apricityui.task.AbstractAsyncHandler;
 import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.task.FrameTaskScheduler;
+import com.sighs.apricityui.instance.world.WorldWindow;
+import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
-import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.script.ApricityJS;
+import com.sighs.apricityui.task.AbstractAsyncHandler;
+import com.sighs.apricityui.task.FrameTaskScheduler;
+import com.sighs.apricityui.ui.ToastManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.packs.resources.Resource;
@@ -25,12 +26,12 @@ import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.function.BiConsumer;
-import com.sighs.apricityui.instance.world.WorldWindow;
 
 @OnlyIn(Dist.CLIENT)
 @Mod.EventBusSubscriber(bus = Mod.EventBusSubscriber.Bus.MOD, modid = ApricityUI.MODID, value = Dist.CLIENT)
@@ -39,6 +40,7 @@ public class ClientLoader extends Loader {
     private static List<StaticResourceEntry> cachedFinalStaticResources = null;
     private static boolean reloadQueued;
     private static boolean reloadRequested;
+
     public ClientLoader(String extension) {
         super(extension);
     }

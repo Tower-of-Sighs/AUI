@@ -4,7 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.Canvas;
 import com.sighs.apricityui.render.Base;
 
-import java.awt.Graphics2D;
+import java.awt.*;
 import java.awt.image.BufferedImage;
 
 public class OffscreenCanvas extends Canvas {

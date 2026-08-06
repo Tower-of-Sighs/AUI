@@ -1,28 +1,19 @@
 package com.sighs.apricityui.dom;
 
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.style.*;
 import org.joml.Matrix4f;
 
 import java.util.ArrayDeque;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.function.Predicate;
-import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Animation;
-import com.sighs.apricityui.style.Background;
-import com.sighs.apricityui.style.Filter;
-import com.sighs.apricityui.style.Interaction;
-import com.sighs.apricityui.style.Text;
-import com.sighs.apricityui.style.Transform;
 
 public class RenderElement {
     private final Element element;
@@ -280,7 +271,9 @@ public class RenderElement {
         committedTransformDependency = Long.MIN_VALUE;
     }
 
-    /** Clears visual box parsing without invalidating the unchanged hit-test geometry. */
+    /**
+     * Clears visual box parsing without invalidating the unchanged hit-test geometry.
+     */
     public void clearVisualBoxCache() {
         box.value = null;
     }

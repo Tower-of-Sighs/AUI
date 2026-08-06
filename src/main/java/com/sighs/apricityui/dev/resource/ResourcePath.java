@@ -2,7 +2,9 @@ package com.sighs.apricityui.dev.resource;
 
 import java.util.Locale;
 
-/** Shared path and display helpers for the resource browser. */
+/**
+ * Shared path and display helpers for the resource browser.
+ */
 public final class ResourcePath {
     private ResourcePath() {
     }

@@ -3,15 +3,13 @@ package com.sighs.apricityui.element;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.loader.Loader;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Style;
 
 import java.util.*;
 import java.util.regex.Pattern;
-import com.sighs.apricityui.task.AbstractAsyncHandler;
-import com.sighs.apricityui.parser.CSS;
 
 @ElementRegister(Sprite.TAG_NAME)
 public class Sprite extends Div {

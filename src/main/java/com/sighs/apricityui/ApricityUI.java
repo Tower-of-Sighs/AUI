@@ -5,17 +5,17 @@ import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Window;
 import com.sighs.apricityui.instance.config.ApricityUIConfig;
-import com.sighs.apricityui.instance.world.FollowFacingWorldWindow;
-import com.sighs.apricityui.instance.world.ShaderRegistry;
-import com.sighs.apricityui.instance.world.WorldWindow;
 import com.sighs.apricityui.instance.network.ApricityNetwork;
 import com.sighs.apricityui.instance.network.handler.PendingMenu;
 import com.sighs.apricityui.instance.screen.ApricityScreen;
-import net.minecraft.client.Minecraft;
+import com.sighs.apricityui.instance.world.FollowFacingWorldWindow;
+import com.sighs.apricityui.instance.world.ShaderRegistry;
+import com.sighs.apricityui.instance.world.WorldWindow;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
 import dev.latvian.mods.rhino.util.HideFromJS;
+import net.minecraft.client.Minecraft;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
@@ -28,8 +28,8 @@ import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 import net.minecraftforge.fml.loading.FMLEnvironment;
-import org.slf4j.Logger;
 import org.joml.Quaternionf;
+import org.slf4j.Logger;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -143,7 +143,7 @@ public class ApricityUI {
 
     /**
      * @deprecated Configure the logical size through {@code aui-viewport} and use
-     *             {@link #createWorldWindow(String, Vec3, int)}.
+     * {@link #createWorldWindow(String, Vec3, int)}.
      */
     @Deprecated
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance) {
@@ -158,7 +158,9 @@ public class ApricityUI {
         return window;
     }
 
-    /** Creates and registers a world window with an independent display-distance limit. */
+    /**
+     * Creates and registers a world window with an independent display-distance limit.
+     */
     public static WorldWindow createWorldWindow(String documentPath, Vec3 position,
                                                 int maxDistance, int maxDisplayDistance) {
         WorldWindow window = createWorldWindow(documentPath, position, maxDistance);
@@ -211,7 +213,7 @@ public class ApricityUI {
 
     /**
      * @deprecated Configure the logical size through {@code aui-viewport} and use
-     *             {@link #createFollowFacingWorldWindow(String, Vec3, int, float)}.
+     * {@link #createFollowFacingWorldWindow(String, Vec3, int, float)}.
      */
     @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, float width, float height, int maxDistance, float followFactor) {
@@ -222,7 +224,7 @@ public class ApricityUI {
 
     /**
      * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
-     *             follow/facing on the returned window.
+     * follow/facing on the returned window.
      */
     @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath, Vec3 position, int maxDistance, float followFactor) {
@@ -233,14 +235,14 @@ public class ApricityUI {
 
     /**
      * @deprecated Use {@link #createWorldWindow(String, Vec3, int)} and configure
-     *             follow/facing on the returned window.
+     * follow/facing on the returned window.
      */
     @Deprecated
     public static FollowFacingWorldWindow createFollowFacingWorldWindow(String documentPath,
-                                                                         Vec3 position,
-                                                                         int maxDistance,
-                                                                         int maxDisplayDistance,
-                                                                         float followFactor) {
+                                                                        Vec3 position,
+                                                                        int maxDistance,
+                                                                        int maxDisplayDistance,
+                                                                        float followFactor) {
         FollowFacingWorldWindow window = createFollowFacingWorldWindow(
                 documentPath, position, maxDistance, followFactor);
         window.setMaxDisplayDistance(maxDisplayDistance);

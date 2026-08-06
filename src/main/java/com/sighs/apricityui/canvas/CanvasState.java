@@ -1,6 +1,6 @@
 package com.sighs.apricityui.canvas;
 
-import java.awt.Shape;
+import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.Area;
 

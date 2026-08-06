@@ -1,14 +1,13 @@
 package com.sighs.apricityui.style;
 
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.instance.loader.Loader;
+import com.sighs.apricityui.parser.CssString;
+import com.sighs.apricityui.parser.Gradient;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import com.sighs.apricityui.parser.CssString;
-import com.sighs.apricityui.parser.Gradient;
 
 public class Background {
     public static class Layer {

@@ -4,13 +4,11 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Transform;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
+import java.util.*;
 
-/** Orders top-level documents by the transforms applied to their root chain. */
+/**
+ * Orders top-level documents by the transforms applied to their root chain.
+ */
 public final class DocumentLayerOrder {
     private DocumentLayerOrder() {
     }

@@ -4,21 +4,21 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
-import com.sighs.apricityui.style.Style;
-import com.sighs.apricityui.style.Filter;
-import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Transform;
 import org.lwjgl.opengl.GL11;
 
 import java.util.function.Consumer;
-import com.sighs.apricityui.parser.CSS;
 
 public interface RenderNode {
     void render(PoseStack poseStack);
 
-    /** Whether this node emits a visible layer in the final CSS paint order. */
+    /**
+     * Whether this node emits a visible layer in the final CSS paint order.
+     */
     default boolean advancesPaintDepth() {
         return true;
     }
@@ -192,7 +192,9 @@ public interface RenderNode {
         }
     }
 
-    /** Paint scrollbars outside the element's content mask, like browser UI chrome. */
+    /**
+     * Paint scrollbars outside the element's content mask, like browser UI chrome.
+     */
     record ScrollbarNode(Element target) implements RenderNode {
         @Override
         public void render(PoseStack poseStack) {
