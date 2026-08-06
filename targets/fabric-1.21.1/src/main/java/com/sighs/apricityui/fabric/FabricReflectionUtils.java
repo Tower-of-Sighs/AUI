@@ -140,8 +140,8 @@ public final class FabricReflectionUtils {
         }
         // Loom keeps common classes in a separate classes directory which is
         // available to the Knot classloader but is not always exposed through
-        // a Fabric mod root. Walk the package resources as a development-mode
-        // fallback; this also works for packaged jar URLs.
+        // a Fabric mod root. Walk package resources as a development fallback;
+        // this also works for packaged jar URLs.
         for (String packageName : SCAN_PACKAGES) {
             addClassLoaderClasses(result, packageName, FabricReflectionUtils.class.getClassLoader());
             addClassLoaderClasses(result, packageName, Thread.currentThread().getContextClassLoader());

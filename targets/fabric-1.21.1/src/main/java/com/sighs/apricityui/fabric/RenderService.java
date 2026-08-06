@@ -7,8 +7,9 @@ import com.mojang.blaze3d.platform.NativeImage;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.ByteBufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.MeshData;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import com.sighs.apricityui.spi.AuiRenderService;
@@ -20,6 +21,7 @@ import com.sighs.apricityui.spi.RenderHandle;
 import com.sighs.apricityui.mixin.accessor.RenderTargetAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -33,12 +35,13 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 /**
- * Fabric implementation of {@link AuiRenderService}, backed by 1.20.1's
+ * Fabric implementation of {@link AuiRenderService}, backed by 1.21.1's
  * {@link RenderSystem} global state. On 1.21.5+ this maps to pipeline state.
  */
 public final class RenderService implements AuiRenderService {
     public static final RenderService INSTANCE = new RenderService();
     private static final Map<RenderTarget, StencilState> STENCIL_TARGETS = new IdentityHashMap<>();
+    private final ByteBufferBuilder meshByteBuffer = new ByteBufferBuilder(786432);
 
     private RenderService() {
     }
@@ -75,26 +78,30 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public MeshBuilder beginMesh(MeshMode mode, MeshFormat format) {
-        // Tesselator owns one reusable BufferBuilder on 1.20.1. Reusing it is
-        // important here because BufferUploader consumes the finished mesh but
-        // does not require a new builder for the next batch.
         VertexFormat.Mode m = mode == MeshMode.QUADS ? VertexFormat.Mode.QUADS : VertexFormat.Mode.TRIANGLES;
         VertexFormat fmt = format == MeshFormat.POSITION ? DefaultVertexFormat.POSITION
                 : format == MeshFormat.POSITION_TEX ? DefaultVertexFormat.POSITION_TEX
                 : DefaultVertexFormat.POSITION_COLOR;
-        BufferBuilder buf = Tesselator.getInstance().getBuilder();
-        buf.begin(m, fmt);
+        // BufferBuilder is a lightweight view over this reusable native byte
+        // buffer. The finished MeshData is closed by BufferUploader, while the
+        // backing allocation remains available for the next AUI batch.
+        BufferBuilder buf = new BufferBuilder(meshByteBuffer, m, fmt);
         return MeshBuilder.of(buf);
     }
 
     @Override
     public void emitVertex(Object mesh, Matrix4f mat, float x, float y, float z, int r, int g, int b, int a) {
-        ((BufferBuilder) mesh).vertex(mat, x, y, z).color(r, g, b, a).endVertex();
+        ((BufferBuilder) mesh).addVertex(mat, x, y, z).setColor(r, g, b, a);
     }
 
     @Override
     public void submitMesh(Object mesh) {
-        BufferUploader.drawWithShader(((BufferBuilder) mesh).end());
+        // 1.21's build() returns null for an empty buffer (buildOrThrow() throws
+        // "BufferBuilder was empty"); a batch with no vertices is a legit no-op.
+        MeshData meshData = ((BufferBuilder) mesh).build();
+        if (meshData != null) {
+            BufferUploader.drawWithShader(meshData);
+        }
     }
 
     /** Bundles the {@link MultiBufferSource.BufferSource} with the render type it batches. */
@@ -112,10 +119,10 @@ public final class RenderService implements AuiRenderService {
                                 float u0, float v0, float u1, float v1) {
         TextureBatchHandle handle = (TextureBatchHandle) batch;
         VertexConsumer consumer = handle.source().getBuffer(handle.renderType());
-        consumer.vertex(mat, x, y + height, 0.0F).color(255, 255, 255, 255).uv(u0, v1).uv2(0xF000F0).endVertex();
-        consumer.vertex(mat, x + width, y + height, 0.0F).color(255, 255, 255, 255).uv(u1, v1).uv2(0xF000F0).endVertex();
-        consumer.vertex(mat, x + width, y, 0.0F).color(255, 255, 255, 255).uv(u1, v0).uv2(0xF000F0).endVertex();
-        consumer.vertex(mat, x, y, 0.0F).color(255, 255, 255, 255).uv(u0, v0).uv2(0xF000F0).endVertex();
+        consumer.addVertex(mat, x, y + height, 0.0F).setColor(255, 255, 255, 255).setUv(u0, v1).setLight(0xF000F0);
+        consumer.addVertex(mat, x + width, y + height, 0.0F).setColor(255, 255, 255, 255).setUv(u1, v1).setLight(0xF000F0);
+        consumer.addVertex(mat, x + width, y, 0.0F).setColor(255, 255, 255, 255).setUv(u1, v0).setLight(0xF000F0);
+        consumer.addVertex(mat, x, y, 0.0F).setColor(255, 255, 255, 255).setUv(u0, v0).setLight(0xF000F0);
     }
 
     @Override
@@ -126,7 +133,7 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public void emitVertexUV(Object mesh, Matrix4f mat, float x, float y, float z, float u, float v) {
-        ((BufferBuilder) mesh).vertex(mat, x, y, z).uv(u, v).endVertex();
+        ((BufferBuilder) mesh).addVertex(mat, x, y, z).setUv(u, v);
     }
 
     @Override
@@ -183,28 +190,16 @@ public final class RenderService implements AuiRenderService {
         int previousFramebuffer = GlStateManager.getBoundFramebuffer();
         int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
         try {
-            // Vanilla 1.20.1 creates a depth-only texture. Reallocate that
-            // texture with a combined depth/stencil format so its id remains
-            // valid for code that samples the target depth texture.
             GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebufferId);
             GlStateManager._bindTexture(depthTextureId);
             GlStateManager._texImage2D(
-                    GL11.GL_TEXTURE_2D,
-                    0,
-                    GL30.GL_DEPTH32F_STENCIL8,
-                    renderTarget.width,
-                    renderTarget.height,
-                    0,
-                    GL30.GL_DEPTH_STENCIL,
-                    GL30.GL_FLOAT_32_UNSIGNED_INT_24_8_REV,
-                    null
+                    GL11.GL_TEXTURE_2D, 0, GL30.GL_DEPTH32F_STENCIL8,
+                    renderTarget.width, renderTarget.height, 0,
+                    GL30.GL_DEPTH_STENCIL, GL30.GL_FLOAT_32_UNSIGNED_INT_24_8_REV, null
             );
             GlStateManager._glFramebufferTexture2D(
-                    GL30.GL_FRAMEBUFFER,
-                    GL30.GL_DEPTH_STENCIL_ATTACHMENT,
-                    GL11.GL_TEXTURE_2D,
-                    depthTextureId,
-                    0
+                    GL30.GL_FRAMEBUFFER, GL30.GL_DEPTH_STENCIL_ATTACHMENT,
+                    GL11.GL_TEXTURE_2D, depthTextureId, 0
             );
             renderTarget.checkStatus();
             STENCIL_TARGETS.put(renderTarget, new StencilState(framebufferId, depthTextureId));
