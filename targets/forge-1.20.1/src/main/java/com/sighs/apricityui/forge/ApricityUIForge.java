@@ -2,7 +2,9 @@ package com.sighs.apricityui.forge;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.config.ApricityUIConfig;
-import com.sighs.apricityui.network.ApricityNetwork;
+import com.sighs.apricityui.network.api.NetworkAutoRegistration;
+import com.sighs.apricityui.network.NetworkPlatform;
+import com.sighs.apricityui.network.forge.NetworkManagerImpl;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
@@ -27,6 +29,7 @@ public class ApricityUIForge {
     public ApricityUIForge() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         AuiServicesBootstrap.init();
+        NetworkPlatform.setCurrentServerSupplier(net.minecraftforge.server.ServerLifecycleHooks::getCurrentServer);
         if (FMLEnvironment.dist == Dist.CLIENT) {
             ClientServicesBootstrap.init(modEventBus);
         }
@@ -37,7 +40,8 @@ public class ApricityUIForge {
         }
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.element");
         ApricityMenus.register(modEventBus);
-        ApricityNetwork.register();
+        NetworkManagerImpl.installAutoRegistrationHook();
+        NetworkAutoRegistration.findAllAnnotatedPackets();
 
     }
 

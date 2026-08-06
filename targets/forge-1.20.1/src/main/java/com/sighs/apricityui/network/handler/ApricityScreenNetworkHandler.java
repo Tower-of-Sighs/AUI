@@ -9,18 +9,17 @@ import com.sighs.apricityui.container.datasource.DataSourceFactory;
 import com.sighs.apricityui.element.ContainerDeclaration;
 import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
+import com.sighs.apricityui.network.api.INetworkContext;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
-import net.minecraftforge.network.NetworkEvent;
 import net.minecraftforge.network.NetworkHooks;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 
 /**
  * Screen 网络请求处理器。
@@ -80,10 +79,9 @@ public final class ApricityScreenNetworkHandler {
     /**
      * 处理客户端发来的 OpenScreenRequest 网络包。
      */
-    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, INetworkContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
+            ServerPlayer player = context.sender();
             if (player == null) return;
 
             String normalizedPath = NormalizeUtil.normalizeTemplatePath(packet.templatePath());
@@ -107,23 +105,20 @@ public final class ApricityScreenNetworkHandler {
 
             openScreenFromServer(player, layout, sources, null);
         });
-        context.setPacketHandled(true);
     }
 
     /**
      * 处理客户端发来的关闭容器请求。
      */
-    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, Supplier<NetworkEvent.Context> contextSupplier) {
-        NetworkEvent.Context context = contextSupplier.get();
+    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, INetworkContext context) {
         context.enqueueWork(() -> {
-            ServerPlayer player = context.getSender();
+            ServerPlayer player = context.sender();
             if (player == null) return;
 
             if (player.containerMenu instanceof ApricityContainerMenu) {
                 player.closeContainer();
             }
         });
-        context.setPacketHandled(true);
     }
 
     private static Map<String, ContainerDataSource> resolveDataSources(
