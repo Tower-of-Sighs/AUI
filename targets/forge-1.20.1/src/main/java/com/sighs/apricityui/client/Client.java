@@ -479,6 +479,7 @@ public class Client {
             DebugReloadWatcher.tick();
             DebugAIScreenshotTicker.tick();
             DevTools.drainLogs();
+            com.sighs.apricityui.forge.RenderService.INSTANCE.reconcileFabulousChainStencil();
             Window mcWindow = Minecraft.getInstance().getWindow();
             int w = mcWindow.getScreenWidth();
             int h = mcWindow.getScreenHeight();

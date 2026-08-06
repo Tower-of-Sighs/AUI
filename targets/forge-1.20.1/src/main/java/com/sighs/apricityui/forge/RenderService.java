@@ -19,6 +19,7 @@ import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.spi.RenderHandle;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
@@ -138,7 +139,47 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public void enableStencil(FboHandle target) {
-        target.<RenderTarget>as().enableStencil();
+        RenderTarget rt = target.as();
+        rt.enableStencil();
+        if (rt == Minecraft.getInstance().getMainRenderTarget()) {
+            enableFabulousChainStencil();
+        }
+    }
+
+    /**
+     * Keeps the Fabulous chain targets on the same depth format as the
+     * stencil-enabled main target. Vanilla copies depth from the main target
+     * into these every frame via a raw glBlitFramebuffer with no format check;
+     * once the main target switches to GL_DEPTH32F_STENCIL8 the mismatch makes
+     * the driver emit GL_INVALID_OPERATION ("Depth formats do not match") every
+     * frame and the copy silently fails, so translucent terrain and particles
+     * lose occlusion against the opaque world. Called on every stencil-mask
+     * begin because these targets are recreated on resource reloads and
+     * graphics-mode switches.
+     */
+    private static void enableFabulousChainStencil() {
+        LevelRenderer levelRenderer = Minecraft.getInstance().levelRenderer;
+        if (levelRenderer == null) return;
+        enableStencilIfPresent(levelRenderer.getTranslucentTarget());
+        enableStencilIfPresent(levelRenderer.getItemEntityTarget());
+        enableStencilIfPresent(levelRenderer.getParticlesTarget());
+        enableStencilIfPresent(levelRenderer.getWeatherTarget());
+        enableStencilIfPresent(levelRenderer.getCloudsTarget());
+    }
+
+    private static void enableStencilIfPresent(RenderTarget target) {
+        if (target != null && !target.isStencilEnabled()) target.enableStencil();
+    }
+
+    /**
+     * Re-applies stencil to the Fabulous chain targets after they are recreated
+     * by resource reloads or graphics-mode switches while the main target keeps
+     * its stencil-enabled depth format. Called once per client tick; cheap
+     * (null/boolean checks) unless a target actually needs rebuilding.
+     */
+    public void reconcileFabulousChainStencil() {
+        RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
+        if (main != null && main.isStencilEnabled()) enableFabulousChainStencil();
     }
 
     @Override
