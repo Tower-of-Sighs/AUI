@@ -13,7 +13,6 @@ import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
-import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
@@ -39,12 +38,11 @@ import org.lwjgl.glfw.GLFW;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.screen.ApricityContainerScreen;
 import com.sighs.apricityui.screen.ApricityScreen;
-import com.sighs.apricityui.viewport.ApricityViewport;
-import com.sighs.apricityui.world.ItemRender;
 import com.sighs.apricityui.world.WorldWindow;
 
 @EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
@@ -229,7 +227,6 @@ public class Client {
                 for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
                     if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                     Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
-                    renderOverlaySlotItems(event.getGuiGraphics(), document);
                     // Draw the resource preview right after its owning document so the
                     // previewed HTML stays below the DevTools tool document (and toasts).
                     com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose(), document);
@@ -255,25 +252,8 @@ public class Client {
                 continue;
             }
             Base.drawOverlayDocument(guiGraphics.pose(), document);
-            renderOverlaySlotItems(guiGraphics, document);
             // Keep the resource preview directly above its owning document.
             com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), document);
-        }
-    }
-
-    private static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphics guiGraphics, Document document) {
-        if (guiGraphics == null || document == null) return;
-        try (Document.ContextScope ignored = Document.withContext(document)) {
-        ApricityViewport viewport = document.getViewport();
-        guiGraphics.pose().pushPose();
-        Mask.pushScissorScale(viewport.scissorScale());
-        try {
-            guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-            ItemRender.renderDocumentSlotItems(guiGraphics, document);
-        } finally {
-            Mask.popScissorScale();
-            guiGraphics.pose().popPose();
-        }
         }
     }
 
@@ -366,7 +346,8 @@ public class Client {
             return;
         }
         int action = event.getAction();
-        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE) return;
+        if (action != InputConstants.PRESS && action != InputConstants.REPEAT && action != InputConstants.RELEASE)
+            return;
         if (action == InputConstants.PRESS && handleViewportZoomKeyAtMouse(event.getKey(), event.getModifiers())) {
             return;
         }
@@ -470,38 +451,38 @@ public class Client {
     @SubscribeEvent
     public static void tick(ClientTickEvent.Pre event) {
         CursorReleaseController.tick();
-            if (ApricityUIConfig.consumeClientReloadPending()) {
-                com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
-            }
-            com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
-            FrameScheduler.tick();
-            ResourceManager.reconcileConfiguredMode();
+        if (ApricityUIConfig.consumeClientReloadPending()) {
+            com.sighs.apricityui.dev.debug.ExternalDebugServer.reconcileConfiguration();
+        }
+        com.sighs.apricityui.dev.debug.ExternalDebugServer.tick();
+        FrameScheduler.tick();
+        ResourceManager.reconcileConfiguredMode();
 //            com.sighs.apricityui.dev.BackdropFilterTestRunner.tick();
-            DebugReloadWatcher.tick();
-            DebugAIScreenshotTicker.tick();
-            DevTools.drainLogs();
-            com.sighs.apricityui.neoforge.RenderService.INSTANCE.reconcileFabulousChainStencil();
-            Window mcWindow = Minecraft.getInstance().getWindow();
-            int w = mcWindow.getScreenWidth();
-            int h = mcWindow.getScreenHeight();
-            int framebufferWidth = mcWindow.getWidth();
-            int framebufferHeight = mcWindow.getHeight();
-            double guiScale = mcWindow.getGuiScale();
-            if (lastWindowWidth != w || lastWindowHeight != h
-                    || lastFramebufferWidth != framebufferWidth
-                    || lastFramebufferHeight != framebufferHeight
-                    || Double.compare(lastGuiScale, guiScale) != 0) {
-                lastWindowWidth = w;
-                lastWindowHeight = h;
-                lastFramebufferWidth = framebufferWidth;
-                lastFramebufferHeight = framebufferHeight;
-                lastGuiScale = guiScale;
-                for (Document document : Document.getAll()) {
-                    if (document != null && !document.isDisposed()) {
-                        document.applyViewport(true);
-                    }
+        DebugReloadWatcher.tick();
+        DebugAIScreenshotTicker.tick();
+        DevTools.drainLogs();
+        com.sighs.apricityui.neoforge.RenderService.INSTANCE.reconcileFabulousChainStencil();
+        Window mcWindow = Minecraft.getInstance().getWindow();
+        int w = mcWindow.getScreenWidth();
+        int h = mcWindow.getScreenHeight();
+        int framebufferWidth = mcWindow.getWidth();
+        int framebufferHeight = mcWindow.getHeight();
+        double guiScale = mcWindow.getGuiScale();
+        if (lastWindowWidth != w || lastWindowHeight != h
+                || lastFramebufferWidth != framebufferWidth
+                || lastFramebufferHeight != framebufferHeight
+                || Double.compare(lastGuiScale, guiScale) != 0) {
+            lastWindowWidth = w;
+            lastWindowHeight = h;
+            lastFramebufferWidth = framebufferWidth;
+            lastFramebufferHeight = framebufferHeight;
+            lastGuiScale = guiScale;
+            for (Document document : Document.getAll()) {
+                if (document != null && !document.isDisposed()) {
+                    document.applyViewport(true);
                 }
-                com.sighs.apricityui.init.Window.window.fireResizeEvent();
+            }
+            com.sighs.apricityui.init.Window.window.fireResizeEvent();
         }
     }
 
@@ -539,7 +520,9 @@ public class Client {
         return getMousePosition();
     }
 
-    /** Returns the live cursor position directly from the GLFW window handle. */
+    /**
+     * Returns the live cursor position directly from the GLFW window handle.
+     */
     public static Position getMousePositionDirectly() {
         Window window = Minecraft.getInstance().getWindow();
         long handle = window.getWindow();
@@ -652,7 +635,9 @@ public class Client {
         drawDefaultFont(poseStack, text, text.content, position);
     }
 
-    /** Draws the frame-timing HUD overlay, if enabled. */
+    /**
+     * Draws the frame-timing HUD overlay, if enabled.
+     */
     public static void drawFrameTimingHud(GuiGraphics guiGraphics) {
         if (guiGraphics == null || !FrameTimingHud.isEnabled()) return;
         String text = FrameTimingHud.frameStatsText();

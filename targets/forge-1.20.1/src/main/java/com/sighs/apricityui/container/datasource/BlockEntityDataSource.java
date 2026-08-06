@@ -1,10 +1,12 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import dev.latvian.mods.kubejs.block.entity.BlockEntityJS;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.Container;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
@@ -18,11 +20,20 @@ import net.minecraftforge.items.SlotItemHandler;
 public final class BlockEntityDataSource implements ContainerDataSource {
     private final BlockEntity blockEntity;
     private final IItemHandler itemHandler;
+    private final Container container;
     private final int capacity;
 
     public BlockEntityDataSource(BlockEntity blockEntity, IItemHandler itemHandler, int capacity) {
+        this(blockEntity, itemHandler, null, capacity);
+    }
+
+    private BlockEntityDataSource(BlockEntity blockEntity,
+                                  IItemHandler itemHandler,
+                                  Container container,
+                                  int capacity) {
         this.blockEntity = blockEntity;
         this.itemHandler = itemHandler;
+        this.container = container;
         this.capacity = Math.max(0, capacity);
     }
 
@@ -38,7 +49,9 @@ public final class BlockEntityDataSource implements ContainerDataSource {
 
     @Override
     public Slot createSlot(int slotIndex, int x, int y) {
-        return new SlotItemHandler(itemHandler, slotIndex, x, y);
+        return itemHandler != null
+                ? new SlotItemHandler(itemHandler, slotIndex, x, y)
+                : new Slot(container, slotIndex, x, y);
     }
 
     @Override
@@ -71,10 +84,23 @@ public final class BlockEntityDataSource implements ContainerDataSource {
             handler = blockEntity.getCapability(ForgeCapabilities.ITEM_HANDLER)
                     .orElse(null);
         }
-        if (handler == null) return null;
+        if (handler != null) {
+            int handlerSlots = Math.max(0, handler.getSlots());
+            int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
+            return new BlockEntityDataSource(blockEntity, handler, resolvedCapacity);
+        }
 
-        int handlerSlots = Math.max(0, handler.getSlots());
-        int resolvedCapacity = capacity <= 0 ? handlerSlots : Math.min(Math.max(1, capacity), handlerSlots);
-        return new BlockEntityDataSource(blockEntity, handler, resolvedCapacity);
+        if (blockEntity instanceof BlockEntityJS kubeBlockEntity && kubeBlockEntity.inventory != null) {
+            Container container = kubeBlockEntity.inventory.kjs$asContainer();
+            if (container != null) {
+                int containerSlots = Math.max(0, container.getContainerSize());
+                int resolvedCapacity = capacity <= 0
+                        ? containerSlots
+                        : Math.min(Math.max(1, capacity), containerSlots);
+                return new BlockEntityDataSource(blockEntity, null, container, resolvedCapacity);
+            }
+        }
+
+        return null;
     }
 }

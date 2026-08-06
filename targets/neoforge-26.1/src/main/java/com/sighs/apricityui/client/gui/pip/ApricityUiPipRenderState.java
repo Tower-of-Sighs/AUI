@@ -1,7 +1,10 @@
 package com.sighs.apricityui.client.gui.pip;
 
+import java.util.ArrayList;
+import java.util.List;
 import net.minecraft.client.gui.navigation.ScreenRectangle;
 import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
+import net.minecraft.world.item.ItemStack;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -22,8 +25,14 @@ public record ApricityUiPipRenderState(
         int y1,
         float scale,
         @Nullable ScreenRectangle scissorArea,
-        Mode mode
+        Mode mode,
+        FloatingItemBatch floatingItems
 ) implements PictureInPictureRenderState {
+    private static final FloatingItemBatch NO_FLOATING_ITEMS = new FloatingItemBatch();
+
+    public ApricityUiPipRenderState {
+        floatingItems = floatingItems == null ? NO_FLOATING_ITEMS : floatingItems;
+    }
 
     public enum Mode {
         UI,
@@ -31,11 +40,46 @@ public record ApricityUiPipRenderState(
     }
 
     public static ApricityUiPipRenderState ui(int x0, int y0, int x1, int y1, @Nullable ScreenRectangle scissorArea) {
-        return new ApricityUiPipRenderState(x0, y0, x1, y1, 1.0F, scissorArea, Mode.UI);
+        return ui(x0, y0, x1, y1, scissorArea, NO_FLOATING_ITEMS);
+    }
+
+    public static ApricityUiPipRenderState ui(
+            int x0,
+            int y0,
+            int x1,
+            int y1,
+            @Nullable ScreenRectangle scissorArea,
+            FloatingItemBatch floatingItems
+    ) {
+        return new ApricityUiPipRenderState(x0, y0, x1, y1, 1.0F, scissorArea, Mode.UI, floatingItems);
     }
 
     public static ApricityUiPipRenderState cursor(int x0, int y0, int x1, int y1, @Nullable ScreenRectangle scissorArea) {
-        return new ApricityUiPipRenderState(x0, y0, x1, y1, 1.0F, scissorArea, Mode.CURSOR);
+        return new ApricityUiPipRenderState(x0, y0, x1, y1, 1.0F, scissorArea, Mode.CURSOR, NO_FLOATING_ITEMS);
+    }
+
+    /** Mutable frame payload with identity-based equality for PIP renderer reuse. */
+    public static final class FloatingItemBatch {
+        private final List<FloatingItem> items = new ArrayList<>();
+
+        public void add(ItemStack stack, int x, int y, String overlayText, float decorationOffsetY) {
+            if (stack == null) return;
+            if (stack.isEmpty() && (overlayText == null || overlayText.isBlank())) return;
+            items.add(new FloatingItem(stack.copy(), x, y, overlayText, decorationOffsetY));
+        }
+
+        public List<FloatingItem> items() {
+            return List.copyOf(items);
+        }
+    }
+
+    public record FloatingItem(
+            ItemStack stack,
+            int x,
+            int y,
+            String overlayText,
+            float decorationOffsetY
+    ) {
     }
 
     @Override

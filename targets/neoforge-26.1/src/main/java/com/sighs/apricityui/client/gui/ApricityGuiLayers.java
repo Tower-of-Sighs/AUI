@@ -32,11 +32,6 @@ public final class ApricityGuiLayers {
             com.sighs.apricityui.dev.DevTools.handleInspectMouseMove(
                     com.sighs.apricityui.client.Client.getMousePositionDirectly());
             submitOverlay(guiGraphics);
-            for (com.sighs.apricityui.init.Document document
-                    : com.sighs.apricityui.render.DocumentLayerOrder.backToFront(com.sighs.apricityui.init.Document.getAll())) {
-                if (document == null || document.inWorld || document.isManuallyRendered()) continue;
-                com.sighs.apricityui.client.Client.renderOverlaySlotItems(guiGraphics, document);
-            }
             com.sighs.apricityui.client.Client.drawFrameTimingHud(guiGraphics);
         });
     }
@@ -52,17 +47,23 @@ public final class ApricityGuiLayers {
 
     /**
      * Submits only the document PIP state. {@link AuiLinkedScreen}s call this
-     * themselves mid-extraction so the document composites above the vanilla
-     * background but below their extractor-drawn slot items (submission order
-     * is the z order in the 26.1 GUI renderer).
+     * themselves mid-extraction so frame-local floating items can be attached
+     * to the same PIP payload.
      */
     public static void submitUi(GuiGraphicsExtractor guiGraphics) {
+        submitUi(guiGraphics, null);
+    }
+
+    public static void submitUi(
+            GuiGraphicsExtractor guiGraphics,
+            ApricityUiPipRenderState.FloatingItemBatch floatingItems
+    ) {
         if (isDuplicateThisFrame(guiGraphics, true)) return;
         Minecraft mc = Minecraft.getInstance();
         int w = mc.getWindow().getGuiScaledWidth();
         int h = mc.getWindow().getGuiScaledHeight();
         guiGraphics.submitPictureInPictureRenderState(
-                ApricityUiPipRenderState.ui(0, 0, w, h, guiGraphics.peekScissorStack()));
+                ApricityUiPipRenderState.ui(0, 0, w, h, guiGraphics.peekScissorStack(), floatingItems));
     }
 
     /** Submits only the pseudo-cursor PIP state; always composited last. */

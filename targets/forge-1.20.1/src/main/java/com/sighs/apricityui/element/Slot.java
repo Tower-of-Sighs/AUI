@@ -8,6 +8,8 @@ import com.sighs.apricityui.slot.SlotDisplaySpec;
 import com.sighs.apricityui.slot.SlotExpressionCompiler;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.BodyRenderNodeProvider;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
@@ -15,6 +17,7 @@ import net.minecraft.world.item.ItemStack;
 
 import java.util.Collections;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -27,7 +30,7 @@ import com.sighs.apricityui.parser.CSS;
  * 不再直接持有 mcSlot 引用或依赖 UiSlot。
  */
 @ElementRegister(Slot.TAG_NAME)
-public class Slot extends MinecraftElement {
+public class Slot extends MinecraftElement implements BodyRenderNodeProvider {
     public static final String TAG_NAME = "SLOT";
 
     /**
@@ -230,6 +233,35 @@ public class Slot extends MinecraftElement {
     }
 
     @Override
+    public List<RenderNode> createBodyRenderNodes() {
+        return List.of(
+                new RenderNode.ElementBackgroundNode(this),
+                new RenderNode.ItemNode(
+                        this,
+                        this::resolveDisplayStack,
+                        this::shouldPaintItem,
+                        () -> resolveIconScale(1.0F),
+                        () -> resolveZIndex(0),
+                        true,
+                        this::resolveOverlayText,
+                        () -> 0.0D,
+                        this::shouldPaintGhost
+                )
+        );
+    }
+
+    public boolean shouldPaintItem() {
+        if (!shouldRenderItem()) return false;
+        return !hasView() || (!view.isDisabled() && !view.isHidden());
+    }
+
+    @Override
+    public void drawBackgroundOnly(PoseStack poseStack) {
+        if (!shouldRenderBackground()) return;
+        super.drawBackgroundOnly(poseStack);
+    }
+
+    @Override
     public void drawPhase(PoseStack poseStack, Base.RenderPhase phase) {
         if (!shouldRenderBackground()
                 && (phase == Base.RenderPhase.SHADOW
@@ -248,6 +280,14 @@ public class Slot extends MinecraftElement {
         ItemStack stack = hasView() ? view.getDisplayStack() : virtualStack;
         if (stack == null || stack.isEmpty()) return ItemStack.EMPTY;
         return stack.copy();
+    }
+
+    public String resolveOverlayText() {
+        return hasView() ? view.getOverlayText() : null;
+    }
+
+    public boolean shouldPaintGhost() {
+        return hasView() && view.isGhost();
     }
 
     @Override
@@ -342,6 +382,14 @@ public class Slot extends MinecraftElement {
          * 获取当前显示的物品。
          */
         ItemStack getDisplayStack();
+
+        default String getOverlayText() {
+            return null;
+        }
+
+        default boolean isGhost() {
+            return false;
+        }
 
         /**
          * 是否被禁用（不可交互）。

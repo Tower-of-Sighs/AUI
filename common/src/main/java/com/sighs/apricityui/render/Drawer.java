@@ -265,7 +265,7 @@ public class Drawer {
 
         for (Paintable p : negativeZ) processStackingContext(p.element, paintList);
         if (splitContentForNegativeZ) {
-            paintList.add(new RenderNode.ElementContentNode(contextRoot));
+            appendBodyRenderNodes(contextRoot, paintList);
         }
         for (Element e : normalFlow) processStackingContext(e, paintList);
         for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList);

@@ -13,7 +13,6 @@ import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
-import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
@@ -42,8 +41,6 @@ import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.screen.ApricityContainerScreen;
 import com.sighs.apricityui.screen.ApricityScreen;
-import com.sighs.apricityui.viewport.ApricityViewport;
-import com.sighs.apricityui.world.ItemRender;
 import com.sighs.apricityui.world.WorldWindow;
 
 @Mod.EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
@@ -229,7 +226,6 @@ public class Client {
                 for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
                     if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                     Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
-                    renderOverlaySlotItems(event.getGuiGraphics(), document);
                 }
                 com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
@@ -253,23 +249,6 @@ public class Client {
                 continue;
             }
             Base.drawOverlayDocument(guiGraphics.pose(), document);
-            renderOverlaySlotItems(guiGraphics, document);
-        }
-    }
-
-    private static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphics guiGraphics, Document document) {
-        if (guiGraphics == null || document == null) return;
-        try (Document.ContextScope ignored = Document.withContext(document)) {
-        ApricityViewport viewport = document.getViewport();
-        guiGraphics.pose().pushPose();
-        Mask.pushScissorScale(viewport.scissorScale());
-        try {
-            guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-            ItemRender.renderDocumentSlotItems(guiGraphics, document);
-        } finally {
-            Mask.popScissorScale();
-            guiGraphics.pose().popPose();
-        }
         }
     }
 

@@ -3,6 +3,8 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.spi.AuiItemRenderRequest;
+import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Interaction;
@@ -11,7 +13,11 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Transform;
 import org.lwjgl.opengl.GL11;
 
+import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.DoubleSupplier;
+import java.util.function.IntSupplier;
+import java.util.function.Supplier;
 import com.sighs.apricityui.parser.CSS;
 
 public interface RenderNode {
@@ -44,6 +50,7 @@ public interface RenderNode {
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
         if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
         if (node instanceof RenderNode.ElementContentNode n) return n.target();
+        if (node instanceof RenderNode.ItemNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
         if (node instanceof RenderNode.ScrollbarNode n) return n.target();
@@ -223,6 +230,193 @@ public interface RenderNode {
             com.sighs.apricityui.spi.AuiServices.render().enableBlend();
             com.sighs.apricityui.spi.AuiServices.render().setBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
             target.drawContentOnly(poseStack);
+        }
+    }
+
+    /** Paints one dynamically resolved Minecraft item from the current PoseStack. */
+    record ItemNode(
+            Element target,
+            Supplier<Object> stackSupplier,
+            BooleanSupplier enabledSupplier,
+            DoubleSupplier xSupplier,
+            DoubleSupplier ySupplier,
+            DoubleSupplier scaleSupplier,
+            IntSupplier zIndexSupplier,
+            boolean decorations,
+            Supplier<String> overlayTextSupplier,
+            DoubleSupplier decorationOffsetYSupplier,
+            BooleanSupplier ghostSupplier
+    ) implements RenderNode {
+        private static final float ICON_SCALE_EPSILON = 0.0001F;
+
+        public ItemNode {
+            stackSupplier = stackSupplier == null ? () -> null : stackSupplier;
+            enabledSupplier = enabledSupplier == null ? () -> true : enabledSupplier;
+            xSupplier = xSupplier == null ? () -> 0.0D : xSupplier;
+            ySupplier = ySupplier == null ? () -> 0.0D : ySupplier;
+            scaleSupplier = scaleSupplier == null ? () -> 1.0D : scaleSupplier;
+            zIndexSupplier = zIndexSupplier == null ? () -> 0 : zIndexSupplier;
+            overlayTextSupplier = overlayTextSupplier == null ? () -> null : overlayTextSupplier;
+            decorationOffsetYSupplier = decorationOffsetYSupplier == null ? () -> 0.0D : decorationOffsetYSupplier;
+            ghostSupplier = ghostSupplier == null ? () -> false : ghostSupplier;
+        }
+
+        /** Creates an item centered inside an element's body box. */
+        public ItemNode(
+                Element target,
+                Supplier<Object> stackSupplier,
+                BooleanSupplier enabledSupplier,
+                DoubleSupplier scaleSupplier,
+                IntSupplier zIndexSupplier,
+                boolean decorations
+        ) {
+            this(
+                    target,
+                    stackSupplier,
+                    enabledSupplier,
+                    scaleSupplier,
+                    zIndexSupplier,
+                    decorations,
+                    () -> null,
+                    () -> 0.0D,
+                    () -> false
+            );
+        }
+
+        public ItemNode(
+                Element target,
+                Supplier<Object> stackSupplier,
+                BooleanSupplier enabledSupplier,
+                DoubleSupplier scaleSupplier,
+                IntSupplier zIndexSupplier,
+                boolean decorations,
+                Supplier<String> overlayTextSupplier,
+                DoubleSupplier decorationOffsetYSupplier,
+                BooleanSupplier ghostSupplier
+        ) {
+            this(
+                    target,
+                    stackSupplier,
+                    enabledSupplier,
+                    () -> centeredBodyX(target),
+                    () -> centeredBodyY(target),
+                    scaleSupplier,
+                    zIndexSupplier,
+                    decorations,
+                    overlayTextSupplier,
+                    decorationOffsetYSupplier,
+                    ghostSupplier
+            );
+        }
+
+        /** Creates an item at an explicit position, without an owning DOM element. */
+        public static ItemNode positioned(
+                Supplier<Object> stackSupplier,
+                double x,
+                double y,
+                double scale,
+                int zIndex,
+                boolean decorations
+        ) {
+            return positioned(stackSupplier, x, y, scale, zIndex, decorations, null, 0.0D, false);
+        }
+
+        public static ItemNode positioned(
+                Supplier<Object> stackSupplier,
+                double x,
+                double y,
+                double scale,
+                int zIndex,
+                boolean decorations,
+                String overlayText,
+                double decorationOffsetY,
+                boolean ghost
+        ) {
+            return new ItemNode(
+                    null,
+                    stackSupplier,
+                    () -> true,
+                    () -> x,
+                    () -> y,
+                    () -> scale,
+                    () -> zIndex,
+                    decorations,
+                    () -> overlayText,
+                    () -> decorationOffsetY,
+                    () -> ghost
+            );
+        }
+
+        @Override
+        public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderContent() || !enabledSupplier.getAsBoolean()) return;
+            if (target != null) {
+                ensureRendererLoaded(target);
+                if (shouldSkip(target)) return;
+
+                AABB currentClip = Mask.getCurrentClip();
+                Rect rect = Rect.of(target);
+                if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+            }
+
+            Object stack = stackSupplier.get();
+            if (stack == null) return;
+
+            float drawX = finiteFloat(xSupplier.getAsDouble());
+            float drawY = finiteFloat(ySupplier.getAsDouble());
+            float iconScale = Math.max(0.01F, finiteFloat(scaleSupplier.getAsDouble(), 1.0F));
+
+            Base.commitDraws();
+            poseStack.pushPose();
+            try {
+                if (target != null) Base.applyTransform(poseStack, target);
+                poseStack.translate(drawX, drawY, 0.0F);
+                Base.offsetLocalPaintDepth(poseStack, zIndexSupplier.getAsInt());
+                if (Math.abs(iconScale - 1.0F) > ICON_SCALE_EPSILON) {
+                    poseStack.translate(8.0F, 8.0F, 0.0F);
+                    poseStack.scale(iconScale, iconScale, 1.0F);
+                    poseStack.translate(-8.0F, -8.0F, 0.0F);
+                }
+
+                int seed = target == null
+                        ? 31 * Float.floatToIntBits(drawX) + Float.floatToIntBits(drawY)
+                        : System.identityHashCode(target);
+                AuiServices.items().render(new AuiItemRenderRequest(
+                        poseStack,
+                        stack,
+                        seed,
+                        decorations,
+                        overlayTextSupplier.get(),
+                        finiteFloat(decorationOffsetYSupplier.getAsDouble()),
+                        ghostSupplier.getAsBoolean()
+                ));
+            } finally {
+                poseStack.popPose();
+            }
+        }
+
+        private static double centeredBodyX(Element target) {
+            if (target == null) return 0.0D;
+            Rect rect = Rect.of(target);
+            Position body = rect.getBodyRectPosition();
+            return body.x + (Math.max(1.0D, rect.getBodyRectSize().width()) - 16.0D) / 2.0D;
+        }
+
+        private static double centeredBodyY(Element target) {
+            if (target == null) return 0.0D;
+            Rect rect = Rect.of(target);
+            Position body = rect.getBodyRectPosition();
+            return body.y + (Math.max(1.0D, rect.getBodyRectSize().height()) - 16.0D) / 2.0D;
+        }
+
+        private static float finiteFloat(double value) {
+            return finiteFloat(value, 0.0F);
+        }
+
+        private static float finiteFloat(double value, float fallback) {
+            if (!Double.isFinite(value)) return fallback;
+            float converted = (float) value;
+            return Float.isFinite(converted) ? converted : fallback;
         }
     }
 
