@@ -15,7 +15,6 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.dom.TextNode;
-import com.sighs.apricityui.element.Slot;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.resource.async.image.ImageHandle;
@@ -1458,49 +1457,6 @@ class ElementBindingTest {
         assertEquals(0, img.getNaturalHeight());
     }
 
-    @Test
-    void slotDisplayExpressionsCanComeFromDirectTextNodes() {
-        Document document = createDocument();
-
-        Slot literalSlot = new Slot(document);
-        literalSlot.appendChild(new TextNode(document, "minecraft:diamond"));
-        document.body.appendChild(literalSlot);
-        assertEquals("minecraft:diamond", invokeResolveDisplayExpressionSource(literalSlot));
-
-        Slot jsonSlot = new Slot(document);
-        jsonSlot.setAttribute("cycle", "0");
-        jsonSlot.appendChild(new TextNode(document, "[{\"item\":\"minecraft:oak_log\"},{\"item\":\"minecraft:birch_log\"}]"));
-        document.body.appendChild(jsonSlot);
-        assertEquals("[{\"item\":\"minecraft:oak_log\"},{\"item\":\"minecraft:birch_log\"}]",
-                invokeResolveDisplayExpressionSource(jsonSlot));
-    }
-
-    @Test
-    void slotShorthandExpressionsCanAlsoComeFromDirectTextNodes() {
-        Document document = createDocument();
-        Slot slot = new Slot(document);
-        slot.setAttribute("cycle", "0");
-        slot.appendChild(new TextNode(document, "minecraft:diamond|minecraft:emerald"));
-        document.body.appendChild(slot);
-
-        assertEquals("minecraft:diamond|minecraft:emerald", invokeResolveDisplayExpressionSource(slot));
-    }
-
-    @Test
-    void slotInteractiveCustomPropertyDoesNotRecurseDuringSelectorMatching() {
-        Document document = createDocument();
-        Slot slot = new Slot(document);
-        slot.setAttribute("class", "inventory-slot");
-        document.body.appendChild(slot);
-        CSS.readCSS(".inventory-slot { --aui-slot-interactive: true; }"
-                        + ".inventory-slot:disabled { color: red; }"
-                        + ".inventory-slot:enabled { color: green; }",
-                document.CSSCache, "test://slot-interactive.css");
-
-        assertDoesNotThrow(slot::getComputedStyle);
-        assertFalse(slot.isDisabled());
-    }
-
     private static Document createDocument() {
         Document document = new Document("test://doc", false);
         document.body = new Body(document);
@@ -1592,13 +1548,4 @@ class ElementBindingTest {
         img.testResetResourceObservation();
     }
 
-    private static String invokeResolveDisplayExpressionSource(Slot slot) {
-        try {
-            Method method = Slot.class.getDeclaredMethod("resolveDisplayExpressionSource");
-            method.setAccessible(true);
-            return (String) method.invoke(slot);
-        } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
-        }
-    }
 }

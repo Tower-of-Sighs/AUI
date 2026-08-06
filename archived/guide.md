@@ -52,7 +52,7 @@ ApricityUI.openScreen("demo/index.html")
 
 `bind="player"` 的槽位策略为：
 
-- 使用统一标签 `<slot>`；
+- 使用 `<slot>` 作为壳层，并在其中显式放置 `<item>` 或 `<ingredient>`；
 - 容器内无 `bound` 槽位时，会隐式注入玩家 36 格（27 背包 + 9 快捷栏）；
 - 槽位背景由 `slot` 的 CSS `background-image` 决定，未配置时保持透明。
 
@@ -67,7 +67,7 @@ ApricityUI.openScreen("demo/index.html")
 - 顶层 `container` 内的 `<slot>` 默认按索引绑定真实菜单槽位；
 - 不在 `container` 内，或位于 `<recipe>` 预览中的槽位为 virtual；
 - `mode` 属性仅用于旧模板兼容，新模板不建议依赖；
-- `virtual` 物品来源只读取 `slot` 的 `innerText`（不再读取 `item/itemid/count/hover` 属性）；
+- `virtual` 物品来源读取嵌套 `<item>` 的文本，或嵌套 `<ingredient>` 的候选表达式；
 - `<recipe type="...">recipe_id</recipe>`：生成的槽位始终是 `virtual`，可放在 `container` 内或普通 HTML 区域；
 - `recipe` 的配方 id 只读取 `innerText`（不再读取 `recipe-id` 属性）；
 - `recipe.type` 必填并严格校验（不匹配则不渲染预览并写入 `data-recipe-error`）。

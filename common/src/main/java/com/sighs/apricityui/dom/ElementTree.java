@@ -8,6 +8,7 @@ import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.spi.AuiServices;
 
 public final class ElementTree {
     private final Document owner;
@@ -154,6 +155,7 @@ public final class ElementTree {
             clearLayoutChain(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
+        AuiServices.expander().restoreRequiredContent(owner, parent);
         owner.queueMutation(Document.MutationRecord.childList(parent, List.of(), removedRoots, previousSibling, nextSibling));
     }
 
@@ -175,7 +177,12 @@ public final class ElementTree {
     }
 
     private void moveSubtree(Node child, Node parent, int childIndex) {
+        AuiServices.expander().validateRuntimeInsertion(owner, parent, child);
         detachSubtree(child);
+        // Moving the only required Item within its existing Slot/Ingredient can
+        // restore a placeholder during detach; validate once more before attach
+        // so the moved node remains the sole direct content element.
+        AuiServices.expander().validateRuntimeInsertion(owner, parent, child);
 
         int safeIndex = Math.max(0, Math.min(childIndex, parent.childNodes.size()));
         parent.childNodes.add(safeIndex, child);
@@ -207,6 +214,9 @@ public final class ElementTree {
     private Node moveFragmentChildren(DocumentFragment fragment, Node parent, int childIndex) {
         ArrayList<Node> roots = new ArrayList<>(fragment.childNodes);
         if (roots.isEmpty()) return null;
+        for (Node child : roots) {
+            AuiServices.expander().validateRuntimeInsertion(owner, parent, child);
+        }
 
         int safeIndex = Math.max(0, Math.min(childIndex, parent.childNodes.size()));
         Node previousSibling = safeIndex > 0 ? parent.childNodes.get(safeIndex - 1) : null;
@@ -240,6 +250,7 @@ public final class ElementTree {
             clearLayoutChain(parentElement);
             owner.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REORDER);
         }
+        AuiServices.expander().normalizeRuntimeChildren(owner, parent);
         owner.queueMutation(Document.MutationRecord.childList(parent, roots, List.of(), previousSibling, nextSibling));
         return roots.get(roots.size() - 1);
     }
@@ -275,6 +286,9 @@ public final class ElementTree {
         node.parentNode = null;
         if (node instanceof Element element) {
             element.parentElement = null;
+        }
+        if (oldParent != null) {
+            AuiServices.expander().restoreRequiredContent(owner, oldParent);
         }
     }
 

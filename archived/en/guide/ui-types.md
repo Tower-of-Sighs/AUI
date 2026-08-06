@@ -78,7 +78,7 @@ For `bind="entity"`, the target entity must expose a usable item capability such
 
 For `bind="player"`:
 
-- Use the unified `<slot>` tag
+- Use `<slot>` as the shell with an explicit nested `<item>` or `<ingredient>` node
 - If there are no bound slots inside the container, the system injects 36 player slots automatically
 - Slot background rendering is controlled by the `slot` CSS `background-image`; if not configured, it stays transparent
 
@@ -90,10 +90,10 @@ For `bind="player"`:
 
 Unified slot semantics:
 
-- `<slot>` inside a top-level `container` binds real menu slots by index
+- A `<slot>` with a direct `<item>` inside a top-level `container` binds real menu slots by index
 - Slots outside `container`, or inside `<recipe>` previews, are virtual
 - `mode` exists mainly for legacy compatibility and should not be relied on in new templates
-- Virtual item sources are read only from `slot.innerText`
+- Virtual item sources are read from nested `<item>` text or nested `<ingredient>` candidate expressions
 - `<recipe type="...">recipe_id</recipe>` always generates virtual slots and can be placed inside a container or in normal HTML
 - `recipe` reads the recipe id only from `innerText`
 - `recipe.type` is required and strictly validated; if invalid, no preview is rendered and `data-recipe-error` is written
