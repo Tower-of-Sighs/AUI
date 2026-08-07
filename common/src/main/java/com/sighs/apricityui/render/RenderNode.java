@@ -50,6 +50,7 @@ public interface RenderNode {
         if (node instanceof RenderNode.ElementPhaseNode n) return n.target();
         if (node instanceof RenderNode.ElementBackgroundNode n) return n.target();
         if (node instanceof RenderNode.ElementContentNode n) return n.target();
+        if (node instanceof RenderNode.ElementForegroundNode n) return n.target();
         if (node instanceof RenderNode.ItemNode n) return n.target();
         if (node instanceof RenderNode.MaskPushNode n) return n.target();
         if (node instanceof RenderNode.MaskPopNode n) return n.target();
@@ -233,6 +234,29 @@ public interface RenderNode {
         }
     }
 
+    /** Paints custom element foreground content after its child paint nodes. */
+    record ElementForegroundNode(Element target, Consumer<PoseStack> painter) implements RenderNode {
+        public ElementForegroundNode {
+            painter = painter == null ? ignored -> {
+            } : painter;
+        }
+
+        @Override
+        public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderContent()) return;
+            ensureRendererLoaded(target);
+            if (shouldSkip(target)) return;
+            AABB currentClip = Mask.getCurrentClip();
+            Rect rect = Rect.of(target);
+            if (!currentClip.isValid() || !rect.getVisualBounds().intersects(currentClip)) return;
+
+            Base.applyTransform(poseStack, target);
+            AuiServices.render().enableBlend();
+            AuiServices.render().setBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            painter.accept(poseStack);
+        }
+    }
+
     /** Paints one dynamically resolved Minecraft item from the current PoseStack. */
     record ItemNode(
             Element target,
@@ -306,6 +330,29 @@ public interface RenderNode {
                     overlayTextSupplier,
                     decorationOffsetYSupplier,
                     ghostSupplier
+            );
+        }
+
+        public ItemNode(
+                Element target,
+                Supplier<Object> stackSupplier,
+                BooleanSupplier enabledSupplier,
+                DoubleSupplier scaleSupplier,
+                IntSupplier zIndexSupplier,
+                boolean decorations,
+                Supplier<String> overlayTextSupplier,
+                DoubleSupplier decorationOffsetYSupplier
+        ) {
+            this(
+                    target,
+                    stackSupplier,
+                    enabledSupplier,
+                    scaleSupplier,
+                    zIndexSupplier,
+                    decorations,
+                    overlayTextSupplier,
+                    decorationOffsetYSupplier,
+                    () -> false
             );
         }
 

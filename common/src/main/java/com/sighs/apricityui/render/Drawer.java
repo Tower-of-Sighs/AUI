@@ -186,10 +186,12 @@ public class Drawer {
                 paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
                 paintList.add(new RenderNode.MaskPushNode(contextRoot));
                 appendBodyRenderNodes(contextRoot, paintList);
+                appendForegroundRenderNodes(contextRoot, paintList);
                 paintList.add(new RenderNode.MaskPopNode(contextRoot));
             } else {
                 appendBodyRenderNodes(contextRoot, paintList);
                 paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
+                appendForegroundRenderNodes(contextRoot, paintList);
             }
             if (contextRoot.mayRenderScrollbar()) {
                 paintList.add(new RenderNode.ScrollbarNode(contextRoot));
@@ -270,6 +272,7 @@ public class Drawer {
         for (Element e : normalFlow) processStackingContext(e, paintList);
         for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList);
         for (Paintable p : positiveZ) processStackingContext(p.element, paintList);
+        appendForegroundRenderNodes(contextRoot, paintList);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
         if (contextRoot.mayRenderScrollbar()) {
@@ -296,6 +299,12 @@ public class Drawer {
             }
         }
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BODY));
+    }
+
+    private static void appendForegroundRenderNodes(Element contextRoot, List<RenderNode> paintList) {
+        if (!(contextRoot instanceof ForegroundRenderNodeProvider provider)) return;
+        List<RenderNode> nodes = provider.createForegroundRenderNodes();
+        if (nodes != null && !nodes.isEmpty()) paintList.addAll(nodes);
     }
 
     private static List<Element> minimizeRoots(Set<Element> roots) {

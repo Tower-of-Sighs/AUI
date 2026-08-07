@@ -31,7 +31,6 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
     private Source source = Source.NONE;
     private Optional<ItemStack> drivenStack = Optional.empty();
     private String overlayText;
-    private boolean ghost;
     private boolean hidden;
     private boolean menuDisabled;
 
@@ -45,14 +44,12 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
     public void setDrivenState(
             ItemStack stack,
             String nextOverlayText,
-            boolean nextGhost,
             boolean nextHidden,
             boolean nextMenuDisabled,
             Source nextSource
     ) {
         drivenStack = copyStack(stack);
         overlayText = nextOverlayText;
-        ghost = nextGhost;
         hidden = nextHidden;
         menuDisabled = nextMenuDisabled;
         source = nextSource == null ? Source.NONE : nextSource;
@@ -60,7 +57,7 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
     }
 
     public void setIngredientStack(ItemStack stack) {
-        setDrivenState(stack, null, false, false, false, Source.INGREDIENT);
+        setDrivenState(stack, null, false, false, Source.INGREDIENT);
     }
 
     public void clearDrivenState(Source expectedSource) {
@@ -68,7 +65,6 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
         source = Source.NONE;
         drivenStack = Optional.empty();
         overlayText = null;
-        ghost = false;
         hidden = false;
         menuDisabled = false;
         requestRepaint();
@@ -104,10 +100,6 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
         return shouldPaintItem() ? overlayText : null;
     }
 
-    public boolean shouldPaintGhost() {
-        return source == Source.MENU && ghost && shouldPaintItem();
-    }
-
     @Override
     public ItemStack getTooltipStack() {
         if (!canShowItemTooltip()) return ItemStack.EMPTY;
@@ -126,8 +118,7 @@ public class Item extends MinecraftElement implements BodyRenderNodeProvider {
                         this::resolveZIndex,
                         true,
                         this::resolveOverlayText,
-                        () -> 0.0D,
-                        this::shouldPaintGhost
+                        () -> 0.0D
                 )
         );
     }

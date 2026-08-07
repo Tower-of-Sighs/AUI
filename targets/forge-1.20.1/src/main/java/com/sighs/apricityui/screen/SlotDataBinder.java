@@ -251,15 +251,26 @@ public final class SlotDataBinder {
                 disabled |= uiSlot.isUiDisabled();
             }
 
-            binding.slotElement().updateBoundMenuState(disabled);
+            binding.slotElement().updateBoundMenuState(disabled, hidden, state.ghost());
             binding.itemElement().setDrivenState(
                     state.stack(),
                     state.overlayText(),
-                    state.ghost(),
                     hidden,
                     disabled,
                     Item.Source.MENU
             );
+        }
+    }
+
+    /** Synchronizes DOM :hover state for bound slots from the screen pointer. */
+    public void syncBoundSlotHoverStates(double mouseX, double mouseY) {
+        Position documentMouse = documentPositionAt(mouseX, mouseY);
+        for (SlotBinding binding : bindingsByGlobalIndex.values()) {
+            Slot slotElement = binding.slotElement();
+            boolean hovered = documentMouse != null
+                    && slotElement.canOperateBoundMenuSlot()
+                    && slotElement.containsSlotPoint(documentMouse.x, documentMouse.y);
+            slotElement.setHover(hovered);
         }
     }
 

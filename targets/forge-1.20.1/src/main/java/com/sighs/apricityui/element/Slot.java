@@ -7,8 +7,11 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.registry.annotation.ElementRegister;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.BodyRenderNodeProvider;
+import com.sighs.apricityui.render.ForegroundRenderNodeProvider;
+import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Background;
+import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.world.item.ItemStack;
@@ -28,7 +31,7 @@ import java.util.Set;
  * 或 Ingredient 控制的 Item 渲染。</p>
  */
 @ElementRegister(Slot.TAG_NAME)
-public class Slot extends MinecraftElement implements BodyRenderNodeProvider {
+public class Slot extends MinecraftElement implements BodyRenderNodeProvider, ForegroundRenderNodeProvider {
     public static final String TAG_NAME = "SLOT";
 
     static {
@@ -40,6 +43,8 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider {
 
     private boolean bound;
     private boolean boundDisabled;
+    private boolean boundHidden;
+    private boolean boundGhost;
 
     public Slot(Document document) {
         super(document, TAG_NAME);
@@ -54,15 +59,30 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider {
     public void bindToMenuSlot(boolean initialDisabled) {
         bound = true;
         boundDisabled = initialDisabled;
+        boundHidden = false;
+        boundGhost = false;
+    }
+
+    public void updateBoundMenuState(boolean nextDisabled, boolean nextHidden, boolean nextGhost) {
+        boundDisabled = nextDisabled;
+        boundHidden = nextHidden;
+        boundGhost = nextGhost;
+    }
+
+    public void updateBoundMenuState(boolean nextDisabled, boolean nextGhost) {
+        updateBoundMenuState(nextDisabled, false, nextGhost);
     }
 
     public void updateBoundMenuState(boolean nextDisabled) {
-        boundDisabled = nextDisabled;
+        updateBoundMenuState(nextDisabled, false, false);
     }
 
     public void clearMenuSlotBinding() {
         bound = false;
         boundDisabled = false;
+        boundHidden = false;
+        boundGhost = false;
+        setHover(false);
     }
 
     public boolean isExplicitlyDisabled() {
@@ -185,6 +205,44 @@ public class Slot extends MinecraftElement implements BodyRenderNodeProvider {
     @Override
     public List<RenderNode> createBodyRenderNodes() {
         return List.of(new RenderNode.ElementBackgroundNode(this));
+    }
+
+    @Override
+    public List<RenderNode> createForegroundRenderNodes() {
+        return List.of(new RenderNode.ElementForegroundNode(this, this::drawForegroundMask));
+    }
+
+    /**
+     * 原版槽位高亮和快速合成预览都属于前景层：它们必须高于 Slot 的 Item 子节点，
+     * 但低于鼠标跟随的浮动物品。
+     */
+    public boolean shouldRenderForegroundMask() {
+        return canOperateBoundMenuSlot()
+                && !boundHidden
+                && (shouldRenderBackground() || shouldRenderItem())
+                && isVisible
+                && Interaction.isDisplayed(this)
+                && (isHover || boundGhost);
+    }
+
+    private void drawForegroundMask(PoseStack poseStack) {
+        if (!shouldRenderForegroundMask()) return;
+        Position position = Position.of(this);
+        int size = resolveSlotSizeHint(16);
+        poseStack.translate(0.0F, 0.0F, Base.getGuiItemForegroundZ());
+        Graph.beginLayeredBatch();
+        try {
+            Graph.drawFillRect(
+                    poseStack.last().pose(),
+                    (float) position.x,
+                    (float) position.y,
+                    (float) (position.x + size),
+                    (float) (position.y + size),
+                    0x80FFFFFF
+            );
+        } finally {
+            Graph.endBatch();
+        }
     }
 
     @Override

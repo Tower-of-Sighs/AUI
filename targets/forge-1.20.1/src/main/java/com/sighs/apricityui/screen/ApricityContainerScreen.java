@@ -189,6 +189,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                     slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, false);
                 }
                 slotBinder.syncBoundSlotStates();
+                slotBinder.syncBoundSlotHoverStates(mouseX, mouseY);
             }
 
             super.render(guiGraphics, mouseX, mouseY, partialTick);

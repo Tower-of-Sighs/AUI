@@ -34,9 +34,12 @@ public class Base {
 
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
     private static final float GLOBAL_DOCUMENT_Z_OFFSET = 1.0f;
-    private static final float GUI_ITEM_MODEL_Z_OFFSET = 150.0f;
-    private static final float GUI_ITEM_DECORATION_Z_OFFSET = 200.0f;
-    private static final float FLAT_DOCUMENT_LAYER_STEP = GUI_ITEM_DECORATION_Z_OFFSET + 1.0f;
+    private static final float GUI_ITEM_MODEL_Z_OFFSET = GuiItemDepths.SCREEN_ITEM_MODEL_Z;
+    private static final float GUI_ITEM_DECORATION_Z_OFFSET = GuiItemDepths.SCREEN_ITEM_DECORATION_Z;
+    private static final float GUI_ITEM_FOREGROUND_Z_OFFSET = GuiItemDepths.SCREEN_ITEM_FOREGROUND_Z;
+    private static final float GUI_FLOATING_ITEM_MODEL_Z_OFFSET = GuiItemDepths.SCREEN_FLOATING_ITEM_MODEL_Z;
+    private static final float GUI_FLOATING_ITEM_DECORATION_Z_OFFSET = GuiItemDepths.SCREEN_FLOATING_ITEM_DECORATION_Z;
+    private static final float FLAT_DOCUMENT_LAYER_STEP = GuiItemDepths.FLAT_DOCUMENT_LAYER_STEP;
     private static final java.util.ArrayDeque<Float> DOCUMENT_Z_OFFSET_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<GuiItemZ> GUI_ITEM_Z_STACK = new java.util.ArrayDeque<>();
     private static float guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
@@ -233,12 +236,17 @@ public class Base {
                     topLayerDepthScope.close();
                     topLayerDepthScope = null;
                 }
-                for (RenderNode overlayNode : overlayNodes) {
-                    if (overlayNode == null) continue;
-                    poseStack.pushPose();
-                    resolvePaintOffset(poseStack, overlayNode);
-                    overlayNode.render(poseStack);
-                    poseStack.popPose();
+                pushGuiItemZ(GUI_FLOATING_ITEM_MODEL_Z_OFFSET, GUI_FLOATING_ITEM_DECORATION_Z_OFFSET);
+                try {
+                    for (RenderNode overlayNode : overlayNodes) {
+                        if (overlayNode == null) continue;
+                        poseStack.pushPose();
+                        resolvePaintOffset(poseStack, overlayNode);
+                        overlayNode.render(poseStack);
+                        poseStack.popPose();
+                    }
+                } finally {
+                    popGuiItemZ();
                 }
             } finally {
                 FontDrawer.popDocumentPixelScale();
@@ -609,6 +617,15 @@ public class Base {
 
     public static float getGuiItemDecorationZ() {
         return guiItemDecorationZ;
+    }
+
+    /**
+     * Returns the depth reserved for document foreground overlays above item decorations.
+     * World documents already place foreground nodes after child item nodes in their
+     * accumulated paint interval, so they must not add a screen-space GUI depth bias.
+     */
+    public static float getGuiItemForegroundZ() {
+        return GuiItemDepths.foregroundZ(guiItemDecorationZ, accumulateDepth);
     }
 
     public static void pushGuiItemZ(float modelZ, float decorationZ) {

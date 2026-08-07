@@ -37,10 +37,6 @@ public final class ItemRenderService implements AuiItemRenderService {
         MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
         boolean hasStack = !stack.isEmpty();
 
-        if (request.ghost()) {
-            drawGhost(poseStack);
-        }
-
         if (hasStack) {
             BakedModel model = minecraft.getItemRenderer().getModel(
                     stack,
@@ -75,11 +71,6 @@ public final class ItemRenderService implements AuiItemRenderService {
         if (request.decorations() && (hasStack || hasOverlayText(request.overlayText()))) {
             drawDecorations(poseStack, stack, bufferSource, request);
         }
-    }
-
-    private static void drawGhost(PoseStack poseStack) {
-        Graph.drawFillRect(poseStack.last().pose(), 0.0F, 0.0F, 16.0F, 16.0F, 0x80FFFFFF);
-        Graph.endBatch();
     }
 
     private static boolean hasOverlayText(String text) {
