@@ -148,16 +148,10 @@ slot > ingredient {
     position: absolute;
     left: 1px;
     top: 1px;
-    width: calc(100% - 2px);
-    height: calc(100% - 2px);
 }
 
 ingredient > item {
     position: absolute;
-    left: 0;
-    top: 0;
-    width: 100%;
-    height: 100%;
 }
 
 /* 玩家背包预设：前三行为背包 9..35，第四行为快捷栏 0..8 */

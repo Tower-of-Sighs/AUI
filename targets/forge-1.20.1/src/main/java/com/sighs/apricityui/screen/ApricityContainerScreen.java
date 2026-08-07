@@ -9,6 +9,7 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.screen.SlotDataBinder;
 import com.sighs.apricityui.render.Base;
+import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
 import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.RenderNode;
@@ -276,7 +277,11 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     private void drawSlotHoverTooltipByElement(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (linkedDocument == null || !menu.getCarried().isEmpty()) return;
 
-        Position documentMouse = linkedDocument.screenToDocumentPosition(new Position(mouseX, mouseY));
+        Position screenMouse = new Position(mouseX, mouseY);
+        if (DocumentLayerOrder.hasPersistentScreenDocumentAt(Document.getAll(), linkedDocument, screenMouse)) {
+            return;
+        }
+        Position documentMouse = linkedDocument.screenToDocumentPosition(screenMouse);
         List<Element> elements = linkedDocument.getElements();
         for (int index = elements.size() - 1; index >= 0; index--) {
             Element element = elements.get(index);
