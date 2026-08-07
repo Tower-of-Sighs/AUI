@@ -95,6 +95,11 @@ public class Element extends Node {
     // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
     public boolean isLoaded = false;
     public HashMap<String, String> cssCache = new HashMap<>();
+    // cssCache 是否已完成过选择器匹配。不能用 isEmpty() 判断：外部样式表未加载时，
+    // 元素可能“匹配了但一条规则都没有”，此时若在样式表就绪后被懒读取重新匹配，
+    // 会绕过 recomputeStyleSelf 的 observeStyle 失效链路（styleVersion/提交 Rect 等
+    // 派生缓存不失效），导致元素永远停留在旧样式。
+    private boolean cssCacheMatched = false;
     public Element parentElement = null;
     public ArrayList<Element> children = new ArrayList<>();
     private Element beforePseudoElement = null;
@@ -409,6 +414,7 @@ public class Element extends Node {
         cssCache = pseudoElement
                 ? Selector.matchPseudoElementCSS(pseudoElementHost, pseudoElementKind)
                 : Selector.matchCSS(this);
+        cssCacheMatched = true;
         invalidateStyleCaches();
 
         Style currentStyle = getRawComputedStyle();
@@ -462,9 +468,10 @@ public class Element extends Node {
             cssCache = Selector.matchPseudoElementCSS(pseudoElementHost, pseudoElementKind);
             return;
         }
-        if (document == null || !cssCache.isEmpty()) return;
+        if (document == null || cssCacheMatched) return;
         if (getClassNames().isEmpty() && (id == null || id.isBlank()) && getAttributes().isEmpty()) return;
         cssCache = Selector.matchCSS(this);
+        cssCacheMatched = true;
     }
 
     public void updateInlineStyle() {

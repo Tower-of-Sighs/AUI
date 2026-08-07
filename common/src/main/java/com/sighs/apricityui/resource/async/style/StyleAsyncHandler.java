@@ -42,7 +42,6 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
             ApricityUI.LOGGER.error("[AUI CSS] cannot attach styles without document path={}", AuiLog.source(contextPath));
             return;
         }
-
         long generation = currentGeneration();
         StyleHandle handle = new StyleHandle(document.getUuid(), generation);
         StyleHandle old = HANDLES.put(document.getUuid(), handle);
@@ -104,9 +103,13 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
     @Override
     protected void applyOnMainThread(ApplyTask task, long currentGeneration) {
-        if (task.handle().generation() != currentGeneration) return;
+        if (task.handle().generation() != currentGeneration) {
+            return;
+        }
         StyleHandle current = HANDLES.get(task.handle().documentId());
-        if (current != task.handle()) return;
+        if (current != task.handle()) {
+            return;
+        }
 
         Document document = Document.getByUUID(task.handle().documentId().toString());
         if (document == null) {

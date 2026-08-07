@@ -26,6 +26,9 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         FabricServicesBootstrap.initClient();
         NetworkManagerImpl.initializeClient();
+        // The common entrypoint runs before the client service exists. Register
+        // the scan scope after installing the real Fabric client service.
+        ApricityUIRegistry.scanPackages("com.sighs.apricityui.element");
         FabricShaderRegistry.register();
         registerKeys();
         ApricityUIRegistry.register();

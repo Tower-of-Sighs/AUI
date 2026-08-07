@@ -17,6 +17,7 @@ import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.spi.MeshFormat;
 import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.spi.RenderHandle;
+import com.sighs.apricityui.mixin.accessor.RenderTargetAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -28,12 +29,16 @@ import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL30;
 
+import java.util.IdentityHashMap;
+import java.util.Map;
+
 /**
  * Fabric implementation of {@link AuiRenderService}, backed by 1.20.1's
  * {@link RenderSystem} global state. On 1.21.5+ this maps to pipeline state.
  */
 public final class RenderService implements AuiRenderService {
     public static final RenderService INSTANCE = new RenderService();
+    private static final Map<RenderTarget, StencilState> STENCIL_TARGETS = new IdentityHashMap<>();
 
     private RenderService() {
     }
@@ -138,14 +143,96 @@ public final class RenderService implements AuiRenderService {
 
     @Override
     public void enableStencil(FboHandle target) {
-        // Fabric has no public RenderTarget.enableStencil in 1.20.1. The
-        // offscreen target still carries a depth buffer; stencil users are
-        // guarded by the common render path when this hook is unavailable.
+        if (target == null) return;
+        RenderTarget renderTarget = target.as();
+        if (!renderTarget.useDepth) return;
+
+        int framebufferId = renderTarget.frameBufferId;
+        int depthTextureId = ((RenderTargetAccessor) (Object) renderTarget).aui$getDepthBufferId();
+        if (framebufferId < 0 || depthTextureId < 0) return;
+
+        StencilState previous = STENCIL_TARGETS.get(renderTarget);
+        if (previous != null
+                && previous.framebufferId() == framebufferId
+                && previous.depthTextureId() == depthTextureId) {
+            return;
+        }
+        applyStencilToTarget(renderTarget);
+    }
+
+    /**
+     * Mixin callback from RenderTarget#createBuffers. Vanilla rebuilds a
+     * target's GL objects on every window resize (destroyBuffers +
+     * createBuffers), which drops the stencil attachment we installed — and
+     * the driver typically reuses the just-freed framebuffer/texture ids, so
+     * the id-based early return in {@link #enableStencil} cannot detect the
+     * loss. Re-apply the reallocation here for every registered target, or
+     * stencil clipping silently stops working after the first resize
+     * (clip-path shapes render unclipped, e.g. triangles become squares).
+     */
+    public static void onTargetBuffersCreated(RenderTarget renderTarget) {
+        if (!STENCIL_TARGETS.containsKey(renderTarget)) return;
+        applyStencilToTarget(renderTarget);
+    }
+
+    private static void applyStencilToTarget(RenderTarget renderTarget) {
+        int framebufferId = renderTarget.frameBufferId;
+        int depthTextureId = ((RenderTargetAccessor) (Object) renderTarget).aui$getDepthBufferId();
+        if (framebufferId < 0 || depthTextureId < 0) return;
+
+        int previousFramebuffer = GlStateManager.getBoundFramebuffer();
+        int previousTexture = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+        try {
+            // Vanilla 1.20.1 creates a depth-only texture. Reallocate that
+            // texture with a combined depth/stencil format so its id remains
+            // valid for code that samples the target depth texture.
+            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, framebufferId);
+            GlStateManager._bindTexture(depthTextureId);
+            GlStateManager._texImage2D(
+                    GL11.GL_TEXTURE_2D,
+                    0,
+                    GL30.GL_DEPTH32F_STENCIL8,
+                    renderTarget.width,
+                    renderTarget.height,
+                    0,
+                    GL30.GL_DEPTH_STENCIL,
+                    GL30.GL_FLOAT_32_UNSIGNED_INT_24_8_REV,
+                    null
+            );
+            GlStateManager._glFramebufferTexture2D(
+                    GL30.GL_FRAMEBUFFER,
+                    GL30.GL_DEPTH_STENCIL_ATTACHMENT,
+                    GL11.GL_TEXTURE_2D,
+                    depthTextureId,
+                    0
+            );
+            renderTarget.checkStatus();
+            STENCIL_TARGETS.put(renderTarget, new StencilState(framebufferId, depthTextureId));
+        } finally {
+            GlStateManager._bindTexture(previousTexture);
+            GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFramebuffer);
+        }
+    }
+
+    @Override
+    public boolean supportsStencil() {
+        return true;
+    }
+
+    @Override
+    public boolean currentTargetHasStencil() {
+        int framebufferId = GlStateManager.getBoundFramebuffer();
+        for (StencilState state : STENCIL_TARGETS.values()) {
+            if (state.framebufferId() == framebufferId) return true;
+        }
+        return false;
     }
 
     @Override
     public void destroyBuffers(FboHandle target) {
-        target.<RenderTarget>as().destroyBuffers();
+        RenderTarget renderTarget = target.as();
+        STENCIL_TARGETS.remove(renderTarget);
+        renderTarget.destroyBuffers();
     }
 
     @Override
@@ -366,6 +453,9 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void flushSharedBuffers() {
         Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
+    }
+
+    private record StencilState(int framebufferId, int depthTextureId) {
     }
 
     private static void setShaderUniform(String name,

@@ -33,7 +33,7 @@ fi
 export PUBLISH_CHANGELOG="${1:-${PUBLISH_CHANGELOG:-See the project changelog for details.}}"
 echo "changelog: $PUBLISH_CHANGELOG"
 
-TARGETS=(forge-1.20.1 neoforge-1.21.1 neoforge-26.1)
+TARGETS=(forge-1.20.1 fabric-1.20.1 fabric-1.21.1 neoforge-1.21.1 neoforge-26.1)
 FAILED=()
 
 # 串行跑：并行上传 sighs maven 出现过 Connection reset。

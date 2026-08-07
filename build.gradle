@@ -1,6 +1,7 @@
 def targetBuilds = [
         'forge-1.20.1': [directory: 'targets/forge-1.20.1', task: 'buildForge1201'],
         'fabric-1.20.1': [directory: 'targets/fabric-1.20.1', task: 'buildFabric1201'],
+        'fabric-1.21.1': [directory: 'targets/fabric-1.21.1', task: 'buildFabric1211'],
         'neoforge-1.21.1': [directory: 'targets/neoforge-1.21.1', task: 'buildNeoForge1211'],
         'neoforge-26.1': [directory: 'targets/neoforge-26.1', task: 'buildNeoForge261'],
 ]

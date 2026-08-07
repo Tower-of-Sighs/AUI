@@ -1,0 +1,107 @@
+buildscript {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.fabricmc.net/' }
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'net.fabricmc:fabric-loom:1.10.5'
+        classpath 'me.modmuss50:mod-publish-plugin:2.1.1'
+    }
+}
+
+apply plugin: 'fabric-loom'
+apply plugin: 'java'
+apply plugin: 'me.modmuss50.mod-publish-plugin'
+
+def properties = new Properties()
+file('../../gradle.properties').withInputStream { properties.load(it) }
+file('gradle.properties').withInputStream { properties.load(it) }
+properties.each { key, value -> ext.set(key.toString(), value.toString()) }
+
+group = mod_group_id
+version = mod_version
+
+base {
+    archivesName = "${mod_name}-fabric-1.21.1"
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+    withSourcesJar()
+}
+
+loom {
+    mixin {
+        defaultRefmapName = "${mod_id}.refmap.json"
+    }
+}
+
+sourceSets {
+    main {
+        java.srcDir '../../common/src/main/java'
+        resources.srcDir '../../common/src/main/resources'
+    }
+    test {
+        java.srcDir '../../common/src/test/java'
+        resources.srcDir '../../common/src/test/resources'
+    }
+}
+
+repositories {
+    mavenCentral()
+    maven { url = 'https://www.cursemaven.com' }
+    maven { url = 'https://maven.latvian.dev/releases' }
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${fabric_minecraft_version}"
+    mappings loom.officialMojangMappings()
+    modImplementation "net.fabricmc:fabric-loader:${fabric_loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${fabric_api_version}"
+
+    // common exposes Rhino callback types even when KubeJS is absent.
+    implementation "dev.latvian.mods:rhino:${rhino_fabric_version}"
+
+    testImplementation platform('org.junit:junit-bom:5.10.2')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'com.google.code.gson:gson:2.10.1'
+}
+
+tasks.named('processResources', ProcessResources).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    // The shared resource is consumed by the NeoForge KubeJS plugin. Fabric's
+    // script service is intentionally optional/no-op, so do not advertise a
+    // plugin class that is not present in this loader target.
+    exclude 'kubejs.plugins.txt'
+    def replaceProperties = [
+            minecraft_version: fabric_minecraft_version,
+            fabric_loader_version: fabric_loader_version,
+            fabric_api_version: fabric_api_version,
+            mod_id: mod_id,
+            mod_name: mod_name,
+            mod_license: mod_license,
+            mod_version: mod_version,
+            mod_authors: mod_authors,
+            mod_description: mod_description
+    ]
+    inputs.properties replaceProperties
+    filesMatching('fabric.mod.json') {
+        expand replaceProperties + [project: project]
+    }
+}
+
+tasks.named('sourcesJar', Jar).configure {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+tasks.named('test', Test).configure {
+    useJUnitPlatform()
+}
+
+apply from: file('../../gradle/target-conventions/publish.gradle')

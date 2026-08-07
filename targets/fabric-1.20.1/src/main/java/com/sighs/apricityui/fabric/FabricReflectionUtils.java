@@ -1,6 +1,5 @@
 package com.sighs.apricityui.fabric;
 
-import com.sighs.apricityui.ApricityUI;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
@@ -13,9 +12,15 @@ import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.net.JarURLConnection;
+import java.net.URL;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
+import java.util.Enumeration;
+import java.util.jar.JarEntry;
+import java.util.jar.JarFile;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -56,7 +61,9 @@ public final class FabricReflectionUtils {
                 if (!allowed(className)) continue;
                 try {
                     Class<?> clazz = Class.forName(className, false, FabricReflectionUtils.class.getClassLoader());
-                    if (clazz.isAnnotationPresent(annotationClass)) consumer.accept(clazz);
+                    if (clazz.isAnnotationPresent(annotationClass)) {
+                        consumer.accept(clazz);
+                    }
                 } catch (Throwable ignoredClass) {
                     // A third-party class may require a client-only dependency.
                 }
@@ -131,6 +138,56 @@ public final class FabricReflectionUtils {
                 }
             }
         }
+        // Loom keeps common classes in a separate classes directory which is
+        // available to the Knot classloader but is not always exposed through
+        // a Fabric mod root. Walk the package resources as a development-mode
+        // fallback; this also works for packaged jar URLs.
+        for (String packageName : SCAN_PACKAGES) {
+            addClassLoaderClasses(result, packageName, FabricReflectionUtils.class.getClassLoader());
+            addClassLoaderClasses(result, packageName, Thread.currentThread().getContextClassLoader());
+        }
         return result;
+    }
+
+    private static void addClassLoaderClasses(Set<String> result, String packageName, ClassLoader loader) {
+        if (loader == null || packageName == null || packageName.isBlank()) return;
+        String packagePath = packageName.replace('.', '/');
+        try {
+            Enumeration<URL> resources = loader.getResources(packagePath);
+            while (resources.hasMoreElements()) {
+                URL resource = resources.nextElement();
+                if ("file".equalsIgnoreCase(resource.getProtocol())) {
+                    addFileClasses(result, packageName, Paths.get(resource.toURI()));
+                } else if ("jar".equalsIgnoreCase(resource.getProtocol())) {
+                    JarURLConnection connection = (JarURLConnection) resource.openConnection();
+                    connection.setUseCaches(false);
+                    addJarClasses(result, packageName, connection.getJarFile());
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+    }
+
+    private static void addFileClasses(Set<String> result, String packageName, Path packageRoot) {
+        if (packageRoot == null || !Files.isDirectory(packageRoot)) return;
+        try (var stream = Files.walk(packageRoot)) {
+            stream.filter(path -> path.toString().endsWith(".class")).forEach(path -> {
+                String relative = packageRoot.relativize(path).toString().replace('\\', '/');
+                if (relative.endsWith("module-info.class") || relative.contains("/META-INF/")) return;
+                result.add(packageName + "." + relative.substring(0, relative.length() - 6).replace('/', '.'));
+            });
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static void addJarClasses(Set<String> result, String packageName, JarFile jar) {
+        if (jar == null) return;
+        String prefix = packageName.replace('.', '/') + "/";
+        Enumeration<JarEntry> entries = jar.entries();
+        while (entries.hasMoreElements()) {
+            String name = entries.nextElement().getName();
+            if (!name.startsWith(prefix) || !name.endsWith(".class") || name.endsWith("module-info.class")) continue;
+            result.add(name.substring(0, name.length() - 6).replace('/', '.'));
+        }
     }
 }
