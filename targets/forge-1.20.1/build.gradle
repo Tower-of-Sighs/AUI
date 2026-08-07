@@ -31,7 +31,7 @@ java {
 // Its shared resources directory is wired in by gradle/target-conventions/publish.gradle.
 sourceSets {
     main {
-        java.srcDir '../../common/src/main/java'
+        java.srcDir "$buildDir/generated/common-main"
         resources.srcDir 'src/generated/resources'
     }
     test {
@@ -39,6 +39,15 @@ sourceSets {
         resources.srcDir '../../common/src/test/resources'
     }
 }
+
+tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/main/java') {
+        exclude 'com/sighs/apricityui/network/chunk/**'
+    }
+    into "$buildDir/generated/common-main"
+}
+tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
+tasks.named('sourcesJar', Jar).configure { dependsOn 'prepareCommonSources' }
 
 legacyForge {
     version = "${forge_minecraft_version}-${forge_version}"

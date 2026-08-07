@@ -39,13 +39,22 @@ loom {
 
 sourceSets {
     main {
-        java.srcDir '../../common/src/main/java'
+        java.srcDir "$buildDir/generated/common-main"
     }
     test {
         java.srcDir '../../common/src/test/java'
         resources.srcDir '../../common/src/test/resources'
     }
 }
+
+tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/main/java') {
+        exclude 'com/sighs/apricityui/network/chunk/**'
+    }
+    into "$buildDir/generated/common-main"
+}
+tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
+tasks.named('sourcesJar', Jar).configure { dependsOn 'prepareCommonSources' }
 
 repositories {
     mavenCentral()

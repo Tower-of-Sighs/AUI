@@ -7,6 +7,8 @@ import com.sighs.apricityui.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.container.datasource.DataSourceFactory;
 import com.sighs.apricityui.element.ContainerDeclaration;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
+import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
+import com.sighs.apricityui.network.api.INetworkContext;
 import com.sighs.apricityui.screen.ApricityContainerMenu;
 import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory;
@@ -38,11 +40,12 @@ public final class ApricityScreenNetworkHandler {
         openScreenFromServer(player, layout, sources);
     }
 
-    public static void handleOpenScreenRequest(ServerPlayer player, OpenScreenRequestPacket packet) {
-        if (packet != null) openScreen(player, packet.templatePath(), packet.containers());
+    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, INetworkContext context) {
+        if (packet != null && context.sender() != null) openScreen(context.sender(), packet.templatePath(), packet.containers());
     }
 
-    public static void handleCloseContainerRequest(ServerPlayer player) {
+    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, INetworkContext context) {
+        ServerPlayer player = context.sender();
         if (player != null && player.containerMenu instanceof ApricityContainerMenu) player.closeContainer();
     }
 

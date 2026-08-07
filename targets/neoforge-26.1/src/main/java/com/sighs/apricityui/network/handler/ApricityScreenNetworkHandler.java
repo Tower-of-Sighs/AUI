@@ -13,7 +13,7 @@ import com.sighs.apricityui.util.common.NormalizeUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.SimpleMenuProvider;
-import net.neoforged.neoforge.network.handling.IPayloadContext;
+import com.sighs.apricityui.network.api.INetworkContext;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -78,8 +78,8 @@ public final class ApricityScreenNetworkHandler {
     /**
      * 处理客户端发来的 OpenScreenRequest 网络包。
      */
-    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) return;
+    public static void handleOpenScreenRequest(OpenScreenRequestPacket packet, INetworkContext context) {
+        if (!(context.sender() instanceof ServerPlayer player)) return;
 
         String normalizedPath = NormalizeUtil.normalizeTemplatePath(packet.templatePath());
         if (normalizedPath == null) {
@@ -106,8 +106,8 @@ public final class ApricityScreenNetworkHandler {
     /**
      * 处理客户端发来的关闭容器请求。
      */
-    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, IPayloadContext context) {
-        if (!(context.player() instanceof ServerPlayer player)) return;
+    public static void handleCloseContainerRequest(CloseContainerRequestPacket packet, INetworkContext context) {
+        if (!(context.sender() instanceof ServerPlayer player)) return;
         if (player.containerMenu instanceof ApricityContainerMenu) {
             player.closeContainer();
         }

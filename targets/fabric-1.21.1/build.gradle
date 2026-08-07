@@ -39,7 +39,7 @@ loom {
 
 sourceSets {
     main {
-        java.srcDir '../../common/src/main/java'
+        java.srcDir "$buildDir/generated/common-main"
         resources.srcDir '../../common/src/main/resources'
     }
     test {
@@ -47,6 +47,15 @@ sourceSets {
         resources.srcDir '../../common/src/test/resources'
     }
 }
+
+tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/main/java') {
+        // Fabric 1.21.1 has its own payload-based network implementation.
+        exclude 'com/sighs/apricityui/network/**'
+    }
+    into "$buildDir/generated/common-main"
+}
+tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
 
 repositories {
     mavenCentral()
@@ -92,6 +101,7 @@ tasks.named('processResources', ProcessResources).configure {
 }
 
 tasks.named('sourcesJar', Jar).configure {
+    dependsOn 'prepareCommonSources'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 

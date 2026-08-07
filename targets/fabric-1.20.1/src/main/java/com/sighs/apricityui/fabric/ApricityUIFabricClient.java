@@ -6,6 +6,7 @@ import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.registry.ClientMenuScreens;
 import com.sighs.apricityui.registry.Keybindings;
 import com.sighs.apricityui.world.WorldWindow;
+import com.sighs.apricityui.network.fabric.NetworkManagerImpl;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -24,6 +25,7 @@ import net.minecraft.server.packs.resources.ResourceManager;
 public final class ApricityUIFabricClient implements ClientModInitializer {
     public void onInitializeClient() {
         FabricServicesBootstrap.initClient();
+        NetworkManagerImpl.initializeClient();
         // The common entrypoint runs before the client service exists. Register
         // the scan scope after installing the real Fabric client service.
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element");

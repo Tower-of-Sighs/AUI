@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.config.ApricityUIConfig;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
+import com.sighs.apricityui.network.NetworkPlatform;
 import com.sighs.apricityui.script.KubeJS;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
@@ -27,6 +28,7 @@ public final class ApricityUINeoForge {
         // Register the loader SPI implementations before any common code touches
         // them; otherwise AuiServices falls back to its headless defaults.
         AuiServicesBootstrap.init();
+        NetworkPlatform.setCurrentServerSupplier(net.neoforged.neoforge.server.ServerLifecycleHooks::getCurrentServer);
         if (dist == Dist.CLIENT) {
             ClientServicesBootstrap.init(modEventBus);
         }

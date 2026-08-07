@@ -1,6 +1,6 @@
 package com.sighs.apricityui.network.client;
 
-import com.sighs.apricityui.network.ApricityNetwork;
+import com.sighs.apricityui.network.api.NetworkManager;
 import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
 import net.minecraft.client.Minecraft;
@@ -13,12 +13,12 @@ public final class ApricityClientNetwork {
     public static void requestOpenScreen(String path) {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
-        ApricityNetwork.sendToServer(new OpenScreenRequestPacket(path));
+        NetworkManager.sendToServer(new OpenScreenRequestPacket(path));
     }
 
     public static void requestCloseScreen() {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
-        ApricityNetwork.sendToServer(new CloseContainerRequestPacket());
+        NetworkManager.sendToServer(new CloseContainerRequestPacket());
     }
 }

@@ -26,7 +26,9 @@ java {
 // loader classes, so it can be compiled into this target by source-set sharing.
 sourceSets {
     main {
-        java.srcDir '../../common/src/main/java'
+        // Filter the legacy 1.20 network tree out of common for this target;
+        // the target below supplies the 1.21.1 OELib network implementation.
+        java.srcDir "$buildDir/generated/common-main"
         resources.srcDir '../../common/src/main/resources'
     }
     test {
@@ -34,6 +36,14 @@ sourceSets {
         resources.srcDir '../../common/src/test/resources'
     }
 }
+
+tasks.register('prepareCommonSources', Sync) {
+    from('../../common/src/main/java') {
+        exclude 'com/sighs/apricityui/network/**'
+    }
+    into "$buildDir/generated/common-main"
+}
+tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
 
 neoForge {
     version = neoforge_121_version
@@ -110,6 +120,7 @@ dependencies {
 }
 
 tasks.named('sourcesJar', Jar).configure {
+    dependsOn 'prepareCommonSources'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
@@ -140,10 +151,16 @@ tasks.withType(JavaCompile).configureEach {
 // modDevRuntimeDependencies itself is non-resolvable (canBeResolved=false), so
 // extend it, mirroring the forge-1.20.1 target.
 configurations {
+    testRuntimeClasspath {
+        // KubeJS is optional at runtime and is not needed by headless unit tests.
+        // Keeping it off this classpath avoids resolving its dynamic transitives.
+        exclude group: 'dev.latvian.mods', module: 'kubejs-neoforge'
+    }
     auiTestModRuntime {
         canBeConsumed = false
         canBeResolved = true
         extendsFrom modDevRuntimeDependencies
+        exclude group: 'dev.latvian.mods', module: 'kubejs-neoforge'
     }
 }
 
