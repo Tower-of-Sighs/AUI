@@ -3,6 +3,7 @@ package com.sighs.apricityui.render;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.spi.AuiRenderService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.style.StyleFrameCache;
@@ -83,99 +84,105 @@ public class Base {
      */
     private static void drawDocumentInContext(PoseStack poseStack, Document document) {
         long startNs = System.nanoTime();
-        // world-window 渲染路径会直接调用 drawDocument，因此这里也执行一次 renderBegin
-        // 以确保 fenced tasks（例如图片纹理上传）能被及时 drain。
-        FrameScheduler.renderBegin();
-        RenderBatchStats.beginDocument();
-        RectFrameCache.begin();
-        TransformFrameCache.begin();
-        LayoutMeasureCache.begin();
-        StyleFrameCache.begin();
-        FilterRenderer.beginFrame();
-        poseStack.pushPose();
-        FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
+        AuiRenderService.RenderStateScope renderState = AuiServices.render().pushFilterRenderState();
+        if (renderState == null) renderState = AuiRenderService.RenderStateScope.NOOP;
         try {
-            // Pointer state can change between client ticks. Commit only the
-            // queued style roots here so CSS transitions start on this frame.
-            boolean styleChanged = document.commitPendingStyleRecalcForRender();
-            // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
-            // Layout-affecting motion must also refresh committed bounds before this paint pass.
-            boolean motionNeedsGeometryCommit = document.stepMotionRender();
-            boolean scrollChanged = document.stepScrollRender();
-            boolean styleNeedsGeometryCommit = false;
-            if (styleChanged) {
-                styleNeedsGeometryCommit = document.commitRenderStateForMotion();
-            }
-            if (styleNeedsGeometryCommit || scrollChanged) {
-                LayoutCommit.commit(document);
-                document.commitMotionHitTest();
-            } else if (motionNeedsGeometryCommit) {
-                Set<Element> layoutRoots = document.drainMotionLayoutRoots();
-                Set<Element> geometryRoots = document.drainMotionGeometryRoots();
-                if (!layoutRoots.isEmpty()) {
-                    LayoutCommit.commit(document);
-                } else if (!geometryRoots.isEmpty()) {
-                    LayoutCommit.commitTransforms(document, geometryRoots);
-                } else {
-                    // Keep the correctness fallback for a future motion source
-                    // that reports geometry work without publishing a root.
-                    LayoutCommit.commit(document);
-                }
-                document.commitMotionHitTest();
-            }
-            poseStack.translate(0, 0, documentZOffset);
-            Element skippedSubtree = null;
-            Set<Element> enteredSubtrees = Collections.newSetFromMap(new IdentityHashMap<>());
-            Element activeTopLayerRoot = null;
-            TopLayerDepthScope topLayerDepthScope = null;
+            // World-window rendering calls drawDocument directly, so drain
+            // fenced render tasks (such as texture uploads) at this boundary.
+            FrameScheduler.renderBegin();
+            RenderBatchStats.beginDocument();
+            RectFrameCache.begin();
+            TransformFrameCache.begin();
+            LayoutMeasureCache.begin();
+            StyleFrameCache.begin();
+            FilterRenderer.beginFrame();
+            poseStack.pushPose();
+            FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
             try {
-                for (RenderNode node : document.getPaintList()) {
-                    Element target = RenderNode.getRenderNodeTarget(node);
-                    if (skippedSubtree != null) {
-                        if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
+                // Pointer state can change between client ticks. Commit only the
+                // queued style roots here so CSS transitions start on this frame.
+                boolean styleChanged = document.commitPendingStyleRecalcForRender();
+                // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
+                // Layout-affecting motion must also refresh committed bounds before this paint pass.
+                boolean motionNeedsGeometryCommit = document.stepMotionRender();
+                boolean scrollChanged = document.stepScrollRender();
+                boolean styleNeedsGeometryCommit = false;
+                if (styleChanged) {
+                    styleNeedsGeometryCommit = document.commitRenderStateForMotion();
+                }
+                if (styleNeedsGeometryCommit || scrollChanged) {
+                    LayoutCommit.commit(document);
+                    document.commitMotionHitTest();
+                } else if (motionNeedsGeometryCommit) {
+                    Set<Element> layoutRoots = document.drainMotionLayoutRoots();
+                    Set<Element> geometryRoots = document.drainMotionGeometryRoots();
+                    if (!layoutRoots.isEmpty()) {
+                        LayoutCommit.commit(document);
+                    } else if (!geometryRoots.isEmpty()) {
+                        LayoutCommit.commitTransforms(document, geometryRoots);
+                    } else {
+                        // Keep the correctness fallback for a future motion source
+                        // that reports geometry work without publishing a root.
+                        LayoutCommit.commit(document);
+                    }
+                    document.commitMotionHitTest();
+                }
+                poseStack.translate(0, 0, documentZOffset);
+                Element skippedSubtree = null;
+                Set<Element> enteredSubtrees = Collections.newSetFromMap(new IdentityHashMap<>());
+                Element activeTopLayerRoot = null;
+                TopLayerDepthScope topLayerDepthScope = null;
+                try {
+                    for (RenderNode node : document.getPaintList()) {
+                        Element target = RenderNode.getRenderNodeTarget(node);
+                        if (skippedSubtree != null) {
+                            if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
+                                continue;
+                            }
+                            skippedSubtree = null;
+                        }
+                        // Clip/filter pushes precede an element's SHADOW node. Cull at
+                        // the first node so a skipped subtree cannot leave either stack unbalanced.
+                        if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
+                            skippedSubtree = target;
                             continue;
                         }
-                        skippedSubtree = null;
-                    }
-                    // Clip/filter pushes precede an element's SHADOW node. Cull at
-                    // the first node so a skipped subtree cannot leave either stack unbalanced.
-                    if (target != null && enteredSubtrees.add(target) && shouldSkipSubtree(target)) {
-                        skippedSubtree = target;
-                        continue;
-                    }
 
-                    // A top-layer element is a separate browser surface in both
-                    // screen/PIP and world-window renders. It must not compete
-                    // with the depth written by the document beneath it.
-                    Element topLayerRoot = findTopLayerRoot(target);
-                    if (topLayerRoot != activeTopLayerRoot) {
-                        if (topLayerDepthScope != null) topLayerDepthScope.close();
-                        topLayerDepthScope = null;
-                        activeTopLayerRoot = topLayerRoot;
-                        if (topLayerRoot != null) {
-                            topLayerDepthScope = TopLayerDepthScope.open();
+                        // A top-layer element is a separate browser surface in both
+                        // screen/PIP and world-window renders. It must not compete
+                        // with the depth written by the document beneath it.
+                        Element topLayerRoot = findTopLayerRoot(target);
+                        if (topLayerRoot != activeTopLayerRoot) {
+                            if (topLayerDepthScope != null) topLayerDepthScope.close();
+                            topLayerDepthScope = null;
+                            activeTopLayerRoot = topLayerRoot;
+                            if (topLayerRoot != null) {
+                                topLayerDepthScope = TopLayerDepthScope.open();
+                            }
                         }
-                    }
 
-                    poseStack.pushPose();
-                    Base.resolvePaintOffset(poseStack, node);
-                    node.render(poseStack);
-                    poseStack.popPose();
+                        poseStack.pushPose();
+                        Base.resolvePaintOffset(poseStack, node);
+                        node.render(poseStack);
+                        poseStack.popPose();
+                    }
+                } finally {
+                    if (topLayerDepthScope != null) topLayerDepthScope.close();
                 }
             } finally {
-                if (topLayerDepthScope != null) topLayerDepthScope.close();
+                FontDrawer.popDocumentPixelScale();
+                poseStack.popPose();
+                StyleFrameCache.end();
+                LayoutMeasureCache.end();
+                TransformFrameCache.end();
+                RectFrameCache.end();
+                Base.commitDraws();
+                FilterRenderer.endFrame();
+                RenderBatchStats.endDocument();
+                FrameTimingHud.record(System.nanoTime() - startNs);
             }
         } finally {
-            FontDrawer.popDocumentPixelScale();
-            poseStack.popPose();
-            StyleFrameCache.end();
-            LayoutMeasureCache.end();
-            TransformFrameCache.end();
-            RectFrameCache.end();
-            Base.commitDraws();
-            FilterRenderer.endFrame();
-            RenderBatchStats.endDocument();
-            FrameTimingHud.record(System.nanoTime() - startNs);
+            renderState.close();
         }
     }
 

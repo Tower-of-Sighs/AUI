@@ -4,6 +4,7 @@ import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.spi.AuiServices;
+import com.sighs.apricityui.spi.AuiRenderService;
 import com.sighs.apricityui.spi.FboHandle;
 import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.spi.MeshFormat;
@@ -75,9 +76,6 @@ public class FilterRenderer {
             fboStack.clear();
         }
         mainRenderTarget = AuiServices.render().getMainRenderTarget();
-        if (mainRenderTarget != null && isStencilAvailable()) {
-            AuiServices.render().enableStencil(mainRenderTarget);
-        }
         poolPointer = 0;
         backdropPoolPointer = 0;
     }
@@ -111,12 +109,10 @@ public class FilterRenderer {
             if (temp.width != (int) width || temp.height != (int) height) {
                 AuiServices.render().destroyBuffers(temp);
                 temp = AuiServices.render().createOffscreenTarget((int) width, (int) height, true);
-                if (isStencilAvailable()) AuiServices.render().enableStencil(temp);
                 fboPool.set(poolPointer, temp);
             }
         } else {
             temp = AuiServices.render().createOffscreenTarget((int) width, (int) height, true);
-            if (isStencilAvailable()) AuiServices.render().enableStencil(temp);
             fboPool.add(temp);
         }
         poolPointer++;
@@ -141,17 +137,22 @@ public class FilterRenderer {
 
         FboHandle currentFbo = fboStack.pop();
         FboHandle parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
-        FboHandle filteredFbo = prepareFullFilterSource(currentFbo, state.blurRadius());
-        FboHandle shadowFbo = state.hasDropShadow()
-                ? prepareFullFilterSource(currentFbo, state.dropShadowBlur()) : currentFbo;
-        AuiServices.render().bindWrite(parentFbo, true);
-
-        drawWithShader(filteredFbo, shadowFbo, state);
+        try {
+            FboHandle filteredFbo = prepareFullFilterSource(currentFbo, state.blurRadius());
+            FboHandle shadowFbo = state.hasDropShadow()
+                    ? prepareFullFilterSource(currentFbo, state.dropShadowBlur()) : currentFbo;
+            AuiServices.render().bindWrite(parentFbo, true);
+            drawWithShader(filteredFbo, shadowFbo, state);
+        } finally {
+            if (parentFbo != null) AuiServices.render().bindWrite(parentFbo, true);
+        }
     }
 
     /** Runs a shader pass with the standard filter blend/depth state. */
     private static void withBlendRenderState(boolean enableBlend, Runnable body) {
         Matrix4f oldProjection = new Matrix4f(Base.getProjectionMatrix());
+        AuiRenderService.RenderStateScope scope = AuiServices.render().pushFilterRenderState();
+        if (scope == null) scope = AuiRenderService.RenderStateScope.NOOP;
         if (enableBlend) {
             AuiServices.render().enableBlend();
             AuiServices.render().setBlendFuncSeparate(
@@ -167,10 +168,14 @@ public class FilterRenderer {
         try {
             body.run();
         } finally {
-            AuiServices.render().setDepthMask(true);
-            if (Base.isDepthTestEnabled()) AuiServices.render().enableDepthTest();
-            else AuiServices.render().disableDepthTest();
-            Base.setProjectionMatrix(oldProjection);
+            try {
+                AuiServices.render().setDepthMask(true);
+                if (Base.isDepthTestEnabled()) AuiServices.render().enableDepthTest();
+                else AuiServices.render().disableDepthTest();
+                Base.setProjectionMatrix(oldProjection);
+            } finally {
+                scope.close();
+            }
         }
     }
 
@@ -215,12 +220,16 @@ public class FilterRenderer {
         FboHandle currentBound = fboStack.isEmpty() ? AuiServices.render().getMainRenderTarget() : fboStack.peek();
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
         Rect rect = Rect.of(target);
-        BackdropSource source = prepareBackdropSource(currentBound, rect, state.blurRadius());
-        if (source == null) return;
-        FboHandle shadowTarget = prepareBackdropShadow(source, state);
+        try {
+            BackdropSource source = prepareBackdropSource(currentBound, rect, state.blurRadius());
+            if (source == null) return;
+            FboHandle shadowTarget = prepareBackdropShadow(source, state);
 
-        AuiServices.render().bindWrite(currentBound, true);
-        drawBackdropWithShader(source, shadowTarget, state, rect);
+            AuiServices.render().bindWrite(currentBound, true);
+            drawBackdropWithShader(source, shadowTarget, state, rect);
+        } finally {
+            if (currentBound != null) AuiServices.render().bindWrite(currentBound, true);
+        }
     }
 
     private static void drawBackdropWithShader(BackdropSource source, FboHandle shadowTarget,

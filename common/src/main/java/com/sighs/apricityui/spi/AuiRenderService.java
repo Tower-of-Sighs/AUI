@@ -11,6 +11,19 @@ import org.joml.Matrix4f;
  * only the state intent through this interface and the loader applies it.</p>
  */
 public interface AuiRenderService {
+    /**
+     * A loader-owned snapshot of the render state changed by a filter pass.
+     * Implementations must make {@link #close()} idempotent enough for normal
+     * try/finally cleanup and must not throw while restoring state.
+     */
+    @FunctionalInterface
+    interface RenderStateScope extends AutoCloseable {
+        RenderStateScope NOOP = () -> { };
+
+        @Override
+        void close();
+    }
+
     void setProjectionMatrix(Matrix4f matrix);
 
     Matrix4f getProjectionMatrix();
@@ -66,6 +79,17 @@ public interface AuiRenderService {
 
     /** Binds the target's color attachment to a sampler unit for shader sampling. */
     void bindColorTexture(FboHandle target, int unit);
+
+    /**
+     * Captures every loader-global state value that filter shader passes may
+     * change, including sampler bindings and renderer-side caches such as
+     * {@code BlendMode.lastApplied}. Closing the scope restores the exact values
+     * captured here. Pipeline backends may snapshot their local state model
+     * instead of querying OpenGL.
+     */
+    default RenderStateScope pushFilterRenderState() {
+        return RenderStateScope.NOOP;
+    }
 
     /** Copies a pixel region between framebuffers (glBlitFramebuffer). */
     void blitFramebuffer(FboHandle source, FboHandle target, int srcX0, int srcY0, int srcX1, int srcY1);

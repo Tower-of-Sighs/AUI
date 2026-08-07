@@ -598,6 +598,45 @@ public final class RenderService implements AuiRenderService {
         samplers[unit] = view;
     }
 
+    @Override
+    public RenderStateScope pushFilterRenderState() {
+        return new PipelineFilterState();
+    }
+
+    private final class PipelineFilterState implements RenderStateScope {
+        private final boolean previousDepthTest = depthTest;
+        private final int previousDepthFunc = depthFunc;
+        private final boolean previousDepthMask = depthMask;
+        private final boolean previousBlend = blend;
+        private final int previousSrcRgb = srcRgb;
+        private final int previousDstRgb = dstRgb;
+        private final int previousSrcAlpha = srcAlpha;
+        private final int previousDstAlpha = dstAlpha;
+        private final boolean previousCull = cull;
+        private final RenderPipeline previousShader = currentShader;
+        private final GpuTextureView previousSampler0 = samplers[0];
+        private final GpuTextureView previousSampler1 = samplers[1];
+        private boolean closed;
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+            depthTest = previousDepthTest;
+            depthFunc = previousDepthFunc;
+            depthMask = previousDepthMask;
+            blend = previousBlend;
+            srcRgb = previousSrcRgb;
+            dstRgb = previousDstRgb;
+            srcAlpha = previousSrcAlpha;
+            dstAlpha = previousDstAlpha;
+            cull = previousCull;
+            currentShader = previousShader;
+            samplers[0] = previousSampler0;
+            samplers[1] = previousSampler1;
+        }
+    }
+
     /**
      * Copies a source region into {@code destination}, scaled, via a hardware
      * framebuffer blit (DSA {@code glBlitNamedFramebuffer}) instead of a shader

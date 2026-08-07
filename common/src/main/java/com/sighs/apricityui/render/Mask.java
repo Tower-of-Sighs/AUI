@@ -125,6 +125,9 @@ public class Mask {
         if (depth == 0) {
             FboHandle currentTarget = FilterRenderer.getCurrentTarget();
             AuiServices.render().enableStencil(currentTarget);
+            // Forge's legacy enableStencil implementation may rebuild and
+            // unbind the target. Stencil setup must continue on the same FBO.
+            AuiServices.render().bindWrite(currentTarget, false);
 
             AuiServices.render().enableStencilTest();
             AuiServices.render().setStencilMask(0xFF);

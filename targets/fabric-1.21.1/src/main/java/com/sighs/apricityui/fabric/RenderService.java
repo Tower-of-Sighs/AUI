@@ -29,6 +29,9 @@ import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.resources.ResourceLocation;
 import org.joml.Matrix4f;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL13;
+import org.lwjgl.opengl.GL14;
+import org.lwjgl.opengl.GL20;
 import org.lwjgl.opengl.GL30;
 
 import java.util.IdentityHashMap;
@@ -248,18 +251,134 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public RenderStateScope pushFilterRenderState() {
+        return LegacyFilterState.capture();
+    }
+
+    @Override
     public void blitFramebuffer(FboHandle source, FboHandle target, int srcX0, int srcY0, int srcX1, int srcY1) {
         RenderTarget src = source.as();
         RenderTarget dst = target.as();
-        int previousFbo = GlStateManager.getBoundFramebuffer();
-        GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, src.frameBufferId);
-        GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, dst.frameBufferId);
-        GlStateManager._glBlitFrameBuffer(
-                srcX0, srcY0, srcX1, srcY1,
-                0, 0, dst.width, dst.height,
-                GL11.GL_COLOR_BUFFER_BIT, GL11.GL_LINEAR
-        );
-        GlStateManager._glBindFramebuffer(GL30.GL_FRAMEBUFFER, previousFbo);
+        int previousReadFbo = GL11.glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING);
+        int previousDrawFbo = GL11.glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING);
+        try {
+            GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, src.frameBufferId);
+            GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, dst.frameBufferId);
+            GlStateManager._glBlitFrameBuffer(
+                    srcX0, srcY0, srcX1, srcY1,
+                    0, 0, dst.width, dst.height,
+                    GL11.GL_COLOR_BUFFER_BIT, GL11.GL_LINEAR
+            );
+        } finally {
+            GlStateManager._glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER, previousReadFbo);
+            GlStateManager._glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER, previousDrawFbo);
+        }
+    }
+
+    private static final class LegacyFilterState implements RenderStateScope {
+        private static final int SHADER_SAMPLER_COUNT = 12;
+
+        private final ShaderInstance shader;
+        private final int program;
+        private final int[] shaderTextures;
+        private final int[] boundTextures;
+        private final int activeTexture;
+        private final float[] shaderColor;
+        private final boolean blend;
+        private final int srcRgb;
+        private final int dstRgb;
+        private final int srcAlpha;
+        private final int dstAlpha;
+        private final boolean depthTest;
+        private final int depthFunc;
+        private final boolean depthMask;
+        private final boolean cull;
+        private boolean closed;
+
+        private LegacyFilterState(ShaderInstance shader, int program, int[] shaderTextures,
+                                  int[] boundTextures, int activeTexture, float[] shaderColor,
+                                  boolean blend, int srcRgb, int dstRgb, int srcAlpha, int dstAlpha,
+                                  boolean depthTest, int depthFunc, boolean depthMask, boolean cull) {
+            this.shader = shader;
+            this.program = program;
+            this.shaderTextures = shaderTextures;
+            this.boundTextures = boundTextures;
+            this.activeTexture = activeTexture;
+            this.shaderColor = shaderColor;
+            this.blend = blend;
+            this.srcRgb = srcRgb;
+            this.dstRgb = dstRgb;
+            this.srcAlpha = srcAlpha;
+            this.dstAlpha = dstAlpha;
+            this.depthTest = depthTest;
+            this.depthFunc = depthFunc;
+            this.depthMask = depthMask;
+            this.cull = cull;
+        }
+
+        private static LegacyFilterState capture() {
+            int activeTexture = GlStateManager._getActiveTexture();
+            int[] shaderTextures = new int[SHADER_SAMPLER_COUNT];
+            int[] boundTextures = new int[SHADER_SAMPLER_COUNT];
+            for (int unit = 0; unit < SHADER_SAMPLER_COUNT; unit++) {
+                shaderTextures[unit] = RenderSystem.getShaderTexture(unit);
+                GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
+                boundTextures[unit] = GL11.glGetInteger(GL11.GL_TEXTURE_BINDING_2D);
+            }
+            GlStateManager._activeTexture(activeTexture);
+
+            return new LegacyFilterState(
+                    RenderSystem.getShader(),
+                    GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM),
+                    shaderTextures,
+                    boundTextures,
+                    activeTexture,
+                    RenderSystem.getShaderColor().clone(),
+                    GL11.glIsEnabled(GL11.GL_BLEND),
+                    GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB),
+                    GL11.glGetInteger(GL14.GL_BLEND_DST_RGB),
+                    GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA),
+                    GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA),
+                    GL11.glIsEnabled(GL11.GL_DEPTH_TEST),
+                    GL11.glGetInteger(GL11.GL_DEPTH_FUNC),
+                    GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK),
+                    GL11.glIsEnabled(GL11.GL_CULL_FACE)
+            );
+        }
+
+        @Override
+        public void close() {
+            if (closed) return;
+            closed = true;
+
+            // Keep ShaderInstance's BlendMode cache synchronized with the GL
+            // state restored below. Vanilla's vignette configures blending
+            // manually before drawing with an otherwise opaque shader.
+            RenderSystem.setShader(() -> shader);
+            if (shader != null) {
+                shader.apply();
+                shader.clear();
+            }
+
+            for (int unit = 0; unit < SHADER_SAMPLER_COUNT; unit++) {
+                RenderSystem.setShaderTexture(unit, shaderTextures[unit]);
+                GlStateManager._activeTexture(GL13.GL_TEXTURE0 + unit);
+                GlStateManager._bindTexture(boundTextures[unit]);
+            }
+            GlStateManager._activeTexture(activeTexture);
+
+            GlStateManager._glUseProgram(program);
+            RenderSystem.setShaderColor(shaderColor[0], shaderColor[1], shaderColor[2], shaderColor[3]);
+            RenderSystem.blendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+            if (blend) RenderSystem.enableBlend();
+            else RenderSystem.disableBlend();
+            RenderSystem.depthFunc(depthFunc);
+            GlStateManager._depthMask(depthMask);
+            if (depthTest) RenderSystem.enableDepthTest();
+            else RenderSystem.disableDepthTest();
+            if (cull) RenderSystem.enableCull();
+            else RenderSystem.disableCull();
+        }
     }
 
     @Override
