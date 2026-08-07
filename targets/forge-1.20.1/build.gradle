@@ -47,6 +47,7 @@ tasks.register('prepareCommonSources', Sync) {
     into "$buildDir/generated/common-main"
 }
 tasks.named('compileJava').configure { dependsOn 'prepareCommonSources' }
+tasks.named('sourcesJar', Jar).configure { dependsOn 'prepareCommonSources' }
 
 legacyForge {
     version = "${forge_minecraft_version}-${forge_version}"

@@ -135,6 +135,7 @@ dependencies {
 }
 
 tasks.named('sourcesJar', Jar).configure {
+    dependsOn 'prepareCommonSources'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 

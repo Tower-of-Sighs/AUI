@@ -120,6 +120,7 @@ dependencies {
 }
 
 tasks.named('sourcesJar', Jar).configure {
+    dependsOn 'prepareCommonSources'
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
@@ -150,10 +151,16 @@ tasks.withType(JavaCompile).configureEach {
 // modDevRuntimeDependencies itself is non-resolvable (canBeResolved=false), so
 // extend it, mirroring the forge-1.20.1 target.
 configurations {
+    testRuntimeClasspath {
+        // KubeJS is optional at runtime and is not needed by headless unit tests.
+        // Keeping it off this classpath avoids resolving its dynamic transitives.
+        exclude group: 'dev.latvian.mods', module: 'kubejs-neoforge'
+    }
     auiTestModRuntime {
         canBeConsumed = false
         canBeResolved = true
         extendsFrom modDevRuntimeDependencies
+        exclude group: 'dev.latvian.mods', module: 'kubejs-neoforge'
     }
 }
 

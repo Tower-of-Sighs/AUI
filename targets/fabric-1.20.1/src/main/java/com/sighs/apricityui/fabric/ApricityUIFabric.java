@@ -6,7 +6,6 @@ import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.network.api.NetworkAutoRegistration;
 import com.sighs.apricityui.network.NetworkPlatform;
 import com.sighs.apricityui.network.fabric.NetworkManagerImpl;
-import com.sighs.apricityui.network.ApricityNetwork;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.minecraft.server.MinecraftServer;
