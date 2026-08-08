@@ -6,6 +6,7 @@ import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.network.NetworkPlatform;
 import com.sighs.apricityui.script.KubeJS;
+import com.sighs.apricityui.util.AuiLogging;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -25,6 +26,7 @@ import net.neoforged.fml.event.config.ModConfigEvent;
 @Mod(ApricityUI.MODID)
 public final class ApricityUINeoForge {
     public ApricityUINeoForge(IEventBus modEventBus, ModContainer modContainer, Dist dist) {
+        AuiLogging.installFileAppender();
         // Register the loader SPI implementations before any common code touches
         // them; otherwise AuiServices falls back to its headless defaults.
         AuiServicesBootstrap.init();

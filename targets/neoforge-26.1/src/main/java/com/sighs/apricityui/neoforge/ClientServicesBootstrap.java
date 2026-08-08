@@ -1,6 +1,8 @@
 package com.sighs.apricityui.neoforge;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
+import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.loader.ClientLoaderForge;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.registry.Keybindings;
@@ -21,6 +23,7 @@ public final class ClientServicesBootstrap {
         AuiServices.setResources(ResourceService.INSTANCE);
         AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);
+        DevToolsLogBridge.install(ApricityUI.LOGGER);
         ApricityUIRegistry.register();
 
         // Client and WorldWindowRenderer carry @EventBusSubscriber, so FML

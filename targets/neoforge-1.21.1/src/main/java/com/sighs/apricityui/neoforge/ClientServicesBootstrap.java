@@ -1,5 +1,7 @@
 package com.sighs.apricityui.neoforge;
 
+import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.dev.DevToolsLogBridge;
 import com.sighs.apricityui.spi.AuiServices;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.client.event.RegisterShadersEvent;
@@ -16,6 +18,7 @@ public final class ClientServicesBootstrap {
         AuiServices.setResources(ResourceService.INSTANCE);
         AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);
+        DevToolsLogBridge.install(ApricityUI.LOGGER);
         modEventBus.addListener(ClientServicesBootstrap::onRegisterShaders);
     }
 

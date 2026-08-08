@@ -235,6 +235,115 @@ tasks.named('jar', Jar).configure {
     finalizedBy 'reobfJar'
 }
 
+def readClassMethodReferences = { File jarFile, String classEntryName ->
+    def zip = new java.util.zip.ZipFile(jarFile)
+    try {
+        def classEntry = zip.getEntry(classEntryName)
+        if (classEntry == null) {
+            throw new GradleException("Production jar ${jarFile} does not contain ${classEntryName}")
+        }
+
+        def input = new DataInputStream(new BufferedInputStream(zip.getInputStream(classEntry)))
+        try {
+            if (input.readInt() != 0xCAFEBABE as int) {
+                throw new GradleException("Invalid class file ${classEntryName} in ${jarFile}")
+            }
+            input.readUnsignedShort()
+            input.readUnsignedShort()
+
+            int constantPoolCount = input.readUnsignedShort()
+            byte[] tags = new byte[constantPoolCount]
+            Object[] values = new Object[constantPoolCount]
+            for (int index = 1; index < constantPoolCount; index++) {
+                int tag = input.readUnsignedByte()
+                tags[index] = (byte) tag
+                switch (tag) {
+                    case 1:
+                        values[index] = input.readUTF()
+                        break
+                    case 3:
+                    case 4:
+                        input.readInt()
+                        break
+                    case 5:
+                    case 6:
+                        input.readLong()
+                        index++
+                        break
+                    case 7:
+                    case 8:
+                    case 16:
+                    case 19:
+                    case 20:
+                        values[index] = input.readUnsignedShort()
+                        break
+                    case 9:
+                    case 10:
+                    case 11:
+                    case 12:
+                    case 17:
+                    case 18:
+                        values[index] = [input.readUnsignedShort(), input.readUnsignedShort()]
+                        break
+                    case 15:
+                        input.readUnsignedByte()
+                        input.readUnsignedShort()
+                        break
+                    default:
+                        throw new GradleException("Unsupported constant-pool tag ${tag} in ${classEntryName}")
+                }
+            }
+
+            def references = []
+            for (int index = 1; index < constantPoolCount; index++) {
+                if (tags[index] != 10 && tags[index] != 11) continue
+                def memberReference = values[index]
+                int ownerNameIndex = values[memberReference[0]] as int
+                def nameAndType = values[memberReference[1]]
+                references << [
+                        owner     : values[ownerNameIndex],
+                        name      : values[nameAndType[0]],
+                        descriptor: values[nameAndType[1]]
+                ]
+            }
+            return references
+        } finally {
+            input.close()
+        }
+    } finally {
+        zip.close()
+    }
+}
+
+def reobfuscatedJarFile = tasks.named('reobfJar').flatMap { it.archiveFile }
+def verifyReobfuscatedJar = tasks.register('verifyReobfuscatedJar') {
+    group = 'verification'
+    description = 'Rejects a Forge production jar that still contains development-mapped Minecraft calls.'
+    dependsOn tasks.named('reobfJar')
+    inputs.file(reobfuscatedJarFile)
+
+    doLast {
+        File jarFile = reobfuscatedJarFile.get().asFile
+        def menuScreenCalls = readClassMethodReferences(
+                jarFile,
+                'com/sighs/apricityui/registry/ClientMenuScreens.class'
+        ).findAll { reference ->
+            reference.owner == 'net/minecraft/client/gui/screens/MenuScreens'
+        }
+
+        if (menuScreenCalls.any { reference -> reference.name == 'register' }) {
+            throw new GradleException(
+                    "Forge production jar is not reobfuscated: ${jarFile} still calls MenuScreens.register"
+            )
+        }
+        if (!menuScreenCalls.any { reference -> reference.name == 'm_96206_' }) {
+            throw new GradleException(
+                    "Forge production jar is missing the expected MenuScreens.m_96206_ call: ${menuScreenCalls}"
+            )
+        }
+    }
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
 }
@@ -397,7 +506,7 @@ tasks.register('testMatrix') {
 }
 
 tasks.named('check').configure {
-    dependsOn verifyAuiTestMatrix
+    dependsOn verifyAuiTestMatrix, verifyReobfuscatedJar
 }
 
 jacoco {

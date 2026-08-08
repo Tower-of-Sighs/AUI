@@ -1,16 +1,14 @@
 package com.sighs.apricityui.dev;
 
+import com.sighs.apricityui.util.AuiLogging;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.LogEvent;
-import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
-import org.apache.logging.log4j.message.ReusableMessageFactory;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.lang.reflect.Field;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.ZoneId;
@@ -29,9 +27,6 @@ public final class DevToolsLogBridge {
     private static final BlockingQueue<ConsoleLog> PENDING = new ArrayBlockingQueue<>(MAX_PENDING_LOGS);
     private static final Object INSTALL_LOCK = new Object();
 
-    private static Logger installedLogger;
-    private static Appender installedAppender;
-
     private DevToolsLogBridge() {
     }
 
@@ -45,57 +40,25 @@ public final class DevToolsLogBridge {
         } catch (Throwable ignored) {
             return;
         }
-        install(sourceLogger, loggerName);
-    }
-
-    private static void install(org.slf4j.Logger sourceLogger, String loggerName) {
         if (loggerName == null || loggerName.isBlank()) return;
 
         synchronized (INSTALL_LOCK) {
             try {
-                Logger logger = resolveCoreLogger(sourceLogger, loggerName);
-                if (logger == null) return;
-                Appender attached = logger.getAppenders().get(APPENDER_NAME);
+                LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                Appender attached = context.getConfiguration().getAppender(APPENDER_NAME);
                 if (attached instanceof BridgeAppender) {
-                    installedLogger = logger;
-                    installedAppender = attached;
-                    return;
-                }
-                if (logger == installedLogger && installedAppender != null
-                        && logger.getAppenders().containsValue(installedAppender)) {
+                    AuiLogging.attachPackageAppender(context, attached, null);
                     return;
                 }
                 if (attached != null) return;
 
                 BridgeAppender appender = new BridgeAppender();
                 appender.start();
-                logger.addAppender(appender);
-                installedLogger = logger;
-                installedAppender = appender;
+                AuiLogging.attachPackageAppender(context, appender, null);
             } catch (Throwable ignored) {
                 // Log4j's concrete backend is supplied by Minecraft. A missing or replaced
                 // backend must never prevent the client from starting.
             }
-        }
-    }
-
-    private static Logger resolveCoreLogger(org.slf4j.Logger sourceLogger, String loggerName) {
-        try {
-            for (Class<?> type = sourceLogger.getClass(); type != null; type = type.getSuperclass()) {
-                Field field = type.getDeclaredField("logger");
-                field.setAccessible(true);
-                Object delegate = field.get(sourceLogger);
-                if (delegate instanceof Logger logger) return logger;
-                break;
-            }
-        } catch (Throwable ignored) {
-            // Fall back to the normal context lookup for other SLF4J providers.
-        }
-        try {
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            return context.getLogger(loggerName, ReusableMessageFactory.INSTANCE);
-        } catch (Throwable ignored) {
-            return null;
         }
     }
 

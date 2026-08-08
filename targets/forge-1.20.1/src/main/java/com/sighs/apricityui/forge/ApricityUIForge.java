@@ -8,6 +8,7 @@ import com.sighs.apricityui.network.forge.NetworkManagerImpl;
 import com.sighs.apricityui.registry.ApricityMenus;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.script.KubeJS;
+import com.sighs.apricityui.util.AuiLogging;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
@@ -27,6 +28,7 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 @Mod(ApricityUI.MODID)
 public class ApricityUIForge {
     public ApricityUIForge() {
+        AuiLogging.installFileAppender();
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         AuiServicesBootstrap.init();
         NetworkPlatform.setCurrentServerSupplier(net.minecraftforge.server.ServerLifecycleHooks::getCurrentServer);

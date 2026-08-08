@@ -24,9 +24,10 @@ def publishMinecraftVersion = [
                 .orElse(providers.gradleProperty('neoforge_261_minecraft_version'))
 ][publishLoader]
 
-def publishFile = tasks.findByName('remapJar') != null ?
-        tasks.named('remapJar').flatMap { it.archiveFile } :
-        tasks.named('jar', Jar).flatMap { it.archiveFile }
+def publishArtifactTask = tasks.findByName('remapJar') != null ?
+        tasks.named('remapJar') :
+        (tasks.findByName('reobfJar') != null ? tasks.named('reobfJar') : tasks.named('jar', Jar))
+def publishFile = publishArtifactTask.flatMap { it.archiveFile }
 def curseforgeProjectId = providers.provider { findProperty('publish_curseforge_project_id')?.toString() }
         .orElse(providers.environmentVariable('CURSEFORGE_PROJECT_ID'))
 def modrinthProjectId = providers.provider { findProperty('publish_modrinth_project_id')?.toString() }
@@ -64,6 +65,19 @@ tasks.named('publishMods').configure {
 
         if (!missing.isEmpty()) {
             throw new GradleException("Cannot publish mods; missing: ${missing.join(', ')}")
+        }
+    }
+}
+
+// Legacy Forge's jar task produces the development-mapped jar first and
+// reobfJar rewrites it for production. Make every publishing task wait for the
+// target-specific production artifact verification instead of relying on a
+// jar finalizer's execution order.
+if (tasks.findByName('verifyReobfuscatedJar') != null) {
+    def productionJarVerification = tasks.named('verifyReobfuscatedJar')
+    tasks.configureEach { task ->
+        if (task.name.startsWith('publish')) {
+            task.dependsOn productionJarVerification
         }
     }
 }
