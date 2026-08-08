@@ -1,4 +1,4 @@
-package com.sighs.apricityui.neoforge;
+package com.sighs.apricityui.fabric;
 
 import com.mojang.blaze3d.platform.Lighting;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -8,7 +8,6 @@ import com.sighs.apricityui.spi.AuiItemRenderRequest;
 import com.sighs.apricityui.spi.AuiItemRenderService;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
-import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.texture.OverlayTexture;
@@ -16,11 +15,9 @@ import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.util.Mth;
 import net.minecraft.world.item.ItemDisplayContext;
 import net.minecraft.world.item.ItemStack;
-import net.neoforged.neoforge.client.ItemDecoratorHandler;
-import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions;
-import net.neoforged.neoforge.client.extensions.common.IClientItemExtensions.FontContext;
+import org.joml.Matrix4f;
 
-/** NeoForge 1.21.1 PoseStack item-model backend for common AUI paint nodes. */
+/** Forge 1.20.1 PoseStack item-model backend for common AUI paint nodes. */
 public final class ItemRenderService implements AuiItemRenderService {
     public static final ItemRenderService INSTANCE = new ItemRenderService();
 
@@ -36,7 +33,6 @@ public final class ItemRenderService implements AuiItemRenderService {
         MultiBufferSource.BufferSource bufferSource = minecraft.renderBuffers().bufferSource();
         boolean hasStack = !stack.isEmpty();
 
-
         if (hasStack) {
             BakedModel model = minecraft.getItemRenderer().getModel(
                     stack,
@@ -48,7 +44,8 @@ public final class ItemRenderService implements AuiItemRenderService {
             poseStack.pushPose();
             try {
                 poseStack.translate(8.0F, 8.0F, Base.getGuiItemModelZ());
-                poseStack.scale(16.0F, -16.0F, 16.0F);
+                poseStack.mulPoseMatrix(new Matrix4f().scaling(1.0F, -1.0F, 1.0F));
+                poseStack.scale(16.0F, 16.0F, 16.0F);
                 if (flatLighting) Lighting.setupForFlatItems();
                 minecraft.getItemRenderer().renderStatic(
                         stack,
@@ -84,10 +81,6 @@ public final class ItemRenderService implements AuiItemRenderService {
     ) {
         Minecraft minecraft = Minecraft.getInstance();
         Font font = minecraft.font;
-        if (!stack.isEmpty()) {
-            Font customFont = IClientItemExtensions.of(stack).getFont(stack, FontContext.ITEM_COUNT);
-            if (customFont != null) font = customFont;
-        }
 
         poseStack.pushPose();
         poseStack.translate(0.0F, request.decorationOffsetY(), Base.getGuiItemDecorationZ());
@@ -109,10 +102,7 @@ public final class ItemRenderService implements AuiItemRenderService {
 
             float cooldown = stack.isEmpty() || minecraft.player == null
                     ? 0.0F
-                    : minecraft.player.getCooldowns().getCooldownPercent(
-                            stack.getItem(),
-                            minecraft.getTimer().getGameTimeDeltaPartialTick(true)
-                    );
+                    : minecraft.player.getCooldowns().getCooldownPercent(stack.getItem(), minecraft.getFrameTime());
             if (cooldown > 0.0F) {
                 int top = Mth.floor(16.0F * (1.0F - cooldown));
                 int bottom = top + Mth.ceil(16.0F * cooldown);
@@ -140,13 +130,6 @@ public final class ItemRenderService implements AuiItemRenderService {
                 bufferSource.endBatch();
             }
 
-            if (!stack.isEmpty()) {
-                GuiGraphics guiGraphics = new GuiGraphics(minecraft, bufferSource);
-                guiGraphics.pose().last().pose().set(poseStack.last().pose());
-                guiGraphics.pose().last().normal().set(poseStack.last().normal());
-                ItemDecoratorHandler.of(stack).render(guiGraphics, font, stack, 0, 0);
-                bufferSource.endBatch();
-            }
         } finally {
             poseStack.popPose();
         }

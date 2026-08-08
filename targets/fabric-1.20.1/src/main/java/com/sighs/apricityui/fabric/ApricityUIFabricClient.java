@@ -2,6 +2,7 @@ package com.sighs.apricityui.fabric;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.client.Client;
+import com.sighs.apricityui.dom.expander.RecipeExpander;
 import com.sighs.apricityui.registry.ApricityUIRegistry;
 import com.sighs.apricityui.registry.ClientMenuScreens;
 import com.sighs.apricityui.registry.Keybindings;
@@ -9,6 +10,7 @@ import com.sighs.apricityui.world.WorldWindow;
 import com.sighs.apricityui.network.fabric.NetworkManagerImpl;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback;
 import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
@@ -33,6 +35,8 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
         registerKeys();
         ApricityUIRegistry.register();
         ClientMenuScreens.register();
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> RecipeExpander.clearCache());
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> RecipeExpander.clearCache());
         ClientTickEvents.END_CLIENT_TICK.register(client -> Client.tick());
         HudRenderCallback.EVENT.register((graphics, tickDelta) -> Client.drawOverlayLike(graphics));
         WorldRenderEvents.AFTER_TRANSLUCENT.register(context -> {
@@ -49,6 +53,7 @@ public final class ApricityUIFabricClient implements ClientModInitializer {
 
             @Override
             public void onResourceManagerReload(ResourceManager resourceManager) {
+                RecipeExpander.clearCache();
                 Minecraft.getInstance().execute(com.sighs.apricityui.loader.ClientLoader::reloadResources);
             }
         });

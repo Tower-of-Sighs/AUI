@@ -2,6 +2,8 @@ package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.client.gui.ApricityGuiLayers;
 import com.sighs.apricityui.client.gui.pip.ApricityUiPipRenderState;
+import com.sighs.apricityui.dom.SlotContentRules;
+import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.MinecraftElement;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
@@ -129,6 +131,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             } else {
                 slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, false);
             }
+            slotBinder.syncBoundSlotStates();
+            slotBinder.syncBoundSlotHoverStates(mouseX, mouseY);
         }
 
         // Vanilla contributes only its background and interaction bookkeeping.
@@ -206,8 +210,26 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         List<Element> elements = linkedDocument.getElements();
         for (int index = elements.size() - 1; index >= 0; index--) {
             Element element = elements.get(index);
-            if (!(element instanceof MinecraftElement minecraftElement)) continue;
-            if (!minecraftElement.isHover) continue;
+            if (!(element instanceof com.sighs.apricityui.element.Slot slot)
+                    || !slot.isHover
+                    || !slot.canShowItemTooltip()) {
+                continue;
+            }
+
+            Item item = SlotContentRules.getDisplayItem(slot);
+            ItemStack stack = item == null ? ItemStack.EMPTY : item.getTooltipStack();
+            if (stack.isEmpty() || !shouldShowTooltip(stack)) continue;
+            item.renderTooltip(guiGraphics, mouseX, mouseY);
+            return;
+        }
+
+        for (int index = elements.size() - 1; index >= 0; index--) {
+            Element element = elements.get(index);
+            if (!(element instanceof MinecraftElement minecraftElement)
+                    || element instanceof com.sighs.apricityui.element.Slot
+                    || !minecraftElement.isHover) {
+                continue;
+            }
 
             ItemStack stack = minecraftElement.getTooltipStack();
             if (stack.isEmpty() || !shouldShowTooltip(stack)) continue;

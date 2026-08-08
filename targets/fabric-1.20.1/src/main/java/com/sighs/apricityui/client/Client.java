@@ -15,7 +15,6 @@ import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.FrameTimingHud;
-import com.sighs.apricityui.render.Mask;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.screen.ApricityContainerScreen;
 import com.sighs.apricityui.screen.ApricityScreen;
@@ -23,8 +22,7 @@ import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.task.FrameScheduler;
 import com.sighs.apricityui.ui.Tooltip;
-import com.sighs.apricityui.viewport.ApricityViewport;
-import com.sighs.apricityui.world.ItemRender;
+
 import com.sighs.apricityui.world.WorldWindow;
 import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
@@ -109,7 +107,6 @@ public final class Client {
             for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
                 if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                 Base.drawOverlayDocument(graphics.pose(), document);
-                renderOverlaySlotItems(graphics, document);
             }
             ResourcePreviewDialog.draw(graphics.pose());
             graphics.flush();
@@ -128,24 +125,9 @@ public final class Client {
         for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
             if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) continue;
             Base.drawOverlayDocument(graphics.pose(), document);
-            renderOverlaySlotItems(graphics, document);
         }
     }
 
-    private static void renderOverlaySlotItems(GuiGraphics graphics, Document document) {
-        try (Document.ContextScope ignored = Document.withContext(document)) {
-            ApricityViewport viewport = document.getViewport();
-            graphics.pose().pushPose();
-            Mask.pushScissorScale(viewport.scissorScale());
-            try {
-                graphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1);
-                ItemRender.renderDocumentSlotItems(graphics, document);
-            } finally {
-                Mask.popScissorScale();
-                graphics.pose().popPose();
-            }
-        }
-    }
 
     /** Dispatches a native keyboard event to the common AUI input pipeline. */
     public static boolean handleKeyInput(int key, int scanCode, int action, int modifiers) {

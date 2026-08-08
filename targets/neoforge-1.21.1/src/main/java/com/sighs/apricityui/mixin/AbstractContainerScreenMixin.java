@@ -81,7 +81,7 @@ public abstract class AbstractContainerScreenMixin {
             CallbackInfo ci
     ) {
         if ((Object) this instanceof ApricityContainerScreen screen) {
-            screen.captureFloatingItem(stack, x + leftPos, y + topPos, overlayText);
+            screen.captureFloatingItem(stack, x, y, overlayText);
             ci.cancel();
         }
     }

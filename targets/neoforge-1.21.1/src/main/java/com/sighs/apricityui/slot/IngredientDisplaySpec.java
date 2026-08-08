@@ -7,13 +7,13 @@ import java.util.Collections;
 import java.util.List;
 
 /**
- * Slot 表达式编译结果：候选展示物品 + 轮播配置。
+ * Ingredient 候选展示物品及轮播配置。
  */
-public record SlotDisplaySpec(List<ItemStack> candidates, boolean cycleEnabled, long cycleIntervalMs) {
+public record IngredientDisplaySpec(List<ItemStack> candidates, boolean cycleEnabled, long cycleIntervalMs) {
     public static final long DEFAULT_CYCLE_INTERVAL_MS = 1000L;
-    public static final SlotDisplaySpec EMPTY = new SlotDisplaySpec(List.of(), false, DEFAULT_CYCLE_INTERVAL_MS);
+    public static final IngredientDisplaySpec EMPTY = new IngredientDisplaySpec(List.of(), false, DEFAULT_CYCLE_INTERVAL_MS);
 
-    public SlotDisplaySpec {
+    public IngredientDisplaySpec {
         ArrayList<ItemStack> safeCandidates = new ArrayList<>();
         if (candidates != null) {
             for (ItemStack stack : candidates) {

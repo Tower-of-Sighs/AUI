@@ -1,11 +1,15 @@
 package com.sighs.apricityui.dom.expander;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.dom.SlotContentRules;
+import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.slot.IngredientExpressionCompiler;
+import com.sighs.apricityui.slot.ItemStackExpressionCompiler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -22,7 +26,7 @@ import com.sighs.apricityui.client.Client;
 public final class RecipeExpander {
     public static void clearCache() {
         RecipeResolver.clearCache();
-        Slot.clearCandidateCache();
+        IngredientExpressionCompiler.clearTagCache();
     }
 
     public static void expand(Document document) {
@@ -145,8 +149,29 @@ public final class RecipeExpander {
                 "pointer", "0",
                 "style", "--aui-slot-interactive:0;"
         ), true);
-        slot.innerText = entry.slotExpression();
+        appendPreviewContent(document, slot, entry);
         recipe.append(slot);
+    }
+
+    private static void appendPreviewContent(Document document, Slot slot, RecipeResolver.PreviewEntry entry) {
+        String expression = entry.slotExpression() == null ? "minecraft:air" : entry.slotExpression();
+        if (usesIngredientContent(entry)) {
+            com.sighs.apricityui.element.Ingredient ingredient =
+                    new com.sighs.apricityui.element.Ingredient(document);
+            ingredient.setTextContent(expression);
+            SlotContentRules.ensureControlledItem(ingredient);
+            slot.appendChild(ingredient);
+            return;
+        }
+
+        Item item = new Item(document);
+        item.setTextContent(expression);
+        slot.appendChild(item);
+    }
+
+    private static boolean usesIngredientContent(RecipeResolver.PreviewEntry entry) {
+        return entry.role() != RecipeResolver.PreviewRole.OUTPUT
+                && !"minecraft:air".equals(ItemStackExpressionCompiler.normalize(entry.slotExpression()));
     }
 
     private static boolean setAttributeIfChanged(Recipe recipe, String key, String value) {
@@ -306,7 +331,7 @@ public final class RecipeExpander {
             }
 
             PreviewEntry fuelEntry = toLiteralEntry(
-                    Slot.furnaceFuelVirtualTagLiteral(),
+                    IngredientExpressionCompiler.furnaceFuelTagLiteral(),
                     PreviewRole.FUEL
             );
             output.add(fuelEntry);
@@ -442,7 +467,7 @@ public final class RecipeExpander {
             ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
             if (itemId == null) return null;
             int count = Math.max(1, stack.getCount());
-            String expression = Slot.buildLiteralWithCount(itemId.toString(), count);
+            String expression = ItemStackExpressionCompiler.withCount(itemId.toString(), count);
             return new PreviewEntry(role, expression);
         }
 
@@ -475,28 +500,11 @@ public final class RecipeExpander {
         private static String toIngredientExpression(Ingredient ingredient) {
             if (ingredient == null || ingredient.isEmpty()) return "";
             try {
-                ItemStack[] items = ingredient.getItems();
-                if (items == null || items.length == 0) return "";
-                if (items.length == 1) {
-                    ItemStack stack = items[0];
-                    if (stack.isEmpty()) return "";
-                    ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-                    if (itemId == null) return "";
-                    return Slot.buildLiteralWithCount(itemId.toString(), stack.getCount());
-                }
-                // Multiple items: create ingredient array
-                StringBuilder sb = new StringBuilder("[");
-                for (int i = 0; i < items.length; i++) {
-                    if (i > 0) sb.append(",");
-                    ItemStack stack = items[i];
-                    if (stack.isEmpty()) continue;
-                    ResourceLocation itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-                    if (itemId == null) continue;
-                    sb.append(Slot.buildLiteralWithCount(itemId.toString(), stack.getCount()));
-                }
-                sb.append("]");
-                return sb.toString();
-            } catch (Exception ignored) {
+                return Ingredient.CODEC.encodeStart(com.mojang.serialization.JsonOps.INSTANCE, ingredient)
+                        .getOrThrow()
+                        .toString();
+            } catch (Exception exception) {
+                ApricityUI.LOGGER.warn("[AUI Recipe] failed to serialize ingredient={}", ingredient, exception);
                 return "";
             }
         }

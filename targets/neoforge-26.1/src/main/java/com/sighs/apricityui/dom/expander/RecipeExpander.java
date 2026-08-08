@@ -1,11 +1,15 @@
 package com.sighs.apricityui.dom.expander;
 
 import com.sighs.apricityui.ApricityUI;
-import com.sighs.apricityui.init.Document;
-import com.sighs.apricityui.render.Drawer;
-import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.dom.SlotContentRules;
+import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
+import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.slot.IngredientExpressionCompiler;
+import com.sighs.apricityui.slot.ItemStackExpressionCompiler;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.core.registries.Registries;
@@ -156,8 +160,29 @@ public final class RecipeExpander {
                 "pointer", "0",
                 "style", "--aui-slot-interactive:0;"
         ), true);
-        slot.innerText = entry.slotExpression();
+        appendPreviewContent(document, slot, entry);
         recipe.append(slot);
+    }
+
+    private static void appendPreviewContent(Document document, Slot slot, RecipeResolver.PreviewEntry entry) {
+        String expression = entry.slotExpression() == null ? "minecraft:air" : entry.slotExpression();
+        if (usesIngredientContent(entry)) {
+            com.sighs.apricityui.element.Ingredient ingredient =
+                    new com.sighs.apricityui.element.Ingredient(document);
+            ingredient.setTextContent(expression);
+            SlotContentRules.ensureControlledItem(ingredient);
+            slot.appendChild(ingredient);
+            return;
+        }
+
+        Item item = new Item(document);
+        item.setTextContent(expression);
+        slot.appendChild(item);
+    }
+
+    private static boolean usesIngredientContent(RecipeResolver.PreviewEntry entry) {
+        return entry.role() != RecipeResolver.PreviewRole.OUTPUT
+                && !"minecraft:air".equals(ItemStackExpressionCompiler.normalize(entry.slotExpression()));
     }
 
     private static boolean setAttributeIfChanged(Recipe recipe, String key, String value) {
@@ -200,7 +225,7 @@ public final class RecipeExpander {
 
         public static synchronized void clearCache() {
             CACHE.clear();
-            Slot.clearCandidateCache();
+            IngredientExpressionCompiler.clearTagCache();
         }
 
         private static ResolveResult buildPreview(Identifier recipeId, DeclaredType declaredType) {
@@ -309,7 +334,7 @@ public final class RecipeExpander {
             if (inputEntry != null) output.add(inputEntry);
 
             PreviewEntry fuelEntry = toLiteralEntry(
-                    Slot.furnaceFuelVirtualTagLiteral(),
+                    IngredientExpressionCompiler.furnaceFuelTagLiteral(),
                     PreviewRole.FUEL
             );
             output.add(fuelEntry);
@@ -441,7 +466,7 @@ public final class RecipeExpander {
             Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
             if (itemId == null) return null;
             int count = Math.max(1, stack.getCount());
-            String expression = Slot.buildLiteralWithCount(itemId.toString(), count);
+            String expression = ItemStackExpressionCompiler.withCount(itemId.toString(), count);
             return new PreviewEntry(role, expression);
         }
 
@@ -482,29 +507,15 @@ public final class RecipeExpander {
 
         private static String toIngredientExpression(List<ItemStack> items) {
             if (items == null || items.isEmpty()) return "";
-            try {
-                if (items.size() == 1) {
-                    ItemStack stack = items.get(0);
-                    if (stack == null || stack.isEmpty()) return "";
-                    Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-                    if (itemId == null) return "";
-                    return Slot.buildLiteralWithCount(itemId.toString(), stack.getCount());
+            LinkedHashSet<String> expressions = new LinkedHashSet<>();
+            for (ItemStack stack : items) {
+                if (stack == null || stack.isEmpty()) continue;
+                String expression = ItemStackExpressionCompiler.serialize(stack);
+                if (!expression.isBlank() && !"minecraft:air".equals(expression)) {
+                    expressions.add(expression);
                 }
-                // Multiple items: create ingredient array
-                StringBuilder sb = new StringBuilder("[");
-                for (int i = 0; i < items.size(); i++) {
-                    if (i > 0) sb.append(",");
-                    ItemStack stack = items.get(i);
-                    if (stack == null || stack.isEmpty()) continue;
-                    Identifier itemId = BuiltInRegistries.ITEM.getKey(stack.getItem());
-                    if (itemId == null) continue;
-                    sb.append(Slot.buildLiteralWithCount(itemId.toString(), stack.getCount()));
-                }
-                sb.append("]");
-                return sb.toString();
-            } catch (Exception ignored) {
-                return "";
             }
+            return String.join("|", expressions);
         }
 
         public enum PreviewRole {

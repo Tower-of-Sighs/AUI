@@ -16,14 +16,7 @@ import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.crafting.*;
-import net.neoforged.api.distmarker.Dist;
-import net.neoforged.neoforge.client.event.RecipesUpdatedEvent;
-import net.neoforged.bus.api.SubscribeEvent;
-import net.neoforged.fml.common.Mod;
-import net.neoforged.fml.common.EventBusSubscriber;
-
 import java.util.*;
-import com.sighs.apricityui.client.Client;
 
 /**
  * 在文档刷新阶段触发 recipe DOM 预览槽位生成。
@@ -227,12 +220,12 @@ public final class RecipeExpander {
                 return ResolveResult.empty("Recipe manager is not available");
             }
 
-            Optional<? extends net.minecraft.world.item.crafting.RecipeHolder<?>> recipeOptional = recipeManager.byKey(recipeId);
+            Optional<? extends net.minecraft.world.item.crafting.Recipe<?>> recipeOptional = recipeManager.byKey(recipeId);
             if (recipeOptional.isEmpty()) {
                 return ResolveResult.empty("Recipe not found");
             }
 
-            net.minecraft.world.item.crafting.Recipe<?> recipe = recipeOptional.get().value();
+            net.minecraft.world.item.crafting.Recipe<?> recipe = recipeOptional.get();
             if (!declaredType.matches(recipe)) {
                 return ResolveResult.empty("Recipe type mismatch: declared=%s, actual=%s"
                         .formatted(declaredType.id(), recipe.getClass().getSimpleName()));
@@ -380,9 +373,8 @@ public final class RecipeExpander {
             if (selectedInput.isEmpty()) return result;
 
             HashSet<ResourceLocation> dedup = new HashSet<>();
-            List<RecipeHolder<StonecutterRecipe>> candidates = recipeManager.getAllRecipesFor(RecipeType.STONECUTTING);
-            for (RecipeHolder<StonecutterRecipe> candidateHolder : candidates) {
-                StonecutterRecipe candidateRecipe = candidateHolder.value();
+            List<StonecutterRecipe> candidates = recipeManager.getAllRecipesFor(RecipeType.STONECUTTING);
+            for (StonecutterRecipe candidateRecipe : candidates) {
                 List<Ingredient> candidateIngredients = candidateRecipe.getIngredients();
                 if (candidateIngredients.isEmpty()) continue;
                 Ingredient candidateIngredient = candidateIngredients.get(0);
@@ -500,9 +492,7 @@ public final class RecipeExpander {
         private static String toIngredientExpression(Ingredient ingredient) {
             if (ingredient == null || ingredient.isEmpty()) return "";
             try {
-                return Ingredient.CODEC.encodeStart(com.mojang.serialization.JsonOps.INSTANCE, ingredient)
-                        .getOrThrow()
-                        .toString();
+                return ingredient.toJson().toString();
             } catch (Exception exception) {
                 ApricityUI.LOGGER.warn("[AUI Recipe] failed to serialize ingredient={}", ingredient, exception);
                 return "";
@@ -629,14 +619,10 @@ public final class RecipeExpander {
 
         private record RecipeCacheKey(ResourceLocation recipeId, DeclaredType declaredType) {
         }
+    }
 
-        @EventBusSubscriber(modid = ApricityUI.MODID, value = Dist.CLIENT)
-        public static class ForgeEvents {
-            @SubscribeEvent
-            public static void onRecipesUpdated(RecipesUpdatedEvent event) {
-                clearCache();
-                IngredientExpressionCompiler.clearTagCache();
-            }
-        }
+    public static void clearCache() {
+        RecipeResolver.clearCache();
+        IngredientExpressionCompiler.clearTagCache();
     }
 }

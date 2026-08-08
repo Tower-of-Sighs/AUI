@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.element.Container;
+import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
 
@@ -14,6 +15,7 @@ import java.util.*;
  */
 public final class ContainerExpander {
     private static final String GENERATED_CONTAINER_AUTO = "container-auto";
+    private static final String GENERATED_CONTAINER_REPEAT = "container-repeat";
     private static final int PLAYER_AUTO_SLOT_COUNT = 36;
 
     public static void expand(Document document) {
@@ -28,6 +30,9 @@ public final class ContainerExpander {
 
     private static void expandSingleContainer(Document document, Container container) {
         List<Slot> ownedSlots = collectOwnedSlots(document, container);
+        materializeRepeatedSlots(ownedSlots);
+        ownedSlots = collectOwnedSlots(document, container);
+
         if (ownedSlots.isEmpty()) {
             Integer declaredSize = parsePositiveInt(container.getAttribute("size"));
             String bindType = normalize(container.getAttribute("bind"));
@@ -43,6 +48,37 @@ public final class ContainerExpander {
         injectDefaultColumnsIfNeeded(container, ownedSlots.size());
     }
 
+    private static void materializeRepeatedSlots(List<Slot> slots) {
+        if (slots == null || slots.isEmpty()) return;
+
+        int nextImplicitIndex = 0;
+        for (Slot source : new ArrayList<>(slots)) {
+            int repeatCount = source.getRepeatCount();
+            int requestedIndex = source.getSlotIndex();
+            int startIndex = requestedIndex >= 0 ? requestedIndex : nextImplicitIndex;
+            nextImplicitIndex = Math.max(nextImplicitIndex, startIndex + repeatCount);
+
+            if (repeatCount <= 1) continue;
+
+            ensureIndexAttributes(source, startIndex);
+            source.removeAttribute("repeat");
+
+            Slot insertionPoint = source;
+            for (int offset = 1; offset < repeatCount; offset++) {
+                Element clonedElement = source.cloneNode(true);
+                if (!(clonedElement instanceof Slot clone)) {
+                    throw new IllegalStateException("Repeated container slot clone is not a Slot");
+                }
+
+                clone.removeAttribute("id");
+                ensureIndexAttributes(clone, startIndex + offset);
+                clone.setAttribute("data-generated", GENERATED_CONTAINER_REPEAT);
+                insertionPoint.after(clone);
+                insertionPoint = clone;
+            }
+        }
+    }
+
     private static void appendAutoSlots(Document document, Container container, int count, boolean playerAuto) {
         int safeCount = Math.max(0, count);
         for (int index = 0; index < safeCount; index++) {
@@ -55,6 +91,9 @@ public final class ContainerExpander {
                 attrs.put("part", index < 27 ? "inv" : "hotbar");
             }
             slot.setAttributesBatch(attrs, true);
+            Item item = new Item(document);
+            item.setTextContent("minecraft:air");
+            slot.appendChild(item);
             container.append(slot);
         }
     }
