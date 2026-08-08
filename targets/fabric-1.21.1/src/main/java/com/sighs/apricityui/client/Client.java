@@ -212,8 +212,9 @@ public final class Client {
         Minecraft minecraft = Minecraft.getInstance();
         MouseHandler mouse = minecraft.mouseHandler;
         Window window = minecraft.getWindow();
-        return new Position(mouse.xpos() * window.getGuiScaledWidth() / window.getScreenWidth(),
-                mouse.ypos() * window.getGuiScaledHeight() / window.getScreenHeight());
+        return MouseCoordinates.toGui(mouse.xpos(), mouse.ypos(),
+                window.getScreenWidth(), window.getScreenHeight(),
+                window.getGuiScaledWidth(), window.getGuiScaledHeight());
     }
 
     public static Position getMousePositionForWorldInteraction() {
@@ -226,7 +227,9 @@ public final class Client {
         Window window = getWindow();
         double[] x = new double[1], y = new double[1];
         GLFW.glfwGetCursorPos(window.getWindow(), x, y);
-        return new Position(x[0] / window.getGuiScale(), y[0] / window.getGuiScale());
+        return MouseCoordinates.toGui(x[0], y[0],
+                window.getScreenWidth(), window.getScreenHeight(),
+                window.getGuiScaledWidth(), window.getGuiScaledHeight());
     }
 
     public static boolean isKeyPressed(String keyName) {

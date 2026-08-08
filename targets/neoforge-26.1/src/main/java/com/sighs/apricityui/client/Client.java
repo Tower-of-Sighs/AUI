@@ -472,10 +472,9 @@ public class Client {
         MouseHandler mouseHandler = mc.mouseHandler;
         Window window = mc.getWindow();
 
-        double mouseX = mouseHandler.xpos() * (double) window.getGuiScaledWidth() / (double) window.getScreenWidth();
-        double mouseY = mouseHandler.ypos() * (double) window.getGuiScaledHeight() / (double) window.getScreenHeight();
-
-        return new Position(mouseX, mouseY);
+        return MouseCoordinates.toGui(mouseHandler.xpos(), mouseHandler.ypos(),
+                window.getScreenWidth(), window.getScreenHeight(),
+                window.getGuiScaledWidth(), window.getGuiScaledHeight());
     }
 
     /**
@@ -503,7 +502,9 @@ public class Client {
             double[] xBuf = new double[1];
             double[] yBuf = new double[1];
             GLFW.glfwGetCursorPos(handle, xBuf, yBuf);
-            return new Position(xBuf[0] / window.getGuiScale(), yBuf[0] / window.getGuiScale());
+            return MouseCoordinates.toGui(xBuf[0], yBuf[0],
+                    window.getScreenWidth(), window.getScreenHeight(),
+                    window.getGuiScaledWidth(), window.getGuiScaledHeight());
         }
         return null;
     }
