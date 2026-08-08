@@ -112,11 +112,9 @@ public final class SlotDataBinder {
             int elementX = (int) Math.round(position.x * viewportScaleX) - leftPos;
             int elementY = (int) Math.round(position.y * viewportScaleY) - topPos;
 
-            com.sighs.apricityui.mixin.accessor.SlotAccessor accessor =
-                    (com.sighs.apricityui.mixin.accessor.SlotAccessor) (Object) menuSlot;
-            if (force || accessor.apricityui$getX() != elementX || accessor.apricityui$getY() != elementY) {
-                accessor.setX(elementX);
-                accessor.setY(elementY);
+            if (force || menuSlot.x != elementX || menuSlot.y != elementY) {
+                menuSlot.x = elementX;
+                menuSlot.y = elementY;
             }
 
             if (menuSlot instanceof ApricityContainerMenu.UiSlot uiSlot) {

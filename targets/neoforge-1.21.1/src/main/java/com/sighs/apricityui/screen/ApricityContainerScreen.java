@@ -17,7 +17,6 @@ import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
@@ -73,9 +72,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     public boolean pruneInvalidQuickCraftSlot(net.minecraft.world.inventory.Slot slot) {
-        AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) (Object) this;
-        java.util.Set<net.minecraft.world.inventory.Slot> quickCraftSlots = accessor.apricityui$getQuickCraftSlots();
-        if (!accessor.apricityui$isQuickCrafting()
+        java.util.Set<net.minecraft.world.inventory.Slot> quickCraftSlots = this.quickCraftSlots;
+        if (!isQuickCrafting
                 || quickCraftSlots == null
                 || quickCraftSlots.size() <= 1
                 || !quickCraftSlots.contains(slot)) {
@@ -103,9 +101,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         com.sighs.apricityui.layout.Position position = linkedDocument.screenToDocumentPosition(
                 new com.sighs.apricityui.layout.Position(screenX, screenY)
         );
-        int decorationScreenOffset = ((AbstractContainerScreenAccessor) (Object) this)
-                .apricityui$getDraggingItem()
-                .isEmpty() ? 0 : -8;
+        int decorationScreenOffset = draggingItem.isEmpty() ? 0 : -8;
         com.sighs.apricityui.layout.Position decorationPosition = linkedDocument.screenToDocumentPosition(
                 new com.sighs.apricityui.layout.Position(screenX, screenY + decorationScreenOffset)
         );
@@ -244,11 +240,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
         }
 
-        AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) (Object) this;
         ItemStack renderStack = slot.getItem();
-        ItemStack draggingItem = accessor.apricityui$getDraggingItem();
-        if (slot == accessor.apricityui$getClickedSlot() && !draggingItem.isEmpty()) {
-            if (!accessor.apricityui$isSplittingStack()) {
+        if (slot == clickedSlot && !draggingItem.isEmpty()) {
+            if (!isSplittingStack) {
                 return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
             }
             if (!renderStack.isEmpty()) {
@@ -258,8 +252,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
 
         ItemStack carried = menu.getCarried();
-        java.util.Set<net.minecraft.world.inventory.Slot> quickCraftSlots = accessor.apricityui$getQuickCraftSlots();
-        if (!accessor.apricityui$isQuickCrafting() || carried.isEmpty() || quickCraftSlots == null || !quickCraftSlots.contains(slot)) {
+        java.util.Set<net.minecraft.world.inventory.Slot> quickCraftSlots = this.quickCraftSlots;
+        if (!isQuickCrafting || carried.isEmpty() || quickCraftSlots == null || !quickCraftSlots.contains(slot)) {
             return new SlotDataBinder.SlotItemState(renderStack, null, false);
         }
         if (quickCraftSlots.size() <= 1) {
@@ -272,7 +266,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         int baseCount = net.minecraft.world.inventory.AbstractContainerMenu.getQuickCraftPlaceCount(
                 quickCraftSlots,
-                accessor.apricityui$getQuickCraftingType(),
+                quickCraftingType,
                 carried
         );
         int existingCount = renderStack.isEmpty() ? 0 : renderStack.getCount();

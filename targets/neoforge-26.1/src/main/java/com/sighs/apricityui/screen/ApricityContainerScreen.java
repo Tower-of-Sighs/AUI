@@ -9,7 +9,6 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.mixin.accessor.AbstractContainerScreenAccessor;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
@@ -84,7 +83,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
     }
 
     public void captureFloatingItem(ItemStack stack, int x, int y, String overlayText) {
-        int decorationOffsetY = ((AbstractContainerScreenAccessor) this).apricityui$getDraggingItem().isEmpty() ? 0 : -8;
+        int decorationOffsetY = draggingItem.isEmpty() ? 0 : -8;
         floatingItems.add(stack, x, y, overlayText, decorationOffsetY);
     }
 
@@ -159,11 +158,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
             return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
         }
 
-        AbstractContainerScreenAccessor accessor = (AbstractContainerScreenAccessor) this;
         ItemStack renderStack = slot.getItem();
-        ItemStack draggingItem = accessor.apricityui$getDraggingItem();
-        if (slot == accessor.apricityui$getClickedSlot() && !draggingItem.isEmpty()) {
-            if (!accessor.apricityui$isSplittingStack()) {
+        if (slot == clickedSlot && !draggingItem.isEmpty()) {
+            if (!isSplittingStack) {
                 return new SlotDataBinder.SlotItemState(ItemStack.EMPTY, null, false);
             }
             if (!renderStack.isEmpty()) {
@@ -173,8 +170,8 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         }
 
         ItemStack carried = menu.getCarried();
-        Set<Slot> quickCraftSlots = accessor.apricityui$getQuickCraftSlots();
-        if (!accessor.apricityui$isQuickCrafting()
+        Set<Slot> quickCraftSlots = this.quickCraftSlots;
+        if (!isQuickCrafting
                 || carried.isEmpty()
                 || quickCraftSlots == null
                 || !quickCraftSlots.contains(slot)) {
@@ -190,7 +187,7 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         int baseCount = net.minecraft.world.inventory.AbstractContainerMenu.getQuickCraftPlaceCount(
                 quickCraftSlots.size(),
-                accessor.apricityui$getQuickCraftingType(),
+                quickCraftingType,
                 carried
         );
         int existingCount = renderStack.isEmpty() ? 0 : renderStack.getCount();

@@ -9,8 +9,6 @@
     "KeyboardHandlerMixin",
     "MouseHandlerMixin",
     "RenderTargetStencilMixin",
-    "accessor.AbstractContainerScreenAccessor",
-    "accessor.SlotAccessor",
     "accessor.RenderTargetAccessor"
   ],
   "injectors": {

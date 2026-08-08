@@ -32,6 +32,7 @@ java {
 }
 
 loom {
+    accessWidenerPath = file("src/main/resources/apricityui.accesswidener")
     mixin {
         defaultRefmapName = "${mod_id}.refmap.json"
     }
