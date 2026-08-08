@@ -462,10 +462,6 @@ public final class AuiServices {
             public void reload() {
             }
 
-            @Override
-            public Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
-                return null;
-            }
         };
 
         static final AuiRenderService RENDER = new AuiRenderService() {

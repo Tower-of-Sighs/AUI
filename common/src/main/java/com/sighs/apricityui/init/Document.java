@@ -16,8 +16,6 @@ import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.viewport.ApricityViewport;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import dev.latvian.mods.rhino.Function;
-import dev.latvian.mods.rhino.util.HideFromJS;
 import net.minecraft.client.Minecraft;
 
 import java.util.*;
@@ -852,57 +850,28 @@ public class Document {
         return element;
     }
 
-    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener) {
         if (body == null) return;
         body.addEventListener(type, listener);
     }
 
-    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.addEventListener(type, listener, useCapture);
     }
 
-    @HideFromJS
     public void addEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture, boolean once) {
         if (body == null) return;
         body.addEventListener(type, listener, useCapture, once);
     }
 
-    public void addEventListener(String type, Function listener) {
-        addEventListener(type, listener, false, false);
-    }
-
-    public void addEventListener(String type, Function listener, boolean useCapture) {
-        addEventListener(type, listener, useCapture, false);
-    }
-
-    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
-        if (body == null) return;
-        java.util.function.Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
-        if (wrapped != null) body.addEventListener(type, wrapped, useCapture, once);
-    }
-
-    @HideFromJS
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener) {
         removeEventListener(type, listener, false);
     }
 
-    @HideFromJS
     public void removeEventListener(String type, java.util.function.Consumer<Event> listener, boolean useCapture) {
         if (body == null) return;
         body.removeEventListener(type, listener, useCapture);
-    }
-
-    public void removeEventListener(String type, Function listener) {
-        removeEventListener(type, listener, false);
-    }
-
-    public void removeEventListener(String type, Function listener, boolean useCapture) {
-        if (body == null) return;
-        java.util.function.Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
-        if (wrapped != null) body.removeEventListener(type, wrapped, useCapture);
     }
 
     public boolean dispatchEvent(Object event) {
@@ -1286,5 +1255,4 @@ public class Document {
         }
     }
 }
-
 

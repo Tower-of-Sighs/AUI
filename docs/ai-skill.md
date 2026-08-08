@@ -109,7 +109,21 @@ document.addEventListener("DOMContentLoaded", init);
 <body class="ore-theme">
 ```
 
-然后套类名：`.button button-primary/-secondary/-tertiary/-danger`、`.card` + `.card-header/-body`、`.form-group/.form-label/.form-input`、`.table`（固定四列，列数不同覆写 `tr` 的 `grid-template-columns`）、`.badge`、`.alert`、`.progress` > `.progress-bar`、`.container`、`.stack`/`.cluster`、`.text-center/.text-muted`、`.mt-1..4` 等。Ore 只有样式没有行为——tab 切换、modal 开关自己写 JS。全部组件的演示在游戏内 F10 双击 `apricityui/theme/ore/example.html`。
+**使用 Ore 前必须读取完整资料，不要只根据下面的类名速查自行猜样式。**按以下顺序获取：
+
+1. 如果当前工作区是 AUI 仓库，直接完整读取本地源文件：
+   - 文档：`docs/guide/ore-theme.md`
+   - 完整主题源码：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`
+   - 完整组件示例：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html`
+2. 如果本地没有这些文件，尝试在线完整读取（不要只读取截断片段）：
+   - 文档：<https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md>
+   - `ore.css`：<https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css>
+   - `example.html`：<https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html>
+3. 只有本地和在线资源都无法获取时，才使用本段速查作为降级依据；此时不要发明未记录的类名、token 或组件行为。
+
+读取时重点确认 `.ore-theme` 根规则、`--ore-*` token、组件完整 DOM 结构、状态/变体类、默认尺寸与背景、响应式规则和浏览器支持限制。业务 CSS 应优先使用 token，只补布局与业务差异；不要重新绘制 `.card`、`.progress` 等已有组件。Overlay 还要特别检查主题根规则是否会绘制整页背景。
+
+类名速查：`.button button-primary/-secondary/-tertiary/-danger`、`.card` + `.card-header/-body/-footer`、`.form-group/.form-label/.form-input`、`.table`（固定四列，列数不同覆写 `tr` 的 `grid-template-columns`）、`.badge`、`.alert`、`.progress` > `.progress-bar`、`.container`、`.stack`/`.cluster`、`.text-center/.text-muted`、`.mt-1..4` 等。Ore 只有样式没有行为——tab 切换、modal 开关自己写 JS。全部组件的运行时演示在游戏内 F10 双击 `apricityui/theme/ore/example.html`。
 
 ## 第六步：容器页面（真实物品）
 

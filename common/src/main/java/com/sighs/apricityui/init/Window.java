@@ -8,14 +8,10 @@ import com.sighs.apricityui.canvas.OffscreenCanvas;
 import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
-import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.task.ClientScheduler;
 import com.sighs.apricityui.util.AuiLog;
-import dev.latvian.mods.rhino.Function;
-import dev.latvian.mods.rhino.util.HideFromJS;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -135,65 +131,31 @@ public class Window {
         return new BrowserLocation("");
     }
 
-    @HideFromJS
-    public void addEventListener(String type, Consumer<Object> listener) {
+    public void addEventListener(String type, Consumer<? super Event> listener) {
         addEventListener(type, listener, false);
     }
 
-    @HideFromJS
-    public void addEventListener(String type, Consumer<Object> listener, boolean useCapture) {
+    public void addEventListener(String type, Consumer<? super Event> listener, boolean useCapture) {
         addEventListener(type, listener, useCapture, false);
     }
 
-    @HideFromJS
-    public void addEventListener(String type, Consumer<Object> listener, boolean useCapture, boolean once) {
+    public void addEventListener(String type, Consumer<? super Event> listener, boolean useCapture, boolean once) {
         if (type == null || listener == null) return;
         Consumer<Event> wrapped = wrapWindowListener(listener);
         listeners.computeIfAbsent(type, key -> new CopyOnWriteArrayList<>())
                 .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
     }
 
-    public void addEventListener(String type, Function listener) {
-        addEventListener(type, listener, false, false);
-    }
-
-    public void addEventListener(String type, Function listener, boolean useCapture) {
-        addEventListener(type, listener, useCapture, false);
-    }
-
-    public void addEventListener(String type, Function listener, boolean useCapture, boolean once) {
-        if (type == null || listener == null) return;
-        Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
-        if (wrapped == null) return;
-        listeners.computeIfAbsent(type, key -> new CopyOnWriteArrayList<>())
-                .add(new Event.ListenerRecord(type, wrapped, useCapture, once, false));
-    }
-
-    @HideFromJS
-    public void removeEventListener(String type, Consumer<Object> listener) {
+    public void removeEventListener(String type, Consumer<? super Event> listener) {
         removeEventListener(type, listener, false);
     }
 
-    @HideFromJS
-    public void removeEventListener(String type, Consumer<Object> listener, boolean useCapture) {
+    public void removeEventListener(String type, Consumer<? super Event> listener, boolean useCapture) {
         if (type == null || listener == null) return;
         CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
         if (typeListeners == null) return;
         typeListeners.removeIf(candidate ->
                 candidate.useCapture() == useCapture && listener.equals(unwrapWindowListener(candidate.listener())));
-    }
-
-    public void removeEventListener(String type, Function listener) {
-        removeEventListener(type, listener, false);
-    }
-
-    public void removeEventListener(String type, Function listener, boolean useCapture) {
-        if (type == null || listener == null) return;
-        Consumer<Event> wrapped = AuiServices.script().browserEventListener(listener, this);
-        CopyOnWriteArrayList<Event.ListenerRecord> typeListeners = listeners.get(type);
-        if (wrapped == null || typeListeners == null) return;
-        typeListeners.removeIf(candidate ->
-                candidate.useCapture() == useCapture && wrapped.equals(candidate.listener()));
     }
 
     public boolean dispatchEvent(Object event) {
@@ -309,7 +271,7 @@ public class Window {
         event.eventPhase = phase;
         listener.listener().accept(event);
         if (listener.once() && event.target instanceof Window window) {
-            Consumer<Object> original = unwrapWindowListener(listener.listener());
+            Consumer<? super Event> original = unwrapWindowListener(listener.listener());
             if (original != null) {
                 window.removeEventListener(type, original, listener.useCapture());
             } else {
@@ -320,11 +282,11 @@ public class Window {
         return !listener.internal();
     }
 
-    private static Consumer<Event> wrapWindowListener(Consumer<Object> listener) {
+    private static Consumer<Event> wrapWindowListener(Consumer<? super Event> listener) {
         return new WindowListenerAdapter(listener);
     }
 
-    private static Consumer<Object> unwrapWindowListener(Consumer<Event> listener) {
+    private static Consumer<? super Event> unwrapWindowListener(Consumer<Event> listener) {
         if (listener instanceof WindowListenerAdapter adapter) {
             return adapter.delegate;
         }
@@ -332,9 +294,9 @@ public class Window {
     }
 
     private static final class WindowListenerAdapter implements Consumer<Event> {
-        private final Consumer<Object> delegate;
+        private final Consumer<? super Event> delegate;
 
-        private WindowListenerAdapter(Consumer<Object> delegate) {
+        private WindowListenerAdapter(Consumer<? super Event> delegate) {
             this.delegate = delegate;
         }
 

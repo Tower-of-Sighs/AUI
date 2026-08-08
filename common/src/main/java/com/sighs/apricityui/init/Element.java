@@ -2161,18 +2161,15 @@ public class Element extends Node {
     // 事件部分
 
     @Override
-    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener) {
         super.addEventListener(type, listener);
     }
 
     @Override
-    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         super.addEventListener(type, listener, useCapture);
     }
 
-    @HideFromJS
     public void addEventListener(String type, Consumer<Event> listener, boolean useCapture, boolean once) {
         super.addEventListener(type, listener, useCapture, once);
     }
@@ -2186,7 +2183,6 @@ public class Element extends Node {
     }
 
     @Override
-    @HideFromJS
     public void removeEventListener(String type, Consumer<Event> listener, boolean useCapture) {
         super.removeEventListener(type, listener, useCapture);
     }

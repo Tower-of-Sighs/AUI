@@ -5,8 +5,6 @@ import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.script.ApricityScriptSupport;
 import com.sighs.apricityui.spi.AuiScriptService;
 
-import java.util.function.Consumer;
-
 /**
  * NeoForge 26.1 script bridge backed by the standalone Rhino runtime.
  *
@@ -32,11 +30,5 @@ public final class ScriptService implements AuiScriptService {
     public void reload() {
         if (!ApricityScriptSupport.rhinoAvailable()) return;
         ApricityJS.reload();
-    }
-
-    @Override
-    public Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
-        if (!ApricityScriptSupport.rhinoAvailable()) return null;
-        return ApricityJS.browserEventListener(listener, currentTarget);
     }
 }

@@ -205,7 +205,6 @@
   min-height: 100%;
   margin: 0;
   color: var(--ore-ink);
-  background-color: var(--ore-canvas);
   font-family: OreRegular, sans-serif;
   font-size: var(--ore-font-md);
   line-height: 1.5;

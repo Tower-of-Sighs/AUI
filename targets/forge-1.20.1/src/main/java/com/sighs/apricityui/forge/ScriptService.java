@@ -4,8 +4,6 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.script.ApricityJS;
 import com.sighs.apricityui.spi.AuiScriptService;
 
-import java.util.function.Consumer;
-
 /**
  * Forge implementation of {@link AuiScriptService}, delegating to the loader's
  * KubeJS/Rhino script engine ({@link ApricityJS}).
@@ -24,10 +22,5 @@ public final class ScriptService implements AuiScriptService {
     @Override
     public void reload() {
         ApricityJS.reload();
-    }
-
-    @Override
-    public Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
-        return ApricityJS.browserEventListener(listener, currentTarget);
     }
 }

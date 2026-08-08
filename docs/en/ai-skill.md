@@ -109,7 +109,21 @@ document.addEventListener("DOMContentLoaded", init);
 <body class="ore-theme">
 ```
 
-Then apply class names: `.button button-primary/-secondary/-tertiary/-danger`, `.card` + `.card-header/-body`, `.form-group/.form-label/.form-input`, `.table` (fixed four columns — for a different column count override `grid-template-columns` on `tr`), `.badge`, `.alert`, `.progress` > `.progress-bar`, `.container`, `.stack`/`.cluster`, `.text-center/.text-muted`, `.mt-1..4`, etc. Ore is styles only, no behavior — write your own JS for tab switching, modal toggling, and the like. A demo of every component is in game: F10, double-click `apricityui/theme/ore/example.html`.
+**Before using Ore, read the complete resources. Do not infer its appearance from the class-name summary below.** Obtain them in this order:
+
+1. If the current workspace is an AUI checkout, read these local source files in full:
+   - Documentation: `docs/guide/ore-theme.md`
+   - Complete theme source: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`
+   - Complete component example: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html`
+2. If those local files are unavailable, retrieve and read the complete online files (not truncated excerpts):
+   - Documentation: <https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md>
+   - `ore.css`: <https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css>
+   - `example.html`: <https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html>
+3. Only when neither the local nor online resources can be obtained should this section's quick reference be used as a fallback. In that case, do not invent undocumented classes, tokens, or component behavior.
+
+While reading, verify the `.ore-theme` root rules, `--ore-*` tokens, complete component DOM structures, state and variant classes, default dimensions and backgrounds, responsive rules, and browser-support limitations. Business CSS should use theme tokens and add only layout or domain-specific differences; do not redraw existing components such as `.card` and `.progress`. For overlays, specifically check whether the theme root paints a full-page background.
+
+Class-name quick reference: `.button button-primary/-secondary/-tertiary/-danger`, `.card` + `.card-header/-body/-footer`, `.form-group/.form-label/.form-input`, `.table` (fixed four columns — for a different column count override `grid-template-columns` on `tr`), `.badge`, `.alert`, `.progress` > `.progress-bar`, `.container`, `.stack`/`.cluster`, `.text-center/.text-muted`, `.mt-1..4`, etc. Ore is styles only, no behavior — write your own JS for tab switching, modal toggling, and the like. The runtime demo of every component is available in game: press F10 and double-click `apricityui/theme/ore/example.html`.
 
 ## Step 6: Container Pages (Real Items)
 

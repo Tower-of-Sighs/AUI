@@ -2,16 +2,11 @@ package com.sighs.apricityui.script;
 
 import com.sighs.apricityui.ApricityUI;
 import dev.latvian.mods.kubejs.KubeJS;
-import dev.latvian.mods.rhino.Context;
-import dev.latvian.mods.rhino.Function;
 import dev.latvian.mods.rhino.Scriptable;
 import com.sighs.apricityui.event.Event;
-import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.parser.JS;
 import com.sighs.apricityui.util.AuiLog;
 import net.minecraftforge.fml.ModList;
-
-import java.util.function.Consumer;
 
 public class ApricityJS {
     // 框架目前只给元素桥接了 textContent，页面脚本常用 innerText 来设置文本。
@@ -83,60 +78,6 @@ public class ApricityJS {
             return ModList.get() != null && ModList.get().isLoaded("kubejs");
         } catch (LinkageError | RuntimeException unavailableForgeRuntime) {
             return false;
-        }
-    }
-
-    public static Consumer<Event> browserEventListener(Object listener, Object currentTarget) {
-        if (!(listener instanceof Function function)) return null;
-        return new RhinoEventListener(function, currentTarget);
-    }
-
-    private static final class RhinoEventListener implements Consumer<Event> {
-        private final Function function;
-        private final Object currentTarget;
-
-        private RhinoEventListener(Function function, Object currentTarget) {
-            this.function = function;
-            this.currentTarget = currentTarget;
-        }
-
-        @Override
-        public void accept(Event event) {
-            var manager = KubeJS.getClientScriptManager();
-            var context = manager.context;
-            var scope = manager.topLevelScope;
-            Object eventArgument = Context.javaToJS(context, event, scope);
-            Scriptable scriptTarget = context.toObject(currentTarget, scope);
-            Object previousCurrentTarget = event.currentTarget;
-            event.currentTarget = scriptTarget;
-            try {
-                context.callSync(function, scope, scriptTarget, new Object[]{eventArgument});
-            } catch (RuntimeException exception) {
-                String documentPath = event != null && event.target instanceof Node node
-                        && node.document != null ? node.document.getPath() : "<unknown>";
-                ApricityUI.LOGGER.error(
-                        "[AUI JS] event listener failed document={} event={} target={}",
-                        AuiLog.source(documentPath),
-                        event == null ? "<unknown>" : event.type,
-                        event == null ? "<null>" : String.valueOf(event.currentTarget),
-                        exception
-                );
-                throw exception;
-            } finally {
-                event.currentTarget = previousCurrentTarget;
-            }
-        }
-
-        @Override
-        public boolean equals(Object object) {
-            return object instanceof RhinoEventListener other
-                    && function == other.function
-                    && currentTarget == other.currentTarget;
-        }
-
-        @Override
-        public int hashCode() {
-            return 31 * System.identityHashCode(function) + System.identityHashCode(currentTarget);
         }
     }
 }
