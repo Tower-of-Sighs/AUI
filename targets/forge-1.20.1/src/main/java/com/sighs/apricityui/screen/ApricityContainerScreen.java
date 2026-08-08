@@ -71,20 +71,20 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return slotBinder != null && slotBinder.isBoundElementHovered(slot, mouseX, mouseY);
     }
 
-    public void pruneInvalidQuickCraftSlot(net.minecraft.world.inventory.Slot slot) {
+    public boolean pruneInvalidQuickCraftSlot(net.minecraft.world.inventory.Slot slot) {
         if (!isQuickCrafting || quickCraftSlots == null || quickCraftSlots.size() <= 1 || !quickCraftSlots.contains(slot)) {
-            return;
+            return false;
         }
 
         ItemStack carried = menu.getCarried();
         if (carried.isEmpty()
                 || (net.minecraft.world.inventory.AbstractContainerMenu.canItemQuickReplace(slot, carried, true)
                 && menu.canDragTo(slot))) {
-            return;
+            return false;
         }
 
         quickCraftSlots.remove(slot);
-        recalculateQuickCraftRemaining();
+        return true;
     }
 
     public void captureFloatingItem(ItemStack stack, int relativeX, int relativeY, String overlayText) {

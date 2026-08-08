@@ -8,6 +8,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -15,6 +16,9 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = AbstractContainerScreen.class)
 public abstract class AbstractContainerScreenMixin {
+    @Invoker("recalculateQuickCraftRemaining")
+    protected abstract void apricityui$recalculateQuickCraftRemaining();
+
     // NOTE: no @Shadow members here. The build's refmap only contains method
     // mappings, so shadowed fields (leftPos/topPos) cannot be resolved in a
     // production (SRG-named) environment and crash the mixin apply. The
@@ -24,7 +28,9 @@ public abstract class AbstractContainerScreenMixin {
     @Inject(method = "renderSlot", at = @At("HEAD"), cancellable = true)
     private void apricityui$cancelVanillaRenderSlot(GuiGraphics p_281607_, Slot p_282613_, CallbackInfo ci) {
         if ((Object) this instanceof ApricityContainerScreen screen) {
-            screen.pruneInvalidQuickCraftSlot(p_282613_);
+            if (screen.pruneInvalidQuickCraftSlot(p_282613_)) {
+                apricityui$recalculateQuickCraftRemaining();
+            }
             ci.cancel();
         }
     }
