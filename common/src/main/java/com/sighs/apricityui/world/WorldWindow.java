@@ -36,6 +36,8 @@ public class WorldWindow {
     private static final float FALLBACK_WORLD_SCALE = 0.02f;
     private static final double OCCLUSION_DISTANCE_EPSILON = 1.0e-4d;
     private static final float DEFAULT_FOLLOW_FACTOR = 0.3f;
+    private static final float ITEM_MODEL_DEPTH_FRACTION = 0.25f;
+    private static final float ITEM_DECORATION_DEPTH_FRACTION = 0.5f;
     private static final float[] VIEWPORT_CLIP_RADIUS = new float[]{0, 0, 0, 0};
 
     public Document document;
@@ -507,6 +509,10 @@ public class WorldWindow {
         Base.pushDepthStep(localStep);
         Base.pushDepthMode(true);
         Base.pushDepthTest(depthTest);
+        Base.pushGuiItemZ(
+                localStep * ITEM_MODEL_DEPTH_FRACTION,
+                localStep * ITEM_DECORATION_DEPTH_FRACTION
+        );
         float documentZOffset = documentDepthBudget / safeScale;
         Base.pushDocumentZOffset(documentZOffset);
         WorldPaintDepth.pushFlatTransforms(true);
@@ -533,6 +539,7 @@ public class WorldWindow {
             Mask.popMask(poseStack, 0, 0, viewportWidth, viewportHeight, VIEWPORT_CLIP_RADIUS);
             Mask.popForceStencil();
             WorldPaintDepth.popFlatTransforms();
+            Base.popGuiItemZ();
             Base.popDepthTest();
             Base.popDepthMode();
             Base.popDepthStep();

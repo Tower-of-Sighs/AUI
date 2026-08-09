@@ -2,6 +2,7 @@ package com.sighs.apricityui.render;
 
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.style.Transform;
 
 import java.util.ArrayList;
@@ -25,6 +26,26 @@ public final class DocumentLayerOrder {
         List<Document> ordered = backToFront(documents);
         Collections.reverse(ordered);
         return ordered;
+    }
+
+    /**
+     * Returns whether a persistent screen overlay that is rendered above the excluded
+     * document intercepts the pointer at the supplied screen position.
+     */
+    public static boolean hasPersistentScreenDocumentAt(Collection<Document> documents,
+                                                        Document excludedDocument,
+                                                        Position screenPosition) {
+        if (documents == null || screenPosition == null) return false;
+        for (Document document : frontToBack(documents)) {
+            if (document == excludedDocument
+                    || document.inWorld
+                    || document.isManuallyRendered()
+                    || !document.isReloadPersistent()) {
+                continue;
+            }
+            if (document.interceptsMouseEventsAt(screenPosition)) return true;
+        }
+        return false;
     }
 
     static double translateZ(Document document) {

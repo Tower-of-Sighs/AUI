@@ -1,150 +1,116 @@
-# ApricityUI `container` / `slot` / `recipe` 使用说明
+# ApricityUI `container` / `slot` / `item` / `ingredient` 使用说明
 
-最后更新：2026-03-07
+最后更新：2026-08-06
+
+> 此归档指南已同步当前的显式内容节点模型；完整的中文说明见 [`docs/container.md`](../../docs/container.md)。
 
 ## 1. 总体模型
 
-当前统一语义如下：
+容器 UI 使用三层结构：
 
-- 只使用一个槽位标签：`<slot>`
-- slot 是否可交互由以下机制决定（优先级从高到低）：
-  - recipe 生成的槽位始终不可交互
-  - CSS 自定义属性 `--aui-slot-interactive`
-  - HTML 属性 `interactive`
-  - 是否被数据源绑定（在 container 内且被 SlotView 注入时自动可交互）
-- 在 container 内且被数据源绑定的 slot 自动获得交互能力，显示真实菜单物品
-- 在 container 外或未被绑定的 slot 为展示用途，通过 innerText 设置展示物品
-- `container` 使用 `layout` 描述槽位布局（仅布局，不负责一般性自动补齐实例）
-- `container` 没有内建标题机制；标题请作为普通 DOM 节点自行编写和布局
-- `recipe` 生成的槽位始终不可交互
+- `<slot>`：背景壳、几何命中、本地索引和菜单交互能力。
+- `<item>`：一个 ItemStack 的文本解析、渲染和 tooltip 状态。
+- `<ingredient>`：标签、管道或 JSON 候选集合；它会驱动内部受控的 `<item>` 轮播显示。
 
-## 2. `container` 属性
+合法模板示例：
 
-### 2.1 `bind`
-
-- 绑定数据源（如 `player` / `saved_data` / `block_entity` / `entity`）
-
-### 2.2 `layout`
-
-- 槽位布局规则（网格或预设）
-- 示例：
-  - `layout="[27,3,9]"`
-  - `layout="preset:player"`
-
-说明：`layout` 仅影响布局，不会在普通场景自动创建缺失槽位实例。
-
-### 2.3 标题
-
-`container` 没有内建标题机制，不会读取 `title` 属性，也不会从首个子元素文本自动推断标题。
-如果需要标题，请作为普通 DOM 节点自行编写和布局。
-
-示例（普通 DOM 标题）：
 ```html
-<div class="demo-title">我的标题</div>
-<container primary="true" bind="player" layout="preset:player">
-  <slot slot-index="0" repeat="36"></slot>
-</container>
+<slot slot-index="0"><item>minecraft:diamond</item></slot>
+<slot><ingredient>#minecraft:planks</ingredient></slot>
 ```
+
+`slot` 只能直接包含一个 `item` 或 `ingredient`。旧语法 `<slot>minecraft:diamond</slot>` 已不支持；空 slot 会规范化为 `<item>minecraft:air</item>`。
+
+## 2. `container` 和绑定
+
+`bind` 指向 `player`、`saved_data`、`block_entity` 或 `entity` 等数据源。真实菜单中，只有 container 内、具有可映射 `slot-index` 且直接内容为 `item` 的 slot 才会绑定真实 Minecraft 菜单槽位。
+
+`ingredient` 始终是展示内容，绝不会绑定或操作真实菜单槽位。
+
+空的 `bind="player"` container 会自动生成 36 个 Slot；其他带 `size` 的空绑定容器会自动生成对应数量的 Slot。自动生成的 Slot 都有直接 `<item>minecraft:air</item>` 内容。
 
 ## 3. `slot` 属性
 
-### 3.1 `repeat`
+### 3.1 `slot-index` 和 `repeat`
 
-- 批量生成，总数语义
-- `repeat="36"` 表示总共 36 个槽位（模板本身算第 0 个）
+- `slot-index` 是 container 内的本地槽位索引。
+- `repeat="36"` 会在展开阶段物化为 36 个独立的 Slot，模板自身计为第一个。
+- 深克隆会保留 item/ingredient 子树，移除克隆的 `id` 和 `repeat`，并补全连续索引。
 
-### 3.2 `slot-index`
+```html
+<container bind="saved_data" size="9">
+  <slot slot-index="0" repeat="9"><item>minecraft:air</item></slot>
+</container>
+```
 
-- 本地槽位索引
-- 在 container 内用于指定绑定到数据源的哪个位置
+### 3.2 `interactive`、`pointer` 和 `disabled`
 
-### 3.3 `interactive`
+Slot 的交互能力优先级为：recipe 生成槽位 → `interactive` → `pointer` → CSS `--aui-slot-interactive` → 绑定默认值。
 
-- 显式控制槽位是否可交互
-- 值：`true` / `false`（或等价的 `1` / `0`、`yes` / `no`）
-- 未声明时的默认行为：
-  - 被数据源绑定的 slot → 可交互
-  - 未绑定的 slot → 不可交互
-  - recipe 生成的 slot → 始终不可交互
-- 也可通过 CSS 自定义属性 `--aui-slot-interactive` 控制
+- `tooltip`：只显示 tooltip。
+- `slot`：只允许菜单操作。
+- `none`：禁用 tooltip 和菜单操作。
+- 未绑定 Slot 默认仅为 `tooltip`；真实绑定 Slot 默认是 `tooltip,slot`。
+- `disabled="true"` 会禁用绑定 Slot 的菜单操作和物品显示。
 
-### 3.4 `disabled`
+默认 CSS 将 `slot` 设为 `pointer-events: none`；真实菜单槽位依然由 Screen/Binder 的 Slot 几何命中路径处理。
 
-- 禁用交互（优先级高于 `interactive`）
+### 3.3 渲染和尺寸
 
-### 3.5 展示物品属性
+`render`、`render-bg`、`render-item`、`size`、`iconScale` 和 `zIndex` 均写在 Slot 上，嵌套 Item 会继承它们。
 
-- `innerText`：物品字面量（仅此入口）
-  - 支持物品 id：`minecraft:diamond`
-  - 支持标签：`#minecraft:planks`
-  - 支持 id+NBT：`minecraft:diamond_sword{Damage:12}`
-  - 支持 ItemStack NBT：`{id:"minecraft:diamond",Count:1b,tag:{display:{Name:'{"text":"展示"}'}}}`
-  - 支持管道分隔多候选：`minecraft:iron_ingot|minecraft:gold_ingot|minecraft:copper_ingot`
-  - 支持 JSON Ingredient 数组：`[{"item":"minecraft:oak_log"},{"item":"minecraft:birch_log"}]`
-- `cycle-interval`（别名 `rotate-interval`）：标签候选轮播间隔（ms），默认 1000ms，最小 200ms
-- `cycle`：是否启用轮播（`true` / `false`），默认 `true`
+```html
+<slot class="icon-only" interactive="tooltip" render="item">
+  <item>minecraft:emerald</item>
+</slot>
+```
 
-### 3.6 渲染控制
+## 4. `item` 与 `ingredient`
 
-- `render`：控制渲染内容
-  - `all`（默认）：渲染背景 + 物品
-  - `item`：仅渲染物品
-  - `bg`：仅渲染背景
-  - `none`：不渲染
-- `render-bg` / `render-item`：单独控制背景/物品渲染
-- CSS 自定义属性：`--aui-slot-render-bg`、`--aui-slot-render-item`
+`item` 支持单物品 ID、物品 ID + NBT 和完整 ItemStack NBT：
 
-### 3.7 尺寸与样式
+```html
+<slot><item>minecraft:diamond_sword{Damage:12}</item></slot>
+<slot><item>{id:"minecraft:diamond",Count:12b}</item></slot>
+```
 
-- `size`（别名 `slot-size`）：槽位像素尺寸
-- `iconScale`：物品图标缩放比例
-- CSS 自定义属性：`--aui-slot-size`、`--aui-slot-icon-scale`
-- 物品纹理始终在 slot 内自动居中；若需拉开 slot 与 slot 的距离，请使用容器或 recipe 的 `gap`
-- CSS（`position/top/left/...`）可用于手动布局
+`ingredient` 支持标签、管道候选和 Minecraft Ingredient JSON，最多展示 128 个去重候选：
 
-## 4. 玩家容器默认 36 格
+```html
+<slot><ingredient>#minecraft:planks</ingredient></slot>
+<slot><ingredient cycle-interval="750">
+  minecraft:iron_ingot|minecraft:gold_ingot|minecraft:copper_ingot
+</ingredient></slot>
+<slot><ingredient>[{"item":"minecraft:oak_log"},{"item":"minecraft:birch_log"}]</ingredient></slot>
+```
 
-当 `container.bind="player"` 且容器内没有任何槽位时，系统会隐式注入玩家背包槽位：
+`cycle="0"` 可关闭轮播；`cycle-interval` 与 `rotate-interval` 为同义属性，默认 1000ms、最小 200ms。轮播属性应写在 `ingredient` 上。
 
-- `inv`：27 格（3x9）
-- `hotbar`：9 格（1x9）
-- 默认间距：`4px`
+脚本修改展示内容时使用：
 
-若你已经显式声明槽位，则不会触发上述隐式注入。
+```javascript
+var item = slot.querySelector("item");
+if (item) item.innerText = "minecraft:diamond";
+```
 
 ## 5. `recipe` 规则
 
-- `<recipe>` 可独立用于普通 HTML 展示
-- 在容器内可放多个 `<recipe>`，每个 recipe 独立子布局
-- recipe 生成槽位固定不可交互，不参与真实菜单绑定
-- 语法为：`<recipe type="...">recipe_id</recipe>`
-- `type` 为必填且严格校验，推荐值：
-  - `crafting_shaped`
-  - `crafting_shapeless`
-  - `smelting` / `blasting` / `smoking` / `campfire_cooking`
-  - `stonecutting`
-  - `smithing`
+`<recipe type="...">recipe_id</recipe>` 会生成不可交互的预览 Slot：输出和空气格使用 item，输入、燃料、模板和附加材料使用 ingredient。它们不占用真实菜单槽位。
 
-## 6. 示例与触发入口
+支持 `crafting_shaped`、`crafting_shapeless`、`smelting`、`blasting`、`smoking`、`campfire_cooking`、`stonecutting`、`smithing` 和 `fallback`。
 
-- `minecraft:diamond` -> `run/apricity/test/index.html`
-- `minecraft:emerald` -> `run/apricity/test/saveddata_player.html`（saveddata + playerinv）
-- `minecraft:amethyst_shard` -> `run/apricity/test/virtual_container.html`（虚拟容器）
-- `minecraft:nether_star` -> `run/apricity/test/recipe_showcase.html`（recipe 展示）
-
-示例片段（saveddata + playerinv）：
+## 6. 示例
 
 ```html
-<div class="demo-title">SavedData 仓库（9 格，primary）</div>
-<container primary="true" bind="saved_data" layout="[9,3,3]">
-  <slot repeat="9" slot-index="0"></slot>
+<div class="demo-title">SavedData 仓库</div>
+<container primary="true" bind="saved_data" size="9">
+  <slot repeat="9" slot-index="0"><item>minecraft:air</item></slot>
 </container>
 
-<div class="demo-title">PlayerInv（36 格）</div>
-<container bind="player" layout="preset:player">
-  <slot repeat="36" slot-index="0"></slot>
-</container>
+<div class="demo-title">候选展示</div>
+<slot interactive="tooltip">
+  <ingredient>minecraft:iron_ingot|minecraft:gold_ingot</ingredient>
+</slot>
 
-<slot>{id:"minecraft:diamond",Count:12b,tag:{display:{Name:'{"text":"示例物品"}'}}}</slot>
 <recipe type="crafting_shaped">minecraft:crafting_table</recipe>
 ```

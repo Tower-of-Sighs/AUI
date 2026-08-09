@@ -17,6 +17,7 @@ public final class FabricServicesBootstrap {
         AuiServices.setResources(ResourceService.INSTANCE);
         AuiServices.setKeys(FabricKeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);
+        AuiServices.setItems(ItemRenderService.INSTANCE);
         DevToolsLogBridge.install(ApricityUI.LOGGER);
     }
 }

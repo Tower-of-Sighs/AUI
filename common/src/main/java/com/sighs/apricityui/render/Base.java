@@ -34,7 +34,16 @@ public class Base {
 
     private static final float DEFAULT_DEPTH_STEP = 0.005f;
     private static final float GLOBAL_DOCUMENT_Z_OFFSET = 1.0f;
+    private static final float GUI_ITEM_MODEL_Z_OFFSET = GuiItemDepths.SCREEN_ITEM_MODEL_Z;
+    private static final float GUI_ITEM_DECORATION_Z_OFFSET = GuiItemDepths.SCREEN_ITEM_DECORATION_Z;
+    private static final float GUI_ITEM_FOREGROUND_Z_OFFSET = GuiItemDepths.SCREEN_ITEM_FOREGROUND_Z;
+    private static final float GUI_FLOATING_ITEM_MODEL_Z_OFFSET = GuiItemDepths.SCREEN_FLOATING_ITEM_MODEL_Z;
+    private static final float GUI_FLOATING_ITEM_DECORATION_Z_OFFSET = GuiItemDepths.SCREEN_FLOATING_ITEM_DECORATION_Z;
+    private static final float FLAT_DOCUMENT_LAYER_STEP = GuiItemDepths.FLAT_DOCUMENT_LAYER_STEP;
     private static final java.util.ArrayDeque<Float> DOCUMENT_Z_OFFSET_STACK = new java.util.ArrayDeque<>();
+    private static final java.util.ArrayDeque<GuiItemZ> GUI_ITEM_Z_STACK = new java.util.ArrayDeque<>();
+    private static float guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
+    private static float guiItemDecorationZ = GUI_ITEM_DECORATION_Z_OFFSET;
     private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
     private static float depthStep = DEFAULT_DEPTH_STEP;
     private static final java.util.ArrayDeque<Boolean> DEPTH_MODE_STACK = new java.util.ArrayDeque<>();
@@ -54,7 +63,7 @@ public class Base {
             Mask.pushScissorScale(viewport.scissorScale());
             try {
                 poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-                drawDocument(poseStack, document);
+                drawFlatDocumentInContext(poseStack, document, List.of());
             } finally {
                 Mask.popScissorScale();
                 poseStack.popPose();
@@ -63,26 +72,80 @@ public class Base {
     }
 
     public static void drawScreenDocument(PoseStack poseStack, Document document) {
+        drawScreenDocument(poseStack, document, List.of());
+    }
+
+    public static void drawScreenDocument(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes
+    ) {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
             // screen 直接绘制单个文档时也必须刷新裁剪范围，避免窗口缩放后沿用旧尺寸。
             Mask.resetDepth();
-            drawDocument(poseStack, document);
+            drawFlatDocumentInContext(poseStack, document, overlayNodes);
         }
     }
 
     public static void drawDocument(PoseStack poseStack, Document document) {
         if (document == null) return;
         try (Document.ContextScope ignored = Document.withContext(document)) {
-            drawDocumentInContext(poseStack, document);
+            drawDocumentInContext(poseStack, document, List.of());
         }
+    }
+
+    private static void drawFlatDocumentInContext(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes
+    ) {
+        float baseZ = resolveFlatDocumentBaseZ(document);
+        pushDocumentZOffset(baseZ);
+        // Item Z values are relative to the already translated document plane.
+        // Adding baseZ again would make later documents' items jump two layers.
+        pushGuiItemZ(GUI_ITEM_MODEL_Z_OFFSET, GUI_ITEM_DECORATION_Z_OFFSET);
+        try {
+            drawDocumentInContext(poseStack, document, overlayNodes);
+        } finally {
+            popGuiItemZ();
+            popDocumentZOffset();
+        }
+    }
+
+    private static float resolveFlatDocumentBaseZ(Document document) {
+        int layer = 0;
+        for (Document candidate : DocumentLayerOrder.backToFront(Document.getAll())) {
+            if (!isFlatDocument(candidate)) continue;
+            if (candidate == document) {
+                return GLOBAL_DOCUMENT_Z_OFFSET + layer * FLAT_DOCUMENT_LAYER_STEP;
+            }
+            layer++;
+        }
+        return GLOBAL_DOCUMENT_Z_OFFSET;
+    }
+
+    public static float getFlatOverlayZ() {
+        int layerCount = 0;
+        for (Document candidate : Document.getAll()) {
+            if (isFlatDocument(candidate)) layerCount++;
+        }
+        return GLOBAL_DOCUMENT_Z_OFFSET + layerCount * FLAT_DOCUMENT_LAYER_STEP;
+    }
+
+    private static boolean isFlatDocument(Document document) {
+        return document != null && !document.inWorld && !document.isManuallyRendered();
     }
 
     /**
      * Draws a document while its document context is active. Keeping this
      * boundary inside Base makes standalone surfaces behave like overlays.
      */
-    private static void drawDocumentInContext(PoseStack poseStack, Document document) {
+    private static void drawDocumentInContext(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes
+    ) {
         long startNs = System.nanoTime();
         AuiRenderService.RenderStateScope renderState = AuiServices.render().pushFilterRenderState();
         if (renderState == null) renderState = AuiRenderService.RenderStateScope.NOOP;
@@ -168,6 +231,22 @@ public class Base {
                     }
                 } finally {
                     if (topLayerDepthScope != null) topLayerDepthScope.close();
+                }
+                if (topLayerDepthScope != null) {
+                    topLayerDepthScope.close();
+                    topLayerDepthScope = null;
+                }
+                pushGuiItemZ(GUI_FLOATING_ITEM_MODEL_Z_OFFSET, GUI_FLOATING_ITEM_DECORATION_Z_OFFSET);
+                try {
+                    for (RenderNode overlayNode : overlayNodes) {
+                        if (overlayNode == null) continue;
+                        poseStack.pushPose();
+                        resolvePaintOffset(poseStack, overlayNode);
+                        overlayNode.render(poseStack);
+                        poseStack.popPose();
+                    }
+                } finally {
+                    popGuiItemZ();
                 }
             } finally {
                 FontDrawer.popDocumentPixelScale();
@@ -470,10 +549,21 @@ public class Base {
         return depthCursor;
     }
 
-    /** Moves within the current paint layer without consuming another paint-list slot. */
+    /** Moves within the current world paint layer without consuming another paint-list slot. */
     public static void offsetPaintDepth(PoseStack poseStack, float fraction) {
         if (!accumulateDepth || poseStack == null || !Float.isFinite(fraction)) return;
         poseStack.translate(0, 0, depthStep * fraction);
+    }
+
+    /**
+     * Maps an item z-index into its own paint-node interval rather than treating
+     * it as an absolute PoseStack depth. This preserves paint-list ordering
+     * while still allowing slots in the same node to opt into a local offset.
+     */
+    public static void offsetLocalPaintDepth(PoseStack poseStack, int zIndex) {
+        if (poseStack == null || zIndex == 0) return;
+        float fraction = Math.max(-0.45F, Math.min(0.45F, zIndex / 1000.0F));
+        poseStack.translate(0.0F, 0.0F, depthStep * fraction);
     }
 
     public static void pushDepthStep(float step) {
@@ -519,6 +609,38 @@ public class Base {
 
     public static boolean isDepthTestEnabled() {
         return depthTestEnabled;
+    }
+
+    public static float getGuiItemModelZ() {
+        return guiItemModelZ;
+    }
+
+    public static float getGuiItemDecorationZ() {
+        return guiItemDecorationZ;
+    }
+
+    /**
+     * Returns the depth reserved for document foreground overlays above item decorations.
+     * World documents already place foreground nodes after child item nodes in their
+     * accumulated paint interval, so they must not add a screen-space GUI depth bias.
+     */
+    public static float getGuiItemForegroundZ() {
+        return GuiItemDepths.foregroundZ(guiItemDecorationZ, accumulateDepth);
+    }
+
+    public static void pushGuiItemZ(float modelZ, float decorationZ) {
+        GUI_ITEM_Z_STACK.push(new GuiItemZ(guiItemModelZ, guiItemDecorationZ));
+        guiItemModelZ = Float.isFinite(modelZ) ? modelZ : GUI_ITEM_MODEL_Z_OFFSET;
+        guiItemDecorationZ = Float.isFinite(decorationZ) ? decorationZ : GUI_ITEM_DECORATION_Z_OFFSET;
+    }
+
+    public static void popGuiItemZ() {
+        GuiItemZ previous = GUI_ITEM_Z_STACK.poll();
+        guiItemModelZ = previous == null ? GUI_ITEM_MODEL_Z_OFFSET : previous.modelZ();
+        guiItemDecorationZ = previous == null ? GUI_ITEM_DECORATION_Z_OFFSET : previous.decorationZ();
+    }
+
+    private record GuiItemZ(float modelZ, float decorationZ) {
     }
 
     public static void popDepthMode() {

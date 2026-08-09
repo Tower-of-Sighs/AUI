@@ -13,6 +13,7 @@ import com.sighs.apricityui.neoforge.RenderService;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
 import com.sighs.apricityui.render.Mask;
+import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Cursor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
@@ -36,6 +37,7 @@ import org.jspecify.annotations.NonNull;
 public final class ApricityUiPipRenderer extends PictureInPictureRenderer<ApricityUiPipRenderState> {
     private GpuTexture stencilDepthTexture;
     private GpuTextureView stencilDepthTextureView;
+    private static final float MIN_PIP_DEPTH_RANGE = 1024.0F;
 
     public ApricityUiPipRenderer(MultiBufferSource.BufferSource bufferSource) {
         super(bufferSource);
@@ -104,8 +106,12 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
             modelView.identity();
             int guiWidth = Math.max(1, renderState.x1() - renderState.x0());
             int guiHeight = Math.max(1, renderState.y1() - renderState.y0());
+            float depthRange = Math.max(
+                    MIN_PIP_DEPTH_RANGE,
+                    Base.getFlatOverlayZ() + Base.getGuiItemDecorationZ() + 1.0F
+            );
             RenderService.INSTANCE.setProjectionMatrix(
-                    new Matrix4f().setOrtho(0.0f, guiWidth, guiHeight, 0.0f, -1000.0f, 1000.0f));
+                    new Matrix4f().setOrtho(0.0f, guiWidth, guiHeight, 0.0f, -depthRange, depthRange));
 
             PoseStack guiPose = new PoseStack();
             if (renderState.mode() == ApricityUiPipRenderState.Mode.UI) {
@@ -118,6 +124,28 @@ public final class ApricityUiPipRenderer extends PictureInPictureRenderer<Aprici
                     // viewport. Draw them right after the owner so the previewed
                     // HTML stays below the DevTools tool document and the toast.
                     ResourcePreviewDialog.draw(guiPose, document);
+                }
+                // Floating container items share the same PoseStack backend but
+                // must not inherit the final document's clip or stencil state.
+                Mask.resetDepth();
+                guiPose.pushPose();
+                guiPose.translate(0.0F, 0.0F, Base.getFlatOverlayZ());
+                try {
+                    for (ApricityUiPipRenderState.FloatingItem item : renderState.floatingItems().items()) {
+                        RenderNode.ItemNode.positioned(
+                                item::stack,
+                                item.x(),
+                                item.y(),
+                                1.0D,
+                                232,
+                                true,
+                                item.overlayText(),
+                                item.decorationOffsetY(),
+                                false
+                        ).render(guiPose);
+                    }
+                } finally {
+                    guiPose.popPose();
                 }
                 // Ensure scissor/mask state never leaks into later GUI rendering.
                 Mask.resetDepth();

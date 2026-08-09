@@ -39,6 +39,7 @@ public final class AuiServices {
     private static volatile AuiKeyService keys = Defaults.KEYS;
     private static volatile AuiScriptService script = Defaults.SCRIPT;
     private static volatile AuiRenderService render = Defaults.RENDER;
+    private static volatile AuiItemRenderService items = Defaults.ITEMS;
     private static volatile boolean bootstrapped;
 
     private AuiServices() {
@@ -74,6 +75,10 @@ public final class AuiServices {
 
     public static void setRender(AuiRenderService implementation) {
         render = implementation == null ? Defaults.RENDER : implementation;
+    }
+
+    public static void setItems(AuiItemRenderService implementation) {
+        items = implementation == null ? Defaults.ITEMS : implementation;
     }
 
     public static AuiClientService client() {
@@ -114,6 +119,11 @@ public final class AuiServices {
     public static AuiRenderService render() {
         bootstrap();
         return render;
+    }
+
+    public static AuiItemRenderService items() {
+        bootstrap();
+        return items;
     }
 
     /**
@@ -462,6 +472,9 @@ public final class AuiServices {
             public void reload() {
             }
 
+        };
+
+        static final AuiItemRenderService ITEMS = request -> {
         };
 
         static final AuiRenderService RENDER = new AuiRenderService() {

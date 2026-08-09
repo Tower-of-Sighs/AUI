@@ -124,12 +124,34 @@ container {
 
 slot {
     display: block;
+    position: relative;
     width: 18px;
     height: 18px;
     background-image: url("apricityui/img/gui/area.png");
     background-size: 100% 100%;
     background-repeat: no-repeat;
     pointer-events: none;
+}
+
+item, ingredient {
+    display: block;
+    pointer-events: none;
+}
+
+item {
+    width: 16px;
+    height: 16px;
+}
+
+slot > item,
+slot > ingredient {
+    position: absolute;
+    left: 1px;
+    top: 1px;
+}
+
+ingredient > item {
+    position: absolute;
 }
 
 /* 玩家背包预设：前三行为背包 9..35，第四行为快捷栏 0..8 */

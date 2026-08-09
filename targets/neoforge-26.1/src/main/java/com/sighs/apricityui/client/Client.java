@@ -381,46 +381,23 @@ public class Client {
     }
 
     /**
-     * 26.1 screens only collect render states; AUI's documents are rasterised
-     * by the fullscreen Picture-in-Picture overlay, so while a screen is open
-     * this submits the overlay states (HUD layers do not run for screens) and
-     * extracts the slot items of persistent documents on top of them.
+     * 26.1 screens only collect render states; AUI documents and their item
+     * nodes are rasterised together by the fullscreen Picture-in-Picture layer.
      */
     @SubscribeEvent
     public static void drawScreen(ScreenEvent.Render.Post event) {
         com.sighs.apricityui.render.FrameTimingHud.beginFrame();
         try {
-            // AuiLinkedScreens submit the UI PIP state themselves during
-            // extractRenderState so their slot items (extractor states) land
-            // above the document; for all other screens it is submitted here.
+            // AuiLinkedScreens submit the UI PIP state during extraction so
+            // frame-local floating items join the same document pass. Other
+            // screens submit the normal document state here.
             if (!(Minecraft.getInstance().screen instanceof com.sighs.apricityui.screen.AuiLinkedScreen)) {
                 com.sighs.apricityui.client.gui.ApricityGuiLayers.submitUi(event.getGuiGraphics());
             }
             com.sighs.apricityui.client.gui.ApricityGuiLayers.submitCursor(event.getGuiGraphics());
-            for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
-                if (document == null || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) {
-                    continue;
-                }
-                renderOverlaySlotItems(event.getGuiGraphics(), document);
-            }
         } finally {
             com.sighs.apricityui.render.FrameTimingHud.endFrame();
             drawFrameTimingHud(event.getGuiGraphics());
-        }
-    }
-
-    /** Extracts the item stacks of a document's slot elements (26.1 render-state API). */
-    public static void renderOverlaySlotItems(net.minecraft.client.gui.GuiGraphicsExtractor guiGraphics, Document document) {
-        if (guiGraphics == null || document == null) return;
-        try (Document.ContextScope ignored = Document.withContext(document)) {
-            com.sighs.apricityui.viewport.ApricityViewport viewport = document.getViewport();
-            guiGraphics.pose().pushMatrix();
-            try {
-                guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale());
-                com.sighs.apricityui.world.ItemRender.renderDocumentSlotItems(guiGraphics, document);
-            } finally {
-                guiGraphics.pose().popMatrix();
-            }
         }
     }
 

@@ -16,6 +16,8 @@ public final class AuiServicesBootstrap {
         AuiServices.setExpander(new ForgeDocumentExpander());
         AuiServices.setConfig(ConfigService.INSTANCE);
         AuiServices.setScript(ScriptService.INSTANCE);
+        AuiServices.setRender(RenderService.INSTANCE);
+        AuiServices.setItems(ItemRenderService.INSTANCE);
     }
 
     private AuiServicesBootstrap() {
