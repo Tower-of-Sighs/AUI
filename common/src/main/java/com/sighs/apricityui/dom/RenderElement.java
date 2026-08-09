@@ -322,7 +322,7 @@ public class RenderElement {
     private static final Set<String> LAYOUT_PROPS = Set.of(
             "width", "height", "boxSizing",
             "margin", "marginTop", "marginBottom", "marginLeft", "marginRight",
-            "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems",
+            "flexDirection", "flexWrap", "alignContent", "justifyContent", "alignItems", "order",
             "gridTemplateColumns", "gridTemplateRows",
             "gap", "rowGap", "columnGap",
             "justifyItems",

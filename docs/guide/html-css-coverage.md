@@ -17,7 +17,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 赶时间只看这一节。把浏览器页面搬进 AUI 前，按优先级检查：
 
 1. **UA 样式为零**：h1-h6、p、ul/li 的样式全部自己写；别用 br/hr 表达布局；
-2. **布局避开**：float、sticky、flex 的 order/reverse/align-content/baseline、grid 的 areas/auto-flow/命名线、负 margin、表格布局；
+2. **布局避开**：float、sticky、grid 的 areas/auto-flow/命名线、负 margin、表格布局；
 3. **值解析避开**：calc 乘除、border 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、contrast/saturate/sepia 滤镜、skew/matrix transform；
 4. **层叠注意**：内联 style 会覆盖样式表的 `!important`（和浏览器相反）；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
@@ -85,7 +85,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **定位**：static/relative/fixed/absolute ✅（absolute 包含块规则正常；已知偏差：双侧 auto 锚定包含块原点而非静态位置，transform/filter 祖先不形成包含块）；z-index ✅；**sticky ❌、float/clear ❌**。
 
-**Flexbox**：row/column、wrap、justify-content 六值、grow/shrink/basis、gap、auto margin、匿名 item 都 ✅；align-items 里 **baseline 退化为 flex-start**；❌ **row-reverse/column-reverse（静默忽略）、wrap-reverse、align-content（解析但不生效）、order**。
+**Flexbox**：row/column、row-reverse/column-reverse、wrap/wrap-reverse、justify-content 六值、grow/shrink/basis、gap、auto margin、匿名 item、order、align-content 都 ✅；align-items/align-self 的 **baseline 在 row 方向生效**（column 方向仍退化为 flex-start）。
 
 **Grid**（MVP）：template-columns/rows（px/auto/fr/minmax/repeat 含 auto-fill/fit）、gap、items/self 对齐、`grid-row/column` 的 `N`、`span N`、`N / M`、自动放置 ✅；❌ 命名线、template-areas、auto-flow、隐式轨道、place-* 简写、subgrid。
 

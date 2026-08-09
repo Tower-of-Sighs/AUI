@@ -122,6 +122,7 @@ public class Style implements Cloneable {
     public String flexGrow = "0";
     public String flexShrink = "1";
     public String flexBasis = "auto";
+    public String order = "0";
 
     public String top = "unset";
     public String bottom = "unset";

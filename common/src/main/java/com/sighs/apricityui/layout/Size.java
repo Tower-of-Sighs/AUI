@@ -838,7 +838,7 @@ public record Size(double width, double height) {
         if (element == null) return false;
         Style style = element.getComputedStyle();
         return "inline-flex".equalsIgnoreCase(style.display) && Flex.of(element).flexDirection.contains("row")
-                && Flex.of(element).flexWrap.is("wrap")
+                && Flex.flexWraps(Flex.of(element))
                 && parseNumber(style.width) == null;
     }
 

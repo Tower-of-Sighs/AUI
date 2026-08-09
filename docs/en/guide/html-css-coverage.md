@@ -17,7 +17,7 @@ Overall profile: the selector layer is the most complete; layout is a "common su
 If you're short on time, read only this section. Before moving a browser page into AUI, check in priority order:
 
 1. **UA styles are zero**: write all styles for h1-h6, p, ul/li yourself; don't use br/hr to express layout;
-2. **Layout to avoid**: float, sticky, flex's order/reverse/align-content/baseline, grid's areas/auto-flow/named lines, negative margins, table layout;
+2. **Layout to avoid**: float, sticky, grid's areas/auto-flow/named lines, negative margins, table layout;
 3. **Value parsing to avoid**: calc multiplication/division, border styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, contrast/saturate/sepia filters, skew/matrix transforms;
 4. **Cascade caveat**: inline style overrides a stylesheet's `!important` (the opposite of browsers);
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
@@ -85,7 +85,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 **Positioning**: static/relative/fixed/absolute ✅ (absolute containing block rules are normal; known deviations: both-sides-auto anchors to the containing block origin instead of the static position, and transform/filter ancestors don't establish a containing block); z-index ✅; **sticky ❌, float/clear ❌**.
 
-**Flexbox**: row/column, wrap, the six justify-content values, grow/shrink/basis, gap, auto margins, anonymous items all ✅; in align-items, **baseline degrades to flex-start**; ❌ **row-reverse/column-reverse (silently ignored), wrap-reverse, align-content (parsed but inert), order**.
+**Flexbox**: row/column, row-reverse/column-reverse, wrap/wrap-reverse, the six justify-content values, grow/shrink/basis, gap, auto margins, anonymous items, order, align-content all ✅; align-items/align-self **baseline works for row direction** (column direction still degrades to flex-start).
 
 **Grid** (MVP): template-columns/rows (px/auto/fr/minmax/repeat including auto-fill/fit), gap, items/self alignment, `grid-row/column`'s `N`, `span N`, `N / M`, auto placement ✅; ❌ named lines, template-areas, auto-flow, implicit tracks, place-* shorthands, subgrid.
 
