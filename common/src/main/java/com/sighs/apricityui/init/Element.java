@@ -6,10 +6,12 @@ import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
+import com.sighs.apricityui.render.GeometryQueryScope;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.*;
 import dev.latvian.mods.rhino.util.HideFromJS;
@@ -1959,13 +1961,16 @@ public class Element extends Node {
     }
 
     public DOMRect getBoundingClientRect() {
-        Rect rect = Rect.of(this);
-        Box box = rect.box;
-        double x = rect.position.x + box.getMarginLeft();
-        double y = rect.position.y + box.getMarginTop();
-        double width = box.elementSize().width();
-        double height = box.elementSize().height();
-        return new DOMRect(x, y, width, height);
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
+            Rect rect = Rect.of(this);
+            Box box = rect.box;
+            double x = rect.position.x + box.getMarginLeft();
+            double y = rect.position.y + box.getMarginTop();
+            Size elementSize = rect.getElementSize();
+            double width = elementSize.width();
+            double height = elementSize.height();
+            return new DOMRect(x, y, width, height);
+        }
     }
 
     public void before(Element element) {

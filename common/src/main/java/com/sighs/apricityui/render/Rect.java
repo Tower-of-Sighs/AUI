@@ -18,6 +18,7 @@ public class Rect {
     public Box box;
     public String documentPath;
     public Background background;
+    private final Size elementSize;
     private AABB visualBounds;
     private Position bodyRectPosition;
     private Size bodyRectSize;
@@ -30,6 +31,7 @@ public class Rect {
         this.element = element;
         position = Position.of(element);
         box = Box.of(element);
+        elementSize = box.elementSize();
         background = Background.of(element);
         documentPath = element.document.getPath();
     }
@@ -65,8 +67,8 @@ public class Rect {
         if (visualBounds != null) return visualBounds;
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
-        double w = box.elementSize().width();
-        double h = box.elementSize().height();
+        double w = elementSize.width();
+        double h = elementSize.height();
 
         double minExtendX = 0;
         double minExtendY = 0;
@@ -116,8 +118,8 @@ public class Rect {
 
         double x = position.x + box.getMarginLeft();
         double y = position.y + box.getMarginTop();
-        double w = box.elementSize().width();
-        double h = box.elementSize().height();
+        double w = elementSize.width();
+        double h = elementSize.height();
 
         float[] radii = box.getCalculatedRadii((float) w, (float) h, 0);
         float[] borders = new float[]{topW, rightW, bottomW, leftW};
@@ -149,10 +151,14 @@ public class Rect {
 
     public Size getBodyRectSize() {
         if (bodyRectSize != null) return bodyRectSize;
-        double width = box.elementSize().width() - box.getBorderHorizontal();
-        double height = box.elementSize().height() - box.getBorderVertical();
+        double width = elementSize.width() - box.getBorderHorizontal();
+        double height = elementSize.height() - box.getBorderVertical();
         bodyRectSize = new Size(width, height);
         return bodyRectSize;
+    }
+
+    public Size getElementSize() {
+        return elementSize;
     }
 
     public float[] getBodyRadius() {
@@ -314,8 +320,8 @@ public class Rect {
 
     public Size getShadowSize() {
         if (shadowSize != null) return shadowSize;
-        double width = box.elementSize().width();
-        double height = box.elementSize().height();
+        double width = elementSize.width();
+        double height = elementSize.height();
         shadowSize = new Size(width, height);
         return shadowSize;
     }

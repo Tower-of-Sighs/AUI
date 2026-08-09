@@ -8,6 +8,7 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.render.DocumentLayerOrder;
+import com.sighs.apricityui.render.GeometryQueryScope;
 import com.sighs.apricityui.style.*;
 
 import java.util.ArrayList;
@@ -20,7 +21,6 @@ import com.sighs.apricityui.render.Drawer;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.render.Operation;
-import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Interaction;
 
@@ -92,8 +92,7 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     public static boolean tiggerEvent(MouseEvent event) {
-        StyleFrameCache.begin();
-        try {
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Cursor.refreshFromDocuments(new Position(event.clientX, event.clientY));
             List<Document> docs = DocumentLayerOrder.frontToBack(Document.getAll());
             if (docs == null || docs.isEmpty()) return false;
@@ -114,15 +113,12 @@ public class MouseEvent extends Event implements Cloneable {
                 }
             }
             return false;
-        } finally {
-            StyleFrameCache.end();
         }
     }
 
     // 触发鼠标事件的主体
     public static boolean tiggerEvent(MouseEvent event, Document document) {
-        StyleFrameCache.begin();
-        try {
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             try (Document.ContextScope ignored = Document.withContext(document)) {
             double originalClientX = event == null ? 0 : event.clientX;
             double originalClientY = event == null ? 0 : event.clientY;
@@ -136,8 +132,6 @@ public class MouseEvent extends Event implements Cloneable {
             }
             return consumed;
             }
-        } finally {
-            StyleFrameCache.end();
         }
     }
 
@@ -163,13 +157,10 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     public static boolean dispatchToTarget(MouseEvent event, Document document, Element target) {
-        StyleFrameCache.begin();
-        try {
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             try (Document.ContextScope ignored = Document.withContext(document)) {
             return triggerResolvedEvent(event, document, target, document == null ? null : document.getPressedElement(), false);
             }
-        } finally {
-            StyleFrameCache.end();
         }
     }
 
@@ -456,6 +447,12 @@ public class MouseEvent extends Event implements Cloneable {
 
     // 肥简单的范围检查，看鼠标位置是否在某元素的范围内。
     public static boolean checkCursor(Element element, Position mousePos) {
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
+            return checkCursorInScope(element, mousePos);
+        }
+    }
+
+    private static boolean checkCursorInScope(Element element, Position mousePos) {
         if (mousePos == null) return false;
         Position hitBoxPosition = resolveHitBoxPosition(element);
         Size hitBoxSize = resolveHitBoxSize(element);
@@ -465,6 +462,14 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static Position resolveHitBoxPosition(Element element) {
         if (element == null) return Position.ZERO;
+        Rect committed = element.getRenderer().getCommittedRect();
+        if (committed != null) {
+            if (usesBodyHitBox(element)) return committed.getBodyRectPosition();
+            return new Position(
+                    committed.position.x + committed.box.getMarginLeft(),
+                    committed.position.y + committed.box.getMarginTop()
+            );
+        }
         if (usesBodyHitBox(element)) {
             return Rect.of(element).getBodyRectPosition();
         }
@@ -476,6 +481,12 @@ public class MouseEvent extends Event implements Cloneable {
 
     private static Size resolveHitBoxSize(Element element) {
         if (element == null) return Size.ZERO;
+        Rect committed = element.getRenderer().getCommittedRect();
+        if (committed != null) {
+            return usesBodyHitBox(element)
+                    ? committed.getBodyRectSize()
+                    : committed.getElementSize();
+        }
         if (usesBodyHitBox(element)) {
             return Rect.of(element).getBodyRectSize();
         }
@@ -489,6 +500,12 @@ public class MouseEvent extends Event implements Cloneable {
     // 用于寻找鼠标事件的目标元素，也就是鼠标正对着的最上层元素，这块一般没啥问题。
     // 基本逻辑是把绘制队列倒序遍历，看最先命中哪个，写这么多主要是考虑到遮罩和style的影响。
     public static Element hitTest(List<RenderNode> paintOrder, Position cursorPosition) {
+        try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
+            return hitTestInScope(paintOrder, cursorPosition);
+        }
+    }
+
+    private static Element hitTestInScope(List<RenderNode> paintOrder, Position cursorPosition) {
         if (paintOrder == null || paintOrder.isEmpty()) return null;
 
         Stack<Element> clipStack = new Stack<>();
@@ -507,10 +524,10 @@ public class MouseEvent extends Event implements Cloneable {
 
                 if (!Interaction.isDisplayed(element) || !element.isVisible || !element.isPointerEnabled) continue;
 
-                if (checkCursor(element, cursorPosition)) {
+                if (checkCursorInScope(element, cursorPosition)) {
                     boolean isClipped = false;
                     for (Element mask : clipStack) {
-                        if (!checkCursor(mask, cursorPosition)) {
+                        if (!checkCursorInScope(mask, cursorPosition)) {
                             isClipped = true;
                             break;
                         }

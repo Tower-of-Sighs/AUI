@@ -38,6 +38,11 @@ public final class LayoutMeasureCache {
         state.depth = Math.max(0, state.depth - 1);
     }
 
+    public static boolean isActive() {
+        State state = STATE.get();
+        return state != null && state.depth > 0;
+    }
+
     public static Size getSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null) return null;

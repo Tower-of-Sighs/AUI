@@ -170,7 +170,7 @@ public final class HitTestCache {
         } else {
             Position position = rect.position;
             Box box = rect.box;
-            Size size = box.elementSize();
+            Size size = rect.getElementSize();
             bounds = new Bounds(
                     position.x + box.getMarginLeft(),
                     position.y + box.getMarginTop(),
