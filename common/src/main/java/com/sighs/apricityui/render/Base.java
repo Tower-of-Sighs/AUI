@@ -326,10 +326,11 @@ public class Base {
         return !cachedRect.getVisualBounds().intersects(currentClip);
     }
 
-    /** Flushes both the graph batch and the image batch before a state change. */
+    /** Flushes every deferred draw backend before a render-state change. */
     public static void commitDraws() {
         Graph.endBatch();
         ImageDrawer.flushBatch();
+        AuiServices.render().flushSharedBuffers();
     }
 
     public static void beginRendering() {
