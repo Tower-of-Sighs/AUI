@@ -11,7 +11,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import com.sighs.apricityui.init.Element;
 
 public class Selector {
-    private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new HashMap<>();
+    private static final Map<String, List<CompiledSelector>> SELECTOR_CACHE = new ConcurrentHashMap<>();
     private static final Set<String> SELECTOR_DIAGNOSTICS = ConcurrentHashMap.newKeySet();
 
     /**
@@ -26,6 +26,22 @@ public class Selector {
             "required", "optional", "valid", "invalid", "in-range", "out-of-range", "read-only",
             "read-write", "placeholder-shown", "empty", "checked", "not", "is", "where"
     );
+
+    public static void clearCompiledCache() {
+        SELECTOR_CACHE.clear();
+    }
+
+    public static void warmUp(Iterable<String> selectors) {
+        if (selectors == null) return;
+        for (String selector : selectors) {
+            if (selector == null || selector.isBlank()) continue;
+            SELECTOR_CACHE.computeIfAbsent(selector, Selector::parseGroup);
+        }
+    }
+
+    static int compiledCacheSize() {
+        return SELECTOR_CACHE.size();
+    }
 
     public record Specificity(int ids, int classes, int tags, int order) implements Comparable<Specificity> {
         @Override

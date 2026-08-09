@@ -3,6 +3,7 @@ package com.sighs.apricityui.script;
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.parser.JS;
 import com.sighs.apricityui.util.AuiLog;
 import dev.latvian.mods.rhino.Context;
@@ -77,6 +78,19 @@ public final class ApricityJS {
     /** Drops page scopes so the next resource refresh starts from a clean global environment. */
     public static void reload() {
         RUNTIMES.clear();
+    }
+
+    public static void warmUp() {
+        Context context = CONTEXT_FACTORY.enter();
+        context.initStandardObjects();
+        String globalJs = Loader.readGlobalJS();
+        String warmupCode = globalJs == null || globalJs.isBlank() ? "void 0;" : globalJs;
+        context.compileString(
+                JS.rewriteForRhino(warmupCode),
+                "<aui-global-warmup>",
+                1,
+                null
+        );
     }
 
     private static RuntimeState runtimeFor(Document document) {

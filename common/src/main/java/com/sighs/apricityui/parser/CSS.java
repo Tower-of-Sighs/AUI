@@ -6,22 +6,28 @@ import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.style.Animation;
+import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class CSS {
     /** 提取 CSS url(...) 引用的公共正则，resource 包共用。 */
     public static final Pattern URL_EXTRACTOR = Pattern.compile("url\\s*\\(\\s*['\"]?(.*?)['\"]?\\s*\\)");
+    private static final Map<StylesheetCacheKey, CompiledStylesheet> COMPILED_STYLESHEETS = new ConcurrentHashMap<>();
+    private static final Set<String> WARMED_FONT_FAMILIES = ConcurrentHashMap.newKeySet();
 
     /**
      * 带 !important 标志的 CSS 声明。value 中不再包含 "!important" 后缀。
@@ -41,7 +47,7 @@ public class CSS {
 
     public static void readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
                                String contextPath, Size viewport) {
-        Parser.parse(css, targetCache, null, contextPath, 0, viewport);
+        compiledStylesheet(css, contextPath, viewport).apply(targetCache, null, 0);
     }
 
     public static int readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
@@ -52,7 +58,100 @@ public class CSS {
     public static int readCSS(String css, Map<String, Map<String, Declaration>> targetCache,
                               List<DebugRule> debugRules, String contextPath, int orderStart,
                               Size viewport) {
-        return Parser.parse(css, targetCache, debugRules, contextPath, orderStart, viewport);
+        return compiledStylesheet(css, contextPath, viewport).apply(targetCache, debugRules, orderStart);
+    }
+
+    public static void clearCompiledStylesheets() {
+        COMPILED_STYLESHEETS.clear();
+        WARMED_FONT_FAMILIES.clear();
+    }
+
+    public static void warmUp(String css, String contextPath, Size viewport) {
+        CompiledStylesheet stylesheet = compiledStylesheet(css, contextPath, viewport);
+        stylesheet.fontFamilies.stream()
+                .filter(WARMED_FONT_FAMILIES::add)
+                .forEach(Text::warmUpFontFamily);
+    }
+
+    static int compiledStylesheetCount() {
+        return COMPILED_STYLESHEETS.size();
+    }
+
+    private static CompiledStylesheet compiledStylesheet(String css, String contextPath, Size viewport) {
+        int width = viewport == null
+                ? Parser.resolveViewportLength("aui.test.viewport.width", 1024, true)
+                : (int) Math.round(viewport.width());
+        int height = viewport == null
+                ? Parser.resolveViewportLength("aui.test.viewport.height", 768, false)
+                : (int) Math.round(viewport.height());
+        StylesheetCacheKey key = new StylesheetCacheKey(
+                css == null ? "" : css,
+                contextPath == null ? "" : contextPath,
+                width,
+                height
+        );
+        return COMPILED_STYLESHEETS.computeIfAbsent(key, ignored -> compileStylesheet(
+                key.css,
+                key.contextPath,
+                new Size(key.viewportWidth, key.viewportHeight)
+        ));
+    }
+
+    private static CompiledStylesheet compileStylesheet(String css, String contextPath, Size viewport) {
+        LinkedHashMap<String, Map<String, Declaration>> rules = new LinkedHashMap<>();
+        ArrayList<DebugRule> debugRules = new ArrayList<>();
+        int ruleCount = Parser.parse(css, rules, debugRules, contextPath, 0, viewport);
+        Selector.warmUp(rules.keySet());
+        LinkedHashMap<String, Map<String, Declaration>> immutableRules = new LinkedHashMap<>();
+        LinkedHashMap<String, Boolean> fontFamilies = new LinkedHashMap<>();
+        for (Map.Entry<String, Map<String, Declaration>> entry : rules.entrySet()) {
+            LinkedHashMap<String, Declaration> properties = new LinkedHashMap<>(entry.getValue());
+            immutableRules.put(entry.getKey(), Collections.unmodifiableMap(properties));
+            Declaration family = properties.get("font-family");
+            if (family != null && family.value() != null && !family.value().isBlank()) {
+                fontFamilies.put(family.value(), Boolean.TRUE);
+            }
+        }
+        return new CompiledStylesheet(
+                Collections.unmodifiableMap(immutableRules),
+                List.copyOf(debugRules),
+                ruleCount,
+                Set.copyOf(fontFamilies.keySet())
+        );
+    }
+
+    private record StylesheetCacheKey(String css, String contextPath, int viewportWidth, int viewportHeight) {
+    }
+
+    private record CompiledStylesheet(
+            Map<String, Map<String, Declaration>> rules,
+            List<DebugRule> debugRules,
+            int ruleCount,
+            Set<String> fontFamilies
+    ) {
+        private int apply(Map<String, Map<String, Declaration>> targetCache,
+                          List<DebugRule> targetDebugRules,
+                          int orderStart) {
+            if (targetCache == null) return orderStart;
+            for (Map.Entry<String, Map<String, Declaration>> entry : rules.entrySet()) {
+                LinkedHashMap<String, Declaration> properties = new LinkedHashMap<>(entry.getValue());
+                targetCache.merge(entry.getKey(), properties, (oldMap, newMap) -> {
+                    newMap.forEach((property, declaration) -> Parser.putDeclaration(oldMap, property, declaration));
+                    return oldMap;
+                });
+            }
+            if (targetDebugRules != null) {
+                for (DebugRule rule : debugRules) {
+                    targetDebugRules.add(new DebugRule(
+                            rule.selector(),
+                            rule.properties(),
+                            rule.sourcePath(),
+                            orderStart + rule.order()
+                    ));
+                }
+            }
+            return orderStart + ruleCount;
+        }
     }
 
     /** Rebuilds the selector cache from the author declarations exposed to DevTools. */

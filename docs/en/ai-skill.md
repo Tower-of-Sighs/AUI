@@ -116,9 +116,9 @@ document.addEventListener("DOMContentLoaded", init);
    - Complete theme source: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`
    - Complete component example: `common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html`
 2. If those local files are unavailable, retrieve and read the complete online files (not truncated excerpts):
-   - Documentation: <https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md>
-   - `ore.css`: <https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css>
-   - `example.html`: <https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html>
+   - Documentation: [ore-theme.md](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md)
+   - `ore.css`: [complete theme source](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css)
+   - `example.html`: [complete component example](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html)
 3. Only when neither the local nor online resources can be obtained should this section's quick reference be used as a fallback. In that case, do not invent undocumented classes, tokens, or component behavior.
 
 While reading, verify the `.ore-theme` root rules, `--ore-*` tokens, complete component DOM structures, state and variant classes, default dimensions and backgrounds, responsive rules, and browser-support limitations. Business CSS should use theme tokens and add only layout or domain-specific differences; do not redraw existing components such as `.card` and `.progress`. For overlays, specifically check whether the theme root paints a full-page background.

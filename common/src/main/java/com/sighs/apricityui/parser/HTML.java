@@ -10,6 +10,7 @@ import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.loader.ClientLoader;
+import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.util.AuiLog;
 
 import java.io.IOException;
@@ -29,6 +30,7 @@ public class HTML {
     private static final Pattern HTML_CLOSE_PATTERN = Pattern.compile("(?is)</html\\s*>");
 
     private static final HashMap<String, String> temples = new HashMap<>();
+    private static final Map<String, TemplateBlueprint> BLUEPRINTS = new HashMap<>();
 
     public static void putTemple(String path, String html) {
         if (path == null || path.isBlank()) {
@@ -42,6 +44,7 @@ public class HTML {
             ApricityUI.LOGGER.debug("[AUI HTML] template overridden by a later resource path={}", path);
         }
         temples.put(path, html);
+        BLUEPRINTS.remove(path);
     }
 
     public static String getTemple(String path) {
@@ -49,11 +52,75 @@ public class HTML {
     }
 
     public static String findMetaContent(String path, String name) {
+        TemplateBlueprint blueprint = BLUEPRINTS.get(path);
+        if (blueprint != null && name != null) {
+            return blueprint.metaContents.get(name.trim().toLowerCase(Locale.ROOT));
+        }
         return findMetaContentInMarkup(getTemple(path), name);
     }
 
     public static void scan() {
+        BLUEPRINTS.clear();
         new ClientLoader("html").loadResources(HTML::putTemple);
+    }
+
+    /** Prepares immutable parse blueprints so document creation only instantiates mutable nodes. */
+    public static int prepareTemplates() {
+        int prepared = 0;
+        for (Map.Entry<String, String> entry : new ArrayList<>(temples.entrySet())) {
+            try {
+                TemplateBlueprint blueprint = prepareTemplate(entry.getKey(), entry.getValue());
+                if (blueprint != null) {
+                    BLUEPRINTS.put(entry.getKey(), blueprint);
+                    prepared++;
+                }
+            } catch (RuntimeException exception) {
+                BLUEPRINTS.remove(entry.getKey());
+                ApricityUI.LOGGER.warn(
+                        "[AUI HTML] template warm-up failed; create will retry path={}",
+                        AuiLog.source(entry.getKey()),
+                        exception
+                );
+            }
+        }
+        return prepared;
+    }
+
+    static boolean prepareTemplatePath(String path) {
+        String source = temples.get(path);
+        TemplateBlueprint blueprint = prepareTemplate(path, source);
+        if (blueprint == null) {
+            BLUEPRINTS.remove(path);
+            return false;
+        }
+        BLUEPRINTS.put(path, blueprint);
+        return true;
+    }
+
+    static boolean isTemplatePrepared(String path) {
+        return BLUEPRINTS.containsKey(path);
+    }
+
+    public static List<TemplateResources> preparedTemplateResources() {
+        ArrayList<TemplateResources> resources = new ArrayList<>(BLUEPRINTS.size());
+        for (TemplateBlueprint blueprint : BLUEPRINTS.values()) {
+            resources.add(new TemplateResources(
+                    blueprint.path,
+                    blueprint.externalStyleSrcs,
+                    blueprint.inlineStyles
+            ));
+        }
+        return List.copyOf(resources);
+    }
+
+    public static void invalidatePreparedTemplates(Collection<String> paths) {
+        if (paths == null) {
+            BLUEPRINTS.clear();
+            return;
+        }
+        for (String path : paths) {
+            if (path != null) BLUEPRINTS.remove(path);
+        }
     }
 
     /** Refreshes one resource template without rescanning or rebuilding other documents. */
@@ -61,7 +128,10 @@ public class HTML {
         if (path == null || path.isBlank()) return false;
         try (InputStream stream = ClientLoader.getResourceStream(path)) {
             if (stream == null) return false;
-            putTemple(path, new String(stream.readAllBytes(), StandardCharsets.UTF_8));
+            String source = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            putTemple(path, source);
+            TemplateBlueprint blueprint = prepareTemplate(path, source);
+            if (blueprint != null) BLUEPRINTS.put(path, blueprint);
             return true;
         } catch (IOException | RuntimeException exception) {
             ApricityUI.LOGGER.warn("[AUI HTML] failed to reload template path={}", AuiLog.source(path), exception);
@@ -81,15 +151,22 @@ public class HTML {
         }
 
         try {
-            CSS.Extractor cssExtractor = new CSS.Extractor(path);
-            String htmlAfterCss = cssExtractor.handle(rawHtml);
-            cssExtractor.pushToDocument(document);
-
-            JS.Extractor jsExtractor = new JS.Extractor(path);
-            String cleanHtml = normalizeDocumentMarkup(jsExtractor.handle(htmlAfterCss));
-            jsExtractor.pushToDocument(document);
-
-            return buildDocument(document, cleanHtml, path);
+            TemplateBlueprint blueprint = BLUEPRINTS.get(path);
+            if (blueprint == null) {
+                blueprint = prepareTemplate(path, rawHtml);
+                if (blueprint != null) BLUEPRINTS.put(path, blueprint);
+            }
+            if (blueprint == null) return null;
+            ResourceUsageIndex.recordCss(path, blueprint.externalStyleSrcs);
+            StyleAsyncHandler.INSTANCE.attach(
+                    document,
+                    path,
+                    blueprint.externalStyleSrcs,
+                    blueprint.inlineStyles
+            );
+            ResourceUsageIndex.recordJs(path, blueprint.externalScriptSrcs);
+            document.JSCache.addAll(blueprint.scripts);
+            return buildDocument(document, blueprint.tokens, path);
         } catch (RuntimeException exception) {
             ApricityUI.LOGGER.error("[AUI HTML] document parse pipeline failed path={}", AuiLog.source(path), exception);
             throw exception;
@@ -107,6 +184,50 @@ public class HTML {
         }
         ApricityUI.LOGGER.warn("[AUI HTML] createElement produced no element markup={}", AuiLog.compact(html));
         return null;
+    }
+
+    private static TemplateBlueprint prepareTemplate(String path, String rawHtml) {
+        if (rawHtml == null || rawHtml.isBlank()) return null;
+        CSS.Extractor cssExtractor = new CSS.Extractor(path);
+        String htmlAfterCss = cssExtractor.handle(rawHtml);
+        JS.Extractor jsExtractor = new JS.Extractor(path);
+        String cleanHtml = normalizeDocumentMarkup(jsExtractor.handle(htmlAfterCss));
+        ResourceUsageIndex.recordCss(path, cssExtractor.sourceSnapshot());
+        ResourceUsageIndex.recordJs(path, jsExtractor.sourceSnapshot());
+        List<Token> tokens = freezeTokens(HtmlTokenizer.tokenize(cleanHtml, path));
+        if (tokens.isEmpty()) return null;
+        return new TemplateBlueprint(
+                path,
+                tokens,
+                cssExtractor.sourceSnapshot(),
+                cssExtractor.contentSnapshot(),
+                jsExtractor.sourceSnapshot(),
+                jsExtractor.loadScripts(),
+                extractMetaContents(rawHtml)
+        );
+    }
+
+    private static List<Token> freezeTokens(List<Token> tokens) {
+        if (tokens == null || tokens.isEmpty()) return List.of();
+        for (Token token : tokens) {
+            if (token != null && token.attributes != null && !token.attributes.isEmpty()) {
+                token.attributes = Collections.unmodifiableMap(new LinkedHashMap<>(token.attributes));
+            }
+        }
+        return List.copyOf(tokens);
+    }
+
+    private static Map<String, String> extractMetaContents(String html) {
+        if (html == null || html.isBlank()) return Map.of();
+        LinkedHashMap<String, String> result = new LinkedHashMap<>();
+        Matcher matcher = META_TAG_PATTERN.matcher(html);
+        while (matcher.find()) {
+            String attrText = matcher.group(1);
+            String name = findAttrValue(attrText, "name");
+            if (name == null || name.isBlank()) continue;
+            result.put(name.trim().toLowerCase(Locale.ROOT), findAttrValue(attrText, "content"));
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     private static String findMetaContentInMarkup(String html, String name) {
@@ -421,11 +542,18 @@ public class HTML {
             return null;
         }
         List<Token> tokens = HtmlTokenizer.tokenize(html, contextPath);
+        return buildDocument(document, tokens, contextPath);
+    }
+
+    private static DocumentRoot buildDocument(Document document, List<Token> tokens, String contextPath) {
+        if (document == null) {
+            ApricityUI.LOGGER.error("[AUI HTML] cannot build document without owner path={}", AuiLog.source(contextPath));
+            return null;
+        }
         if (tokens.isEmpty()) {
             ApricityUI.LOGGER.error(
-                    "[AUI HTML] tokenizer produced no tokens path={} markupLength={}",
-                    AuiLog.source(contextPath),
-                    html == null ? 0 : html.length()
+                    "[AUI HTML] tokenizer produced no tokens path={}",
+                    AuiLog.source(contextPath)
             );
             return null;
         }
@@ -676,5 +804,19 @@ public class HTML {
     public record DocumentRoot(com.sighs.apricityui.element.Html documentElement,
                                com.sighs.apricityui.element.Head head,
                                com.sighs.apricityui.element.Body body) {
+    }
+
+    public record TemplateResources(String path, List<String> externalStyleSrcs, List<String> inlineStyles) {
+    }
+
+    private record TemplateBlueprint(
+            String path,
+            List<Token> tokens,
+            List<String> externalStyleSrcs,
+            List<String> inlineStyles,
+            List<String> externalScriptSrcs,
+            List<String> scripts,
+            Map<String, String> metaContents
+    ) {
     }
 }

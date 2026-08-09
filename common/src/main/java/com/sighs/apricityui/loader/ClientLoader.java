@@ -10,10 +10,18 @@ import com.sighs.apricityui.render.FontDrawer;
 import com.sighs.apricityui.render.ImageDrawer;
 import com.sighs.apricityui.resource.Font;
 import com.sighs.apricityui.parser.HTML;
+import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.parser.Selector;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.network.NetworkAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.spi.AuiServices;
+import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.viewport.ApricityViewport;
+import com.sighs.apricityui.dom.DocumentRegistry;
+import net.minecraft.client.Minecraft;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -65,13 +73,36 @@ public class ClientLoader extends Loader {
         invalidateStaticResourceCache();
         ensureAsyncHandlersInitialized();
         AbstractAsyncHandler.clearAllAndBumpGeneration();
+        CSS.clearCompiledStylesheets();
+        Selector.clearCompiledCache();
+        DocumentRegistry.resetCreateTimingState();
         ImageDrawer.clearRenderTypeCache();
         FontDrawer.clearCache();
         Font.prepareReload();
+        warmUpDocumentInfrastructure();
 
         long scanStartNs = System.nanoTime();
         HTML.scan();
         long scanCostMs = (System.nanoTime() - scanStartNs) / 1_000_000L;
+
+        long firstCreateWarmStartNs = System.nanoTime();
+        int preparedTemplates = HTML.prepareTemplates();
+        int preparedStylesheets = 0;
+        for (HTML.TemplateResources template : HTML.preparedTemplateResources()) {
+            preparedStylesheets += StyleAsyncHandler.INSTANCE.warmUpTemplateStyles(
+                    template.path(),
+                    template.externalStyleSrcs(),
+                    template.inlineStyles(),
+                    resolveWarmupViewport(template.path())
+            );
+        }
+        long firstCreateWarmCostMs = (System.nanoTime() - firstCreateWarmStartNs) / 1_000_000L;
+        ApricityUI.LOGGER.info(
+                "[AUI Resource] first-create warm-up templates={} stylesheets={} cost={}ms",
+                preparedTemplates,
+                preparedStylesheets,
+                firstCreateWarmCostMs
+        );
 
         long refreshStartNs = System.nanoTime();
         Document.refreshAll();
@@ -87,10 +118,44 @@ public class ClientLoader extends Loader {
         );
     }
 
+    private static Size resolveWarmupViewport(String path) {
+        try {
+            ApricityViewport viewport = ApricityViewport.spec(path)
+                    .createState(path)
+                    .resolve(Minecraft.getInstance().getWindow());
+            return new Size(viewport.layoutWidth(), viewport.layoutHeight());
+        } catch (RuntimeException | LinkageError exception) {
+            return new Size(1024, 768);
+        }
+    }
+
     private static void ensureAsyncHandlersInitialized() {
         ImageAsyncHandler.INSTANCE.id();
         StyleAsyncHandler.INSTANCE.id();
         NetworkAsyncHandler.INSTANCE.id();
+    }
+
+    private static void warmUpDocumentInfrastructure() {
+        try {
+            Style.warmUpMetadata();
+        } catch (RuntimeException | LinkageError exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] style metadata warm-up failed", exception);
+        }
+        try {
+            Text.warmUpFontMetrics();
+        } catch (RuntimeException | LinkageError exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] font metrics warm-up failed", exception);
+        }
+        try {
+            StyleAsyncHandler.INSTANCE.warmUpGlobalCss();
+        } catch (RuntimeException | LinkageError exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] global stylesheet warm-up failed", exception);
+        }
+        try {
+            AuiServices.script().warmUp();
+        } catch (RuntimeException | LinkageError exception) {
+            ApricityUI.LOGGER.warn("[AUI Resource] script engine warm-up failed", exception);
+        }
     }
 
     public static InputStream getResourceStream(String path) {

@@ -193,6 +193,13 @@ public class Style implements Cloneable {
         STYLE_FIELD_CSS_NAMES = cssNames.toArray(new String[0]);
     }
 
+    /** Forces one-time reflection metadata initialization outside document creation. */
+    public static void warmUpMetadata() {
+        if (STYLE_FIELDS.length != STYLE_FIELD_CSS_NAMES.length) {
+            throw new IllegalStateException("Style metadata is inconsistent");
+        }
+    }
+
     public void merge(String styleString) {
         if (styleString == null || styleString.isBlank()) return;
         if (styleString.length() < 3) return;

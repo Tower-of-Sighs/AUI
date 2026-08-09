@@ -31,4 +31,10 @@ public final class ScriptService implements AuiScriptService {
         if (!ApricityScriptSupport.rhinoAvailable()) return;
         ApricityJS.reload();
     }
+
+    @Override
+    public void warmUp() {
+        if (!ApricityScriptSupport.rhinoAvailable()) return;
+        ApricityJS.warmUp();
+    }
 }

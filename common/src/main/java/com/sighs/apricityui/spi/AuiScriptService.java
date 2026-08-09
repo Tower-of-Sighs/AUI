@@ -17,4 +17,8 @@ public interface AuiScriptService {
     /** Reloads client scripts (KubeJS). */
     void reload();
 
+    /** Initializes one-time engine state without executing page scripts. */
+    default void warmUp() {
+    }
+
 }

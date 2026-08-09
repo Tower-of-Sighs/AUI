@@ -302,8 +302,21 @@ public class JS {
                 return;
             }
             ResourceUsageIndex.recordJs(contextPath, cachedSrcs);
+            document.JSCache.addAll(loadScripts());
+        }
+
+        public List<String> loadScripts() {
+            ArrayList<String> scripts = new ArrayList<>();
             for (String src : cachedSrcs) {
                 String resolvedPath = Loader.resolve(contextPath, src);
+                if (Loader.isRemotePath(resolvedPath)) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI JS] remote external script is unsupported; skipped document={} src={}",
+                            AuiLog.source(contextPath),
+                            resolvedPath
+                    );
+                    continue;
+                }
                 try (InputStream is = ClientLoader.getResourceStream(resolvedPath)) {
                     if (is == null) {
                         ApricityUI.LOGGER.error(
@@ -318,7 +331,7 @@ public class JS {
                     if (content.isBlank()) {
                         ApricityUI.LOGGER.warn("[AUI JS] external script is empty resolved={}", resolvedPath);
                     }
-                    document.JSCache.add(content);
+                    scripts.add(content);
                 } catch (IOException e) {
                     ApricityUI.LOGGER.error(
                             "[AUI JS] failed to read external script document={} resolved={}",
@@ -329,7 +342,8 @@ public class JS {
                 }
             }
 
-            document.JSCache.addAll(cachedContents);
+            scripts.addAll(cachedContents);
+            return List.copyOf(scripts);
         }
     }
 }

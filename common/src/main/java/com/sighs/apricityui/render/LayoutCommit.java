@@ -1,5 +1,6 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.style.Interaction;
@@ -21,6 +22,8 @@ public final class LayoutCommit {
         List<RenderNode> paintList = document.getPaintList();
         if (paintList == null || paintList.isEmpty()) return;
 
+        boolean firstLayout = document.markFirstLayoutCommitForTiming();
+        long startedNs = firstLayout ? System.nanoTime() : 0L;
         Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
         RectFrameCache.begin();
         TransformFrameCache.begin();
@@ -42,6 +45,15 @@ public final class LayoutCommit {
             RectFrameCache.enableCommittedFallback();
             TransformFrameCache.end();
             RectFrameCache.end();
+            if (firstLayout) {
+                ApricityUI.LOGGER.info(
+                        "[AUI Layout] first commit path={} generation={} elements={} total={}ms",
+                        document.getPath(),
+                        document.getRefreshGeneration(),
+                        visited.size(),
+                        (System.nanoTime() - startedNs) / 1_000_000L
+                );
+            }
         }
     }
 

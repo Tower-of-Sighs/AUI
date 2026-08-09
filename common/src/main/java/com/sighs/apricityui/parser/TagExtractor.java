@@ -61,5 +61,13 @@ abstract class TagExtractor {
 
     protected abstract void onTag(String attrText, String inner);
 
+    public List<String> sourceSnapshot() {
+        return List.copyOf(cachedSrcs);
+    }
+
+    public List<String> contentSnapshot() {
+        return List.copyOf(cachedContents);
+    }
+
     public abstract void pushToDocument(Document document);
 }

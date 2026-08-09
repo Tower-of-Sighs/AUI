@@ -17,6 +17,7 @@ import com.sighs.apricityui.loader.ClientLoader;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.parser.ResourceUsageIndex;
+import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 
 public final class DebugReloadWatcher {
     private static final long SCAN_INTERVAL_MS = 500L;
@@ -126,6 +127,11 @@ public final class DebugReloadWatcher {
         Set<String> templates = logicalPath.equals("global.css") || logicalPath.equals("global.js")
                 ? null
                 : ResourceUsageIndex.affectedTemplates(logicalPath);
+        if (stylesOnly) {
+            StyleAsyncHandler.INSTANCE.invalidatePreparedStylesheets();
+        } else if (!logicalPath.equals("global.js")) {
+            HTML.invalidatePreparedTemplates(templates);
+        }
         int refreshed = refreshDocumentsOf(templates, stylesOnly);
         ApricityUI.LOGGER.info("[DebugReload] resource changed: {} ({} document(s) {})",
                 logicalPath, refreshed, stylesOnly ? "restyled" : "refreshed");

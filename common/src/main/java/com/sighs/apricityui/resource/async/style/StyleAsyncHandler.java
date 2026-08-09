@@ -33,6 +33,11 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
     private static final Map<UUID, StyleHandle> HANDLES = new ConcurrentHashMap<>();
 
+    private final Object globalCssCacheLock = new Object();
+    private volatile GlobalCssCache globalCssCache;
+    private final Map<ParsedCssCacheKey, ParsedCss> parsedCssCache = new ConcurrentHashMap<>();
+    private final Map<ExternalCssCacheKey, ParsedCss> preparedExternalCss = new ConcurrentHashMap<>();
+
     private StyleAsyncHandler() {
         super("style", 256, 3, 1_500_000L, "ApricityUI-StyleWorker");
     }
@@ -49,9 +54,9 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
         int order = 0;
 
-        String globalCss = ClientLoader.readGlobalCSS();
-        if (globalCss != null && !globalCss.isBlank()) {
-            ParsedCss parsed = parseCss(globalCss, "global.css");
+        ParsedCss parsedGlobalCss = getGlobalCss(generation);
+        if (parsedGlobalCss != null) {
+            ParsedCss parsed = parsedGlobalCss;
             handle.putCssEntry(order++, new StyleHandle.CssEntry("global.css", parsed.cssText));
             enqueueFontLoads(handle, parsed.fontTasks);
         }
@@ -59,7 +64,7 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         if (inlineStyles != null) {
             for (String inlineCss : inlineStyles) {
                 if (inlineCss == null || inlineCss.isBlank()) continue;
-                ParsedCss parsed = parseCss(inlineCss, contextPath);
+                ParsedCss parsed = parseCssCached(inlineCss, contextPath, generation);
                 handle.putCssEntry(order++, new StyleHandle.CssEntry(contextPath, parsed.cssText));
                 enqueueFontLoads(handle, parsed.fontTasks);
             }
@@ -78,11 +83,17 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
                     continue;
                 }
                 int currentOrder = order++;
+                ParsedCss prepared = preparedExternalCss.get(new ExternalCssCacheKey(generation, resolved));
+                if (prepared != null) {
+                    handle.putCssEntry(currentOrder, new StyleHandle.CssEntry(resolved, prepared.cssText));
+                    enqueueFontLoads(handle, prepared.fontTasks);
+                    continue;
+                }
                 handle.queueTask();
                 submitWorker(() -> {
                     try {
                         String merged = loadCssWithImports(resolved, 0, new HashSet<>());
-                        ParsedCss parsed = parseCss(merged, resolved);
+                        ParsedCss parsed = parseCssCached(merged, resolved, generation);
                         enqueueApplyTask(new CssTask(handle, currentOrder, resolved, parsed.cssText, parsed.fontTasks));
                     } catch (Exception exception) {
                         ApricityUI.LOGGER.error(
@@ -169,10 +180,97 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
 
     @Override
     protected void onBeforeClear(long nextGeneration) {
+        synchronized (globalCssCacheLock) {
+            globalCssCache = null;
+        }
+        parsedCssCache.clear();
+        preparedExternalCss.clear();
         for (StyleHandle handle : HANDLES.values()) {
             handle.markStale();
         }
         HANDLES.clear();
+    }
+
+    /** Reads and parses global.css once for the current resource generation. */
+    public void warmUpGlobalCss() {
+        getGlobalCss(currentGeneration());
+    }
+
+    public void invalidatePreparedStylesheets() {
+        synchronized (globalCssCacheLock) {
+            globalCssCache = null;
+        }
+        parsedCssCache.clear();
+        preparedExternalCss.clear();
+        CSS.clearCompiledStylesheets();
+        com.sighs.apricityui.parser.Selector.clearCompiledCache();
+    }
+
+    /** Prepares all synchronous stylesheet work needed by one template. */
+    public int warmUpTemplateStyles(String contextPath,
+                                    List<String> externalStyleSrcs,
+                                    List<String> inlineStyles,
+                                    Size viewport) {
+        long generation = currentGeneration();
+        int warmed = 0;
+        ParsedCss global = getGlobalCss(generation);
+        if (global != null) {
+            CSS.warmUp(global.cssText, "global.css", viewport);
+            warmed++;
+        }
+        if (inlineStyles != null) {
+            for (String inlineCss : inlineStyles) {
+                if (inlineCss == null || inlineCss.isBlank()) continue;
+                ParsedCss parsed = parseCssCached(inlineCss, contextPath, generation);
+                CSS.warmUp(parsed.cssText, contextPath, viewport);
+                warmed++;
+            }
+        }
+        if (externalStyleSrcs != null) {
+            for (String src : externalStyleSrcs) {
+                if (src == null || src.isBlank()) continue;
+                String resolved = Loader.resolve(contextPath, src);
+                if (resolved == null || resolved.isBlank() || Loader.isRemotePath(resolved)) continue;
+                try {
+                    ExternalCssCacheKey key = new ExternalCssCacheKey(generation, resolved);
+                    ParsedCss parsed = preparedExternalCss.get(key);
+                    if (parsed == null) {
+                        String merged = loadCssWithImports(resolved, 0, new HashSet<>());
+                        parsed = parseCssCached(merged, resolved, generation);
+                        preparedExternalCss.put(key, parsed);
+                    }
+                    CSS.warmUp(parsed.cssText, resolved, viewport);
+                    warmed++;
+                } catch (IOException | RuntimeException exception) {
+                    ApricityUI.LOGGER.warn(
+                            "[AUI CSS] stylesheet warm-up failed; create will load lazily document={} path={}",
+                            AuiLog.source(contextPath),
+                            resolved,
+                            exception
+                    );
+                }
+            }
+        }
+        return warmed;
+    }
+
+    private ParsedCss getGlobalCss(long generation) {
+        GlobalCssCache cached = globalCssCache;
+        if (cached != null && cached.generation == generation) {
+            return cached.parsed;
+        }
+        synchronized (globalCssCacheLock) {
+            cached = globalCssCache;
+            if (cached != null && cached.generation == generation) {
+                return cached.parsed;
+            }
+            String globalCss = ClientLoader.readGlobalCSS();
+            ParsedCss parsed = globalCss == null || globalCss.isBlank()
+                    ? null
+                    : parseCssCached(globalCss, "global.css", generation);
+            globalCssCache = new GlobalCssCache(generation, parsed);
+            return parsed;
+        }
     }
 
     private void rebuildCssCache(Document document, StyleHandle handle) {
@@ -319,6 +417,15 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
         return new ParsedCss(bodyCss.toString(), fontSources);
     }
 
+    private ParsedCss parseCssCached(String css, String contextPath, long generation) {
+        ParsedCssCacheKey key = new ParsedCssCacheKey(
+                generation,
+                contextPath == null ? "" : contextPath,
+                css == null ? "" : css
+        );
+        return parsedCssCache.computeIfAbsent(key, ignored -> parseCss(css, contextPath));
+    }
+
     private FontSource parseFontFace(String rules, String contextPath) {
         if (rules == null || rules.isBlank()) return null;
 
@@ -410,7 +517,20 @@ public final class StyleAsyncHandler extends AbstractAsyncHandler<StyleAsyncHand
     private record FailedTask(StyleHandle handle, String path, String kind, Throwable error) implements ApplyTask {
     }
 
+    private record GlobalCssCache(long generation, ParsedCss parsed) {
+    }
+
+    private record ParsedCssCacheKey(long generation, String contextPath, String cssText) {
+    }
+
+    private record ExternalCssCacheKey(long generation, String path) {
+    }
+
     private record ParsedCss(String cssText, List<FontSource> fontTasks) {
+        private ParsedCss {
+            cssText = cssText == null ? "" : cssText;
+            fontTasks = fontTasks == null ? List.of() : List.copyOf(fontTasks);
+        }
     }
 
     private record FontSource(String family, String path) {

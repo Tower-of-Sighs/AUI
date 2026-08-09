@@ -116,9 +116,9 @@ document.addEventListener("DOMContentLoaded", init);
    - 完整主题源码：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css`
    - 完整组件示例：`common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html`
 2. 如果本地没有这些文件，尝试在线完整读取（不要只读取截断片段）：
-   - 文档：<https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md>
-   - `ore.css`：<https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css>
-   - `example.html`：<https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html>
+   - 文档：[ore-theme.md](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/docs/guide/ore-theme.md)
+   - `ore.css`：[完整主题源码](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css)
+   - `example.html`：[完整组件示例](https://raw.githubusercontent.com/Tower-of-Sighs/AUI/refs/heads/snow/common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/example.html)
 3. 只有本地和在线资源都无法获取时，才使用本段速查作为降级依据；此时不要发明未记录的类名、token 或组件行为。
 
 读取时重点确认 `.ore-theme` 根规则、`--ore-*` token、组件完整 DOM 结构、状态/变体类、默认尺寸与背景、响应式规则和浏览器支持限制。业务 CSS 应优先使用 token，只补布局与业务差异；不要重新绘制 `.card`、`.progress` 等已有组件。Overlay 还要特别检查主题根规则是否会绘制整页背景。

@@ -39,6 +39,30 @@ public class Text {
             return size() > LINE_WIDTH_CACHE_LIMIT;
         }
     });
+
+    /** Initializes the platform font subsystem before the first document needs text layout. */
+    public static void warmUpFontMetrics() {
+        warmUpFontFamily("sans-serif");
+    }
+
+    /** Resolves and measures the concrete fonts referenced by a stylesheet. */
+    public static void warmUpFontFamily(String fontFamily) {
+        if (fontFamily == null || fontFamily.isBlank() || fontFamily.contains("var(")) return;
+        String sample = "AUI \u4e2d\u6587";
+        List<Font.FontRun> runs = Font.planFontRuns(
+                fontFamily,
+                java.awt.Font.PLAIN,
+                Font.getBaseFontSize(),
+                sample
+        );
+        for (Font.FontRun run : runs) {
+            if (run == null || run.font() == null) continue;
+            FontMetrics metrics = METRICS_CANVAS.getFontMetrics(run.font());
+            metrics.stringWidth(run.text());
+            run.font().getStringBounds(run.text(), BROWSER_FONT_RENDER_CONTEXT).getWidth();
+        }
+    }
+
     private String cachedKey = null;
     private int cachedKeyHash = 0;
     public double fontSize = -1;

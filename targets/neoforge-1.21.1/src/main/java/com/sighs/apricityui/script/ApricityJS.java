@@ -2,6 +2,7 @@ package com.sighs.apricityui.script;
 
 import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.event.Event;
+import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.parser.JS;
 import com.sighs.apricityui.util.AuiLog;
 import dev.latvian.mods.kubejs.KubeJS;
@@ -50,6 +51,20 @@ public class ApricityJS {
             ApricityUI.LOGGER.error("[AUI JS] KubeJS client script reload failed", exception);
             throw exception;
         }
+    }
+
+    public static void warmUp() {
+        if (!isKubeJsLoaded()) return;
+        var manager = KubeJS.getClientScriptManager();
+        var context = (KubeJSContext) manager.contextFactory.enter();
+        String globalJs = Loader.readGlobalJS();
+        String warmupCode = globalJs == null || globalJs.isBlank() ? "void 0;" : globalJs;
+        context.compileString(
+                JS.rewriteForRhino(warmupCode),
+                "<aui-global-warmup>",
+                1,
+                null
+        );
     }
 
     private static boolean isKubeJsLoaded() {

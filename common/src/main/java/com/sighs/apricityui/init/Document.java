@@ -95,6 +95,7 @@ public class Document {
     }
 
     private static final String MOUSE_EVENTS_META_NAME = "aui-mouse-events";
+    private static final long SLOW_REFRESH_LOG_THRESHOLD_NS = 50_000_000L;
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
@@ -111,6 +112,7 @@ public class Document {
     /** A document rendered by an owning surface instead of the global document pass. */
     private volatile boolean manuallyRendered = false;
     private volatile long refreshGeneration = 0L;
+    private volatile long timedLayoutGeneration = -1L;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
     private volatile String readyState = LifecycleState.LOADING.readyStateValue;
     private volatile FontMode fontMode = FontMode.WEB_SCALED;
@@ -298,11 +300,13 @@ public class Document {
     }
 
     public void refresh() {
+        long refreshStartNs = System.nanoTime();
         beginRefreshLifecycle();
         ApricityViewport.spec(path).createState(path);
         interceptMouseEvents = parseMouseEventInterception(HTML.findMetaContent(path, MOUSE_EVENTS_META_NAME));
         applyViewport(false);
         ContextScope contextScope = withContext(this);
+        long resetEndNs = System.nanoTime();
         String stage = "reset";
         try {
             Size.clearRootFontOverride();
@@ -329,27 +333,30 @@ public class Document {
                 FontMode headFontMode = resolveFontModeFromHead(head);
                 setFontMode(headFontMode == FontMode.WEB_SCALED ? sourceFontMode : headFontMode);
                 rebuildElementIndexFromBody();
+                long extractionEndNs = System.nanoTime();
 
                 stage = "initial style calculation";
-                // First pass: ensure computed styles exist for DOM expanders.
-                style.recomputeSubtree(documentElement);
                 if (documentElement != null) {
                     Size.setRootFontOverride(resolveRootFontSize());
                     clearRenderCaches(documentElement);
                     style.recomputeSubtree(documentElement);
                 }
+                long initialStyleEndNs = System.nanoTime();
                 stage = "document expanders";
                 AuiServices.expander().apply(this);
+                long expandersEndNs = System.nanoTime();
 
                 // Final pass: apply styles once after expansion.
                 stage = "final style calculation";
                 clearRenderCaches(documentElement);
                 style.recomputeSubtree(documentElement);
+                long finalStyleEndNs = System.nanoTime();
                 tree.getElements().forEach(Element::clearDirtyFlags);
                 render.reset();
                 render.rebuildPaintList();
                 ImageAsyncHandler.prefetchImages(this);
                 enterInteractive();
+                long paintPrefetchEndNs = System.nanoTime();
 
                 stage = "global javascript";
                 String globalJS = Loader.readGlobalJS();
@@ -364,10 +371,12 @@ public class Document {
                 for (String js : JSCache) {
                     AuiServices.script().eval(js, null, path + "#script");
                 }
+                long scriptsEndNs = System.nanoTime();
                 stage = "lifecycle events";
                 fireLifecycleEvent("DOMContentLoaded", false);
                 enterComplete();
                 fireLifecycleEvent("load", false);
+                long lifecycleEndNs = System.nanoTime();
                 ApricityUI.LOGGER.info(
                         "[AUI Document] refresh complete path={} elements={} cssRules={} scripts={}",
                         path,
@@ -375,12 +384,50 @@ public class Document {
                         CSSCache.size(),
                         JSCache.size()
                 );
+                logSlowRefreshTiming(
+                        refreshStartNs,
+                        resetEndNs,
+                        extractionEndNs,
+                        initialStyleEndNs,
+                        expandersEndNs,
+                        finalStyleEndNs,
+                        paintPrefetchEndNs,
+                        scriptsEndNs,
+                        lifecycleEndNs
+                );
             } catch (Exception exception) {
                 ApricityUI.LOGGER.error("[AUI Document] refresh failed path={} stage={}", path, stage, exception);
             }
         } finally {
             contextScope.close();
         }
+    }
+
+    private void logSlowRefreshTiming(long refreshStartNs,
+                                      long resetEndNs,
+                                      long extractionEndNs,
+                                      long initialStyleEndNs,
+                                      long expandersEndNs,
+                                      long finalStyleEndNs,
+                                      long paintPrefetchEndNs,
+                                      long scriptsEndNs,
+                                      long lifecycleEndNs) {
+        long totalNs = lifecycleEndNs - refreshStartNs;
+        if (totalNs < SLOW_REFRESH_LOG_THRESHOLD_NS) return;
+        ApricityUI.LOGGER.info(
+                "[AUI Document] refresh timing path={} total={}ms resetViewport={}ms extraction={}ms "
+                        + "initialStyle={}ms expanders={}ms finalStyle={}ms paintPrefetch={}ms scripts={}ms lifecycle={}ms",
+                path,
+                totalNs / 1_000_000L,
+                (resetEndNs - refreshStartNs) / 1_000_000L,
+                (extractionEndNs - resetEndNs) / 1_000_000L,
+                (initialStyleEndNs - extractionEndNs) / 1_000_000L,
+                (expandersEndNs - initialStyleEndNs) / 1_000_000L,
+                (finalStyleEndNs - expandersEndNs) / 1_000_000L,
+                (paintPrefetchEndNs - finalStyleEndNs) / 1_000_000L,
+                (scriptsEndNs - paintPrefetchEndNs) / 1_000_000L,
+                (lifecycleEndNs - scriptsEndNs) / 1_000_000L
+        );
     }
 
     private double resolveRootFontSize() {
@@ -730,6 +777,13 @@ public class Document {
      */
     public long getRefreshGeneration() {
         return refreshGeneration;
+    }
+
+    public boolean markFirstLayoutCommitForTiming() {
+        long generation = refreshGeneration;
+        if (timedLayoutGeneration == generation) return false;
+        timedLayoutGeneration = generation;
+        return true;
     }
 
     public boolean isDisposed() {
@@ -1255,4 +1309,3 @@ public class Document {
         }
     }
 }
-

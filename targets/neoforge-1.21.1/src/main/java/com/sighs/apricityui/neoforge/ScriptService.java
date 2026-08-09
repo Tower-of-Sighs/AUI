@@ -23,4 +23,9 @@ public final class ScriptService implements AuiScriptService {
     public void reload() {
         ApricityJS.reload();
     }
+
+    @Override
+    public void warmUp() {
+        ApricityJS.warmUp();
+    }
 }
