@@ -266,11 +266,18 @@ public class ImageDrawer {
         float offsetY = offset[1];
         RepeatMode repeatMode = parseRepeatMode(layer.repeat);
 
-        flushBatch();
-        Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
         float startX = repeatMode.repeatX ? normalizeRepeatStart(offsetX, renderW) : offsetX;
         float startY = repeatMode.repeatY ? normalizeRepeatStart(offsetY, renderH) : offsetY;
 
+        if (!requiresBackgroundClip(width, height, startX, startY, renderW, renderH,
+                repeatMode.repeatX, repeatMode.repeatY)) {
+            innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH,
+                    0, 0, tw, th, tw, th, false, true);
+            return;
+        }
+
+        flushBatch();
+        Mask.pushMask(poseStack, x, y, width, height, NO_RADIUS);
         if (!repeatMode.repeatX && !repeatMode.repeatY) {
             innerBlit(poseStack, loc, x + startX, y + startY, renderW, renderH, 0, 0, tw, th, tw, th, false, true);
         } else {
@@ -283,6 +290,21 @@ public class ImageDrawer {
             }
         }
         Mask.popMask(poseStack, x, y, width, height, NO_RADIUS);
+    }
+
+    static boolean requiresBackgroundClip(float boxW, float boxH,
+                                          float startX, float startY,
+                                          float renderW, float renderH,
+                                          boolean repeatX, boolean repeatY) {
+        if (repeatX || repeatY) return true;
+        if (!Float.isFinite(boxW) || !Float.isFinite(boxH)
+                || !Float.isFinite(startX) || !Float.isFinite(startY)
+                || !Float.isFinite(renderW) || !Float.isFinite(renderH)) {
+            return true;
+        }
+        return startX < 0.0F || startY < 0.0F
+                || startX + renderW > boxW
+                || startY + renderH > boxH;
     }
 
     public static GradientTile resolveGradientTile(Background.Layer layer, float width, float height) {

@@ -20,6 +20,11 @@ public final class ScriptService implements AuiScriptService {
     }
 
     @Override
+    public void evalGlobal(String code, String documentUuid) {
+        ApricityJS.evalGlobal(code, documentUuid);
+    }
+
+    @Override
     public void reload() {
         ApricityJS.reload();
     }

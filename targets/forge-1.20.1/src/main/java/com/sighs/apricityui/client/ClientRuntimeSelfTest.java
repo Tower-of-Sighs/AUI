@@ -22,6 +22,8 @@ public final class ClientRuntimeSelfTest {
     private static final String ENABLE_PROPERTY = "apricityui.clientSelfTest";
     private static final String EXIT_PROPERTY = "apricityui.clientSelfTest.exitOnFinish";
     private static final String RESULT_PROPERTY = "apricityui.clientSelfTest.resultFile";
+    private static final String DOCUMENT_PATH_PROPERTY = "apricityui.clientSelfTest.documentPath";
+    private static final String MAX_FIRST_CREATE_MILLIS_PROPERTY = "apricityui.clientSelfTest.maxFirstCreateMillis";
     private static final String LIFECYCLE_DOC_PATH = "tests/lifecycle-event-test.html";
     private static final String RUNTIME_DOC_PATH = "tests/client-runtime-self-test.html";
     private static final long START_DELAY_TICKS = 10L;
@@ -32,6 +34,9 @@ public final class ClientRuntimeSelfTest {
     private static long startTick = -1L;
     private static Document lifecycleDocument;
     private static Document runtimeDocument;
+    private static Document firstCreateDocument;
+    private static String firstCreatePath = "";
+    private static long firstCreateNanos = -1L;
 
     private ClientRuntimeSelfTest() {
     }
@@ -56,9 +61,25 @@ public final class ClientRuntimeSelfTest {
     private static void maybeStart() {
         if (tickCounter < START_DELAY_TICKS) return;
         if (HTML.getTemple(LIFECYCLE_DOC_PATH) == null || HTML.getTemple(RUNTIME_DOC_PATH) == null) return;
+        String requestedPath = System.getProperty(DOCUMENT_PATH_PROPERTY, "").trim();
+        if (!requestedPath.isEmpty() && HTML.getTemple(requestedPath) == null) return;
 
         Document.remove(LIFECYCLE_DOC_PATH);
         Document.remove(RUNTIME_DOC_PATH);
+        if (!requestedPath.isEmpty()) {
+            firstCreatePath = requestedPath;
+            Document.remove(firstCreatePath);
+            long startNs = System.nanoTime();
+            firstCreateDocument = Document.create(firstCreatePath);
+            firstCreateNanos = System.nanoTime() - startNs;
+            ApricityUI.LOGGER.info(
+                    "[AUI SelfTest] first-create path={} cost={}us documents={} elements={}",
+                    firstCreatePath,
+                    firstCreateNanos / 1_000L,
+                    Document.get(firstCreatePath).size(),
+                    firstCreateDocument == null ? 0 : firstCreateDocument.getElements().size()
+            );
+        }
         lifecycleDocument = Document.create(LIFECYCLE_DOC_PATH);
         runtimeDocument = Document.create(RUNTIME_DOC_PATH);
         startTick = tickCounter;
@@ -80,6 +101,11 @@ public final class ClientRuntimeSelfTest {
         } catch (Throwable failure) {
             failures.add("runtime assertion threw " + failure.getClass().getSimpleName() + ": " + safe(failure.getMessage()));
         }
+        try {
+            validateFirstCreate(failures);
+        } catch (Throwable failure) {
+            failures.add("first-create assertion threw " + failure.getClass().getSimpleName() + ": " + safe(failure.getMessage()));
+        }
 
         if (failures.isEmpty()) {
             ApricityUI.LOGGER.info("[AUI SelfTest] PASS client runtime self-test");
@@ -90,6 +116,7 @@ public final class ClientRuntimeSelfTest {
 
         Document.remove(LIFECYCLE_DOC_PATH);
         Document.remove(RUNTIME_DOC_PATH);
+        if (!firstCreatePath.isEmpty()) Document.remove(firstCreatePath);
         state = State.DONE;
 
         if (Boolean.getBoolean(EXIT_PROPERTY)) {
@@ -156,6 +183,26 @@ public final class ClientRuntimeSelfTest {
         }
     }
 
+    private static void validateFirstCreate(List<String> failures) {
+        if (firstCreatePath.isEmpty()) return;
+        if (firstCreateDocument == null || firstCreateDocument.body == null) {
+            failures.add("first-create document was not created path=" + firstCreatePath);
+            return;
+        }
+
+        int documentCount = Document.get(firstCreatePath).size();
+        if (documentCount != 1) {
+            failures.add("first-create expected one document path=" + firstCreatePath + " actual=" + documentCount);
+        }
+
+        long maxMillis = Long.getLong(MAX_FIRST_CREATE_MILLIS_PROPERTY, 250L);
+        long elapsedMillis = firstCreateNanos / 1_000_000L;
+        if (elapsedMillis > maxMillis) {
+            failures.add("first-create exceeded budget path=" + firstCreatePath
+                    + " actual=" + elapsedMillis + "ms max=" + maxMillis + "ms");
+        }
+    }
+
     private static void expectAttr(Element body, String name, String expected, List<String> failures, String label) {
         String actual = body.getAttribute(name);
         if (!expected.equals(actual)) {
@@ -175,6 +222,12 @@ public final class ClientRuntimeSelfTest {
             Path parent = result.getParent();
             if (parent != null) Files.createDirectories(parent);
             StringBuilder output = new StringBuilder(failures.isEmpty() ? "PASS\n" : "FAIL\n");
+            if (!firstCreatePath.isEmpty() && firstCreateNanos >= 0L) {
+                output.append("first-create path=").append(firstCreatePath)
+                        .append(" cost=").append(firstCreateNanos / 1_000L).append("us")
+                        .append(" documents=").append(Document.get(firstCreatePath).size())
+                        .append('\n');
+            }
             for (String failure : failures) output.append(failure).append('\n');
             Files.writeString(result, output.toString(), StandardCharsets.UTF_8);
         } catch (Exception writeFailure) {

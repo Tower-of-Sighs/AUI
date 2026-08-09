@@ -361,11 +361,7 @@ public class Document {
                 stage = "global javascript";
                 String globalJS = Loader.readGlobalJS();
                 if (globalJS != null && !globalJS.isBlank()) {
-                    AuiServices.script().eval(
-                            globalJS.replace("__AUI_DOCUMENT_UUID__", uuid.toString()),
-                            null,
-                            "global.js"
-                    );
+                    AuiServices.script().evalGlobal(globalJS, uuid.toString());
                 }
                 stage = "document javascript";
                 for (String js : JSCache) {

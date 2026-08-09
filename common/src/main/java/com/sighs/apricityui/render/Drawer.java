@@ -267,7 +267,7 @@ public class Drawer {
 
         for (Paintable p : negativeZ) processStackingContext(p.element, paintList);
         if (splitContentForNegativeZ) {
-            appendBodyRenderNodes(contextRoot, paintList);
+            appendContentRenderNodes(contextRoot, paintList);
         }
         for (Element e : normalFlow) processStackingContext(e, paintList);
         for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList);
@@ -299,6 +299,28 @@ public class Drawer {
             }
         }
         paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BODY));
+    }
+
+    /**
+     * Paints only the content portion of BODY after negative z-index descendants.
+     * The host background has already been emitted before those descendants, as
+     * required by the CSS stacking order, so it must not be emitted a second time.
+     */
+    private static void appendContentRenderNodes(Element contextRoot, List<RenderNode> paintList) {
+        if (contextRoot instanceof BodyRenderNodeProvider provider) {
+            List<RenderNode> nodes = provider.createBodyRenderNodes();
+            if (nodes != null && !nodes.isEmpty()) {
+                for (RenderNode node : nodes) {
+                    if (node instanceof RenderNode.ElementBackgroundNode background
+                            && background.target() == contextRoot) {
+                        continue;
+                    }
+                    paintList.add(node);
+                }
+                return;
+            }
+        }
+        paintList.add(new RenderNode.ElementContentNode(contextRoot));
     }
 
     private static void appendForegroundRenderNodes(Element contextRoot, List<RenderNode> paintList) {

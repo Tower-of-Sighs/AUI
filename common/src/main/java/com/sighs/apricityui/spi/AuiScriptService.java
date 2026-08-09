@@ -14,6 +14,12 @@ public interface AuiScriptService {
     /** Evaluates JavaScript with the given event (may be {@code null}) and source label. */
     void eval(String code, Event event, String source);
 
+    /** Evaluates the shared browser bootstrap for one document. */
+    default void evalGlobal(String code, String documentUuid) {
+        if (code == null) return;
+        eval(code.replace("__AUI_DOCUMENT_UUID__", documentUuid == null ? "" : documentUuid), null, "global.js");
+    }
+
     /** Reloads client scripts (KubeJS). */
     void reload();
 

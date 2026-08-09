@@ -25,6 +25,11 @@ public final class ItemRenderService implements AuiItemRenderService {
     }
 
     @Override
+    public boolean isEmptyStack(Object stack) {
+        return !(stack instanceof ItemStack itemStack) || itemStack.isEmpty();
+    }
+
+    @Override
     public void render(AuiItemRenderRequest request) {
         if (!(request.stack() instanceof ItemStack stack)) return;
 

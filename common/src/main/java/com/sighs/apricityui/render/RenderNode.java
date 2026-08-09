@@ -409,6 +409,10 @@ public interface RenderNode {
             Object stack = stackSupplier.get();
             if (stack == null) return;
 
+            String overlayText = overlayTextSupplier.get();
+            boolean hasOverlayText = decorations && overlayText != null && !overlayText.isBlank();
+            if (AuiServices.items().isEmptyStack(stack) && !hasOverlayText) return;
+
             float drawX = finiteFloat(xSupplier.getAsDouble());
             float drawY = finiteFloat(ySupplier.getAsDouble());
             float iconScale = Math.max(0.01F, finiteFloat(scaleSupplier.getAsDouble(), 1.0F));
@@ -433,7 +437,7 @@ public interface RenderNode {
                         stack,
                         seed,
                         decorations,
-                        overlayTextSupplier.get(),
+                        overlayText,
                         finiteFloat(decorationOffsetYSupplier.getAsDouble()),
                         ghostSupplier.getAsBoolean()
                 ));

@@ -170,6 +170,20 @@ public class Rect {
     public void drawBody(PoseStack poseStack, Size s) {
         Position p = getBodyRectPosition();
         float[] radii = getBodyRadius();
+        Background.Layer imageOnlyLayer = resolveImageOnlyLayer();
+        if (imageOnlyLayer != null && WorldWindowRenderContext.shouldRenderBackgroundDetails()) {
+            ImageDrawer.drawComplexBackground(
+                    poseStack,
+                    (float) p.x,
+                    (float) p.y,
+                    (float) s.width(),
+                    (float) s.height(),
+                    imageOnlyLayer,
+                    element
+            );
+            return;
+        }
+
         boolean layeredBackground = background.getLayers().size() > 1;
         if (layeredBackground) Graph.beginLayeredBatch();
         else Graph.beginBatch();
@@ -212,6 +226,31 @@ public class Rect {
             ImageDrawer.drawComplexBackground(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), background, element);
             return;
         }
+    }
+
+    private Background.Layer resolveImageOnlyLayer() {
+        if (!"unset".equals(background.color)) return null;
+
+        if (background.getLayers().size() == 1) {
+            Background.Layer layer = background.getLayers().get(0);
+            if (layer != null && layer.gradient == null && !"unset".equals(layer.imagePath)) {
+                return layer;
+            }
+            return null;
+        }
+
+        if (!background.getLayers().isEmpty()
+                || background.gradient != null
+                || "unset".equals(background.imagePath)) {
+            return null;
+        }
+
+        Background.Layer layer = new Background.Layer();
+        layer.imagePath = background.imagePath;
+        layer.repeat = background.repeat;
+        layer.size = background.size;
+        layer.position = background.position;
+        return layer;
     }
 
     private void drawGradientLayer(PoseStack poseStack, Position p, Size s, float[] radii, Background.Layer layer, boolean layered) {

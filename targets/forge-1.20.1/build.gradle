@@ -91,6 +91,12 @@ legacyForge {
             if (project.hasProperty('auiClientSelfTestExit')) {
                 systemProperty 'apricityui.clientSelfTest.exitOnFinish', 'true'
             }
+            if (project.hasProperty('auiClientSelfTestDocument')) {
+                systemProperty 'apricityui.clientSelfTest.documentPath', project.property('auiClientSelfTestDocument')
+            }
+            if (project.hasProperty('auiClientSelfTestMaxCreateMillis')) {
+                systemProperty 'apricityui.clientSelfTest.maxFirstCreateMillis', project.property('auiClientSelfTestMaxCreateMillis')
+            }
             if (project.hasProperty('auiWindowWidth')) {
                 programArgument '--width'
                 programArgument project.property('auiWindowWidth').toString()
