@@ -8,6 +8,8 @@ public final class NetworkPolicy {
     public static final int MAX_IN_FLIGHT_REQUESTS = 4;
     public static final int MAX_CONTENT_LENGTH_BYTES = 8 * 1024 * 1024;
     public static final long SUCCESS_CACHE_TTL_MS = 60_000L;
+    public static final int SUCCESS_CACHE_MAX_ENTRIES = 256;
+    public static final long SUCCESS_CACHE_SWEEP_INTERVAL_MS = 30_000L;
     public static final long DISK_CACHE_TTL_MS = 7L * 24L * 60L * 60L * 1000L;
     public static final long FAILURE_RETRY_DELAY_MS = 5_000L;
     public static final long RETRY_DELAY_429_MS = 20_000L;

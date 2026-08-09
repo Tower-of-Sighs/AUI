@@ -14,16 +14,19 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.MessageDigest;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
     public static final NetworkAsyncHandler INSTANCE = new NetworkAsyncHandler();
 
     private static final Map<String, CacheEntry> SUCCESS_CACHE = new ConcurrentHashMap<>();
+    private static final AtomicLong LAST_SUCCESS_CACHE_SWEEP_MS = new AtomicLong();
     private static final Map<String, InFlightRequest> IN_FLIGHT = new ConcurrentHashMap<>();
     private static final Map<String, NetworkHandle> HANDLES = new ConcurrentHashMap<>();
     private static final Semaphore PERMITS = new Semaphore(NetworkPolicy.MAX_IN_FLIGHT_REQUESTS, true);
@@ -201,6 +204,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         }
 
         long now = System.currentTimeMillis();
+        sweepExpiredIfDue(now);
         long generation = currentGeneration();
         NetworkHandle handle = HANDLES.compute(url, (key, existing) -> prepareHandle(existing, key, generation, now));
 
@@ -215,7 +219,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
 
         byte[] diskCached = readDiskCache(url, now);
         if (diskCached != null) {
-            SUCCESS_CACHE.put(url, new CacheEntry(diskCached, now + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            putCache(url, diskCached, now);
             handle.markReady();
             return diskCached;
         }
@@ -231,7 +235,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         handle.markLoading();
         try {
             byte[] bytes = downloadWithRetry(url);
-            SUCCESS_CACHE.put(url, new CacheEntry(bytes, System.currentTimeMillis() + NetworkPolicy.SUCCESS_CACHE_TTL_MS));
+            putCache(url, bytes, System.currentTimeMillis());
             writeDiskCache(url, bytes);
             own.complete(bytes, null);
             handle.markReady();
@@ -288,6 +292,29 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         return com.sighs.apricityui.spi.AuiServices.client().getGameDirectory();
     }
 
+    private static void putCache(String url, byte[] bytes, long nowMs) {
+        SUCCESS_CACHE.put(url, new CacheEntry(bytes, nowMs + NetworkPolicy.SUCCESS_CACHE_TTL_MS, nowMs));
+        trimCache(nowMs);
+    }
+
+    private static void trimCache(long nowMs) {
+        SUCCESS_CACHE.entrySet().removeIf(entry -> entry.getValue().expiresAtMs <= nowMs);
+        int excess = SUCCESS_CACHE.size() - NetworkPolicy.SUCCESS_CACHE_MAX_ENTRIES;
+        if (excess <= 0) return;
+        SUCCESS_CACHE.entrySet().stream()
+                .sorted(Comparator.comparingLong(entry -> entry.getValue().storedAtMs))
+                .limit(excess)
+                .forEach(entry -> SUCCESS_CACHE.remove(entry.getKey(), entry.getValue()));
+    }
+
+    private static void sweepExpiredIfDue(long nowMs) {
+        long last = LAST_SUCCESS_CACHE_SWEEP_MS.get();
+        if (nowMs - last < NetworkPolicy.SUCCESS_CACHE_SWEEP_INTERVAL_MS) return;
+        if (LAST_SUCCESS_CACHE_SWEEP_MS.compareAndSet(last, nowMs)) {
+            SUCCESS_CACHE.entrySet().removeIf(entry -> entry.getValue().expiresAtMs <= nowMs);
+        }
+    }
+
     @Override
     protected void applyOnMainThread(Void task, long currentGeneration) {
     }
@@ -302,7 +329,7 @@ public final class NetworkAsyncHandler extends AbstractAsyncHandler<Void> {
         IN_FLIGHT.clear();
     }
 
-    private record CacheEntry(byte[] bytes, long expiresAtMs) {
+    private record CacheEntry(byte[] bytes, long expiresAtMs, long storedAtMs) {
     }
 
     private static final class RetryableHttpException extends IOException {
