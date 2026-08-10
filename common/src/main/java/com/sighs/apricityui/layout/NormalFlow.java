@@ -130,6 +130,11 @@ public final class NormalFlow {
         }
         if (!(child instanceof Element childElement)) return;
 
+        if (isLineBreak(childElement) && Layout.isInFlow(childElement.getComputedStyle())) {
+            placeLineBreak(owner, state);
+            return;
+        }
+
         Style style = childElement.getComputedStyle();
         if (!Layout.isInFlow(style)) return;
 
@@ -156,6 +161,21 @@ public final class NormalFlow {
     private static void placeTextRun(Element owner, TextNode node, FlowState state) {
         TextRunLayout run = layoutTextRun(owner, node, node.getTextContent(), state.lineLimit, state.cursorX, state.cursorY);
         placeTextRun(run, owner, node, node.getTextContent(), state);
+    }
+
+    /** <br> 的换行：当前行有内容时提交断行；连续 <br>（空行）也要推进至少一行高度，避免折叠。 */
+    private static void placeLineBreak(Element owner, FlowState state) {
+        if (state.cursorX > 0 || state.lineHeight > 0) {
+            commitLineBreak(state);
+        } else if (state.cursorY > 0 || !state.textRuns.isEmpty()) {
+            double emptyLineHeight = owner == null ? 0 : Text.of(owner).lineHeight;
+            state.cursorY += Math.max(0, emptyLineHeight);
+        }
+        state.previousFlowWasBlock = false;
+    }
+
+    private static boolean isLineBreak(Element element) {
+        return element != null && "BR".equals(element.tagName);
     }
 
     private static void placeInlineText(Element owner, String content, FlowState state) {

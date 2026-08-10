@@ -50,6 +50,9 @@ public class MouseEvent extends Event implements Cloneable {
     public int pointerId = PRIMARY_POINTER_ID;
     public String pointerType = "mouse";
     public boolean isPrimary = true;
+    public int clickCount = 0;
+    /** 由 triggerResolvedEvent 把 mousemove/mouseup 重派发到按下元素（指针已移到其他元素）时置位。 */
+    public boolean activeElementRedirect = false;
 
     public MouseEvent(String type, Position mousePosition) {
         this(type, mousePosition, -1);
@@ -174,14 +177,15 @@ public class MouseEvent extends Event implements Cloneable {
 
     // 其实是专门为hover写了这个部分，所以函数名就叫hover，实际上是处理各类鼠标事件的，这边是根据路径去做处理，不知道性能上能不能优化。
     private static void clearGlobalSelectionsOnMouseDown(Document activeDoc, Element clickedTarget) {
-        Document.getAll().forEach(doc -> {
-            if (doc == null) return;
-            if (doc == activeDoc) {
-                doc.clearAllTextSelectionsExcept(clickedTarget);
-                return;
-            }
+        // 其他文档的选择全部清除；当前文档的选择由文本选择监听器按命中规则处理
+        // （可选中 → 折叠/扩展，不可选或输入控件 → 清空）。未命中任何元素时直接清空。
+        for (Document doc : Document.getAll()) {
+            if (doc == null || doc == activeDoc) continue;
             doc.clearAllTextSelections();
-        });
+        }
+        if (clickedTarget == null && activeDoc != null) {
+            activeDoc.clearAllTextSelections();
+        }
     }
 
     private static void handleHoverChange(MouseEvent originalEvent, Element newTarget, Document document) {
@@ -320,6 +324,8 @@ public class MouseEvent extends Event implements Cloneable {
         }
         if (event.type.equals("mousedown")) {
             clearGlobalSelectionsOnMouseDown(document, target);
+            event.clickCount = document.advanceClickSequence(target, event.button,
+                    event.clientX, event.clientY, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS);
             Event.runWithEventTrust(event, () -> {
                 if (target != null) {
                     document.setPressedElement(target);
@@ -347,6 +353,7 @@ public class MouseEvent extends Event implements Cloneable {
         if ((event.type.equals("mousemove") || event.type.equals("mouseup")) && activeElement != null && activeElement != target) {
             MouseEvent activeEvent = event.clone();
             activeEvent.target = activeElement;
+            activeEvent.activeElementRedirect = true;
             if (resolveGeometry) {
                 Position activePosition = resolveHitBoxPosition(activeElement);
                 activeEvent.offsetX = activeEvent.clientX - activePosition.x;
@@ -379,6 +386,7 @@ public class MouseEvent extends Event implements Cloneable {
         if (originalEvent.button == 0) {
             MouseEvent click = originalEvent.clone();
             click.type = "click";
+            click.clickCount = document.getClickCount();
             click.target = activationTarget;
             click.cancelable = true;
             consumed |= Event.tiggerEvent(click);
@@ -393,6 +401,7 @@ public class MouseEvent extends Event implements Cloneable {
             if (document.registerClickAndCheckDoubleClick(activationTarget, originalEvent.button, System.nanoTime(), DOUBLE_CLICK_WINDOW_NS)) {
                 MouseEvent dblclick = originalEvent.clone();
                 dblclick.type = "dblclick";
+                dblclick.clickCount = 2;
                 dblclick.target = activationTarget;
                 dblclick.cancelable = true;
                 consumed |= Event.tiggerEvent(dblclick);
@@ -565,6 +574,8 @@ public class MouseEvent extends Event implements Cloneable {
         copy.pointerId = pointerId;
         copy.pointerType = pointerType;
         copy.isPrimary = isPrimary;
+        copy.clickCount = clickCount;
+        copy.activeElementRedirect = activeElementRedirect;
         copy.nativeDispatchState = nativeDispatchState;
         return copy;
     }

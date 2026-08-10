@@ -447,7 +447,7 @@ public class Input extends AbstractText {
         text.color = isPlaceholder ? new Color("#888888") : new Color(Text.getFontColor(this));
 
         Position contentPos = rectRenderer.getContentPosition();
-        float drawX = (float) (contentPos.x - scrollLeft);
+        float drawX = (float) (contentPos.x + resolveTextAlignX(renderContent) - scrollLeft);
         float drawY = (float) singleLineDrawY(rectRenderer, text);
 
         if (!isPlaceholder) {

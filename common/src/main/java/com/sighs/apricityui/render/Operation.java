@@ -16,6 +16,8 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 
+import java.util.List;
+
 public class Operation {
     public static Position cachedMousePosition = null;
     private static int mouseButtons = 0;
@@ -125,6 +127,8 @@ public class Operation {
     }
 
     public static boolean onKeyPressed(int key, int scanCode, int modifiers, boolean repeat, KeyEvent.Source source) {
+        // Ctrl+A 只作用于一个目标文档，避免所有文档同时全选
+        Document selectionTargetDocument = resolveSelectionTargetDocument();
         boolean cancel = false;
         for (Document document : Document.getAll()) {
             final boolean[] documentCanceled = {false};
@@ -252,23 +256,21 @@ public class Operation {
                         // preceding key press so Minecraft shortcuts do not run first.
                         documentCanceled[0] = true;
                     }
-                } else if (focusedElement != null) {
+                } else {
+                    // 非输入控件（或无焦点）：文档级选择快捷键
                     if (ctrlDown) {
-                        if (key == GLFW.GLFW_KEY_A && focusedElement.canSelectInnerText()) {
-                            focusedElement.selectAllInnerText();
+                        if (key == GLFW.GLFW_KEY_A && document == selectionTargetDocument && document.selectAllDocumentText()) {
                             documentCanceled[0] = true;
                             return;
                         }
-                        if (key == GLFW.GLFW_KEY_C && focusedElement.canSelectInnerText()) {
-                            if (!selectedText.isEmpty()) {
-                                setClipboardText(selectedText);
-                                documentCanceled[0] = true;
-                                return;
-                            }
+                        if (key == GLFW.GLFW_KEY_C && !selectedText.isEmpty()) {
+                            setClipboardText(selectedText);
+                            documentCanceled[0] = true;
+                            return;
                         }
                     }
-                    if (key == GLFW.GLFW_KEY_ESCAPE && focusedElement.canSelectInnerText()) {
-                        focusedElement.clearTextSelection();
+                    if (key == GLFW.GLFW_KEY_ESCAPE && document.hasDocumentSelection()) {
+                        document.clearDocumentSelection();
                         document.clearFocus();
                         documentCanceled[0] = true;
                     }
@@ -280,6 +282,27 @@ public class Operation {
             return true;
         }
         return cancel;
+    }
+
+    /**
+     * 解析 Ctrl+A 的唯一目标文档：
+     * 1. 最上层（front-to-back）持有文档级选区的文档（正在编辑的选区所在文档）；
+     * 2. 否则最上层鼠标指针命中的文档；
+     * 3. 否则回退到上下文文档（可能为 null）。
+     */
+    public static Document resolveSelectionTargetDocument() {
+        List<Document> documents = DocumentLayerOrder.frontToBack(Document.getAll());
+        for (Document document : documents) {
+            if (document != null && document.hasDocumentSelection()) return document;
+        }
+        if (cachedMousePosition != null) {
+            for (Document document : documents) {
+                if (document != null && document.interceptsMouseEventsAt(cachedMousePosition)) {
+                    return document;
+                }
+            }
+        }
+        return Document.getContextDocument();
     }
 
     public static boolean shouldConsumeTextEntryKey(Element focusedElement, int key) {
@@ -335,32 +358,16 @@ public class Operation {
         }
     }
 
-    private static String getSelectedTextFromElement(Element element) {
-        if (element == null) return "";
-        if (element instanceof AbstractText textElement) {
-            String selected = textElement.getSelectedText();
-            return selected == null ? "" : selected;
-        }
-        if (element.canSelectInnerText()) {
-            String selected = element.getSelectedInnerText();
-            return selected == null ? "" : selected;
-        }
-        return "";
-    }
-
     private static String resolveSelectedText(Document document, Element focusedElement) {
-        String selected = getSelectedTextFromElement(focusedElement);
-        if (!selected.isEmpty()) return selected;
-
-        Element active = document.getPressedElement();
-        if (active != focusedElement) {
-            selected = getSelectedTextFromElement(active);
-            if (!selected.isEmpty()) return selected;
+        // 文档级选择优先（非可编辑文本）
+        if (document != null) {
+            String docSelection = document.getDocumentSelectedText();
+            if (docSelection != null && !docSelection.isEmpty()) return docSelection;
         }
-
-        for (Element element : document.getElements()) {
-            selected = getSelectedTextFromElement(element);
-            if (!selected.isEmpty()) return selected;
+        // 输入控件保留自己的选区
+        if (focusedElement instanceof AbstractText textElement) {
+            String selected = textElement.getSelectedText();
+            if (selected != null && !selected.isEmpty()) return selected;
         }
         return "";
     }

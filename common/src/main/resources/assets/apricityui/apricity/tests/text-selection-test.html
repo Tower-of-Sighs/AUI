@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Text Selection Regression Test</title>
+<style>
+    body {
+        font-family: "Microsoft YaHei", sans-serif;
+        background: #15161a;
+        color: #e8e8ea;
+        padding: 16px;
+    }
+    .title {
+        font-size: 20px;
+        font-weight: bold;
+        color: #7ab8ff;
+        margin-bottom: 4px;
+    }
+    .desc {
+        font-size: 12px;
+        color: #9aa0aa;
+        margin-bottom: 12px;
+    }
+    .usage {
+        font-size: 12px;
+        color: #c8ccd4;
+        background: #1e2128;
+        border: 1px solid #33373f;
+        border-radius: 4px;
+        padding: 8px 10px;
+        margin-bottom: 12px;
+        line-height: 1.6;
+    }
+    .status {
+        background: #101318;
+        border: 1px solid #2a6fb0;
+        border-radius: 4px;
+        padding: 8px 10px;
+        margin-bottom: 16px;
+        font-size: 12px;
+    }
+    .status-title {
+        color: #7ab8ff;
+        font-weight: bold;
+        margin-bottom: 4px;
+    }
+    .status-text {
+        color: #d8e8ff;
+        word-break: break-all;
+        min-height: 16px;
+    }
+    .status-flags {
+        color: #9aa0aa;
+        margin-top: 4px;
+        line-height: 1.6;
+        word-break: break-all;
+    }
+    .layout {
+        display: flex;
+        gap: 14px;
+    }
+    .panel {
+        flex: 1;
+        min-width: 0;
+    }
+    .panel.left {
+        flex: 0 0 320px;
+    }
+    .group {
+        margin-bottom: 14px;
+        font-size: 12px;
+    }
+    .group-title {
+        font-weight: bold;
+        color: #f0b060;
+        margin-bottom: 4px;
+    }
+    .line {
+        color: #9aa0aa;
+        line-height: 1.7;
+    }
+    .case {
+        margin-bottom: 14px;
+    }
+    .case-title {
+        font-weight: bold;
+        color: #8fd08f;
+        margin-bottom: 2px;
+        font-size: 13px;
+    }
+    .hint {
+        font-size: 11px;
+        color: #9aa0aa;
+        margin-bottom: 4px;
+        line-height: 1.5;
+    }
+    .box {
+        background: #1e2128;
+        border: 1px solid #33373f;
+        border-radius: 4px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        font-size: 13px;
+    }
+    .box.small {
+        font-size: 12px;
+    }
+    .selectable {
+        user-select: text;
+    }
+    .noselect {
+        user-select: none;
+    }
+    .selectall {
+        user-select: all;
+    }
+    .mono {
+        font-family: Consolas, monospace;
+    }
+    .dim {
+        color: #888;
+    }
+    .scroll-area {
+        overflow-y: auto;
+        width: 240px;
+        height: 120px;
+        border: 1px solid #444;
+        background: #181b20;
+        padding: 4px;
+    }
+    .scroll-area .tail {
+        height: 260px;
+        color: #666;
+        font-size: 11px;
+    }
+    input, textarea {
+        font-family: "Microsoft YaHei", sans-serif;
+        font-size: 12px;
+    }
+    .input-row {
+        margin-bottom: 4px;
+    }
+</style>
+</head>
+<body>
+
+<div class="title">Text Selection Regression Test</div>
+<div class="desc">用途: 回归文字选择的全部行为——文档级单选区、跨元素拖拽、富文本、双击/三击、复制内容、对齐/截断绘制、输入控件。每个测试块附带操作方式和预期，配合下方实时状态面板核对。</div>
+
+<div class="usage">
+    <b>操作速查</b>: 左键拖拽 = 选择(可跨元素); 双击 = 选词; 三击 = 选整段; Ctrl+A = 全选文档; Ctrl+C = 复制;
+    Esc = 清除; 单击已选中文本内部 = 保留选区, 按住拖到输入框 = 复制进去; 输入框内中键 = 粘贴当前选区;
+    </div>
+
+<div class="status">
+    <div class="status-title">实时选区状态 (鼠标松开/定时刷新)</div>
+    <div class="status-text" id="sel-text">(空)</div>
+    <div class="status-flags" id="sel-flags"></div>
+</div>
+
+<div class="layout">
+    <div class="panel left">
+        <div class="group">
+            <div class="group-title">检查重点</div>
+            <div class="line">1. 选区是文档级唯一的一个, 可跨元素、跨行。</div>
+            <div class="line">2. 富文本(内联子元素)整体可选, 高亮跨 run 连续。</div>
+            <div class="line">3. 双击选词、三击选段; 单击选区内部不清除。</div>
+            <div class="line">4. 复制保留原始空白与 br/块级换行; 软折行不加换行符。</div>
+            <div class="line">5. text-align/indent/RTL 下点击定位与渲染一致。</div>
+            <div class="line">6. line-clamp/省略号时高亮只盖可见行, 选区文本仍完整。</div>
+            <div class="line">7. 浅色 selection-color 下选中文字保持原色。</div>
+            <div class="line">8. 输入框 text-align 光标定位、中键粘贴、拖拽复制。</div>
+        </div>
+        <div class="group">
+            <div class="group-title">user-select 对照</div>
+            <div class="line">- text: 可正常拖拽选择。</div>
+            <div class="line">- all: 单击即整块选中。</div>
+            <div class="line">- none: 完全不可选。</div>
+        </div>
+    </div>
+
+    <div class="panel right">
+
+        <div class="case">
+            <div class="case-title">A1. 叶子元素单行</div>
+            <div class="hint">预期: 拖拽选中局部, 高亮矩形贴合文字; Ctrl+C 复制与所选一致。</div>
+            <div class="box" id="case-a1">The quick brown fox jumps over the lazy dog.</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">A2. 多行折行选择</div>
+            <div class="hint">预期: 折行后按行定位, 点第二行选中的是第二行内容而非整串偏移; 高亮逐行贴合。</div>
+            <div class="box" id="case-a2" style="width: 200px;">This is a longer paragraph that will wrap onto several lines inside this narrow box, so clicking and dragging on different lines must map to the right characters.</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">A3. 富文本 (内联子元素)</div>
+            <div class="hint">预期: 整块作为一个单元可选; 高亮在 &lt;b&gt;/&lt;span&gt; 之间连续; 复制文本按 DOM 顺序拼接(Hello World!)。</div>
+            <div class="box" id="case-a3">Hello <b>World</b><span style="color:#7ab8ff">!</span> Let's <b>select across runs</b>.</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">A4. 块级边界换行</div>
+            <div class="hint">预期: 每个 div 是独立单元; 跨两个 div 拖拽, 复制文本在两个单元之间出现换行符 alpha\nbeta。</div>
+            <div class="box" id="case-a4a">alpha line</div>
+            <div class="box" id="case-a4b">beta line</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">A5. 跨元素拖拽</div>
+            <div class="hint">预期: 从 A4 第一个 div 按住拖到第二个 div, 选区连续跨越两个元素, 中途经过空白区时终点冻结。</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">B1. 双击选词 / 三击选段</div>
+            <div class="hint">预期: 双击选中整个单词(空白分隔); 三击选中整段; 双击后继续拖拽从词边界扩展。</div>
+            <div class="box" id="case-b1">double click selects this word entirely, triple click selects the whole paragraph.</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">B2. 点击选区内部保留 + 拖拽复制</div>
+            <div class="hint">预期: 选中文本后单击其内部, 选区不清除; 按住拖到下方输入框松开, 文本被复制进去, 源选区保留。</div>
+            <div class="box" id="case-b2">Drag me into the input below.</div>
+            <div class="input-row"><input id="case-b2-input" style="width: 240px;" value="drop target"></div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">B3. user-select 对照</div>
+            <div class="hint">预期: text 可选; all 单击即整块选中; none 完全不可选(状态面板对应项无高亮)。</div>
+            <div class="box selectable" id="case-b3a">user-select: text — draggable.</div>
+            <div class="box selectall" id="case-b3b">user-select: all — one click selects all.</div>
+            <div class="box noselect" id="case-b3c">user-select: none — cannot be selected.</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">C1. 复制保留原始空白</div>
+            <div class="hint">预期: 全选复制得到 a   b(两个空格)与 c\t d(tab 保留), 不做空白折叠。</div>
+            <div class="box mono" id="case-c1a">a  b</div>
+            <div class="box mono" id="case-c1b">c	d</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">C2. br 换行</div>
+            <div class="hint">预期: &lt;br&gt; 产生真实换行; 全选复制得到 a\nb; 连续 br 之间有空行。</div>
+            <div class="box" id="case-c2">line one<br>line two<br><br>line four</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">C3. white-space 系列</div>
+            <div class="hint">预期: pre 保留所有空格与换行; pre-wrap 保留空格且自动折行; pre-line 折叠空格但保留换行。复制内容与显示一致。</div>
+            <div class="box mono" id="case-c3a" style="white-space: pre; width: 180px;">one   two
+three</div>
+            <div class="box mono" id="case-c3b" style="white-space: pre-wrap; width: 140px;">wrap   here
+next</div>
+            <div class="box mono" id="case-c3c" style="white-space: pre-line; width: 140px;">fold   spaces
+keep newline</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">C4. 软折行不加换行符</div>
+            <div class="hint">预期: 窄容器内折行后全选复制, 折行处是空格而不是换行符(与浏览器一致)。</div>
+            <div class="box" id="case-c4" style="width: 150px;">soft wrap should not insert newline characters into copied text</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">C5. 中英混合 / CJK</div>
+            <div class="hint">预期: 中英文混排可正常选择复制; 双击按空白分词(CJK 连续文本整体作为一段)。</div>
+            <div class="box" id="case-c5">中文选择测试 mixed English 混合内容 12345</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">D1. text-align 定位</div>
+            <div class="hint">预期: center/right 下点击定位与渲染对齐一致——点行中间应落在文字中部附近, 而不是按左对齐算。</div>
+            <div class="box" id="case-d1a" style="text-align: center; width: 260px;">centered text click here</div>
+            <div class="box" id="case-d1b" style="text-align: right; width: 260px;">right aligned text</div>
+            <div class="box" id="case-d1c" style="text-align: justify; width: 260px;">justify renders left aligned, caret follows the same origin</div>
+            <div class="box" id="case-d1d" style="text-indent: 24px; width: 260px;">first line indent of twenty four pixels shifts the caret origin</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">D2. direction: rtl</div>
+            <div class="hint">预期: start/end 随 RTL 翻转, 缩进方向取反; 点击定位与渲染一致。</div>
+            <div class="box" id="case-d2" style="direction: rtl; text-align: start; width: 260px;">rtl start aligned sample text</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">D3. line-clamp 截断</div>
+            <div class="hint">预期: 高亮只盖可见的两行, 不画到第三行; Ctrl+A 全选后复制仍是完整文本。</div>
+            <div class="box" id="case-d3" style="line-clamp: 2; width: 220px;">This long paragraph is clamped to two visible lines. The selection highlight must not extend to the hidden lines, but selecting everything still copies the whole text.</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">D4. text-overflow: ellipsis</div>
+            <div class="hint">预期: 高亮止于真实文本, 不覆盖合成省略号 …; 全选复制返回完整文本。</div>
+            <div class="box" id="case-d4" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 180px;">this text is far too long for the box so it gets ellipsized</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">D5. 自定义 selection-color</div>
+            <div class="hint">预期: 下方浅色高亮(#FFF7E6)下, 选中文字保持原深色(不强制变白); 上方保持默认蓝底白字。</div>
+            <div class="box" id="case-d5a">default selection color keeps white text</div>
+            <div class="box" id="case-d5b" style="selection-color: #FFF7E6; color: #222;">light selection background keeps dark text readable</div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">E1. 输入框光标定位 (text-align)</div>
+            <div class="hint">预期: center/right 输入框内点击, 光标落在该对齐方式下的对应位置(点中部≈文字中部)。</div>
+            <div class="input-row"><input id="case-e1a" style="width: 240px; text-align: center;" value="centered input"></div>
+            <div class="input-row"><input id="case-e1b" style="width: 240px; text-align: right;" value="right aligned input"></div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">E2. 多行 textarea</div>
+            <div class="hint">预期: 点击具体行定位到该行; 双击选词; Shift+方向键扩展; 中键粘贴当前文档选区。</div>
+            <textarea id="case-e2" rows="4" style="width: 280px;">line one
+line two
+line three</textarea>
+        </div>
+
+        <div class="case">
+            <div class="case-title">E3. 中键粘贴</div>
+            <div class="hint">预期: 先在页面里选中一段文本, 然后在输入框中键点击, 选区文本插入光标处(替换输入框自身选区), 页面选区保留。</div>
+            <div class="input-row"><input id="case-e3" style="width: 240px;" value=""></div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">G1. flex 容器直接文本</div>
+            <div class="hint">预期: flex 容器的直接文本(匿名项)可选; 子项是独立单元, 高亮互不串。</div>
+            <div class="box" id="case-g1" style="display: flex; gap: 8px;">direct flex text <span>item one</span><span>item two</span></div>
+        </div>
+
+        <div class="case">
+            <div class="case-title">G2. grid 容器直接文本</div>
+            <div class="hint">预期: grid 容器直接文本同样可选, 子项独立。</div>
+            <div class="box" id="case-g2" style="display: grid; gap: 4px;">grid direct text</div>
+        </div>
+
+    </div>
+</div>
+
+<script>
+    // 实时选区状态面板: 列出各用例元素, 显示其选择状态与文本; 同时显示文档级选区全文。
+    var WATCH = [
+        "case-a1", "case-a2", "case-a3", "case-a4a", "case-a4b",
+        "case-b1", "case-b2", "case-b3a", "case-b3b", "case-b3c",
+        "case-c1a", "case-c1b", "case-c2", "case-c3a", "case-c3b", "case-c3c",
+        "case-c4", "case-c5",
+        "case-d1a", "case-d1b", "case-d1c", "case-d1d", "case-d2",
+        "case-d3", "case-d4", "case-d5a", "case-d5b",
+        "case-g1", "case-g2"
+    ];
+
+    function refreshSelectionStatus() {
+        try {
+            var docText = "";
+            if (document.getDocumentSelectedText) {
+                docText = document.getDocumentSelectedText();
+            }
+            var el = document.getElementById("sel-text");
+            if (el) {
+                el.textContent = docText ? ("文档选区: [" + docText + "]") : "(空)";
+            }
+        } catch (e) {
+            var el2 = document.getElementById("sel-text");
+            if (el2) el2.textContent = "(status api error: " + e + ")";
+        }
+
+        var parts = [];
+        for (var i = 0; i < WATCH.length; i++) {
+            try {
+                var node = document.getElementById(WATCH[i]);
+                if (!node) continue;
+                var selectable = node.canSelectInnerText ? node.canSelectInnerText() : true;
+                var selected = node.hasInnerTextSelection ? node.hasInnerTextSelection() : false;
+                var label = WATCH[i] + "=" + (selectable ? "可选" : "不可选") + (selected ? "·选中" : "");
+                if (selected && node.getSelectedInnerText) {
+                    label += "[" + node.getSelectedInnerText() + "]";
+                }
+                parts.push(label);
+            } catch (e2) {
+                parts.push(WATCH[i] + "=err");
+            }
+        }
+        var flags = document.getElementById("sel-flags");
+        if (flags) flags.textContent = parts.join(" | ");
+    }
+
+    try {
+        document.addEventListener("mouseup", refreshSelectionStatus);
+        document.addEventListener("keyup", refreshSelectionStatus);
+    } catch (e) {
+        // 事件监听不可用时退化为定时刷新
+    }
+    setInterval(refreshSelectionStatus, 500);
+    refreshSelectionStatus();
+</script>
+</body>
+</html>

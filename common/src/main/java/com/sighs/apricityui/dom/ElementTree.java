@@ -121,6 +121,8 @@ public final class ElementTree {
 
     public void clearChildren(Node parent) {
         if (parent == null || parent.childNodes.isEmpty()) return;
+        // 整批清空子节点改变单元的渲染子节点集合，选择缓存随之失效
+        if (owner != null) owner.bumpSelectionCache();
         ArrayList<Node> removedRoots = new ArrayList<>(parent.childNodes);
         Node previousSibling = null;
         Node nextSibling = null;
@@ -177,6 +179,8 @@ public final class ElementTree {
     }
 
     private void moveSubtree(Node child, Node parent, int childIndex) {
+        // 子树挂载改变单元的渲染子节点集合，选择缓存随之失效
+        if (owner != null) owner.bumpSelectionCache();
         AuiServices.expander().validateRuntimeInsertion(owner, parent, child);
         detachSubtree(child);
         // Moving the only required Item within its existing Slot/Ingredient can
@@ -214,6 +218,8 @@ public final class ElementTree {
     private Node moveFragmentChildren(DocumentFragment fragment, Node parent, int childIndex) {
         ArrayList<Node> roots = new ArrayList<>(fragment.childNodes);
         if (roots.isEmpty()) return null;
+        // 片段挂载改变单元的渲染子节点集合，选择缓存随之失效
+        if (owner != null) owner.bumpSelectionCache();
         for (Node child : roots) {
             AuiServices.expander().validateRuntimeInsertion(owner, parent, child);
         }
@@ -256,6 +262,7 @@ public final class ElementTree {
     }
 
     private void detachSubtree(Node node) {
+        if (owner != null) owner.bumpSelectionCache();
         Node oldParent = node.parentNode;
         if (oldParent != null) {
             int index = oldParent.childNodes.indexOf(node);

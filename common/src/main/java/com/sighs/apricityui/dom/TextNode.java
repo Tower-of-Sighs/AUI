@@ -55,6 +55,10 @@ public class TextNode extends Node {
                 document.markDirty(parentElement, Drawer.RELAYOUT | Drawer.REPAINT);
             }
         }
+        // 文本内容影响单元判定与扁平文本，选择缓存随之失效
+        if (document != null) {
+            document.bumpSelectionCache();
+        }
         if (document != null && !Objects.equals(oldValue, normalized)) {
             document.queueMutation(Document.MutationRecord.characterData(this, oldValue));
         }

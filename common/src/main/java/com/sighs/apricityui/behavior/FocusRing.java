@@ -9,6 +9,8 @@ import java.util.Set;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.behavior.DocumentSelection;
+import com.sighs.apricityui.behavior.SelectionUnits;
 
 public final class FocusRing {
     private final Document owner;
@@ -66,11 +68,8 @@ public final class FocusRing {
     public void setFocusedElement(Element element) {
         if (focusedElement != null && focusedElement != element) {
             Element previous = focusedElement;
-            if (focusedElement instanceof AbstractText textElement) {
-                textElement.clearSelection();
-            } else {
-                focusedElement.clearTextSelection();
-            }
+            // 失焦不再清空文本选择：非可编辑文本的选择已统一为文档级单选区，
+            // 由鼠标按下/键盘快捷键自行管理（Esc 仍可清空）。
             previous.setFocus(false);
             dispatchFocusEvent(previous, "blur");
         }
@@ -92,12 +91,9 @@ public final class FocusRing {
     }
 
     public boolean hasAnyTextSelection() {
+        if (owner.getDocumentSelection().isActive()) return true;
         for (Element element : owner.getElements()) {
-            if (element instanceof AbstractText textElement) {
-                if (textElement.hasSelection()) return true;
-                continue;
-            }
-            if (element.hasInnerTextSelection()) return true;
+            if (element instanceof AbstractText textElement && textElement.hasSelection()) return true;
         }
         return false;
     }
@@ -107,13 +103,19 @@ public final class FocusRing {
     }
 
     public void clearAllTextSelectionsExcept(Element keep) {
+        DocumentSelection selection = owner.getDocumentSelection();
+        Element keepUnit = keep == null ? null : SelectionUnits.resolveUnit(keep);
+        // 文档级单选区：仅当整个选区都落在 keep 所在单元内时保留
+        if (keepUnit == null
+                || selection.getAnchorUnit() != keepUnit
+                || selection.getEndUnit() != keepUnit) {
+            selection.clear();
+        }
         for (Element element : owner.getElements()) {
             if (element == keep) continue;
-            if (element instanceof AbstractText textElement) {
-                if (textElement.hasSelection()) textElement.clearSelection();
-                continue;
+            if (element instanceof AbstractText textElement && textElement.hasSelection()) {
+                textElement.clearSelection();
             }
-            if (element.hasInnerTextSelection()) element.clearTextSelection();
         }
     }
 

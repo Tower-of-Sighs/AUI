@@ -40,6 +40,7 @@ import com.sighs.apricityui.form.FormDataEntry;
 import com.sighs.apricityui.form.ValidityState;
 import com.sighs.apricityui.behavior.ScrollModel;
 import com.sighs.apricityui.behavior.SelectModel;
+import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.dom.ElementTree;
@@ -166,6 +167,8 @@ public class Element extends Node {
         clearPseudoElementCaches();
         // 避免清空整帧缓存导致更多重复计算；只对当前元素失效即可。
         StyleFrameCache.invalidate(this);
+        // 样式变化影响单元判定（user-select/display/伪元素内容），选择缓存随之失效
+        if (document != null) document.bumpSelectionCache();
     }
 
     /**
@@ -884,12 +887,9 @@ public class Element extends Node {
             case BODY -> {
                 rectRenderer.drawBody(poseStack);
                 drawChildTextRuns(poseStack, rectRenderer);
-                if (!NormalFlow.isInlineTextPaintedByAncestor(this)) {
-                    if (!hasMixedDirectTextAndElementChildren()) {
-                        textSelection.drawInnerTextSelection(poseStack, rectRenderer);
-                        textSelection.drawInnerText(poseStack, rectRenderer);
-                    }
-                }
+                // 富文本单元的选择高亮与选中文字由 drawChildTextRuns 分段绘制
+                textSelection.drawInnerTextSelection(poseStack, rectRenderer);
+                textSelection.drawInnerText(poseStack, rectRenderer);
             }
             case BORDER -> {
                 rectRenderer.drawBorder(poseStack);
@@ -906,10 +906,9 @@ public class Element extends Node {
         if (NormalFlow.isInlineTextPaintedByAncestor(this)) return;
         Rect rectRenderer = Rect.of(this);
         drawChildTextRuns(poseStack, rectRenderer);
-        if (!NormalFlow.isInlineTextPaintedByAncestor(this) && !hasMixedDirectTextAndElementChildren()) {
-            textSelection.drawInnerTextSelection(poseStack, rectRenderer);
-            textSelection.drawInnerText(poseStack, rectRenderer);
-        }
+        // 富文本单元的选择高亮与选中文字由 drawChildTextRuns 分段绘制
+        textSelection.drawInnerTextSelection(poseStack, rectRenderer);
+        textSelection.drawInnerText(poseStack, rectRenderer);
     }
 
     /** Draw this element's native scrollbars after its content clip has been popped. */
@@ -1268,6 +1267,8 @@ public class Element extends Node {
         Transition.create(this, originStyle, style);
         pseudoElementPreviousStyle = style.clone();
         innerText = CssString.parsePseudoContentText(style.content);
+        // 伪元素文本参与父级单元的扁平文本，内容变化时选择缓存随之失效
+        if (document != null) document.bumpSelectionCache();
         isPointerEnabled = false;
         invalidatePseudoElementHostLayout();
     }
@@ -1340,6 +1341,8 @@ public class Element extends Node {
         renderElement.box.clear();
         renderElement.position.clear();
         StyleFrameCache.invalidate(this);
+        // 样式变化影响单元判定（user-select/display/伪元素内容），选择缓存随之失效
+        if (document != null) document.bumpSelectionCache();
     }
 
     @Override
@@ -1415,6 +1418,7 @@ public class Element extends Node {
             }
         }
         innerText = normalized;
+        if (document != null) document.bumpSelectionCache();
         legacyRenderTextNode = null;
         getRenderer().text.clear();
         getRenderer().wrappedText.clear();
@@ -1478,6 +1482,7 @@ public class Element extends Node {
             removeChild(child);
         }
         innerText = "";
+        if (document != null) document.bumpSelectionCache();
 
         if (document == null || html == null || html.isEmpty()) return;
 
@@ -2146,6 +2151,7 @@ public class Element extends Node {
             getRenderer().size.clear();
             lastInnerText = innerText;
             if (document != null) {
+                document.bumpSelectionCache();
                 document.markDirty(this, Drawer.RELAYOUT | Drawer.REPAINT);
                 if (parentElement != null) {
                     parentElement.getRenderer().size.clear();
@@ -2703,9 +2709,20 @@ public class Element extends Node {
         double contentWidth = alignDirectTextRuns ? Box.of(this).innerSize().width() : 0;
         List<NormalFlow.TextRunLayout> textRuns = NormalFlow.computeTextRuns(this);
         boolean[] baselineAnchors = resolveRunBaselineAnchors(textRuns);
+        // 文档级选区视图：仅当自身是选择单元且选区存在时对 run 行做分段绘制（无选区时保持原样）
+        int[] selectionRange = null;
+        if (document != null && document.getDocumentSelection().isActive()
+                && SelectionUnits.isSelectionUnit(this)) {
+            selectionRange = document.getDocumentSelection().localRangeForUnit(this);
+        }
         for (int r = 0; r < textRuns.size(); r++) {
             NormalFlow.TextRunLayout run = textRuns.get(r);
             if (run == null || run.text() == null || run.lines() == null) continue;
+            int runBase = 0;
+            if (selectionRange != null) {
+                Node runNode = run.node();
+                runBase = SelectionUnits.baseOffsetOfDescendant(this, runNode != null ? runNode : run.owner());
+            }
             Position drawPos = new Position(0, 0);
             for (int i = 0; i < run.lines().size(); i++) {
                 String line = run.lines().get(i);
@@ -2717,6 +2734,21 @@ public class Element extends Node {
                 drawPos.x = contentPos.x + (i == 0 ? run.x() : 0) + alignOffset - scrollLeft;
                 drawPos.y = contentPos.y + run.y() + i * run.text().lineHeight;
                 drawInlineFragmentBackground(poseStack, run.owner(), drawPos, lineWidth, run.text().lineHeight);
+                if (selectionRange != null) {
+                    // 高亮矩形只盖选区覆盖的部分；选中文字保持原色，整行一次绘制
+                    // （不做按段光栅化：非锚定路径的 glyphAnchorTexel 依赖各段内容
+                    // 的光栅 ink 统计，分段会让各段垂直锚定不同，选中区域后面文字上浮）。
+                    int globalStart = runBase + SelectionUnits.runLineStart(run, i);
+                    int globalEnd = globalStart + line.length();
+                    int segStart = Math.max(selectionRange[0], globalStart);
+                    int segEnd = Math.min(selectionRange[1], globalEnd);
+                    if (segStart < segEnd) {
+                        double highlightX0 = drawPos.x + measureRunSegment(run, line.substring(0, segStart - globalStart));
+                        double highlightX1 = drawPos.x + measureRunSegment(run, line.substring(0, segEnd - globalStart));
+                        Graph.drawFillRect(poseStack.last().pose(), (float) highlightX0, (float) drawPos.y,
+                                (float) highlightX1, (float) (drawPos.y + run.text().lineHeight), Text.getSelectionColor(this));
+                    }
+                }
                 Text lineText = TextMetrics.cloneTextForSegment(run.text(), line, Color.BLACK);
                 if (baselineAnchors[r]) {
                     FontDrawer.drawFontOnBaseline(poseStack, lineText, drawPos, Text.renderedBaselineOffset(lineText));
@@ -2725,6 +2757,13 @@ public class Element extends Node {
                 }
             }
         }
+    }
+
+
+    private static double measureRunSegment(NormalFlow.TextRunLayout run, String segment) {
+        if (segment == null || segment.isEmpty()) return 0;
+        Text copy = TextMetrics.cloneTextForSegment(run.text(), segment, Color.BLACK);
+        return Text.measureLine(copy, segment);
     }
 
     /**
@@ -2804,16 +2843,58 @@ public class Element extends Node {
     }
 
     private void drawFlexDirectTextRuns(PoseStack poseStack) {
+        int[] selectionRange = (document != null && document.getDocumentSelection().isActive()
+                && SelectionUnits.isSelectionUnit(this))
+                ? document.getDocumentSelection().localRangeForUnit(this)
+                : null;
+        List<String> fragments = selectionRange == null ? null : SelectionUnits.flexTextFragments(this);
+        int fragmentIndex = 0;
+        int accumulatedBase = 0;
         for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(this)) {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
             if (text.content == null || text.content.isEmpty()) continue;
-            FontDrawer.drawFont(
-                    poseStack,
-                    TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK),
-                    getFlexDirectTextPaintPosition(layout)
-            );
+            if (selectionRange == null || fragments == null) {
+                FontDrawer.drawFont(
+                        poseStack,
+                        TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK),
+                        getFlexDirectTextPaintPosition(layout)
+                );
+                continue;
+            }
+            int base = accumulatedBase;
+            if (fragmentIndex < fragments.size() && fragments.get(fragmentIndex).equals(text.content)) {
+                accumulatedBase += text.content.length();
+                fragmentIndex++;
+            } else {
+                // 片段对不上（order 参与方等特殊情况）：之后不再分段
+                fragmentIndex = fragments.size();
+            }
+            int segStart = Math.max(selectionRange[0], base);
+            int segEnd = Math.min(selectionRange[1], base + text.content.length());
+            Position paintPos = getFlexDirectTextPaintPosition(layout);
+            if (segStart >= segEnd) {
+                FontDrawer.drawFont(
+                        poseStack,
+                        TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK),
+                        paintPos
+                );
+                continue;
+            }
+            double x0 = paintPos.x + measureTextSegment(text, text.content.substring(0, segStart - base));
+            double x1 = paintPos.x + measureTextSegment(text, text.content.substring(0, segEnd - base));
+            Graph.drawFillRect(poseStack.last().pose(), (float) x0, (float) paintPos.y,
+                    (float) x1, (float) (paintPos.y + text.lineHeight), Text.getSelectionColor(this));
+            // 选中文字保持原色，整段一次绘制，避免分段光栅的 ink 锚定差异导致垂直错位
+            FontDrawer.drawFont(poseStack, TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK), paintPos);
         }
+    }
+
+
+    private static double measureTextSegment(Text text, String segment) {
+        if (segment == null || segment.isEmpty()) return 0;
+        Text copy = TextMetrics.cloneTextForSegment(text, segment, Color.BLACK);
+        return Text.measureLine(copy, segment);
     }
 
     Position getFlexDirectTextPaintPosition(Flex.DirectTextLayout layout) {

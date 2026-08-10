@@ -12,6 +12,7 @@ import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.*;
+import com.sighs.apricityui.util.TextMetrics;
 
 import java.util.*;
 import com.sighs.apricityui.style.Interaction;
@@ -55,6 +56,18 @@ public abstract class AbstractText extends Element {
         addEventListener("mousedown", event -> {
             if (!(event instanceof MouseEvent mouseEvent)) return;
             if (!canEditText() && !canSelectText()) return;
+            if (mouseEvent.button == 2) {
+                // 中键粘贴：Linux 主选区语义的跨平台等效实现 —— 把当前文档选区文本
+                // 插入到光标处（若输入控件自身有选区则替换之），不清除文档选区、
+                // 不进入输入控件自己的选区流程。
+                if (canEditText() && document != null) {
+                    String primary = document.getDocumentSelectedText();
+                    if (primary != null && !primary.isEmpty()) {
+                        replaceSelection(primary);
+                    }
+                }
+                return;
+            }
             if (document != null) {
                 document.clearAllTextSelectionsExcept(this);
             }
@@ -492,7 +505,7 @@ public abstract class AbstractText extends Element {
     protected void locateCursor(double mouseOffsetX) {
         Box box = Box.of(this);
         double contentStartX = box.getBorderLeft() + box.getPaddingLeft();
-        double relativeX = mouseOffsetX - contentStartX + scrollLeft;
+        double relativeX = mouseOffsetX - contentStartX + scrollLeft - resolveTextAlignX(getRenderText());
 
         String text = getRenderText();
         if (text.isEmpty()) {
@@ -514,6 +527,19 @@ public abstract class AbstractText extends Element {
 
         cursor = newCursor;
         clampScroll();
+    }
+
+    /**
+     * 单行输入文字的水平起点（相对内容区左缘）：整行放得下时应用 text-align/text-indent
+     * （RTL 由 computeAlignedX 的 start/end 映射处理），溢出时按浏览器左对齐可见区，
+     * 保证渲染（Input.drawTextInput）与光标映射（locateCursor）使用同一套偏移。
+     */
+    protected double resolveTextAlignX(String content) {
+        if (content == null || content.isEmpty()) return 0;
+        double lineWidth = Size.measureText(this, content);
+        double contentWidth = Math.max(0, Box.of(this).innerSize().width());
+        if (lineWidth > contentWidth) return 0;
+        return TextMetrics.computeAlignedX(Text.of(this), contentWidth, lineWidth, true);
     }
 
     private void updateSelectionDirection() {
@@ -578,8 +604,9 @@ public abstract class AbstractText extends Element {
         if (min >= max) return;
 
         Position contentPos = rectRenderer.getContentPosition();
-        double startX = Size.measureText(this, renderText.substring(0, min)) - scrollLeft;
-        double endX = Size.measureText(this, renderText.substring(0, max)) - scrollLeft;
+        double alignX = resolveTextAlignX(renderText);
+        double startX = alignX + Size.measureText(this, renderText.substring(0, min)) - scrollLeft;
+        double endX = alignX + Size.measureText(this, renderText.substring(0, max)) - scrollLeft;
 
         float x0 = (float) (contentPos.x + startX);
         float x1 = (float) (contentPos.x + endX);

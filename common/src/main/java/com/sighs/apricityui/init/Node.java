@@ -213,6 +213,8 @@ public abstract class Node {
 
     private void attachLocalChild(Node node, int index) {
         if (node == null) return;
+        // 断开状态下插入也会改变单元的渲染子节点集合，选择缓存随之失效
+        if (document != null) document.bumpSelectionCache();
         detachLocalChild(node);
         int safeIndex = Math.max(0, Math.min(index, childNodes.size()));
         childNodes.add(safeIndex, node);
@@ -235,6 +237,8 @@ public abstract class Node {
         if (node == null) return;
         Node oldParent = node.parentNode;
         if (oldParent == null) return;
+        // 断开状态下移除也会改变单元的渲染子节点集合，选择缓存随之失效
+        if (oldParent.document != null) oldParent.document.bumpSelectionCache();
         oldParent.childNodes.remove(node);
         if (oldParent instanceof Element oldParentElement) {
             oldParentElement.refreshElementChildrenFromChildNodes();

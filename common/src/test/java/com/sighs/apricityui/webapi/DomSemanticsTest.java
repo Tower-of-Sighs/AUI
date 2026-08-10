@@ -612,7 +612,7 @@ class DomSemanticsTest {
     }
 
     @Test
-    void textSelectionSelectabilityFallsBackToInnerTextWithoutChildNodes() {
+    void richTextElementsWithInlineChildrenRemainSelectable() {
         Document document = TestDocumentFactory.createDocument();
         Element label = new Element(document, "div");
         document.body.appendChild(label);
@@ -620,7 +620,8 @@ class DomSemanticsTest {
         label.innerText = "alpha beta";
         assertTrue(label.canSelectInnerText());
         label.appendChild(new Element(document, "span"));
-        assertFalse(label.canSelectInnerText());
+        // 富文本单元: 元素带内联子元素 (即使是空 span) 仍可选中, 不再只限叶子元素。
+        assertTrue(label.canSelectInnerText());
     }
 
     @Test

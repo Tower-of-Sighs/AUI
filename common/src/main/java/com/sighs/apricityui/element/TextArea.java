@@ -20,6 +20,7 @@ import com.sighs.apricityui.style.*;
 import java.util.List;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.style.Text;
+import com.sighs.apricityui.util.TextMetrics;
 
 @ElementRegister(TextArea.TAG_NAME)
 public class TextArea extends AbstractText {
@@ -47,7 +48,7 @@ public class TextArea extends AbstractText {
     protected void onInitFromDom(Element origin) {
         super.onInitFromDom(origin);
 
-        if (!hasAttribute("value")) {
+        if (!hasAttribute("value") && (value == null || value.isEmpty())) {
             String inlineText = origin == null ? "" : origin.getTextContent();
             if (inlineText == null) inlineText = "";
             value = inlineText.replace("\r\n", "\n").replace('\r', '\n');
@@ -118,7 +119,8 @@ public class TextArea extends AbstractText {
         int line = clamp((int) Math.floor(relativeY / lineHeight), 0, Math.max(0, lines.size() - 1));
 
         String lineText = lines.get(line);
-        double relativeX = mouseOffsetX - contentStartX + scrollLeft;
+        double alignX = textAlignX(text, lineText, line);
+        double relativeX = mouseOffsetX - contentStartX + scrollLeft - alignX;
         double currentWidth = 0;
         int column = 0;
         for (int i = 0; i < lineText.length(); i++) {
@@ -130,6 +132,18 @@ public class TextArea extends AbstractText {
 
         cursor = starts[line] + column;
         clampScroll();
+    }
+
+    /**
+     * 文本某行相对内容区左缘的对齐偏移：行放得下时应用 text-align/text-indent
+     * （RTL 由 computeAlignedX 的 start/end 映射处理），溢出时按浏览器左对齐可见区，
+     * 渲染（drawPhase/drawSelection）与光标映射（locateCursor）共用同一套偏移。
+     */
+    private double textAlignX(Text text, String line, int lineIndex) {
+        double lineWidth = Size.measureText(this, line);
+        double contentWidth = Math.max(0, Box.of(this).innerSize().width());
+        if (lineWidth > contentWidth) return 0;
+        return TextMetrics.computeAlignedX(text, contentWidth, lineWidth, lineIndex == 0);
     }
 
     @Override
@@ -196,9 +210,10 @@ public class TextArea extends AbstractText {
         if (isPlaceholder) {
             text.content = placeholder;
             text.color = new Color("#888888");
-            FontDrawer.drawFont(poseStack, text, new Position(baseX, baseY));
+            float placeholderX = (float) (baseX + textAlignX(text, placeholder, 0));
+            FontDrawer.drawFont(poseStack, text, new Position(placeholderX, baseY));
             if (Element.isElementFocusing(this)) {
-                Graph.drawCursor(poseStack.last().pose(), baseX, baseY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
+                Graph.drawCursor(poseStack.last().pose(), placeholderX, baseY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
             }
             return;
         }
@@ -208,15 +223,16 @@ public class TextArea extends AbstractText {
         List<String> lines = wrapped.lines();
         int[] starts = wrapped.starts();
 
-        drawSelection(poseStack, lines, starts, baseX, baseY, lineHeight);
+        drawSelection(poseStack, text, lines, starts, baseX, baseY, lineHeight);
 
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             float y = (float) (baseY + i * lineHeight);
+            float lineX = (float) (baseX + textAlignX(text, line, i));
             if (!canSelectText() || !hasSelection()) {
                 text.content = line;
                 text.color = new Color(Text.getFontColor(this));
-                FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
+                FontDrawer.drawFont(poseStack, text, new Position(lineX, y));
                 continue;
             }
 
@@ -227,7 +243,7 @@ public class TextArea extends AbstractText {
             if (min >= max) {
                 text.content = line;
                 text.color = new Color(Text.getFontColor(this));
-                FontDrawer.drawFont(poseStack, text, new Position(baseX, y));
+                FontDrawer.drawFont(poseStack, text, new Position(lineX, y));
                 continue;
             }
 
@@ -235,7 +251,7 @@ public class TextArea extends AbstractText {
             String selected = line.substring(min - lineStart, max - lineStart);
             String after = line.substring(max - lineStart);
 
-            float segmentX = baseX;
+            float segmentX = lineX;
             if (!before.isEmpty()) {
                 text.content = before;
                 text.color = new Color(Text.getFontColor(this));
@@ -260,7 +276,7 @@ public class TextArea extends AbstractText {
         int lineStart = starts[cursorLine];
         int column = clamp(cursor - lineStart, 0, lines.get(cursorLine).length());
         double cursorOffset = Size.measureText(this, lines.get(cursorLine).substring(0, column));
-        float cursorX = (float) (baseX + cursorOffset);
+        float cursorX = (float) (baseX + textAlignX(text, lines.get(cursorLine), cursorLine) + cursorOffset);
         float cursorY = (float) (baseY + cursorLine * lineHeight);
         Graph.drawCursor(poseStack.last().pose(), cursorX, cursorY, (float) lineHeight, Text.getFontColor(this), lastBlinkTime);
     }
@@ -355,7 +371,7 @@ public class TextArea extends AbstractText {
         return String.format(java.util.Locale.ROOT, "%.2fpx", value);
     }
 
-    private void drawSelection(PoseStack poseStack, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
+    private void drawSelection(PoseStack poseStack, Text text, List<String> lines, int[] starts, float baseX, float baseY, double lineHeight) {
         if (!canSelectText()) return;
         if (!hasSelection()) return;
 
@@ -372,8 +388,9 @@ public class TextArea extends AbstractText {
             int drawEnd = Math.min(max, lineEnd);
             if (drawStart >= drawEnd) continue;
 
-            double startX = Size.measureText(this, lineText.substring(0, drawStart - lineStart));
-            double endX = Size.measureText(this, lineText.substring(0, drawEnd - lineStart));
+            double alignX = textAlignX(text, lineText, i);
+            double startX = alignX + Size.measureText(this, lineText.substring(0, drawStart - lineStart));
+            double endX = alignX + Size.measureText(this, lineText.substring(0, drawEnd - lineStart));
             float x0 = (float) (baseX + startX);
             float x1 = (float) (baseX + endX);
             float y0 = (float) (baseY + i * lineHeight);

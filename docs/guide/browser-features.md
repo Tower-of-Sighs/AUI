@@ -32,7 +32,7 @@ AUI 不是浏览器，但给页面配了一层浏览器式的辅助行为：缩�
 
 ## 文字选择与复制
 
-选择面向**叶子元素**（没有子元素、有实际文本）。CSS 控制：
+选择是**文档级**的：一个选区可以跨内联子元素（如 `<div>Hello <b>World</b></div>`）和多个兄弟元素，复制时不同单元之间用换行连接。CSS 控制：
 
 | CSS | 行为 |
 | --- | --- |
@@ -40,9 +40,15 @@ AUI 不是浏览器，但给页面配了一层浏览器式的辅助行为：缩�
 | `user-select: all` | 点击选中整段 |
 | `user-select: none` | 禁止选择 |
 
-想让人复制的内容尽量放在一个叶子元素里——没有跨段落、跨文本节点的完整 Selection。
+这是 AUI 自己的选择实现，不是浏览器的 Selection/Range——页面里拿不到 `Selection`/`Range` 对象（见 [Web API 文档](web-api)），跨单元拼接等细节别按浏览器规范写。
 
-快捷键：拖拽选择、Ctrl+A 全选、Ctrl+C 复制、Esc 清除；输入控件另有 Ctrl+X 剪切、Ctrl+V 粘贴、Ctrl+Z 撤销。点击其他元素或其他 Document 会清掉之前的选择，不会残留多处高亮。
+快捷键：拖拽选择、Ctrl+A 全选、Ctrl+C 复制、Esc 清除选区；输入控件另有 Ctrl+X 剪切、Ctrl+V 粘贴、Ctrl+Z 撤销。焦点变化不清除选区。只有 Esc、点击不可选择区域、或在选区外开始新选择会清掉它；点击已选中文本内部不会折叠选区——它会成为选区拖拽的起点。
+
+双击选中光标所在的空白分隔单词，三击选中整个单元（段落）。复制的文本保留原始空白——连续空格不会折叠（`<div>a  b</div>` 复制出来是 `a  b`）；`<br>` 作为换行符；自动折行的软换行不会在复制文本里产生换行符；不同的块单元之间用换行连接。`text-align: justify` 渲染为左对齐，光标定位遵循同一规则。
+
+选中文本的绘制：被选中的文字保留它**原来的字体颜色**（不再强制改成白色），高亮背景用 `selection-color`（默认 `#0078D7`，白字蓝底的经典外观不变）。选择高亮跟随**实际渲染的行**：`line-clamp` 截断后只盖住可见行，`text-overflow: ellipsis` 时止于真实文本、不盖住合成的 `...`。截断/省略只影响绘制、不影响选区——对 `line-clamp` 或省略元素执行 `selectAllInnerText()` 后复制，拿到的仍是完整文本。
+
+鼠标补充：中键点击可编辑输入控件，把当前文档选区文本粘贴到光标处（Linux 主选区风格；与键盘输入共用插入路径，受 maxlength 约束并派发 input 事件，输入框自身的选区会被替换）。从选区内部按住拖动（移过约 4px 阈值）会拖动选区文本本身：拖到可编辑输入控件上松开=复制进去（源选区保留），拖到不可编辑目标上松开=取消拖拽、选区保留。文字选择不会引起容器自动滚动。
 
 `copy/cut/paste` 是可取消事件，`preventDefault()` 后框架不执行默认剪贴板动作。页面里没有 `navigator.clipboard`；Java 侧直接读写用：
 
@@ -80,7 +86,7 @@ Operation.setClipboardText(value);
 | --- | --- |
 | 网络/导航 | fetch 走 AUI 资源桥；location 的导航方法是空操作 |
 | 剪贴板 | Ctrl 快捷键 + Java 的 `Operation`，没有 `navigator.clipboard` |
-| 文本选择 | 叶子元素和输入控件，不是跨节点 Range |
+| 文本选择 | 文档级选区，跨内联子元素和多个元素；没有 Selection/Range JS API |
 | Meta | 创建/刷新时读取，运行时改 DOM 属性不重新应用 |
 | 坐标 | 事件给的是逻辑坐标，别再乘缩放 |
 | 文件/颜色选择 | MC/系统选择器，没有网页权限模型 |
@@ -93,7 +99,7 @@ Operation.setClipboardText(value);
 
 **改了 meta 没生效**：meta 只在创建和 refresh 时读。`refresh()` 或走 Java API。
 
-**Ctrl+C 没复制到**：元素得是可选择叶子元素且真有选区；输入控件要先拿焦点；监听器 preventDefault 了 copy 也会拦住默认复制。
+**Ctrl+C 没复制到**：元素得是可选择单元且真有选区；输入控件要先拿焦点；监听器 preventDefault 了 copy 也会拦住默认复制。
 
 **事件坐标和准心对不上**：检查代码是不是重复乘了 renderScale / viewport zoom / devicePixelRatio。
 

@@ -14,6 +14,7 @@ import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
 import com.sighs.apricityui.resource.async.style.StyleAsyncHandler;
 import com.sighs.apricityui.viewport.ApricityViewport;
+import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import net.minecraft.client.Minecraft;
@@ -29,9 +30,14 @@ import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.StyleFrameCache;
 import com.sighs.apricityui.style.StyleScope;
 import com.sighs.apricityui.render.Drawer;
+import com.sighs.apricityui.render.Operation;
+import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderQueue;
+import com.sighs.apricityui.behavior.DocumentSelection;
 import com.sighs.apricityui.behavior.FocusRing;
 import com.sighs.apricityui.behavior.MotionTrack;
+import com.sighs.apricityui.behavior.SelectionUnits;
+import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.dom.DocumentFragment;
 import com.sighs.apricityui.dom.DocumentRegistry;
@@ -96,6 +102,10 @@ public class Document {
 
     private static final String MOUSE_EVENTS_META_NAME = "aui-mouse-events";
     private static final long SLOW_REFRESH_LOG_THRESHOLD_NS = 50_000_000L;
+    /** 连续点击视为序列的最大按下位移（浏览器双击的按下容差，拖拽后序列重置）。 */
+    private static final double CLICK_PRESS_SLOP_PX = 4.0d;
+    /** 文本拖拽候选视为真正拖拽的最小移动距离（与双击按下容差一致）。 */
+    private static final double TEXT_DRAG_SLOP_PX = 4.0d;
     private final ElementTree tree = new ElementTree(this);
     private final RenderQueue render = new RenderQueue(this);
     private final String path;
@@ -119,6 +129,9 @@ public class Document {
     private volatile Element lastClickTarget = null;
     private volatile int lastClickButton = -1;
     private volatile long lastClickTimeNs = 0L;
+    private volatile int clickCount = 0;
+    private volatile double pressX = 0.0d;
+    private volatile double pressY = 0.0d;
     private volatile double viewportScaleX = 1.0d;
     private volatile double viewportScaleY = 1.0d;
     private volatile double viewportOffsetX = 0.0d;
@@ -131,7 +144,18 @@ public class Document {
     private final StyleScope style = new StyleScope(this);
     private final MotionTrack motion = new MotionTrack(this);
     private final FocusRing focus = new FocusRing(this);
+    private final DocumentSelection documentSelection = new DocumentSelection(this);
+    /**
+     * 文档级文字选择单元的计算缓存：扁平文本/原始文本/run 绘制判定在 DOM 与样式不变时是稳定的，
+     * 按元素实例（IdentityHashMap）缓存；任何影响单元判定或文本内容的变更点都会调用
+     * {@link #bumpSelectionCache()} 整体失效。
+     */
+    private final IdentityHashMap<Element, SelectionCacheEntry> selectionCache = new IdentityHashMap<>();
+    /** 文档内选择单元列表缓存（enumerateUnits 结果）；null 表示尚未计算。 */
+    private List<Element> selectionUnitsCache = null;
     private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
+    /** 文本拖拽（从选区内部按下后拖动）的文档级状态。 */
+    private final TextDragState textDrag = new TextDragState();
 
     public Document(String path, boolean inWorld) {
         this.path = path;
@@ -488,6 +512,8 @@ public class Document {
         lifecycleState = LifecycleState.LOADING;
         readyState = lifecycleState.readyStateValue;
         clearMutationObservers();
+        // refresh 会重建整棵 DOM，旧元素实例全部失效，选择单元缓存一并清空
+        bumpSelectionCache();
     }
 
     private void enterInteractive() {
@@ -506,12 +532,19 @@ public class Document {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
         clearMutationObservers();
+        // 选择单元缓存持有元素引用，随生命周期一并清空
+        bumpSelectionCache();
         focus.clearFocus();
         focus.setPressedElement(null);
         focus.setPreviousCursorElement(null);
+        documentSelection.clear();
+        textDrag.clear();
         lastClickTarget = null;
         lastClickButton = -1;
         lastClickTimeNs = 0L;
+        clickCount = 0;
+        pressX = 0.0d;
+        pressY = 0.0d;
     }
 
     private void fireLifecycleEvent(String type, boolean bubbles) {
@@ -596,6 +629,11 @@ public class Document {
             }
         }
     }
+
+    // ------------------------------------------------------------------
+    // 选区/文本拖拽的容器边缘自动滚动
+    // ------------------------------------------------------------------
+
 
     /**
      * Style Recalc 阶段：统一在 tick 中重算样式。
@@ -1098,15 +1136,38 @@ public class Document {
         focus.setPressedElement(element);
     }
 
-    public boolean registerClickAndCheckDoubleClick(Element target, int button, long nowNs, long thresholdNs) {
-        boolean isDoubleClick = target != null
-                && lastClickTarget == target
-                && lastClickButton == button
-                && (nowNs - lastClickTimeNs) <= thresholdNs;
+    /**
+     * 推进点击序列计数并返回本次点击的序号（1..n）。
+     * 目标/按钮不同、超出时间窗口、或按下位置相对上次按下移动超过阈值（约 4px，
+     * 与浏览器拖拽后重置一致）时序列重置为 1。mousedown 派发路径调用它。
+     */
+    public int advanceClickSequence(Element target, int button, double x, double y, long nowNs, long thresholdNs) {
+        boolean sameTarget = target != null && target == lastClickTarget;
+        boolean sameButton = lastClickButton == button;
+        boolean withinWindow = lastClickTimeNs != 0L && (nowNs - lastClickTimeNs) <= thresholdNs;
+        boolean withinDistance = lastClickTimeNs != 0L
+                && Math.abs(x - pressX) <= CLICK_PRESS_SLOP_PX
+                && Math.abs(y - pressY) <= CLICK_PRESS_SLOP_PX;
+        if (!sameTarget || !sameButton || !withinWindow || !withinDistance) {
+            clickCount = 0;
+        }
+        clickCount++;
         lastClickTarget = target;
         lastClickButton = button;
         lastClickTimeNs = nowNs;
-        return isDoubleClick;
+        pressX = x;
+        pressY = y;
+        return clickCount;
+    }
+
+    public int getClickCount() {
+        return clickCount;
+    }
+
+    /** 兼容旧 API：查询最近一次按下是否构成双击（计数已由 mousedown 路径推进，不再重复计数）。 */
+    public boolean registerClickAndCheckDoubleClick(Element target, int button, long nowNs, long thresholdNs) {
+        if (target == null || target != lastClickTarget || button != lastClickButton) return false;
+        return clickCount >= 2;
     }
 
     public Element getActiveElement() {
@@ -1135,6 +1196,163 @@ public class Document {
     public void clearAllTextSelectionsExcept(Element keep) {
         focus.clearAllTextSelectionsExcept(keep);
     }
+
+    public DocumentSelection getDocumentSelection() {
+        return documentSelection;
+    }
+
+    // ------------------------------------------------------------------
+    // 选择单元缓存（SelectionUnits 的计算结果按元素实例缓存）
+    // ------------------------------------------------------------------
+
+    /**
+     * 使选择单元缓存整体失效。任何可能改变单元判定、扁平文本或 run 绘制路径的变更
+     * （DOM 增删、文本内容、innerText、样式失效）后都必须调用。
+     */
+    public void bumpSelectionCache() {
+        selectionCache.clear();
+        selectionUnitsCache = null;
+    }
+
+    /** 单元扁平文本的缓存读取：miss 时经 {@link SelectionUnits#computeFlattenedSelectableText} 计算并缓存。 */
+    public String getCachedFlattened(Element element) {
+        if (element == null) return "";
+        SelectionCacheEntry entry = selectionCache.get(element);
+        if (entry != null && entry.flattened != null) return entry.flattened;
+        String value = SelectionUnits.computeFlattenedSelectableText(element);
+        if (entry == null) {
+            entry = new SelectionCacheEntry();
+            selectionCache.put(element, entry);
+        }
+        entry.flattened = value;
+        return value;
+    }
+
+    /** 单元原始文本视图的缓存读取：miss 时经 {@link SelectionUnits#computeRawTextOf} 计算并缓存（非单元为 null）。 */
+    public SelectionUnits.RawText getCachedRaw(Element element) {
+        if (element == null) return null;
+        SelectionCacheEntry entry = selectionCache.get(element);
+        if (entry != null && entry.raw != null) return entry.raw;
+        SelectionUnits.RawText value = SelectionUnits.computeRawTextOf(element);
+        if (entry == null) {
+            entry = new SelectionCacheEntry();
+            selectionCache.put(element, entry);
+        }
+        entry.raw = value;
+        return value;
+    }
+
+    /** 文本是否由 run 绘制路径绘制的缓存读取：miss 时经 {@link SelectionUnits#computePaintsTextViaRuns} 计算并缓存。 */
+    public boolean getCachedPaintsRuns(Element element) {
+        if (element == null) return false;
+        SelectionCacheEntry entry = selectionCache.get(element);
+        if (entry != null && entry.paintsRuns != null) return entry.paintsRuns;
+        boolean value = SelectionUnits.computePaintsTextViaRuns(element);
+        if (entry == null) {
+            entry = new SelectionCacheEntry();
+            selectionCache.put(element, entry);
+        }
+        entry.paintsRuns = value;
+        return value;
+    }
+
+    /** 文档内选择单元列表的缓存读取：miss 时经 {@link SelectionUnits#computeUnits} 计算并缓存。 */
+    public List<Element> getCachedUnits() {
+        if (selectionUnitsCache == null) {
+            selectionUnitsCache = SelectionUnits.computeUnits(this);
+        }
+        return selectionUnitsCache;
+    }
+
+    public boolean hasDocumentSelection() {
+        return documentSelection.isActive();
+    }
+
+    public void clearDocumentSelection() {
+        documentSelection.clear();
+    }
+
+    public boolean selectAllDocumentText() {
+        return documentSelection.selectAll(this);
+    }
+
+    public String getDocumentSelectedText() {
+        return documentSelection.getSelectedText(this);
+    }
+
+    // ------------------------------------------------------------------
+    // 文本拖拽（从选区内部按下后拖动选中文本）
+    // ------------------------------------------------------------------
+
+    /** 是否存在潜在的文本拖拽（已在选区内部按下、尚未确认拖拽）。 */
+    public boolean isTextDragPending() {
+        return textDrag.text != null;
+    }
+
+    /** 是否已越过移动阈值进入真正的文本拖拽。 */
+    public boolean isTextDragging() {
+        return textDrag.dragged;
+    }
+
+    /** 拖拽的文本快照（按下时的文档选区文本），无拖拽时返回 null。 */
+    public String getDraggedText() {
+        return textDrag.text;
+    }
+
+    /** 在选区内部按下时登记潜在文本拖拽：记录文本快照与按下位置，选区保持不变。 */
+    public void beginTextDrag(String text, double x, double y) {
+        if (text == null || text.isEmpty()) {
+            textDrag.clear();
+            return;
+        }
+        textDrag.text = text;
+        textDrag.startX = x;
+        textDrag.startY = y;
+        textDrag.dragged = false;
+    }
+
+    /** 推进拖拽判定：移动超过阈值后进入真正拖拽，并冻结选区扩展。 */
+    public void updateTextDrag(double x, double y) {
+        if (textDrag.text == null || textDrag.dragged) return;
+        if (Math.abs(x - textDrag.startX) > TEXT_DRAG_SLOP_PX
+                || Math.abs(y - textDrag.startY) > TEXT_DRAG_SLOP_PX) {
+            textDrag.dragged = true;
+            documentSelection.setSelecting(false);
+        }
+    }
+
+    /** 结束（完成/取消）文本拖拽并清空状态；每次 mouseup 都会调用。 */
+    public void endTextDrag() {
+        textDrag.clear();
+    }
+
+
+    /** 文本拖拽的文档级状态（快照 + 起点 + 是否已越过拖拽阈值）。 */
+    private static final class TextDragState {
+        private String text = null;
+        private double startX = 0;
+        private double startY = 0;
+        private boolean dragged = false;
+
+        private void clear() {
+            text = null;
+            startX = 0;
+            startY = 0;
+            dragged = false;
+        }
+    }
+
+    /**
+     * 单个元素的选择单元计算结果。字段为 null 表示该值尚未计算：
+     * flattened/paintsRuns 计算后必非 null（空文本也是有效结果）；raw 对非单元为 null，
+     * 此时会重复计算（raw 只在命中单元时被查询，实际命中场景结果必非 null）。
+     */
+    private static final class SelectionCacheEntry {
+        String flattened = null;
+        SelectionUnits.RawText raw = null;
+        Boolean paintsRuns = null;
+    }
+
     // 全局清理焦点 (当点击了其他 Document 时可能需要调用)
     public void clearFocus() {
         focus.clearFocus();
