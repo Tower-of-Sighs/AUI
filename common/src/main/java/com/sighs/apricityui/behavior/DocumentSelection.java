@@ -27,6 +27,7 @@ public final class DocumentSelection {
     /** 折叠到（unit, offset）：锚点与终点同时落在此处。 */
     public void collapse(Element unit, int offset) {
         if (owner != null) owner.bumpSelectionCache();
+        if (owner != null) owner.clearRichTextSelection();
         anchorUnit = unit;
         anchorOffset = offset;
         endUnit = unit;
@@ -41,6 +42,7 @@ public final class DocumentSelection {
             return;
         }
         if (owner != null) owner.bumpSelectionCache();
+        if (owner != null) owner.clearRichTextSelection();
         endUnit = unit;
         endOffset = offset;
         markDirty();
@@ -96,6 +98,7 @@ public final class DocumentSelection {
     /** 选中文档内全部单元文本。没有可选文本时返回 false。 */
     public boolean selectAll(Document document) {
         if (owner != null) owner.bumpSelectionCache();
+        if (owner != null) owner.clearRichTextSelection();
         List<Element> units = SelectionUnits.enumerateUnits(document);
         if (units.isEmpty()) return false;
         Element first = units.get(0);
@@ -112,6 +115,7 @@ public final class DocumentSelection {
     public void selectUnit(Element unit) {
         if (unit == null) return;
         if (owner != null) owner.bumpSelectionCache();
+        if (owner != null) owner.clearRichTextSelection();
         int length = SelectionUnits.flattenedSelectableText(unit).length();
         collapse(unit, 0);
         extendTo(unit, length);

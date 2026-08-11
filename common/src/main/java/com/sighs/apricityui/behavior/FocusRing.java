@@ -111,6 +111,10 @@ public final class FocusRing {
                 || selection.getEndUnit() != keepUnit) {
             selection.clear();
         }
+        com.sighs.apricityui.behavior.richtext.RichTextSelection rich = owner.getRichTextSelection();
+        if (!rich.isActive() || keepUnit == null || !rich.coversUnit(keepUnit)) {
+            rich.clear();
+        }
         for (Element element : owner.getElements()) {
             if (element == keep) continue;
             if (element instanceof AbstractText textElement && textElement.hasSelection()) {

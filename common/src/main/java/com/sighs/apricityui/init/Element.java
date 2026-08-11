@@ -1,6 +1,7 @@
 package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
+import com.sighs.apricityui.element.ContentEditable;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
@@ -1019,6 +1020,9 @@ public class Element extends Node {
         }
 
         BiFunction<Document, String, ? extends Element> creator = REGISTRY.get(origin.tagName);
+        if (creator == null && hasContentEditableAttribute(origin)) {
+            creator = ContentEditable::new;
+        }
         if (creator != null) {
             Element element = creator.apply(origin.document, origin.tagName);
             element.id = origin.id;
@@ -1055,6 +1059,10 @@ public class Element extends Node {
 
         origin.runInitFromDomOnce(origin);
         return origin;
+    }
+
+    private static boolean hasContentEditableAttribute(Element origin) {
+        return origin.attributes != null && origin.attributes.containsKey("contenteditable");
     }
 
     public List<Element> querySelectorAll(String selector) {
@@ -2711,9 +2719,8 @@ public class Element extends Node {
         boolean[] baselineAnchors = resolveRunBaselineAnchors(textRuns);
         // 文档级选区视图：仅当自身是选择单元且选区存在时对 run 行做分段绘制（无选区时保持原样）
         int[] selectionRange = null;
-        if (document != null && document.getDocumentSelection().isActive()
-                && SelectionUnits.isSelectionUnit(this)) {
-            selectionRange = document.getDocumentSelection().localRangeForUnit(this);
+        if (document != null && SelectionUnits.isSelectionUnit(this)) {
+            selectionRange = document.resolveUnitSelectionRange(this);
         }
         for (int r = 0; r < textRuns.size(); r++) {
             NormalFlow.TextRunLayout run = textRuns.get(r);

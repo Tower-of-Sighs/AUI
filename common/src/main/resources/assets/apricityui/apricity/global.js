@@ -609,6 +609,12 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'type', () => el.getType(), (v) => el.setType(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'form', () => __auiDecorateElement(el.getForm ? el.getForm() : null));
       __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
+      __auiInstallValueBridge(el, 'contentEditable', () => el.isContentEditable ? (el.isContentEditable() ? 'true' : 'false') : 'false', (v) => {
+              var next = v == null ? '' : String(v);
+              if (next === 'false' || next === 'inherit') el.removeAttribute('contenteditable');
+              else el.setAttribute('contenteditable', 'true');
+            });
+
       __auiInstallValueBridge(el, 'multiple', () => !!el.hasAttribute('multiple'), (v) => el.toggleAttribute('multiple', !!v));
       __auiInstallValueBridge(el, 'value', () => el.getValue(), (v) => el.setValue(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'defaultValue', () => el.getDefaultValue ? el.getDefaultValue() : el.getAttribute('value'),

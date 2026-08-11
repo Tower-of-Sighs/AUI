@@ -35,6 +35,7 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderQueue;
 import com.sighs.apricityui.behavior.DocumentSelection;
 import com.sighs.apricityui.behavior.FocusRing;
+import com.sighs.apricityui.behavior.richtext.RichTextSelection;
 import com.sighs.apricityui.behavior.MotionTrack;
 import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.behavior.TextSelection;
@@ -145,6 +146,7 @@ public class Document {
     private final MotionTrack motion = new MotionTrack(this);
     private final FocusRing focus = new FocusRing(this);
     private final DocumentSelection documentSelection = new DocumentSelection(this);
+    private final RichTextSelection richTextSelection = new RichTextSelection(this);
     /**
      * 文档级文字选择单元的计算缓存：扁平文本/原始文本/run 绘制判定在 DOM 与样式不变时是稳定的，
      * 按元素实例（IdentityHashMap）缓存；任何影响单元判定或文本内容的变更点都会调用
@@ -1199,6 +1201,27 @@ public class Document {
 
     public DocumentSelection getDocumentSelection() {
         return documentSelection;
+    }
+
+    public RichTextSelection getRichTextSelection() {
+        return richTextSelection;
+    }
+
+    /** 解析单元在高亮绘制时应使用的选区区间：优先文档级只读选择，其次富文本编辑选择。 */
+    public int[] resolveUnitSelectionRange(Element unit) {
+        if (unit == null) return null;
+        if (documentSelection.isActive()) return documentSelection.localRangeForUnit(unit);
+        if (richTextSelection.isActive()) return richTextSelection.localRangeForUnit(unit);
+        return null;
+    }
+
+    /** 是否存在任一活动文本选择（文档级或富文本编辑）。 */
+    public boolean hasAnyActiveSelection() {
+        return documentSelection.isActive() || richTextSelection.isActive();
+    }
+
+    public void clearRichTextSelection() {
+        richTextSelection.clear();
     }
 
     // ------------------------------------------------------------------

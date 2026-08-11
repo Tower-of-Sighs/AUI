@@ -62,6 +62,7 @@ public final class TextSelection {
     // ------------------------------------------------------------------
 
     private void handleMouseDown(MouseEvent event) {
+        if (owner instanceof com.sighs.apricityui.element.RichText) return;
         Document document = owner.document;
         if (document == null) return;
         // 中键不参与文档级选择：Linux 主选区语义下由输入控件负责中键粘贴，这里保持 no-op
@@ -133,6 +134,7 @@ public final class TextSelection {
 
     private void handleMouseMove(MouseEvent event) {
         Document document = owner.document;
+        if (owner instanceof com.sighs.apricityui.element.RichText) return;
         if (document == null) return;
         // 重派发到按下元素的事件（指针已移到其他元素上）不参与扩展：悬停元素自身的
         // 监听器会按指针位置扩展，按下元素的重复处理会用其自身几何算出错误偏移并覆盖
@@ -180,7 +182,7 @@ public final class TextSelection {
     // 命中测试：指针 → （单元, 偏移）
     // ------------------------------------------------------------------
 
-    private static SelectionUnits.UnitOffset resolveUnitOffset(Element hit, double x, double y) {
+    public static SelectionUnits.UnitOffset resolveUnitOffset(Element hit, double x, double y) {
         if (hit == null) return null;
         Element unit = SelectionUnits.resolveUnit(hit);
         if (unit == null) return null;
@@ -479,7 +481,7 @@ public final class TextSelection {
 
     private int[] viewLocalRange(SelectionUnits.UnitContext context) {
         if (owner.document == null) return null;
-        int[] unitRange = owner.document.getDocumentSelection().localRangeForUnit(context.unit());
+        int[] unitRange = owner.document.resolveUnitSelectionRange(context.unit());
         if (unitRange == null) return null;
         int start = Math.max(unitRange[0] - context.baseOffset(), 0);
         int end = Math.min(unitRange[1] - context.baseOffset(), context.text().length());
@@ -494,7 +496,7 @@ public final class TextSelection {
     public void drawInnerTextSelection(PoseStack poseStack, Rect rectRenderer) {
         if (owner == null || owner.document == null) return;
         // 无选区时直接返回：高亮绘制只在选区存在时才有意义，避免每元素每帧的空跑
-        if (!owner.document.getDocumentSelection().isActive()) return;
+        if (!owner.document.hasAnyActiveSelection()) return;
         if (SelectionUnits.paintsTextViaRuns(owner)) return;
         SelectionUnits.UnitContext context = SelectionUnits.resolveUnitContext(owner);
         if (context == null) return;

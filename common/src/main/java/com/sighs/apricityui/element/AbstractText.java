@@ -389,6 +389,113 @@ public abstract class AbstractText extends Element {
         clampScroll();
     }
 
+    /**
+     * 光标移动到当前行首（多行）或文本开头（单行），对应浏览器 Home 键。
+     */
+    public void moveCursorToHome(boolean keepSelection) {
+        ensureValue();
+        applyNavigationMove(lineStartIndex(), keepSelection);
+    }
+
+    /**
+     * 光标移动到当前行尾（多行）或文本末尾（单行），对应浏览器 End 键。
+     */
+    public void moveCursorToEnd(boolean keepSelection) {
+        ensureValue();
+        applyNavigationMove(lineEndIndex(), keepSelection);
+    }
+
+    /**
+     * 光标按视觉行上下移动（多行），保持视觉列（以字符宽度度量），对应浏览器 ↑/↓ 键。
+     * 单行输入控件不消费该操作（浏览器单行 input 的 ↑/↓ 为 no-op）。
+     */
+    public void moveCursorByLine(int delta, boolean keepSelection) {
+        if (!supportsMultilineInput() || delta == 0) return;
+        ensureValue();
+
+        Text.WrappedText wrapped = wrapForNavigation();
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
+        if (lines.isEmpty()) return;
+
+        int line = resolveNavigationLine(lines, starts, cursor);
+        int targetLine = clamp(line + delta, 0, lines.size() - 1);
+        if (targetLine == line) return;
+
+        int columnStart = starts[line];
+        int column = clamp(cursor - columnStart, 0, lines.get(line).length());
+        double currentX = column == 0 ? 0 : Size.measureText(this, lines.get(line).substring(0, column));
+
+        // 在目标行中选取与当前光标 X 距离最近的字符列。
+        String targetText = lines.get(targetLine);
+        int best = 0;
+        double bestDistance = Double.MAX_VALUE;
+        double acc = 0;
+        for (int i = 0; i <= targetText.length(); i++) {
+            double distance = Math.abs(acc - currentX);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = i;
+            }
+            if (i < targetText.length()) {
+                acc += Size.measureText(this, String.valueOf(targetText.charAt(i)));
+            }
+        }
+        applyNavigationMove(starts[targetLine] + best, keepSelection);
+    }
+
+    private Text.WrappedText wrapForNavigation() {
+        Text text = Text.of(this);
+        text.content = getRenderText();
+        return Text.wrap(text, Box.of(this).innerSize().width());
+    }
+
+    private int resolveNavigationLine(List<String> lines, int[] starts, int index) {
+        int line = 0;
+        while (line < lines.size() - 1 && index > starts[line] + lines.get(line).length()) {
+            line++;
+        }
+        return line;
+    }
+
+    private int lineStartIndex() {
+        if (!supportsMultilineInput()) return 0;
+        Text.WrappedText wrapped = wrapForNavigation();
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
+        if (lines.isEmpty()) return 0;
+        return starts[resolveNavigationLine(lines, starts, cursor)];
+    }
+
+    private int lineEndIndex() {
+        ensureValue();
+        if (!supportsMultilineInput()) return value.length();
+        Text.WrappedText wrapped = wrapForNavigation();
+        List<String> lines = wrapped.lines();
+        int[] starts = wrapped.starts();
+        if (lines.isEmpty()) return value.length();
+        int line = resolveNavigationLine(lines, starts, cursor);
+        return starts[line] + lines.get(line).length();
+    }
+
+    private void applyNavigationMove(int target, boolean keepSelection) {
+        ensureValue();
+        target = clamp(target, 0, value.length());
+        if (keepSelection && !hasSelection()) {
+            selectionAnchor = cursor;
+        }
+        cursor = target;
+        if (keepSelection) {
+            selectionStart = selectionAnchor;
+            selectionEnd = cursor;
+            updateSelectionDirection();
+        } else {
+            selectionAnchor = cursor;
+            clearSelection();
+        }
+        clampScroll();
+    }
+
     public boolean deleteBackward() {
         ensureValue();
         if (hasSelection()) {

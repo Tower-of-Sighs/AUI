@@ -1,11 +1,12 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.behavior.richtext.RichTextSelection;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.element.Input;
+import com.sighs.apricityui.element.RichText;
 import com.sighs.apricityui.element.Select;
-import com.sighs.apricityui.element.TextArea;
 import com.sighs.apricityui.event.KeyEvent;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.spi.AuiServices;
@@ -147,6 +148,39 @@ public class Operation {
                     return;
                 }
 
+                // 富文本可编辑元素：方向键/Home/End 移动、Shift 扩展、Ctrl+A 全选、Esc 清焦点
+                if (focusedElement instanceof RichText) {
+                    RichTextSelection selection = document.getRichTextSelection();
+                    if (selection == null || !selection.hasAnchor()) {
+                        selection.setCollapsed(focusedElement, 0);
+                    }
+                    boolean keepSelection = isShiftDown();
+                    boolean handled = true;
+                    if (key == GLFW.GLFW_KEY_LEFT) {
+                        selection.moveLeft(keepSelection);
+                    } else if (key == GLFW.GLFW_KEY_RIGHT) {
+                        selection.moveRight(keepSelection);
+                    } else if (key == GLFW.GLFW_KEY_UP) {
+                        selection.moveUp(keepSelection);
+                    } else if (key == GLFW.GLFW_KEY_DOWN) {
+                        selection.moveDown(keepSelection);
+                    } else if (key == GLFW.GLFW_KEY_HOME) {
+                        selection.moveToHome(keepSelection);
+                    } else if (key == GLFW.GLFW_KEY_END) {
+                        selection.moveToEnd(keepSelection);
+                    } else if (key == GLFW.GLFW_KEY_A && ctrlDown) {
+                        selection.selectAll(focusedElement);
+                    } else if (key == GLFW.GLFW_KEY_ESCAPE) {
+                        document.clearFocus();
+                    } else {
+                        handled = false;
+                    }
+                    if (handled) {
+                        documentCanceled[0] = true;
+                        return;
+                    }
+                }
+
                 if (focusedElement != null && ("BUTTON".equalsIgnoreCase(focusedElement.tagName)
                         || (focusedElement instanceof Input input
                         && ("submit".equalsIgnoreCase(input.getType())
@@ -239,8 +273,20 @@ public class Operation {
                     } else if (key == GLFW.GLFW_KEY_RIGHT) {
                         textElement.moveCursor(1, isShiftDown() && textElement.canSelectText());
                         documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_HOME) {
+                        textElement.moveCursorToHome(isShiftDown() && textElement.canSelectText());
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_END) {
+                        textElement.moveCursorToEnd(isShiftDown() && textElement.canSelectText());
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_UP) {
+                        textElement.moveCursorByLine(-1, isShiftDown() && textElement.canSelectText());
+                        documentCanceled[0] = true;
+                    } else if (key == GLFW.GLFW_KEY_DOWN) {
+                        textElement.moveCursorByLine(1, isShiftDown() && textElement.canSelectText());
+                        documentCanceled[0] = true;
                     } else if (key == GLFW.GLFW_KEY_ENTER) {
-                        if (focusedElement instanceof TextArea) {
+                        if (textElement.isMultiline()) {
                             textElement.insertText("\n");
                         } else {
                             if (!focusedElement.submitEnclosingForm()) {

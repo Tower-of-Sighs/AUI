@@ -64,6 +64,35 @@ public class TextNode extends Node {
         }
     }
 
+    /**
+     * 替换本文本节点 [offset, offset+count) 区间的内容为 replacement
+     * （浏览器 Text.replaceData 语义）。复用 setTextContent 的缓存失效与选择缓存失效。
+     */
+    public void replaceData(int offset, int count, String replacement) {
+        int len = data.length();
+        int start = Math.max(0, Math.min(offset, len));
+        int end = Math.max(start, Math.min(start + Math.max(0, count), len));
+        String next = data.substring(0, start) + (replacement == null ? "" : replacement) + data.substring(end);
+        setTextContent(next);
+    }
+
+    /**
+     * 在 offset 处拆分本文本节点：原节点保留前半，返回承载后半的新 TextNode 并插入到
+     * 原节点之后（浏览器 Text.splitText 语义）。
+     */
+    public TextNode splitText(int offset) {
+        int len = data.length();
+        int split = Math.max(0, Math.min(offset, len));
+        String head = data.substring(0, split);
+        String tail = data.substring(split);
+        setTextContent(head);
+        TextNode tailNode = new TextNode(document, tail);
+        if (parentNode != null) {
+            parentNode.insertBefore(tailNode, getNextSibling());
+        }
+        return tailNode;
+    }
+
     @Override
     public String toString() {
         return data;

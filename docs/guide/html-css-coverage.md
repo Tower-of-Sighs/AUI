@@ -59,6 +59,10 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 扩展标签（texture、sprite、container、slot、recipe、translation 等）见[扩展元素文档](extension-elements)。未知标签按通用 Element 渲染，不警告。
 
+**contenteditable 属性**：任意标签声明 `contenteditable` 后获得与 textarea 一致的多行编辑能力（✅ 点击定位光标、拖拽/Shift 选区、删除/输入、Home/End/↑/↓、Ctrl+A/X/C/V/Z、撤销、IME、beforeinput/input/change 事件、innerText 双向同步）。语义为**纯文本编辑**（等价 `contenteditable="plaintext-only"`）：初始化时子节点文本被扁平化为 value，可编辑区内不支持嵌套元素；`contenteditable="false"` 退化为纯展示；无 maxlength 时无长度上限。🟡 运行时 `setAttribute("contenteditable")` 只能在可编辑实例上切换 true/false，不能把普通元素升级为可编辑（类替换仅发生在解析期）；不支持父元素向子元素继承。
+
+**richtext 标签（富文本 Selection/Range 模型，Phase 1）**：`<richtext>` 是可编辑富文本元素，内容保留为子节点树（TextNode + 行内元素，不扁平化）。✅ 鼠标点击定位光标、拖拽/Shift 选区、←/→/↑/↓/Home/End 移动（跨节点、视觉行）、Ctrl+A 全选、跨节点文本提取（`getSelectedText`）、DOM Range 换算（`toRange()`，端点落到具体 TextNode/元素）与基础树操作（`deleteContents`/`insertNode`，可跨 TextNode 删除并合并相邻文本）。选区高亮与光标渲染与 run 绘制同源。🟡 Phase 1 约束：内容为行内元素（块级子单元会拆分为独立选择单元）；**键盘输入、删除键编辑、Enter 分段、格式命令、粘贴、撤销属后续阶段**；`white-space:normal` 下 `\n` 会折叠，多行用 `<br>`。
+
 ## CSS 选择器
 
 ✅ 几乎全部常用：基础选择器、四种组合器、属性选择器（含 `i`/`s` 标志）、结构伪类全家（nth-child 含 An+B）、状态伪类（hover/active/focus/focus-within/disabled/checked 等）、表单伪类、`:not()/:is()/:where()`、`::before/::after`、正确的 specificity 和 `!important` 层叠。
