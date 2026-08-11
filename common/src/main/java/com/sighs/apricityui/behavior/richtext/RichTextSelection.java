@@ -5,7 +5,11 @@ import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.render.Drawer;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 富文本编辑选区：锚点与终点均为（单元, 单元扁平文本归一化偏移），与
@@ -23,6 +27,10 @@ public final class RichTextSelection {
     private int endOffset = 0;
     private String direction = "none";
     private boolean selecting = false;
+    private Element lastNotifiedAnchorUnit = null;
+    private int lastNotifiedAnchorOffset = -1;
+    private Element lastNotifiedEndUnit = null;
+    private int lastNotifiedEndOffset = -1;
 
     public RichTextSelection(Document owner) {
         this.owner = owner;
@@ -87,6 +95,7 @@ public final class RichTextSelection {
         endOffset = clamped;
         direction = "none";
         markDirty();
+        notifyChange();
     }
 
     /** 从锚点扩展到（unit, offset）；无锚点时退化为折叠。 */
@@ -101,6 +110,7 @@ public final class RichTextSelection {
         endOffset = clamp(offset, 0, flattenedLength(unit));
         updateDirection();
         markDirty();
+        notifyChange();
     }
 
     /** 设置完整选区（anchor + end）。 */
@@ -113,6 +123,7 @@ public final class RichTextSelection {
         this.endOffset = clamp(endOffset, 0, flattenedLength(endUnit));
         updateDirection();
         markDirty();
+        notifyChange();
     }
 
     public void clear() {
@@ -124,6 +135,7 @@ public final class RichTextSelection {
         direction = "none";
         selecting = false;
         markDirty();
+        notifyChange();
     }
 
     /** 全选单元文本。 */
@@ -137,6 +149,16 @@ public final class RichTextSelection {
         endOffset = length;
         direction = "forward";
         markDirty();
+        notifyChange();
+    }
+
+    /** 全选当前 richtext 根中的全部块单元。 */
+    public void selectAllInRoot() {
+        List<Element> units = unitsInRoot();
+        if (units.isEmpty()) return;
+        Element first = units.get(0);
+        Element last = units.get(units.size() - 1);
+        setRange(first, 0, last, flattenedLength(last));
     }
 
     // ------------------------------------------------------------------
@@ -156,6 +178,16 @@ public final class RichTextSelection {
         }
         if (shiftExtend && hasAnchor()) {
             extendTo(target.unit(), target.offset());
+        } else if (event.clickCount >= 3) {
+            setRange(target.unit(), 0, target.unit(), flattenedLength(target.unit()));
+        } else if (event.clickCount == 2) {
+            String text = SelectionUnits.flattenedSelectableText(target.unit());
+            int[] word = TextSelection.wordRange(text, target.offset());
+            if (word == null) {
+                setCollapsed(target.unit(), target.offset());
+            } else {
+                setRange(target.unit(), word[0], target.unit(), word[1]);
+            }
         } else {
             setCollapsed(target.unit(), target.offset());
         }
@@ -170,21 +202,26 @@ public final class RichTextSelection {
             int max = Math.max(anchorOffset, endOffset);
             return SelectionUnits.rawRangeForNormalizedRange(anchorUnit, min, max);
         }
-        // 跨单元（Phase 1 富文本单单元约束的防御分支）：按 DOM 序拼接
+        // 跨块按 DOM 序拼接，块边界还原为换行。
         boolean reversed = compareOffsets(anchorUnit, anchorOffset, endUnit, endOffset) > 0;
         Element firstUnit = reversed ? endUnit : anchorUnit;
         int firstOffset = reversed ? endOffset : anchorOffset;
         Element lastUnit = reversed ? anchorUnit : endUnit;
         int lastOffset = reversed ? anchorOffset : endOffset;
+        List<Element> units = unitsInRoot();
+        int firstIndex = units.indexOf(firstUnit);
+        int lastIndex = units.indexOf(lastUnit);
+        if (firstIndex < 0 || lastIndex < firstIndex) return "";
         StringBuilder builder = new StringBuilder();
-        String firstText = flattenedLength(firstUnit) > 0 ? SelectionUnits.flattenedSelectableText(firstUnit) : "";
-        if (firstOffset < firstText.length()) {
-            builder.append(SelectionUnits.rawRangeForNormalizedRange(firstUnit, firstOffset, firstText.length()));
-        }
-        String lastText = flattenedLength(lastUnit) > 0 ? SelectionUnits.flattenedSelectableText(lastUnit) : "";
-        if (!lastText.isEmpty()) {
-            if (builder.length() > 0) builder.append('\n');
-            builder.append(SelectionUnits.rawRangeForNormalizedRange(lastUnit, 0, Math.min(lastOffset, lastText.length())));
+        for (int i = firstIndex; i <= lastIndex; i++) {
+            Element unit = units.get(i);
+            int length = flattenedLength(unit);
+            int start = i == firstIndex ? Math.min(firstOffset, length) : 0;
+            int end = i == lastIndex ? Math.min(lastOffset, length) : length;
+            if (i > firstIndex) builder.append('\n');
+            if (start < end) {
+                builder.append(SelectionUnits.rawRangeForNormalizedRange(unit, start, end));
+            }
         }
         return builder.toString();
     }
@@ -198,21 +235,27 @@ public final class RichTextSelection {
             int max = Math.max(anchorOffset, endOffset);
             return min == max ? null : new int[]{min, max};
         }
-        // 跨单元（防御分支）
-        if (unit != anchorUnit && unit != endUnit) return null;
+        boolean reversed = compareOffsets(anchorUnit, anchorOffset, endUnit, endOffset) > 0;
+        Element firstUnit = reversed ? endUnit : anchorUnit;
+        int firstOffset = reversed ? endOffset : anchorOffset;
+        Element lastUnit = reversed ? anchorUnit : endUnit;
+        int lastOffset = reversed ? anchorOffset : endOffset;
+        List<Element> units = unitsInRoot();
+        int unitIndex = units.indexOf(unit);
+        int firstIndex = units.indexOf(firstUnit);
+        int lastIndex = units.indexOf(lastUnit);
+        if (unitIndex < firstIndex || unitIndex > lastIndex || firstIndex < 0 || lastIndex < 0) return null;
         int length = flattenedLength(unit);
-        if (unit == anchorUnit) {
-            int start = Math.min(anchorOffset, length);
-            return start >= length ? null : new int[]{start, length};
-        }
-        int end = Math.min(endOffset, length);
-        return end <= 0 ? null : new int[]{0, end};
+        int start = unitIndex == firstIndex ? Math.min(firstOffset, length) : 0;
+        int end = unitIndex == lastIndex ? Math.min(lastOffset, length) : length;
+        return start >= end ? null : new int[]{start, end};
     }
 
     /** 单元是否为选区锚点或终点单元。 */
     public boolean coversUnit(Element unit) {
         if (unit == null) return false;
-        return unit == anchorUnit || unit == endUnit;
+        if (unit == anchorUnit || unit == endUnit) return true;
+        return localRangeForUnit(unit) != null;
     }
 
     // ------------------------------------------------------------------
@@ -221,12 +264,64 @@ public final class RichTextSelection {
 
     public void moveLeft(boolean keepSelection) {
         if (!hasAnchor()) return;
-        moveFocus(endUnit, endOffset - 1, keepSelection);
+        // 已选中单个对象：再次 ← 把光标移到对象前（跳过对象）
+        if (!keepSelection && !collapsed() && isSingleObjectSelection()) {
+            moveFocus(endUnit, Math.min(anchorOffset, endOffset), false);
+            return;
+        }
+        int offset = endOffset;
+        Element unit = endUnit;
+        // 光标在对象后：第一次 ← 选中对象
+        if (collapsed() && offset - 1 >= 0 && isObjectAt(unit, offset - 1)) {
+            setRange(unit, offset - 1, unit, offset);
+            return;
+        }
+        if (offset <= 0) {
+            Element previous = previousUnit(unit);
+            if (previous != null) {
+                moveFocus(previous, flattenedLength(previous), keepSelection);
+                return;
+            }
+        }
+        moveFocus(unit, offset - 1, keepSelection);
     }
 
     public void moveRight(boolean keepSelection) {
         if (!hasAnchor()) return;
-        moveFocus(endUnit, endOffset + 1, keepSelection);
+        // 已选中单个对象：再次 → 把光标移到对象后（跳过对象）
+        if (!keepSelection && !collapsed() && isSingleObjectSelection()) {
+            moveFocus(endUnit, Math.max(anchorOffset, endOffset), false);
+            return;
+        }
+        int offset = endOffset;
+        Element unit = endUnit;
+        // 光标在对象前：第一次 → 选中对象
+        if (collapsed() && isObjectAt(unit, offset)) {
+            setRange(unit, offset, unit, offset + 1);
+            return;
+        }
+        if (offset >= flattenedLength(unit)) {
+            Element next = nextUnit(unit);
+            if (next != null) {
+                moveFocus(next, 0, keepSelection);
+                return;
+            }
+        }
+        moveFocus(unit, offset + 1, keepSelection);
+    }
+
+    /** 选区是否恰好覆盖单个原子对象（长度 1 且为对象替换符）。 */
+    private boolean isSingleObjectSelection() {
+        if (anchorUnit == null || anchorUnit != endUnit) return false;
+        int min = Math.min(anchorOffset, endOffset);
+        int max = Math.max(anchorOffset, endOffset);
+        return max - min == 1 && isObjectAt(anchorUnit, min);
+    }
+
+    private static boolean isObjectAt(Element unit, int offset) {
+        String flattened = SelectionUnits.flattenedSelectableText(unit);
+        return flattened != null && offset >= 0 && offset < flattened.length()
+                && flattened.charAt(offset) == '\uFFFC';
     }
 
     public void moveUp(boolean keepSelection) {
@@ -269,6 +364,7 @@ public final class RichTextSelection {
         }
         updateDirection();
         markDirty();
+        notifyChange();
     }
 
     // ------------------------------------------------------------------
@@ -298,10 +394,53 @@ public final class RichTextSelection {
 
     private int compareOffsets(Element unitA, int offsetA, Element unitB, int offsetB) {
         if (unitA == unitB) return Integer.compare(offsetA, offsetB);
-        int a = SelectionUnits.enumerateUnits(owner).indexOf(unitA);
-        int b = SelectionUnits.enumerateUnits(owner).indexOf(unitB);
+        List<Element> units = unitsInRoot();
+        int a = units.indexOf(unitA);
+        int b = units.indexOf(unitB);
         if (a < 0 || b < 0) return Integer.compare(a < 0 ? -1 : a, b < 0 ? -1 : b);
         return Integer.compare(a, b);
+    }
+
+    /** 当前选区/焦点所属 richtext 根中的选择单元（DOM 前序）。 */
+    public List<Element> unitsInRoot() {
+        Element root = richTextRoot(anchorUnit);
+        if (root == null) root = richTextRoot(endUnit);
+        if (root == null && owner != null) root = richTextRoot(owner.getFocusedElement());
+        if (root == null) return List.of();
+        List<Element> result = new ArrayList<>();
+        if (SelectionUnits.isSelectionUnit(root)) result.add(root);
+        collectUnits(root, result);
+        return result;
+    }
+
+    private static void collectUnits(Element current, List<Element> out) {
+        for (Node child : current.getChildNodes()) {
+            if (!(child instanceof Element childElement)) continue;
+            if (SelectionUnits.isSelectionUnit(childElement)) {
+                out.add(childElement);
+                continue;
+            }
+            collectUnits(childElement, out);
+        }
+    }
+
+    private static Element richTextRoot(Element element) {
+        for (Element current = element; current != null; current = current.parentElement) {
+            if (current instanceof com.sighs.apricityui.element.RichText) return current;
+        }
+        return null;
+    }
+
+    private Element previousUnit(Element unit) {
+        List<Element> units = unitsInRoot();
+        int index = units.indexOf(unit);
+        return index > 0 ? units.get(index - 1) : null;
+    }
+
+    private Element nextUnit(Element unit) {
+        List<Element> units = unitsInRoot();
+        int index = units.indexOf(unit);
+        return index >= 0 && index + 1 < units.size() ? units.get(index + 1) : null;
     }
 
     private static int flattenedLength(Element unit) {
@@ -317,5 +456,19 @@ public final class RichTextSelection {
     private void markDirty() {
         if (owner == null) return;
         owner.markDirty(Drawer.REPAINT);
+    }
+
+    /** 选区状态实际变化时通知 Document 派发 selectionchange（快照去重）。 */
+    private void notifyChange() {
+        if (owner == null) return;
+        if (anchorUnit == lastNotifiedAnchorUnit && anchorOffset == lastNotifiedAnchorOffset
+                && endUnit == lastNotifiedEndUnit && endOffset == lastNotifiedEndOffset) {
+            return;
+        }
+        lastNotifiedAnchorUnit = anchorUnit;
+        lastNotifiedAnchorOffset = anchorOffset;
+        lastNotifiedEndUnit = endUnit;
+        lastNotifiedEndOffset = endOffset;
+        owner.dispatchSelectionChange();
     }
 }

@@ -2,6 +2,7 @@ package com.sighs.apricityui.init;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.element.ContentEditable;
+import com.sighs.apricityui.element.RichText;
 import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Flex;
 import com.sighs.apricityui.layout.Layout;
@@ -475,7 +476,9 @@ public class Element extends Node {
             return;
         }
         if (document == null || cssCacheMatched) return;
-        if (getClassNames().isEmpty() && (id == null || id.isBlank()) && getAttributes().isEmpty()) return;
+        // 元素无 class/id/属性时亦应匹配：
+        // 标签/后代选择器（如 p{}/richtext h1{} ）不依赖目标元素的 class/id。
+        // Selector.matchCSS 通过 byTag 索引高效匹配，结果缓存于 cssCacheMatched。
         cssCache = Selector.matchCSS(this);
         cssCacheMatched = true;
     }
@@ -1021,7 +1024,9 @@ public class Element extends Node {
 
         BiFunction<Document, String, ? extends Element> creator = REGISTRY.get(origin.tagName);
         if (creator == null && hasContentEditableAttribute(origin)) {
-            creator = ContentEditable::new;
+            // 浏器语义:contenteditable=true/空=富文本(保留树),
+            // plaintext-only=纯文本;false=不可编辑
+            creator = isPlainTextOnly(origin) ? ContentEditable::new : RichText::new;
         }
         if (creator != null) {
             Element element = creator.apply(origin.document, origin.tagName);
@@ -1065,6 +1070,11 @@ public class Element extends Node {
         return origin.attributes != null && origin.attributes.containsKey("contenteditable");
     }
 
+    private static boolean isPlainTextOnly(Element origin) {
+        String value = origin.attributes == null ? null : origin.attributes.get("contenteditable");
+        return value != null && "plaintext-only".equalsIgnoreCase(value.trim());
+    }
+
     public List<Element> querySelectorAll(String selector) {
         return node.querySelectorAll(selector);
     }
@@ -1083,6 +1093,16 @@ public class Element extends Node {
 
     public Element appendChild(Element element) {
         return node.appendChild(element);
+    }
+
+    /** 浏览器 Element.replaceChildren()：清空子节点后追加新子节点。 */
+    public void replaceChildren(com.sighs.apricityui.init.Node... children) {
+        clearChildren();
+        if (children != null) {
+            for (com.sighs.apricityui.init.Node child : children) {
+                if (child != null) appendChild(child);
+            }
+        }
     }
 
     public Element removeChild(Element element) {
@@ -2563,16 +2583,19 @@ public class Element extends Node {
         }
     }
 
-    public static final class DOMStringMap {
+    public static final class DOMStringMap implements Map {
         private final Element owner;
 
         DOMStringMap(Element owner) {
             this.owner = owner;
         }
 
-        public String get(String key) {
-            if (key == null || key.isBlank()) return "";
-            return owner.getAttribute(toDataAttributeName(key));
+        @Override
+        public String get(Object key) {
+            if (key == null) return "";
+            String name = String.valueOf(key);
+            if (name.isBlank()) return "";
+            return owner.getAttribute(toDataAttributeName(name));
         }
 
         public void set(String key, String value) {
@@ -2597,6 +2620,96 @@ public class Element extends Node {
                 keys.add(fromDataAttributeName(attrName));
             }
             return Collections.unmodifiableSet(keys);
+        }
+
+        @Override
+        public int size() {
+            return keys().size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return keys().isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return key != null && has(String.valueOf(key));
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            for (String key : keys()) {
+                if (java.util.Objects.equals(get(key), value)) return true;
+            }
+            return false;
+        }
+
+        @Override
+        public String put(Object key, Object value) {
+            if (key == null) return null;
+            String name = String.valueOf(key);
+            String old = get(name);
+            set(name, jsValueToString(value));
+            return old;
+        }
+
+        /** JS 数值 -> 浏览器 dataset 语义的字符串(整型去 ".0")。 */
+        private static String jsValueToString(Object value) {
+            if (value == null) return null;
+            if (value instanceof Double) {
+                double d = (Double) value;
+                if (!Double.isInfinite(d) && !Double.isNaN(d) && d == Math.rint(d)
+                        && d >= Long.MIN_VALUE && d <= Long.MAX_VALUE) {
+                    return String.valueOf((long) d);
+                }
+            }
+            return String.valueOf(value);
+        }
+
+        @Override
+        public String remove(Object key) {
+            if (key == null) return null;
+            String name = String.valueOf(key);
+            String old = get(name);
+            delete(name);
+            return old;
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public void putAll(Map m) {
+            if (m == null) return;
+            for (Object eo : m.entrySet()) {
+                Map.Entry<String, String> e = (Map.Entry<String, String>) eo;
+                set(e.getKey(), e.getValue());
+            }
+        }
+
+        @Override
+        public void clear() {
+            for (String key : new ArrayList<>(keys())) delete(key);
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return keys();
+        }
+
+        @Override
+        public Collection<String> values() {
+            ArrayList<String> values = new ArrayList<>();
+            for (String key : keys()) values.add(get(key));
+            return Collections.unmodifiableList(values);
+        }
+
+        @Override
+        public Set<Entry<String, String>> entrySet() {
+            LinkedHashSet<Entry<String, String>> entries = new LinkedHashSet<>();
+            for (String key : keys()) {
+                entries.add(new AbstractMap.SimpleEntry<>(key, get(key)));
+            }
+            return Collections.unmodifiableSet(entries);
         }
 
         @Override

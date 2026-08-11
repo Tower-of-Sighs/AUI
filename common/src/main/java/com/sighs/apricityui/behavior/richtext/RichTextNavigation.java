@@ -26,8 +26,8 @@ public final class RichTextNavigation {
     private RichTextNavigation() {
     }
 
-    /** 视觉行内的一段 run：归一化区间 [startNorm, startNorm+content.length()) 与几何。 */
-    public record RunSegment(Text text, String content, int startNorm, double x0, double y0) {
+    /** 视觉行内的一段（run 或原子对象）：归一化区间 [startNorm, startNorm+占位长度) 与几何。 */
+    public record RunSegment(Text text, String content, int startNorm, double x0, double y0, double width) {
     }
 
     /** 一个视觉行：多个 run 段的合并（段按 x0 顺序，行内偏移经各段度量）。 */
@@ -39,12 +39,19 @@ public final class RichTextNavigation {
             double x = 0;
             for (RunSegment segment : segments) {
                 int segmentEnd = segment.startNorm() + segment.content().length();
+                if (segment.content().isEmpty()) {
+                    // 原子对象段：占 1 个归一化字符
+                    segmentEnd = segment.startNorm() + 1;
+                }
                 if (normOffset <= segment.startNorm()) {
                     break;
                 }
                 if (normOffset >= segmentEnd) {
-                    x += Text.measureLine(segment.text(), segment.content());
+                    x += segment.width();
                     continue;
+                }
+                if (segment.content().isEmpty()) {
+                    break;
                 }
                 x += Text.measureLine(segment.text(), segment.content().substring(0, normOffset - segment.startNorm()));
                 break;
@@ -59,7 +66,15 @@ public final class RichTextNavigation {
             double relative = x - x0;
             double acc = 0;
             for (RunSegment segment : segments) {
-                double segmentWidth = Text.measureLine(segment.text(), segment.content());
+                if (segment.content().isEmpty()) {
+                    // 原子对象段：宽度内任意点 → 对象起点
+                    if (relative <= acc + segment.width()) {
+                        return segment.startNorm();
+                    }
+                    acc += segment.width();
+                    continue;
+                }
+                double segmentWidth = segment.width();
                 if (relative <= acc + segmentWidth) {
                     double local = relative - acc;
                     int best = 0;
@@ -87,12 +102,16 @@ public final class RichTextNavigation {
     public record Caret(double x, double y, double lineHeight) {
     }
 
-    /** 单元的全部视觉行（y0 优先排序）。 */
+    /** 单元的全部视觉行（y0 优先排序；原子对象段并入其所属文本行）。 */
     public static List<VisualLine> linesOf(Element unit) {
         List<VisualLine> result = new ArrayList<>();
         if (unit == null) return result;
         List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(unit);
-        if (runs.isEmpty()) return result;
+        // 原子对象段（可能在没有文本 run 时也存在）
+        List<RunSegment> objectRows = new ArrayList<>();
+        collectObjectSegments(unit, unit, objectRows);
+        if (runs.isEmpty() && objectRows.isEmpty()) return result;
+
         Rect rect = Rect.of(unit);
         Position contentPos = rect.getContentPosition();
         boolean alignDirect = shouldAlignDirect(unit);
@@ -114,7 +133,7 @@ public final class RichTextNavigation {
                 double y0 = contentPos.y + run.y() + i * lineHeight;
                 double x0 = contentPos.x + (i == 0 ? run.x() : 0) + alignOffset - unit.scrollLeft;
                 int lineStartNorm = runBase + SelectionUnits.runLineStart(run, i);
-                rows.add(new RunSegment(runText, line == null ? "" : line, lineStartNorm, x0, y0));
+                rows.add(new RunSegment(runText, line == null ? "" : line, lineStartNorm, x0, y0, lineWidth));
             }
         }
         rows.sort(Comparator.comparingDouble(RunSegment::y0).thenComparingDouble(RunSegment::x0));
@@ -138,6 +157,30 @@ public final class RichTextNavigation {
             group.sort(Comparator.comparingDouble(RunSegment::x0));
             result.add(new VisualLine(startNorm, endNorm, y0, lineHeight, group));
             i = j - 1;
+        }
+        // 原子对象段并入其 startNorm 所在的文本行（对象在文本段之间）
+        for (RunSegment object : objectRows) {
+            int targetIndex = -1;
+            for (int i = 0; i < result.size(); i++) {
+                VisualLine line = result.get(i);
+                if (object.startNorm() >= line.startNorm() && object.startNorm() <= line.endNorm()) {
+                    targetIndex = i;
+                    break;
+                }
+            }
+            if (targetIndex < 0) {
+                // 无匹配文本行（如仅含对象）：独立成行
+                result.add(new VisualLine(object.startNorm(), object.startNorm() + 1,
+                        object.y0(), object.text().lineHeight, List.of(object)));
+                continue;
+            }
+            VisualLine line = result.get(targetIndex);
+            List<RunSegment> merged = new ArrayList<>(line.segments());
+            merged.add(object);
+            merged.sort(Comparator.comparingDouble(RunSegment::x0));
+            int startNorm = Math.min(line.startNorm(), object.startNorm());
+            int endNorm = Math.max(line.endNorm(), object.startNorm() + 1);
+            result.set(targetIndex, new VisualLine(startNorm, endNorm, line.y0(), line.lineHeight(), merged));
         }
         return result;
     }
@@ -221,5 +264,24 @@ public final class RichTextNavigation {
             return false;
         }
         return hasText;
+    }
+
+    /** 收集单元内的原子对象段（宽度 = 对象盒子宽）。 */
+    private static void collectObjectSegments(Element unit, Element current, List<RunSegment> out) {
+        for (Node child : current.getRenderChildNodes()) {
+            if (!(child instanceof Element childElement)) continue;
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                Element.DOMRect rect = childElement.getBoundingClientRect();
+                double x0 = rect != null ? rect.x : 0;
+                double y0 = rect != null ? rect.y : 0;
+                double width = rect != null && rect.width > 0 ? rect.width : 0;
+                int startNorm = SelectionUnits.baseOffsetOfDescendant(unit, childElement);
+                out.add(new RunSegment(Text.of(unit), "", startNorm, x0, y0, width));
+                continue;
+            }
+            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
+            if (SelectionUnits.isLineBreak(childElement)) continue;
+            collectObjectSegments(unit, childElement, out);
+        }
     }
 }

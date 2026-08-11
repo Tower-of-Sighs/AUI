@@ -917,6 +917,48 @@ try {
     if (typeof x === 'object' && x) return document.scrollBy(Number(x.left || 0), Number(x.top || 0));
     return document.scrollBy(Number(x) || 0, Number(y) || 0);
   };
+  let __auiCreateFragment = document.createDocumentFragment;
+  if (typeof __auiCreateFragment === 'function') {
+    document.createDocumentFragment = function() { return __auiDecorateNode(__auiCreateFragment.call(document)); };
+  }
+  let __auiGetSelection = window.getSelection;
+  if (typeof __auiGetSelection === 'function') {
+    window.getSelection = function() {
+      let sel = __auiGetSelection.call(window);
+      if (sel && !sel.__auiDecoratedSelection) {
+        try {
+          Object.defineProperty(sel, '__auiDecoratedSelection', { value: true });
+          Object.defineProperty(sel, 'anchorNode', {
+            get: function() { return __auiDecorateNode(sel.getAnchorNode()); },
+            enumerable: true, configurable: true
+          });
+          Object.defineProperty(sel, 'focusNode', {
+            get: function() { return __auiDecorateNode(sel.getFocusNode()); },
+            enumerable: true, configurable: true
+          });
+        } catch (e) {}
+      }
+      return sel;
+    };
+  }
+  let __auiCreateRange = document.createRange;
+  if (typeof __auiCreateRange === 'function') {
+    document.createRange = function() { return __auiCreateRange.call(document); };
+  }
+  let __auiCreateTreeWalker = document.createTreeWalker;
+  if (typeof __auiCreateTreeWalker === 'function') {
+    document.createTreeWalker = function(root, whatToShow) {
+      let walker = __auiCreateTreeWalker.call(document, root, whatToShow == null ? 0xFFFFFFFF : whatToShow);
+      if (walker && typeof walker.nextNode === 'function') {
+        let __walkerNext = walker.nextNode;
+        walker.nextNode = function() { return __auiDecorateNode(__walkerNext.call(walker)); };
+      }
+      return walker;
+    };
+  }
+  globalThis.Node = { ELEMENT_NODE: 1, ATTRIBUTE_NODE: 2, TEXT_NODE: 3, CDATA_SECTION_NODE: 4,
+                      COMMENT_NODE: 8, DOCUMENT_NODE: 9, DOCUMENT_FRAGMENT_NODE: 11 };
+  globalThis.NodeFilter = { SHOW_ALL: 0xFFFFFFFF, SHOW_TEXT: 4 };
   __auiDecorateElement(document.body);
 } catch (e) {}
 __auiInstallTextBridge();

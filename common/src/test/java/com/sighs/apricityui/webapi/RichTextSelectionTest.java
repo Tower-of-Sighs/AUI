@@ -13,6 +13,7 @@ import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -28,11 +29,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class RichTextSelectionTest {
 
     // 测试环境没有 loader 的注解扫描，手动注册（与 ResourcePipelineTest/TextureElementTest 同惯例）。
-    static {
-        Element.register(RichText.TAG_NAME, (document, tag) -> new RichText(document));
-    }
 
-    private static final String MARKUP = "<richtext style=\"width: 320px; height: 80px;\">hello <b>world</b> foo</richtext>";
+    private static final String MARKUP = "<div contenteditable style=\"width: 320px; height: 80px;\">hello <b>world</b> foo</div>";
 
     private static Document document() {
         return TestDocumentFactory.createDocument();
@@ -162,7 +160,7 @@ class RichTextSelectionTest {
         Document document = document();
         // <br> 提供硬换行（white-space:normal 下 \n 会被折叠成空格）
         Element element = document.createHTML(
-                "<richtext style=\"width: 320px; height: 80px;\">aaaa aaaa<br>aaaa aaaa</richtext>");
+                "<div contenteditable style=\"width: 320px; height: 80px;\">aaaa aaaa<br>aaaa aaaa</div>");
         RichText rich2 = (RichText) element;
         RichTextSelection selection = document.getRichTextSelection();
         selection.setCollapsed(rich2, 3);
@@ -220,15 +218,15 @@ class RichTextSelectionTest {
         RichText rich = parsed(document);
         RichTextSelection selection = document.getRichTextSelection();
 
-        // 选中归一化 [5,11)：空格 + b 内 "world" → 删除后剩 "hello foo"，b 变空保留
+        // 选中归一化 [5,11)：空格 + b 内 "world" → 删除后剩 "hello foo"
+        // b 被完全覆盖而移除，两侧文本节点合并为一个
         selection.setRange(rich, 5, rich, 11);
         RichTextRange range = selection.toRange();
         assertNotNull(range);
         range.deleteContents();
 
         assertEquals("hello foo", rich.getTextContent());
-        // 结构保留：TextNode("hello")、b（内部文本已清空）、TextNode(" foo")
-        assertEquals(3, rich.getChildNodes().size(), "hello + b(empty) + foo");
+        assertEquals(1, rich.getChildNodes().size(), "fully covered b removed, text merged");
     }
 
     @Test
@@ -249,7 +247,7 @@ class RichTextSelectionTest {
     @Test
     void deleteContentsMergesAdjacentTextNodesInSameParent() {
         Document document = document();
-        RichText rich = new RichText(document);
+        RichText rich = new RichText(document, "div");
         rich.appendChild(document.createTextNode("ab"));
         rich.appendChild(document.createTextNode("cd"));
         document.body.appendChild(rich);
@@ -321,6 +319,92 @@ class RichTextSelectionTest {
         // 布局/绘制管线不抛异常
         document.tickFrame();
         document.tickFrame();
+    }
+
+    // ------------------------------------------------------------------
+    // UA 级 content 排版样式（p/h1 等默认边距字号）
+    // ------------------------------------------------------------------
+
+    @Test
+    void headingsAndParagraphsGetContentTypography() {
+        Document document = document();
+        RichText rich = (RichText) document.createHTML(
+                "<div contenteditable style=\"width: 320px;\"><h1>Title</h1><p>Body</p></div>");
+        Element h1 = (Element) rich.getChildNodes().get(0);
+        Element p = (Element) rich.getChildNodes().get(1);
+
+        // 标题有加粗与大字号，正文保持默认
+        assertEquals("700", h1.getComputedStyle().fontWeight, "h1 is bold");
+        assertEquals("400", p.getComputedStyle().fontWeight, "p keeps normal weight");
+        assertTrue(h1.getComputedStyle().fontSize != null
+                        && p.getComputedStyle().fontSize != null
+                        && !h1.getComputedStyle().fontSize.equals(p.getComputedStyle().fontSize),
+                "h1 font-size differs from p: h1=" + h1.getComputedStyle().fontSize
+                        + " p=" + p.getComputedStyle().fontSize);
+        // 段落有默认边距（不再是 0）
+        assertTrue(p.getComputedStyle().marginTop != null
+                        && !"0px".equals(p.getComputedStyle().marginTop),
+                "p has default margin, got " + p.getComputedStyle().marginTop);
+    }
+
+    @Test
+    void userStylesOverrideContentDefaults() {
+        Document document = document();
+        RichText rich = (RichText) document.createHTML(
+                "<div contenteditable style=\"width: 320px;\"><h1>Title</h1></div>");
+        Element h1 = (Element) rich.getChildNodes().get(0);
+
+        // UA 级 content 样式是最低优先级：作者样式可覆盖
+        document.registerStylesheet("[contenteditable] h1{margin:0;font-weight:400;}", "<user>", 0);
+        assertEquals("400", h1.getComputedStyle().fontWeight, "author style overrides UA default");
+    }
+
+    @Test
+    void hrGetsDefaultRuleWithinRichText() {
+        Document document = document();
+        RichText rich = (RichText) document.createHTML(
+                "<div contenteditable style=\"width: 320px;\">a<hr>b</div>");
+        Element hr = (Element) rich.getChildNodes().get(1);
+        // content 样式给 hr 一条上边框（border-top: 1px solid）
+        String borderTop = hr.getComputedStyle().borderTop;
+        assertTrue(borderTop != null && !"unset".equals(borderTop) && borderTop.contains("1px"),
+                "hr has a default top border, got " + borderTop);    }
+
+    // ------------------------------------------------------------------
+    // selectionchange 事件（工具栏联动）
+    // ------------------------------------------------------------------
+
+    @Test
+    void selectionChangeFiresOnMovesAndDeduplicates() {
+        Document document = document();
+        RichText rich = parsed(document);
+        AtomicInteger changes = new AtomicInteger();
+        document.addEventListener("selectionchange", event -> changes.incrementAndGet());
+
+        RichTextSelection selection = document.getRichTextSelection();
+        selection.setCollapsed(rich, 0);   // 1
+        selection.setCollapsed(rich, 0);   // 同位置去重：不触发
+        selection.moveRight(false);        // 2
+        selection.moveRight(false);        // 3
+        selection.moveLeft(true);          // 4（Shift 扩展）
+        selection.selectAll(rich);         // 5
+        selection.clear();                 // 6
+
+        assertEquals(6, changes.get(), "selectionchange per real selection change");
+    }
+
+    @Test
+    void selectionChangeFiresAfterEditingMovesCaret() {
+        Document document = document();
+        RichText rich = parsed(document);
+        AtomicInteger changes = new AtomicInteger();
+        document.addEventListener("selectionchange", event -> changes.incrementAndGet());
+
+        RichTextSelection selection = document.getRichTextSelection();
+        selection.setCollapsed(rich, 0);   // 1
+        // 编辑后光标移动也触发（工具栏状态刷新）
+        com.sighs.apricityui.behavior.richtext.RichTextEditing.insertText(rich, "X");
+        assertEquals(2, changes.get(), "insertText moves the caret → selectionchange");
     }
 
     // ------------------------------------------------------------------

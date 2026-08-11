@@ -28,6 +28,23 @@ public final class SelectionUnits {
     /** <br> 在扁平化文本中的占位符：普通流里被当作硬换行，归一化后再还原为 \n（避免被空白折叠吞掉）。 */
     public static final char BR_SENTINEL = '\u0001';
 
+    /** 原子对象（img/hr）在扁平化文本中的占位符：占据一个原子单位，还原为 U+FFFC 对象替换符。 */
+    public static final char OBJECT_SENTINEL = '\u0002';
+
+    /** 是否为富文本中的原子对象节点（替换/绘制元素，编辑模型中占一个原子单位）。 */
+    public static boolean isAtomicObject(Element element) {
+        if (element == null) return false;
+        boolean supportedTag = switch (element.tagName) {
+            case "IMG", "HR", "SVG", "CANVAS", "TEXTURE", "SPRITE" -> true;
+            default -> false;
+        };
+        if (!supportedTag) return false;
+        for (Element current = element.parentElement; current != null; current = current.parentElement) {
+            if (current instanceof com.sighs.apricityui.element.RichText) return true;
+        }
+        return false;
+    }
+
     /** 命中元素解析出的文档选择位置：单元 + 单元扁平文本内的偏移。 */
     public record UnitOffset(Element unit, int offset) {
     }
@@ -107,7 +124,13 @@ public final class SelectionUnits {
         if (raw.length() == 0) return "";
         String normalized = Text.normalizeWhiteSpaceContent(raw.toString(), Text.getWhiteSpace(element));
         if (normalized == null || normalized.isEmpty()) return "";
-        return normalized.indexOf(BR_SENTINEL) >= 0 ? normalized.replace(BR_SENTINEL, '\n') : normalized;
+        if (normalized.indexOf(BR_SENTINEL) >= 0) {
+            normalized = normalized.replace(BR_SENTINEL, '\n');
+        }
+        if (normalized.indexOf(OBJECT_SENTINEL) >= 0) {
+            normalized = normalized.replace(OBJECT_SENTINEL, '\uFFFC');
+        }
+        return normalized;
     }
 
     /**
@@ -256,7 +279,13 @@ public final class SelectionUnits {
             if (start == 0) rawStartIndex = extendLeft(rawStartIndex);
             if (end == length) rawEndIndex = extendRight(rawEndIndex);
             String substring = raw.substring(rawStartIndex, rawEndIndex);
-            return substring.indexOf(BR_SENTINEL) >= 0 ? substring.replace(BR_SENTINEL, '\n') : substring;
+            if (substring.indexOf(BR_SENTINEL) >= 0) {
+                substring = substring.replace(BR_SENTINEL, '\n');
+            }
+            if (substring.indexOf(OBJECT_SENTINEL) >= 0) {
+                substring = substring.replace(OBJECT_SENTINEL, '\uFFFC');
+            }
+            return substring;
         }
 
         /** 选区起点在归一化串首时，把被折叠丢弃的行首空白一并纳入（与浏览器复制行为一致）。 */
@@ -362,6 +391,12 @@ public final class SelectionUnits {
                 contributed = true;
                 continue;
             }
+            if (isAtomicObject(childElement)) {
+                // img/hr 作为原子对象：占据一个原子单位（还原为 U+FFFC）
+                raw.append(OBJECT_SENTINEL);
+                contributed = true;
+                continue;
+            }
             if (isSelectionUnit(childElement)) continue;
             int before = raw.length();
             flattenRaw(unit, childElement, raw);
@@ -385,6 +420,11 @@ public final class SelectionUnits {
             if (isLineBreak(childElement)) {
                 if (child == target) return true;
                 raw.append(BR_SENTINEL);
+                continue;
+            }
+            if (isAtomicObject(childElement)) {
+                if (child == target) return true;
+                raw.append(OBJECT_SENTINEL);
                 continue;
             }
             if (isSelectionUnit(childElement)) continue;

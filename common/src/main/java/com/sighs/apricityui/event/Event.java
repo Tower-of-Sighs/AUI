@@ -36,6 +36,8 @@ public class Event implements Cloneable {
     public boolean cancelBubble = false;
     public boolean returnValue = true;
     public boolean isTrusted = false;
+    /** 浏览器 ClipboardEvent.clipboardData 的桥（copy/cut/paste 事件携带）。 */
+    public com.sighs.apricityui.render.ClipboardDataBridge clipboardData = null;
     public double timeStamp = System.nanoTime() / 1_000_000.0;
 
     private boolean propagationStopped = false;

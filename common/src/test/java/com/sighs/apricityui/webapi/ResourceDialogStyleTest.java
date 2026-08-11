@@ -58,8 +58,11 @@ class ResourceDialogStyleTest {
             Element header = document.querySelector(".dialog-header");
             Element input = document.querySelector(".dialog-input");
             Element create = document.querySelector(".dialog-btn-confirm");
-            assertEquals("var(--purple)", header.getComputedStyle().backgroundColor);
-            assertEquals("2px solid var(--gray-light)", input.getComputedStyle().border);
+            // :root 的 --purple 现在对裸元素生效，var 会被解析为实际色值（浏览器语义）
+            assertEquals("#8b5cf6", header.getComputedStyle().backgroundColor);
+            assertTrue(usesCssVar(document.CSSCache, "var(--purple)"), "dialog styles reference --purple");
+            assertEquals("2px solid #e0e0e0", input.getComputedStyle().border);
+            assertTrue(usesCssVar(document.CSSCache, "var(--gray-light)"), "dialog styles reference --gray-light");
             assertEquals("tests/", input.value);
             assertTrue(create.isDisabled());
             assertTrue(create.matches(".dialog-btn:disabled"));
@@ -87,7 +90,7 @@ class ResourceDialogStyleTest {
             assertNull(Selector.matchCSS(select).get("height"));
             assertEquals("auto", select.getRawComputedStyle().height);
             assertEquals("14px", select.getRawComputedStyle().paddingLeft);
-            assertEquals("var(--purple)", arrow.getComputedStyle().backgroundColor);
+            assertEquals("#8b5cf6", arrow.getComputedStyle().backgroundColor);
             document.setFocusedElement(select);
             document.flushPendingStyleUpdates();
             assertEquals("var(--purple-dark)", Selector.matchCSS(arrow).get("background"));
@@ -181,6 +184,15 @@ class ResourceDialogStyleTest {
                     && phase.phase() == Base.RenderPhase.BODY) return i;
         }
         throw new AssertionError("BODY render node missing for " + target.tagName);
+    }
+
+    private static boolean usesCssVar(java.util.Map<String, java.util.Map<String, CSS.Declaration>> cache, String var) {
+        for (java.util.Map<String, CSS.Declaration> props : cache.values()) {
+            for (CSS.Declaration declaration : props.values()) {
+                if (var.equals(declaration.value())) return true;
+            }
+        }
+        return false;
     }
 
     private static Document styledDocument() throws Exception {

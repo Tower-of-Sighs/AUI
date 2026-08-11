@@ -4,6 +4,7 @@ import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
+import com.sighs.apricityui.util.HtmlSerializer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -93,39 +94,166 @@ public final class RichTextRange {
         return SelectionUnits.rawRangeForNormalizedRange(unit, startNorm, endNorm);
     }
 
-    /**
-     * 删除范围内的文本内容。跨节点时逐 TextNode 截取，随后清理空 TextNode 并合并
-     * 同父节点的相邻 TextNode。
-     */
-    public void deleteContents() {
-        if (unit == null || collapsed()) return;
-        List<TextNode> textNodes = new ArrayList<>();
-        List<int[]> rawSpans = new ArrayList<>();
-        collectRawSegments(unit, unit, textNodes, rawSpans, new int[]{0});
-
+    /** 范围内的 HTML 序列化（复制用）：按 DOM 序裁剪文本节点、保留/裁剪元素节点，输出 HTML。 */
+    public String toHtml() {
+        if (unit == null || collapsed()) return "";
         int startRaw = rawOffsetForNorm(unit, startNorm);
         int endRaw = rawOffsetForNorm(unit, endNorm);
+        StringBuilder out = new StringBuilder();
+        clipChildrenToHtml(unit, startRaw, endRaw, out, new int[]{0});
+        return out.toString();
+    }
 
-        boolean changed = false;
-        for (int i = 0; i < textNodes.size(); i++) {
-            TextNode textNode = textNodes.get(i);
-            int[] span = rawSpans.get(i);
-            int overlapStart = Math.max(startRaw, span[0]);
-            int overlapEnd = Math.min(endRaw, span[1]);
-            if (overlapStart >= overlapEnd) continue;
-            textNode.replaceData(overlapStart - span[0], overlapEnd - overlapStart, "");
-            changed = true;
-        }
-        if (changed) {
-            normalizeTextNodes(unit);
+    /** 按 raw 游标遍历 current 的直接子节点，裁剪到 [startRaw, endRaw)，输出 HTML。 */
+    private static void clipChildrenToHtml(Element current, int startRaw, int endRaw,
+                                           StringBuilder out, int[] cursor) {
+        for (Node child : current.getChildNodes()) {
+            if (child instanceof TextNode textNode) {
+                int start = cursor[0];
+                int end = start + textNode.getTextContent().length();
+                cursor[0] = end;
+                int clipStart = Math.max(start, startRaw);
+                int clipEnd = Math.min(end, endRaw);
+                if (clipStart < clipEnd) {
+                    out.append(HtmlSerializer.escapeHtml(
+                            textNode.getTextContent().substring(clipStart - start, clipEnd - start)));
+                }
+                continue;
+            }
+            if (!(child instanceof Element childElement)) continue;
+            if (SelectionUnits.isLineBreak(childElement)) {
+                int start = cursor[0];
+                cursor[0] = start + 1;
+                if (start >= startRaw && start < endRaw) {
+                    out.append("<br>");
+                }
+                continue;
+            }
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                int start = cursor[0];
+                cursor[0] = start + 1;
+                if (start >= startRaw && start < endRaw) {
+                    out.append(openTagForClip(childElement));
+                }
+                continue;
+            }
+            int elementStart = cursor[0];
+            StringBuilder inner = new StringBuilder();
+            clipChildrenToHtml(childElement, startRaw, endRaw, inner, cursor);
+            int elementEnd = cursor[0];
+            if (elementStart < endRaw && elementEnd > startRaw && inner.length() > 0) {
+                out.append(openTagForClip(childElement)).append(inner)
+                        .append("</").append(childElement.tagName.toLowerCase(java.util.Locale.ROOT)).append(">");
+            }
         }
     }
 
+    /** 序列化元素开始标签（仅保留 style/href/src/alt 白名单属性；小写标签名与 HtmlSerializer 一致）。 */
+    private static String openTagForClip(Element element) {
+        StringBuilder sb = new StringBuilder("<").append(element.tagName.toLowerCase(java.util.Locale.ROOT));
+        java.util.Map<String, String> attributes = element.getAttributes();
+        String style = attributes.get("style");
+        if (style != null && !style.isEmpty()) {
+            sb.append(" style=\"").append(HtmlSerializer.escapeHtml(style)).append("\"");
+        }
+        if ("A".equals(element.tagName)) {
+            String href = attributes.get("href");
+            if (href != null && !href.isEmpty()) {
+                sb.append(" href=\"").append(HtmlSerializer.escapeHtml(href)).append("\"");
+            }
+        }
+        if ("IMG".equals(element.tagName)) {
+            String src = attributes.get("src");
+            if (src != null && !src.isEmpty()) {
+                sb.append(" src=\"").append(HtmlSerializer.escapeHtml(src)).append("\"");
+            }
+            String alt = attributes.get("alt");
+            if (alt != null && !alt.isEmpty()) {
+                sb.append(" alt=\"").append(HtmlSerializer.escapeHtml(alt)).append("\"");
+            }
+        }
+        return sb.append(">").toString();
+    }
+
     /**
-     * 在范围起点处插入节点。起点在 TextNode 内时拆分该节点；起点在 Element 上时按子节点索引插入。
+     * 删除范围内的内容（含完全覆盖的 BR 与元素）。随后清理空 TextNode 并合并相邻 TextNode。
      */
-    public void insertNode(Node node) {
-        if (unit == null || node == null) return;
+    public void deleteContents() {
+        deleteContents(true);
+    }
+
+    /**
+     * 删除范围内的内容。
+     *
+     * @param removeElements 为 true 时移除范围内完全覆盖的 BR 与元素（选区删除/粘贴撤销语义）；
+     *                       为 false 时仅删文本（undo 纯文本插入的逆删除）。
+     */
+    public void deleteContents(boolean removeElements) {
+        if (unit == null || collapsed()) return;
+        int startRaw = rawOffsetForNorm(unit, startNorm);
+        int endRaw = rawOffsetForNorm(unit, endNorm);
+        boolean changed = deleteRangeFromChildren(unit, startRaw, endRaw, new int[]{0}, removeElements);
+        if (changed) {
+            normalize(unit);
+        }
+    }
+
+    /** 递归删除 [startRaw, endRaw) 覆盖的文本/BR/元素（raw 游标与 collectRawSegments 一致）。 */
+    private static boolean deleteRangeFromChildren(Element current, int startRaw, int endRaw,
+                                                   int[] cursor, boolean removeElements) {
+        boolean changed = false;
+        for (Node child : new ArrayList<>(current.getChildNodes())) {
+            if (child instanceof TextNode textNode) {
+                int start = cursor[0];
+                int end = start + textNode.getTextContent().length();
+                cursor[0] = end;
+                int clipStart = Math.max(start, startRaw);
+                int clipEnd = Math.min(end, endRaw);
+                if (clipStart < clipEnd) {
+                    textNode.replaceData(clipStart - start, clipEnd - clipStart, "");
+                    changed = true;
+                }
+                continue;
+            }
+            if (!(child instanceof Element childElement)) continue;
+            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
+            if (SelectionUnits.isLineBreak(childElement)) {
+                int start = cursor[0];
+                cursor[0] = start + 1;
+                if (start >= startRaw && start < endRaw) {
+                    current.removeChild(childElement);
+                    changed = true;
+                }
+                continue;
+            }
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                int start = cursor[0];
+                cursor[0] = start + 1;
+                if (start >= startRaw && start < endRaw) {
+                    current.removeChild(childElement);
+                    changed = true;
+                }
+                continue;
+            }
+            if (SelectionUnits.isSelectionUnit(childElement)) continue;
+            int elementStart = cursor[0];
+            changed |= deleteRangeFromChildren(childElement, startRaw, endRaw, cursor, removeElements);
+            int elementEnd = cursor[0];
+            // 元素内部文本完全被范围覆盖 → 移除整个元素
+            if (removeElements && elementStart < elementEnd && elementStart >= startRaw && elementEnd <= endRaw) {
+                current.removeChild(childElement);
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
+    /**
+     * 在范围起点处插入节点，返回被插入的节点（供变换层定位光标）。
+     * 起点在 TextNode 内时拆分该节点；起点在 Element 上时按子节点索引插入。
+     */
+    public Node insertNode(Node node) {
+        if (unit == null || node == null) return null;
         RichTextEndpoint point = start;
         if (point.container() instanceof TextNode textNode) {
             int offset = Math.max(0, Math.min(point.offset(), textNode.getTextContent().length()));
@@ -137,14 +265,18 @@ public final class RichTextRange {
                 TextNode tail = textNode.splitText(offset);
                 textNode.getParentNode().insertBefore(node, tail);
             }
-        } else if (point.container() instanceof Element container) {
+            return node;
+        }
+        if (point.container() instanceof Element container) {
             int index = Math.max(0, Math.min(point.offset(), container.getChildNodes().size()));
             if (index >= container.getChildNodes().size()) {
                 container.appendChild(node);
             } else {
                 container.insertBefore(node, container.getChildNodes().get(index));
             }
+            return node;
         }
+        return null;
     }
 
     // ------------------------------------------------------------------
@@ -168,6 +300,26 @@ public final class RichTextRange {
         int[] ends = rawText.rawEnd();
         int rawOffset = n >= starts.length ? ends[ends.length - 1] : starts[n];
 
+        // 原子对象哨兵位置优先：rawOffset == pos（对象前）→ 对象起点；rawOffset == pos+1（对象后）→ 对象后
+        List<Element> objects = new ArrayList<>();
+        List<Integer> objectPositions = new ArrayList<>();
+        collectObjects(unit, unit, objects, objectPositions, new int[]{0});
+        for (int i = 0; i < objects.size(); i++) {
+            int pos = objectPositions.get(i);
+            if (rawOffset == pos) {
+                Node parent = objects.get(i).getParentNode();
+                int index = parent instanceof Element parentElement
+                        ? parentElement.getChildNodes().indexOf(objects.get(i)) : 0;
+                return new RichTextEndpoint(parent, Math.max(0, index));
+            }
+            if (rawOffset == pos + 1) {
+                Node parent = objects.get(i).getParentNode();
+                int index = parent instanceof Element parentElement
+                        ? parentElement.getChildNodes().indexOf(objects.get(i)) + 1 : 1;
+                return new RichTextEndpoint(parent, index);
+            }
+        }
+
         List<TextNode> textNodes = new ArrayList<>();
         List<int[]> rawSpans = new ArrayList<>();
         collectRawSegments(unit, unit, textNodes, rawSpans, new int[]{0});
@@ -190,6 +342,31 @@ public final class RichTextRange {
         }
         // 落在 BR/子单元/innerText 回退等非 TextNode 区域：退化为元素端点（近似）
         return new RichTextEndpoint(unit, n);
+    }
+
+    /** 按扁平序收集单元内的原子对象节点及其 raw 哨兵位置。 */
+    private static void collectObjects(Element unit, Element current, List<Element> outObjects,
+                                       List<Integer> outPositions, int[] rawCursor) {
+        for (Node child : current.getRenderChildNodes()) {
+            if (child instanceof TextNode textNode) {
+                rawCursor[0] += textNode.getTextContent().length();
+                continue;
+            }
+            if (!(child instanceof Element childElement)) continue;
+            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
+            if (SelectionUnits.isLineBreak(childElement)) {
+                rawCursor[0] += 1;
+                continue;
+            }
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                outObjects.add(childElement);
+                outPositions.add(rawCursor[0]);
+                rawCursor[0] += 1;
+                continue;
+            }
+            if (SelectionUnits.isSelectionUnit(childElement)) continue;
+            collectObjects(unit, childElement, outObjects, outPositions, rawCursor);
+        }
     }
 
     /** DOM 端点 → 归一化偏移。 */
@@ -278,29 +455,39 @@ public final class RichTextRange {
                 rawCursor[0] += 1;
                 continue;
             }
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                rawCursor[0] += 1;
+                continue;
+            }
             if (SelectionUnits.isSelectionUnit(childElement)) continue;
             collectRawSegments(unit, childElement, outNodes, outSpans, rawCursor);
         }
     }
 
-    /** 清理空 TextNode，合并同父节点的相邻 TextNode。 */
-    private static void normalizeTextNodes(Element root) {
+    /** 清理空 TextNode，合并同父节点的相邻 TextNode（编辑变换后的不变量维护）。 */
+    public static void normalize(Element root) {
         List<Element> elements = new ArrayList<>();
         collectElements(root, elements);
         for (Element element : elements) {
-            List<Node> children = new ArrayList<>(element.getChildNodes());
-            for (int i = 0; i < children.size(); i++) {
-                Node child = children.get(i);
-                if (!(child instanceof TextNode textNode)) continue;
-                if (textNode.getTextContent().isEmpty()) {
+            // 先删除空 TextNode
+            for (Node child : new ArrayList<>(element.getChildNodes())) {
+                if (child instanceof TextNode textNode && textNode.getTextContent().isEmpty()) {
+                    element.removeChild(textNode);
+                }
+            }
+            // 合并相邻 TextNode：实时遍历，合并进前一个节点后移除当前节点
+            Node previous = null;
+            for (Node child : new ArrayList<>(element.getChildNodes())) {
+                if (!(child instanceof TextNode textNode)) {
+                    previous = null;
+                    continue;
+                }
+                if (previous instanceof TextNode previousText && !previousText.getTextContent().isEmpty()) {
+                    previousText.setTextContent(previousText.getTextContent() + textNode.getTextContent());
                     element.removeChild(textNode);
                     continue;
                 }
-                Node prev = i > 0 ? children.get(i - 1) : null;
-                if (prev instanceof TextNode prevText && !prevText.getTextContent().isEmpty()) {
-                    prevText.setTextContent(prevText.getTextContent() + textNode.getTextContent());
-                    element.removeChild(textNode);
-                }
+                previous = child;
             }
         }
     }

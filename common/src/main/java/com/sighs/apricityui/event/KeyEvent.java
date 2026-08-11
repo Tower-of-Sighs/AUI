@@ -22,6 +22,11 @@ public class KeyEvent extends Event {
     public boolean altKey;
     public boolean shiftKey;
     public boolean controlKey;
+
+    /** 浏览器名称别名：JS 里 e.ctrlKey 访问 controlKey。 */
+    public boolean getCtrlKey() {
+        return controlKey;
+    }
     public boolean metaKey;
 
     public KeyEvent(Element target, String type, int keyCode, int scanCode, int modifiers, boolean repeat, Source source) {

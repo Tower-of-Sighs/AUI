@@ -35,7 +35,9 @@ import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.render.RenderQueue;
 import com.sighs.apricityui.behavior.DocumentSelection;
 import com.sighs.apricityui.behavior.FocusRing;
+import com.sighs.apricityui.behavior.richtext.RangeBridge;
 import com.sighs.apricityui.behavior.richtext.RichTextSelection;
+import com.sighs.apricityui.behavior.richtext.TreeWalkerBridge;
 import com.sighs.apricityui.behavior.MotionTrack;
 import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.behavior.TextSelection;
@@ -756,6 +758,42 @@ public class Document {
         render.markDirty(element, mask);
     }
 
+    /**
+     * 注册一份运行时样式表（写入 CSSCache 并重建选择器索引与应用样式）。
+     * orderStart 控制层叠优先级：常规页面样式从 0 开始，负值用于 UA 级默认样式（最低优先级，被作者样式覆盖）。
+     */
+    public void registerStylesheet(String css, String contextPath, int orderStart) {
+        if (css == null || css.isBlank()) return;
+        Size viewport = new Size(
+                getViewport().layoutWidth(),
+                getViewport().layoutHeight());
+        CSS.readCSS(css, CSSCache, CSSDebugRules, contextPath, orderStart, viewport);
+        rebuildSelectorIndex();
+        reapplyStylesFromCache();
+    }
+
+    /**
+     * 注册 UA 级样式（塞入 CSSCache 开头，
+     * order 最小，被页面样式覆盖）。
+     * Selector.Index.build 按 CSSCache 迭代顺序重新编号 order，
+     * 故 UA 规则必须在最前。
+     */
+    public void registerUaStylesheet(String css, String contextPath) {
+        if (css == null || css.isBlank()) return;
+        java.util.Map<String, java.util.Map<String, CSS.Declaration>> uaRules = new java.util.LinkedHashMap<>();
+        Size viewport = new Size(
+                getViewport().layoutWidth(),
+                getViewport().layoutHeight());
+        CSS.readCSS(css, uaRules, CSSDebugRules, contextPath, -1000, viewport);
+        java.util.Map<String, java.util.Map<String, CSS.Declaration>> merged = new java.util.LinkedHashMap<>();
+        merged.putAll(uaRules);
+        merged.putAll(CSSCache);
+        CSSCache.clear();
+        CSSCache.putAll(merged);
+        rebuildSelectorIndex();
+        reapplyStylesFromCache();
+    }
+
     public void reapplyStylesFromCache() {
         if (body == null) return;
         body.invalidateStyle();
@@ -1207,6 +1245,16 @@ public class Document {
         return richTextSelection;
     }
 
+    /** 浏览器标准 document.createRange() 的 AUI 桥。 */
+    public RangeBridge createRange() {
+        return new RangeBridge();
+    }
+
+    /** 浏览器标准 document.createTreeWalker() 的 AUI 桥（whatToShow 仅 SHOW_TEXT/SHOW_ALL 有效）。 */
+    public TreeWalkerBridge createTreeWalker(Element root, int whatToShow) {
+        return new TreeWalkerBridge(root, whatToShow);
+    }
+
     /** 解析单元在高亮绘制时应使用的选区区间：优先文档级只读选择，其次富文本编辑选择。 */
     public int[] resolveUnitSelectionRange(Element unit) {
         if (unit == null) return null;
@@ -1222,6 +1270,16 @@ public class Document {
 
     public void clearRichTextSelection() {
         richTextSelection.clear();
+    }
+
+    /** 发送 selectionchange 事件（富文本选区变化时，工具栏联动用）。
+     * Document 不是 Node，事件系统只认节点发射；且 document.addEventListener 已委托给 body，故派发到 body。
+     */
+    public void dispatchSelectionChange() {
+        if (body == null) return;
+        Event event = new Event(body, "selectionchange", true);
+        Event.markTrustedFromCurrentDispatch(event);
+        Event.tiggerEvent(event);
     }
 
     // ------------------------------------------------------------------

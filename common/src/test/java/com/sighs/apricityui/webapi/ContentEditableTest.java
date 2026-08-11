@@ -1,6 +1,7 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.element.ContentEditable;
+import com.sighs.apricityui.element.RichText;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
@@ -31,7 +32,7 @@ class ContentEditableTest {
     void parsedContenteditableDivBecomesEditableAndFlattened() {
         Document document = TestDocumentFactory.createDocument();
 
-        Element div = document.createHTML("<div contenteditable>hello</div>");
+        Element div = document.createHTML("<div contenteditable=\"plaintext-only\">hello</div>");
 
         // 解析器应把通用 div 升级为 ContentEditable（保留 div 语义）。
         assertTrue(div instanceof ContentEditable, "contenteditable div must be upgraded");
@@ -50,7 +51,7 @@ class ContentEditableTest {
     void parsedValueIncludesNestedElementText() {
         Document document = TestDocumentFactory.createDocument();
 
-        Element div = document.createHTML("<div contenteditable><span>a</span>b</div>");
+        Element div = document.createHTML("<div contenteditable=\"plaintext-only\"><span>a</span>b</div>");
 
         // 纯文本语义：嵌套元素文本被吸收进 value，子节点不再保留（避免重复绘制）。
         assertEquals("ab", ((ContentEditable) div).getValue());
@@ -63,13 +64,10 @@ class ContentEditableTest {
 
         Element div = document.createHTML("<div contenteditable=\"false\">hello</div>");
 
-        assertTrue(div instanceof ContentEditable);
-        ContentEditable ce = (ContentEditable) div;
-        assertFalse(ce.isContentEditable());
-        assertFalse(ce.canEditText());
-        assertFalse(ce.canFocus());
-        // 展示文本仍保留（退化为普通渲染）。
-        assertEquals("hello", ce.getValue());
+        // false = 富文本元素但不可编辑（浏览器语义）
+        assertTrue(div instanceof RichText);
+        assertFalse(((RichText) div).canEditText());
+        assertEquals("hello", div.getTextContent());
     }
 
     @Test
@@ -78,7 +76,8 @@ class ContentEditableTest {
 
         Element div = document.createHTML("<div contenteditable=\"\">hello</div>");
 
-        assertTrue(((ContentEditable) div).canEditText());
+        // 空值 = 富文本可编辑（浏览器语义）
+        assertTrue(((RichText) div).canEditText());
     }
 
     // ------------------------------------------------------------------

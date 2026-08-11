@@ -62,7 +62,7 @@ public final class TextSelection {
     // ------------------------------------------------------------------
 
     private void handleMouseDown(MouseEvent event) {
-        if (owner instanceof com.sighs.apricityui.element.RichText) return;
+        if (isInsideRichTextEditor(owner)) return;
         Document document = owner.document;
         if (document == null) return;
         // 中键不参与文档级选择：Linux 主选区语义下由输入控件负责中键粘贴，这里保持 no-op
@@ -134,7 +134,7 @@ public final class TextSelection {
 
     private void handleMouseMove(MouseEvent event) {
         Document document = owner.document;
-        if (owner instanceof com.sighs.apricityui.element.RichText) return;
+        if (isInsideRichTextEditor(owner)) return;
         if (document == null) return;
         // 重派发到按下元素的事件（指针已移到其他元素上）不参与扩展：悬停元素自身的
         // 监听器会按指针位置扩展，按下元素的重复处理会用其自身几何算出错误偏移并覆盖
@@ -204,8 +204,12 @@ public final class TextSelection {
         return locateLeaf(unit, x, y);
     }
 
-    /** 普通流 run 行的命中：逐 run 逐行找包含指针的行，再按字符宽度定位。 */
+    /** 普通流 run 行的命中：先查原子对象盒子，再逐 run 逐行找包含指针的行，按字符宽度定位。 */
     private static int locateRuns(Element unit, double x, double y) {
+        // 阶段零：原子对象（img/hr）盒子命中 → 对象哨兵偏移
+        int objectHit = locateObjectHit(unit, x, y);
+        if (objectHit >= 0) return objectHit;
+
         List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(unit);
         if (runs.isEmpty()) return 0;
         Rect rect = Rect.of(unit);
@@ -291,8 +295,35 @@ public final class TextSelection {
         return bestOffset;
     }
 
-    /** flex 直接文本布局的命中：按布局位置找最近的文本块，再按字符宽度定位。 */
-    private static int locateFlexDirect(Element unit, double x, double y) {
+    /** 原子对象（img/hr）盒子命中：指针落入对象盒子时返回其哨兵偏移，否则 -1。 */
+    private static int locateObjectHit(Element unit, double x, double y) {
+        if (unit == null) return -1;
+        int[] hit = {-1};
+        locateObjectHitRecursive(unit, unit, x, y, hit);
+        return hit[0];
+    }
+
+    private static void locateObjectHitRecursive(Element unit, Element current, double x, double y, int[] hit) {
+        if (hit[0] >= 0) return;
+        for (Node child : current.getRenderChildNodes()) {
+            if (hit[0] >= 0) return;
+            if (!(child instanceof Element childElement)) continue;
+            if (SelectionUnits.isAtomicObject(childElement)) {
+                Element.DOMRect rect = childElement.getBoundingClientRect();
+                if (rect != null && rect.width > 0 && rect.height > 0
+                        && x >= rect.x && x <= rect.x + rect.width
+                        && y >= rect.y && y <= rect.y + rect.height) {
+                    hit[0] = SelectionUnits.baseOffsetOfDescendant(unit, childElement);
+                    return;
+                }
+                continue;
+            }
+            if (childElement instanceof com.sighs.apricityui.element.AbstractText) continue;
+            locateObjectHitRecursive(unit, childElement, x, y, hit);
+        }
+    }
+
+    /** flex 直接文本布局的命中：按布局位置找最近的文本块，再按字符宽度定位。 */    private static int locateFlexDirect(Element unit, double x, double y) {
         List<Flex.DirectTextLayout> layouts = Flex.computeDirectTextLayouts(unit);
         if (layouts.isEmpty()) return 0;
         List<String> fragments = SelectionUnits.flexTextFragments(unit);
@@ -399,7 +430,8 @@ public final class TextSelection {
      * 浏览器式单词边界：围绕命中偏移的最大连续非空白片段。
      * 偏移落在空白内（或文本为空）时返回 null，此时不做词选择。
      */
-    private static int[] wordRange(String text, int offset) {
+    /** 按空白分词：返回 offset 所在词的 [start, end)；无词时返回 null。 */
+    public static int[] wordRange(String text, int offset) {
         if (text == null || text.isEmpty()) return null;
         int clamped = Math.max(0, Math.min(offset, text.length()));
         int start = clamped;
@@ -408,6 +440,14 @@ public final class TextSelection {
         while (end < text.length() && !isWordSeparator(text.charAt(end))) end++;
         if (start == end) return null;
         return new int[]{start, end};
+    }
+
+    /** 元素是否位于富文本编辑区（richtext 子树）内：编辑区的选词/选中由 RichTextSelection 管理。 */
+    private static boolean isInsideRichTextEditor(Element element) {
+        for (Element e = element; e != null; e = e.parentElement) {
+            if (e instanceof com.sighs.apricityui.element.RichText) return true;
+        }
+        return false;
     }
 
     private static boolean isWordSeparator(char c) {
@@ -503,7 +543,7 @@ public final class TextSelection {
         int[] range = viewLocalRange(context);
         if (range == null) return;
         Text baseText = selectableText();
-        if (baseText.content == null || baseText.content.isEmpty()) return;
+        if (!hasDrawableText(baseText.content)) return;
         Text.WrappedText wrapped = Text.wrapCached(owner, baseText);
         int[] starts = wrapped.starts();
         int min = range[0];
@@ -547,7 +587,7 @@ public final class TextSelection {
         Position contentPos = rectRenderer.getContentPosition();
         text.color = new Color(Text.getFontColor(owner));
 
-        if (text.content == null || text.content.isEmpty()) return;
+        if (!hasDrawableText(text.content)) return;
 
         double contentWidth = Box.of(owner).innerSize().width();
         double contentHeight = Box.of(owner).innerSize().height();
@@ -647,5 +687,17 @@ public final class TextSelection {
         int i = 0;
         while (i < n && a.charAt(i) == b.charAt(i)) i++;
         return i;
+    }
+
+    /** U+FFFC 只表示编辑模型中的对象位置，不应作为普通字形绘制。 */
+    private static boolean hasDrawableText(String content) {
+        if (content == null || content.isEmpty()) return false;
+        for (int i = 0; i < content.length(); i++) {
+            char value = content.charAt(i);
+            if (value != '\uFFFC' && !Character.isWhitespace(value) && !Character.isSpaceChar(value)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

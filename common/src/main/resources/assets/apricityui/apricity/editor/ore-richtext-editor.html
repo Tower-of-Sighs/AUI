@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-font-mode" content="web">
+    <title>ORE 富文本编辑器</title>
+    <link rel="stylesheet" href="../apricityui/theme/ore/ore.css">
+    <link rel="stylesheet" href="ore-richtext-editor.css">
+</head>
+<body class="ore-theme ore-rich-editor">
+<div class="editor-app">
+    <header class="navbar editor-topbar">
+        <div class="editor-brand-group">
+            <div class="editor-app-mark" aria-hidden="true">O</div>
+            <div>
+                <div class="navbar-brand">ORE WRITER</div>
+                <div id="saveState" class="editor-save-state">已在本机保存</div>
+            </div>
+        </div>
+        <div class="editor-document-actions">
+            <button class="button button-normal button-small editor-icon-button" type="button"
+                    data-action="new-document" title="新建文档" aria-label="新建文档">+</button>
+            <button class="button button-normal button-small" type="button" data-action="copy-html">复制 HTML</button>
+            <button class="button button-secondary button-small" type="button" data-action="download-html">导出 HTML</button>
+        </div>
+    </header>
+
+    <main class="editor-workspace">
+        <section class="editor-main" aria-label="编辑工作区">
+            <div class="editor-modebar">
+                <div class="tabs editor-view-tabs" role="tablist" aria-label="文档视图">
+                    <button class="tab active" type="button" role="tab" aria-selected="true" data-mode="edit">编辑</button>
+                    <button class="tab" type="button" role="tab" aria-selected="false" data-mode="preview">预览</button>
+                    <button class="tab" type="button" role="tab" aria-selected="false" data-mode="source">HTML</button>
+                </div>
+                <div class="editor-history-actions">
+                    <button class="button button-normal button-small editor-icon-button" id="undoButton" type="button"
+                            data-action="undo" title="撤销 Ctrl+Z" aria-label="撤销">&#8630;</button>
+                    <button class="button button-normal button-small editor-icon-button" id="redoButton" type="button"
+                            data-action="redo" title="重做 Ctrl+Y" aria-label="重做">&#8631;</button>
+                </div>
+            </div>
+
+            <div id="formatToolbar" class="editor-toolbar" role="toolbar" aria-label="格式工具栏">
+                <div class="editor-tool-group editor-block-tools">
+                    <label class="editor-visually-hidden" for="blockType">段落样式</label>
+                    <select id="blockType" class="form-select editor-block-select" title="段落样式">
+                        <option value="paragraph">正文</option>
+                        <option value="heading1">标题 1</option>
+                        <option value="heading2">标题 2</option>
+                        <option value="heading3">标题 3</option>
+                        <option value="quote">引用</option>
+                        <option value="code">代码块</option>
+                    </select>
+                </div>
+
+                <div class="editor-tool-group" aria-label="行内格式">
+                    <button class="editor-tool-button tool-bold" type="button" data-mark="bold" title="粗体 Ctrl+B" aria-label="粗体">B</button>
+                    <button class="editor-tool-button tool-italic" type="button" data-mark="italic" title="斜体 Ctrl+I" aria-label="斜体">I</button>
+                    <button class="editor-tool-button tool-underline" type="button" data-mark="underline" title="下划线 Ctrl+U" aria-label="下划线">U</button>
+                    <button class="editor-tool-button tool-strike" type="button" data-mark="strike" title="删除线 Ctrl+Shift+X" aria-label="删除线">S</button>
+                    <button class="editor-tool-button tool-code" type="button" data-mark="code" title="行内代码" aria-label="行内代码">&lt;/&gt;</button>
+                </div>
+
+                <div class="editor-tool-group" aria-label="颜色">
+                    <label class="editor-color-tool" title="文字颜色">
+                        <span class="editor-color-letter">A</span>
+                        <input id="textColor" type="color" value="#f4f5f7" aria-label="文字颜色">
+                    </label>
+                    <label class="editor-color-tool editor-highlight-tool" title="高亮颜色">
+                        <span class="editor-color-letter">A</span>
+                        <input id="highlightColor" type="color" value="#936715" aria-label="高亮颜色">
+                    </label>
+                </div>
+
+                <div class="editor-tool-group" aria-label="链接">
+                    <button class="editor-tool-button editor-tool-text" type="button" data-action="link" title="添加链接 Ctrl+K">链接</button>
+                    <button class="editor-tool-button editor-tool-text" type="button" data-action="unlink" title="移除链接">断开</button>
+                </div>
+
+                <div class="editor-tool-group" aria-label="列表和缩进">
+                    <button class="editor-tool-button" type="button" data-block-action="unordered" title="无序列表" aria-label="无序列表">&#8226;</button>
+                    <button class="editor-tool-button editor-tool-text" type="button" data-block-action="ordered" title="有序列表" aria-label="有序列表">1.</button>
+                    <button class="editor-tool-button" type="button" data-action="outdent" title="减少缩进" aria-label="减少缩进">&#8676;</button>
+                    <button class="editor-tool-button" type="button" data-action="indent" title="增加缩进" aria-label="增加缩进">&#8677;</button>
+                </div>
+
+                <div class="editor-tool-group" aria-label="对齐">
+                    <button class="editor-tool-button editor-align-button" type="button" data-align="left" title="左对齐" aria-label="左对齐"><span></span><span></span><span></span></button>
+                    <button class="editor-tool-button editor-align-button align-center" type="button" data-align="center" title="居中" aria-label="居中"><span></span><span></span><span></span></button>
+                    <button class="editor-tool-button editor-align-button align-right" type="button" data-align="right" title="右对齐" aria-label="右对齐"><span></span><span></span><span></span></button>
+                    <button class="editor-tool-button editor-align-button align-justify" type="button" data-align="justify" title="两端对齐" aria-label="两端对齐"><span></span><span></span><span></span></button>
+                </div>
+
+                <div class="editor-tool-group" aria-label="插入">
+                    <button class="editor-tool-button editor-tool-text" type="button" data-action="image" title="插入图片">图片</button>
+                    <button class="editor-tool-button editor-tool-text" type="button" data-action="divider" title="插入分隔线">分隔线</button>
+                    <button class="editor-tool-button editor-tool-text" type="button" data-action="clear-format" title="清除格式">Tx</button>
+                </div>
+            </div>
+
+            <div class="editor-stage">
+                <div id="editPane" class="editor-pane active" role="tabpanel">
+                    <div class="editor-canvas-scroll">
+                        <article id="editorSurface" class="editor-surface" contenteditable="true" spellcheck="true"
+                                 role="textbox" aria-multiline="true" aria-label="文档内容"></article>
+                    </div>
+                </div>
+
+                <div id="previewPane" class="editor-pane" role="tabpanel" hidden>
+                    <div class="editor-canvas-scroll">
+                        <article id="previewSurface" class="editor-surface editor-preview-surface"></article>
+                    </div>
+                </div>
+
+                <div id="sourcePane" class="editor-pane editor-source-pane" role="tabpanel" hidden>
+                    <div class="editor-source-actions">
+                        <span id="sourceState" class="text-muted">模型生成</span>
+                        <button class="button button-primary button-small" id="applySourceButton" type="button">应用源码</button>
+                    </div>
+                    <textarea id="sourceEditor" class="form-textarea editor-source" spellcheck="false" aria-label="HTML 源码"></textarea>
+                </div>
+            </div>
+
+            <footer class="editor-statusbar" aria-live="polite">
+                <span id="wordCount">0 字</span>
+                <span id="characterCount">0 字符</span>
+                <span id="blockCount">0 块</span>
+                <span id="selectionStatus">无选区</span>
+            </footer>
+        </section>
+
+        <aside class="editor-sidebar" aria-label="文档侧栏">
+            <section class="editor-sidebar-section">
+                <div class="editor-sidebar-heading">文档</div>
+                <label class="form-label" for="documentTitle">标题</label>
+                <input id="documentTitle" class="form-input" type="text" autocomplete="off" value="">
+            </section>
+
+            <section class="editor-sidebar-section editor-outline-section">
+                <div class="editor-sidebar-heading split">
+                    <span>大纲</span>
+                    <span id="headingCount" class="badge badge-purple">0</span>
+                </div>
+                <nav id="documentOutline" class="editor-outline" aria-label="文档大纲"></nav>
+            </section>
+
+            <section class="editor-sidebar-section">
+                <div class="editor-sidebar-heading">文档信息</div>
+                <dl class="editor-metadata">
+                    <div><dt>段落</dt><dd id="paragraphStat">0</dd></div>
+                    <div><dt>列表项</dt><dd id="listStat">0</dd></div>
+                    <div><dt>媒体</dt><dd id="mediaStat">0</dd></div>
+                </dl>
+            </section>
+        </aside>
+    </main>
+</div>
+
+<div id="editorDialogBackdrop" class="modal-backdrop editor-dialog-backdrop" aria-hidden="true">
+    <section class="modal editor-dialog" role="dialog" aria-modal="true" aria-labelledby="dialogTitle">
+        <header class="modal-header split">
+            <span id="dialogTitle">编辑</span>
+            <button class="editor-dialog-close" type="button" data-dialog-action="cancel" title="关闭" aria-label="关闭">&#215;</button>
+        </header>
+        <div class="modal-body">
+            <div id="dialogMessage" class="alert alert-warning editor-dialog-message" hidden></div>
+            <div id="dialogUrlGroup" class="form-group">
+                <label class="form-label" for="dialogUrl">地址</label>
+                <input id="dialogUrl" class="form-input" type="url" autocomplete="off">
+            </div>
+            <div id="dialogTextGroup" class="form-group">
+                <label class="form-label" for="dialogText">文字</label>
+                <input id="dialogText" class="form-input" type="text" autocomplete="off">
+            </div>
+            <div id="dialogAltGroup" class="form-group" hidden>
+                <label class="form-label" for="dialogAlt">替代文字</label>
+                <input id="dialogAlt" class="form-input" type="text" autocomplete="off">
+            </div>
+        </div>
+        <footer class="modal-footer editor-dialog-footer">
+            <button class="button button-normal" type="button" data-dialog-action="cancel">取消</button>
+            <button id="dialogConfirmButton" class="button button-primary" type="button" data-dialog-action="confirm">确定</button>
+        </footer>
+    </section>
+</div>
+
+<script src="ore-richtext-editor.js"></script>
+</body>
+</html>

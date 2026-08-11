@@ -112,6 +112,16 @@ public class Window {
         return sessionStorage;
     }
 
+    /** 浏览器标准 window.getSelection() 的 AUI 桥：返回上下文文档的富文本选区。 */
+    public com.sighs.apricityui.behavior.richtext.SelectionBridge getSelection() {
+        com.sighs.apricityui.init.Document document = com.sighs.apricityui.init.Document.getContextDocument();
+        if (document == null) {
+            java.util.List<com.sighs.apricityui.init.Document> all = com.sighs.apricityui.init.Document.getAll();
+            document = all.isEmpty() ? null : all.get(0);
+        }
+        return document == null ? null : new com.sighs.apricityui.behavior.richtext.SelectionBridge(document);
+    }
+
     public Console getConsole() {
         return console;
     }

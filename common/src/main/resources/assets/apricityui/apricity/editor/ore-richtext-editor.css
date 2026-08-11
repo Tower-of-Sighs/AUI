@@ -1,0 +1,545 @@
+.ore-theme.ore-rich-editor {
+    height: 100vh;
+    min-height: 0;
+    overflow: hidden;
+    background: var(--ore-canvas);
+}
+
+.ore-rich-editor button,
+.ore-rich-editor select,
+.ore-rich-editor input,
+.ore-rich-editor textarea {
+    letter-spacing: 0;
+}
+
+.editor-app {
+    width: 100%;
+    height: 100%;
+    min-width: 720px;
+    min-height: 520px;
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-topbar {
+    min-height: 58px;
+    padding-top: 8px;
+    padding-bottom: 12px;
+    flex: 0 0 auto;
+}
+
+.editor-brand-group,
+.editor-document-actions,
+.editor-history-actions,
+.editor-tool-group,
+.editor-source-actions,
+.editor-statusbar {
+    display: flex;
+    align-items: center;
+}
+
+.editor-brand-group { gap: 10px; }
+.editor-document-actions { gap: 6px; }
+
+.editor-app-mark {
+    width: 34px;
+    height: 34px;
+    border: 3px solid #171819;
+    color: #ffffff;
+    background: var(--ore-green);
+    box-shadow: inset 4px 4px var(--ore-success), inset -4px -4px var(--ore-green-shadow);
+    font-family: OreDisplay, sans-serif;
+    font-size: 21px;
+    line-height: 28px;
+    text-align: center;
+}
+
+.editor-save-state {
+    margin-top: 2px;
+    color: #4b4c4f;
+    font-size: 11px;
+}
+
+.editor-save-state.dirty { color: #7b5410; }
+
+.editor-workspace {
+    min-height: 0;
+    flex: 1 1 auto;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 260px;
+}
+
+.editor-main {
+    min-width: 0;
+    min-height: 0;
+    border-right: 3px solid var(--ore-edge);
+    display: flex;
+    flex-direction: column;
+}
+
+.editor-modebar {
+    min-height: 48px;
+    padding: 6px 10px;
+    border-bottom: 3px solid var(--ore-edge);
+    background: var(--ore-surface-deep);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.editor-view-tabs {
+    margin: 0;
+    flex: 0 0 auto;
+}
+
+.editor-view-tabs .tab {
+    min-width: 72px;
+    padding-left: 12px;
+    padding-right: 12px;
+}
+
+.editor-history-actions { gap: 5px; }
+
+.editor-icon-button {
+    width: 34px;
+    min-width: 34px;
+    padding-left: 0;
+    padding-right: 0;
+    font-size: 19px;
+}
+
+.editor-toolbar {
+    min-height: 54px;
+    padding: 7px 9px;
+    border-bottom: 3px solid var(--ore-edge);
+    background: var(--ore-surface);
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.editor-toolbar[hidden] { display: none; }
+
+.editor-tool-group {
+    height: 34px;
+    padding-right: 6px;
+    border-right: 2px solid var(--ore-edge);
+    gap: 3px;
+}
+
+.editor-tool-group:last-child { border-right: 0; }
+.editor-block-tools { min-width: 126px; }
+
+.editor-block-select {
+    width: 124px;
+    min-height: 34px;
+    height: 34px;
+    padding: 4px 7px;
+    border-width: 2px;
+    font-size: 13px;
+}
+
+.editor-tool-button,
+.editor-color-tool,
+.editor-dialog-close {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0;
+    border: 2px solid #171819;
+    color: #e8e9ec;
+    background: #3b3c3e;
+    box-shadow: inset 2px 2px #66686b, inset -2px -2px #272829;
+    font-family: OreRegular, sans-serif;
+    font-size: 13px;
+    line-height: 28px;
+    text-align: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.editor-tool-button:hover,
+.editor-color-tool:hover,
+.editor-dialog-close:hover {
+    border-color: var(--ore-focus);
+    color: #ffffff;
+    background: #4c4d50;
+}
+
+.editor-tool-button.active {
+    border-color: #ffffff;
+    color: #ffffff;
+    background: var(--ore-purple);
+    box-shadow: inset 2px 2px #9876ed, inset -2px -2px var(--ore-purple-shadow);
+}
+
+.editor-tool-button[disabled] {
+    border-color: #2b2c2d;
+    color: #77797d;
+    background: #303133;
+    box-shadow: none;
+    cursor: default;
+}
+
+.editor-tool-text {
+    width: auto;
+    min-width: 38px;
+    padding: 0 6px;
+}
+
+.tool-bold { font-weight: 700; }
+.tool-italic { font-style: italic; }
+.tool-underline { text-decoration: underline; }
+.tool-strike { text-decoration: line-through; }
+.tool-code { width: 42px; font-family: monospace; }
+
+.editor-color-tool {
+    position: relative;
+    overflow: hidden;
+    display: block;
+}
+
+.editor-color-letter {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    font-family: OreDisplay, sans-serif;
+    line-height: 25px;
+    pointer-events: none;
+}
+
+.editor-color-tool input {
+    position: absolute;
+    left: 3px;
+    right: 3px;
+    bottom: 3px;
+    z-index: 2;
+    width: 22px;
+    height: 7px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+.editor-color-tool input::-webkit-color-swatch-wrapper { padding: 0; }
+.editor-color-tool input::-webkit-color-swatch { border: 0; }
+.editor-highlight-tool .editor-color-letter { text-shadow: 2px 2px var(--ore-gold-shadow); }
+
+.editor-align-button {
+    padding: 7px 6px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+}
+
+.editor-align-button span {
+    width: 18px;
+    height: 2px;
+    background: currentColor;
+    display: block;
+}
+
+.editor-align-button span:nth-child(2) { width: 13px; }
+.editor-align-button.align-center { align-items: center; }
+.editor-align-button.align-right { align-items: flex-end; }
+.editor-align-button.align-justify span:nth-child(2) { width: 18px; }
+
+.editor-stage {
+    min-height: 0;
+    flex: 1 1 auto;
+    position: relative;
+    background-color: #252628;
+    background-image: linear-gradient(90deg, rgba(255,255,255,0.025) 50%, transparent 50%);
+    background-size: 24px 24px;
+}
+
+.editor-pane {
+    position: absolute;
+    inset: 0;
+    min-width: 0;
+    min-height: 0;
+}
+
+.editor-pane[hidden] { display: none; }
+
+.editor-canvas-scroll {
+    width: 100%;
+    height: 100%;
+    padding: 26px;
+    overflow: auto;
+}
+
+.editor-surface {
+    width: min(820px, 100%);
+    min-height: calc(100% - 4px);
+    margin: 0 auto;
+    padding: 54px 64px 72px;
+    border: 3px solid #111213;
+    color: #242527;
+    background: #e7e5de;
+    box-shadow: inset 3px 3px #ffffff, inset -3px -3px #a7a59f, 10px 10px rgba(0,0,0,0.32);
+    caret-color: #1d4d13;
+    font-family: OreRegular, sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    outline: none;
+}
+
+.editor-surface:focus {
+    border-color: var(--ore-green);
+    box-shadow: inset 3px 3px #ffffff, inset -3px -3px #a7a59f, 0 0 0 2px #ffffff, 10px 10px rgba(0,0,0,0.32);
+}
+
+.editor-surface .editor-block,
+.editor-preview-surface > p,
+.editor-preview-surface > h1,
+.editor-preview-surface > h2,
+.editor-preview-surface > h3,
+.editor-preview-surface > blockquote,
+.editor-preview-surface > pre,
+.editor-preview-surface > ul,
+.editor-preview-surface > ol,
+.editor-preview-surface > figure {
+    margin: 0 0 14px;
+    color: #242527;
+    white-space: pre-wrap;
+}
+
+.editor-surface h1.editor-block,
+.editor-preview-surface > h1 {
+    margin-bottom: 18px;
+    color: #1d1e20;
+    font-size: 34px;
+}
+
+.editor-surface h2.editor-block,
+.editor-preview-surface > h2 { color: #242527; font-size: 27px; }
+.editor-surface h3.editor-block,
+.editor-preview-surface > h3 { color: #303134; font-size: 21px; }
+
+.editor-surface blockquote.editor-block,
+.editor-preview-surface > blockquote {
+    margin-left: 0;
+    padding: 8px 14px;
+    border-left: 5px solid var(--ore-green);
+    color: #45474a;
+    background: #d8d7d1;
+}
+
+.editor-surface pre.editor-block,
+.editor-preview-surface > pre {
+    padding: 13px;
+    border: 3px solid #363738;
+    color: #e8eee5;
+    background: #242527;
+    box-shadow: inset 0 5px #171819;
+    font-family: monospace;
+    font-size: 14px;
+    overflow-x: auto;
+}
+
+.editor-surface ul,
+.editor-surface ol,
+.editor-preview-surface > ul,
+.editor-preview-surface > ol {
+    padding-left: 28px;
+}
+
+.editor-surface li.editor-block { margin-bottom: 5px; }
+
+.editor-surface .editor-block[data-empty="true"]::before {
+    content: "输入内容";
+    color: #8b8983;
+    pointer-events: none;
+}
+
+.editor-surface .mark-bold { font-weight: 700; }
+.editor-surface .mark-italic { font-style: italic; }
+.editor-surface .mark-underline { text-decoration: underline; }
+.editor-surface .mark-strike { text-decoration: line-through; }
+.editor-surface .mark-code {
+    padding: 1px 4px;
+    border: 1px solid #98968f;
+    color: #21351d;
+    background: #d6d4cd;
+    font-family: monospace;
+}
+.editor-surface .mark-link { color: #21648d; text-decoration: underline; }
+
+.editor-atomic {
+    margin: 18px 0;
+    padding: 8px;
+    border: 3px solid transparent;
+    text-align: center;
+    user-select: none;
+}
+
+.editor-atomic.selected {
+    border-color: var(--ore-purple);
+    background: rgba(115, 69, 229, 0.12);
+}
+
+.editor-atomic img { max-height: 360px; }
+.editor-atomic figcaption { margin-top: 6px; color: #66645f; font-size: 13px; }
+.editor-divider-block { padding: 8px 0; }
+.editor-divider-block hr { margin: 0; border-color: #77746d; }
+
+.editor-source-pane {
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.editor-source-actions {
+    min-height: 34px;
+    justify-content: space-between;
+}
+
+.editor-source {
+    min-height: 0;
+    flex: 1 1 auto;
+    resize: none;
+    font-family: monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    tab-size: 4;
+}
+
+.editor-statusbar {
+    min-height: 34px;
+    padding: 5px 12px;
+    border-top: 3px solid var(--ore-edge);
+    color: var(--ore-ink-muted);
+    background: var(--ore-surface-deep);
+    flex: 0 0 auto;
+    gap: 16px;
+    font-size: 12px;
+}
+
+.editor-statusbar span:last-child { margin-left: auto; }
+
+.editor-sidebar {
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    background: var(--ore-surface-deep);
+}
+
+.editor-sidebar-section {
+    padding: 14px;
+    border-bottom: 3px solid var(--ore-edge);
+}
+
+.editor-sidebar-heading {
+    margin-bottom: 12px;
+    color: var(--ore-ink);
+    font-family: OreDisplay, sans-serif;
+    font-size: 17px;
+}
+
+.editor-outline-section { min-height: 180px; }
+
+.editor-outline {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.editor-outline-empty {
+    padding: 8px;
+    color: var(--ore-ink-muted);
+    font-size: 13px;
+}
+
+.editor-outline-button {
+    width: 100%;
+    min-height: 30px;
+    padding: 5px 7px;
+    border: 2px solid transparent;
+    color: var(--ore-ink-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.editor-outline-button:hover {
+    border-color: var(--ore-edge-light);
+    color: #ffffff;
+    background: var(--ore-surface);
+}
+
+.editor-outline-button.level-2 { padding-left: 18px; }
+.editor-outline-button.level-3 { padding-left: 30px; }
+
+.editor-metadata {
+    margin: 0;
+    display: grid;
+    gap: 7px;
+}
+
+.editor-metadata div {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.editor-metadata dt { color: var(--ore-ink-muted); }
+.editor-metadata dd { margin: 0; color: var(--ore-ink); }
+
+.editor-dialog-backdrop {
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.editor-dialog-backdrop.open { display: flex; }
+.editor-dialog { width: min(460px, 100%); }
+.editor-dialog-message { margin-bottom: 14px; }
+
+.editor-dialog-close {
+    color: #ffffff;
+    background: var(--ore-red);
+    box-shadow: inset 2px 2px #dc766d, inset -2px -2px var(--ore-red-shadow);
+    font-size: 22px;
+}
+
+.editor-dialog-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.editor-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+@media (max-width: 980px) {
+    .editor-workspace { grid-template-columns: minmax(0, 1fr) 220px; }
+    .editor-surface { padding: 42px 44px 60px; }
+}
+
+@media (max-width: 760px) {
+    .ore-theme.ore-rich-editor { overflow: auto; }
+    .editor-app { min-width: 640px; }
+    .editor-workspace { grid-template-columns: minmax(0, 1fr); }
+    .editor-sidebar { display: none; }
+    .editor-main { border-right: 0; }
+}

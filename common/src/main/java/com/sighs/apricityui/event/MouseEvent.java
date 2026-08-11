@@ -41,6 +41,11 @@ public class MouseEvent extends Event implements Cloneable {
     public boolean altKey;
     public boolean shiftKey;
     public boolean controlKey;
+
+    /** 浏览器名称别名：JS 里 e.ctrlKey 访问 controlKey。 */
+    public boolean getCtrlKey() {
+        return controlKey;
+    }
     public double deltaX = 0;
     public double deltaY = 0;
     public int deltaMode = DOM_DELTA_PIXEL;

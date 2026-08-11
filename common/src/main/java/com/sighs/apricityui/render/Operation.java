@@ -1,5 +1,7 @@
 package com.sighs.apricityui.render;
 
+import com.sighs.apricityui.behavior.richtext.RichTextEditing;
+import com.sighs.apricityui.behavior.richtext.RichTextRange;
 import com.sighs.apricityui.behavior.richtext.RichTextSelection;
 import com.sighs.apricityui.dev.DevTools;
 import com.sighs.apricityui.dev.ResourceManager;
@@ -119,8 +121,12 @@ public class Operation {
     public static boolean onCharTyped(char code) {
         boolean shouldCancel = false;
         for (Document document : Document.getAll()) {
-            if (document.getFocusedElement() instanceof AbstractText textElement && textElement.canEditText()) {
+            Element focusedElement = document.getFocusedElement();
+            if (focusedElement instanceof AbstractText textElement && textElement.canEditText()) {
                 Event.runTrustedAction(() -> textElement.insertText(Character.toString(code)));
+                shouldCancel = true;
+            } else if (focusedElement instanceof RichText richText && richText.canEditText()) {
+                Event.runTrustedAction(() -> RichTextEditing.insertText(richText, Character.toString(code)));
                 shouldCancel = true;
             }
         }
@@ -148,7 +154,7 @@ public class Operation {
                     return;
                 }
 
-                // 富文本可编辑元素：方向键/Home/End 移动、Shift 扩展、Ctrl+A 全选、Esc 清焦点
+                // 富文本可编辑元素：方向键/Home/End 移动、Shift 扩展、编辑键、Esc 清焦点
                 if (focusedElement instanceof RichText) {
                     RichTextSelection selection = document.getRichTextSelection();
                     if (selection == null || !selection.hasAnchor()) {
@@ -172,6 +178,60 @@ public class Operation {
                         selection.selectAll(focusedElement);
                     } else if (key == GLFW.GLFW_KEY_ESCAPE) {
                         document.clearFocus();
+                    } else if (key == GLFW.GLFW_KEY_BACKSPACE) {
+                        RichTextEditing.deleteBackward((RichText) focusedElement);
+                    } else if (key == GLFW.GLFW_KEY_DELETE) {
+                        RichTextEditing.deleteForward((RichText) focusedElement);
+                    } else if (key == GLFW.GLFW_KEY_ENTER) {
+                        RichTextEditing.insertParagraph((RichText) focusedElement);
+                    } else if (ctrlDown && key == GLFW.GLFW_KEY_Z && !isShiftDown()) {
+                        RichTextEditing.undo((RichText) focusedElement);
+                    } else if (ctrlDown && (key == GLFW.GLFW_KEY_Y || (key == GLFW.GLFW_KEY_Z && isShiftDown()))) {
+                        RichTextEditing.redo((RichText) focusedElement);
+                    } else if (ctrlDown && key == GLFW.GLFW_KEY_V) {
+                        Event clipboard = new Event(focusedElement, "paste", true);
+                        clipboard.cancelable = true;
+                        clipboard.clipboardData = new ClipboardDataBridge();
+                        Event.markTrustedFromCurrentDispatch(clipboard);
+                        Event.tiggerEvent(clipboard);
+                        if (!clipboard.defaultPrevented) {
+                            String internalHtml = getInternalClipboardHtml();
+                            if (internalHtml != null) {
+                                RichTextEditing.pasteHtml((RichText) focusedElement, internalHtml);
+                            } else {
+                                RichTextEditing.pasteText((RichText) focusedElement, getClipboardText());
+                            }
+                        }
+                    } else if (ctrlDown && key == GLFW.GLFW_KEY_C && !selection.collapsed()) {
+                        Event clipboard = new Event(focusedElement, "copy", true);
+                        clipboard.cancelable = true;
+                        clipboard.clipboardData = new ClipboardDataBridge();
+                        Event.markTrustedFromCurrentDispatch(clipboard);
+                        Event.tiggerEvent(clipboard);
+                        if (clipboard.defaultPrevented) {
+                            handled = false;
+                        } else {
+                            setClipboardText(selection.getSelectedText());
+                            RichTextRange copyRange = selection.toRange();
+                            setInternalClipboardHtml(copyRange == null ? null : copyRange.toHtml());
+                        }
+                    } else if (ctrlDown && key == GLFW.GLFW_KEY_X && !selection.collapsed()) {
+                        Event clipboard = new Event(focusedElement, "cut", true);
+                        clipboard.cancelable = true;
+                        clipboard.clipboardData = new ClipboardDataBridge();
+                        Event.markTrustedFromCurrentDispatch(clipboard);
+                        Event.tiggerEvent(clipboard);
+                        if (clipboard.defaultPrevented) {
+                            handled = false;
+                        } else {
+                            setClipboardText(selection.getSelectedText());
+                            RichTextRange cutRange = selection.toRange();
+                            setInternalClipboardHtml(cutRange == null ? null : cutRange.toHtml());
+                            RichTextEditing.deleteSelection((RichText) focusedElement);
+                        }
+                    } else if (shouldConsumeTextEntryKey(focusedElement, key)) {
+                        // 字母/数字/符号键：消费 keydown，真正字符经 onCharTyped 插入
+                        handled = true;
                     } else {
                         handled = false;
                     }
@@ -237,6 +297,7 @@ public class Operation {
                             if (textElement.canEditText()) {
                                 Event clipboard = new Event(focusedElement, "paste", true);
                                 clipboard.cancelable = true;
+                                clipboard.clipboardData = new ClipboardDataBridge();
                                 Event.markTrustedFromCurrentDispatch(clipboard);
                                 Event.tiggerEvent(clipboard);
                                 if (!clipboard.defaultPrevented) {
@@ -352,9 +413,16 @@ public class Operation {
     }
 
     public static boolean shouldConsumeTextEntryKey(Element focusedElement, int key) {
+        if (focusedElement instanceof RichText richText && richText.canEditText()) {
+            return isTextEntryKey(key);
+        }
         if (!(focusedElement instanceof AbstractText textElement) || !textElement.canEditText()) {
             return false;
         }
+        return isTextEntryKey(key);
+    }
+
+    private static boolean isTextEntryKey(int key) {
         return (key >= GLFW.GLFW_KEY_A && key <= GLFW.GLFW_KEY_Z)
                 || (key >= GLFW.GLFW_KEY_0 && key <= GLFW.GLFW_KEY_9)
                 || (key >= GLFW.GLFW_KEY_KP_0 && key <= GLFW.GLFW_KEY_KP_EQUAL)
@@ -454,6 +522,17 @@ public class Operation {
 
     public static void setClipboardText(String text) {
         Base.setClipboardText(text);
+    }
+
+    // 应用内富文本剪贴板：系统剪贴板只有纯文本（GLFW），富文本 HTML 走内存。
+    private static String internalClipboardHtml = null;
+
+    public static String getInternalClipboardHtml() {
+        return internalClipboardHtml;
+    }
+
+    public static void setInternalClipboardHtml(String html) {
+        internalClipboardHtml = (html == null || html.isEmpty()) ? null : html;
     }
 
     public static boolean isKeyPressed(String key) {

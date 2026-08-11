@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-font-mode" content="web">
+    <title>AUI Rich Text Editor Example</title>
+    <style>
+        html,
+        body {
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            background: #0e141b;
+            color: #e8f1fa;
+            font-family: "Consolas", "Courier New", monospace;
+            font-size: 10px;
+        }
+
+        body {
+            overflow: hidden;
+        }
+
+        .page {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .hero {
+            flex: 0 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+        }
+
+        .eyebrow {
+            color: #7dd3fc;
+            letter-spacing: 2px;
+        }
+
+        .title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #f8fbff;
+        }
+
+        .summary,
+        .hint {
+            color: #a9c4d8;
+        }
+
+        .editor-card {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #2a3a4a;
+            border-radius: 4px;
+            background: #16202b;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            flex: 0 0 auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 8px;
+            border-bottom: 1px solid #2a3a4a;
+            background: #1a2634;
+        }
+
+        .tool-label {
+            color: #7dd3fc;
+            font-weight: bold;
+        }
+
+        .tool-hint {
+            color: #7d93a8;
+        }
+
+        .editor {
+            flex: 1;
+            min-height: 0;
+            box-sizing: border-box;
+            padding: 10px 12px;
+            overflow-y: auto;
+            outline: none;
+            cursor: text;
+            line-height: 1.5;
+        }
+
+        /* 编辑区正文（UA content 样式之上补一点示例排版） */
+        .editor h1 {
+            margin-top: 0;
+            color: #7dd3fc;
+        }
+
+        .editor p {
+            color: #dbe9f5;
+        }
+
+        .editor img,
+        .editor svg {
+            vertical-align: middle;
+        }
+
+        .status {
+            flex: 0 0 auto;
+            display: flex;
+            gap: 16px;
+            padding: 4px 2px;
+            color: #7dd3fc;
+        }
+
+        .hint {
+            flex: 0 0 auto;
+            border-top: 1px dashed #2a3a4a;
+            padding-top: 6px;
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <div class="hero">
+        <div class="eyebrow">APRICITYUI</div>
+        <div class="title">Rich Text Editor</div>
+        <div class="summary">
+            基于 <b>contenteditable</b> 的富文本编辑器示例：多段落排版、Enter 拆段、
+            撤销/重做、剪贴板、原子对象（svg）、右键菜单、双击选词。
+        </div>
+    </div>
+
+    <div class="editor-card">
+        <div class="toolbar">
+            <span class="tool-label">EDITOR</span>
+            <span class="tool-hint">点击编辑 · 右键菜单 · Ctrl+Z/Y 撤销重做 · Ctrl+C/V/X 剪贴板</span>
+        </div>
+        <div contenteditable class="editor">
+            <h1>ApricityUI 富文本编辑器</h1>
+            <p>这是一个<b>可编辑</b>的多段落示例。点击文字开始输入：字符插入、Enter 拆分段落、Backspace 合并段落。</p>
+            <p>试试<i>右键</i>打开上下文菜单（复制 / 剪切 / 粘贴 / 全选），或按 Ctrl+Z 撤销刚才的编辑。</p>
+            <p>原子对象示例（可单击选中、拖动、删除）：<svg viewBox="0 0 96 54" style="width: 96px; height: 54px;"><rect x="2" y="2" width="92" height="50" rx="6" fill="#1e293b" stroke="#7dd3fc" stroke-width="2"/><circle cx="26" cy="27" r="10" fill="#f472b6"/><circle cx="52" cy="27" r="10" fill="#facc15"/><circle cx="78" cy="27" r="10" fill="#34d399"/></svg></p>
+            <p>双击选中一个词，三击选中整段；方向键可在段落之间移动。</p>
+        </div>
+    </div>
+
+    <div class="status">
+        <span id="chars">字符: 0</span>
+        <span id="selection">选区: 无</span>
+        <span id="block">块: —</span>
+    </div>
+
+    <div class="hint">
+        快捷键：Ctrl+Z 撤销 / Ctrl+Y 重做 / Ctrl+A 全选 / Ctrl+C·X·V 剪贴板 /
+        Enter 拆段 / Backspace·Delete 合段 / ←→ 跨块移动 / 双击选词 / 三击选段 / 右键菜单
+    </div>
+</div>
+
+<script>
+    var editor = document.querySelector(".editor");
+    var charsInfo = document.querySelector("#chars");
+    var selInfo = document.querySelector("#selection");
+    var blockInfo = document.querySelector("#block");
+
+    function refresh() {
+        var text = editor.getTextContent() || "";
+        charsInfo.textContent = "字符: " + text.length;
+
+        var sel = document.getRichTextSelection();
+        if (sel && sel.isActive()) {
+            var selected = sel.getSelectedText() || "";
+            selInfo.textContent = "选区: " + selected.length + " 字符";
+        } else {
+            selInfo.textContent = "选区: 无";
+        }
+        if (sel && sel.getAnchorUnit()) {
+            blockInfo.textContent = "块: <" + sel.getAnchorUnit().tagName.toLowerCase() + ">";
+        } else {
+            blockInfo.textContent = "块: —";
+        }
+    }
+
+    document.addEventListener("selectionchange", refresh);
+    document.addEventListener("input", refresh);
+    document.addEventListener("DOMContentLoaded", refresh);
+</script>
+</body>
+</html>
+
