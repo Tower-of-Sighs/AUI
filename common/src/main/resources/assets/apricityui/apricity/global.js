@@ -491,6 +491,36 @@ function __auiDecorateResizeEntries(list) {
   return out;
 }
 
+function __auiDecorateIntersectionEntries(list) {
+  if (!list) return [];
+  let out = [];
+  let size = typeof list.size === 'function' ? list.size() : (list.length || 0);
+  for (let i = 0; i < size; i++) {
+    let entry = typeof list.get === 'function' ? list.get(i) : list[i];
+    if (!entry) continue;
+    out.push({
+      target: __auiDecorateElement(entry.target),
+      time: Number(entry.time),
+      rootBounds: entry.rootBounds || null,
+      boundingClientRect: entry.boundingClientRect,
+      intersectionRect: entry.intersectionRect,
+      isIntersecting: !!entry.isIntersecting,
+      intersectionRatio: Number(entry.intersectionRatio)
+    });
+  }
+  return out;
+}
+
+function __auiDecorateIntersectionThresholds(list) {
+  if (!list) return [];
+  let out = [];
+  let size = typeof list.size === 'function' ? list.size() : (list.length || 0);
+  for (let i = 0; i < size; i++) {
+    out.push(Number(typeof list.get === 'function' ? list.get(i) : list[i]));
+  }
+  return out;
+}
+
 function __auiDecorateMutationRecords(list) {
   if (!list) return [];
   let out = [];
@@ -945,6 +975,57 @@ function ResizeObserver(callback) {
     unobserve: function(target) { nativeObserver.unobserve(__auiDecorateElement(target)); },
     disconnect: function() { nativeObserver.disconnect(); }
   };
+  return observer;
+}
+
+function IntersectionObserver(callback, options) {
+  if (typeof callback !== 'function') throw new TypeError('IntersectionObserver callback must be a function');
+  if (options == null) options = {};
+  if (typeof options !== 'object') throw new TypeError('IntersectionObserver options must be an object');
+
+  let root = options.root == null ? null : options.root;
+  if (root !== null && (!root || typeof root.getNodeType !== 'function' || root.getNodeType() !== 1)) {
+    throw new TypeError('IntersectionObserver root must be an Element or null');
+  }
+  root = root === null ? null : __auiDecorateElement(root);
+
+  let threshold = options.threshold;
+  let thresholds = null;
+  if (threshold != null) {
+    if (typeof threshold === 'number') {
+      thresholds = String(threshold);
+    } else if (typeof threshold === 'object' && typeof threshold.length === 'number') {
+      let values = [];
+      for (let i = 0; i < threshold.length; i++) values.push(String(threshold[i]));
+      thresholds = values.join(',');
+    } else {
+      throw new TypeError('IntersectionObserver threshold must be a number or array-like value');
+    }
+  }
+
+  let rootMargin = options.rootMargin == null ? null : String(options.rootMargin);
+  let nativeObserver = window.createIntersectionObserver(function(entries) {
+    callback(__auiDecorateIntersectionEntries(entries), observer);
+  }, root, rootMargin, thresholds);
+  let observer = {
+    observe: function(target) {
+      if (!target || typeof target.getNodeType !== 'function' || target.getNodeType() !== 1) {
+        throw new TypeError('IntersectionObserver target must be an Element');
+      }
+      nativeObserver.observe(__auiDecorateElement(target));
+    },
+    unobserve: function(target) {
+      if (!target || typeof target.getNodeType !== 'function' || target.getNodeType() !== 1) {
+        throw new TypeError('IntersectionObserver target must be an Element');
+      }
+      nativeObserver.unobserve(__auiDecorateElement(target));
+    },
+    disconnect: function() { nativeObserver.disconnect(); },
+    takeRecords: function() { return __auiDecorateIntersectionEntries(nativeObserver.takeRecords()); }
+  };
+  __auiInstallValueBridge(observer, 'root', () => __auiDecorateElement(nativeObserver.getRoot()));
+  __auiInstallValueBridge(observer, 'rootMargin', () => nativeObserver.getRootMargin());
+  __auiInstallValueBridge(observer, 'thresholds', () => __auiDecorateIntersectionThresholds(nativeObserver.getThresholds()));
   return observer;
 }
 

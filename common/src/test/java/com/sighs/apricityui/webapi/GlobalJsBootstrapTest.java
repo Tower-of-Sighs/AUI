@@ -105,6 +105,19 @@ class GlobalJsBootstrapTest {
         assertTrue(script.contains("__auiInstallValueBridge(el, 'style', () => __auiDecorateStyle(el)"));
     }
 
+    @Test
+    void globalJsIncludesIntersectionObserverBootstrap() {
+        String script = readGlobalJs();
+
+        assertNotNull(script);
+        assertTrue(script.contains("function __auiDecorateIntersectionEntries(list)"));
+        assertTrue(script.contains("function IntersectionObserver(callback, options)"));
+        assertTrue(script.contains("window.createIntersectionObserver(function(entries)"));
+        assertTrue(script.contains("IntersectionObserver root must be an Element or null"));
+        assertTrue(script.contains("takeRecords: function() { return __auiDecorateIntersectionEntries(nativeObserver.takeRecords()); }"));
+        assertTrue(script.contains("__auiInstallValueBridge(observer, 'thresholds'"));
+    }
+
     private static String readGlobalJs() {
         try (InputStream stream = GlobalJsBootstrapTest.class.getClassLoader()
                 .getResourceAsStream("assets/apricityui/apricity/global.js")) {

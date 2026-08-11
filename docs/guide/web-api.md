@@ -43,10 +43,10 @@ CSS 属性和布局见 [HTML/CSS 覆盖面](html-css-coverage)，页面级的 vi
 | setTimeout / setInterval / requestAnimationFrame | 轻量 | 客户端调度器驱动 |
 | Event / CustomEvent / MouseEvent / WheelEvent / PointerEvent | 可用 | 构造器读取的字段有限 |
 | URLSearchParams / FormData | 轻量 | 方法集比标准少 |
-| ResizeObserver / MutationObserver | 轻量 | 按文档帧派发，不是微任务时机 |
+| ResizeObserver / IntersectionObserver / MutationObserver | 轻量 | 按文档帧派发，不是微任务时机 |
 | DOMMatrix / Path2D / OffscreenCanvas / createImageBitmap | 轻量 | 见 Canvas 节 |
 
-**没有提供**：KeyboardEvent 构造器、navigator.clipboard、Selection/Range、history、matchMedia、XMLHttpRequest、WebSocket、IntersectionObserver、WebGL、Service Worker、完整 Promise、AbortController、Shadow DOM、iframe/postMessage。文字选择复制是 AUI 自己的实现，别按 Selection/Range 写。
+**没有提供**：KeyboardEvent 构造器、navigator.clipboard、Selection/Range、history、matchMedia、XMLHttpRequest、WebSocket、WebGL、Service Worker、完整 Promise、AbortController、Shadow DOM、iframe/postMessage。文字选择复制是 AUI 自己的实现，别按 Selection/Range 写。
 
 ## Window
 
@@ -279,6 +279,27 @@ ro.observe(el);  ro.unobserve(el);  ro.disconnect();
 entry 有 `target/contentRect/borderBoxSize/contentBoxSize`；contentRect 除了常规矩形字段还有 `borderBoxWidth/borderBoxHeight`。没有实际尺寸变化不会重复回调。
 
 ```javascript
+var io = new IntersectionObserver(function (entries, observer) {
+    for (var i = 0; i < entries.length; i++) {
+        var entry = entries[i];
+        if (entry.isIntersecting) console.log(entry.target, entry.intersectionRatio);
+    }
+}, {
+    root: null,                         // null = Document 逻辑 viewport
+    rootMargin: "20px 0px",
+    threshold: [0, 0.5, 1]
+});
+io.observe(el);
+io.unobserve(el);
+io.takeRecords();
+io.disconnect();
+```
+
+`IntersectionObserver` 的 entry 有 `target/time/rootBounds/boundingClientRect/intersectionRect/isIntersecting/intersectionRatio`。实例只读 `root/rootMargin/thresholds`，其中 rootMargin 会规范为四值，threshold 会排序去重。`root` 必须是同一 Document 的 Element 或 null；显式 root 在 overflow 裁剪时使用提交后的 padding clip（含滚动条 gutter），否则使用 border box。target 也基于提交后的 border box，并叠加实际 paint-list 中的祖先 overflow clip。rootMargin 只支持 1–4 个 `px` 或 `%` 值，所有百分比都按 root 宽度解析；非法 rootMargin 或 threshold 会抛错。
+
+这是 V1 核心子集：没有 `trackVisibility`、`delay`、`scrollMargin`、跨 Document 观察、变换或 `clip-path` 的精确相交。`visibility:hidden` 不会自动视为不可相交；`display:none`、断连或失活 Document 不会产生可相交结果。
+
+```javascript
 var mo = new MutationObserver(function (records) { ... });
 mo.observe(document.documentElement, {
     childList: true, attributes: true, characterData: true, subtree: true,
@@ -290,7 +311,7 @@ mo.takeRecords();  mo.disconnect();
 
 record 可读 `type/target/addedNodes/removedNodes/previousSibling/nextSibling/attributeName/oldValue`。
 
-两者都按文档帧批量派发，不是浏览器微任务时机。Document 刷新后观察器被清理，必须重新查询节点重新 observe。
+三者都按文档帧批量派发，不是浏览器微任务时机。IntersectionObserver 在所有 Document 完成该轮布局和 paint-list 提交后统一收集，再调用回调；回调内的样式、滚动、unobserve 或 disconnect 影响下一轮。Document 刷新后观察器被清理，必须重新查询节点重新 observe。
 
 ## Canvas 和图像
 
