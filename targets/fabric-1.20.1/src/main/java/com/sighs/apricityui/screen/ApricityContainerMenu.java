@@ -1,5 +1,6 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.container.PlayerInventorySlotOrder;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
@@ -119,8 +120,10 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
     private void addPlayerInventorySlots(Inventory playerInventory, int capacity) {
         int normalized = Math.max(0, Math.min(ContainerBindType.PLAYER_SLOT_COUNT, capacity));
-        for (int localIndex = 0; localIndex < normalized; localIndex++) {
-            addSlot(new UiSlot(playerInventory, localIndex, 0, 0));
+        for (int menuRelativeIndex = 0; menuRelativeIndex < normalized; menuRelativeIndex++) {
+            int playerInventoryIndex = PlayerInventorySlotOrder.menuRelativeIndexToPlayerInventoryIndex(
+                    menuRelativeIndex, normalized);
+            addSlot(new UiSlot(playerInventory, playerInventoryIndex, 0, 0));
         }
     }
 
@@ -143,6 +146,17 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     public Integer resolveGlobalSlotIndex(String containerId, int localSlotIndex) {
         SlotLayout.ContainerEntry entry = layout.findContainer(containerId);
         if (entry == null) return null;
+
+        if (ContainerBindType.isPlayer(entry.bindType())) {
+            if (localSlotIndex < 0 || localSlotIndex >= entry.capacity()) return null;
+            int playerPoolCapacity = playerSlotEnd - playerSlotStart;
+            int menuRelativeIndex = PlayerInventorySlotOrder.playerInventoryIndexToMenuRelativeIndex(
+                    localSlotIndex, playerPoolCapacity);
+            if (menuRelativeIndex < 0) return null;
+            int resolved = playerSlotStart + menuRelativeIndex;
+            return resolved >= 0 && resolved < slots.size() ? resolved : null;
+        }
+
         Integer resolved = entry.resolveGlobalSlotIndex(localSlotIndex);
         if (resolved == null) return null;
         if (resolved < 0 || resolved >= slots.size()) return null;
@@ -154,8 +168,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         if (entry == null || entry.capacity() <= 0) return List.of();
         ArrayList<ContainerSlotRef> refs = new ArrayList<>(entry.capacity());
         for (int localIndex = 0; localIndex < entry.capacity(); localIndex++) {
-            Integer globalIndex = entry.resolveGlobalSlotIndex(localIndex);
-            if (globalIndex == null || globalIndex < 0 || globalIndex >= slots.size()) continue;
+            Integer globalIndex = resolveGlobalSlotIndex(containerId, localIndex);
+            if (globalIndex == null) continue;
             refs.add(new ContainerSlotRef(localIndex, globalIndex));
         }
         return List.copyOf(refs);
