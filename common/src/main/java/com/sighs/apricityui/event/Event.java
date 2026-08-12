@@ -11,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import java.util.function.Consumer;
 import com.sighs.apricityui.form.FormData;
+import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Node;
 
 public class Event implements Cloneable {
@@ -244,10 +245,19 @@ public class Event implements Cloneable {
     }
 
     private static <T> T runWithEventContext(Event event, Supplier<T> action) {
-        if (event != null && event.isTrusted) {
-            return runWithTrustedContext(action);
+        Document document = event != null && event.target instanceof Node target
+                ? target.document
+                : null;
+        Supplier<T> contextualAction = () -> {
+            if (event != null && event.isTrusted) {
+                return runWithTrustedContext(action);
+            }
+            return action.get();
+        };
+        if (document == null) return contextualAction.get();
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            return contextualAction.get();
         }
-        return action.get();
     }
 
     private static <T> T runWithTrustedContext(Supplier<T> action) {

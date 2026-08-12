@@ -162,6 +162,12 @@ public class Base {
             poseStack.pushPose();
             FontDrawer.pushDocumentPixelScale(document.getViewport().scissorScale());
             try {
+                // 输入/脚本改 DOM 产生的 RELAYOUT dirty 若尚未提交(布局提交在 20Hz tick,
+                // 而绘制是每帧),当前帧绘制会读到未提交的旧几何 —— 光标 caretPosition 返回
+                // (0,0) 画在左上角。绘制前强制提交一次 pending 布局工作(无 pending 时廉价)。
+                if (document.hasPendingRenderState()) {
+                    document.commitRenderState();
+                }
                 // Pointer state can change between client ticks. Commit only the
                 // queued style roots here so CSS transitions start on this frame.
                 boolean styleChanged = document.commitPendingStyleRecalcForRender();

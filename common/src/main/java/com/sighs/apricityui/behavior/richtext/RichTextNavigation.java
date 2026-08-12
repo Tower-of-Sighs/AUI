@@ -9,6 +9,7 @@ import com.sighs.apricityui.layout.Box;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.util.TextMetrics;
@@ -247,8 +248,30 @@ public final class RichTextNavigation {
     /** 归一化偏移 → 光标坐标（左上角 + 行高），供画光标。 */
     public static Caret caretPosition(Element unit, int normOffset) {
         VisualLine line = locateLine(unit, normOffset);
-        if (line == null) return new Caret(0, 0, 16);
+        if (line == null) {
+            // 布局未提交(输入后第一帧,VisualLine 尚未构建):参考 Input/TextArea 的光标
+            // 计算 —— 自身/父级几何 + 纯文本测量,避免光标画在 (0,0)。
+            return measuredCaret(unit, normOffset);
+        }
         return new Caret(line.xForOffset(normOffset), line.y0(), line.lineHeight());
+    }
+
+    /** 布局未就绪时的光标兜底：用最近可用几何 + 前缀文本宽度估算位置。 */
+    private static Caret measuredCaret(Element unit, int normOffset) {
+        if (unit == null) return new Caret(0, 0, Size.DEFAULT_LINE_HEIGHT);
+        Element target = unit;
+        com.sighs.apricityui.render.Rect rect = target.getRenderer().getCommittedRect();
+        if (rect == null && unit.parentElement != null) {
+            target = unit.parentElement;
+            rect = target.getRenderer().getCommittedRect();
+        }
+        if (rect == null) return new Caret(0, 0, Size.DEFAULT_LINE_HEIGHT);
+        String flat = SelectionUnits.flattenedSelectableText(unit);
+        String prefix = flat == null ? "" : flat.substring(0, Math.min(normOffset, flat.length()));
+        double x = rect.position.x + Size.measureText(unit, prefix);
+        double y = rect.position.y;
+        double h = Size.DEFAULT_LINE_HEIGHT;
+        return new Caret(x, y, h);
     }
 
     private static boolean shouldAlignDirect(Element unit) {

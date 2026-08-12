@@ -115,6 +115,14 @@ b, strong {
     font-weight:bold;
 }
 
+u, ins {
+    text-decoration: underline;
+}
+
+s, strike, del {
+    text-decoration: line-through;
+}
+
 container {
     display: grid;
     gap: 2px;

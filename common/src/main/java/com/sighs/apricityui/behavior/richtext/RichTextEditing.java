@@ -510,7 +510,14 @@ public final class RichTextEditing {
         if (element == null || element.document == null || !element.canEditText()) return false;
         RichTextSelection selection = element.document.getRichTextSelection();
         if (selection == null || !selection.hasAnchor()) return false;
-        if (!isInRichText(element, selection.getAnchorUnit())) return false;
+        if (!isInRichText(element, selection.getAnchorUnit())) {
+            // 选区指向已脱离 DOM 的旧节点(重渲染后 writeSelection 未同步到新 DOM):
+            // 回退到 richtext 文末,保证后续输入不中断(而不是直接丢弃本次输入)。
+            String flat = SelectionUnits.flattenedSelectableText(element);
+            int length = flat == null ? 0 : flat.length();
+            selection.setCollapsed(element, length);
+            if (!isInRichText(element, selection.getAnchorUnit())) return false;
+        }
         if (!dispatchBeforeInput(element, inputType, data)) return false;
 
         List<RichTextOperation> operations = factory.create(element, selection);

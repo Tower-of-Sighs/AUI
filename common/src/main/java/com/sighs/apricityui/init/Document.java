@@ -569,9 +569,20 @@ public class Document {
         return render.getPaintList();
     }
 
+    /** DOM 结构变更后失效命中缓存（替换/增删子节点后点击必须命中新节点）。 */
+    public void markHitTestDirtyAll() {
+        render.markHitTestDirty();
+    }
+
     public Element hitTest(Position documentPosition) {
         if (!isActive()) return null;
         try (ContextScope ignored = withContext(this)) {
+            // DOM 变更(页面 JS replaceChildren 等)后布局可能尚未提交(布局提交在 20Hz tick),
+            // paintList 仍引用被替换的旧节点 —— 点击会命中已移除节点,导致焦点/选区锚在
+            // 旧节点上,输入后旧节点被移除触发 clearRemovedFocusState 失焦。命中前提交 pending 布局。
+            if (render.hasPendingWork()) {
+                render.commit();
+            }
             return render.hitTest(documentPosition);
         }
     }

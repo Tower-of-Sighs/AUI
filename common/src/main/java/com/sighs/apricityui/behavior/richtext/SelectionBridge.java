@@ -28,7 +28,12 @@ public class SelectionBridge {
 
     public int getAnchorOffset() {
         RichTextSelection s = selection();
-        return s == null || !s.hasAnchor() ? 0 : s.getAnchorOffset();
+        if (s == null || !s.hasAnchor() || s.getAnchorUnit() == null) return 0;
+        // 浏览器语义:anchorOffset 是相对于 anchorNode 的容器内偏移。
+        // 页面 readSelection 用它做 r.setEnd(node, offset),传归一化偏移会算错位置。
+        RichTextRange.RichTextEndpoint ep =
+                RichTextRange.fromUnitOffset(s.getAnchorUnit(), s.getAnchorOffset());
+        return ep == null ? 0 : ep.offset();
     }
 
     public Node getFocusNode() {
@@ -39,17 +44,22 @@ public class SelectionBridge {
 
     public int getFocusOffset() {
         RichTextSelection s = selection();
-        return s == null || !s.hasAnchor() ? 0 : s.getEndOffset();
+        if (s == null || !s.hasAnchor() || s.getEndUnit() == null) return 0;
+        RichTextRange.RichTextEndpoint ep =
+                RichTextRange.fromUnitOffset(s.getEndUnit(), s.getEndOffset());
+        return ep == null ? 0 : ep.offset();
     }
 
     public int getRangeCount() {
         RichTextSelection s = selection();
-        return s != null && s.isActive() ? 1 : 0;
+        // 浏览器语义:折叠选区(光标)也是一个 range,rangeCount=1。
+        // 不能用 isActive()(它要求 anchor != end),否则页面 readSelection 拿不到光标位置。
+        return s != null && s.hasAnchor() ? 1 : 0;
     }
 
     public RangeBridge getRangeAt(int index) {
         RichTextSelection s = selection();
-        if (s == null || !s.isActive() || index != 0 || s.getAnchorUnit() == null) return null;
+        if (s == null || !s.hasAnchor() || index != 0 || s.getAnchorUnit() == null) return null;
         return RangeBridge.fromUnitOffsets(s.getAnchorUnit(),
                 Math.min(s.getAnchorOffset(), s.getEndOffset()),
                 Math.max(s.getAnchorOffset(), s.getEndOffset()));

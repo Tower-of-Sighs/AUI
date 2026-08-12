@@ -40,6 +40,11 @@ public abstract class Node {
         return parentNode;
     }
 
+    /** JS 侧 parentElement 属性的 JavaBean 映射:父元素(无父或父非元素时 null)。 */
+    public Element getParentElement() {
+        return parentNode instanceof Element parent ? parent : null;
+    }
+
     public List<Node> getChildNodes() {
         return Collections.unmodifiableList(childNodes);
     }

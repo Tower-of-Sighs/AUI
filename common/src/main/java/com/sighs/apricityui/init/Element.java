@@ -1023,9 +1023,10 @@ public class Element extends Node {
         }
 
         BiFunction<Document, String, ? extends Element> creator = REGISTRY.get(origin.tagName);
-        if (creator == null && hasContentEditableAttribute(origin)) {
-            // 浏器语义:contenteditable=true/空=富文本(保留树),
-            // plaintext-only=纯文本;false=不可编辑
+        if (hasContentEditableAttribute(origin)) {
+            // 浏器语义:contenteditable 是编辑容器标记,优先于标签注册类。
+            // 即使该标签在 REGISTRY 注册了普通类(DIV->Div),contenteditable 也必须升级
+            // 为编辑容器(RichText/ContentEditable),否则点击/光标/输入/选区链路全部失效。
             creator = isPlainTextOnly(origin) ? ContentEditable::new : RichText::new;
         }
         if (creator != null) {
@@ -1408,7 +1409,6 @@ public class Element extends Node {
         return parentElement.children.get(index - 1);
     }
 
-    @Override
     public Node getParentNode() {
         return parentNode;
     }

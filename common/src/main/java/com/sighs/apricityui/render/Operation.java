@@ -119,14 +119,20 @@ public class Operation {
     }
 
     public static boolean onCharTyped(char code) {
+        return onCharTyped((int) code);
+    }
+
+    public static boolean onCharTyped(int codePoint) {
+        if (!Character.isValidCodePoint(codePoint)) return false;
+        String content = new String(Character.toChars(codePoint));
         boolean shouldCancel = false;
         for (Document document : Document.getAll()) {
             Element focusedElement = document.getFocusedElement();
             if (focusedElement instanceof AbstractText textElement && textElement.canEditText()) {
-                Event.runTrustedAction(() -> textElement.insertText(Character.toString(code)));
+                Event.runTrustedAction(() -> textElement.insertText(content));
                 shouldCancel = true;
             } else if (focusedElement instanceof RichText richText && richText.canEditText()) {
-                Event.runTrustedAction(() -> RichTextEditing.insertText(richText, Character.toString(code)));
+                Event.runTrustedAction(() -> RichTextEditing.insertText(richText, content));
                 shouldCancel = true;
             }
         }

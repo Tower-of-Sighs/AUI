@@ -144,12 +144,6 @@ public final class Client {
         );
     }
 
-    /** Dispatches a native character event to the focused AUI text element. */
-    public static boolean handleCharTyped(int codePoint) {
-        if (!net.minecraft.SharedConstants.isAllowedChatCharacter((char) codePoint)) return false;
-        return Operation.onCharTyped((char) codePoint);
-    }
-
     /** Dispatches a native mouse button event and reports whether Minecraft should ignore it. */
     public static boolean handleMouseButton(int button, int action) {
         boolean nativeConsumed = false;

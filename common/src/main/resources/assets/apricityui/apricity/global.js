@@ -948,17 +948,15 @@ try {
   let __auiCreateTreeWalker = document.createTreeWalker;
   if (typeof __auiCreateTreeWalker === 'function') {
     document.createTreeWalker = function(root, whatToShow) {
-      let walker = __auiCreateTreeWalker.call(document, root, whatToShow == null ? 0xFFFFFFFF : whatToShow);
-      if (walker && typeof walker.nextNode === 'function') {
-        let __walkerNext = walker.nextNode;
-        walker.nextNode = function() { return __auiDecorateNode(__walkerNext.call(walker)); };
-      }
-      return walker;
+      return __auiCreateTreeWalker.call(document, root, whatToShow == null ? 0xFFFFFFFF : whatToShow);
     };
   }
-  globalThis.Node = { ELEMENT_NODE: 1, ATTRIBUTE_NODE: 2, TEXT_NODE: 3, CDATA_SECTION_NODE: 4,
-                      COMMENT_NODE: 8, DOCUMENT_NODE: 9, DOCUMENT_FRAGMENT_NODE: 11 };
-  globalThis.NodeFilter = { SHOW_ALL: 0xFFFFFFFF, SHOW_TEXT: 4 };
   __auiDecorateElement(document.body);
 } catch (e) {}
+// Node/NodeFilter 常量独立定义:放在 try 块之外,保证任何桥包装失败都不影响
+// 页面脚本使用 Node.ELEMENT_NODE / NodeFilter.SHOW_TEXT(浏览器全局常量)。
+// 注意:此 Rhino fork 无 globalThis,直接声明为顶层 var(与页面脚本同一 top-level scope)。
+var Node = { ELEMENT_NODE: 1, ATTRIBUTE_NODE: 2, TEXT_NODE: 3, CDATA_SECTION_NODE: 4,
+             COMMENT_NODE: 8, DOCUMENT_NODE: 9, DOCUMENT_FRAGMENT_NODE: 11 };
+var NodeFilter = { SHOW_ALL: 0xFFFFFFFF, SHOW_TEXT: 4 };
 __auiInstallTextBridge();

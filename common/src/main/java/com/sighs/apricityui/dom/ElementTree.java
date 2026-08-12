@@ -123,6 +123,7 @@ public final class ElementTree {
         if (parent == null || parent.childNodes.isEmpty()) return;
         // 整批清空子节点改变单元的渲染子节点集合，选择缓存随之失效
         if (owner != null) owner.bumpSelectionCache();
+        if (owner != null) owner.markHitTestDirtyAll();
         ArrayList<Node> removedRoots = new ArrayList<>(parent.childNodes);
         Node previousSibling = null;
         Node nextSibling = null;
@@ -231,6 +232,7 @@ public final class ElementTree {
 
         parent.childNodes.addAll(safeIndex, roots);
         syncElementChildView(parent);
+        if (owner != null) owner.markHitTestDirtyAll();
 
         ArrayList<Node> insertedNodes = new ArrayList<>();
         ArrayList<Element> insertedElements = new ArrayList<>();

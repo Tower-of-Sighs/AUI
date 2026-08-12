@@ -72,7 +72,12 @@ public final class NormalFlow {
                 return false;
             }
 
-            if (hasRenderableInlineText(current)) return true;
+            // The ancestor's inline formatting context recursively flattens
+            // style-only wrappers. This includes wrappers whose text lives in
+            // a nested inline child, for example <u><strong>text</strong></u>.
+            // Letting such a wrapper paint itself would draw the same run once
+            // here and once from the ancestor, at different local origins.
+            if (shouldFragmentInlineElement(current)) return true;
             if (shouldFragmentInlineElement(parent)) return true;
             current = parent;
         }

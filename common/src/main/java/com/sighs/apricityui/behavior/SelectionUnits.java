@@ -53,6 +53,14 @@ public final class SelectionUnits {
     public record UnitContext(Element unit, int baseOffset, String text) {
     }
 
+    /** 行内文本标记标签：strong/em/u/s/b/i/span/a 等。它们不是独立选择单元，
+     *  文本永远归最近的块单元。判定不依赖 computed style(布局未就绪时 display 判错,
+     *  会把 u/strong 误当成单元,导致光标锚在行内元素上)。 */
+    private static final java.util.Set<String> INLINE_MARKUP_TAGS = java.util.Set.of(
+            "U", "STRONG", "EM", "S", "B", "I", "SPAN", "A", "CODE", "MARK", "SMALL",
+            "SUB", "SUP", "INS", "DEL", "Q", "ABBR", "CITE", "DFN", "KBD", "SAMP",
+            "TIME", "VAR", "FONT");
+
     /**
      * 判断元素是否为选择单元。
      * <p>
@@ -60,6 +68,7 @@ public final class SelectionUnits {
      */
     public static boolean isSelectionUnit(Element element) {
         if (element == null || element instanceof AbstractText) return false;
+        if (INLINE_MARKUP_TAGS.contains(element.tagName.toUpperCase(java.util.Locale.ROOT))) return false;
         if (NormalFlow.isInlineTextPaintedByAncestor(element)) return false;
         if (!Interaction.isUserSelectable(element)) return false;
         return !flattenedSelectableText(element).isEmpty();

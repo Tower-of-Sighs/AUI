@@ -7,9 +7,12 @@ import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.NormalFlow;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -91,6 +94,36 @@ class NormalFlowInlineTest {
         parent.appendChild(tail);
 
         assertTrue(Position.getOffset(tail).y > 0);
+    }
+
+    @Test
+    void nestedStyleOnlyInlineWrappersArePaintedOnlyByTheirBlockAncestor() throws Exception {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Path globalStyle = Path.of("../../common/src/main/resources/assets/apricityui/apricity/global.css");
+        CSS.readCSS(Files.readString(globalStyle), document.CSSCache, globalStyle.toString());
+        document.rebuildSelectorIndex();
+
+        Element paragraph = new Element(document, "p");
+        document.body.appendChild(paragraph);
+
+        Element underline = new Element(document, "u");
+        Element strong = new Element(document, "strong");
+        strong.appendChild(new TextNode(document, "Ctrl/B"));
+        underline.appendChild(strong);
+        paragraph.appendChild(underline);
+
+        List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(paragraph);
+        assertEquals(1, runs.size());
+        assertEquals("Ctrl/B", runs.get(0).text().content);
+        assertEquals(strong, runs.get(0).owner());
+        assertTrue(runs.get(0).text().isBold());
+        assertTrue(runs.get(0).text().isUnderlined());
+        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(underline),
+                "the outer underline wrapper must not repaint its nested text run");
+        assertTrue(NormalFlow.isInlineTextPaintedByAncestor(strong),
+                "the innermost style wrapper must not repaint its text run");
     }
 
     @Test

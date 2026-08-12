@@ -16,9 +16,4 @@ public abstract class KeyboardHandlerMixin {
         if (FabricInput.keyPress(key, scanCode, action, modifiers)) ci.cancel();
     }
 
-    @Inject(method = "charTyped", at = @At("HEAD"), cancellable = true)
-    private void apricityui$dispatchCharTyped(long window, int codePoint, int modifiers, CallbackInfo ci) {
-        if (window != Minecraft.getInstance().getWindow().getWindow()) return;
-        if (FabricInput.charTyped(codePoint)) ci.cancel();
-    }
 }

@@ -7,7 +7,8 @@
   "mixins": [
   ],
   "client": [
-    "AbstractContainerScreenMixin"
+    "AbstractContainerScreenMixin",
+    "CommonKeyboardHandlerMixin"
   ],
   "injectors": {
     "defaultRequire": 1

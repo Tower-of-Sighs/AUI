@@ -21,15 +21,6 @@ public final class FabricInput {
         }
     }
 
-    public static boolean charTyped(int codePoint) {
-        try {
-            return com.sighs.apricityui.client.Client.handleCharTyped(codePoint);
-        } catch (Throwable exception) {
-            ApricityUI.LOGGER.error("[AUI Fabric] character dispatch failed", exception);
-            return false;
-        }
-    }
-
     public static boolean mouseButton(int button, int action) {
         try {
             return com.sighs.apricityui.client.Client.handleMouseButton(button, action);

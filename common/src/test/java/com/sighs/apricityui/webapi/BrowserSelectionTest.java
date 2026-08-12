@@ -181,6 +181,43 @@ class BrowserSelectionTest {
     }
 
     // ------------------------------------------------------------------
+    // 折叠光标也是 range:浏览器语义 rangeCount=1(页面 readSelection 依赖)
+    // ------------------------------------------------------------------
+
+    @Test
+    void collapsedCaretStillCountsAsRange() {
+        Document document = document();
+        RichText rich = parsed(document, "<p>hello world</p>");
+        Element p = (Element) rich.getChildNodes().get(0);
+        TextNode tn = (TextNode) p.getChildNodes().get(0);
+
+        SelectionBridge sel = new SelectionBridge(document);
+        sel.collapse(tn, 5); // 折叠光标在 hello 后
+        assertEquals(1, sel.getRangeCount(), "collapsed caret must count as a range");
+        assertNotNull(sel.getAnchorNode(), "collapsed caret must resolve an anchor node");
+    }
+
+    // ------------------------------------------------------------------
+    // anchorOffset 是相对 anchorNode 的容器内偏移(浏览器语义)
+    // ------------------------------------------------------------------
+
+    @Test
+    void anchorOffsetIsContainerLocal() {
+        Document document = document();
+        RichText rich = parsed(document, "<p>ab<strong>cd</strong>ef</p>");
+        Element p = (Element) rich.getChildNodes().get(0);
+        TextNode first = (TextNode) p.getChildNodes().get(0);      // "ab"
+        Element strong = (Element) p.getChildNodes().get(1);
+        TextNode strongText = (TextNode) strong.getChildNodes().get(0); // "cd"
+
+        SelectionBridge sel = new SelectionBridge(document);
+        // 归一化偏移 3 = strong 文本 "cd" 的第 1 个字符
+        sel.setBaseAndExtent(strongText, 1, strongText, 1);
+        assertEquals(strongText, sel.getAnchorNode(), "anchor node is the strong text");
+        assertEquals(1, sel.getAnchorOffset(), "anchorOffset is container-local, not normalized");
+    }
+
+    // ------------------------------------------------------------------
     // dataset:DOMStringMap 的 Map 语义(Rhino 对 Java Map 支持任意键读写,
     // 浏览器写法的 el.dataset.x = v 才不抛 "no public instance field named x")
     // ------------------------------------------------------------------
@@ -210,5 +247,48 @@ class BrowserSelectionTest {
         } finally {
             // fork 无 Context.exit()
         }
+    }
+    // ------------------------------------------------------------------
+    // readSelection 等价:anchorOffset 修复后 o = 点击处(不是块末尾)
+    // ------------------------------------------------------------------
+
+    @Test
+    void readSelectionEquivalentOffsetMatchesClick() {
+        Document document = document();
+        RichText rich = parsed(document, "<p>所有输入都被 <strong>beforeinput</strong> 拦截</p>");
+        Element p = (Element) rich.getChildNodes().get(0);
+
+        SelectionBridge sel = new SelectionBridge(document);
+        // 点击第二处(strong 文本 "beforeinput" 内 offset 3)
+        Element strong = (Element) p.getChildNodes().get(1);
+        com.sighs.apricityui.dom.TextNode strongText = (com.sighs.apricityui.dom.TextNode) strong.getChildNodes().get(0);
+        sel.setBaseAndExtent(strongText, 3, strongText, 3);
+
+        // toPoint 等价:setStart(blockEl, 0); setEnd(anchorNode, anchorOffset); o = toString().length
+        com.sighs.apricityui.behavior.richtext.RangeBridge r = new com.sighs.apricityui.behavior.richtext.RangeBridge();
+        r.setStart(p, 0);
+        r.setEnd(sel.getAnchorNode(), sel.getAnchorOffset());
+        int o = r.toString().length();
+        // 期望:点击在归一化偏移 7+3=10 处(而非块末尾)
+        System.out.println("[probe] o=" + o + " (expected 10) anchorNode="
+                + sel.getAnchorNode().getClass().getSimpleName() + " anchorOffset=" + sel.getAnchorOffset());
+        assertEquals(10, o, "readSelection o must equal the click point, not block end");
+    }
+    // ------------------------------------------------------------------
+    // 行内标记(strong/u)内的文本:单元必须是块,不是行内元素
+    // ------------------------------------------------------------------
+
+    @Test
+    void anchorUnitIsBlockNotInlineMarkup() {
+        Document document = document();
+        RichText rich = parsed(document, "<p>ab<strong>cd</strong><u>ef</u>gh</p>");
+        Element p = (Element) rich.getChildNodes().get(0);
+        Element strong = (Element) p.getChildNodes().get(1);
+        com.sighs.apricityui.dom.TextNode strongText = (com.sighs.apricityui.dom.TextNode) strong.getChildNodes().get(0);
+
+        SelectionBridge sel = new SelectionBridge(document);
+        sel.setBaseAndExtent(strongText, 1, strongText, 1);
+        assertEquals(p, document.getRichTextSelection().getAnchorUnit(),
+                "selection unit must be the block P, not the inline strong");
     }
 }
