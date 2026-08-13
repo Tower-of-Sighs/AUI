@@ -121,7 +121,7 @@ el.hasAttribute("disabled");
 el.toggleAttribute("hidden", true);
 ```
 
-`textContent` 和 `innerText` 是同一个文本桥，不是布局感知的 innerText。读序列化结果时文本和属性会被转义。写纯文本就用 `textContent`，别用 `innerHTML`。
+`textContent` 返回 DOM 子树中的原始文本；`innerText` 返回渲染文本，会处理 `display:none`、`visibility`、`white-space`、`text-transform`、块级边界、`<br>` 与表格分隔符。写入 `innerText` 时换行会转换为 `<br>`，写入 `textContent` 时则保留为一个纯文本值。读序列化结果时文本和属性会被转义；需要解析标签时才使用 `innerHTML`。
 
 **查询和关系**：Element 有和 Document 同名的查询方法，外加 `matches` / `closest` / `contains` / `children` / `firstElementChild` / `lastElementChild` / `nextElementSibling` / `previousElementSibling` / `parentElement`。没有 `insertAdjacentHTML` 和 `element.animate()`。
 

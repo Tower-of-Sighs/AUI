@@ -20,7 +20,7 @@ public class Style implements Cloneable {
     private static final Set<String> UNSUPPORTED_PROPERTIES = ConcurrentHashMap.newKeySet();
     static final Set<String> INHERITED_PROPERTIES = Set.of(
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
-            "line-height", "direction", "letter-spacing", "text-align", "text-indent",
+            "line-height", "direction", "letter-spacing", "text-align", "text-indent", "text-transform",
             "white-space", "cursor", "visibility", "accent-color", "text-stroke"
     );
 
@@ -109,6 +109,7 @@ public class Style implements Cloneable {
     public String textAlign = "unset";
     public String verticalAlign = "unset";
     public String textIndent = "unset";
+    public String textTransform = "unset";
     public String whiteSpace = "unset";
     public String textOverflow = "clip";
     public String lineClamp = "none";
@@ -166,7 +167,7 @@ public class Style implements Cloneable {
     static final String[] STYLE_FIELD_CSS_NAMES;
     private static final Set<String> TEXT_PROPS = Set.of(
             "color", "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
-            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "white-space", "text-overflow",
+            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "text-transform", "white-space", "text-overflow",
             "line-clamp"
     );
 
@@ -316,6 +317,12 @@ public class Style implements Cloneable {
 
     public void applyUserAgentDefaults(Element element) {
         display = defaultDisplayFor(element);
+        if (element != null && "PRE".equalsIgnoreCase(element.tagName)) {
+            whiteSpace = "pre";
+        }
+        if (element != null && "TEXTAREA".equalsIgnoreCase(element.tagName)) {
+            whiteSpace = "pre-wrap";
+        }
         if (element != null && "BUTTON".equalsIgnoreCase(element.tagName)) {
             // HTML's user-agent stylesheet centers button labels unless author CSS overrides it.
             textAlign = "center";

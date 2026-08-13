@@ -46,6 +46,7 @@ import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.behavior.TextSelection;
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.dom.ElementTree;
+import com.sighs.apricityui.dom.InnerText;
 import com.sighs.apricityui.dom.NodeTree;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.dom.TextNode;
@@ -1433,6 +1434,16 @@ public class Element extends Node {
             if (text != null) builder.append(text);
         }
         return builder.toString();
+    }
+
+    /** Returns the rendered text represented by this element. */
+    public String getInnerText() {
+        return InnerText.get(this);
+    }
+
+    /** Replaces this element's children, converting line breaks to BR elements. */
+    public void setInnerText(String value) {
+        InnerText.set(this, value);
     }
 
     @Override

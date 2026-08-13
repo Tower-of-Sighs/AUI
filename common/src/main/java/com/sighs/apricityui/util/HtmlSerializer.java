@@ -2,6 +2,7 @@ package com.sighs.apricityui.util;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import com.sighs.apricityui.dom.CommentNode;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
@@ -13,6 +14,11 @@ import com.sighs.apricityui.parser.HTML;
  * 不持有任何状态，仅依赖节点的公开成员。
  */
 public final class HtmlSerializer {
+    private static final Set<String> VOID_ELEMENTS = Set.of(
+            "area", "base", "br", "col", "embed", "hr", "img", "input",
+            "link", "meta", "param", "source", "track", "wbr"
+    );
+
     private HtmlSerializer() {
     }
 
@@ -44,6 +50,8 @@ public final class HtmlSerializer {
             }
         }
         builder.append('>');
+        String tagName = element.tagName.toLowerCase(Locale.ROOT);
+        if (VOID_ELEMENTS.contains(tagName)) return builder.toString();
         if (!element.childNodes.isEmpty()) {
             for (Node child : element.childNodes) {
                 builder.append(serializeNode(child));
@@ -51,7 +59,7 @@ public final class HtmlSerializer {
         } else if (!element.innerText.isEmpty()) {
             builder.append(escapeHtml(element.innerText));
         }
-        builder.append("</").append(element.tagName.toLowerCase(Locale.ROOT)).append('>');
+        builder.append("</").append(tagName).append('>');
         return builder.toString();
     }
 

@@ -121,7 +121,7 @@ el.hasAttribute("disabled");
 el.toggleAttribute("hidden", true);
 ```
 
-`textContent` and `innerText` are the same text bridge, not a layout-aware innerText. When reading serialized output, text and attributes are escaped. To write plain text, use `textContent`, not `innerHTML`.
+`textContent` returns the raw text in the DOM subtree. `innerText` returns rendered text and accounts for `display:none`, `visibility`, `white-space`, `text-transform`, block boundaries, `<br>`, and table separators. Assigning `innerText` converts line breaks to `<br>` elements, while assigning `textContent` stores one plain text value. Serialized text and attributes are escaped; use `innerHTML` only when markup must be parsed.
 
 **Queries and relationships**: Element has the same query methods as Document, plus `matches` / `closest` / `contains` / `children` / `firstElementChild` / `lastElementChild` / `nextElementSibling` / `previousElementSibling` / `parentElement`. There is no `insertAdjacentHTML` and no `element.animate()`.
 

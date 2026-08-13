@@ -23,6 +23,7 @@ import java.util.Map;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.RenderElement;
 import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.dom.TextTransform;
 import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CSS;
 
@@ -310,6 +311,7 @@ public class Text {
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
+        text.content = TextTransform.apply(text.content, element);
         ResolveState state = new ResolveState();
         for (Element e : element.getRouteArray()) {
             Style style = e.getComputedStyle();

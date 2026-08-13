@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.sighs.apricityui.form.FormData;
 
@@ -81,6 +82,15 @@ class GlobalJsBootstrapTest {
         assertTrue(script.contains("function __auiDecorateElement(el)"));
         assertTrue(script.contains("function MutationObserver(callback)"));
         assertTrue(script.contains("document.querySelector = function(sel)"));
+    }
+
+    @Test
+    void globalJsBridgesInnerTextToItsLayoutAwareApi() {
+        String script = readGlobalJs();
+
+        assertTrue(script.contains("return el.getInnerText();"));
+        assertTrue(script.contains("el.setInnerText(typeof v === 'undefined' ? 'undefined' : formatText(v));"));
+        assertFalse(script.contains("'innerText', { get: function() { return el.getTextContent();"));
     }
 
     private static String readGlobalJs() {

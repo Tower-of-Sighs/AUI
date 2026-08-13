@@ -225,6 +225,19 @@ class ContentEditableTest {
         assertEquals("world", ce.getValue());
     }
 
+    @Test
+    void innerTextPreservesPlaintextEditorLineBreaks() {
+        Document document = TestDocumentFactory.createDocument();
+        ContentEditable ce = editable(document);
+
+        ce.setInnerText("alpha\r\nbeta\rgamma");
+
+        assertEquals("alpha\nbeta\ngamma", ce.getValue());
+        assertEquals("alpha\nbeta\ngamma", ce.getInnerText());
+        assertEquals("alpha\nbeta\ngamma", ce.getTextContent());
+        assertTrue(ce.getChildNodes().isEmpty(), "plaintext-only content must stay in the flat editor buffer");
+    }
+
     // ------------------------------------------------------------------
     // 导航键（Home/End/↑/↓）
     // ------------------------------------------------------------------

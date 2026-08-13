@@ -57,7 +57,9 @@ var __auiInstallTextBridge = function() {
     if (!el || el.__auiTextContentSet || typeof el.getTextContent !== 'function') return;
     try {
       Object.defineProperty(el, 'textContent', { get: function() { return el.getTextContent(); }, set: function(v) { el.setTextContent(formatText(v)); }, enumerable: true, configurable: true });
-      Object.defineProperty(el, 'innerText', { get: function() { return el.getTextContent(); }, set: function(v) { el.setTextContent(formatText(v)); }, enumerable: true, configurable: true });
+      if (typeof el.getInnerText === 'function' && typeof el.setInnerText === 'function') {
+        Object.defineProperty(el, 'innerText', { get: function() { return el.getInnerText(); }, set: function(v) { el.setInnerText(typeof v === 'undefined' ? 'undefined' : formatText(v)); }, enumerable: true, configurable: true });
+      }
       el.__auiTextContentSet = true;
     } catch (e) {}
   }

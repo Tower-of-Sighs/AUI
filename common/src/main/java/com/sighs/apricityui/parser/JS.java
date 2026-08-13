@@ -22,20 +22,15 @@ public class JS {
             Pattern.compile("\\[\\.\\.\\.([A-Za-z_$][\\w$]*)\\]");
     private static final Pattern FUNCTION_HEAD_PATTERN =
             Pattern.compile("\\bfunction\\s+([A-Za-z_$][\\w$]*)\\s*\\(");
-    private static final Pattern INNER_TEXT_PATTERN =
-            Pattern.compile("\\.innerText\\b");
-
     /**
      * Rewrites browser-ish ES6 syntax (array spread, default parameters) into
-     * ES5 forms understood by the Rhino engine bundled with KubeJS, and maps
-     * {@code innerText} to {@code textContent}. Loader-independent; the loader
-     * script engine calls this before evaluating.
+     * ES5 forms understood by the Rhino engine bundled with KubeJS. Loader-independent;
+     * the loader script engine calls this before evaluating.
      */
     public static String rewriteForRhino(String code) {
         if (code == null) return null;
         code = ARRAY_SPREAD_PATTERN.matcher(code).replaceAll("$1.slice()");
         code = rewriteDefaultParameters(code);
-        code = INNER_TEXT_PATTERN.matcher(code).replaceAll(".textContent");
         return code;
     }
 

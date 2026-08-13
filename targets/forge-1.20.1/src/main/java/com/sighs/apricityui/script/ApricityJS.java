@@ -16,8 +16,6 @@ public class ApricityJS {
     private static String cachedGlobalCode;
     private static Script cachedGlobalScript;
 
-    // 框架目前只给元素桥接了 textContent，页面脚本常用 innerText 来设置文本。
-    // 在页面脚本执行前，动态装饰器上补一个 innerText 的 getter/setter。
     public static void eval(String code) {
         eval(code, null, "<global>");
     }

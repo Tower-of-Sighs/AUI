@@ -148,6 +148,20 @@ public class ContentEditable extends AbstractText {
     }
 
     @Override
+    public void setInnerText(String value) {
+        // This element intentionally implements contenteditable="plaintext-only".
+        // Keep its editing value and the rendered legacy text in one flat buffer.
+        setTextContent(value == null ? "" : value.replace("\r\n", "\n").replace('\r', '\n'));
+    }
+
+    @Override
+    public String getInnerText() {
+        // The editor value is already its rendered plaintext representation.
+        // Running it through normal block layout would collapse embedded newlines.
+        return value == null ? "" : value;
+    }
+
+    @Override
     protected void locateCursor(double mouseOffsetX, double mouseOffsetY) {
         String renderText = getRenderText();
         Text text = Text.of(this);
