@@ -23,6 +23,7 @@ public final class ClientServicesBootstrap {
         AuiServices.setResources(ResourceService.INSTANCE);
         AuiServices.setKeys(KeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);
+        AuiServices.setItems(ItemRenderService.INSTANCE);
         DevToolsLogBridge.install(ApricityUI.LOGGER);
         ApricityUIRegistry.register();
 
