@@ -1017,8 +1017,8 @@ public record Size(double width, double height) {
         if (document == null || document.documentElement == null) return null;
         double defaultFontSize = document.getFontMode().defaultFontSize();
         document.documentElement.getComputedStyle();
-        String fontSize = document.documentElement.getStyle().fontSize;
-        if (fontSize == null || fontSize.equals("unset")) {
+        String fontSize = document.documentElement.getInlineStylePropertyValue("font-size");
+        if (fontSize == null || fontSize.isBlank() || fontSize.equals("unset")) {
             fontSize = document.documentElement.cssCache.get("font-size");
         }
         if (fontSize == null || fontSize.equals("unset")) {
@@ -1072,6 +1072,5 @@ public record Size(double width, double height) {
         return Text.measureText(measuring);
     }
 }
-
 
 

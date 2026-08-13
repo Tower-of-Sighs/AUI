@@ -312,7 +312,7 @@ public final class InnerText {
         String declared = element.cssCache.get("display");
         String styleAttribute = element.getAttribute("style");
         if (styleAttribute != null && styleAttribute.toLowerCase(Locale.ROOT).contains("display")) {
-            declared = element.getStyle().display;
+            declared = element.getInlineStylePropertyValue("display");
         }
         return declared;
     }

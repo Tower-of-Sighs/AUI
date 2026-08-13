@@ -158,6 +158,8 @@ public class Document {
     /** 文档内选择单元列表缓存（enumerateUnits 结果）；null 表示尚未计算。 */
     private List<Element> selectionUnitsCache = null;
     private final Set<Element> activeScrollElements = ConcurrentHashMap.newKeySet();
+    private final Set<Element> mutableInlineStyleElements =
+            Collections.newSetFromMap(new WeakHashMap<>());
     /** 文本拖拽（从选区内部按下后拖动）的文档级状态。 */
     private final TextDragState textDrag = new TextDragState();
 
@@ -342,6 +344,7 @@ public class Document {
             CSSCache.clear();
             CSSDebugRules.clear();
             JSCache.clear();
+            mutableInlineStyleElements.clear();
             tree.clear();
             render.reset();
             motion.clear();
@@ -458,8 +461,8 @@ public class Document {
         double defaultFontSize = fontMode.defaultFontSize();
         if (documentElement == null) return defaultFontSize;
         documentElement.getComputedStyle();
-        String declared = documentElement.getStyle().fontSize;
-        if (declared == null || declared.equals("unset")) {
+        String declared = documentElement.getInlineStylePropertyValue("font-size");
+        if (declared == null || declared.isBlank() || declared.equals("unset")) {
             declared = documentElement.cssCache.get("font-size");
         }
         if (declared == null || declared.equals("unset")) {
@@ -655,6 +658,7 @@ public class Document {
      */
     public void commitStyleRecalc() {
         if (!isActive()) return;
+        commitMutableInlineStyles();
         style.flushPendingUpdates();
     }
 
@@ -664,7 +668,21 @@ public class Document {
      * for Minecraft's 20 Hz client tick.
      */
     public boolean commitPendingStyleRecalcForRender() {
-        return isActive() && style.flushPendingUpdates();
+        if (!isActive()) return false;
+        commitMutableInlineStyles();
+        return style.flushPendingUpdates();
+    }
+
+    void trackMutableInlineStyle(Element element) {
+        if (element != null) mutableInlineStyleElements.add(element);
+    }
+
+    private void commitMutableInlineStyles() {
+        // CSSOM method writes commit immediately. Only legacy public-field writes need polling,
+        // so limit it to elements whose mutable Style object has actually escaped.
+        for (Element element : new ArrayList<>(mutableInlineStyleElements)) {
+            element.commitPendingInlineStyleMutations();
+        }
     }
 
     /**

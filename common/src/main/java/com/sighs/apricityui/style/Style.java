@@ -5,7 +5,10 @@ import com.sighs.apricityui.style.Interaction;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.util.AbstractMap;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -15,7 +18,7 @@ import com.sighs.apricityui.parser.Color;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 
-public class Style implements Cloneable {
+public class Style extends AbstractMap<String, String> implements Cloneable {
     public static final Style DEFAULT = new Style();
     private static final Set<String> UNSUPPORTED_PROPERTIES = ConcurrentHashMap.newKeySet();
     static final Set<String> INHERITED_PROPERTIES = Set.of(
@@ -160,6 +163,7 @@ public class Style implements Cloneable {
     public String animationTimingFunction = "unset";
     public String animationPlayState = "unset";
     private Map<String, String> customProperties = new HashMap<>();
+    private transient Element inlineOwner;
 
     private static final Map<String, Field> FIELD_CACHE = new HashMap<>();
     private static final Map<String, String> STYLE_NAME = new HashMap<>();
@@ -202,22 +206,170 @@ public class Style implements Cloneable {
         }
     }
 
-    public void merge(String styleString) {
-        if (styleString == null || styleString.isBlank()) return;
-        if (styleString.length() < 3) return;
-        if (!styleString.contains(";")) styleString += ";";
-        if (styleString.indexOf('\n') >= 0) {
-            styleString = styleString.replace("\n", "");
-        }
-        String[] entries = styleString.split(";");
-        for (String entry : entries) {
-            String[] content = entry.split(":", 2);
-            if (content.length == 2) {
-                update(content[0].trim(), content[1]);
-            } else if (!entry.isBlank()) {
-                ApricityUI.LOGGER.warn("[AUI CSS] malformed inline declaration ignored declaration={}", entry.trim());
+    public static String[] getSupportedPropertyNames() {
+        return STYLE_FIELD_CSS_NAMES.clone();
+    }
+
+    public static Style createInlineDeclarationStyle() {
+        return createInlineDeclarationStyle(null);
+    }
+
+    public static Style createInlineDeclarationStyle(Element owner) {
+        Style style = new Style();
+        for (Field field : STYLE_FIELDS) {
+            try {
+                field.set(style, "");
+            } catch (IllegalAccessException ignored) {
             }
         }
+        style.customProperties.clear();
+        style.inlineOwner = owner;
+        return style;
+    }
+
+    public String getPropertyValue(String name) {
+        if (inlineOwner != null) return inlineOwner.getInlineStylePropertyValue(name);
+        String value = get(name);
+        return value == null || "unset".equalsIgnoreCase(value) ? "" : value;
+    }
+
+    public String getPropertyPriority(String name) {
+        return inlineOwner == null ? "" : inlineOwner.getInlineStylePropertyPriority(name);
+    }
+
+    public void setProperty(String name, String value) {
+        setProperty(name, value, "");
+    }
+
+    public void setProperty(String name, String value, String priority) {
+        if (inlineOwner != null) {
+            inlineOwner.setInlineStyleProperty(name, value, priority);
+        } else {
+            update(name, value == null || value.isBlank() ? "unset" : value);
+        }
+    }
+
+    public String removeProperty(String name) {
+        if (inlineOwner != null) return inlineOwner.removeInlineStyleProperty(name);
+        String previous = getPropertyValue(name);
+        update(name, "unset");
+        return previous;
+    }
+
+    public String getCssText() {
+        return inlineOwner == null ? toCss() : inlineOwner.getInlineStyleCssText();
+    }
+
+    public void setCssText(String value) {
+        if (inlineOwner != null) inlineOwner.setInlineStyleCssText(value);
+    }
+
+    public int getLength() {
+        return inlineOwner == null ? entrySet().size() : inlineOwner.getInlineStylePropertyNames().length;
+    }
+
+    public String item(int index) {
+        if (index < 0) return "";
+        if (inlineOwner != null) {
+            String[] names = inlineOwner.getInlineStylePropertyNames();
+            return index < names.length ? names[index] : "";
+        }
+        return entrySet().stream().skip(index).map(Map.Entry::getKey).findFirst().orElse("");
+    }
+
+    @Override
+    public String get(Object key) {
+        if (key == null) return "";
+        String name = String.valueOf(key);
+        if (inlineOwner != null && "cssText".equals(name)) return getCssText();
+        if (inlineOwner != null && "length".equals(name)) return String.valueOf(getLength());
+        if (inlineOwner != null && name.chars().allMatch(Character::isDigit)) {
+            try {
+                return item(Integer.parseInt(name));
+            } catch (NumberFormatException ignored) {
+                return "";
+            }
+        }
+        return inlineOwner == null ? get(name) : getPropertyValue(name);
+    }
+
+    @Override
+    public String put(String key, String value) {
+        String previous = get(key);
+        if (inlineOwner != null && "cssText".equals(key)) setCssText(value);
+        else setProperty(key, value);
+        return previous;
+    }
+
+    @Override
+    public boolean containsKey(Object key) {
+        if (key == null) return false;
+        String name = String.valueOf(key);
+        if (inlineOwner != null && ("cssText".equals(name) || "length".equals(name))) return true;
+        if (inlineOwner != null && name.chars().allMatch(Character::isDigit)) {
+            try {
+                int index = Integer.parseInt(name);
+                return index >= 0 && index < getLength();
+            } catch (NumberFormatException ignored) {
+                return false;
+            }
+        }
+        return inlineOwner != null
+                ? !inlineOwner.getInlineStylePropertyValue(name).isEmpty()
+                : super.containsKey(key);
+    }
+
+    @Override
+    public String remove(Object key) {
+        return key == null ? "" : removeProperty(String.valueOf(key));
+    }
+
+    @Override
+    public Set<Entry<String, String>> entrySet() {
+        LinkedHashSet<Entry<String, String>> entries = new LinkedHashSet<>();
+        if (inlineOwner != null) {
+            for (String name : inlineOwner.getInlineStylePropertyNames()) {
+                entries.add(new SimpleImmutableEntry<>(name, inlineOwner.getInlineStylePropertyValue(name)));
+            }
+            return entries;
+        }
+        for (String name : STYLE_FIELD_CSS_NAMES) {
+            String value = get(name);
+            if (value != null && !value.isEmpty() && !"unset".equalsIgnoreCase(value)) {
+                entries.add(new SimpleImmutableEntry<>(name, value));
+            }
+        }
+        customProperties.forEach((name, value) -> entries.add(new SimpleImmutableEntry<>(name, value)));
+        return entries;
+    }
+
+    /** Returns authored field changes made directly through the legacy mutable Style object. */
+    public Map<String, String> changesComparedTo(Style previous) {
+        LinkedHashMap<String, String> changes = new LinkedHashMap<>();
+        if (previous == null) return changes;
+        for (int i = 0; i < STYLE_FIELDS.length; i++) {
+            try {
+                String current = (String) STYLE_FIELDS[i].get(this);
+                String old = (String) STYLE_FIELDS[i].get(previous);
+                if (!java.util.Objects.equals(current, old)) {
+                    changes.put(STYLE_FIELD_CSS_NAMES[i], current == null ? "" : current);
+                }
+            } catch (IllegalAccessException ignored) {
+            }
+        }
+        for (String name : previous.customProperties.keySet()) {
+            if (!customProperties.containsKey(name)) changes.put(name, "");
+        }
+        customProperties.forEach((name, value) -> {
+            if (!java.util.Objects.equals(value, previous.customProperties.get(name))) changes.put(name, value);
+        });
+        return changes;
+    }
+
+    public void merge(String styleString) {
+        if (styleString == null || styleString.isBlank()) return;
+        InlineStyleDeclaration.parse(styleString).forEach((property, value) ->
+                update(property, InlineStyleDeclaration.valueWithoutPriority(value)));
     }
 
     public void update(String name, String value) {
@@ -511,6 +663,9 @@ public class Style implements Cloneable {
         try {
             Style style = (Style) super.clone();
             style.customProperties = new HashMap<>(this.customProperties);
+            // A clone is a value snapshot. Keeping the owner would make CSSOM reads on
+            // snapshots observe future element mutations instead of the cloned fields.
+            style.inlineOwner = null;
             return style;
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);

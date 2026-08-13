@@ -93,6 +93,18 @@ class GlobalJsBootstrapTest {
         assertFalse(script.contains("'innerText', { get: function() { return el.getTextContent();"));
     }
 
+    @Test
+    void globalJsInstallsLiveCssStyleDeclarationBridge() {
+        String script = readGlobalJs();
+
+        assertTrue(script.contains("function __auiDecorateStyle(el)"));
+        assertTrue(script.contains("style.getPropertyValue = function(name)"));
+        assertTrue(script.contains("style.setProperty = function(name, value, priority)"));
+        assertTrue(script.contains("style.removeProperty = function(name)"));
+        assertTrue(script.contains("Object.defineProperty(style, 'cssText'"));
+        assertTrue(script.contains("__auiInstallValueBridge(el, 'style', () => __auiDecorateStyle(el)"));
+    }
+
     private static String readGlobalJs() {
         try (InputStream stream = GlobalJsBootstrapTest.class.getClassLoader()
                 .getResourceAsStream("assets/apricityui/apricity/global.js")) {

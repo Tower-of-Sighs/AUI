@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import com.sighs.apricityui.style.Style;
+import com.sighs.apricityui.style.InlineStyleDeclaration;
 
 public final class DevToolsController {
     public static final String PATH = "devtools/devtools.html";

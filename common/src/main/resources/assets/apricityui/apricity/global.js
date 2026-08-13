@@ -561,6 +561,62 @@ function __auiAppendMany(target, args, mode) {
   return __auiDecorateNode(last);
 }
 
+function __auiDecorateStyle(el) {
+  if (!el || typeof el.getInlineStylePropertyValue !== 'function') return el && el.getStyle ? el.getStyle() : null;
+  try {
+    let cached = el.getRuntimeCache ? el.getRuntimeCache('__auiStyleDeclaration') : null;
+    if (cached) return cached;
+    let style = {};
+    style.getPropertyValue = function(name) { return el.getInlineStylePropertyValue(String(name)); };
+    style.getPropertyPriority = function(name) { return el.getInlineStylePropertyPriority(String(name)); };
+    style.setProperty = function(name, value, priority) {
+      el.setInlineStyleProperty(String(name), value == null ? '' : String(value), priority == null ? '' : String(priority));
+    };
+    style.removeProperty = function(name) { return el.removeInlineStyleProperty(String(name)); };
+    style.item = function(index) {
+      let names = el.getInlineStylePropertyNames();
+      index = Number(index) || 0;
+      return index >= 0 && index < names.length ? String(names[index]) : '';
+    };
+    Object.defineProperty(style, 'cssText', {
+      get: function() { return el.getInlineStyleCssText(); },
+      set: function(value) { el.setInlineStyleCssText(value == null ? '' : String(value)); },
+      enumerable: true, configurable: true
+    });
+    Object.defineProperty(style, 'length', {
+      get: function() { return el.getInlineStylePropertyNames().length; },
+      enumerable: true, configurable: true
+    });
+    let properties = el.getSupportedInlineStylePropertyNames();
+    for (let itemIndex = 0; itemIndex < properties.length; itemIndex++) {
+      (function(index) {
+        Object.defineProperty(style, String(index), {
+          get: function() { return style.item(index); },
+          enumerable: false, configurable: true
+        });
+      })(itemIndex);
+    }
+    for (let propertyIndex = 0; propertyIndex < properties.length; propertyIndex++) {
+      let cssName = String(properties[propertyIndex]);
+      let jsName = cssName.replace(/-([a-z])/g, function(_, letter) { return letter.toUpperCase(); });
+      let install = function(name) {
+        if (!name || Object.prototype.hasOwnProperty.call(style, name)) return;
+        Object.defineProperty(style, name, {
+          get: function() { return el.getInlineStylePropertyValue(cssName); },
+          set: function(value) { el.setInlineStyleProperty(cssName, value == null ? '' : String(value)); },
+          enumerable: true, configurable: true
+        });
+      };
+      install(cssName);
+      install(jsName);
+    }
+    if (el.putRuntimeCache) el.putRuntimeCache('__auiStyleDeclaration', style);
+    return style;
+  } catch (e) {
+    return el.getStyle ? el.getStyle() : null;
+  }
+}
+
 function __auiDecorateNode(el) {
   if (!el || el.__auiDecoratedElement) return el;
   try {
@@ -607,6 +663,11 @@ function __auiDecorateNode(el) {
       __auiInstallValueBridge(el, 'className', () => el.getClassName(), (v) => el.setClassName(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'classList', () => __auiDecorateTokenList(el.getClassList()));
       __auiInstallValueBridge(el, 'dataset', () => __auiDecorateDataset(el.getDataset()));
+      __auiInstallValueBridge(el, 'style', () => __auiDecorateStyle(el), (v) => {
+        if (v == null) el.setInlineStyleCssText('');
+        else if (typeof v === 'string') el.setInlineStyleCssText(v);
+        else if (typeof v.cssText !== 'undefined') el.setInlineStyleCssText(String(v.cssText));
+      });
       __auiInstallValueBridge(el, 'name', () => el.getAttribute('name'), (v) => el.setAttribute('name', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'type', () => el.getType(), (v) => el.setType(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'form', () => __auiDecorateElement(el.getForm ? el.getForm() : null));

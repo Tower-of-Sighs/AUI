@@ -204,17 +204,85 @@ public class Element extends Node {
         node.forEachRoute(consumer);
     }
 
-    private Style inlineStyle = null;
+    private final Style inlineStyle = Style.createInlineDeclarationStyle(this);
+    private Style inlineStyleSnapshot = inlineStyle.clone();
+    private LinkedHashMap<String, String> inlineDeclarations = new LinkedHashMap<>();
+    private boolean inlineStyleInitialized = false;
+    private boolean mutableInlineStyleExposed = false;
+    private boolean syncingInlineStyle = false;
+    private String inlineStyleAttributeSnapshot = null;
 
     public Style getStyle() {
-        if (inlineStyle == null) updateInlineStyle();
+        ensureInlineStyleInitialized();
+        mutableInlineStyleExposed = true;
+        if (document != null) document.trackMutableInlineStyle(this);
         return inlineStyle;
     }
 
+    void commitPendingInlineStyleMutations() {
+        syncLegacyInlineStyleMutations();
+    }
+
     public void setInlineStyleProperty(String name, String value) {
-        Style next = getStyle().clone();
-        next.update(name, value);
-        setAttribute("style", next.toCss());
+        setInlineStyleProperty(name, value, "");
+    }
+
+    public void setInlineStyleProperty(String name, String value, String priority) {
+        syncLegacyInlineStyleMutations();
+        String property = InlineStyleDeclaration.normalizeProperty(name);
+        if (property.isBlank()) return;
+        String normalizedValue = value == null ? "" : value.trim();
+        String normalizedPriority = priority == null ? "" : priority.trim().toLowerCase(Locale.ROOT);
+        if (!normalizedPriority.isEmpty() && !"important".equals(normalizedPriority)) return;
+        if (normalizedValue.isEmpty()) {
+            inlineDeclarations.remove(property);
+        } else {
+            inlineDeclarations.put(property, normalizedValue
+                    + ("important".equals(normalizedPriority) ? " !important" : ""));
+        }
+        commitInlineDeclarations();
+    }
+
+    public String removeInlineStyleProperty(String name) {
+        syncLegacyInlineStyleMutations();
+        String property = InlineStyleDeclaration.normalizeProperty(name);
+        String previous = inlineDeclarations.remove(property);
+        if (previous != null) commitInlineDeclarations();
+        return InlineStyleDeclaration.valueWithoutPriority(previous);
+    }
+
+    public String getInlineStylePropertyValue(String name) {
+        syncLegacyInlineStyleMutations();
+        String property = InlineStyleDeclaration.normalizeProperty(name);
+        String value = inlineDeclarations.get(property);
+        if (value != null) return InlineStyleDeclaration.valueWithoutPriority(value);
+        String expanded = inlineStyle.get(property);
+        return expanded == null || "unset".equalsIgnoreCase(expanded) ? "" : expanded;
+    }
+
+    public String getInlineStylePropertyPriority(String name) {
+        syncLegacyInlineStyleMutations();
+        return InlineStyleDeclaration.priorityOf(
+                inlineDeclarations.get(InlineStyleDeclaration.normalizeProperty(name)));
+    }
+
+    public String getInlineStyleCssText() {
+        syncLegacyInlineStyleMutations();
+        return InlineStyleDeclaration.serialize(inlineDeclarations);
+    }
+
+    public void setInlineStyleCssText(String value) {
+        syncLegacyInlineStyleMutations();
+        setAttribute("style", value == null ? "" : value);
+    }
+
+    public String[] getInlineStylePropertyNames() {
+        syncLegacyInlineStyleMutations();
+        return inlineDeclarations.keySet().toArray(String[]::new);
+    }
+
+    public String[] getSupportedInlineStylePropertyNames() {
+        return Style.getSupportedPropertyNames();
     }
 
     public String getCustomProperty(String name) {
@@ -254,6 +322,7 @@ public class Element extends Node {
     }
 
     public String getAttribute(String name) {
+        if ("style".equals(name)) syncLegacyInlineStyleMutations();
         if (name.equals("value")) {
             return attributes.getOrDefault(name, "");
         }
@@ -292,11 +361,6 @@ public class Element extends Node {
     public void setAttribute(String name, String value) {
         String oldValue = attributes.get(name);
         String oldId = "id".equals(name) ? id : null;
-        if ("style".equals(name) && inlineStyle == null) {
-            // Capture the previous inline declaration before replacing the raw
-            // attribute so the first style mutation invalidates used layout.
-            updateInlineStyle();
-        }
         attributes.put(name, value);
         if (name.equals("style")) {
             // 保持 style 缓存与 attributes 同步，避免后续读取出现旧值。
@@ -437,6 +501,7 @@ public class Element extends Node {
     }
 
     public Style getComputedStyle() {
+        syncLegacyInlineStyleMutations();
         Style cached = StyleFrameCache.get(this);
         if (cached != null) return cached;
 
@@ -451,6 +516,7 @@ public class Element extends Node {
     }
 
     public Style getRawComputedStyle() {
+        syncLegacyInlineStyleMutations();
         Style computedStyle;
         Style cache = renderElement.computedStyle.get();
         if (cache != null) {
@@ -485,10 +551,64 @@ public class Element extends Node {
     }
 
     public void updateInlineStyle() {
-        Style newStyle = new Style();
-        newStyle.merge(attributes.getOrDefault("style", ""));
-        if (inlineStyle != null && isConnected()) RenderElement.observeStyle(this, inlineStyle, newStyle);
-        inlineStyle = newStyle;
+        String rawAttributeValue = attributes.get("style");
+        String attributeValue = rawAttributeValue == null ? "" : rawAttributeValue;
+        inlineDeclarations = InlineStyleDeclaration.parse(attributeValue);
+        Style previousStyle = inlineStyleSnapshot;
+        Style newStyle = Style.createInlineDeclarationStyle();
+        newStyle.merge(InlineStyleDeclaration.serialize(inlineDeclarations));
+        inlineStyle.copyFrom(newStyle);
+        if (inlineStyleInitialized && isConnected()) {
+            RenderElement.observeStyle(this, previousStyle, inlineStyle);
+        }
+        inlineStyleSnapshot = inlineStyle.clone();
+        inlineStyleAttributeSnapshot = rawAttributeValue;
+        inlineStyleInitialized = true;
+    }
+
+    private void ensureInlineStyleInitialized() {
+        if (!inlineStyleInitialized) updateInlineStyle();
+    }
+
+    private void syncLegacyInlineStyleMutations() {
+        if (syncingInlineStyle) return;
+        ensureInlineStyleInitialized();
+        String attributeValue = attributes.get("style");
+        if (!Objects.equals(attributeValue, inlineStyleAttributeSnapshot)) {
+            String oldValue = inlineStyleAttributeSnapshot;
+            updateInlineStyle();
+            invalidateStyle();
+            if (document != null) {
+                document.queueMutation(Document.MutationRecord.attributes(this, "style", oldValue));
+            }
+        }
+        if (!mutableInlineStyleExposed) return;
+        Map<String, String> changes = inlineStyle.changesComparedTo(inlineStyleSnapshot);
+        if (changes.isEmpty()) return;
+        changes.forEach((property, value) -> {
+            if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value.trim())) {
+                inlineDeclarations.remove(property);
+            } else {
+                inlineDeclarations.put(property, value.trim());
+            }
+        });
+        commitInlineDeclarations();
+    }
+
+    private void commitInlineDeclarations() {
+        String serialized = InlineStyleDeclaration.serialize(inlineDeclarations);
+        String oldValue = attributes.get("style");
+        syncingInlineStyle = true;
+        try {
+            attributes.put("style", serialized);
+            updateInlineStyle();
+            if (!Objects.equals(oldValue, serialized)) invalidateStyle();
+            if (document != null && !Objects.equals(oldValue, serialized)) {
+                document.queueMutation(Document.MutationRecord.attributes(this, "style", oldValue));
+            }
+        } finally {
+            syncingInlineStyle = false;
+        }
     }
 
     public void setHover(boolean hover) {
@@ -1482,6 +1602,7 @@ public class Element extends Node {
 
     @Override
     public Element cloneNode(boolean deep) {
+        syncLegacyInlineStyleMutations();
         Element cloned = Element.init(new Element(document, tagName));
         cloned.innerText = innerText;
         cloned.id = id;
@@ -1492,6 +1613,7 @@ public class Element extends Node {
         cloned.selectedDirty = selectedDirty;
         cloned.valueDirty = valueDirty;
         cloned.attributes.putAll(attributes);
+        cloned.updateInlineStyle();
         cloned.classNames = classNames == null ? Collections.emptySet() : classNames;
         if (deep) {
             for (Node child : childNodes) {

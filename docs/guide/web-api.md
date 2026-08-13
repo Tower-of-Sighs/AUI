@@ -81,7 +81,7 @@ style.get("font-size");   // 等价写法
 style.fontSize;           // 常见字段也可直接读（fontSize/fontWeight/fontFamily/lineHeight/display/color 等）
 ```
 
-改样式用 `element.style` 或 `setAttribute("style", ...)`，别指望完整 CSSOM。
+改样式可以使用实时双向绑定的 `element.style`，也可以使用 `setAttribute("style", ...)`。
 
 ## Document
 
@@ -138,7 +138,7 @@ el.dataset.userId;                // 属性风格，对应 data-user-id
 
 classList 有 `length/contains/add/remove/toggle/item/toString`；dataset 方法有 `get/set/has/delete/keys`。
 
-**样式**：`element.style` 是 inline style 的字段桥，能读能写常用字段；批量写入用 `el.setAttribute("style", "...")` 或 `el.setInlineStyleProperty("background-color", "...")`。
+**样式**：`element.style` 是稳定的 inline `CSSStyleDeclaration` 对象。字段赋值、`cssText`、`length/item()`、数字索引以及 `getPropertyValue/getPropertyPriority/setProperty/removeProperty` 都会和 `style` attribute、计算样式及布局实时双向同步；也可使用 `el.setAttribute("style", "...")` 或 `el.setInlineStyleProperty("background-color", "...")`。
 
 **几何和滚动**：`getBoundingClientRect()` 返回带 `x/y/width/height/left/top/right/bottom` 的 DOMRect；`scrollTop/scrollLeft/scrollTo/scrollBy` 用逻辑坐标。
 

@@ -782,9 +782,8 @@ public class Text {
 
     private static String getDeclaredFontSize(Element element) {
         if (element == null) return "unset";
-        Style inline = element.getStyle();
-        String declared = inline == null ? null : inline.fontSize;
-        if (declared == null || declared.equals("unset")) {
+        String declared = element.getInlineStylePropertyValue("font-size");
+        if (declared == null || declared.isBlank() || declared.equals("unset")) {
             declared = element.cssCache.get("font-size");
             if (declared == null) declared = element.cssCache.get("fontSize");
         }

@@ -261,7 +261,7 @@ final class SelectPopup {
     private static boolean hasAuthorOptionColor(Element option) {
         if (option == null) return false;
         if (option.cssCache.containsKey("color")) return true;
-        String inlineColor = option.getStyle().color;
+        String inlineColor = option.getInlineStylePropertyValue("color");
         return inlineColor != null && !inlineColor.isBlank() && !"unset".equalsIgnoreCase(inlineColor);
     }
 

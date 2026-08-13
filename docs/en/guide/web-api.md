@@ -81,7 +81,7 @@ style.get("font-size");   // equivalent
 style.fontSize;           // common fields can also be read directly (fontSize/fontWeight/fontFamily/lineHeight/display/color, etc.)
 ```
 
-To change styles, use `element.style` or `setAttribute("style", ...)` — don't expect a full CSSOM.
+Use the live, bidirectionally bound `element.style` object or `setAttribute("style", ...)` to change styles.
 
 ## Document
 
@@ -138,7 +138,7 @@ el.dataset.userId;                // property style, maps to data-user-id
 
 classList has `length/contains/add/remove/toggle/item/toString`; dataset methods are `get/set/has/delete/keys`.
 
-**Styles**: `element.style` is a field bridge over the inline style; common fields are readable and writable. For batch writes, use `el.setAttribute("style", "...")` or `el.setInlineStyleProperty("background-color", "...")`.
+**Styles**: `element.style` is a stable inline `CSSStyleDeclaration`. Field assignment, `cssText`, `length/item()`, numeric indexes, and `getPropertyValue/getPropertyPriority/setProperty/removeProperty` stay synchronized with the `style` attribute, computed style, and layout. You can also use `el.setAttribute("style", "...")` or `el.setInlineStyleProperty("background-color", "...")`.
 
 **Geometry and scrolling**: `getBoundingClientRect()` returns a DOMRect with `x/y/width/height/left/top/right/bottom`; `scrollTop/scrollLeft/scrollTo/scrollBy` use logical coordinates.
 
