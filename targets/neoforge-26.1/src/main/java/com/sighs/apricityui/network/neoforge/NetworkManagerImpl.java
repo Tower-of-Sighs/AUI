@@ -43,7 +43,11 @@ public class NetworkManagerImpl implements INetworkManager {
 
     @SubscribeEvent
     public static void onRegisterPayloads(RegisterPayloadHandlersEvent event) {
-        final var registrar = event.registrar(ApricityUI.MODID).versioned(PROTOCOL_VERSION);
+        final var registrar = event.registrar(ApricityUI.MODID).versioned(PROTOCOL_VERSION)
+        // Neo: payload channels must be optional so that a client running ApricityUI can
+        // connect to servers that do not have ApricityUI installed (the server does not
+        // declare these channels, and a required registration would reject the handshake).
+        .optional();
         NetworkManagerImpl impl = new NetworkManagerImpl();
 
         for (Class<? extends INetworkPacket<?>> packetClass : NetworkAutoRegistration.findAllAnnotatedPackets()) {

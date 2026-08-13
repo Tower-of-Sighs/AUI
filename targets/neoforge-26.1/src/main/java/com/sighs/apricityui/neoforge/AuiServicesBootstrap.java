@@ -16,7 +16,9 @@ public final class AuiServicesBootstrap {
         AuiServices.setExpander(new ForgeDocumentExpander());
         AuiServices.setConfig(ConfigService.INSTANCE);
         AuiServices.setScript(ScriptService.INSTANCE);
-        AuiServices.setItems(ItemRenderService.INSTANCE);
+        // Items 引用客户端专属类（blaze3d/Minecraft），只能在客户端注册
+        // （见 ClientServicesBootstrap）；否则专用服务器加载本类时会
+        // NoClassDefFoundError 并导致整个服务器崩溃。
     }
 
     private AuiServicesBootstrap() {
