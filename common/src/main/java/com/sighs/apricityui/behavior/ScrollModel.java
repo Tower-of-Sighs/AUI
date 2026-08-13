@@ -396,7 +396,12 @@ public final class ScrollModel {
             width = Math.max(width, offset.x - contentOriginX + outerSize.width());
             height = Math.max(height, offset.y - contentOriginY + outerSize.height());
         }
-        return new Size(Math.max(0, width), Math.max(0, height));
+        // CSS scrollHeight/scrollWidth 包含 padding（content-box 之外的内边距）：
+        // 滚动到底时最后一行内容下方应保留 padding 空间，否则内容贴死视口底缘
+        // 且 padding-bottom 永远不可达。
+        return new Size(
+                Math.max(0, width) + Math.max(0, box.getPaddingRight()),
+                Math.max(0, height) + Math.max(0, box.getPaddingBottom()));
     }
 
     private void updateScrollbarVisibility() {
