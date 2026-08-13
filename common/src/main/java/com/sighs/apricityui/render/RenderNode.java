@@ -83,7 +83,9 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
-                Position p = rect.getBodyRectPosition();
+                // 裁剪边界取 padding box 内边缘（不含 margin），否则容器带 margin
+                // 时 mask 下移、首行内容（含 border-top）被裁掉（issue #76/#77）。
+                Position p = rect.getOverflowClipPosition();
                 Size bodySize = rect.getBodyRectSize();
                 Size s = new Size(
                         Math.max(0, bodySize.width() - target.getVerticalScrollbarGutter()),
@@ -115,7 +117,9 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             applyWithTransform(poseStack, target, rect -> {
-                Position p = rect.getBodyRectPosition();
+                // 裁剪边界取 padding box 内边缘（不含 margin），否则容器带 margin
+                // 时 mask 下移、首行内容（含 border-top）被裁掉（issue #76/#77）。
+                Position p = rect.getOverflowClipPosition();
                 Size bodySize = rect.getBodyRectSize();
                 Size s = new Size(
                         Math.max(0, bodySize.width() - target.getVerticalScrollbarGutter()),

@@ -141,6 +141,18 @@ public class Rect {
         }
     }
 
+    /**
+     * Overflow 裁剪边界 = padding box 的内边缘（border 内侧，不含 margin）。
+     *
+     * <p>布局坐标 {@link #position} 已是 margin 外推后的 border box 位置；
+     * 子元素内容从 padding box 顶部开始渲染（{@code offset = border + padding}）。
+     * 若 mask 把 margin 也算进裁剪区，容器带 margin-top 时首行内容会被整体裁掉
+     * （见 issue：#76 overflow:hidden 裁子元素顶部边框、#77 滚动容器裁首行 border-top）。</p>
+     */
+    public Position getOverflowClipPosition() {
+        return new Position(position.x + box.getBorderLeft(), position.y + box.getBorderTop());
+    }
+
     public Position getBodyRectPosition() {
         if (bodyRectPosition != null) return bodyRectPosition;
         double x = position.x + box.getMarginLeft() + box.getBorderLeft();
