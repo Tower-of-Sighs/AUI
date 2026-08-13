@@ -1,0 +1,72 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="aui-font-mode" content="web">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-mouse-events" content="intercept">
+    <title>overflow-clip-margin-test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 24px;
+            font-family: sans-serif;
+        }
+
+        .section-title {
+            font-size: 18px;
+            margin: 8px 0;
+        }
+
+        /* 场景 A：滚动容器自身带 margin-top（issue #77 的真实触发条件） */
+        .viewport {
+            width: 320px;
+            height: 180px;
+            margin-top: 10px;
+            padding: 1px;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: #e8e8e8;
+        }
+
+        /* 场景 B：overflow:hidden 容器自身带 margin-top（issue #76） */
+        .hidden-box {
+            width: 320px;
+            height: 120px;
+            margin-top: 10px;
+            overflow: hidden;
+            background: #f5f5f5;
+        }
+
+        .item {
+            height: 80px;
+            margin-bottom: 8px;
+            border: 1px solid #d6c8b1;
+            border-top: 3px solid #477b6c;
+            background: #fffaf0;
+            box-sizing: border-box;
+        }
+
+        .child {
+            height: 80px;
+            border: 1px solid #d6c8b1;
+            border-top: 7px solid #a84f42;
+            background: #fffaf0;
+            box-sizing: border-box;
+        }
+    </style>
+</head>
+<body>
+    <div class="section-title">A: scroll container with margin-top (issue #77) - first row border-top must be visible</div>
+    <div class="viewport">
+        <div class="item">first item</div>
+        <div class="item">second item</div>
+        <div class="item">third item</div>
+    </div>
+
+    <div class="section-title">B: overflow:hidden with margin-top (issue #76) - child top border must be visible</div>
+    <div class="hidden-box">
+        <div class="child">child top border</div>
+    </div>
+</body>
+</html>
