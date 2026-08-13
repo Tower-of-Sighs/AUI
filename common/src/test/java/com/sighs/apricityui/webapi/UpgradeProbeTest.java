@@ -4,17 +4,9 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import org.junit.jupiter.api.Test;
 
-
-
-
-
-
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UpgradeProbeTest {
-
-    private static final String HTML_PATH = "D:/work/AUI/targets/forge-1.20.1/run/apricity/overlays/Qwen_html.html";
-    private static final String DOC_PATH = "file:/D:/work/AUI/targets/forge-1.20.1/run/apricity/overlays/Qwen_html.html";
 
     @Test
     void nestedContenteditableUpgrades() {
@@ -75,7 +67,7 @@ class UpgradeProbeTest {
         p.appendChild(tn);
         document.body.appendChild(p);
 
-        dev.latvian.mods.rhino.Context cx = dev.latvian.mods.rhino.Context.enter();
+        dev.latvian.mods.rhino.Context cx = RhinoTestSupport.enterContext();
         try {
             dev.latvian.mods.rhino.Scriptable scope = cx.initStandardObjects();
             scope.put(cx, "TN", scope, tn);

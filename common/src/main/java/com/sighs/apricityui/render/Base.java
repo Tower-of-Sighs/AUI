@@ -95,12 +95,41 @@ public class Base {
         }
     }
 
+    /**
+     * Draws a manually managed screen document on the same flat layer as its owner.
+     * The caller remains responsible for positioning and clipping the embedded surface.
+     */
+    public static void drawEmbeddedDocument(PoseStack poseStack, Document document, Document ownerDocument) {
+        if (document == null) return;
+        try (Document.ContextScope ignored = Document.withContext(document)) {
+            drawFlatDocumentAtZInContext(
+                    poseStack,
+                    document,
+                    List.of(),
+                    resolveEmbeddedDocumentBaseZ(ownerDocument)
+            );
+        }
+    }
+
     private static void drawFlatDocumentInContext(
             PoseStack poseStack,
             Document document,
             List<? extends RenderNode> overlayNodes
     ) {
-        float baseZ = resolveFlatDocumentBaseZ(document);
+        drawFlatDocumentAtZInContext(
+                poseStack,
+                document,
+                overlayNodes,
+                resolveFlatDocumentBaseZ(document)
+        );
+    }
+
+    private static void drawFlatDocumentAtZInContext(
+            PoseStack poseStack,
+            Document document,
+            List<? extends RenderNode> overlayNodes,
+            float baseZ
+    ) {
         pushDocumentZOffset(baseZ);
         // Item Z values are relative to the already translated document plane.
         // Adding baseZ again would make later documents' items jump two layers.
@@ -113,7 +142,7 @@ public class Base {
         }
     }
 
-    private static float resolveFlatDocumentBaseZ(Document document) {
+    static float resolveFlatDocumentBaseZ(Document document) {
         int layer = 0;
         for (Document candidate : DocumentLayerOrder.backToFront(Document.getAll())) {
             if (!isFlatDocument(candidate)) continue;
@@ -123,6 +152,10 @@ public class Base {
             layer++;
         }
         return GLOBAL_DOCUMENT_Z_OFFSET;
+    }
+
+    static float resolveEmbeddedDocumentBaseZ(Document ownerDocument) {
+        return resolveFlatDocumentBaseZ(ownerDocument);
     }
 
     public static float getFlatOverlayZ() {

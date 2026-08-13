@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="aui-font-mode" content="web">
+<meta name="aui-viewport" content="mode=browser">
+<meta name="aui-mouse-events" content="intercept">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>Ore Writer</title>
+<link rel="stylesheet" href="../apricityui/theme/ore/ore.css">
+<style>
+  html, body { width:100%; height:100%; margin:0; }
+  body.ore-theme { min-height:100%; background:var(--ore-canvas); overflow:hidden; }
+  button { font:inherit; letter-spacing:0; }
+
+  .writer-shell { display:flex; height:100vh; min-width:320px; flex-direction:column; }
+  .writer-header {
+    flex:0 0 72px; min-height:72px; padding:10px 20px 16px;
+    border-bottom:3px solid #151516; color:var(--ore-ink-dark); background:#e6e8eb;
+    box-shadow:inset 0 -6px #b1b2b5;
+    display:flex; align-items:center; justify-content:space-between; gap:20px;
+  }
+  .brand-lockup { display:flex; min-width:0; align-items:center; gap:12px; }
+  .brand-mark {
+    display:flex; width:42px; height:42px; flex:0 0 42px; align-items:center; justify-content:center;
+    border:3px solid var(--ore-edge); color:#fff; background:var(--ore-green);
+    box-shadow:inset 0 -6px var(--ore-green-shadow), inset 2px 2px rgba(255,255,255,.2);
+    font-family:OreDisplay,sans-serif; font-size:23px;
+  }
+  .brand-copy { min-width:0; }
+  .brand-kicker { color:#5e6064; font-size:11px; line-height:1.2; }
+  .brand-title {
+    overflow:hidden; color:var(--ore-ink-dark); font-family:OreDisplay,sans-serif;
+    font-size:25px; line-height:1.1; text-overflow:ellipsis; white-space:nowrap;
+  }
+  .draft-state { display:flex; flex:0 0 auto; align-items:center; gap:8px; color:#404144; font-size:13px; }
+  .state-lamp { width:10px; height:10px; border:2px solid var(--ore-edge); background:var(--ore-gold); }
+
+  .workspace { display:flex; width:100%; min-width:0; flex:1 1 auto; min-height:0; flex-direction:column; }
+  .document-bar {
+    display:flex; min-height:38px; padding:8px 18px; align-items:center; justify-content:space-between; gap:16px;
+    border-bottom:3px solid var(--ore-edge); color:var(--ore-ink-muted); background:var(--ore-surface-deep);
+    font-size:13px;
+  }
+  .document-path, .document-metrics { display:flex; min-width:0; align-items:center; gap:9px; }
+  .document-path { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .path-root { color:var(--ore-gold); }
+  .path-divider, .metric-divider { color:var(--ore-edge-light); }
+  .document-metrics { flex:0 0 auto; }
+  #blockStatus { color:var(--ore-ink); }
+
+  .toolbar {
+    display:flex; min-height:52px; padding:8px 12px 12px; flex-wrap:wrap; align-items:center; gap:6px;
+    border-bottom:3px solid var(--ore-edge); background:var(--ore-surface);
+    box-shadow:inset 0 -4px #292a2b, inset 0 2px var(--ore-edge-light);
+  }
+  .tool-group { display:flex; align-items:center; gap:4px; }
+  .toolbar button {
+    display:flex; min-width:34px; height:32px; padding:4px 9px 8px; align-items:center; justify-content:center;
+    border:2px solid var(--ore-edge); color:var(--ore-ink); background:var(--ore-surface-deep);
+    box-shadow:inset 0 -4px #202124, inset 1px 1px var(--ore-edge-light);
+    font-size:13px; line-height:1; cursor:pointer;
+  }
+  .toolbar button:hover { color:#fff; background:#56585a; }
+  .toolbar button:active { padding-top:7px; padding-bottom:5px; box-shadow:inset 0 3px #202124; }
+  .toolbar button.on {
+    border-color:#25155c; color:#fff; background:var(--ore-purple);
+    box-shadow:inset 0 -4px var(--ore-purple-shadow), inset 1px 1px rgba(255,255,255,.2);
+  }
+  .toolbar button.off { opacity:.35; pointer-events:none; }
+  .toolbar .wide-tool { min-width:64px; }
+  .toolbar .sep { width:3px; height:26px; margin:0 3px; background:var(--ore-edge); box-shadow:1px 0 var(--ore-edge-light); }
+  .mk-b { font-weight:700; } .mk-i { font-style:italic; } .mk-u { text-decoration:underline; text-underline-offset:3px; }
+  .mk-s { text-decoration:line-through; text-decoration-color:var(--ore-gold); }
+
+  .canvas-scroll {
+    width:100%; min-width:0; flex:1 1 auto; min-height:0; padding:24px; overflow:auto;
+    background-color:#252628;
+    background-image:linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.025) 1px, transparent 1px);
+    background-size:24px 24px;
+  }
+  .document-surface {
+    width:100%; max-width:920px; min-width:0; margin:0 auto;
+    border:4px solid var(--ore-edge); background:#d0d1d4;
+    box-shadow:10px 10px rgba(0,0,0,.38), inset 2px 2px #f2f3f4;
+  }
+  .surface-cap {
+    display:flex; min-height:38px; padding:8px 12px; align-items:center; justify-content:space-between; gap:12px;
+    border-bottom:3px solid var(--ore-edge); color:var(--ore-ink-dark); background:#b9bbbe;
+    box-shadow:inset 0 -4px #96989b; font-size:12px;
+  }
+  .surface-tag { padding:2px 7px; border:2px solid var(--ore-edge); color:#fff; background:var(--ore-green); }
+  #editor {
+    min-height:460px; padding:48px 58px; outline:none; color:#e8e9eb; background:var(--ore-surface-deep);
+    caret-color:var(--ore-gold); font-family:OreRegular,"Microsoft YaHei",sans-serif;
+    overflow-wrap:break-word;
+  }
+  #editor:focus { box-shadow:inset 0 0 0 3px var(--ore-green); }
+  #editor::selection, #editor *::selection { color:#fff; background:var(--ore-purple); }
+  #editor p { margin:0 0 18px; color:#d9dade; font-size:17px; line-height:1.75; }
+  #editor h1 {
+    margin:0 0 24px; padding-bottom:14px; border-bottom:4px solid var(--ore-green);
+    color:#fff; font-family:OreDisplay,sans-serif; font-size:38px; font-weight:400; line-height:1.15;
+  }
+  #editor h2 {
+    margin:30px 0 14px; color:var(--ore-gold); font-family:OreDisplay,sans-serif;
+    font-size:25px; font-weight:400; line-height:1.2;
+  }
+  #editor blockquote {
+    margin:22px 0; padding:14px 18px; border:3px solid var(--ore-edge); border-left:6px solid var(--ore-purple);
+    color:#fff; background:#242527; box-shadow:inset 0 4px #171819; font-style:italic; line-height:1.65;
+  }
+  #editor strong { color:#fff; }
+  #editor u { text-decoration-color:var(--ore-green); text-decoration-thickness:2px; text-underline-offset:4px; }
+  #editor s { color:inherit; text-decoration-color:var(--ore-gold); text-decoration-thickness:2px; }
+
+  .writer-footer {
+    display:flex; min-height:34px; padding:7px 14px; align-items:center; justify-content:space-between; gap:16px;
+    border-top:3px solid var(--ore-edge); color:var(--ore-ink-muted); background:var(--ore-surface-deep); font-size:12px;
+  }
+  .footer-status { color:var(--ore-success); }
+
+  @media (max-width:700px) {
+    .writer-header { min-height:64px; padding-left:12px; padding-right:12px; }
+    .brand-kicker, .draft-state, .document-path { display:none; }
+    .document-bar { justify-content:flex-end; }
+    .canvas-scroll { padding:12px; }
+    #editor { min-height:420px; padding:30px 24px; }
+    #editor h1 { font-size:30px; }
+    .toolbar { gap:4px; }
+    .toolbar .sep { margin:0; }
+    .toolbar .reset-sep { display:none; }
+  }
+</style>
+</head>
+<body class="ore-theme">
+<div class="writer-shell">
+  <header class="writer-header">
+    <div class="brand-lockup">
+      <span class="brand-mark" aria-hidden="true">O</span>
+      <div class="brand-copy">
+        <div class="brand-kicker">APRICITYUI / TEST LAB</div>
+        <div class="brand-title">ORE WRITER</div>
+      </div>
+    </div>
+    <div class="draft-state"><span class="state-lamp"></span><span>LOCAL DRAFT</span></div>
+  </header>
+
+  <main class="workspace">
+  <div class="document-bar">
+    <div class="document-path"><span class="path-root">WORKSPACE</span><span class="path-divider">/</span><span>EXPEDITION-LOG.HTML</span></div>
+    <div class="document-metrics">
+      <span id="blockStatus">PARAGRAPH</span><span class="metric-divider">|</span>
+      <span id="wordCount">0 CHARS</span><span class="metric-divider">|</span>
+      <span id="selectionStatus">CARET</span>
+    </div>
+  </div>
+  <div class="toolbar" id="toolbar" role="toolbar">
+    <div class="tool-group" aria-label="History">
+    <button class="wide-tool" data-action="undo" title="Undo Ctrl+Z">UNDO</button>
+    <button class="wide-tool" data-action="redo" title="Redo Ctrl+Shift+Z">REDO</button>
+    </div>
+    <span class="sep"></span>
+    <div class="tool-group" aria-label="Block type">
+    <button data-action="block" data-value="h1">H1</button>
+    <button data-action="block" data-value="h2">H2</button>
+    <button data-action="block" data-value="p" title="Paragraph">P</button>
+    <button data-action="block" data-value="quote" title="Quote">QT</button>
+    </div>
+    <span class="sep"></span>
+    <div class="tool-group" aria-label="Inline formatting">
+    <button data-action="mark" data-value="bold" title="Ctrl/⌘+B"><span class="mk-b">B</span></button>
+    <button data-action="mark" data-value="italic" title="Ctrl/⌘+I"><span class="mk-i">I</span></button>
+    <button data-action="mark" data-value="underline" title="Ctrl/⌘+U"><span class="mk-u">U</span></button>
+    <button data-action="mark" data-value="strike" title="Ctrl/⌘+S"><span class="mk-s">S</span></button>
+    </div>
+    <span class="sep reset-sep"></span>
+    <button class="wide-tool" data-action="clear">RESET</button>
+  </div>
+  <div class="canvas-scroll">
+    <section class="document-surface" aria-label="Editable document">
+      <div class="surface-cap"><span style="font-family: default">富文本编辑器测试</span><span class="surface-tag">IN PROGRESS</span></div>
+      <div id="editor" contenteditable="true" spellcheck="false"></div>
+    </section>
+  </div>
+  <footer class="writer-footer"><span class="footer-status">MODEL ONLINE</span><span>UTF-8 / WEB FONT</span></footer>
+  </main>
+</div>
+
+<script>
+// 禁用 execCommand：本页一切编辑行为只走 Model
+if (document.execCommand) document.execCommand = () => false;
+
+/* ---------------- 工具 ---------------- */
+var clone = v => JSON.parse(JSON.stringify(v));
+var marksKey = m => m.slice().sort().join('+');
+
+function normalizeRuns(runs){                 // 去空段、合并相邻同格式段
+  var out = [];
+  for (var r of runs){
+    if (!r.text) continue;
+    var last = out[out.length - 1];
+    if (last && marksKey(last.marks) === marksKey(r.marks)) last.text += r.text;
+    else out.push({ text: r.text, marks: r.marks.slice() });
+  }
+  return out.length ? out : [{ text:'', marks:[] }];
+}
+function cutRuns(runs, start, end){           // 删除字符区间 [start, end)
+  var out = []; var pos = 0;
+  for (var run of runs){
+    var len = run.text.length;
+    var os = Math.max(start, pos), oe = Math.min(end, pos + len);
+    if (os >= oe) out.push({ text: run.text, marks: run.marks.slice() });
+    else {
+      var t = run.text.slice(0, os - pos) + run.text.slice(oe - pos);
+      if (t) out.push({ text: t, marks: run.marks.slice() });
+    }
+    pos += len;
+  }
+  return normalizeRuns(out);
+}
+function splitRunsAt(runs, offset){           // 在偏移处切成左右两半
+  var left = [], right = []; var pos = 0;
+  for (var run of runs){
+    var len = run.text.length;
+    if (pos + len <= offset) left.push({ text: run.text, marks: run.marks.slice() });
+    else if (pos >= offset)  right.push({ text: run.text, marks: run.marks.slice() });
+    else {
+      var at = offset - pos;
+      left.push({ text: run.text.slice(0, at), marks: run.marks.slice() });
+      right.push({ text: run.text.slice(at),  marks: run.marks.slice() });
+    }
+    pos += len;
+  }
+  return { left: normalizeRuns(left), right: normalizeRuns(right) };
+}
+function splitRunsAtAll(runs, offsets){       // 在多个偏移处预切分
+  var out = runs.map(r => ({ text: r.text, marks: r.marks.slice() }));
+  for (var off of offsets.slice().sort((a, b) => a - b)){
+    var next = []; var pos = 0;
+    for (var r of out){
+      var len = r.text.length;
+      if (off > pos && off < pos + len){
+        next.push({ text: r.text.slice(0, off - pos), marks: r.marks.slice() });
+        next.push({ text: r.text.slice(off - pos),   marks: r.marks.slice() });
+      } else next.push(r);
+      pos += len;
+    }
+    out = next;
+  }
+  return out;
+}
+
+var MARK_TAG  = { bold:'strong', italic:'em', underline:'u', strike:'s' };
+var BLOCK_TAG = { p:'p', h1:'h1', h2:'h2', quote:'blockquote' };
+
+/* ================= M —— Model：单一数据源 ================= */
+function DocumentModel(blocks){
+    this.blocks = blocks;
+    this.selection = { anchor:{ b:0, o:0 }, focus:{ b:0, o:0 } };
+    this.pendingMarks = null;          // null=继承上下文，[]=明确无格式
+    this.onChange = null;
+  }
+DocumentModel.prototype.notify = function(){ if (this.onChange) this.onChange(this); };
+DocumentModel.prototype.text = function(i){ return this.blocks[i].runs.map(r => r.text).join(''); };
+DocumentModel.prototype.range = function(){
+    var { anchor:a, focus:f } = this.selection;
+    return ((a.b - f.b) || (a.o - f.o)) <= 0 ? { start:a, end:f } : { start:f, end:a };
+  };
+DocumentModel.prototype.isCollapsed = function(){ var { start, end } = this.range(); return start.b === end.b && start.o === end.o; };
+DocumentModel.prototype.setCaret = function(b, o){ this.selection = { anchor:{ b:b, o:o }, focus:{ b:b, o:o } }; };
+DocumentModel.prototype.activeMarks = function(){
+    if (this.pendingMarks) return this.pendingMarks.slice();
+    var { start } = this.range(); var pos = 0;
+    for (var r of this.blocks[start.b].runs){
+      if (start.o <= pos + r.text.length) return r.marks.slice();
+      pos += r.text.length;
+    }
+    return [];
+  };
+DocumentModel.prototype.selectionMarks = function(){
+    if (this.isCollapsed()) return this.activeMarks();
+    var { start, end } = this.range(); var common = null;
+    this.forEachRunIn(start, end, r => {
+      common = common === null ? r.marks.slice() : common.filter(m => r.marks.includes(m));
+    });
+    return common || [];
+  };
+DocumentModel.prototype.forEachRunIn = function(start, end, fn){
+    for (var b = start.b; b <= end.b; b++){
+      var s = b === start.b ? start.o : 0;
+      var e = b === end.b ? end.o : this.text(b).length;
+      var pos = 0;
+      for (var r of this.blocks[b].runs){
+        if (pos < e && pos + r.text.length > s) fn(r);
+        pos += r.text.length;
+      }
+    }
+  };
+DocumentModel.prototype.sliceText = function(start, end){
+    var out = '';
+    for (var b = start.b; b <= end.b; b++){
+      var s = b === start.b ? start.o : 0;
+      var e = b === end.b ? end.o : this.text(b).length;
+      out += this.text(b).slice(s, e);
+      if (b < end.b) out += '\n';
+    }
+    return out;
+  };
+DocumentModel.prototype.removeRange = function(start, end){
+    if (start.b === end.b && start.o === end.o) return { b:start.b, o:start.o };
+    if (start.b === end.b){
+      this.blocks[start.b].runs = cutRuns(this.blocks[start.b].runs, start.o, end.o);
+    } else {
+      var first = this.blocks[start.b];
+      first.runs = cutRuns(first.runs, start.o, this.text(start.b).length);
+      var rest = cutRuns(this.blocks[end.b].runs, 0, end.o);
+      first.runs = normalizeRuns(first.runs.slice().concat(rest));
+      this.blocks.splice(start.b + 1, end.b - start.b);
+    }
+    return { b:start.b, o:start.o };
+  };
+DocumentModel.prototype.insertText = function(str){
+    if (!str) return;
+    str = '' + str;   // Rhino 下 e.data 是 Java String,length/slice 等 JS 方法不可用;转 JS 字符串
+    var marks = this.activeMarks();
+    var { start, end } = this.range();
+    var at = this.removeRange(start, end);
+    var runs = this.blocks[at.b].runs;
+    var pos = 0;
+    for (var i = 0; i < runs.length; i++){
+      if (at.o >= pos && at.o <= pos + runs[i].text.length){
+        var local = at.o - pos;
+        var nr = { text: str, marks: marks.slice() };
+        if (local === 0) runs.splice(i, 0, nr);
+        else if (local === runs[i].text.length) runs.splice(i + 1, 0, nr);
+        else {
+          var right = { text: runs[i].text.slice(local), marks: runs[i].marks.slice() };
+          runs[i] = { text: runs[i].text.slice(0, local), marks: runs[i].marks.slice() };
+          runs.splice(i + 1, 0, nr, right);
+        }
+        break;
+      }
+      pos += runs[i].text.length;
+    }
+    this.blocks[at.b].runs = normalizeRuns(runs);
+    this.pendingMarks = null;
+    this.setCaret(at.b, at.o + str.length);
+  };
+DocumentModel.prototype.insertPlainText = function(text){
+    var lines = text.replace(/\r/g, '').split('\n');
+    this.insertText(lines[0]);
+    for (var i = 1; i < lines.length; i++){ this.newline(); if (lines[i]) this.insertText(lines[i]); }
+  };
+DocumentModel.prototype.newline = function(){
+    var { start, end } = this.range();
+    var at = this.removeRange(start, end);
+    var block = this.blocks[at.b];
+    if (block.type !== 'p' && this.text(at.b) === ''){   // 空标题回车 → 退出标题
+      block.type = 'p'; this.pendingMarks = null; this.setCaret(at.b, 0); return;
+    }
+    var { left, right } = splitRunsAt(block.runs, at.o);
+    block.runs = left;
+    this.blocks.splice(at.b + 1, 0, { type:'p', runs: right });
+    this.pendingMarks = null;
+    this.setCaret(at.b + 1, 0);
+  };
+DocumentModel.prototype.backspace = function(word, line){
+    if (word === undefined) word = false;
+    if (line === undefined) line = false;
+    var { start, end } = this.range();
+    if (!this.isCollapsed()){ this.removeRange(start, end); this.setCaret(start.b, start.o); this.pendingMarks = null; return; }
+    var { b, o } = start;
+    if (o === 0){
+      if (b === 0) return;
+      var prevLen = this.text(b - 1).length;
+      this.removeRange({ b:b-1, o:prevLen }, { b:b, o:0 });
+      this.setCaret(b - 1, prevLen); this.pendingMarks = null; return;
+    }
+    var text = this.text(b);
+    var from = o - 1;
+    if (line) from = 0;
+    else if (word){ var m = text.slice(0, o).match(/\s*\S+\s*$/); from = o - (m ? m[0].length : 1); }
+    this.removeRange({ b:b, o:from }, { b:b, o:o });
+    this.setCaret(b, from); this.pendingMarks = null;
+  };
+DocumentModel.prototype.forwardDelete = function(word){
+    if (word === undefined) word = false;
+    var { start, end } = this.range();
+    if (!this.isCollapsed()){ this.removeRange(start, end); this.setCaret(start.b, start.o); this.pendingMarks = null; return; }
+    var { b, o } = start; var text = this.text(b);
+    if (o >= text.length){
+      if (b === this.blocks.length - 1) return;
+      this.removeRange({ b:b, o:o }, { b:b+1, o:0 });
+      this.setCaret(b, o); this.pendingMarks = null; return;
+    }
+    var to = o + 1;
+    if (word){ var m = text.slice(o).match(/^\s*\S+/); to = o + (m ? m[0].length : 1); }
+    this.removeRange({ b:b, o:o }, { b:b, o:to });
+    this.setCaret(b, o); this.pendingMarks = null;
+  };
+DocumentModel.prototype.toggleMark = function(mark){
+    if (this.isCollapsed()){
+      var marks = this.activeMarks();
+      this.pendingMarks = marks.includes(mark) ? marks.filter(m => m !== mark) : marks.slice().concat(mark);
+      return;
+    }
+    var { start, end } = this.range();
+    var all = true;
+    this.forEachRunIn(start, end, r => { if (!r.marks.includes(mark)) all = false; });
+    for (var b = start.b; b <= end.b; b++){
+      var s = b === start.b ? start.o : 0;
+      var e = b === end.b ? end.o : this.text(b).length;
+      this.applyMarkInBlock(b, s, e, mark, !all);
+    }
+    this.pendingMarks = null;
+  };
+DocumentModel.prototype.applyMarkInBlock = function(bi, s, e, mark, add){
+    if (s >= e) return;
+    var runs = splitRunsAtAll(this.blocks[bi].runs, [s, e]);
+    var pos = 0;
+    runs = runs.map(r => {
+      var len = r.text.length;
+      var inside = pos >= s && pos + len <= e && len > 0;
+      pos += len;
+      if (!inside) return r;
+      var marks = r.marks;
+      if (add && !marks.includes(mark)) marks = marks.slice().concat(mark);
+      if (!add) marks = marks.filter(m => m !== mark);
+      return { text: r.text, marks: marks };
+    });
+    this.blocks[bi].runs = normalizeRuns(runs);
+  };
+DocumentModel.prototype.clearMarks = function(){
+    if (this.isCollapsed()){ this.pendingMarks = []; return; }
+    var { start, end } = this.range();
+    this.forEachRunIn(start, end, r => { r.marks = []; });
+    for (var b = start.b; b <= end.b; b++) this.blocks[b].runs = normalizeRuns(this.blocks[b].runs);
+    this.pendingMarks = [];
+  };
+DocumentModel.prototype.setBlockType = function(type){
+    var { start, end } = this.range();
+    for (var b = start.b; b <= end.b; b++) this.blocks[b].type = type;
+  };
+DocumentModel.prototype.serialize = function(){ return { blocks: clone(this.blocks), selection: clone(this.selection),
+                        pendingMarks: this.pendingMarks ? this.pendingMarks.slice() : null }; };
+DocumentModel.prototype.restore = function(s){ this.blocks = clone(s.blocks); this.selection = clone(s.selection);
+              this.pendingMarks = s.pendingMarks ? s.pendingMarks.slice() : null; };
+
+/* ================= V —— View：render(model) 纯函数 ================= */
+function EditorView(root){ this.root = root; this.blockEls = []; }
+EditorView.prototype.render = function(model){
+    var frag = document.createDocumentFragment();
+    this.blockEls = model.blocks.map((blk, i) => this.renderBlock(blk, i));
+    for (var el of this.blockEls) frag.appendChild(el);
+    this.root.replaceChildren(frag);
+    this.writeSelection(model.selection);
+  };
+EditorView.prototype.renderBlock = function(blk, i){
+    var el = document.createElement(BLOCK_TAG[blk.type] || 'p');
+    el.dataset.block = i;
+    if (!blk.runs.some(r => r.text)) el.appendChild(document.createElement('br'));
+    for (var run of blk.runs){
+      if (!run.text) continue;
+      var node = document.createTextNode(run.text);
+      for (var m of run.marks){
+        if (!MARK_TAG[m]) continue;
+        var w = document.createElement(MARK_TAG[m]);
+        w.appendChild(node); node = w;
+      }
+      el.appendChild(node);
+    }
+    return el;
+  };
+EditorView.prototype.domPoint = function(pt){                              // Model 坐标 → DOM 节点+偏移
+    var el = this.blockEls[pt.b];
+    if (!el) return [this.root, 0];
+    var remaining = pt.o, lastText = null, n;
+    var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    while ((n = walker.nextNode())){
+      var dl = ('' + n.data).length;
+      if (remaining <= dl) return [n, remaining];
+      remaining -= dl; lastText = n;
+    }
+    return lastText ? [lastText, ('' + lastText.data).length] : [el, 0];
+  };
+EditorView.prototype.writeSelection = function(sel){
+    try {
+      var s = window.getSelection();
+      var [an, ao] = this.domPoint(sel.anchor);
+      var [fn, fo] = this.domPoint(sel.focus);
+      s.setBaseAndExtent(an, ao, fn, fo);
+    } catch (err) {}
+  };
+EditorView.prototype.readSelection = function(){                           // DOM 选区 → Model 坐标
+    var s = window.getSelection();
+    if (!s.rangeCount) return null;
+    var toPoint = (node, offset) => {
+      if (!node) return null;
+      var host = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+      var blockEl = host && host.closest ? host.closest('[data-block]') : null;
+      if (!blockEl || !this.root.contains(blockEl)) return null;
+      var r = document.createRange();
+      r.setStart(blockEl, 0); r.setEnd(node, offset);
+      return { b: +blockEl.dataset.block, o: ('' + r.toString()).length };
+    };
+    var a = toPoint(s.anchorNode, s.anchorOffset);
+    var f = toPoint(s.focusNode, s.focusOffset);
+    return (a && f) ? { anchor:a, focus:f } : null;
+  };
+
+/* ================= C —— Controller：拦截 → 翻译为模型操作 ================= */
+function EditorController(model, view){
+    this.model = model; this.view = view;
+    this.undoStack = []; this.redoStack = [];
+    this.composing = false; this.compRange = null;
+    model.onChange = () => { view.render(model); syncToolbar(); };   // 数据驱动的唯一出口
+  }
+EditorController.prototype.init = function(){
+    var root = this.view.root, tb = document.getElementById('toolbar');
+    root.addEventListener('beforeinput', e => this.onBeforeInput(e));
+    root.addEventListener('compositionstart', () => { this.composing = true; this.compRange = clone(this.model.range()); });
+    root.addEventListener('compositionend', e => this.onCompositionEnd(e));
+    root.addEventListener('keydown', e => this.onKeyDown(e));
+    root.addEventListener('paste', e => this.onPaste(e));
+    root.addEventListener('cut', e => this.onCut(e));
+    root.addEventListener('drop', e => e.preventDefault());
+    root.addEventListener('mouseup', () => this.guardSelection());
+    document.addEventListener('selectionchange', () => this.onSelectionChange());
+    tb.addEventListener('mousedown', e => e.preventDefault());       // 点按钮不丢选区
+    tb.addEventListener('click', e => this.onToolbar(e));
+    this.view.render(this.model); syncToolbar(); root.focus();
+  };
+EditorController.prototype.apply = function(op){                                   // 有实际变化才入撤销栈
+    var before = this.model.serialize();
+    op(this.model);
+    if (JSON.stringify(before) === JSON.stringify(this.model.serialize())){ this.model.notify(); return; }
+    this.undoStack.push(before);
+    if (this.undoStack.length > 200) this.undoStack.shift();
+    this.redoStack.length = 0;
+    this.model.notify();
+  };
+EditorController.prototype.undo = function(){
+    if (!this.undoStack.length) return;
+    this.redoStack.push(this.model.serialize());
+    this.model.restore(this.undoStack.pop());
+    this.model.notify();
+  };
+EditorController.prototype.redo = function(){
+    if (!this.redoStack.length) return;
+    this.undoStack.push(this.model.serialize());
+    this.model.restore(this.redoStack.pop());
+    this.model.notify();
+  };
+EditorController.prototype.onBeforeInput = function(e){
+    if (this.composing || e.isComposing) return;                     // IME 合成中：放行
+    if (e.inputType.startsWith('insertComposition')){ e.preventDefault(); return; }
+    e.preventDefault();
+    var t = e.inputType;
+    switch (t){
+      case 'insertText': case 'insertReplacementText':
+        if (e.data) this.apply(m => m.insertText(e.data)); break;
+      case 'insertParagraph': case 'insertLineBreak':
+        this.apply(m => m.newline()); break;
+      case 'deleteContentBackward': this.apply(m => m.backspace()); break;
+      case 'deleteContentForward':  this.apply(m => m.forwardDelete()); break;
+      case 'deleteWordBackward':    this.apply(m => m.backspace(true)); break;
+      case 'deleteWordForward':     this.apply(m => m.forwardDelete(true)); break;
+      case 'deleteSoftLineBackward': case 'deleteHardLineBackward':
+        this.apply(m => m.backspace(false, true)); break;
+      case 'historyUndo': this.undo(); break;
+      case 'historyRedo': this.redo(); break;
+      case 'formatBold': case 'formatItalic': case 'formatUnderline': case 'formatStrikeThrough':
+        this.apply(m => m.toggleMark({ formatBold:'bold', formatItalic:'italic',
+                                       formatUnderline:'underline', formatStrikeThrough:'strike' }[t])); break;
+      default:
+        if (t.startsWith('delete')) this.apply(m => m.backspace());
+    }
+  };
+EditorController.prototype.onCompositionEnd = function(e){                          // IME 结束：最终文本一次性入账
+    this.composing = false;
+    var range = this.compRange; this.compRange = null;
+    if (e.data){
+      this.apply(m => {
+        if (range) m.selection = { anchor: Object.assign({}, range.start), focus: Object.assign({}, range.end) };
+        m.insertText(e.data);
+      });
+    } else {
+      this.model.notify();                      // 取消合成：重渲染抹掉 DOM 幻影
+    }
+  };
+EditorController.prototype.onKeyDown = function(e){
+    if (this.composing) return;
+    var mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
+    if (mod && k === 'z'){ e.preventDefault(); e.shiftKey ? this.redo() : this.undo(); return; }
+    if (mod && k === 'y'){ e.preventDefault(); this.redo(); return; }
+    if (mod && !e.altKey && 'bius'.includes(k) && k.length === 1){
+      e.preventDefault();
+      var map = { b:'bold', i:'italic', u:'underline', s:'strike' };
+      this.apply(m => m.toggleMark(map[k]));
+    }
+    /* 方向键等只移动选区：交给浏览器，selectionchange 同步回 Model */
+  };
+EditorController.prototype.onPaste = function(e){
+    e.preventDefault();
+    var text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    if (text) this.apply(m => m.insertPlainText(text));
+  };
+EditorController.prototype.onCut = function(e){
+    e.preventDefault();
+    if (this.model.isCollapsed()) return;
+    var { start, end } = this.model.range();
+    e.clipboardData.setData('text/plain', this.model.sliceText(start, end));
+    this.apply(m => { m.removeRange(start, end); m.setCaret(start.b, start.o); });
+  };
+EditorController.prototype.onSelectionChange = function(){
+    if (this.composing) return;
+    var sel = this.view.readSelection();
+    if (!sel || JSON.stringify(sel) === JSON.stringify(this.model.selection)) return;
+    this.model.selection = sel;                 // 选区回流为数据（不进撤销栈、不重渲染文档）
+    syncToolbar();
+  };
+EditorController.prototype.guardSelection = function(){                             // 点击落在块外 → 归位文末
+    if (this.view.readSelection()) return;
+    var last = this.model.blocks.length - 1;
+    this.model.setCaret(last, this.model.text(last).length);
+    this.view.writeSelection(this.model.selection);
+  };
+EditorController.prototype.onToolbar = function(e){
+    var btn = e.target.closest('[data-action]');
+    if (!btn) return;
+    var { action, value } = btn.dataset;
+    if (action === 'mark')       this.apply(m => m.toggleMark(value));
+    else if (action === 'block') this.apply(m => m.setBlockType(value));
+    else if (action === 'clear') this.apply(m => m.clearMarks());
+    else if (action === 'undo')  this.undo();
+    else if (action === 'redo')  this.redo();
+    this.view.root.focus();
+  };
+
+/* 工具栏高亮：界面 = f(model) */
+var ctrl;
+function syncToolbar(){
+  var tb = document.getElementById('toolbar');
+  var marks = ctrl.model.selectionMarks();
+  tb.querySelectorAll('[data-action="mark"]').forEach(b => b.classList.toggle('on', marks.includes(b.dataset.value)));
+  var type = ctrl.model.blocks[ctrl.model.range().start.b]?.type;
+  tb.querySelectorAll('[data-action="block"]').forEach(b => b.classList.toggle('on', b.dataset.value === type));
+  tb.querySelector('[data-action="undo"]').classList.toggle('off', !ctrl.undoStack.length);
+  tb.querySelector('[data-action="redo"]').classList.toggle('off', !ctrl.redoStack.length);
+  var blockLabels = { p:'PARAGRAPH', h1:'HEADING 1', h2:'HEADING 2', quote:'QUOTE' };
+  var fullText = ctrl.model.blocks.map((block, index) => ctrl.model.text(index)).join('\n');
+  var range = ctrl.model.range();
+  var selectionLength = ctrl.model.sliceText(range.start, range.end).length;
+  document.getElementById('blockStatus').textContent = blockLabels[type] || 'PARAGRAPH';
+  document.getElementById('wordCount').textContent = fullText.length + ' CHARS';
+  document.getElementById('selectionStatus').textContent = selectionLength ? selectionLength + ' SELECTED' : 'CARET';
+}
+
+/* ---------------- 启动 ---------------- */
+var model = new DocumentModel([
+  { type:'h1', runs:[{ text:'深层远征记录', marks:[] }] },
+  { type:'p', runs:[
+    { text:'这是一份由 ', marks:[] },
+    { text:'beforeinput', marks:['bold'] },
+    { text:' 驱动的矿层勘探记录。所有输入先写入 Model，再由视图完整重绘。试试 ', marks:[] },
+    { text:'Ctrl/⌘+B', marks:['bold','underline'] },
+    { text:'、回车、退格、粘贴和中文输入。', marks:[] }
+  ]},
+  { type:'h2', runs:[{ text:'今日发现', marks:[] }] },
+  { type:'quote', runs:[
+    { text:'在 Y=-54 的凝灰岩带发现紫晶空洞，坐标已写入共享地图。', marks:['italic'] }
+  ]},
+  { type:'p', runs:[
+    { text:'状态：', marks:[] },
+    { text:'路线安全', marks:['bold'] },
+    { text:'。下一步向北侧继续开掘，并标记所有红石矿脉。', marks:[] }
+  ]}
+]);
+model.setCaret(model.blocks.length - 1, model.text(model.blocks.length - 1).length);
+
+var view = new EditorView(document.getElementById('editor'));
+ctrl = new EditorController(model, view);
+ctrl.init();
+</script>
+</body>
+</html>

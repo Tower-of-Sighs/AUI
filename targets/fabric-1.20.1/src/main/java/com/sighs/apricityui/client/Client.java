@@ -87,7 +87,6 @@ public final class Client {
         FrameTimingHud.beginFrame();
         try {
             drawPersistentScreenDocuments(graphics);
-            ResourcePreviewDialog.draw(graphics.pose());
             graphics.flush();
             Cursor.drawPseudoCursor(graphics.pose());
             graphics.flush();
@@ -107,8 +106,8 @@ public final class Client {
             for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
                 if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                 Base.drawOverlayDocument(graphics.pose(), document);
+                ResourcePreviewDialog.draw(graphics.pose(), document);
             }
-            ResourcePreviewDialog.draw(graphics.pose());
             graphics.flush();
             Cursor.drawPseudoCursor(graphics.pose());
             graphics.flush();
@@ -125,6 +124,7 @@ public final class Client {
         for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
             if (document == null || document == excludedDocument || document.inWorld || document.isManuallyRendered() || !document.isReloadPersistent()) continue;
             Base.drawOverlayDocument(graphics.pose(), document);
+            ResourcePreviewDialog.draw(graphics.pose(), document);
         }
     }
 

@@ -966,6 +966,7 @@ class ElementBindingTest {
         Element top = new Element(document, "button");
         document.appendChild(bottom);
         document.appendChild(top);
+        document.commitRenderState();
         setRelativeHitBox(document.body, 0, 0, 200, 200);
         setRelativeHitBox(bottom, 10, 10, 50, 50);
         setRelativeHitBox(top, 10, 10, 50, 50);
@@ -989,6 +990,7 @@ class ElementBindingTest {
         Input input = new HeadlessInput(document);
         document.appendChild(parent);
         parent.appendChild(input);
+        document.commitRenderState();
         setRelativeHitBox(document.body, 0, 0, 200, 200);
         setRelativeHitBox(parent, 10, 10, 100, 40);
         setRelativeHitBox(input, 5, 5, 80, 20);
@@ -1023,6 +1025,7 @@ class ElementBindingTest {
         scroller.setAttribute("style", "overflow: auto;");
         scroller.scrollHeight = 200;
         scroller.scrollWidth = 100;
+        document.commitRenderState();
         setRelativeHitBox(document.body, 0, 0, 240, 240);
         setRelativeHitBox(scroller, 10, 10, 100, 60);
         setRelativeHitBox(child, 5, 5, 80, 20);
@@ -1103,6 +1106,7 @@ class ElementBindingTest {
         Element target = new Element(document, "div");
         document.appendChild(parent);
         parent.appendChild(target);
+        document.commitRenderState();
         setRelativeHitBox(document.body, 0, 0, 200, 200);
         setRelativeHitBox(parent, 10, 10, 100, 100);
         setRelativeHitBox(target, 5, 7, 40, 30);
@@ -1347,6 +1351,7 @@ class ElementBindingTest {
         scroller.setAttribute("style", "overflow: auto;");
         scroller.scrollHeight = 200;
         scroller.scrollWidth = 100;
+        document.commitRenderState();
         setRelativeHitBox(document.body, 0, 0, 240, 240);
         setRelativeHitBox(scroller, 10, 10, 120, 80);
         setRelativeHitBox(input, 5, 5, 80, 20);

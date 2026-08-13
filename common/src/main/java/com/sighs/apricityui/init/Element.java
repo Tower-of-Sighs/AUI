@@ -2813,16 +2813,16 @@ public class Element extends Node {
         List<Node> renderChildNodes = getRenderChildNodes();
         if (renderChildNodes.isEmpty()) return;
         if (this instanceof com.sighs.apricityui.element.AbstractText) return;
+        if (Layout.isFlexDisplay(getComputedStyle().display)) {
+            drawFlexDirectTextRuns(poseStack);
+            return;
+        }
         if (getRenderChildren().isEmpty()) {
             for (Node child : renderChildNodes) {
                 if (child instanceof TextNode textNode && !textNode.getTextContent().isEmpty()) {
                     return;
                 }
             }
-        }
-        if (Layout.isFlexDisplay(getComputedStyle().display)) {
-            drawFlexDirectTextRuns(poseStack);
-            return;
         }
         if (Layout.isGridDisplay(getComputedStyle().display)) return;
         Position contentPos = rectRenderer.getContentPosition();

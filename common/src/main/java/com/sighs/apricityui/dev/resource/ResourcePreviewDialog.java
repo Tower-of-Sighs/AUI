@@ -241,7 +241,7 @@ public final class ResourcePreviewDialog {
         try {
             poseStack.translate(contentX, contentY, 0);
             poseStack.scale((float) scaleX, (float) scaleY, 1);
-            Base.drawDocument(poseStack, preview);
+            Base.drawEmbeddedDocument(poseStack, preview, owner);
         } finally {
             Mask.popSurfaceClip();
             poseStack.popPose();

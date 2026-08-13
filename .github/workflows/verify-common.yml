@@ -39,7 +39,7 @@ jobs:
     outputs:
       matrix: ${{ steps.discover.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build target matrix
         id: discover
         shell: pwsh
@@ -52,12 +52,12 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       # common/ compiles standalone against the legacyforge classpath
       # (common/build.gradle), so its tests run directly.
       - name: Run common unit tests
@@ -73,18 +73,18 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJSON(needs.discover-targets.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
       - name: Build target and run tests
         shell: pwsh
         run: .\scripts\build-target.ps1 -Target ${{ matrix.target }} -Attempts ${{ matrix.attempts }}
       - name: Upload build output
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}-jdk-${{ matrix.java }}
           path: targets/${{ matrix.target }}/build/libs/*.jar

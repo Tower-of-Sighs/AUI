@@ -638,7 +638,11 @@ public final class TextSelection {
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;
-        copy.content = SelectionUnits.flattenedSelectableText(owner);
+        // This path paints the owner's own leaf text. Descendant text is
+        // painted by the descendants themselves (or by normal-flow runs).
+        // Flattening the whole subtree here makes a block container paint all
+        // of its child labels again at the container's content origin.
+        copy.content = SelectionUnits.ownSelectableText(owner);
         return copy;
     }
 

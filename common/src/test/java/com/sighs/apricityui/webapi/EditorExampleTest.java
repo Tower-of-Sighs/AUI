@@ -6,21 +6,18 @@ import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import org.junit.jupiter.api.Test;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 富文本编辑器示例页面（editor-example.html）：可被框架解析、richtext 正确升级、
+ * 富文本编辑器测试页面：可被框架解析、richtext 正确升级、
  * JS 依赖的 API（getRichTextSelection/selectionchange/getTextContent）均可用。
  */
 class EditorExampleTest {
 
     private static final String RESOURCE =
-            "assets/apricityui/apricity/editor/editor-example.html";
+            "assets/apricityui/apricity/tests/richtext-editor.html";
 
     private static String readResource(String path) throws Exception {
         try (java.io.InputStream in = EditorExampleTest.class.getClassLoader().getResourceAsStream(path)) {
@@ -30,10 +27,11 @@ class EditorExampleTest {
     }
 
     private static String bodyOf(String html) {
-        int start = html.indexOf("<body>");
+        int bodyTag = html.indexOf("<body");
+        int start = html.indexOf('>', bodyTag);
         int end = html.indexOf("</body>", start);
-        assertTrue(start >= 0 && end > start, "page has a body");
-        return html.substring(start + "<body>".length(), end);
+        assertTrue(bodyTag >= 0 && start >= bodyTag && end > start, "page has a body");
+        return html.substring(start + 1, end);
     }
 
     @Test
@@ -43,14 +41,9 @@ class EditorExampleTest {
         Element root = document.createHTML(bodyOf(html));
 
         // richtext 升级为富文本编辑器
-        Element editor = root.querySelector(".editor");
+        Element editor = root.querySelector("#editor");
         assertNotNull(editor, "editor element present");
         assertTrue(editor instanceof RichText, "richtext upgraded");
-
-        // 示例内容结构：标题、段落、原子对象（svg）
-        assertNotNull(editor.querySelector("h1"), "heading present");
-        assertNotNull(editor.querySelector("p"), "paragraph present");
-        assertNotNull(editor.querySelector("svg"), "atomic object present");
 
         // JS 依赖的 API 可用
         assertNotNull(document.getRichTextSelection(), "getRichTextSelection available");

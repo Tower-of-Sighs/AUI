@@ -1,6 +1,8 @@
 package com.sighs.apricityui.webapi;
 
 import com.sighs.apricityui.dom.TextNode;
+import com.sighs.apricityui.behavior.TextSelection;
+import com.sighs.apricityui.behavior.SelectionUnits;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Box;
@@ -8,12 +10,14 @@ import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.render.Graph;
 import com.sighs.apricityui.render.Rect;
 import com.sighs.apricityui.spi.AuiRenderService;
+import com.sighs.apricityui.spi.AuiClientService;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
+import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
@@ -51,6 +55,46 @@ class TextSelectionRenderEdgeTest {
     /** 足够长的文本：在 200px 宽盒内必然换行成 3 行以上，且单行省略用例在 100px 宽盒内必然被截断。 */
     private static final String LONG_TEXT =
             "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau";
+
+    @Test
+    void blockContainerDoesNotPaintFlattenedDescendantTextAtItsOwnOrigin() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        Element tree = new Element(document, "div");
+        Element firstRow = new Element(document, "div");
+        Element secondRow = new Element(document, "div");
+        Element firstLabel = new Element(document, "span");
+        Element secondLabel = new Element(document, "span");
+        firstRow.setAttribute("style", "display: flex;");
+        secondRow.setAttribute("style", "display: flex;");
+        firstLabel.setTextContent("CACHE");
+        secondLabel.setTextContent("OVERLAYS");
+        firstRow.appendChild(firstLabel);
+        secondRow.appendChild(secondLabel);
+        tree.appendChild(firstRow);
+        tree.appendChild(secondRow);
+        document.body.appendChild(tree);
+
+        assertEquals("CACHEOVERLAYS", SelectionUnits.flattenedSelectableText(tree),
+                "the selection model must still expose the descendant text");
+        assertEquals("", leafPaintContent(tree),
+                "a block container must leave descendant text to its child boxes");
+    }
+
+    @Test
+    void leafPaintStillUsesDirectTextNodes() throws Exception {
+        Document document = TestDocumentFactory.createDocument();
+        Element label = new Element(document, "span");
+        label.appendChild(new TextNode(document, "CACHE"));
+        document.body.appendChild(label);
+
+        assertEquals("CACHE", leafPaintContent(label));
+    }
+
+    @Test
+    void flexLeafTextIsPaintedExactlyOnce() {
+        assertFlexLeafPaint("inline-flex", false, "Pure CSS");
+        assertFlexLeafPaint("flex", true, "O");
+    }
 
     // ------------------------------------------------------------------
     // 选区提取：截断/省略只影响绘制，selectAllInnerText 返回底层全文
@@ -275,6 +319,48 @@ class TextSelectionRenderEdgeTest {
         div.appendChild(new TextNode(document, text));
         document.body.appendChild(div);
         return div;
+    }
+
+    private static String leafPaintContent(Element element) throws Exception {
+        Field field = Element.class.getDeclaredField("textSelection");
+        field.setAccessible(true);
+        TextSelection selection = (TextSelection) field.get(element);
+        Method method = TextSelection.class.getDeclaredMethod("selectableText");
+        method.setAccessible(true);
+        Text text = (Text) method.invoke(selection);
+        return text.content;
+    }
+
+    private static void assertFlexLeafPaint(String display, boolean legacyInnerText, String expected) {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        Element element = new Element(document, "span");
+        element.setAttribute("style", "display: " + display + "; align-items: center; width: 120px; height: 32px;");
+        if (legacyInnerText) element.innerText = expected;
+        else element.appendChild(new TextNode(document, expected));
+        document.body.appendChild(element);
+
+        List<String> painted = new ArrayList<>();
+        AuiClientService previous = AuiServices.client();
+        AuiClientService recording = (AuiClientService) Proxy.newProxyInstance(
+                AuiClientService.class.getClassLoader(),
+                new Class<?>[]{AuiClientService.class},
+                (proxy, method, args) -> {
+                    if (method.getName().equals("drawDefaultFont")) {
+                        painted.add((String) args[2]);
+                        return null;
+                    }
+                    return method.invoke(previous, args);
+                });
+        AuiServices.setClient(recording);
+        try {
+            drawContent(element);
+        } finally {
+            AuiServices.setClient(previous);
+        }
+
+        assertEquals(List.of(expected), painted,
+                "a direct-text " + display + " element must paint its text once");
     }
 
     /**

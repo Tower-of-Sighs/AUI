@@ -203,7 +203,6 @@ public class Client {
             FrameTimingHud.beginFrame();
             try {
                 drawPersistentScreenDocuments(event.getGuiGraphics());
-                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
                 Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
@@ -226,8 +225,8 @@ public class Client {
                 for (Document document : DocumentLayerOrder.backToFront(Document.getAll())) {
                     if (document == null || document.inWorld || document.isManuallyRendered()) continue;
                     Base.drawOverlayDocument(event.getGuiGraphics().pose(), document);
+                    com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose(), document);
                 }
-                com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
                 Cursor.drawPseudoCursor(event.getGuiGraphics().pose());
                 event.getGuiGraphics().flush();
@@ -249,6 +248,7 @@ public class Client {
                 continue;
             }
             Base.drawOverlayDocument(guiGraphics.pose(), document);
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), document);
         }
     }
 

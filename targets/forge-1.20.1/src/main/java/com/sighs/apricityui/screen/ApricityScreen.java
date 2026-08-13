@@ -123,8 +123,8 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
                 }
                 Minecraft.getInstance().renderBuffers().bufferSource().endBatch();
             }
+            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose(), linkedDocument);
             Client.drawPersistentScreenDocuments(guiGraphics, linkedDocument);
-            com.sighs.apricityui.dev.resource.ResourcePreviewDialog.draw(guiGraphics.pose());
             guiGraphics.flush();
             Cursor.drawPseudoCursor(guiGraphics.pose());
             guiGraphics.flush();

@@ -12,6 +12,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DocumentLayerOrderTest {
@@ -67,6 +68,35 @@ class DocumentLayerOrderTest {
         } finally {
             content.remove();
             overlay.remove();
+        }
+    }
+
+    @Test
+    void embeddedDocumentUsesOwnerLayerWhenAnotherFlatDocumentExists() {
+        String backgroundPath = "test://embedded-document-background";
+        String ownerPath = "test://embedded-document-owner";
+        String previewPath = "test://embedded-document-preview";
+        HTML.putTemple(backgroundPath, "<html><body></body></html>");
+        HTML.putTemple(ownerPath, "<html><body></body></html>");
+        HTML.putTemple(previewPath, "<html><body></body></html>");
+
+        Document background = Document.create(backgroundPath);
+        Document owner = Document.create(ownerPath);
+        Document preview = Document.create(previewPath);
+        try {
+            preview.setManuallyRendered(true);
+
+            float backgroundZ = Base.resolveFlatDocumentBaseZ(background);
+            float ownerZ = Base.resolveFlatDocumentBaseZ(owner);
+            assertNotEquals(backgroundZ, ownerZ);
+            assertNotEquals(ownerZ, Base.resolveFlatDocumentBaseZ(preview));
+            float embeddedZ = Base.resolveEmbeddedDocumentBaseZ(owner);
+            assertEquals(ownerZ, embeddedZ);
+            assertNotEquals(backgroundZ, embeddedZ);
+        } finally {
+            background.remove();
+            owner.remove();
+            preview.remove();
         }
     }
 

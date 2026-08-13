@@ -228,10 +228,10 @@ class BrowserSelectionTest {
         Element el = document.createElement("div");
         Element.DOMStringMap dataset = el.getDataset();
 
-        dev.latvian.mods.rhino.Context cx = dev.latvian.mods.rhino.Context.enter();
+        dev.latvian.mods.rhino.Context cx = RhinoTestSupport.enterContext();
         try {
             dev.latvian.mods.rhino.Scriptable scope = cx.initStandardObjects();
-            scope.put(cx, "ds", scope, cx.getWrapFactory().wrap(cx, scope, dataset, null));
+            scope.put(cx, "ds", scope, RhinoTestSupport.wrap(cx, scope, dataset));
             Object result = cx.evaluateString(scope,
                     "ds.block = 5;"
                             + "ds['x.y'] = 'v';"
