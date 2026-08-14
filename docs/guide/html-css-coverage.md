@@ -19,7 +19,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 1. **UA 样式为零**：h1-h6、p、ul/li 的样式全部自己写；别用 br/hr 表达布局；
 2. **布局避开**：float、sticky、grid 的 areas/auto-flow/命名线、负 margin、表格布局；
 3. **值解析避开**：calc 乘除、border 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、contrast/saturate/sepia 滤镜、skew/matrix transform；
-4. **层叠注意**：内联 style 会覆盖样式表的 `!important`（和浏览器相反）；
+4. **层叠注意**：层叠按浏览器标准排序——内联普通 > 样式表普通，样式表 `!important` > 内联普通，内联 `!important` 最高；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
 6. **表单注意**：date/email/url 等 type 降级为纯文本框；form 提交只发事件不发请求；
 7. **transition 白名单**：名单外属性（gap、grid-template、font-size 等）直接跳变。
@@ -67,13 +67,13 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ✅ 几乎全部常用：基础选择器、四种组合器、属性选择器（含 `i`/`s` 标志）、结构伪类全家（nth-child 含 An+B）、状态伪类（hover/active/focus/focus-within/disabled/checked 等）、表单伪类、`:not()/:is()/:where()`、`::before/::after`、正确的 specificity 和 `!important` 层叠。
 
-🟡 `:focus-visible` 退化为 `:focus`；`:nth-child()` 不支持 `of S`；**内联 style 会覆盖样式表 `!important`（规范相反），内联 `!important` 本身不生效**；不支持的伪类 warn 一次后按不匹配处理。
+🟡 `:focus-visible` 退化为 `:focus`；`:nth-child()` 不支持 `of S`；不支持的伪类 warn 一次后按不匹配处理。
 
 ❌ `:link :visited :target :lang() :dir() :has()`、`::first-line ::first-letter ::marker ::selection`。
 
 ## @规则与样式来源
 
-- ✅ style/link/内联三来源层叠、`@keyframes`、`@import`（递归内联、有深度上限和循环检测）、简写展开、css-wide 关键字、CSS 变量 `var()`（含 fallback，嵌套深度 8）；
+- ✅ style/link/内联三来源层叠、`@keyframes`、`@import`（递归内联、有深度上限和循环检测）、简写展开、css-wide 关键字、CSS 变量 `var()`（含 fallback，嵌套深度 8）；内联 style 保留完整声明列表（重复属性不折叠，`cssText`/`getPropertyValue` 按最后一条声明，`setProperty` 替换该属性全部声明后追加——CSSOM 语义）；
 - 🟡 `@media` 只有 min/max-width/height、orientation + `and`；`@font-face` 只取 font-family 和第一个 src url()，忽略 format()、多 src 和其他描述符；
 - ❌ `@supports @layer @page @container @scope`。
 

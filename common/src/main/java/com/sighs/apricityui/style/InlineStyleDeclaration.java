@@ -1,6 +1,8 @@
 package com.sighs.apricityui.style;
 
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -11,7 +13,16 @@ public final class InlineStyleDeclaration {
 
     public static LinkedHashMap<String, String> parse(String source) {
         LinkedHashMap<String, String> declarations = new LinkedHashMap<>();
-        if (source == null || source.isBlank()) return declarations;
+        for (Entry entry : parseEntries(source)) {
+            addDeclaration(declarations, entry.property(), entry.value());
+        }
+        return declarations;
+    }
+
+    /** 有序声明列表，保留重复属性（浏览器 CSSOM 模型）；value 可能带 " !important" 后缀。 */
+    public static List<Entry> parseEntries(String source) {
+        List<Entry> entries = new ArrayList<>();
+        if (source == null || source.isBlank()) return entries;
 
         StringBuilder declaration = new StringBuilder();
         char quote = 0;
@@ -42,13 +53,27 @@ public final class InlineStyleDeclaration {
             if (current == '(') parentheses++;
             if (current == ')' && parentheses > 0) parentheses--;
             if (current == ';' && parentheses == 0) {
-                addDeclaration(declarations, declaration.toString());
+                addEntry(entries, declaration.toString());
                 declaration.setLength(0);
             } else {
                 declaration.append(current);
             }
         }
-        return declarations;
+        return entries;
+    }
+
+    /** 单条内联声明：property 已归一化，value 为原始值（可能含 " !important"）。 */
+    public record Entry(String property, String value) {
+    }
+
+    private static void addEntry(List<Entry> entries, String raw) {
+        int colon = findTopLevelColon(raw);
+        if (colon < 0) return;
+        String property = normalizeProperty(raw.substring(0, colon));
+        String value = raw.substring(colon + 1).trim();
+        if (!property.isBlank() && !value.isBlank()) {
+            entries.add(new Entry(property, value));
+        }
     }
 
     public static String serialize(Map<String, String> declarations) {
@@ -61,6 +86,34 @@ public final class InlineStyleDeclaration {
             result.append(key).append(": ").append(value.trim()).append(';');
         });
         return result.toString();
+    }
+
+    public static String serialize(List<Entry> entries) {
+        StringBuilder result = new StringBuilder();
+        if (entries == null) return "";
+        for (Entry entry : entries) {
+            if (entry == null || entry.property().isBlank()
+                    || entry.value() == null || entry.value().isBlank()) continue;
+            if (!result.isEmpty()) result.append(' ');
+            result.append(entry.property()).append(": ").append(entry.value().trim()).append(';');
+        }
+        return result.toString();
+    }
+
+    /** 返回属性在声明列表中最后一条的值；无该属性返回 null。 */
+    public static String lastValue(List<Entry> entries, String property) {
+        if (entries == null) return null;
+        for (int index = entries.size() - 1; index >= 0; index--) {
+            Entry entry = entries.get(index);
+            if (entry != null && entry.property().equals(property)) return entry.value();
+        }
+        return null;
+    }
+
+    /** 移除该属性的全部声明。 */
+    public static void removeAll(List<Entry> entries, String property) {
+        if (entries == null) return;
+        entries.removeIf(entry -> entry != null && entry.property().equals(property));
     }
 
     public static String normalizeProperty(String property) {
@@ -82,16 +135,17 @@ public final class InlineStyleDeclaration {
         return priorityMarkerIndex(value.trim()) < 0 ? "" : "important";
     }
 
-    private static void addDeclaration(LinkedHashMap<String, String> target, String raw) {
-        int colon = findTopLevelColon(raw);
-        if (colon < 0) return;
-        String property = normalizeProperty(raw.substring(0, colon));
-        String value = raw.substring(colon + 1).trim();
-        if (!property.isBlank() && !value.isBlank()) {
-            // A later declaration replaces the earlier one and occupies the later position.
-            target.remove(property);
-            target.put(property, value);
+    private static void addDeclaration(LinkedHashMap<String, String> target, String property, String value) {
+        // 层叠语义：同一内联块内 !important 声明优先于其后的普通声明（与浏览器一致）。
+        String existing = target.get(property);
+        if (existing != null
+                && "important".equals(priorityOf(existing))
+                && !"important".equals(priorityOf(value))) {
+            return;
         }
+        // A later declaration replaces the earlier one and occupies the later position.
+        target.remove(property);
+        target.put(property, value);
     }
 
     private static int findTopLevelColon(String source) {

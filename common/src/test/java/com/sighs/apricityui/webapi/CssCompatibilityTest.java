@@ -511,10 +511,10 @@ class CssCompatibilityTest {
         select.setAttribute("class", "dialog-select");
         document.body.appendChild(select);
 
-        assertEquals("10px", Selector.matchCSS(select).get("padding-top"));
-        assertEquals("40px", Selector.matchCSS(select).get("padding-right"));
-        assertEquals("10px", Selector.matchCSS(select).get("padding-bottom"));
-        assertEquals("14px", Selector.matchCSS(select).get("padding-left"));
+        assertEquals("10px", Selector.matchCSS(select).get("padding-top").value());
+        assertEquals("40px", Selector.matchCSS(select).get("padding-right").value());
+        assertEquals("10px", Selector.matchCSS(select).get("padding-bottom").value());
+        assertEquals("14px", Selector.matchCSS(select).get("padding-left").value());
         assertEquals("14px", select.getRawComputedStyle().paddingLeft);
     }
 
@@ -533,7 +533,7 @@ class CssCompatibilityTest {
         select.setAttribute("class", "dialog-select");
         document.body.appendChild(select);
 
-        assertEquals("14px", Selector.matchCSS(select).get("padding-left"));
+        assertEquals("14px", Selector.matchCSS(select).get("padding-left").value());
         assertEquals("14px", select.getRawComputedStyle().paddingLeft);
     }
 
@@ -546,6 +546,76 @@ class CssCompatibilityTest {
         CSS.Declaration left = cache.get(".field").get("padding-left");
         assertEquals("12px", left.value());
         assertTrue(left.important());
+    }
+
+    @Test
+    void inlineNormalOverridesStylesheetNormal() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("p { color: blue; }", cache, "test://sheet-normal.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element p = new Element(document, "p");
+        p.setAttribute("style", "color: red;");
+        document.body.appendChild(p);
+
+        assertEquals("red", p.getComputedStyle().color);
+    }
+
+    @Test
+    void stylesheetImportantOverridesNormalInlineStyle() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("p { color: blue !important; }", cache, "test://sheet-important.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element p = new Element(document, "p");
+        p.setAttribute("style", "color: red;");
+        document.body.appendChild(p);
+
+        assertEquals("blue", p.getComputedStyle().color);
+    }
+
+    @Test
+    void inlineImportantOverridesStylesheetImportant() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("p { color: blue !important; }", cache, "test://sheet-important.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element p = new Element(document, "p");
+        p.setAttribute("style", "color: red !important;");
+        document.body.appendChild(p);
+
+        assertEquals("red", p.getComputedStyle().color);
+    }
+
+    @Test
+    void inlineImportantBeatsLaterNormalWithinSameAttribute() {
+        Document document = TestDocumentFactory.createDocument();
+        Element p = new Element(document, "p");
+        p.setAttribute("style", "color: red !important; color: blue;");
+        document.body.appendChild(p);
+
+        assertEquals("red", p.getComputedStyle().color);
+    }
+
+    @Test
+    void inlineImportantShorthandBeatsStylesheetImportantLonghand() {
+        Document document = TestDocumentFactory.createDocument();
+        Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();
+        CSS.readCSS("p { margin-top: 1px !important; }", cache, "test://sheet-margin.css");
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+
+        Element p = new Element(document, "p");
+        p.setAttribute("style", "margin: 5px !important;");
+        document.body.appendChild(p);
+
+        assertEquals("5px", p.getComputedStyle().marginTop);
     }
 
     @Test

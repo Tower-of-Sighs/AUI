@@ -62,6 +62,39 @@ class ScriptDomBridgeTest {
     }
 
     @Test
+    void duplicateInlineDeclarationsFollowBrowserCssomSemantics() {
+        Document document = TestDocumentFactory.createDocument();
+        Element element = document.createElement("div");
+        document.body.appendChild(element);
+
+        element.setAttribute("style", "color: red !important; color: blue;");
+
+        // cssText 保留完整声明列表（含重复属性与优先级）。
+        assertEquals("color: red !important; color: blue;", element.getInlineStyleCssText());
+        // getPropertyValue/priority 取最后一条声明。
+        assertEquals("blue", element.getInlineStylePropertyValue("color"));
+        assertEquals("", element.getInlineStylePropertyPriority("color"));
+        // 层叠仍是 important 优先。
+        assertEquals("red", element.getComputedStyle().color);
+
+        // 同一重要性下后者胜出。
+        element.setAttribute("style", "color: red; color: blue");
+        assertEquals("blue", element.getComputedStyle().color);
+
+        // setProperty 移除该属性全部声明后追加到末尾（浏览器行为）。
+        element.setAttribute("style", "color: red; width: 10px;");
+        element.setInlineStyleProperty("color", "green");
+        assertEquals("width: 10px; color: green;", element.getInlineStyleCssText());
+
+        // removeProperty 移除该属性的全部声明，返回最后一条的值。
+        element.setAttribute("style", "width: 10px; color: red; color: blue;");
+        assertEquals("width: 10px; color: red; color: blue;", element.getInlineStyleCssText());
+        assertEquals("blue", element.removeInlineStyleProperty("color"));
+        assertEquals("width: 10px;", element.getAttribute("style"));
+        assertEquals("width: 10px;", element.getInlineStyleCssText());
+    }
+
+    @Test
     void inlineStyleMutationQueuesOneStyleAttributeRecord() {
         Document document = TestDocumentFactory.createDocument();
         Element element = document.createElement("div");

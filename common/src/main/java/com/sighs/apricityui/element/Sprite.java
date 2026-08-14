@@ -178,8 +178,7 @@ public class Sprite extends Div {
     // 计算基础样式（CSS 命中 + 用户 inline，不含 Sprite 托管键）。
     private Style buildBaseStyleWithoutManaged() {
         Style base = new Style();
-        cssCache.forEach(base::update);
-        base.merge(userInlineStyle);
+        base.mergeCascade(cssCache, userInlineStyle);
         return base;
     }
 

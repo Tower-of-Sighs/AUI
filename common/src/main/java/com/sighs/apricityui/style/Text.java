@@ -784,8 +784,12 @@ public class Text {
         if (element == null) return "unset";
         String declared = element.getInlineStylePropertyValue("font-size");
         if (declared == null || declared.isBlank() || declared.equals("unset")) {
-            declared = element.cssCache.get("font-size");
-            if (declared == null) declared = element.cssCache.get("fontSize");
+            CSS.Declaration declaredCss = element.cssCache.get("font-size");
+            declared = declaredCss == null ? null : declaredCss.value();
+            if (declared == null) {
+                CSS.Declaration fontSizeCss = element.cssCache.get("fontSize");
+                declared = fontSizeCss == null ? null : fontSizeCss.value();
+            }
         }
         if (declared == null || declared.isBlank() || declared.equals("unset")) {
             return "unset";

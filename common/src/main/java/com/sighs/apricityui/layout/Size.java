@@ -6,6 +6,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
@@ -1019,10 +1020,12 @@ public record Size(double width, double height) {
         document.documentElement.getComputedStyle();
         String fontSize = document.documentElement.getInlineStylePropertyValue("font-size");
         if (fontSize == null || fontSize.isBlank() || fontSize.equals("unset")) {
-            fontSize = document.documentElement.cssCache.get("font-size");
+            CSS.Declaration declared = document.documentElement.cssCache.get("font-size");
+            fontSize = declared == null ? null : declared.value();
         }
         if (fontSize == null || fontSize.equals("unset")) {
-            fontSize = document.documentElement.cssCache.get("fontSize");
+            CSS.Declaration declared = document.documentElement.cssCache.get("fontSize");
+            fontSize = declared == null ? null : declared.value();
         }
         return tryResolveLength(fontSize, defaultFontSize, defaultFontSize);
     }

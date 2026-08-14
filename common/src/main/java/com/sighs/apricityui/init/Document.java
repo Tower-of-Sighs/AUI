@@ -463,10 +463,12 @@ public class Document {
         documentElement.getComputedStyle();
         String declared = documentElement.getInlineStylePropertyValue("font-size");
         if (declared == null || declared.isBlank() || declared.equals("unset")) {
-            declared = documentElement.cssCache.get("font-size");
+            CSS.Declaration declaredCss = documentElement.cssCache.get("font-size");
+            declared = declaredCss == null ? null : declaredCss.value();
         }
         if (declared == null || declared.equals("unset")) {
-            declared = documentElement.cssCache.get("fontSize");
+            CSS.Declaration declaredCss = documentElement.cssCache.get("fontSize");
+            declared = declaredCss == null ? null : declaredCss.value();
         }
         Double parsed = Size.tryResolveLength(declared, defaultFontSize, defaultFontSize);
         return parsed == null || parsed <= 0 ? defaultFontSize : parsed;
