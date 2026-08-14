@@ -14,7 +14,9 @@ public final class SavedDataDataSource implements ContainerDataSource {
     public SavedDataDataSource(ContainerBindType bindType, ApricitySavedData savedData, String inventoryKey, SimpleContainer container) { this.bindType = bindType; this.savedData = savedData; this.inventoryKey = inventoryKey; this.container = container; }
     public ContainerBindType bindType() { return bindType; }
     public int capacity() { return container.getContainerSize(); }
-    public Slot createSlot(int slotIndex, int x, int y) { return new Slot(container, slotIndex, x, y); }
+    public Slot createSlot(int slotIndex, int x, int y, SlotFilter filter) {
+        return new Slot(FilteredContainer.of(container, filter), slotIndex, x, y);
+    }
     public boolean supportsResize() { return true; }
     public int resize(int newCapacity) { container = savedData.getOrCreate(inventoryKey, Math.max(1, newCapacity)); return capacity(); }
     public void onClose(ServerPlayer player) { savedData.setDirty(); }

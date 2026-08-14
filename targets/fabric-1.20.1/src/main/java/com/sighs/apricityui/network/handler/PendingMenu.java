@@ -36,7 +36,8 @@ public final class PendingMenu {
                 player,
                 templatePath,
                 builder.declarations(),
-                builder.argsById()
+                builder.argsById(),
+                builder.filtersByContainerAndSelector()
         );
     }
 }

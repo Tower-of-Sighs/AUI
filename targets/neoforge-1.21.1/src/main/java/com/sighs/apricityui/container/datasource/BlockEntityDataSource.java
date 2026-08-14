@@ -1,6 +1,7 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -37,8 +38,8 @@ public final class BlockEntityDataSource implements ContainerDataSource {
     }
 
     @Override
-    public Slot createSlot(int slotIndex, int x, int y) {
-        return new SlotItemHandler(itemHandler, slotIndex, x, y);
+    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
+        return new FilterableSlotItemHandler(itemHandler, slotIndex, x, y, filter);
     }
 
     @Override

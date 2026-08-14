@@ -1,10 +1,10 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.SlotItemHandler;
 
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -37,8 +37,8 @@ public final class ForgeItemHandlerDataSource implements ContainerDataSource {
     }
 
     @Override
-    public Slot createSlot(int slotIndex, int x, int y) {
-        return new SlotItemHandler(handler, slotIndex, x, y);
+    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
+        return new MenuFilteredSlotItemHandler(handler, slotIndex, x, y, filter);
     }
 
     @Override

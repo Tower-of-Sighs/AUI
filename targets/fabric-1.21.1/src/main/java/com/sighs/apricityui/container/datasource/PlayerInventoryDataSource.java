@@ -1,6 +1,7 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.datasource.SlotFilter;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.Slot;
@@ -28,7 +29,7 @@ public final class PlayerInventoryDataSource implements ContainerDataSource {
     }
 
     @Override
-    public Slot createSlot(int slotIndex, int x, int y) {
+    public Slot createSlot(int slotIndex, int x, int y, SlotFilter filter) {
         return new Slot(inventory, slotIndex, x, y);
     }
 

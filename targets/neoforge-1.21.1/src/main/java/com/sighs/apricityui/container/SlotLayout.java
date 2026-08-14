@@ -4,23 +4,47 @@ import com.sighs.apricityui.container.bind.ContainerBindType;
 import net.minecraft.network.FriendlyByteBuf;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 容器槽位布局描述，用于客户端/服务端之间传递容器结构信息。
  */
-public record SlotLayout(String templatePath, List<ContainerEntry> containers) {
+public record SlotLayout(String templatePath,
+                         List<ContainerEntry> containers,
+                         Map<String, List<String>> filterSelectorsByContainer) {
+
+    public SlotLayout(String templatePath, List<ContainerEntry> containers) {
+        this(templatePath, containers, Map.of());
+    }
 
     public SlotLayout {
         templatePath = templatePath == null ? "" : templatePath;
         containers = containers == null ? List.of() : List.copyOf(containers);
+        filterSelectorsByContainer = copySelectors(filterSelectorsByContainer);
     }
 
     /**
      * 创建纯 UI 布局（无真实容器绑定）。
      */
     public static SlotLayout createUiOnly(String templatePath) {
-        return new SlotLayout(templatePath, List.of());
+        return new SlotLayout(templatePath, List.of(), Map.of());
+    }
+
+    private static Map<String, List<String>> copySelectors(Map<String, List<String>> selectorsByContainer) {
+        if (selectorsByContainer == null || selectorsByContainer.isEmpty()) return Map.of();
+        LinkedHashMap<String, List<String>> copied = new LinkedHashMap<>();
+        for (Map.Entry<String, List<String>> entry : selectorsByContainer.entrySet()) {
+            String containerId = entry.getKey() == null ? "" : entry.getKey().trim();
+            if (containerId.isEmpty() || entry.getValue() == null || entry.getValue().isEmpty()) continue;
+            ArrayList<String> selectors = new ArrayList<>();
+            for (String selector : entry.getValue()) {
+                if (selector != null && !selector.isBlank()) selectors.add(selector.trim());
+            }
+            if (!selectors.isEmpty()) copied.put(containerId, List.copyOf(selectors));
+        }
+        return copied.isEmpty() ? Map.of() : Map.copyOf(copied);
     }
 
     /**
@@ -64,6 +88,14 @@ public record SlotLayout(String templatePath, List<ContainerEntry> containers) {
             buf.writeVarInt(entry.capacity());
             buf.writeBoolean(entry.primary());
         }
+        buf.writeVarInt(filterSelectorsByContainer.size());
+        for (Map.Entry<String, List<String>> entry : filterSelectorsByContainer.entrySet()) {
+            buf.writeUtf(entry.getKey());
+            buf.writeVarInt(entry.getValue().size());
+            for (String selector : entry.getValue()) {
+                buf.writeUtf(selector);
+            }
+        }
     }
 
     /**
@@ -83,7 +115,18 @@ public record SlotLayout(String templatePath, List<ContainerEntry> containers) {
             boolean primary = buf.readBoolean();
             entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary));
         }
-        return new SlotLayout(templatePath, entries);
+        int selectorContainerCount = Math.max(0, buf.readVarInt());
+        LinkedHashMap<String, List<String>> selectorsByContainer = new LinkedHashMap<>();
+        for (int i = 0; i < selectorContainerCount; i++) {
+            String containerId = buf.readUtf();
+            int selectorCount = Math.max(0, buf.readVarInt());
+            ArrayList<String> selectors = new ArrayList<>(selectorCount);
+            for (int j = 0; j < selectorCount; j++) {
+                selectors.add(buf.readUtf());
+            }
+            selectorsByContainer.put(containerId, selectors);
+        }
+        return new SlotLayout(templatePath, entries, selectorsByContainer);
     }
 
     /**

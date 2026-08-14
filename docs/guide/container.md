@@ -82,7 +82,42 @@ HTML 写 `id="machine"` 而服务端调 `blockEntity(pos)`，两边对不上，�
 
 可以链式绑多个不同类型：`binding.blockEntity(pos).saveddata("cache", 9).player()`。第一个非玩家绑定自动成为 primary（决定 shift-click 方向），哪怕 `player()` 写在前面。
 
-同类型只能绑一个——要两台机器就得用高级声明 API：`ApricityScreenNetworkHandler.openScreen(player, path, declarations, argsById)`，每个 `ContainerDeclaration` 自带 id、类型、容量和 primary，参数通过 argsById 传（block_entity 要 `x/y/z`，entity 要 `entity_id`，saved_data 可选 `data_name`）。HTML 的容器 id 必须和声明 id 一致。这是给 Java 模组代码用的，KubeJS 脚本一般用不到。
+### 放入物品过滤
+
+非玩家绑定步骤支持 `.slot("selector").filter(FilterUtil)`；`player()` 的返回类型**不提供** `slot(...)` 或 `.filter(...)`。参数是现有 CSS selector，在最近声明容器的直接归属 `<slot>` 上匹配：例如 `#fuel`、`slot.fuel` 或 `slot[slot-index="0"]`；不要求槽位拥有 id。selector 在客户端完成自动槽、repeat 与隐式索引扩展后解析，服务端仅对已验证的实际 local index 安装规则。过滤只限制命中槽位的物品**放入**资格，不影响取出，也不会取代底层 capability/container 自己的限制。重叠 selector 命中同一槽位时按 AND 收窄。
+
+```html
+<container id="block_entity" bind="block_entity" size="3">
+    <slot id="input" slot-index="0"></slot>
+    <slot id="fuel" slot-index="1"></slot>
+    <slot id="output" slot-index="2"></slot>
+</container>
+```
+
+```java
+FilterUtil fuel = FilterUtil.anyOf(FilterUtil.item(Items.COAL), FilterUtil.tag("c:coals"));
+ApricityUI.menu(player, "screens/furnace.html")
+        .bind(binding -> binding.blockEntity(pos)
+                .slot("slot.input").filter(FilterUtil.not(FilterUtil.item(Items.LAVA_BUCKET)))
+                .slot("slot.fuel").filter(fuel)
+                .player());
+```
+
+KubeJS 也使用同一组工厂和组合语义：
+
+```javascript
+ApricityUI.menu(player, "screens/furnace.html")
+    .bind(function (binding) {
+        binding.blockEntity(pos)
+            .slot("slot.input").filter(FilterUtil.not(FilterUtil.item(Items.LAVA_BUCKET)))
+            .slot("slot.fuel").filter(FilterUtil.anyOf(FilterUtil.item(Items.COAL), FilterUtil.tag("c:coals")))
+            .player();
+    });
+```
+
+`FilterUtil` 可用于 Java 和 KubeJS：`ANY`（接受全部）、`NONE`（拒绝全部）、`EMPTY`（只接受空 ItemStack）；`item(Item)`、`tag(String)` / `tag(TagKey<Item>)`、`custom(Predicate<ItemStack>)`；以及 `allOf(...)`、`anyOf(...)`、`not(...)`。`and(...)`、`or(...)`、`negate()` 可继续组合已有过滤器。未调用 `.filter(...)` 时保留原有行为。这个过滤视图仅属于本次 AUI 菜单，不会修改机器 capability、漏斗或其他菜单的全局插入规则。无效 selector、未命中、匹配到嵌套 container / recipe 槽位或越界 local index 会被忽略并记 warning。
+
+这是一次 API 迁移：旧的 `binding.blockEntity(pos).filter(...)` 已移除，必须改为 `binding.blockEntity(pos).slot("...").filter(...)`。同类型只能绑一个——要两台机器就得用高级声明 API：`ApricityScreenNetworkHandler.openScreen(player, path, declarations, argsById)`，每个 `ContainerDeclaration` 自带 id、类型、容量和 primary，参数通过 argsById 传（block_entity 要 `x/y/z`，entity 要 `entity_id`，saved_data 可选 `data_name`）。HTML 的容器 id 必须和声明 id 一致。这是给 Java 模组代码用的，KubeJS 脚本一般用不到；该高级入口不接收 slot 过滤规则。
 
 旧入口（`openScreen` 等）还在，新代码别用。旧示例里的 `ApricityUI.bind()`、`primarySavedData()` 之类已不是现行 API。
 

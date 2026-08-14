@@ -3,6 +3,8 @@ package com.sighs.apricityui.screen;
 import com.sighs.apricityui.container.PlayerInventorySlotOrder;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.ContainerSlotSelector;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
 import com.sighs.apricityui.registry.ApricityMenus;
 import net.minecraft.network.FriendlyByteBuf;
@@ -26,6 +28,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     private final Inventory playerInventory;
     private final ArrayList<ContainerDataSource> activeSources = new ArrayList<>();
     private final ServerPlayer owner;
+    private final Map<ContainerSlotSelector, FilterUtil> selectorFilters;
+    private final Map<String, Map<Integer, FilterUtil>> installedFiltersByLocalIndex = new LinkedHashMap<>();
 
     private int customSlotCount = 0;
     private int playerSlotStart = -1;
@@ -35,22 +39,24 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
      * 客户端反序列化构造。
      */
     public ApricityContainerMenu(int containerId, Inventory playerInventory, FriendlyByteBuf extraData) {
-        this(containerId, playerInventory, readLayout(extraData), Map.of(), null);
+        this(containerId, playerInventory, readLayout(extraData), Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId, Inventory playerInventory, SlotLayout layout) {
-        this(containerId, playerInventory, layout, Map.of(), null);
+        this(containerId, playerInventory, layout, Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId,
                                  Inventory playerInventory,
                                  SlotLayout layout,
                                  Map<String, ContainerDataSource> containerSources,
+                                 Map<ContainerSlotSelector, FilterUtil> selectorFilters,
                                  ServerPlayer owner) {
         super(ApricityMenus.APRICITY_CONTAINER.get(), containerId);
         this.playerInventory = playerInventory;
         this.layout = Objects.requireNonNull(layout, "SlotLayout 不能为空");
         this.owner = owner;
+        this.selectorFilters = selectorFilters == null ? Map.of() : Map.copyOf(selectorFilters);
         initializeSlots(containerSources == null ? Map.of() : containerSources);
     }
 
@@ -89,9 +95,11 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             SimpleContainer fallback = source == null ? new SimpleContainer(Math.max(1, resolvedCapacity)) : null;
 
             for (int localIndex = 0; localIndex < resolvedCapacity; localIndex++) {
+                int slotLocalIndex = localIndex;
                 Slot slot = source == null
-                        ? new UiSlot(fallback, localIndex, 0, 0)
-                        : source.createSlot(localIndex, 0, 0);
+                        ? new UiSlot(fallback, slotLocalIndex, 0, 0)
+                        : source.createSlot(slotLocalIndex, 0, 0,
+                        () -> filterAt(entry.id(), slotLocalIndex));
                 addSlot(slot);
             }
 
@@ -174,6 +182,41 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             refs.add(new ContainerSlotRef(localIndex, globalIndex));
         }
         return List.copyOf(refs);
+    }
+
+    public Map<ContainerSlotSelector, FilterUtil> selectorFilters() {
+        return selectorFilters;
+    }
+
+    /**
+     * 在服务器验证客户端解析结果后，为当前菜单安装最终的本地槽位过滤规则。
+     */
+    public void installSlotFilters(Map<String, Map<Integer, FilterUtil>> filtersByLocalIndex) {
+        if (owner == null) return;
+        installedFiltersByLocalIndex.clear();
+        if (filtersByLocalIndex == null || filtersByLocalIndex.isEmpty()) return;
+        filtersByLocalIndex.forEach((containerId, filters) -> {
+            SlotLayout.ContainerEntry entry = layout.findContainer(containerId);
+            if (entry == null || ContainerBindType.isPlayer(entry.bindType()) || filters == null) return;
+            filters.forEach((localIndex, filter) -> {
+                if (localIndex == null || filter == null || resolveGlobalSlotIndex(containerId, localIndex) == null) return;
+                installedFiltersByLocalIndex
+                        .computeIfAbsent(containerId, ignored -> new LinkedHashMap<>())
+                        .merge(localIndex, filter, FilterUtil::and);
+            });
+        });
+    }
+
+    private FilterUtil filterAt(String containerId, int localIndex) {
+        return installedFiltersByLocalIndex.getOrDefault(containerId, Map.of()).get(localIndex);
+    }
+
+    private void copyInstalledFilters(Map<String, Map<Integer, FilterUtil>> filtersByLocalIndex) {
+        if (filtersByLocalIndex == null || filtersByLocalIndex.isEmpty()) return;
+        filtersByLocalIndex.forEach((containerId, filters) -> {
+            if (containerId == null || filters == null || filters.isEmpty()) return;
+            installedFiltersByLocalIndex.put(containerId, new LinkedHashMap<>(filters));
+        });
     }
 
     @Override

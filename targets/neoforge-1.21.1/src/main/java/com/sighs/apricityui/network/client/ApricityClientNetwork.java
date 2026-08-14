@@ -3,6 +3,9 @@ package com.sighs.apricityui.network.client;
 
 import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
+import com.sighs.apricityui.network.packet.ResolvedSlotFiltersPacket;
+
+import java.util.List;
 import com.sighs.apricityui.network.api.NetworkManager;
 import net.minecraft.client.Minecraft;
 
@@ -16,6 +19,12 @@ public final class ApricityClientNetwork {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
         NetworkManager.sendToServer(new OpenScreenRequestPacket(path));
+    }
+
+    public static void resolveSlotFilters(int menuId, String containerId, String selector, List<Integer> localIndices) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || localIndices == null || localIndices.isEmpty()) return;
+        NetworkManager.sendToServer(new ResolvedSlotFiltersPacket(menuId, containerId, selector, localIndices));
     }
 
     public static void requestCloseScreen() {

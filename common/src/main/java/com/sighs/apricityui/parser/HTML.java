@@ -243,6 +243,31 @@ public class HTML {
         return null;
     }
 
+    /**
+     * Tokenizes template markup for loader-neutral structural consumers.
+     * CSS and script blocks are removed through the same extractors used by the
+     * document pipeline before the existing HTML tokenizer runs.
+     */
+    public static List<TemplateTag> templateTags(String markup) {
+        if (markup == null || markup.isBlank()) return List.of();
+        CSS.Extractor cssExtractor = new CSS.Extractor("<template-tags>");
+        String withoutCss = cssExtractor.handle(markup);
+        JS.Extractor jsExtractor = new JS.Extractor("<template-tags>");
+        List<Token> tokens = HtmlTokenizer.tokenize(
+                normalizeDocumentMarkup(jsExtractor.handle(withoutCss)),
+                "<template-tags>"
+        );
+        ArrayList<TemplateTag> tags = new ArrayList<>();
+        for (Token token : tokens) {
+            if (token.type == TokenType.START_TAG) {
+                tags.add(new TemplateTag(token.tagName, false, token.selfClosing, token.attributes));
+            } else if (token.type == TokenType.END_TAG) {
+                tags.add(new TemplateTag(token.tagName, true, false, Map.of()));
+            }
+        }
+        return List.copyOf(tags);
+    }
+
     public static String findAttrValue(String attrText, String attrName) {
         if (attrText == null || attrText.isBlank() || attrName == null || attrName.isBlank()) return null;
         Pattern attrPattern = Pattern.compile(
@@ -799,6 +824,16 @@ public class HTML {
 
     private static boolean isTag(Element element, String tagName) {
         return element != null && tagName.equalsIgnoreCase(element.tagName);
+    }
+
+    public record TemplateTag(String name,
+                              boolean closing,
+                              boolean selfClosing,
+                              Map<String, String> attributes) {
+        public TemplateTag {
+            name = name == null ? "" : name;
+            attributes = attributes == null ? Map.of() : Map.copyOf(attributes);
+        }
     }
 
     public record DocumentRoot(com.sighs.apricityui.element.Html documentElement,

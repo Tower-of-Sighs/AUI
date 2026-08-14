@@ -12,7 +12,9 @@ public interface ContainerDataSource {
 
     int capacity();
 
-    Slot createSlot(int slotIndex, int x, int y);
+    default Slot createSlot(int slotIndex, int x, int y, SlotFilter filter) {
+        throw new UnsupportedOperationException("Container data source does not provide slots");
+    }
 
     default boolean stillValid(ServerPlayer player) {
         return true;

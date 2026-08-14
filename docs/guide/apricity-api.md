@@ -76,7 +76,10 @@ ApricityUI.clearWorldWindows();
 ```javascript
 ApricityUI.menu(player, "screens/machine.html")
     .bind(function (binding) {
-        binding.blockEntity(pos).player();
+        binding.blockEntity(pos)
+            .slot("#fuel")
+            .filter(FilterUtil.item(Items.COAL).or(FilterUtil.tag("c:coals")))
+            .player();
     });
 ```
 
@@ -87,7 +90,7 @@ ApricityUI.menu(player, "screens/machine.html")
 | `blockEntity(pos)` / `blockEntity(pos, cap)` | `block_entity` |
 | `entity(id)` / `entity(id, cap)` | `entity` |
 
-`saveddata("machine_data")` 的参数是服务端数据名，不是 HTML 的 id。容器 id、槽位、数据源的完整规则见[容器文档](container)。旧的 `openScreen(player, ...)` 已废弃。
+`saveddata("machine_data")` 的参数是服务端数据名，不是 HTML 的 id。非玩家步骤使用 `.slot("slot.fuel").filter(FilterUtil)` 按现有 CSS selector 限制匹配槽位的放入资格；也可用 `#fuel` 或 `slot[slot-index="0"]`，不要求 HTML id。`player()` 后没有 `slot(...)` 或 `.filter(...)`。`FilterUtil` 提供 `ANY`、`NONE`、`EMPTY`、`item`、`tag`、`custom`、`allOf`、`anyOf`、`not`，并可用 `and` / `or` / `negate` 组合。过滤仅影响本次菜单的放入路径，仍会保留底层库存限制。容器 id、槽位、数据源的完整规则见[容器文档](container)。旧的 `openScreen(player, ...)` 已废弃。
 
 ## Java API
 
