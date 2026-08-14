@@ -14,3 +14,9 @@ plugins {
 }
 
 rootProject.name = 'apricityui-neoforge-1.21.1'
+
+// Attach the shared source tree as a composite build so IDEs (IntelliJ) import
+// common/ as a separate, independently-editable module with its own classpath.
+// Targets still compile common sources via source-set sharing; this include does
+// not add a project dependency.
+includeBuild('../../common')
