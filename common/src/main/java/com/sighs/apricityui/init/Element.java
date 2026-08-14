@@ -3135,11 +3135,16 @@ public class Element extends Node {
     }
 
     Position getFlexDirectTextPaintPosition(Flex.DirectTextLayout layout) {
-        if (layout == null || layout.position() == null) return Position.of(this);
-        Position origin = Position.of(this);
+        // 与 Rect（背景/边框）保持一致：绘制坐标以 forRender（跨过祖先 margin）为基准，
+        // 否则 flex 直接文本会相对元素盒整体上移祖先 margin 之和。
+        Position origin = Position.forRender(this);
+        Box box = Box.of(this);
+        double originX = origin.x + box.getMarginLeft();
+        double originY = origin.y + box.getMarginTop();
+        if (layout == null || layout.position() == null) return new Position(originX, originY);
         return new Position(
-                origin.x + layout.position().x - scrollLeft,
-                origin.y + layout.position().y - scrollTop
+                originX + layout.position().x - scrollLeft,
+                originY + layout.position().y - scrollTop
         );
     }
 

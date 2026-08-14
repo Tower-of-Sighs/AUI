@@ -136,19 +136,23 @@ public class Cursor {
         }
         // 无显式 cursor（auto）：浏览器对可选中文本默认显示 I 形文本光标；
         // 控件（按钮/下拉）UA 光标为箭头，即使文字可选中也不切 I 形。
-        String fallback = isTextCursorTarget(target) ? "text" : "default";
+        String fallback = isTextCursorTarget(target, mousePosition) ? "text" : "default";
         target.getRenderer().cursor.set(fallback);
         return fallback;
     }
 
-    /** 悬停处是否应按文本光标（I 形）处理：输入控件，或命中点落在可选文本单元内。 */
-    private static boolean isTextCursorTarget(Element target) {
-        if (target == null) return false;
+    /** 悬停处是否应按文本光标（I 形）处理：输入控件，或命中点落在可选文本的行盒上。 */
+    private static boolean isTextCursorTarget(Element target, Position mousePosition) {
+        if (target == null || mousePosition == null) return false;
         if (target instanceof com.sighs.apricityui.element.AbstractText) return true;
         String tag = target.tagName == null ? "" : target.tagName.trim().toUpperCase(Locale.ROOT);
         // 浏览器对 button/select/option 的 UA 光标是箭头（即使文字可选中）
         if ("BUTTON".equals(tag) || "SELECT".equals(tag) || "OPTION".equals(tag)) return false;
-        return com.sighs.apricityui.behavior.SelectionUnits.resolveUnit(target) != null;
+        // 不再是“属于含文本容器就 I 形”，而是鼠标必须真正落在单元的可选文本行盒上，
+        // 空区域/内边距/边框处退回箭头，与浏览器一致。
+        Element unit = com.sighs.apricityui.behavior.SelectionUnits.resolveUnit(target);
+        return unit != null
+                && com.sighs.apricityui.behavior.TextSelection.isPositionOverSelectableText(unit, mousePosition.x, mousePosition.y);
     }
 
     /** Flushes and draws the pseudo cursor. Loaders call this from their GUI render pass. */

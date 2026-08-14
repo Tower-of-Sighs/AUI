@@ -328,7 +328,11 @@ public final class TextSelection {
         if (layouts.isEmpty()) return 0;
         List<String> fragments = SelectionUnits.flexTextFragments(unit);
         String flattened = SelectionUnits.flattenedSelectableText(unit);
-        Position origin = Position.of(unit);
+        // 与 flex 直接文本的绘制坐标（forRender + margin）保持一致。
+        Position origin = Position.forRender(unit);
+        Box box = Box.of(unit);
+        double originX = origin.x + box.getMarginLeft();
+        double originY = origin.y + box.getMarginTop();
         int bestOffset = 0;
         double bestDistance = Double.MAX_VALUE;
         int fragmentIndex = 0;
@@ -344,8 +348,8 @@ public final class TextSelection {
                 // 片段对不上（order 参与方等特殊情况）：放弃后续分段
                 fragmentIndex = fragments.size();
             }
-            double px = origin.x + layout.position().x - unit.scrollLeft;
-            double py = origin.y + layout.position().y - unit.scrollTop;
+            double px = originX + layout.position().x - unit.scrollLeft;
+            double py = originY + layout.position().y - unit.scrollTop;
             double distance = y < py ? py - y
                     : (y > py + text.lineHeight ? y - (py + text.lineHeight) : 0);
             if (distance > bestDistance) continue;
@@ -370,6 +374,90 @@ public final class TextSelection {
             bestOffset = Math.min(base + local, flattened.length());
         }
         return bestOffset;
+    }
+
+    /**
+     * 鼠标位置是否落在单元的可选文本（行盒）上。供光标/命中判定使用，
+     * 几何与 {@link #locateOffsetInUnit} 完全一致，避免光标与选区错位。
+     */
+    public static boolean isPositionOverSelectableText(Element unit, double x, double y) {
+        if (unit == null) return false;
+        String display = unit.getComputedStyle().display;
+        if (Layout.isFlexDisplay(display)) return overFlexDirectText(unit, x, y);
+        if (Layout.isGridDisplay(display)) return overLeafText(unit, x, y);
+        if (SelectionUnits.paintsTextViaRuns(unit)) return overRunsText(unit, x, y);
+        return overLeafText(unit, x, y);
+    }
+
+    private static boolean overFlexDirectText(Element unit, double x, double y) {
+        Position origin = Position.forRender(unit);
+        Box box = Box.of(unit);
+        double ox = origin.x + box.getMarginLeft();
+        double oy = origin.y + box.getMarginTop();
+        for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(unit)) {
+            if (layout == null || layout.text() == null || layout.position() == null) continue;
+            Text text = layout.text();
+            if (text.content == null || text.content.isEmpty()) continue;
+            double px = ox + layout.position().x - unit.scrollLeft;
+            double py = oy + layout.position().y - unit.scrollTop;
+            if (y < py || y >= py + text.lineHeight) continue;
+            double lineWidth = Text.measureLine(text, text.content);
+            if (x >= px && x <= px + lineWidth) return true;
+        }
+        return false;
+    }
+
+    private static boolean overRunsText(Element unit, double x, double y) {
+        List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(unit);
+        if (runs.isEmpty()) return false;
+        Position contentPos = Rect.of(unit).getContentPosition();
+        boolean alignDirect = shouldAlignDirectTextRuns(unit);
+        double contentWidth = alignDirect ? Box.of(unit).innerSize().width() : 0;
+        for (NormalFlow.TextRunLayout run : runs) {
+            if (run == null || run.text() == null || run.lines() == null) continue;
+            double lineHeight = run.text().lineHeight;
+            for (int i = 0; i < run.lines().size(); i++) {
+                String line = run.lines().get(i);
+                if (line == null || line.isEmpty()) continue;
+                double lineY0 = contentPos.y + run.y() + i * lineHeight;
+                if (y < lineY0 || y >= lineY0 + lineHeight) continue;
+                double lineWidth = Text.measureLine(run.text(), line);
+                double alignOffset = (alignDirect && run.owner() == unit)
+                        ? TextMetrics.computeAlignedX(run.text(), contentWidth, lineWidth, i == 0) : 0;
+                double lineX0 = contentPos.x + (i == 0 ? run.x() : 0) + alignOffset - unit.scrollLeft;
+                if (x >= lineX0 && x <= lineX0 + lineWidth) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean overLeafText(Element unit, double x, double y) {
+        Text text = selectableTextFor(unit);
+        if (text == null || text.content == null || text.content.isEmpty()) return false;
+        Box box = Box.of(unit);
+        double contentWidth = box.innerSize().width();
+        double contentHeight = box.innerSize().height();
+        List<String> lines = unit.resolveRenderedLines(text, contentWidth, contentHeight);
+        if (lines.isEmpty()) return false;
+        String display = unit.getComputedStyle().display;
+        boolean flexLike = Layout.isFlexDisplay(display) || Layout.isGridDisplay(display);
+        Position contentPos = Rect.of(unit).getContentPosition();
+        Position flexTextOffset = flexLike ? unit.getFlexTextOffset() : Position.ZERO;
+        double textHeight = Math.max(text.lineHeight, lines.size() * text.lineHeight);
+        double drawY = contentPos.y + (flexLike ? flexTextOffset.y
+                : TextMetrics.computeVerticalOffset(text, contentHeight, textHeight));
+        for (int i = 0; i < lines.size(); i++) {
+            double lineY = drawY + i * text.lineHeight;
+            if (y < lineY || y >= lineY + text.lineHeight) continue;
+            String line = lines.get(i);
+            double lineWidth = Text.measureLine(text, line);
+            double drawX = contentPos.x + (flexLike
+                    ? TextMetrics.computeFlexTextAlignedX(unit, text, contentWidth, lineWidth)
+                    : TextMetrics.computeAlignedX(text, contentWidth, lineWidth, i == 0));
+            double startX = drawX - unit.scrollLeft;
+            if (x >= startX && x <= startX + lineWidth) return true;
+        }
+        return false;
     }
 
     /** 叶子单元（文本由 drawInnerText 绘制）的命中：与 drawInnerText 的排版坐标一致。 */

@@ -93,7 +93,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **Grid**（MVP）：template-columns/rows（px/auto/fr/minmax/repeat 含 auto-fill/fit）、gap、items/self 对齐、`grid-row/column` 的 `N`、`span N`、`N / M`、自动放置 ✅；❌ 命名线、template-areas、auto-flow、隐式轨道、place-* 简写、subgrid。
 
-**行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align 只有 baseline 有真实效果**，其余关键字静默无效。
+**行内**：inline/inline-block 换行、基线对齐 ✅；**vertical-align**：baseline 行内基线对齐、middle/center/bottom/text-bottom 文本垂直对齐 ✅；sub/super/top/text-top 静默无效。
 
 **滚动**：overflow 五值 ✅（clip 裁剪不可滚）、自绘滚动条 ✅；`scroll-behavior` 属性不解析（平滑滚动是内建的）；scrollbar-width/color、scroll-snap 等 ❌。
 
@@ -118,9 +118,9 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 文本
 
-- ✅ font-family（@font-face + 回退链）、font-size、line-height、text-indent、letter-spacing、white-space 六值、text-overflow:ellipsis、line-clamp、direction；
+- ✅ font-family（@font-face + 回退链）、font-size、line-height、text-indent、letter-spacing、white-space 六值、text-overflow:ellipsis、line-clamp、direction、text-transform（uppercase/lowercase/capitalize）；
 - 🟡 font-weight（bolder/lighter 固定映射 700/300，不按父权重算）；**font-style 只认 oblique，italic 不触发斜体**；text-align 的 **justify 等同 start**；text-decoration 只有 underline/line-through；
-- ❌ font 简写、text-shadow、text-transform、word-break、overflow-wrap、word-spacing；
+- ❌ font 简写、text-shadow、word-break、overflow-wrap、word-spacing；
 - 非标准扩展：`selection-color`（选区颜色）、`text-stroke`（描边）。
 
 ## 颜色、交互、动画
