@@ -497,6 +497,31 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void setClassNameRecalculatesBackgroundForConnectedElement() throws Exception {
+        Map<String, Map<String, CSS.Declaration>> cache = new LinkedHashMap<>();
+        CSS.readCSS("""
+                .list-group-item { background: #4a4b4d; }
+                .list-group-item.active { background: #2f8a24; }
+                """, cache, "test://dynamic-class-background.css");
+
+        Document document = TestDocumentFactory.createDocument();
+        document.CSSCache.putAll(cache);
+        document.rebuildSelectorIndex();
+        Element entry = new Element(document, "div");
+        entry.setClassName("list-group-item");
+        document.body.appendChild(entry);
+
+        assertEquals("#4a4b4d", entry.getComputedStyle().backgroundColor);
+        entry.setClassName("list-group-item active");
+        document.markDirty(entry, com.sighs.apricityui.render.Drawer.RELAYOUT
+                | com.sighs.apricityui.render.Drawer.REPAINT);
+        document.flushPendingStyleUpdates();
+
+        assertTrue(entry.matches(".list-group-item.active"));
+        assertEquals("#2f8a24", entry.getComputedStyle().backgroundColor);
+    }
+
+    @Test
     void shorthandsExpandBeforeSelectorCascade() {
         Document document = TestDocumentFactory.createDocument();
         Map<String, Map<String, CSS.Declaration>> cache = new java.util.LinkedHashMap<>();

@@ -198,20 +198,22 @@ public class Base {
                 // 输入/脚本改 DOM 产生的 RELAYOUT dirty 若尚未提交(布局提交在 20Hz tick,
                 // 而绘制是每帧),当前帧绘制会读到未提交的旧几何 —— 光标 caretPosition 返回
                 // (0,0) 画在左上角。绘制前强制提交一次 pending 布局工作(无 pending 时廉价)。
-                if (document.hasPendingRenderState()) {
+                // Pointer state can change between client ticks. Commit only the
+                // queued style roots before render work so a class/attribute change
+                // cannot populate this frame's Rect cache with the previous style.
+                boolean styleChanged = document.commitPendingStyleRecalcForRender();
+                boolean styleNeedsGeometryCommit = false;
+                if (styleChanged) {
+                    // A newly-created transition must publish its first style before
+                    // geometry is committed for this frame.
+                    styleNeedsGeometryCommit = document.commitRenderStateForMotion();
+                } else if (document.hasPendingRenderState()) {
                     document.commitRenderState();
                 }
-                // Pointer state can change between client ticks. Commit only the
-                // queued style roots here so CSS transitions start on this frame.
-                boolean styleChanged = document.commitPendingStyleRecalcForRender();
                 // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
                 // Layout-affecting motion must also refresh committed bounds before this paint pass.
                 boolean motionNeedsGeometryCommit = document.stepMotionRender();
                 boolean scrollChanged = document.stepScrollRender();
-                boolean styleNeedsGeometryCommit = false;
-                if (styleChanged) {
-                    styleNeedsGeometryCommit = document.commitRenderStateForMotion();
-                }
                 if (styleNeedsGeometryCommit || scrollChanged) {
                     LayoutCommit.commit(document);
                     document.commitMotionHitTest();
