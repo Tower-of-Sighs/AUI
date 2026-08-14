@@ -1,6 +1,7 @@
 package com.sighs.apricityui.network.handler;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.element.ContainerDeclaration;
 import net.minecraft.core.BlockPos;
 
@@ -11,106 +12,185 @@ import java.util.Map;
 
 /**
  * 容器绑定构建器，用于链式声明 Screen 的数据绑定关系。
- * <p>
- * 使用示例：
- * <pre>
- * ApricityUI.menu(player, path).bind(b -> b.blockEntity(pos).player());
- * ApricityUI.menu(player, path).bind(b -> b.saveddata().player());
- * </pre>
  */
 public final class BindingBuilder {
-
     private final List<ContainerDeclaration> declarations = new ArrayList<>();
     private final Map<String, Map<String, String>> argsById = new LinkedHashMap<>();
-    private boolean primarySet = false;
+    private final Map<String, Map<String, FilterUtil>> filtersBySelector = new LinkedHashMap<>();
+    private final BindingStep baseStep = new BaseStep();
+    private boolean primarySet;
 
-    /**
-     * 绑定玩家背包容器（36 格）。
-     */
-    public BindingBuilder player() {
-        declarations.add(new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false));
-        return this;
+    /** 后续绑定的基础步骤；玩家绑定不提供 slot 或 filter。 */
+    public interface BindingStep {
+        BindingStep player();
+
+        SlotBindingStep saveddata();
+
+        SlotBindingStep saveddata(String dataName);
+
+        SlotBindingStep saveddata(String dataName, int capacity);
+
+        SlotBindingStep blockEntity(BlockPos pos);
+
+        SlotBindingStep blockEntity(BlockPos pos, int capacity);
+
+        SlotBindingStep entity(int entityId);
+
+        SlotBindingStep entity(int entityId, int capacity);
     }
 
-    /**
-     * 绑定 SavedData 容器（默认数据名 apricityui_data，默认 9 格）。
-     */
-    public BindingBuilder saveddata() {
+    /** 最近一个非玩家绑定源的后续步骤，可选择该容器内 Slot 的 CSS selector。 */
+    public interface SlotBindingStep extends BindingStep {
+        FilterableSlotStep slot(String selector);
+    }
+
+    /** CSS selector 命中的槽位只限制放入资格，不影响提取或数据源自身限制。 */
+    public interface FilterableSlotStep extends SlotBindingStep {
+        FilterableSlotStep filter(FilterUtil filter);
+    }
+
+    /** 绑定玩家背包容器（36 格）。 */
+    public BindingStep player() {
+        declarations.add(new ContainerDeclaration("player", ContainerBindType.PLAYER, 36, false));
+        return baseStep;
+    }
+
+    /** 绑定 SavedData 容器（默认数据名 apricityui_data，默认 9 格）。 */
+    public SlotBindingStep saveddata() {
         return saveddata("apricityui_data", 9);
     }
 
-    /**
-     * 绑定 SavedData 容器（自定义数据名，默认 9 格）。
-     */
-    public BindingBuilder saveddata(String dataName) {
+    /** 绑定 SavedData 容器（自定义数据名，默认 9 格）。 */
+    public SlotBindingStep saveddata(String dataName) {
         return saveddata(dataName, 9);
     }
 
-    /**
-     * 绑定 SavedData 容器（自定义数据名和容量）。
-     */
-    public BindingBuilder saveddata(String dataName, int capacity) {
-        String id = "saved_data";
-        boolean primary = !primarySet;
-        if (primary) primarySet = true;
-        declarations.add(new ContainerDeclaration(id, ContainerBindType.SAVED_DATA, capacity, primary));
-        argsById.put(id, Map.of("data_name", dataName));
-        return this;
+    /** 绑定 SavedData 容器（自定义数据名和容量）。 */
+    public SlotBindingStep saveddata(String dataName, int capacity) {
+        declare("saved_data", ContainerBindType.SAVED_DATA, capacity, Map.of("data_name", dataName));
+        return new SlotStep("saved_data");
     }
 
-    /**
-     * 绑定方块实体容器（容量由数据源自动推导）。
-     */
-    public BindingBuilder blockEntity(BlockPos pos) {
+    /** 绑定方块实体容器（容量由数据源自动推导）。 */
+    public SlotBindingStep blockEntity(BlockPos pos) {
         return blockEntity(pos, 0);
     }
 
-    /**
-     * 绑定方块实体容器（显式指定容量）。
-     */
-    public BindingBuilder blockEntity(BlockPos pos, int capacity) {
-        String id = "block_entity";
-        boolean primary = !primarySet;
-        if (primary) primarySet = true;
-        declarations.add(new ContainerDeclaration(id, ContainerBindType.BLOCK_ENTITY, capacity, primary));
-        argsById.put(id, Map.of(
+    /** 绑定方块实体容器（显式指定容量）。 */
+    public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
+        declare("block_entity", ContainerBindType.BLOCK_ENTITY, capacity, Map.of(
                 "x", String.valueOf(pos.getX()),
                 "y", String.valueOf(pos.getY()),
                 "z", String.valueOf(pos.getZ())
         ));
-        return this;
+        return new SlotStep("block_entity");
     }
 
-    /**
-     * 绑定实体容器（容量由数据源自动推导）。
-     */
-    public BindingBuilder entity(int entityId) {
+    /** 绑定实体容器（容量由数据源自动推导）。 */
+    public SlotBindingStep entity(int entityId) {
         return entity(entityId, 0);
     }
 
-    /**
-     * 绑定实体容器（显式指定容量）。
-     */
-    public BindingBuilder entity(int entityId, int capacity) {
-        String id = "entity";
-        boolean primary = !primarySet;
-        if (primary) primarySet = true;
-        declarations.add(new ContainerDeclaration(id, ContainerBindType.ENTITY, capacity, primary));
-        argsById.put(id, Map.of("entity_id", String.valueOf(entityId)));
-        return this;
+    /** 绑定实体容器（显式指定容量）。 */
+    public SlotBindingStep entity(int entityId, int capacity) {
+        declare("entity", ContainerBindType.ENTITY, capacity, Map.of("entity_id", String.valueOf(entityId)));
+        return new SlotStep("entity");
     }
 
-    /**
-     * 获取已声明的容器列表（内部使用）。
-     */
+    private void declare(String id, ContainerBindType bindType, int capacity, Map<String, String> args) {
+        boolean primary = !primarySet;
+        if (primary) primarySet = true;
+        declarations.add(new ContainerDeclaration(id, bindType, capacity, primary));
+        argsById.put(id, args);
+    }
+
+    private void addFilter(String containerId, String selector, FilterUtil filter) {
+        if (containerId == null || containerId.isBlank() || selector == null || selector.isBlank() || filter == null) return;
+        filtersBySelector.computeIfAbsent(containerId, ignored -> new LinkedHashMap<>())
+                .merge(selector, filter, FilterUtil::and);
+    }
+
     List<ContainerDeclaration> declarations() {
         return declarations;
     }
 
-    /**
-     * 获取参数映射（内部使用）。
-     */
     Map<String, Map<String, String>> argsById() {
         return argsById;
+    }
+
+    Map<String, Map<String, FilterUtil>> filtersBySelector() {
+        return filtersBySelector;
+    }
+
+    private class BaseStep implements BindingStep {
+        @Override
+        public BindingStep player() {
+            return BindingBuilder.this.player();
+        }
+
+        @Override
+        public SlotBindingStep saveddata() {
+            return BindingBuilder.this.saveddata();
+        }
+
+        @Override
+        public SlotBindingStep saveddata(String dataName) {
+            return BindingBuilder.this.saveddata(dataName);
+        }
+
+        @Override
+        public SlotBindingStep saveddata(String dataName, int capacity) {
+            return BindingBuilder.this.saveddata(dataName, capacity);
+        }
+
+        @Override
+        public SlotBindingStep blockEntity(BlockPos pos) {
+            return BindingBuilder.this.blockEntity(pos);
+        }
+
+        @Override
+        public SlotBindingStep blockEntity(BlockPos pos, int capacity) {
+            return BindingBuilder.this.blockEntity(pos, capacity);
+        }
+
+        @Override
+        public SlotBindingStep entity(int entityId) {
+            return BindingBuilder.this.entity(entityId);
+        }
+
+        @Override
+        public SlotBindingStep entity(int entityId, int capacity) {
+            return BindingBuilder.this.entity(entityId, capacity);
+        }
+    }
+
+    private class SlotStep extends BaseStep implements SlotBindingStep {
+        private final String containerId;
+
+        private SlotStep(String containerId) {
+            this.containerId = containerId;
+        }
+
+        @Override
+        public FilterableSlotStep slot(String selector) {
+            return new FilterableStep(containerId, selector);
+        }
+    }
+
+    private final class FilterableStep extends SlotStep implements FilterableSlotStep {
+        private final String containerId;
+        private final String selector;
+
+        private FilterableStep(String containerId, String selector) {
+            super(containerId);
+            this.containerId = containerId;
+            this.selector = selector;
+        }
+
+        @Override
+        public FilterableSlotStep filter(FilterUtil filter) {
+            addFilter(containerId, selector, filter);
+            return this;
+        }
     }
 }

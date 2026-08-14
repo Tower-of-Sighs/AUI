@@ -28,6 +28,8 @@ public final class FabricContainerDataSource implements ContainerDataSource {
     }
     public ContainerBindType bindType() { return bindType; }
     public int capacity() { return capacity; }
-    public Slot createSlot(int slotIndex, int x, int y) { return new Slot(container, slotIndex, x, y); }
+    public Slot createSlot(int slotIndex, int x, int y, SlotFilter filter) {
+        return new Slot(FilteredContainer.of(container, filter), slotIndex, x, y);
+    }
     public boolean stillValid(ServerPlayer player) { return validity.test(player); }
 }

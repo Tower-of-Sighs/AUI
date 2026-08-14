@@ -3,6 +3,7 @@ package com.sighs.apricityui.network.client;
 import com.sighs.apricityui.network.ApricityNetwork;
 import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
+import com.sighs.apricityui.network.packet.ResolveSlotFiltersPacket;
 import net.minecraft.client.Minecraft;
 
 /** Client-only network requests. */
@@ -14,6 +15,12 @@ public final class ApricityClientNetwork {
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.player == null) return;
         ApricityNetwork.sendToServer(new OpenScreenRequestPacket(path));
+    }
+
+    public static void resolveSlotFilters(ResolveSlotFiltersPacket packet) {
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.player == null || packet == null) return;
+        ApricityNetwork.sendToServer(packet);
     }
 
     public static void requestCloseScreen() {

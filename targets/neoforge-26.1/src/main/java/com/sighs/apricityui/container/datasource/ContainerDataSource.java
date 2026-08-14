@@ -1,6 +1,7 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.inventory.Slot;
 
@@ -12,7 +13,13 @@ public interface ContainerDataSource {
 
     int capacity();
 
-    Slot createSlot(int slotIndex, int x, int y);
+    default Slot createSlot(int slotIndex, int x, int y) {
+        return createSlot(slotIndex, x, y, null);
+    }
+
+    default Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
+        return createSlot(slotIndex, x, y);
+    }
 
     default boolean stillValid(ServerPlayer player) {
         return true;

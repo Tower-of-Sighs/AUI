@@ -1,9 +1,12 @@
 package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.container.PlayerInventorySlotOrder;
+import com.sighs.apricityui.container.SlotFilterSelector;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
+import com.sighs.apricityui.container.datasource.FilterableSlotItemHandler;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.registry.ApricityMenus;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -25,6 +28,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     private final SlotLayout layout;
     private final Inventory playerInventory;
     private final ArrayList<ContainerDataSource> activeSources = new ArrayList<>();
+    private final Map<SlotFilterSelector, FilterUtil> declaredFilters;
+    private final Map<SlotFilterSelector, Set<Integer>> resolvedIndicesBySelector = new LinkedHashMap<>();
     private final ServerPlayer owner;
 
     private int customSlotCount = 0;
@@ -35,22 +40,24 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
      * 客户端反序列化构造。
      */
     public ApricityContainerMenu(int containerId, Inventory playerInventory, FriendlyByteBuf extraData) {
-        this(containerId, playerInventory, readLayout(extraData), Map.of(), null);
+        this(containerId, playerInventory, readLayout(extraData), Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId, Inventory playerInventory, SlotLayout layout) {
-        this(containerId, playerInventory, layout, Map.of(), null);
+        this(containerId, playerInventory, layout, Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId,
                                  Inventory playerInventory,
                                  SlotLayout layout,
                                  Map<String, ContainerDataSource> containerSources,
+                                 Map<SlotFilterSelector, FilterUtil> declaredFilters,
                                  ServerPlayer owner) {
         super(ApricityMenus.APRICITY_CONTAINER.get(), containerId);
         this.playerInventory = playerInventory;
         this.layout = Objects.requireNonNull(layout, "SlotLayout 不能为空");
         this.owner = owner;
+        this.declaredFilters = declaredFilters == null ? Map.of() : Map.copyOf(declaredFilters);
         initializeSlots(containerSources == null ? Map.of() : containerSources);
     }
 
@@ -91,7 +98,7 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             for (int localIndex = 0; localIndex < resolvedCapacity; localIndex++) {
                 Slot slot = source == null
                         ? new UiSlot(fallback, localIndex, 0, 0)
-                        : source.createSlot(localIndex, 0, 0);
+                        : source.createSlot(localIndex, 0, 0, null);
                 addSlot(slot);
             }
 
@@ -174,6 +181,67 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             refs.add(new ContainerSlotRef(localIndex, globalIndex));
         }
         return List.copyOf(refs);
+    }
+
+    /**
+     * 仅接受当前菜单中服务端已声明的 selector，并对客户端回传索引做布局边界校验后安装。
+     */
+    public void installResolvedFilter(String containerId, String selector, List<Integer> localIndices) {
+        SlotFilterSelector key = new SlotFilterSelector(containerId, selector);
+        FilterUtil declared = declaredFilters.get(key);
+        if (declared == null) {
+            com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                    "Resolved slot filter ignored: path={} / container={} / selector={} / reason=UNDECLARED_SELECTOR",
+                    layout.templatePath(), key.containerId(), key.selector());
+            return;
+        }
+        SlotLayout.ContainerEntry entry = layout.findContainer(key.containerId());
+        if (entry == null || ContainerBindType.isPlayer(entry.bindType())) {
+            com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                    "Resolved slot filter ignored: path={} / container={} / selector={} / reason=INVALID_CONTAINER",
+                    layout.templatePath(), key.containerId(), key.selector());
+            return;
+        }
+        if (localIndices == null || localIndices.isEmpty()) return;
+
+        LinkedHashSet<Integer> distinct = new LinkedHashSet<>(localIndices);
+        for (Integer localIndex : distinct) {
+            if (localIndex == null || localIndex < 0 || localIndex >= entry.capacity()) {
+                com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                        "Resolved slot filter ignored: path={} / container={} / selector={} / index={} / reason=INVALID_INDEX",
+                        layout.templatePath(), key.containerId(), key.selector(), localIndex);
+                continue;
+            }
+            Integer globalIndex = resolveGlobalSlotIndex(key.containerId(), localIndex);
+            if (globalIndex == null || globalIndex < 0 || globalIndex >= slots.size()) {
+                com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                        "Resolved slot filter ignored: path={} / container={} / selector={} / index={} / reason=UNRESOLVED_INDEX",
+                        layout.templatePath(), key.containerId(), key.selector(), localIndex);
+                continue;
+            }
+            Slot slot = slots.get(globalIndex);
+            if (!(slot instanceof FilterableSlotItemHandler)) {
+                com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                        "Resolved slot filter ignored: path={} / container={} / selector={} / index={} / reason=UNFILTERABLE_SLOT",
+                        layout.templatePath(), key.containerId(), key.selector(), localIndex);
+                continue;
+            }
+            resolvedIndicesBySelector.computeIfAbsent(key, ignored -> new LinkedHashSet<>()).add(localIndex);
+            applyFiltersAt(key.containerId(), localIndex, globalIndex);
+        }
+    }
+
+    private void applyFiltersAt(String containerId, int localIndex, int globalIndex) {
+        FilterUtil combined = null;
+        for (Map.Entry<SlotFilterSelector, Set<Integer>> entry : resolvedIndicesBySelector.entrySet()) {
+            if (!containerId.equals(entry.getKey().containerId()) || !entry.getValue().contains(localIndex)) continue;
+            FilterUtil filter = declaredFilters.get(entry.getKey());
+            if (filter != null) combined = combined == null ? filter : combined.and(filter);
+        }
+        Slot slot = slots.get(globalIndex);
+        if (slot instanceof FilterableSlotItemHandler filterableSlot) {
+            filterableSlot.setFilter(combined);
+        }
     }
 
     @Override

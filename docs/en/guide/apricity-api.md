@@ -76,7 +76,10 @@ There is a single entry point — containers:
 ```javascript
 ApricityUI.menu(player, "screens/machine.html")
     .bind(function (binding) {
-        binding.blockEntity(pos).player();
+        binding.blockEntity(pos)
+            .slot("#fuel")
+            .filter(FilterUtil.item(Items.COAL).or(FilterUtil.tag("c:coals")))
+            .player();
     });
 ```
 
@@ -87,7 +90,7 @@ ApricityUI.menu(player, "screens/machine.html")
 | `blockEntity(pos)` / `blockEntity(pos, cap)` | `block_entity` |
 | `entity(id)` / `entity(id, cap)` | `entity` |
 
-The argument of `saveddata("machine_data")` is a server-side data name, not an HTML id. For the complete rules on container ids, slots, and data sources, see the [Container doc](container). The old `openScreen(player, ...)` is deprecated.
+The argument of `saveddata("machine_data")` is a server-side data name, not an HTML id. A non-player step uses `.slot("slot.fuel").filter(FilterUtil)` to restrict insertion into slots matched by an existing CSS selector; `#fuel` and `slot[slot-index="0"]` are also valid, and an HTML id is not required. `player()` exposes neither `slot(...)` nor `.filter(...)`. `FilterUtil` provides `ANY`, `NONE`, `EMPTY`, `item`, `tag`, `custom`, `allOf`, `anyOf`, and `not`, while `and` / `or` / `negate` compose existing filters. Filtering affects only this menu's insertion path and retains the underlying inventory restrictions. For the complete rules on container ids, slots, and data sources, see the [Container doc](container). The old `openScreen(player, ...)` is deprecated.
 
 ## Java API
 

@@ -4,6 +4,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.network.handler.ApricityScreenNetworkHandler;
 import com.sighs.apricityui.network.packet.CloseContainerRequestPacket;
 import com.sighs.apricityui.network.packet.OpenScreenRequestPacket;
+import com.sighs.apricityui.network.packet.ResolveSlotFiltersPacket;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
@@ -27,6 +28,10 @@ public final class ApricityNetwork {
                 CloseContainerRequestPacket.TYPE,
                 CloseContainerRequestPacket.STREAM_CODEC
         );
+        PayloadTypeRegistry.playC2S().register(
+                ResolveSlotFiltersPacket.TYPE,
+                ResolveSlotFiltersPacket.STREAM_CODEC
+        );
         ServerPlayNetworking.registerGlobalReceiver(
                 OpenScreenRequestPacket.TYPE,
                 (packet, context) -> context.server().execute(() ->
@@ -36,6 +41,11 @@ public final class ApricityNetwork {
                 CloseContainerRequestPacket.TYPE,
                 (packet, context) -> context.server().execute(() ->
                         ApricityScreenNetworkHandler.handleCloseContainerRequest(context.player()))
+        );
+        ServerPlayNetworking.registerGlobalReceiver(
+                ResolveSlotFiltersPacket.TYPE,
+                (packet, context) -> context.server().execute(() ->
+                        ApricityScreenNetworkHandler.handleResolveSlotFilters(context.player(), packet))
         );
     }
 

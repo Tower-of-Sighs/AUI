@@ -4,6 +4,7 @@ import com.sighs.apricityui.container.PlayerInventorySlotOrder;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.registry.ApricityMenus;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -24,6 +25,9 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     private final SlotLayout layout;
     private final Inventory playerInventory;
     private final ArrayList<ContainerDataSource> activeSources = new ArrayList<>();
+    private final LinkedHashMap<String, Map<String, FilterUtil>> declaredFiltersByContainer = new LinkedHashMap<>();
+    private final LinkedHashMap<String, Map<Integer, FilterUtil>> installedFiltersByContainer = new LinkedHashMap<>();
+    private final LinkedHashMap<String, List<Slot>> slotsByContainer = new LinkedHashMap<>();
     private final ServerPlayer owner;
 
     private int customSlotCount = 0;
@@ -34,11 +38,11 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
      * 客户端反序列化构造。
      */
     public ApricityContainerMenu(int containerId, Inventory playerInventory, FriendlyByteBuf extraData) {
-        this(containerId, playerInventory, readLayout(extraData), Map.of(), null);
+        this(containerId, playerInventory, readLayout(extraData), Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId, Inventory playerInventory, SlotLayout layout) {
-        this(containerId, playerInventory, layout, Map.of(), null);
+        this(containerId, playerInventory, layout, Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId,
@@ -46,10 +50,20 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
                                  SlotLayout layout,
                                  Map<String, ContainerDataSource> containerSources,
                                  ServerPlayer owner) {
+        this(containerId, playerInventory, layout, containerSources, Map.of(), owner);
+    }
+
+    public ApricityContainerMenu(int containerId,
+                                 Inventory playerInventory,
+                                 SlotLayout layout,
+                                 Map<String, ContainerDataSource> containerSources,
+                                 Map<String, Map<String, FilterUtil>> declaredFiltersByContainer,
+                                 ServerPlayer owner) {
         super(ApricityMenus.APRICITY_CONTAINER, containerId);
         this.playerInventory = playerInventory;
         this.layout = Objects.requireNonNull(layout, "SlotLayout 不能为空");
         this.owner = owner;
+        copyDeclaredFilters(declaredFiltersByContainer);
         initializeSlots(containerSources == null ? Map.of() : containerSources);
     }
 
@@ -64,8 +78,22 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         return new ApricityContainerMenu(-1, playerInventory, SlotLayout.createUiOnly(templatePath));
     }
 
+    private void copyDeclaredFilters(Map<String, Map<String, FilterUtil>> filtersByContainer) {
+        if (filtersByContainer == null) return;
+        filtersByContainer.forEach((containerId, filters) -> {
+            if (containerId == null || containerId.isBlank() || filters == null || filters.isEmpty()) return;
+            LinkedHashMap<String, FilterUtil> usable = new LinkedHashMap<>();
+            filters.forEach((selector, filter) -> {
+                if (selector != null && !selector.isBlank() && filter != null) usable.put(selector, filter);
+            });
+            if (!usable.isEmpty()) declaredFiltersByContainer.put(containerId, Map.copyOf(usable));
+        });
+    }
+
     private void initializeSlots(Map<String, ContainerDataSource> containerSources) {
         activeSources.clear();
+        installedFiltersByContainer.clear();
+        slotsByContainer.clear();
         customSlotCount = 0;
         playerSlotStart = -1;
         playerSlotEnd = -1;
@@ -86,13 +114,16 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             ContainerDataSource source = containerSources.get(entry.id());
             int resolvedCapacity = entry.capacity();
             SimpleContainer fallback = source == null ? new SimpleContainer(Math.max(1, resolvedCapacity)) : null;
+            ArrayList<Slot> entrySlots = new ArrayList<>(resolvedCapacity);
 
             for (int localIndex = 0; localIndex < resolvedCapacity; localIndex++) {
                 Slot slot = source == null
                         ? new UiSlot(fallback, localIndex, 0, 0)
                         : source.createSlot(localIndex, 0, 0);
                 addSlot(slot);
+                entrySlots.add(slot);
             }
+            slotsByContainer.put(entry.id(), entrySlots);
 
             if (source != null && !activeSources.contains(source)) {
                 activeSources.add(source);
@@ -141,6 +172,35 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
 
     public boolean hasContainer(String containerId) {
         return layout.findContainer(containerId) != null;
+    }
+
+    /** 当前菜单持有的服务端 selector 声明；客户端数据不能创建或替换此映射。 */
+    public FilterUtil declaredFilter(String containerId, String selector) {
+        if (containerId == null || selector == null) return null;
+        return declaredFiltersByContainer.getOrDefault(containerId, Map.of()).get(selector);
+    }
+
+    /** 服务端按经过验证的本地索引安装当前菜单已声明的过滤器。 */
+    public boolean installDeclaredFilter(String containerId, int localIndex, FilterUtil filter) {
+        if (owner == null || filter == null || localIndex < 0) return false;
+        SlotLayout.ContainerEntry entry = layout.findContainer(containerId);
+        if (entry == null || ContainerBindType.isPlayer(entry.bindType()) || localIndex >= entry.capacity()) return false;
+        Slot declaredSlot = declaredSlot(containerId, localIndex);
+        if (declaredSlot == null) return false;
+
+        Integer globalIndex = resolveGlobalSlotIndex(containerId, localIndex);
+        if (globalIndex == null || globalIndex < 0 || globalIndex >= slots.size()) return false;
+        FilterUtil combined = installedFiltersByContainer
+                .computeIfAbsent(containerId, ignored -> new LinkedHashMap<>())
+                .merge(localIndex, filter, FilterUtil::and);
+        slots.set(globalIndex, new FilteredSlot(declaredSlot, combined));
+        return true;
+    }
+
+    private Slot declaredSlot(String containerId, int localIndex) {
+        List<Slot> entrySlots = slotsByContainer.get(containerId);
+        if (entrySlots == null || localIndex >= entrySlots.size()) return null;
+        return entrySlots.get(localIndex);
     }
 
     public Integer resolveGlobalSlotIndex(String containerId, int localSlotIndex) {
@@ -253,6 +313,67 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     }
 
     public record ContainerSlotRef(int localSlotIndex, int globalSlotIndex) {
+    }
+
+    private static final class FilteredSlot extends Slot {
+        private final Slot delegate;
+        private final FilterUtil filter;
+
+        private FilteredSlot(Slot delegate, FilterUtil filter) {
+            super(delegate.container, delegate.getContainerSlot(), delegate.x, delegate.y);
+            this.delegate = delegate;
+            this.filter = filter;
+        }
+
+        @Override
+        public boolean mayPlace(ItemStack stack) {
+            return delegate.mayPlace(stack) && filter.test(stack);
+        }
+
+        @Override
+        public boolean mayPickup(Player player) {
+            return delegate.mayPickup(player);
+        }
+
+        @Override
+        public ItemStack getItem() {
+            return delegate.getItem();
+        }
+
+        @Override
+        public void set(ItemStack stack) {
+            if (stack == null || stack.isEmpty() || mayPlace(stack)) delegate.set(stack);
+        }
+
+        @Override
+        public void setChanged() {
+            delegate.setChanged();
+        }
+
+        @Override
+        public boolean hasItem() {
+            return delegate.hasItem();
+        }
+
+        @Override
+        public void onTake(Player player, ItemStack stack) {
+            delegate.onTake(player, stack);
+        }
+
+        @Override
+        public int getMaxStackSize() {
+            return delegate.getMaxStackSize();
+        }
+
+        @Override
+        public int getMaxStackSize(ItemStack stack) {
+            return delegate.getMaxStackSize(stack);
+        }
+
+        @Override
+        public ItemStack remove(int amount) {
+            return delegate.remove(amount);
+        }
     }
 
     /**

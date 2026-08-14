@@ -9,11 +9,25 @@ import java.util.List;
 /**
  * 容器槽位布局描述，用于客户端/服务端之间传递容器结构信息。
  */
-public record SlotLayout(String templatePath, List<ContainerEntry> containers) {
+public record SlotLayout(String templatePath,
+                         List<ContainerEntry> containers,
+                         java.util.Map<String, List<String>> filterSelectorsByContainer) {
 
     public SlotLayout {
         templatePath = templatePath == null ? "" : templatePath;
         containers = containers == null ? List.of() : List.copyOf(containers);
+        java.util.LinkedHashMap<String, List<String>> selectors = new java.util.LinkedHashMap<>();
+        if (filterSelectorsByContainer != null) {
+            filterSelectorsByContainer.forEach((containerId, values) -> {
+                if (containerId == null || containerId.isBlank() || values == null || values.isEmpty()) return;
+                selectors.put(containerId, List.copyOf(values));
+            });
+        }
+        filterSelectorsByContainer = java.util.Map.copyOf(selectors);
+    }
+
+    public SlotLayout(String templatePath, List<ContainerEntry> containers) {
+        this(templatePath, containers, java.util.Map.of());
     }
 
     /**
@@ -21,6 +35,16 @@ public record SlotLayout(String templatePath, List<ContainerEntry> containers) {
      */
     public static SlotLayout createUiOnly(String templatePath) {
         return new SlotLayout(templatePath, List.of());
+    }
+
+    /**
+     * The selector declarations are server-authored metadata for resolving
+     * filters against the fully expanded client DOM. Only selector text crosses
+     * to the client; the associated FilterUtil remains on the server.
+     */
+    public List<String> filterSelectors(String containerId) {
+        if (containerId == null || containerId.isBlank()) return List.of();
+        return filterSelectorsByContainer.getOrDefault(containerId, List.of());
     }
 
     /**
@@ -64,6 +88,12 @@ public record SlotLayout(String templatePath, List<ContainerEntry> containers) {
             buf.writeVarInt(entry.capacity());
             buf.writeBoolean(entry.primary());
         }
+        buf.writeVarInt(filterSelectorsByContainer.size());
+        for (java.util.Map.Entry<String, List<String>> entry : filterSelectorsByContainer.entrySet()) {
+            buf.writeUtf(entry.getKey());
+            buf.writeVarInt(entry.getValue().size());
+            for (String selector : entry.getValue()) buf.writeUtf(selector);
+        }
     }
 
     /**
@@ -83,7 +113,16 @@ public record SlotLayout(String templatePath, List<ContainerEntry> containers) {
             boolean primary = buf.readBoolean();
             entries.add(new ContainerEntry(id, bindType, baseIndex, capacity, primary));
         }
-        return new SlotLayout(templatePath, entries);
+        int selectorContainerCount = buf.readVarInt();
+        java.util.LinkedHashMap<String, List<String>> selectors = new java.util.LinkedHashMap<>();
+        for (int i = 0; i < selectorContainerCount; i++) {
+            String containerId = buf.readUtf();
+            int selectorCount = buf.readVarInt();
+            ArrayList<String> values = new ArrayList<>(Math.max(0, selectorCount));
+            for (int selectorIndex = 0; selectorIndex < selectorCount; selectorIndex++) values.add(buf.readUtf());
+            selectors.put(containerId, values);
+        }
+        return new SlotLayout(templatePath, entries, selectors);
     }
 
     /**

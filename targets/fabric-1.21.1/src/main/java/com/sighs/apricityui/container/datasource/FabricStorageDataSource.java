@@ -1,6 +1,7 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant;
 import net.fabricmc.fabric.api.transfer.v1.storage.SlottedStorage;
 import net.fabricmc.fabric.api.transfer.v1.storage.StorageView;
@@ -43,8 +44,8 @@ public final class FabricStorageDataSource implements ContainerDataSource {
     }
 
     @Override
-    public Slot createSlot(int slotIndex, int x, int y) {
-        return new Slot(container, slotIndex, x, y);
+    public Slot createSlot(int slotIndex, int x, int y, SlotFilter filter) {
+        return new Slot(new TransferContainer(container.storage, container.capacity, filter), slotIndex, x, y);
     }
 
     @Override
@@ -55,10 +56,16 @@ public final class FabricStorageDataSource implements ContainerDataSource {
     private static final class TransferContainer implements Container {
         private final SlottedStorage<ItemVariant> storage;
         private final int capacity;
+        private final SlotFilter filter;
 
         private TransferContainer(SlottedStorage<ItemVariant> storage, int capacity) {
+            this(storage, capacity, new SlotFilter());
+        }
+
+        private TransferContainer(SlottedStorage<ItemVariant> storage, int capacity, SlotFilter filter) {
             this.storage = Objects.requireNonNull(storage, "storage");
             this.capacity = Math.max(0, Math.min(storage.getSlotCount(), capacity));
+            this.filter = Objects.requireNonNull(filter, "filter");
         }
 
         @Override
@@ -108,18 +115,14 @@ public final class FabricStorageDataSource implements ContainerDataSource {
         @Override
         public void setItem(int slot, ItemStack stack) {
             StorageView<ItemVariant> view = view(slot);
-            if (view == null) return;
+            if (view == null || (stack != null && !stack.isEmpty() && !accepts(stack))) return;
 
             try (Transaction transaction = Transaction.openOuter()) {
-                if (!view.isResourceBlank() && view.getAmount() > 0) {
-                    view.extract(view.getResource(), view.getAmount(), transaction);
-                }
-                if (stack != null && !stack.isEmpty()) {
-                    storage.getSlot(slot).insert(
-                            ItemVariant.of(stack),
-                            Math.max(0, stack.getCount()),
-                            transaction
-                    );
+                if (!clearSlot(view, transaction)) return;
+                if (stack != null && !stack.isEmpty()
+                        && storage.getSlot(slot).insert(
+                        ItemVariant.of(stack), stack.getCount(), transaction) != stack.getCount()) {
+                    return;
                 }
                 transaction.commit();
             }
@@ -146,12 +149,30 @@ public final class FabricStorageDataSource implements ContainerDataSource {
 
         @Override
         public boolean canPlaceItem(int slot, ItemStack stack) {
-            return view(slot) != null;
+            return stack != null && !stack.isEmpty() && accepts(stack) && canInsert(slot, stack);
         }
 
         @Override
         public void clearContent() {
             for (int index = 0; index < capacity; index++) removeItemNoUpdate(index);
+        }
+
+        private boolean accepts(ItemStack stack) {
+            return filter.accepts(stack);
+        }
+
+        private boolean canInsert(int slot, ItemStack stack) {
+            try (Transaction transaction = Transaction.openOuter()) {
+                StorageView<ItemVariant> view = view(slot);
+                if (view == null || !clearSlot(view, transaction)) return false;
+                return storage.getSlot(slot).insert(ItemVariant.of(stack), stack.getCount(), transaction)
+                        == stack.getCount();
+            }
+        }
+
+        private static boolean clearSlot(StorageView<ItemVariant> view, Transaction transaction) {
+            return view.isResourceBlank() || view.getAmount() <= 0
+                    || view.extract(view.getResource(), view.getAmount(), transaction) == view.getAmount();
         }
 
         private StorageView<ItemVariant> view(int slot) {
