@@ -219,6 +219,10 @@ public class Client {
     @SubscribeEvent
     public static void drawOverlay(RenderGuiEvent.Post event) {
         if (Minecraft.getInstance().screen == null) {
+            // F1(hideGui)隐藏原版 HUD 时,overlay 文档一并隐藏
+            if (Minecraft.getInstance().options.hideGui) {
+                return;
+            }
             // RenderGuiEvent is also emitted for the in-world HUD. Keep DevTools'
             // world-window hover state in sync even when no Minecraft Screen exists.
             DevTools.handleInspectMouseMove(getMousePositionDirectly());

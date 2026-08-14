@@ -27,6 +27,8 @@ public final class ApricityGuiLayers {
     public static void register(RegisterGuiLayersEvent event) {
         event.registerAboveAll(HUD_LAYER_ID, (guiGraphics, ignored) -> {
             if (Minecraft.getInstance().screen != null) return;
+            // F1(hideGui)隐藏原版 HUD 时,overlay 文档一并隐藏
+            if (Minecraft.getInstance().options.hideGui) return;
             // Keep DevTools' world-window hover state in sync even when no
             // Minecraft Screen exists (ported from 1.21.1's RenderGuiEvent hook).
             com.sighs.apricityui.dev.DevTools.handleInspectMouseMove(

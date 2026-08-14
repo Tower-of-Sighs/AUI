@@ -98,6 +98,8 @@ public final class Client {
 
     public static void drawOverlayLike(GuiGraphics graphics) {
         if (Minecraft.getInstance().screen != null) return;
+        // F1(hideGui)隐藏原版 HUD 时,overlay 文档一并隐藏
+        if (Minecraft.getInstance().options.hideGui) return;
         Position mousePosition = getMousePosition();
         Tooltip.moveActiveFromScreen(mousePosition);
         DevTools.handleInspectMouseMove(mousePosition);
