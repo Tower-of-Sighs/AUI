@@ -128,6 +128,32 @@ class DomSemanticsTest {
     }
 
     @Test
+    void getAttributeReturnsNullForMissingAttributesLikeTheBrowser() {
+        Document document = TestDocumentFactory.createDocument();
+        Element element = new Element(document, "div");
+        element.setAttribute("data-id", "x");
+        element.setAttribute("empty", "");
+
+        // Present attributes return their value; an empty value stays "".
+        assertEquals("x", element.getAttribute("data-id"));
+        assertEquals("", element.getAttribute("empty"));
+
+        // Missing attributes return null (browser DOM semantics), not "".
+        assertNull(element.getAttribute("data-nope"));
+        assertNull(new Element(document, "span").getAttribute("data-id"));
+
+        // Property-style getters keep their empty-string defaults.
+        assertEquals("", element.getClassName());
+        assertEquals("", element.getName());
+        assertEquals("", element.getPlaceholder());
+
+        // hasAttribute and the dataset map stay consistent.
+        assertFalse(element.hasAttribute("data-nope"));
+        assertTrue(element.hasAttribute("data-id"));
+        assertNull(element.getDataset().get("missing"));
+    }
+
+    @Test
     void disconnectedAttributeWritesDoNotQueueRenderWorkUntilMounted() {
         Document document = TestDocumentFactory.createDocument();
         document.getDirtyElements().clear();

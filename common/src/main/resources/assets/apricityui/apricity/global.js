@@ -668,7 +668,7 @@ function __auiDecorateNode(el) {
         else if (typeof v === 'string') el.setInlineStyleCssText(v);
         else if (typeof v.cssText !== 'undefined') el.setInlineStyleCssText(String(v.cssText));
       });
-      __auiInstallValueBridge(el, 'name', () => el.getAttribute('name'), (v) => el.setAttribute('name', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'name', () => el.getAttribute('name') || '', (v) => el.setAttribute('name', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'type', () => el.getType(), (v) => el.setType(v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'form', () => __auiDecorateElement(el.getForm ? el.getForm() : null));
       __auiInstallValueBridge(el, 'disabled', () => !!el.isDisabled(), (v) => el.setDisabled(!!v));
@@ -686,46 +686,46 @@ function __auiDecorateNode(el) {
         (v) => { if (el.setDefaultChecked) el.setDefaultChecked(!!v); });
       __auiInstallValueBridge(el, 'required', () => !!el.hasAttribute('required'), (v) => el.toggleAttribute('required', !!v));
       __auiInstallValueBridge(el, 'readOnly', () => !!el.hasAttribute('readonly'), (v) => el.toggleAttribute('readonly', !!v));
-      __auiInstallValueBridge(el, 'pattern', () => el.getAttribute('pattern'), (v) => el.setAttribute('pattern', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'min', () => el.getAttribute('min'), (v) => el.setAttribute('min', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'max', () => el.getAttribute('max'), (v) => el.setAttribute('max', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'step', () => el.getAttribute('step'), (v) => el.setAttribute('step', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'pattern', () => el.getAttribute('pattern') || '', (v) => el.setAttribute('pattern', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'min', () => el.getAttribute('min') || '', (v) => el.setAttribute('min', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'max', () => el.getAttribute('max') || '', (v) => el.setAttribute('max', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'step', () => el.getAttribute('step') || '', (v) => el.setAttribute('step', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'minLength', () => Number(el.getAttribute('minlength') || -1), (v) => el.setAttribute('minlength', String(Number(v))));
       __auiInstallValueBridge(el, 'maxLength', () => Number(el.getAttribute('maxlength') || -1), (v) => el.setAttribute('maxlength', String(Number(v))));
-      __auiInstallValueBridge(el, 'placeholder', () => el.getPlaceholder ? el.getPlaceholder() : el.getAttribute('placeholder'),
+      __auiInstallValueBridge(el, 'placeholder', () => el.getPlaceholder ? el.getPlaceholder() : (el.getAttribute('placeholder') || ''),
         (v) => { if (el.setPlaceholder) el.setPlaceholder(v == null ? '' : String(v)); });
-      __auiInstallValueBridge(el, 'accept', () => el.getAttribute('accept'), (v) => el.setAttribute('accept', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'accept', () => el.getAttribute('accept') || '', (v) => el.setAttribute('accept', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'autocomplete', () => {
         let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
         return el.getAttribute('autocomplete') || (nodeName === 'FORM' ? 'on' : '');
       }, (v) => el.setAttribute('autocomplete', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'inputMode', () => el.getAttribute('inputmode'), (v) => el.setAttribute('inputmode', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'inputMode', () => el.getAttribute('inputmode') || '', (v) => el.setAttribute('inputmode', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'formNoValidate', () => !!el.hasAttribute('formnovalidate'), (v) => el.toggleAttribute('formnovalidate', !!v));
       __auiInstallValueBridge(el, 'noValidate', () => !!el.hasAttribute('novalidate'), (v) => el.toggleAttribute('novalidate', !!v));
       __auiInstallValueBridge(el, 'action', () => {
         let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
-        if (nodeName !== 'FORM') return el.getAttribute('action');
+        if (nodeName !== 'FORM') return el.getAttribute('action') || '';
         return el.getAttribute('action') || (document.getBaseURI ? document.getBaseURI() : '');
       }, (v) => el.setAttribute('action', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'method', () => {
         let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
-        return nodeName === 'FORM' ? (el.getAttribute('method') || 'get').toLowerCase() : el.getAttribute('method');
+        return nodeName === 'FORM' ? (el.getAttribute('method') || 'get').toLowerCase() : (el.getAttribute('method') || '');
       }, (v) => el.setAttribute('method', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'target', () => el.getAttribute('target'), (v) => el.setAttribute('target', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'target', () => el.getAttribute('target') || '', (v) => el.setAttribute('target', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'enctype', () => {
         let nodeName = el.getNodeName ? String(el.getNodeName()).toUpperCase() : '';
         return nodeName === 'FORM'
           ? (el.getAttribute('enctype') || 'application/x-www-form-urlencoded')
-          : el.getAttribute('enctype');
+          : (el.getAttribute('enctype') || '');
       }, (v) => el.setAttribute('enctype', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'encoding', () => el.getAttribute('enctype') || 'application/x-www-form-urlencoded',
         (v) => el.setAttribute('enctype', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'acceptCharset', () => el.getAttribute('accept-charset') || 'UTF-8',
         (v) => el.setAttribute('accept-charset', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'formAction', () => el.getAttribute('formaction'), (v) => el.setAttribute('formaction', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'formMethod', () => el.getAttribute('formmethod'), (v) => el.setAttribute('formmethod', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'formTarget', () => el.getAttribute('formtarget'), (v) => el.setAttribute('formtarget', v == null ? '' : String(v)));
-      __auiInstallValueBridge(el, 'formEnctype', () => el.getAttribute('formenctype'), (v) => el.setAttribute('formenctype', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formAction', () => el.getAttribute('formaction') || '', (v) => el.setAttribute('formaction', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formMethod', () => el.getAttribute('formmethod') || '', (v) => el.setAttribute('formmethod', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formTarget', () => el.getAttribute('formtarget') || '', (v) => el.setAttribute('formtarget', v == null ? '' : String(v)));
+      __auiInstallValueBridge(el, 'formEnctype', () => el.getAttribute('formenctype') || '', (v) => el.setAttribute('formenctype', v == null ? '' : String(v)));
       __auiInstallValueBridge(el, 'rows', () => Number(el.getAttribute('rows') || 2), (v) => el.setAttribute('rows', String(Number(v) || 0)));
       __auiInstallValueBridge(el, 'cols', () => Number(el.getAttribute('cols') || 20), (v) => el.setAttribute('cols', String(Number(v) || 0)));
       __auiInstallValueBridge(el, 'wrap', () => el.getAttribute('wrap') || 'soft', (v) => el.setAttribute('wrap', v == null ? '' : String(v)));

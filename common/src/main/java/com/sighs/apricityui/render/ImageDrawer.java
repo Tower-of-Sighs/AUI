@@ -77,7 +77,7 @@ public class ImageDrawer {
         float width = (float) size.width();
         float height = (float) size.height();
         boolean needRelayout = width == 0 || height == 0;
-        draw(poseStack, resolvedPath, x, y, width, height, element.getAttribute("blur").equals("true"), element, needRelayout);
+        draw(poseStack, resolvedPath, x, y, width, height, "true".equals(element.getAttribute("blur")), element, needRelayout);
     }
 
     public static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur) {

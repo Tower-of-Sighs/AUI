@@ -141,7 +141,8 @@ public final class OreCanvasRenderer {
         Element element = Element.init(document.createElement(tag));
         node.attributes().forEach(element::setAttribute);
         String editorClass = node instanceof OreContainerNode ? "ore-editor-container" : componentClass((OreComponentNode) node);
-        String sourceClass = element.getAttribute("class").trim();
+        String rawClass = element.getAttribute("class");
+        String sourceClass = rawClass == null ? "" : rawClass.trim();
         element.setAttribute("class", sourceClass.isEmpty() ? editorClass : sourceClass + " " + editorClass);
         element.addEventListener("click", event -> {
             event.preventDefault();

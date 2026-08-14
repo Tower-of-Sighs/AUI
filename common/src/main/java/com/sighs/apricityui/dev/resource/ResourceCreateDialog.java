@@ -176,7 +176,8 @@ public final class ResourceCreateDialog {
         Element metaElement = card.querySelector(".file-meta");
         if (nameElement != null) nameElement.setTextContent(name.toUpperCase(Locale.ROOT));
         if (metaElement != null) metaElement.setTextContent(meta);
-        card.setAttribute("class", card.getAttribute("class") + " imported");
+        String currentClass = card.getAttribute("class");
+        card.setAttribute("class", (currentClass == null ? "" : currentClass) + " imported");
     }
 
     private static String abbreviate(String value) {

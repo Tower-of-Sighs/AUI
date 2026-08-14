@@ -322,40 +322,21 @@ public class Element extends Node {
     }
 
     public String getAttribute(String name) {
+        if (name == null) return null;
         if ("style".equals(name)) syncLegacyInlineStyleMutations();
-        if (name.equals("value")) {
-            return attributes.getOrDefault(name, "");
-        }
-        if (name.equals("value")) {
-            String _value = attributes.getOrDefault(name, "");
-            if (value == null) value = _value;
-            else if (!_value.equals(value)) {
-                attributes.put(name, value);
-                requestStyleRecalc();
-            }
-        }
         // style 属性以 attributes 中的原始值为准，避免读取时覆盖掉运行时写入的 inline style。
-        if (name.equals("id")) {
-            String _id = attributes.getOrDefault(name, "");
-            if (id == null) id = _id;
-            else if (!_id.equals(id)) {
-                attributes.put(name, id);
+        if ("id".equals(name)) {
+            String attrId = attributes.get("id");
+            if (id == null) {
+                id = attrId;
+            } else if (!id.equals(attrId)) {
+                attributes.put("id", id);
                 requestStyleRecalc();
             }
+            return attributes.get("id");
         }
-//        if (name.equals("class")) {
-//            if (classNames == null) {
-//                classNames = new ArrayList<>();
-//                classNames.addAll(List.of(attributes.getOrDefault(name, "").split(" ")));
-//            } else {
-//                String classes = String.join(" ", classNames);
-//                if (!attributes.getOrDefault("class", "").equals(classes)) {
-//                    attributes.put(name, classes);
-//                    updateCSS();
-//                }
-//            }
-//        }
-        return attributes.getOrDefault(name, "");
+        // 与浏览器 DOM 对齐：不存在的属性返回 null，而非空字符串。
+        return attributes.get(name);
     }
 
     public void setAttribute(String name, String value) {
@@ -761,7 +742,8 @@ public class Element extends Node {
     }
 
     public String getPlaceholder() {
-        return getAttribute("placeholder");
+        String placeholder = getAttribute("placeholder");
+        return placeholder == null ? "" : placeholder;
     }
 
     public void setPlaceholder(String value) {
@@ -769,7 +751,8 @@ public class Element extends Node {
     }
 
     public String getName() {
-        return getAttribute("name");
+        String name = getAttribute("name");
+        return name == null ? "" : name;
     }
 
     public void setName(String value) {
@@ -1683,7 +1666,8 @@ public class Element extends Node {
     }
 
     public String getClassName() {
-        return getAttribute("class");
+        String className = getAttribute("class");
+        return className == null ? "" : className;
     }
 
     public void setClassName(String value) {
