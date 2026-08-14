@@ -29,7 +29,7 @@ public class Rect {
 
     public Rect(Element element) {
         this.element = element;
-        position = Position.of(element);
+        position = Position.forRender(element);
         box = Box.of(element);
         elementSize = box.elementSize();
         background = Background.of(element);

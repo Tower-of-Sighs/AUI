@@ -436,36 +436,13 @@ public class Base {
     private static Matrix4f computeWorldTransform(Element element) {
         Element[] route = element.getRouteArray();
         int routeSize = route.length;
-        Scratch scratch = SCRATCH.get();
-        if (scratch.absX.length < routeSize) {
-            scratch = new Scratch(new double[Math.max(routeSize, scratch.absX.length * 2)], new double[Math.max(routeSize, scratch.absY.length * 2)]);
-            SCRATCH.set(scratch);
-        }
-        double[] absX = scratch.absX;
-        double[] absY = scratch.absY;
-
-        for (int i = routeSize - 1; i >= 0; i--) {
-            Element e = route[i];
-            Position offset = Position.getOffset(e);
-            if ("fixed".equals(e.getComputedStyle().position)) {
-                absX[i] = offset.x;
-                absY[i] = offset.y;
-            } else if (i == routeSize - 1) {
-                absX[i] = offset.x;
-                absY[i] = offset.y;
-            } else {
-                Element parent = route[i + 1];
-                absX[i] = offset.x + absX[i + 1] - parent.getScrollLeft();
-                absY[i] = offset.y + absY[i + 1] - parent.getScrollTop();
-            }
-        }
 
         Matrix4f matrix = new Matrix4f();
         for (int i = routeSize - 1; i >= 0; i--) {
             Element e = route[i];
-            double posX = absX[i];
-            double posY = absY[i];
             Rect rect = Rect.of(e);
+            double posX = rect.position.x;
+            double posY = rect.position.y;
             Box box = rect.box;
             Size size = rect.getShadowSize();
 
@@ -556,11 +533,6 @@ public class Base {
             default -> Size.resolveLength(token, basis, basis / 2.0);
         };
     }
-
-    private record Scratch(double[] absX, double[] absY) {
-    }
-
-    private static final ThreadLocal<Scratch> SCRATCH = ThreadLocal.withInitial(() -> new Scratch(new double[64], new double[64]));
 
     public static void resolveOffset(PoseStack poseStack) {
         if (accumulateDepth) {

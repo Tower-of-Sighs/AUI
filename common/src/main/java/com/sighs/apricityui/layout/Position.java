@@ -69,6 +69,46 @@ public class Position {
         return x == 0.0 && y == 0.0 ? ZERO : new Position(x, y);
     }
 
+    /**
+     * Resolves the element's layout origin in the coordinate space used by painting.
+     * A descendant enters each participating ancestor through that ancestor's rendered
+     * border-box origin, so its margin must be crossed once. An absolutely positioned
+     * element bypasses ancestors between itself and its containing block; their margins
+     * must not leak back into the paint position.
+     */
+    public static Position forRender(Element element) {
+        if (element == null) return ZERO;
+        double x = 0.0;
+        double y = 0.0;
+        boolean skippingMargins = false;
+        Element resumeMarginAt = null;
+        for (Element e : element.getRouteArray()) {
+            Position offset = Position.getOffset(e);
+            x += offset.x;
+            y += offset.y;
+            if (e != element) {
+                boolean crossesMargin = !skippingMargins || e == resumeMarginAt;
+                if (crossesMargin) {
+                    Box box = Box.of(e);
+                    x += box.getMarginLeft();
+                    y += box.getMarginTop();
+                }
+                if (skippingMargins && e == resumeMarginAt) {
+                    skippingMargins = false;
+                    resumeMarginAt = null;
+                }
+                x -= e.getScrollLeft();
+                y -= e.getScrollTop();
+            }
+            if ("absolute".equals(e.getComputedStyle().position)) {
+                skippingMargins = true;
+                resumeMarginAt = findContainingBlock(e);
+            }
+            if ("fixed".equals(e.getComputedStyle().position)) break;
+        }
+        return x == 0.0 && y == 0.0 ? ZERO : new Position(x, y);
+    }
+
     private static Position computeNormalFlowChildPosition(Element element, Element parent, List<Element> siblings) {
         return Layout.computeChildPosition(element, parent, siblings);
     }
