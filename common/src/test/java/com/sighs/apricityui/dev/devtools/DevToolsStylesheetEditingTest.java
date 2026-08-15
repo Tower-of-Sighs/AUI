@@ -41,7 +41,8 @@ class DevToolsStylesheetEditingTest {
 
             target.setAttribute("style", "color: green;");
             assertTrue(declaration(Selector.getDebugStyles(target), lowerOrder, "color").overridden());
-            assertTrue(declaration(Selector.getDebugStyles(target), winnerOrder, "color").overridden());
+            assertFalse(declaration(Selector.getDebugStyles(target), winnerOrder, "color").overridden(),
+                    "Normal inline style must not override a stylesheet !important declaration");
         } finally {
             document.remove();
         }
@@ -62,7 +63,7 @@ class DevToolsStylesheetEditingTest {
             assertTrue(controller.selectElement(target));
 
             controller.updateStylesheetStyle(target, winnerOrder, "color", "gold !important");
-            assertEquals("gold", Selector.matchCSS(target).get("color"));
+            assertEquals("gold", Selector.matchCSS(target).get("color").value());
             assertFalse(target.hasAttribute("style"));
 
             Document tool = controller.getToolDocument();
@@ -73,16 +74,16 @@ class DevToolsStylesheetEditingTest {
             assertTrue(initiallyOverriddenRow.getClassNames().contains("overridden"));
 
             controller.toggleStylesheetStyle(target, winnerOrder, "color");
-            assertEquals("red", Selector.matchCSS(target).get("color"));
+            assertEquals("red", Selector.matchCSS(target).get("color").value());
             Selector.DebugStyleBlock disabledBlock = block(Selector.getDebugStyles(target), winnerOrder);
             DevToolsController.RuleStyle disabled = controller.stylesheetStyles(disabledBlock).get("color");
             assertNotNull(disabled);
             assertTrue(disabled.disabled());
 
             assertTrue(controller.undoEdit());
-            assertEquals("gold", Selector.matchCSS(target).get("color"));
+            assertEquals("gold", Selector.matchCSS(target).get("color").value());
             assertTrue(controller.redoEdit());
-            assertEquals("red", Selector.matchCSS(target).get("color"));
+            assertEquals("red", Selector.matchCSS(target).get("color").value());
 
             Element fallbackRow = tool.querySelector(
                     ".style-rule[data-rule-order=\"" + lowerOrder + "\"] .style-prop[data-property=\"color\"]");
@@ -135,24 +136,24 @@ class DevToolsStylesheetEditingTest {
             controller.renameStylesheetStyle(target, ruleOrder, "background", "background-color");
             assertFalse(backgroundRule.properties().containsKey("background"));
             assertEquals("black", backgroundRule.properties().get("background-color").value());
-            assertEquals("black", Selector.matchCSS(target).get("background-color"));
+            assertEquals("black", Selector.matchCSS(target).get("background-color").value());
 
             controller.updateStylesheetStyle(target, ruleOrder, "background-color", "navy");
-            assertEquals("navy", Selector.matchCSS(target).get("background-color"));
+            assertEquals("navy", Selector.matchCSS(target).get("background-color").value());
 
             controller.addStylesheetStyle(target, ruleOrder, "border-color", "gold");
-            assertEquals("gold", Selector.matchCSS(target).get("border-color"));
+            assertEquals("gold", Selector.matchCSS(target).get("border-color").value());
 
             controller.deleteStylesheetStyle(target, ruleOrder, "background-color");
             assertFalse(backgroundRule.properties().containsKey("background-color"));
             assertNull(Selector.matchCSS(target).get("background-color"));
 
             assertTrue(controller.undoEdit());
-            assertEquals("navy", Selector.matchCSS(target).get("background-color"));
+            assertEquals("navy", Selector.matchCSS(target).get("background-color").value());
             assertTrue(controller.undoEdit());
             assertNull(Selector.matchCSS(target).get("border-color"));
             assertTrue(controller.redoEdit());
-            assertEquals("gold", Selector.matchCSS(target).get("border-color"));
+            assertEquals("gold", Selector.matchCSS(target).get("border-color").value());
         } finally {
             if (controller.isOpen()) controller.toggle();
             document.remove();
@@ -173,7 +174,7 @@ class DevToolsStylesheetEditingTest {
             CSS.rebuildCacheFromDebugRules(document.CSSDebugRules, document.CSSCache);
             document.rebuildSelectorIndex();
 
-            assertEquals("red", Selector.matchCSS(target).get("color"));
+            assertEquals("red", Selector.matchCSS(target).get("color").value());
             assertFalse(declaration(Selector.getDebugStyles(target), lowerOrder, "color").overridden());
             assertTrue(declaration(Selector.getDebugStyles(target), winnerOrder, "color").overridden());
         } finally {

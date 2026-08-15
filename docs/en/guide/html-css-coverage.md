@@ -19,7 +19,7 @@ If you're short on time, read only this section. Before moving a browser page in
 1. **UA styles are zero**: write all styles for h1-h6, p, ul/li yourself; don't use br/hr to express layout;
 2. **Layout to avoid**: float, sticky, grid's areas/auto-flow/named lines, negative margins, table layout;
 3. **Value parsing to avoid**: calc multiplication/division, border styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, contrast/saturate/sepia filters, skew/matrix transforms;
-4. **Cascade caveat**: inline style overrides a stylesheet's `!important` (the opposite of browsers);
+4. **Cascade caveat**: the cascade follows browser ordering — normal inline > normal stylesheet, stylesheet `!important` > normal inline, inline `!important` wins over everything;
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
 6. **Form caveats**: types like date/email/url degrade to plain text boxes; form submission only fires an event, no request;
 7. **transition whitelist**: properties outside the list (gap, grid-template, font-size, etc.) jump instantly.
@@ -63,13 +63,13 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 ✅ Nearly everything common: basic selectors, the four combinators, attribute selectors (including the `i`/`s` flags), the full family of structural pseudo-classes (nth-child including An+B), state pseudo-classes (hover/active/focus/focus-within/disabled/checked, etc.), form pseudo-classes, `:not()/:is()/:where()`, `::before/::after`, and correct specificity and `!important` cascading.
 
-🟡 `:focus-visible` degrades to `:focus`; `:nth-child()` doesn't support `of S`; **inline style overrides stylesheet `!important` (the spec says the opposite), and inline `!important` itself has no effect**; unsupported pseudo-classes warn once and then never match.
+🟡 `:focus-visible` degrades to `:focus`; `:nth-child()` doesn't support `of S`; unsupported pseudo-classes warn once and then never match.
 
 ❌ `:link :visited :target :lang() :dir() :has()`, `::first-line ::first-letter ::marker ::selection`.
 
 ## @-Rules and Style Sources
 
-- ✅ Cascading across the three sources (style/link/inline), `@keyframes`, `@import` (recursively inlined, with a depth cap and cycle detection), shorthand expansion, css-wide keywords, CSS variables `var()` (with fallback, nesting depth 8);
+- ✅ Cascading across the three sources (style/link/inline), `@keyframes`, `@import` (recursively inlined, with a depth cap and cycle detection), shorthand expansion, css-wide keywords, CSS variables `var()` (with fallback, nesting depth 8); inline style keeps the full declaration list (duplicates are not collapsed — `cssText`/`getPropertyValue` read the last declaration, `setProperty` replaces all declarations of the property then appends — CSSOM semantics);
 - 🟡 `@media` only supports min/max-width/height, orientation + `and`; `@font-face` only takes font-family and the first src url(), ignoring format(), multiple srcs, and other descriptors;
 - ❌ `@supports @layer @page @container @scope`.
 

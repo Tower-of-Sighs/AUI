@@ -68,7 +68,7 @@ class ResourceDialogStyleTest {
             assertTrue(create.matches(".dialog-btn:disabled"));
             assertTrue(document.CSSCache.containsKey(".dialog-btn:disabled"));
             assertEquals("0.4", document.CSSCache.get(".dialog-btn:disabled").get("opacity").value());
-            assertEquals("0.4", Selector.matchCSS(create).get("opacity"));
+            assertEquals("0.4", Selector.matchCSS(create).get("opacity").value());
         } finally {
             createDialog.close();
         }
@@ -93,7 +93,7 @@ class ResourceDialogStyleTest {
             assertEquals("#8b5cf6", arrow.getComputedStyle().backgroundColor);
             document.setFocusedElement(select);
             document.flushPendingStyleUpdates();
-            assertEquals("var(--purple-dark)", Selector.matchCSS(arrow).get("background"));
+            assertEquals("var(--purple-dark)", Selector.matchCSS(arrow).get("background").value());
         } finally {
             metaDialog.close();
         }

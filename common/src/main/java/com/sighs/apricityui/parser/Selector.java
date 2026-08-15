@@ -424,7 +424,7 @@ public class Selector {
             return pseudoName != null && pseudosAffectingDescendants.contains(pseudoName);
         }
 
-        public HashMap<String, String> match(Element element) {
+        public HashMap<String, CSS.Declaration> match(Element element) {
             scratchCandidates.clear();
             scratchSeen.clear();
 
@@ -477,7 +477,7 @@ public class Selector {
 
             // 先应用普通声明，再应用 !important 声明。
             // 同一属性中 important 声明按 specificity 排序覆盖，符合 CSS 层叠规则。
-            LinkedHashMap<String, String> finalStyles = new LinkedHashMap<>();
+            LinkedHashMap<String, CSS.Declaration> finalStyles = new LinkedHashMap<>();
             List<MatchedRule> importantRules = new ArrayList<>();
             for (MatchedRule rule : matched) {
                 boolean hasImportant = false;
@@ -486,7 +486,7 @@ public class Selector {
                     if (declaration.important()) {
                         hasImportant = true;
                     } else {
-                        finalStyles.put(entry.getKey(), declaration.value());
+                        finalStyles.put(entry.getKey(), declaration);
                     }
                 }
                 if (hasImportant) importantRules.add(rule);
@@ -495,14 +495,14 @@ public class Selector {
                 for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
                     CSS.Declaration declaration = e.getValue();
                     if (declaration.important()) {
-                        finalStyles.put(e.getKey(), declaration.value());
+                        finalStyles.put(e.getKey(), declaration);
                     }
                 }
             }
             return finalStyles;
         }
 
-        public HashMap<String, String> matchPseudoElement(Element element, PseudoElement pseudoElement) {
+        public HashMap<String, CSS.Declaration> matchPseudoElement(Element element, PseudoElement pseudoElement) {
             scratchCandidates.clear();
             scratchSeen.clear();
 
@@ -538,7 +538,7 @@ public class Selector {
 
             matched.sort(Comparator.comparing(m -> m.specificity));
 
-            LinkedHashMap<String, String> finalStyles = new LinkedHashMap<>();
+            LinkedHashMap<String, CSS.Declaration> finalStyles = new LinkedHashMap<>();
             List<MatchedRule> importantRules = new ArrayList<>();
             for (MatchedRule rule : matched) {
                 boolean hasImportant = false;
@@ -547,7 +547,7 @@ public class Selector {
                     if (declaration.important()) {
                         hasImportant = true;
                     } else {
-                        finalStyles.put(entry.getKey(), declaration.value());
+                        finalStyles.put(entry.getKey(), declaration);
                     }
                 }
                 if (hasImportant) importantRules.add(rule);
@@ -556,7 +556,7 @@ public class Selector {
                 for (Map.Entry<String, CSS.Declaration> e : rule.styles.entrySet()) {
                     CSS.Declaration declaration = e.getValue();
                     if (declaration.important()) {
-                        finalStyles.put(e.getKey(), declaration.value());
+                        finalStyles.put(e.getKey(), declaration);
                     }
                 }
             }
@@ -579,7 +579,7 @@ public class Selector {
     }
 
 
-    public static HashMap<String, String> matchCSS(Element element) {
+    public static HashMap<String, CSS.Declaration> matchCSS(Element element) {
         if (element == null || element.document == null) return new HashMap<>();
         return element.document.getSelectorIndex().match(element);
     }
@@ -595,7 +595,7 @@ public class Selector {
         return false;
     }
 
-    public static HashMap<String, String> matchPseudoElementCSS(Element element, PseudoElement pseudoElement) {
+    public static HashMap<String, CSS.Declaration> matchPseudoElementCSS(Element element, PseudoElement pseudoElement) {
         if (element == null || element.document == null || pseudoElement == null) return new HashMap<>();
         return element.document.getSelectorIndex().matchPseudoElement(element, pseudoElement);
     }
@@ -991,7 +991,7 @@ public class Selector {
                 }
             }
         }
-        Set<String> inlineProperties = inlinePropertyNames(element.getAttribute("style"));
+        Map<String, Boolean> inlinePriorities = inlinePropertyPriorities(element.getAttribute("style"));
         List<DebugStyleBlock> result = new ArrayList<>();
         for (DebugMatch match : matches) {
             LinkedHashMap<String, DebugDeclaration> declarations = new LinkedHashMap<>();
@@ -999,7 +999,10 @@ public class Selector {
                 String property = entry.getKey();
                 CSS.Declaration declaration = entry.getValue();
                 Winner winner = winners.get(cascadePropertyKey(property));
-                boolean overridden = inlineProperties.contains(cascadePropertyKey(property))
+                // 内联只覆盖它压得过的声明：普通内联压不过样式表 !important，内联 !important 压过一切。
+                Boolean inlineImportant = inlinePriorities.get(cascadePropertyKey(property));
+                boolean inlineWins = inlineImportant != null && (inlineImportant || !declaration.important());
+                boolean overridden = inlineWins
                         || winner == null || winner.ruleOrder() != match.rule.order();
                 declarations.put(property, new DebugDeclaration(
                         declaration.value(), declaration.important(), overridden));
@@ -1010,14 +1013,16 @@ public class Selector {
         return result;
     }
 
-    private static Set<String> inlinePropertyNames(String style) {
-        LinkedHashSet<String> result = new LinkedHashSet<>();
+    private static Map<String, Boolean> inlinePropertyPriorities(String style) {
+        LinkedHashMap<String, Boolean> result = new LinkedHashMap<>();
         if (style == null || style.isBlank()) return result;
         for (String declaration : style.split(";")) {
             int colon = declaration.indexOf(':');
             if (colon <= 0) continue;
             String property = cascadePropertyKey(declaration.substring(0, colon));
-            if (!property.isBlank()) result.add(property);
+            if (property.isBlank()) continue;
+            result.put(property, declaration.substring(colon + 1).trim()
+                    .toLowerCase(Locale.ROOT).endsWith("!important"));
         }
         return result;
     }

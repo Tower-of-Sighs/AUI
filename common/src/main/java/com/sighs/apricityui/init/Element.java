@@ -100,7 +100,7 @@ public class Element extends Node {
     // 同时，如果每帧都创建新字符串，会让 wrapCached 的 hash 计算成本上升。
     // 因此按（innerText 引用 + white-space）缓存一次归一化结果。
     public boolean isLoaded = false;
-    public HashMap<String, String> cssCache = new HashMap<>();
+    public HashMap<String, CSS.Declaration> cssCache = new HashMap<>();
     // cssCache 是否已完成过选择器匹配。不能用 isEmpty() 判断：外部样式表未加载时，
     // 元素可能“匹配了但一条规则都没有”，此时若在样式表就绪后被懒读取重新匹配，
     // 会绕过 recomputeStyleSelf 的 observeStyle 失效链路（styleVersion/提交 Rect 等
@@ -112,8 +112,8 @@ public class Element extends Node {
     private Element afterPseudoElement = null;
     private List<Node> renderChildNodesCache = null;
     private TextNode legacyRenderTextNode = null;
-    private HashMap<String, String> beforePseudoStyles = null;
-    private HashMap<String, String> afterPseudoStyles = null;
+    private HashMap<String, CSS.Declaration> beforePseudoStyles = null;
+    private HashMap<String, CSS.Declaration> afterPseudoStyles = null;
     private boolean beforePseudoResolved = false;
     private boolean afterPseudoResolved = false;
     private boolean pseudoElement = false;
@@ -206,7 +206,7 @@ public class Element extends Node {
 
     private final Style inlineStyle = Style.createInlineDeclarationStyle(this);
     private Style inlineStyleSnapshot = inlineStyle.clone();
-    private LinkedHashMap<String, String> inlineDeclarations = new LinkedHashMap<>();
+    private List<InlineStyleDeclaration.Entry> inlineDeclarations = new ArrayList<>();
     private boolean inlineStyleInitialized = false;
     private boolean mutableInlineStyleExposed = false;
     private boolean syncingInlineStyle = false;
@@ -234,11 +234,11 @@ public class Element extends Node {
         String normalizedValue = value == null ? "" : value.trim();
         String normalizedPriority = priority == null ? "" : priority.trim().toLowerCase(Locale.ROOT);
         if (!normalizedPriority.isEmpty() && !"important".equals(normalizedPriority)) return;
-        if (normalizedValue.isEmpty()) {
-            inlineDeclarations.remove(property);
-        } else {
-            inlineDeclarations.put(property, normalizedValue
-                    + ("important".equals(normalizedPriority) ? " !important" : ""));
+        // CSSOM setProperty 语义：移除该属性的全部声明后追加一条新声明（浏览器同款）。
+        InlineStyleDeclaration.removeAll(inlineDeclarations, property);
+        if (!normalizedValue.isEmpty()) {
+            inlineDeclarations.add(new InlineStyleDeclaration.Entry(property, normalizedValue
+                    + ("important".equals(normalizedPriority) ? " !important" : "")));
         }
         commitInlineDeclarations();
     }
@@ -246,15 +246,18 @@ public class Element extends Node {
     public String removeInlineStyleProperty(String name) {
         syncLegacyInlineStyleMutations();
         String property = InlineStyleDeclaration.normalizeProperty(name);
-        String previous = inlineDeclarations.remove(property);
-        if (previous != null) commitInlineDeclarations();
+        String previous = InlineStyleDeclaration.lastValue(inlineDeclarations, property);
+        if (previous != null) {
+            InlineStyleDeclaration.removeAll(inlineDeclarations, property);
+            commitInlineDeclarations();
+        }
         return InlineStyleDeclaration.valueWithoutPriority(previous);
     }
 
     public String getInlineStylePropertyValue(String name) {
         syncLegacyInlineStyleMutations();
         String property = InlineStyleDeclaration.normalizeProperty(name);
-        String value = inlineDeclarations.get(property);
+        String value = InlineStyleDeclaration.lastValue(inlineDeclarations, property);
         if (value != null) return InlineStyleDeclaration.valueWithoutPriority(value);
         String expanded = inlineStyle.get(property);
         return expanded == null || "unset".equalsIgnoreCase(expanded) ? "" : expanded;
@@ -263,7 +266,7 @@ public class Element extends Node {
     public String getInlineStylePropertyPriority(String name) {
         syncLegacyInlineStyleMutations();
         return InlineStyleDeclaration.priorityOf(
-                inlineDeclarations.get(InlineStyleDeclaration.normalizeProperty(name)));
+                InlineStyleDeclaration.lastValue(inlineDeclarations, InlineStyleDeclaration.normalizeProperty(name)));
     }
 
     public String getInlineStyleCssText() {
@@ -278,7 +281,11 @@ public class Element extends Node {
 
     public String[] getInlineStylePropertyNames() {
         syncLegacyInlineStyleMutations();
-        return inlineDeclarations.keySet().toArray(String[]::new);
+        String[] names = new String[inlineDeclarations.size()];
+        for (int index = 0; index < names.length; index++) {
+            names[index] = inlineDeclarations.get(index).property();
+        }
+        return names;
     }
 
     public String[] getSupportedInlineStylePropertyNames() {
@@ -302,8 +309,7 @@ public class Element extends Node {
         // Build its selector cache here so inheritance is independent of render order.
         ensureCssCacheReady();
         Style rawStyle = new Style();
-        cssCache.forEach(rawStyle::update);
-        rawStyle.merge(getAttribute("style"));
+        rawStyle.mergeCascade(cssCache, getAttribute("style"));
         return rawStyle.getCustomProperty(name);
     }
 
@@ -506,8 +512,7 @@ public class Element extends Node {
             ensureCssCacheReady();
             computedStyle = new Style();
             computedStyle.applyUserAgentDefaults(this);
-            cssCache.forEach(computedStyle::update);
-            computedStyle.merge(getAttribute("style"));
+            computedStyle.mergeCascade(cssCache, getAttribute("style"));
             // 先缓存当前构建中的 Style，避免 var() 解析阶段再次回到本元素时重复创建并递归进入。
             renderElement.computedStyle.set(computedStyle);
             computedStyle.resolveVarReferences(this);
@@ -534,10 +539,13 @@ public class Element extends Node {
     public void updateInlineStyle() {
         String rawAttributeValue = attributes.get("style");
         String attributeValue = rawAttributeValue == null ? "" : rawAttributeValue;
-        inlineDeclarations = InlineStyleDeclaration.parse(attributeValue);
+        inlineDeclarations = InlineStyleDeclaration.parseEntries(attributeValue);
         Style previousStyle = inlineStyleSnapshot;
         Style newStyle = Style.createInlineDeclarationStyle();
-        newStyle.merge(InlineStyleDeclaration.serialize(inlineDeclarations));
+        // CSSOM 视图取“最后一条声明”（如 el.style.color），按声明顺序覆盖、不按重要性折叠。
+        for (InlineStyleDeclaration.Entry entry : inlineDeclarations) {
+            newStyle.update(entry.property(), InlineStyleDeclaration.valueWithoutPriority(entry.value()));
+        }
         inlineStyle.copyFrom(newStyle);
         if (inlineStyleInitialized && isConnected()) {
             RenderElement.observeStyle(this, previousStyle, inlineStyle);
@@ -567,10 +575,10 @@ public class Element extends Node {
         Map<String, String> changes = inlineStyle.changesComparedTo(inlineStyleSnapshot);
         if (changes.isEmpty()) return;
         changes.forEach((property, value) -> {
-            if (value == null || value.isBlank() || "unset".equalsIgnoreCase(value.trim())) {
-                inlineDeclarations.remove(property);
-            } else {
-                inlineDeclarations.put(property, value.trim());
+            // CSSOM setProperty 语义：先移除该属性全部声明，再追加一条新声明。
+            InlineStyleDeclaration.removeAll(inlineDeclarations, property);
+            if (value != null && !value.isBlank() && !"unset".equalsIgnoreCase(value.trim())) {
+                inlineDeclarations.add(new InlineStyleDeclaration.Entry(property, value.trim()));
             }
         });
         commitInlineDeclarations();
@@ -1349,8 +1357,9 @@ public class Element extends Node {
 
     private Element getGeneratedPseudoElement(Selector.PseudoElement kind) {
         if (kind == null || pseudoElement) return null;
-        HashMap<String, String> styles = resolvePseudoElementStyles(kind);
-        if (!CssString.isGeneratedPseudoContent(styles == null ? null : styles.get("content"))) return null;
+        HashMap<String, CSS.Declaration> styles = resolvePseudoElementStyles(kind);
+        CSS.Declaration content = styles == null ? null : styles.get("content");
+        if (!CssString.isGeneratedPseudoContent(content == null ? null : content.value())) return null;
         Element pseudo = kind == Selector.PseudoElement.BEFORE ? beforePseudoElement : afterPseudoElement;
         if (pseudo == null) {
             pseudo = createPseudoElement(kind);
@@ -1373,7 +1382,7 @@ public class Element extends Node {
         return pseudo;
     }
 
-    private void syncPseudoElement(HashMap<String, String> styles) {
+    private void syncPseudoElement(HashMap<String, CSS.Declaration> styles) {
         if (!pseudoElement || pseudoElementHost == null) return;
         document = pseudoElementHost.document;
         parentNode = pseudoElementHost;
@@ -1420,7 +1429,8 @@ public class Element extends Node {
         }
     }
 
-    private static boolean samePseudoStyles(HashMap<String, String> current, HashMap<String, String> next) {
+    private static boolean samePseudoStyles(HashMap<String, CSS.Declaration> current,
+                                            HashMap<String, CSS.Declaration> next) {
         if (current == null || current.isEmpty()) {
             return next == null || next.isEmpty();
         }
@@ -1439,7 +1449,7 @@ public class Element extends Node {
         return previous != null && CssString.isGeneratedPseudoContent(previous.content);
     }
 
-    private HashMap<String, String> resolvePseudoElementStyles(Selector.PseudoElement kind) {
+    private HashMap<String, CSS.Declaration> resolvePseudoElementStyles(Selector.PseudoElement kind) {
         if (kind == Selector.PseudoElement.BEFORE) {
             if (!beforePseudoResolved) {
                 beforePseudoStyles = Selector.matchPseudoElementCSS(this, kind);
@@ -3135,11 +3145,16 @@ public class Element extends Node {
     }
 
     Position getFlexDirectTextPaintPosition(Flex.DirectTextLayout layout) {
-        if (layout == null || layout.position() == null) return Position.of(this);
-        Position origin = Position.of(this);
+        // 与 Rect（背景/边框）保持一致：绘制坐标以 forRender（跨过祖先 margin）为基准，
+        // 否则 flex 直接文本会相对元素盒整体上移祖先 margin 之和。
+        Position origin = Position.forRender(this);
+        Box box = Box.of(this);
+        double originX = origin.x + box.getMarginLeft();
+        double originY = origin.y + box.getMarginTop();
+        if (layout == null || layout.position() == null) return new Position(originX, originY);
         return new Position(
-                origin.x + layout.position().x - scrollLeft,
-                origin.y + layout.position().y - scrollTop
+                originX + layout.position().x - scrollLeft,
+                originY + layout.position().y - scrollTop
         );
     }
 

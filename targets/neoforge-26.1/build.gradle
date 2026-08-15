@@ -40,6 +40,9 @@ sourceSets {
 tasks.register('prepareCommonSources', Sync) {
     from('../../common/src/main/java') {
         exclude 'com/sighs/apricityui/network/**'
+        // 26.1 的 KeyboardHandler#charTyped 签名改为 (long, CharacterEvent)，
+        // 该 target 提供自己的 CommonKeyboardHandlerMixin（见 src/main/java）。
+        exclude 'com/sighs/apricityui/mixin/CommonKeyboardHandlerMixin.java'
     }
     into "$buildDir/generated/common-main"
 }
