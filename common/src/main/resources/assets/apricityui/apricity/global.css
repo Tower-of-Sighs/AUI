@@ -282,8 +282,3 @@ recipe[data-recipe-layout="fallback"] {
     --aui-recipe-columns: 6;
 }
 recipe[data-recipe-layout="fallback"] > .aui-recipe-output[data-i="0"] { grid-column: 6; grid-row: 2; }
-
-@font-face {
-    font-family: "lxgw";
-    src: url("apricityui/lxgw3500.ttf");
-}

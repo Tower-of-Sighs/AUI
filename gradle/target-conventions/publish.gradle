@@ -16,6 +16,14 @@ dependencies {
 // referenced by relative path instead of project(':common').
 sourceSets.main.resources.srcDir file('../../common/src/main/resources')
 
+// Ship the English documentation inside the mod jar at the jar root, next to
+// assets/ (e.g. docs/en/getting-started.md).
+tasks.named('processResources', ProcessResources).configure {
+    from('../../docs/en') {
+        into 'docs/en'
+    }
+}
+
 def publishLoader = project.projectDir.name.tokenize('-').first()
 def publishMinecraftVersion = [
         forge    : providers.gradleProperty('forge_minecraft_version'),
