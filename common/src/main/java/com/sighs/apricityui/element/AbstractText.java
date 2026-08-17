@@ -109,7 +109,9 @@ public abstract class AbstractText extends Element {
 
     @Override
     protected void onInitFromDom(Element origin) {
-        placeholder = getAttribute("placeholder");
+        String placeholderAttr = getAttribute("placeholder");
+        // getAttribute 缺省时返回 null，不能把字段初始值 "" 覆盖成 null（渲染侧会 NPE，issue#87）
+        placeholder = placeholderAttr == null ? "" : placeholderAttr;
         String maxLengthAttr = getAttribute("maxlength");
         int parsed = Size.parse(maxLengthAttr);
         if (parsed > 0) maxLength = parsed;

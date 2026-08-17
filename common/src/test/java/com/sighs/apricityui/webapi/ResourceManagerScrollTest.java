@@ -246,14 +246,14 @@ class ResourceManagerScrollTest {
 
     @Test
     void fontCardUsesItsFontAndPreviewOpensEditableTwoLineSample() throws Exception {
-        Loader.StaticResourceEntry fontEntry = entry("apricityui/lxgw3500.ttf", "ttf", 654_584);
+        Loader.StaticResourceEntry fontEntry = entry("apricityui/test-font.ttf", "ttf", 7_116);
         Document document = createManagerDocument("test://resource-manager-font-preview", List.of(fontEntry));
         try {
             Element folder = document.querySelector(".file-card[data-path=\"apricityui\"]");
             assertNotNull(folder);
             folder.dispatchEvent(new MouseEvent("dblclick", Position.ZERO, 0, false));
 
-            Element card = document.querySelector(".file-card[data-resource-key=\"apricityui/lxgw3500.ttf|DEV_FOLDER\"]");
+            Element card = document.querySelector(".file-card[data-resource-key=\"apricityui/test-font.ttf|DEV_FOLDER\"]");
             assertNotNull(card);
             Element glyph = card.querySelector(".file-font-glyph");
             assertNotNull(glyph);
@@ -269,7 +269,7 @@ class ResourceManagerScrollTest {
             referenceAction.click();
             Element familyInput = document.querySelector(".resource-reference-family-input");
             assertNotNull(familyInput);
-            assertEquals("lxgw3500", familyInput.getValue());
+            assertEquals("test-font", familyInput.getValue());
             assertEquals(2, document.querySelectorAll(".resource-reference-option").size());
             assertTrue(document.querySelector(".resource-reference-code").getValue().contains("@font-face"));
             familyInput.value = "Custom Display";

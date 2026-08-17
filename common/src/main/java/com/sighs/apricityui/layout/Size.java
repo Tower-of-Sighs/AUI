@@ -998,7 +998,7 @@ public record Size(double width, double height) {
             if (parsed != null && parsed > 0) {
                 return parsed;
             }
-            return preferredDocument.getFontMode().defaultFontSize();
+            return Text.DEFAULT_FONT_SIZE;
         }
         Double override = rootFontOverride;
         if (override != null && override > 0) {
@@ -1016,7 +1016,7 @@ public record Size(double width, double height) {
 
     private static Double resolveDocumentRootFontSize(Document document) {
         if (document == null || document.documentElement == null) return null;
-        double defaultFontSize = document.getFontMode().defaultFontSize();
+        double defaultFontSize = Text.DEFAULT_FONT_SIZE;
         document.documentElement.getComputedStyle();
         String fontSize = document.documentElement.getInlineStylePropertyValue("font-size");
         if (fontSize == null || fontSize.isBlank() || fontSize.equals("unset")) {
@@ -1068,7 +1068,6 @@ public record Size(double width, double height) {
         measuring.textAlign = base.textAlign;
         measuring.verticalAlign = base.verticalAlign;
         measuring.whiteSpace = base.whiteSpace;
-        measuring.fontMode = base.fontMode;
         measuring.textIndent = 0;
         measuring.letterSpacing = base.letterSpacing;
         measuring.content = text;

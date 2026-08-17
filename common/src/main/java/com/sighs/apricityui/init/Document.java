@@ -53,43 +53,6 @@ import com.sighs.apricityui.style.Transition;
 
 public class Document {
 
-    public enum FontMode {
-        MC("mc", 9d, 9d),
-        WEB("web", 16d, 9d),
-        WEB_SCALED("web-scaled", 16d, 16d);
-
-        private final String value;
-        private final double defaultFontSize;
-        private final double defaultFontScaleBase;
-
-        FontMode(String value, double defaultFontSize, double defaultFontScaleBase) {
-            this.value = value;
-            this.defaultFontSize = defaultFontSize;
-            this.defaultFontScaleBase = defaultFontScaleBase;
-        }
-
-        public String value() {
-            return value;
-        }
-
-        public double defaultFontSize() {
-            return defaultFontSize;
-        }
-
-        public double defaultFontScaleBase() {
-            return defaultFontScaleBase;
-        }
-
-        public static FontMode parse(String raw) {
-            if (raw == null) return WEB_SCALED;
-            String normalized = raw.trim().toLowerCase(Locale.ROOT);
-            for (FontMode mode : values()) {
-                if (mode.value.equals(normalized)) return mode;
-            }
-            return WEB_SCALED;
-        }
-    }
-
     private enum LifecycleState {
         LOADING("loading"),
         INTERACTIVE("interactive"),
@@ -128,7 +91,6 @@ public class Document {
     private volatile long timedLayoutGeneration = -1L;
     private volatile LifecycleState lifecycleState = LifecycleState.LOADING;
     private volatile String readyState = LifecycleState.LOADING.readyStateValue;
-    private volatile FontMode fontMode = FontMode.WEB_SCALED;
     private volatile Element lastClickTarget = null;
     private volatile int lastClickButton = -1;
     private volatile long lastClickTimeNs = 0L;
@@ -188,14 +150,6 @@ public class Document {
 
     public UUID getUuid() {
         return uuid;
-    }
-
-    public FontMode getFontMode() {
-        return fontMode;
-    }
-
-    public void setFontMode(FontMode fontMode) {
-        this.fontMode = fontMode == null ? FontMode.WEB_SCALED : fontMode;
     }
 
     public void setViewportTransform(double scaleX, double scaleY, double offsetX, double offsetY) {
@@ -340,7 +294,6 @@ public class Document {
         String stage = "reset";
         try {
             Size.clearRootFontOverride();
-            setFontMode(FontMode.WEB_SCALED);
             CSSCache.clear();
             CSSDebugRules.clear();
             JSCache.clear();
@@ -349,7 +302,6 @@ public class Document {
             render.reset();
             motion.clear();
             invalidateSelectorIndex();
-            FontMode sourceFontMode = FontMode.parse(HTML.findMetaContent(path, "aui-font-mode"));
             stage = "html/css/js extraction";
             HTML.DocumentRoot root = HTML.create(this, path);
             try {
@@ -361,8 +313,6 @@ public class Document {
                 documentElement = root.documentElement();
                 head = root.head();
                 body = root.body();
-                FontMode headFontMode = resolveFontModeFromHead(head);
-                setFontMode(headFontMode == FontMode.WEB_SCALED ? sourceFontMode : headFontMode);
                 rebuildElementIndexFromBody();
                 long extractionEndNs = System.nanoTime();
 
@@ -458,7 +408,7 @@ public class Document {
     }
 
     private double resolveRootFontSize() {
-        double defaultFontSize = fontMode.defaultFontSize();
+        double defaultFontSize = com.sighs.apricityui.style.Text.DEFAULT_FONT_SIZE;
         if (documentElement == null) return defaultFontSize;
         documentElement.getComputedStyle();
         String declared = documentElement.getInlineStylePropertyValue("font-size");
@@ -472,25 +422,6 @@ public class Document {
         }
         Double parsed = Size.tryResolveLength(declared, defaultFontSize, defaultFontSize);
         return parsed == null || parsed <= 0 ? defaultFontSize : parsed;
-    }
-
-    private FontMode resolveFontModeFromHead(Head head) {
-        if (head == null) return FontMode.WEB_SCALED;
-        ArrayDeque<Node> stack = new ArrayDeque<>(head.childNodes);
-        while (!stack.isEmpty()) {
-            Node node = stack.pop();
-            if (node instanceof Element element) {
-                if ("META".equals(element.tagName)
-                        && "aui-font-mode".equalsIgnoreCase(element.getAttribute("name"))) {
-                    return FontMode.parse(element.getAttribute("content"));
-                }
-                List<Node> children = element.childNodes;
-                for (int i = children.size() - 1; i >= 0; i--) {
-                    stack.push(children.get(i));
-                }
-            }
-        }
-        return FontMode.WEB_SCALED;
     }
 
     private void clearRenderCaches(Element root) {

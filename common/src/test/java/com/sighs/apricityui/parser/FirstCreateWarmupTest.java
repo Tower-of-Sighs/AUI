@@ -47,7 +47,7 @@ class FirstCreateWarmupTest {
         String path = "test://first-create-blueprint";
         HTML.putTemple(path, """
                 <html>
-                  <head><meta name="aui-font-mode" content="mc"></head>
+                  <head><meta name="aui-viewport" content="mode=browser"></head>
                   <body><main id="first">alpha</main><script>window.ready = true;</script></body>
                 </html>
                 """);
@@ -55,7 +55,7 @@ class FirstCreateWarmupTest {
         assertFalse(HTML.isTemplatePrepared(path));
         assertTrue(HTML.prepareTemplatePath(path));
         assertTrue(HTML.isTemplatePrepared(path));
-        assertEquals("mc", HTML.findMetaContent(path, "aui-font-mode"));
+        assertEquals("mode=browser", HTML.findMetaContent(path, "aui-viewport"));
 
         Document firstDocument = new Document(path, false);
         Document secondDocument = new Document(path, false);

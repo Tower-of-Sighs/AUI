@@ -68,7 +68,6 @@ public final class HtmlMetaEditor {
     public static MetaSettings parseSettings(String markup) {
         String source = markup == null ? "" : markup;
         String charset = "";
-        String fontMode = "";
         String viewport = "";
         String mouseEvents = "";
         List<String> preserved = new ArrayList<>();
@@ -87,9 +86,6 @@ public final class HtmlMetaEditor {
                 continue;
             }
             switch (name.trim().toLowerCase(Locale.ROOT)) {
-                case "aui-font-mode" -> {
-                    if (fontMode.isEmpty()) fontMode = safe(content);
-                }
                 case "aui-viewport" -> {
                     if (viewport.isEmpty()) viewport = safe(content);
                 }
@@ -99,14 +95,13 @@ public final class HtmlMetaEditor {
                 default -> preserved.add(raw);
             }
         }
-        return new MetaSettings(charset, fontMode, viewport, mouseEvents, preserved);
+        return new MetaSettings(charset, viewport, mouseEvents, preserved);
     }
 
     public static String toMetaMarkup(MetaSettings settings) {
         if (settings == null) return "";
         List<String> tags = new ArrayList<>();
         appendAttributeMeta(tags, "charset", settings.charset());
-        appendNamedMeta(tags, "aui-font-mode", settings.fontMode());
         appendNamedMeta(tags, "aui-viewport", settings.viewport());
         appendNamedMeta(tags, "aui-mouse-events", settings.mouseEvents());
         for (String preserved : settings.preservedMeta()) {
@@ -422,11 +417,10 @@ public final class HtmlMetaEditor {
     private record HeadRange(int openStart, int contentStart, int contentEnd) {
     }
 
-    public record MetaSettings(String charset, String fontMode, String viewport, String mouseEvents,
+    public record MetaSettings(String charset, String viewport, String mouseEvents,
                                List<String> preservedMeta) {
         public MetaSettings {
             charset = safe(charset);
-            fontMode = safe(fontMode);
             viewport = safe(viewport);
             mouseEvents = safe(mouseEvents);
             preservedMeta = preservedMeta == null ? List.of() : List.copyOf(preservedMeta);

@@ -78,11 +78,11 @@ class ResourceDialogStyleTest {
         ResourceMetaDialog metaDialog = new ResourceMetaDialog();
         metaDialog.open(document, "tests/dialog-meta.html", html, null);
         try {
-            assertEquals(3, document.querySelectorAll(".dialog-select-wrap").size());
-            assertEquals(3, document.querySelectorAll(".dialog-select").size());
-            assertEquals(3, document.querySelectorAll(".dialog-select-arrow").size());
-            assertEquals(3, document.querySelectorAll(".resource-meta-select[data-tooltip-key]").size());
-            assertEquals(12, document.querySelectorAll(".resource-meta-option[data-tooltip-key]").size());
+            assertEquals(2, document.querySelectorAll(".dialog-select-wrap").size());
+            assertEquals(2, document.querySelectorAll(".dialog-select").size());
+            assertEquals(2, document.querySelectorAll(".dialog-select-arrow").size());
+            assertEquals(2, document.querySelectorAll(".resource-meta-select[data-tooltip-key]").size());
+            assertEquals(8, document.querySelectorAll(".resource-meta-option[data-tooltip-key]").size());
 
             Element select = document.querySelector(".dialog-select");
             Element arrow = document.querySelector(".dialog-select-arrow");

@@ -82,7 +82,9 @@ public class Text {
     public String whiteSpace = "normal";
     public double textIndent = 0;
     public double letterSpacing = 0;
-    public Document.FontMode fontMode = Document.FontMode.WEB_SCALED;
+    // 字体渲染固定为 web 模式：默认字号 16px，缩放基准 9px（即字号即实际渲染像素）。
+    public static final double DEFAULT_FONT_SIZE = 16d;
+    private static final double FONT_SCALE_BASE = 9d;
     public Size size = null;
     public String rasterBackgroundColor = "unset";
     // 标记该 Text 是否由 flex 容器直接文本节点生成。直接文本节点已由 Flex 布局居中，
@@ -90,8 +92,7 @@ public class Text {
     public boolean flexDirect = false;
 
     public static double getFontSize(Element element) {
-        Document.FontMode fontMode = getFontMode(element);
-        double fontSize = fontMode.defaultFontSize();
+        double fontSize = DEFAULT_FONT_SIZE;
         for (Element e : element.getRouteArray()) {
             e.getComputedStyle();
             String f = getDeclaredFontSize(e);
@@ -307,7 +308,6 @@ public class Text {
         Text cache = naturalMeasurement ? null : element.getRenderer().text.get();
         if (cache != null) return cache;
         Text text = new Text();
-        text.fontMode = getFontMode(element);
         text.content = resolveElementTextContent(element);
         if (element.tagName.equals("INPUT")) text.content = element.value;
         if (element.tagName.equals("TEXTAREA")) text.content = element.value;
@@ -332,7 +332,7 @@ public class Text {
             unresolved |= resolveLetterSpacing(text, style, state);
             if (!unresolved) break;
         }
-        if (text.fontSize == -1) text.fontSize = text.fontMode.defaultFontSize();
+        if (text.fontSize == -1) text.fontSize = DEFAULT_FONT_SIZE;
         if (text.fontWeight == -1) text.fontWeight = 400;
         if (text.color == null) text.color = Color.BLACK;
         if (text.strokeColor == null) text.strokeColor = Color.BLACK;
@@ -364,7 +364,7 @@ public class Text {
         if (text.fontSize != -1) return false;
         String declaredFontSize = getDeclaredFontSize(ancestor);
         if (!declaredFontSize.equals("unset")) {
-            Double parsed = Size.tryResolveLength(declaredFontSize, text.fontMode.defaultFontSize(), Size.getRootFontSize(root.document));
+            Double parsed = Size.tryResolveLength(declaredFontSize, DEFAULT_FONT_SIZE, Size.getRootFontSize(root.document));
             if (parsed != null) text.fontSize = parsed;
         }
         return true;
@@ -634,7 +634,6 @@ public class Text {
                 text.oblique,
                 text.strokeWidth,
                 text.letterSpacing,
-                text.fontMode,
                 text.fontFamily,
                 line
         );
@@ -692,7 +691,6 @@ public class Text {
         h = 31 * h + (whiteSpace == null ? 0 : whiteSpace.hashCode());
         h = 31 * h + (int) Math.round(textIndent * 1000);
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
-        h = 31 * h + (fontMode == null ? 0 : fontMode.hashCode());
         h = 31 * h + (rasterBackgroundColor == null ? 0 : rasterBackgroundColor.hashCode());
         if (cachedKey != null && cachedKeyHash == h) return cachedKey;
 
@@ -712,7 +710,6 @@ public class Text {
                 .append(whiteSpace == null ? "" : whiteSpace).append('/')
                 .append(textIndent).append('/')
                 .append(letterSpacing).append('/')
-                .append(fontMode == null ? "" : fontMode.value()).append('/')
                 .append(rasterBackgroundColor == null ? "" : rasterBackgroundColor);
         cachedKey = sb.toString();
         cachedKeyHash = h;
@@ -753,18 +750,11 @@ public class Text {
     }
 
     public double defaultFontScale() {
-        Document.FontMode mode = fontMode == null ? Document.FontMode.WEB_SCALED : fontMode;
-        return fontSize / mode.defaultFontScaleBase();
+        return fontSize / FONT_SCALE_BASE;
     }
 
     public double renderedFontSize() {
-        Document.FontMode mode = fontMode == null ? Document.FontMode.WEB_SCALED : fontMode;
-        return fontSize * 9.0 / mode.defaultFontScaleBase();
-    }
-
-    private static Document.FontMode getFontMode(Element element) {
-        if (element == null || element.document == null) return Document.FontMode.WEB_SCALED;
-        return element.document.getFontMode();
+        return fontSize;
     }
 
     private static String resolveRasterBackgroundColor(Element element) {
@@ -870,7 +860,6 @@ public class Text {
         h = 31 * h + (int) Math.round(text.textIndent * 1000);
         h = 31 * h + (int) Math.round(text.letterSpacing * 1000);
         h = 31 * h + (int) Math.round(text.lineHeight * 1000);
-        h = 31 * h + (text.fontMode == null ? 0 : text.fontMode.hashCode());
         return h;
     }
 
@@ -1135,7 +1124,7 @@ public class Text {
     }
 
     private record LineMeasureKey(long fontRevision, double fontSize, int fontWeight, boolean oblique, double strokeWidth,
-                                  double letterSpacing, Document.FontMode fontMode, String fontFamily, String line) {
+                                  double letterSpacing, String fontFamily, String line) {
     }
 
     public record WrappedText(List<String> lines, int[] starts, double width) {

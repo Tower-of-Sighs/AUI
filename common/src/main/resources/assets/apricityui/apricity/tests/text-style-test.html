@@ -55,17 +55,6 @@
         </div>
 
         <div class="case">
-            <div class="case-title">B2. font-family fallback chain</div>
-            <div class="hint">预期: 前置不存在字体应被跳过；中英/CJK/符号应尽量从后续字体链找到可显示字形，不应整段丢字。</div>
-            <div class="box sample ff-chain">
-                Missing -> lxgw -> system -> generic
-                ASCII: ApricityUI Font Fallback 12345
-                CJK: 落霞与孤鹜齐飞
-                Symbols: → ★ ✓ §
-            </div>
-        </div>
-
-        <div class="case">
             <div class="case-title">C. text-align 对比</div>
             <div class="hint">预期: 文本分别靠左/居中/靠右。</div>
             <div>
@@ -292,11 +281,6 @@
     .lh-tight { line-height: 1.0; }
     .lh-loose { line-height: 2.0; }
     .stroke { text-stroke: 3px #7ea0c8; }
-    .ff-chain {
-        font-family: "Definitely Missing Font", "lxgw", "Microsoft YaHei", "Segoe UI Symbol", sans-serif;
-        font-size: 12px;
-        line-height: 1.45;
-    }
 
     .ls-normal { letter-spacing: normal; }
     .ls-2 { letter-spacing: 2px; }
