@@ -32,6 +32,8 @@ public class Audio extends Element {
     private String observedSrc = null;
     private boolean observedAttrsInstalled;
     private boolean progressDragging;
+    /** 拖拽中的视觉进度（每帧直读光标更新）；松手时落定到播放器并清空。 */
+    private Double dragFraction = null;
 
     public Audio(Document document) {
         super(document, TAG_NAME);
@@ -49,6 +51,9 @@ public class Audio extends Element {
     public void tick() {
         super.tick();
         syncFromAttributes();
+        // 拖拽中的实际 seek 在 tick（安全上下文）落定：视觉进度每帧直读光标
+        // （drawControls 的 dragFraction），避免在绘制期派发 seeking/seeked 事件。
+        if (progressDragging && dragFraction != null) seekToFraction(dragFraction);
     }
 
     /**
@@ -190,16 +195,30 @@ public class Audio extends Element {
                 togglePlay();
             } else if (hit == HIT_TRACK) {
                 progressDragging = true;
-                seekToPointer(mouse.clientX, rect);
+                dragFraction = trackFractionAt(mouse.clientX, rect);
+                seekToFraction(dragFraction);
             }
         });
         addInternalEventListener("mousemove", event -> {
             if (!(event instanceof MouseEvent mouse) || !progressDragging) return;
+            // mousemove 是 20Hz tick 派发的旧缓存坐标；有每帧直读路径时让它接管，
+            // 否则旧坐标会把每帧算出的 dragFraction 覆盖回去，滑块来回跳。
+            if (livePointerInDocument() != null) return;
             Element.DOMRect rect = getBoundingClientRect();
-            if (rect != null) seekToPointer(mouse.clientX, rect);
+            if (rect == null) return;
+            dragFraction = trackFractionAt(mouse.clientX, rect);
+            seekToFraction(dragFraction);
         });
-        addInternalEventListener("mouseup", event -> progressDragging = false);
-        addInternalEventListener("blur", event -> progressDragging = false);
+        addInternalEventListener("mouseup", event -> {
+            if (!progressDragging) return;
+            if (dragFraction != null) seekToFraction(dragFraction);
+            progressDragging = false;
+            dragFraction = null;
+        });
+        addInternalEventListener("blur", event -> {
+            progressDragging = false;
+            dragFraction = null;
+        });
     }
 
     private void togglePlay() {
@@ -207,13 +226,28 @@ public class Audio extends Element {
         else pause();
     }
 
-    private void seekToPointer(double clientX, Element.DOMRect rect) {
-        double duration = player.getDuration();
-        if (!Double.isFinite(duration) || duration <= 0) return;
+    private double trackFractionAt(double clientX, Element.DOMRect rect) {
         double trackLeft = rect.x + CONTROL_PAD + controlButtonSize(rect.height) + CONTROL_GAP;
         double trackRight = rect.x + rect.width - CONTROL_PAD - CONTROL_TIME_WIDTH;
-        double fraction = (clientX - trackLeft) / Math.max(1.0d, trackRight - trackLeft);
-        player.setCurrentTime(Math.max(0.0d, Math.min(1.0d, fraction)) * duration);
+        return Math.max(0.0d, Math.min(1.0d, (clientX - trackLeft) / Math.max(1.0d, trackRight - trackLeft)));
+    }
+
+    private void seekToFraction(double fraction) {
+        double duration = player.getDuration();
+        if (!Double.isFinite(duration) || duration <= 0) return;
+        player.setCurrentTime(fraction * duration);
+    }
+
+    /**
+     * 屏幕文档每帧直读 GLFW 光标（GUI 坐标 → 文档坐标）：mousemove 事件走输入轮询
+     * 缓存，频率低、坐标可能滞后，拖拽会卡顿。世界窗指针坐标系不同（返回 null，
+     * 仍走事件路径）；headless 无窗口也返回 null。
+     */
+    private Position livePointerInDocument() {
+        if (document == null || document.inWorld) return null;
+        Position mouse = com.sighs.apricityui.spi.AuiServices.client().getMousePositionDirectly();
+        if (mouse == null) return null;
+        return document.screenToDocumentPosition(mouse);
     }
 
     private static float controlButtonSize(double height) {
@@ -256,35 +290,47 @@ public class Audio extends Element {
         float trackRight = (float) (content.x + width - CONTROL_PAD - CONTROL_TIME_WIDTH);
         if (trackRight < trackLeft) trackRight = trackLeft;
 
+        // 菱形 + 紫白默认配色（accentColor 可覆盖紫）
         int accent = resolveAccentColor();
-        int frame = new Color("#767676").getValue();
-        int surface = new Color("#FFFFFF").getValue();
-        int track = new Color("#777777").getValue();
+        int white = new Color("#FFFFFF").getValue();
+        int trackBase = new Color("#DDD6FE").getValue();
 
-        // 播放/暂停键
-        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), bx, by, button, button,
-                uniformRadii(button * 0.25f), surface);
-        Graph.drawComplexRoundedBorder(poseStack.last().pose(), bx, by, button, button,
-                uniformRadii(button * 0.25f),
-                new float[]{1f, 1f, 1f, 1f}, new int[]{frame, frame, frame, frame});
+        // 播放/暂停键：紫色菱形底 + 白色图标
+        float buttonCx = bx + button / 2.0f;
+        Graph.drawDiamond(poseStack.last().pose(), buttonCx, centerY, button * 1.25f, accent);
         Base.offsetPaintDepth(poseStack, CONTROL_DEPTH_OFFSET);
-        if (player.isPaused()) drawPlayTriangle(poseStack, bx, by, button, accent);
-        else drawPauseBars(poseStack, bx, by, button, accent);
+        if (player.isPaused()) drawPlayTriangle(poseStack, bx, by, button, white);
+        else drawPauseBars(poseStack, bx, by, button, white);
 
-        // 进度条
-        double duration = player.getDuration();
-        double fraction = Double.isFinite(duration) && duration > 0
-                ? Math.max(0.0d, Math.min(1.0d, player.getCurrentTime() / duration))
-                : 0.0d;
-        Graph.drawFillRect(poseStack.last().pose(), trackLeft, centerY - 1.5f, trackRight, centerY + 1.5f, track);
-        if (fraction > 0) {
-            Graph.drawFillRect(poseStack.last().pose(), trackLeft, centerY - 1.5f,
-                    trackLeft + (float) ((trackRight - trackLeft) * fraction), centerY + 1.5f, accent);
+        // 进度条：浅紫轨道（4.5px，加粗一半）+ 紫填充 + 菱形滑块。
+        // 拖拽中每帧直读光标更新 dragFraction（丝滑），实际 seek 仍由事件路径/松手时落定。
+        if (progressDragging) {
+            Position live = livePointerInDocument();
+            if (live != null) {
+                dragFraction = Math.max(0.0d, Math.min(1.0d,
+                        (live.x - trackLeft) / Math.max(1.0d, (double) trackRight - trackLeft)));
+            }
         }
+        double duration = player.getDuration();
+        double fraction = dragFraction != null ? dragFraction
+                : (Double.isFinite(duration) && duration > 0
+                        ? Math.max(0.0d, Math.min(1.0d, player.getCurrentTime() / duration))
+                        : 0.0d);
+        Graph.drawFillRect(poseStack.last().pose(), trackLeft, centerY - 2.25f, trackRight, centerY + 2.25f, trackBase);
+        if (fraction > 0) {
+            Graph.drawFillRect(poseStack.last().pose(), trackLeft, centerY - 2.25f,
+                    trackLeft + (float) ((trackRight - trackLeft) * fraction), centerY + 2.25f, accent);
+        }
+        Base.offsetPaintDepth(poseStack, CONTROL_DEPTH_OFFSET);
+        float knobX = trackLeft + (float) ((trackRight - trackLeft) * fraction);
+        Graph.drawDiamond(poseStack.last().pose(), knobX, centerY, 9f, accent);
 
-        // 时间文本
+        // 时间文本（拖拽中显示拖拽落点）
+        double shownTime = dragFraction != null && Double.isFinite(duration) && duration > 0
+                ? dragFraction * duration
+                : player.getCurrentTime();
         Text text = Text.of(this);
-        text.content = formatTime(player.getCurrentTime()) + " / " + formatTime(duration);
+        text.content = formatTime(shownTime) + " / " + formatTime(duration);
         text.color = new Color(Text.getFontColor(this));
         double textY = content.y + (height - text.lineHeight) / 2.0d;
         FontDrawer.drawFont(poseStack, text, new Position(trackRight + CONTROL_GAP, textY));
@@ -328,12 +374,8 @@ public class Audio extends Element {
         String accent = getComputedStyle().accentColor;
         if (accent == null || accent.isBlank() || "unset".equalsIgnoreCase(accent)
                 || "auto".equalsIgnoreCase(accent)) {
-            accent = "#0075FF";
+            accent = "#8b5cf6"; // 默认紫（资源管理器同款）
         }
         return new Color(accent).getValue();
-    }
-
-    private static float[] uniformRadii(float radius) {
-        return new float[]{radius, radius, radius, radius};
     }
 }

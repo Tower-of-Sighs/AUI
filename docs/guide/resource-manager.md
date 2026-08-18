@@ -111,10 +111,10 @@ src/main/resources/assets/apricityui/apricity/
 **右键菜单**：
 
 - 文件夹：OPEN、NEW FILE HERE；
-- 文件：PREVIEW（HTML/图片/字体）、REFERENCE（生成引用代码）、EDIT META（仅本地 HTML）、COPY PATH（逻辑路径）、COPY SOURCE（来源路径）、OPEN FOLDER、PROPERTIES；
+- 文件：PREVIEW（HTML/图片/字体/音频）、REFERENCE（生成引用代码）、EDIT META（仅本地 HTML）、COPY PATH（逻辑路径）、COPY SOURCE（来源路径）、OPEN FOLDER、PROPERTIES；
 - 空白处：NEW FILE、GO UP、REFRESH。
 
-**预览**：双击 HTML 会开一个可交互的预览窗口（按钮能点、输入框能敲），但预览里的改动不会写回源文件——改结构用 DevTools 的保存，改 meta 用 EDIT META。图片双击放大看，字体会显示中英文示例。
+**预览**：双击 HTML 会开一个可交互的预览窗口（按钮能点、输入框能敲），但预览里的改动不会写回源文件——改结构用 DevTools 的保存，改 meta 用 EDIT META。图片双击放大看，字体会显示中英文示例，音频（OGG/WAV）会弹出内置播放器（`<audio controls>` 控件条：播放/暂停、拖动进度条 seek、时间显示），关窗即停。
 
 **新建 HTML**：NEW FILE 支持三种内容来源——本地文件导入、剪贴板、空白模板（可顺带配好常用 meta）。保存路径必须是 `.html` 结尾的相对路径，`../` 绕不出去。保存后自动触发重载，新页面立刻可用。
 

@@ -111,10 +111,10 @@ The UI has four areas: a resource tree on the left, a path navigator at the top,
 **Context menu**:
 
 - Folder: OPEN, NEW FILE HERE;
-- File: PREVIEW (HTML/images/fonts), REFERENCE (generate reference code), EDIT META (local HTML only), COPY PATH (logical path), COPY SOURCE (source path), OPEN FOLDER, PROPERTIES;
+- File: PREVIEW (HTML/images/fonts/audio), REFERENCE (generate reference code), EDIT META (local HTML only), COPY PATH (logical path), COPY SOURCE (source path), OPEN FOLDER, PROPERTIES;
 - Empty space: NEW FILE, GO UP, REFRESH.
 
-**Preview**: Double-clicking an HTML file opens an interactive preview window (buttons can be clicked, inputs can be typed in), but changes made in the preview are not written back to the source file — use DevTools' save for structural changes, and EDIT META for meta changes. Double-clicking an image zooms it; fonts show Chinese and English samples.
+**Preview**: Double-clicking an HTML file opens an interactive preview window (buttons can be clicked, inputs can be typed in), but changes made in the preview are not written back to the source file — use DevTools' save for structural changes, and EDIT META for meta changes. Double-clicking an image zooms it; fonts show Chinese and English samples; audio files (OGG/WAV) pop up a built-in player (the `<audio controls>` bar: play/pause, drag-to-seek progress, time display) that stops when the window closes.
 
 **New HTML**: NEW FILE supports three content sources — importing a local file, the clipboard, and a blank template (with common meta optionally pre-configured). The save path must be a relative path ending in `.html`; `../` cannot escape. Saving automatically triggers a reload, so the new page is usable immediately.
 

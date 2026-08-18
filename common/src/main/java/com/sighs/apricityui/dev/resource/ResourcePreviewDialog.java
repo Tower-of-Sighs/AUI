@@ -27,11 +27,13 @@ public final class ResourcePreviewDialog {
     private Element viewport;
     private Element imageView;
     private Element fontTextArea;
+    private Element audioView;
     private DialogWindow dialog;
     private String sourcePath = "";
     private String fontFamily = "";
     private boolean imagePreview;
     private boolean fontPreview;
+    private boolean audioPreview;
 
     public void open(Document owner, Loader.StaticResourceEntry entry) {
         if (owner == null || owner.body == null || entry == null) return;
@@ -42,6 +44,7 @@ public final class ResourcePreviewDialog {
         this.sourcePath = path;
         this.imagePreview = isImage(entry);
         this.fontPreview = ResourceFontAsset.isFont(entry);
+        this.audioPreview = isAudio(entry);
         if (fontPreview) {
             fontFamily = ResourceFontAsset.familyName(entry);
             if (!ResourceFontAsset.ensureLoaded(entry)) {
@@ -50,8 +53,8 @@ public final class ResourcePreviewDialog {
                 return;
             }
         }
-        this.preview = imagePreview || fontPreview ? null : Document.create(path);
-        if (!imagePreview && !fontPreview && preview == null) {
+        this.preview = imagePreview || fontPreview || audioPreview ? null : Document.create(path);
+        if (!imagePreview && !fontPreview && !audioPreview && preview == null) {
             ToastManager.show("Preview unavailable");
             return;
         }
@@ -68,6 +71,13 @@ public final class ResourcePreviewDialog {
         DialogWindow current = dialog;
         // Clear before closing: DialogWindow.close() re-invokes this via onClose.
         dialog = null;
+        // 先摘掉音频元素：Audio.remove() 停播并释放后端资源，避免关窗后还在响
+        if (audioView != null) {
+            try {
+                audioView.remove();
+            } catch (Throwable ignored) {
+            }
+        }
         if (current != null) current.close();
         if (preview != null && !preview.isDisposed()) preview.remove();
         owner = null;
@@ -75,15 +85,17 @@ public final class ResourcePreviewDialog {
         viewport = null;
         imageView = null;
         fontTextArea = null;
+        audioView = null;
         sourcePath = "";
         fontFamily = "";
         imagePreview = false;
         fontPreview = false;
+        audioPreview = false;
     }
 
     public boolean isOpen() {
         return dialog != null && dialog.isOpen()
-                && (imagePreview || fontPreview || (preview != null && !preview.isDisposed()));
+                && (imagePreview || fontPreview || audioPreview || (preview != null && !preview.isDisposed()));
     }
 
     public static void draw(PoseStack poseStack) {
@@ -162,6 +174,15 @@ public final class ResourcePreviewDialog {
                     + "font-family:'" + fontFamily + "',sans-serif;font-size:42px;line-height:1.5;"
                     + "font-weight:400;letter-spacing:0;white-space:pre-wrap;overflow:auto;");
             viewport.append(fontTextArea);
+        } else if (audioPreview) {
+            // 内置播放器：直接复用 <audio controls> 自绘控件条（播放/暂停 + 拖动 seek + 时间）
+            viewport.setAttribute("style", "position:relative;flex:1;min-height:0;background:#fff;border:1px solid var(--gray-light);overflow:hidden;display:flex;align-items:center;justify-content:center;");
+            audioView = Element.init(owner.createElement("AUDIO"));
+            audioView.setAttribute("controls", "");
+            audioView.setAttribute("src", "/" + sourcePath);
+            audioView.setAttribute("style", "width:86%;height:32px;");
+            viewport.append(audioView);
+            audioView.tick(); // 立即同步 src→加载，时长尽早可用（等价 preload=auto）
         }
         body.append(viewport);
         viewport.addEventListener("mousedown", this::forward);
@@ -196,7 +217,7 @@ public final class ResourcePreviewDialog {
 
     private void drawPreview(PoseStack poseStack) {
         if (!isOpen() || viewport == null) return;
-        if (imagePreview || fontPreview) {
+        if (imagePreview || fontPreview || audioPreview) {
             // The preview image is appended after the manager's normal frame tick.
             // Keep its async texture handle alive for the full dialog lifetime.
             if (imageView != null) imageView.tick();
@@ -262,5 +283,6 @@ public final class ResourcePreviewDialog {
         preview.markDirty(Drawer.RELAYOUT | Drawer.REPAINT | Drawer.REORDER);
     }
     private static boolean isImage(Loader.StaticResourceEntry entry) { String ext = safe(entry.extension()).toLowerCase(java.util.Locale.ROOT); return ext.equals("png") || ext.equals("jpg") || ext.equals("jpeg") || ext.equals("bmp") || ext.equals("gif") || ext.equals("webp"); }
+    private static boolean isAudio(Loader.StaticResourceEntry entry) { String ext = safe(entry.extension()).toLowerCase(java.util.Locale.ROOT); return ext.equals("ogg") || ext.equals("wav"); }
     private static String safe(String value) { return value == null ? "" : value; }
 }

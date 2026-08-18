@@ -165,6 +165,19 @@ public class Graph {
         });
     }
 
+    /** 实心菱形：逐行矩形扫描，中线最宽、上下收尖（控件 UI 的统一造型）。 */
+    public static void drawDiamond(Matrix4f matrix, float cx, float cy, float diagonal, int color) {
+        int rows = Math.max(1, Math.round(diagonal));
+        float half = rows / 2.0f;
+        for (int row = 0; row < rows; row++) {
+            float distanceFromCenter = Math.abs(row + 0.5f - half) / half;
+            float rowWidth = diagonal * (1.0f - distanceFromCenter);
+            if (rowWidth <= 0) continue;
+            float y = cy - half + row;
+            drawFillRect(matrix, cx - rowWidth / 2.0f, y, cx + rowWidth / 2.0f, y + 1f, color);
+        }
+    }
+
     public static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, int color) {
         drawUnifiedRoundedRect(mat, x, y, w, h, radii, (px, py) -> color);
     }

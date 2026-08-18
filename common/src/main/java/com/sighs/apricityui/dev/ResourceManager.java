@@ -46,6 +46,7 @@ public final class ResourceManager {
     private static final String LOCK_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"10\" y=\"18\" width=\"20\" height=\"16\" fill=\"#8b5cf6\"/><path d=\"M14 18v-5a6 6 0 0 1 12 0v5\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><circle cx=\"20\" cy=\"26\" r=\"2\" fill=\"#fff\"/></svg>";
     private static final String ARCHIVE_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"6\" y=\"4\" width=\"28\" height=\"32\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><rect x=\"18\" y=\"6\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/><rect x=\"18\" y=\"14\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/><rect x=\"18\" y=\"22\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/></svg>";
     private static final String CONFIG_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"6\" y=\"4\" width=\"28\" height=\"32\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><circle cx=\"20\" cy=\"20\" r=\"6\" fill=\"none\" stroke=\"#8b5cf6\" stroke-width=\"2\"/><rect x=\"18\" y=\"10\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/><rect x=\"18\" y=\"26\" width=\"4\" height=\"4\" fill=\"#8b5cf6\"/></svg>";
+    private static final String AUDIO_ICON = "<svg viewBox=\"0 0 40 40\" fill=\"none\"><rect x=\"6\" y=\"4\" width=\"28\" height=\"32\" fill=\"none\" stroke=\"#1a1a1a\" stroke-width=\"2\"/><path d=\"M13 17v6h4l6 5V12l-6 5h-4z\" fill=\"#8b5cf6\"/><path d=\"M26 16a5.5 5.5 0 0 1 0 8\" fill=\"none\" stroke=\"#8b5cf6\" stroke-width=\"2\"/><path d=\"M29 13a9.5 9.5 0 0 1 0 14\" fill=\"none\" stroke=\"#8b5cf6\" stroke-width=\"2\" opacity=\"0.45\"/></svg>";
 
     private static Document toolDocument;
     private static FolderNode root = new FolderNode("ROOT", ROOT_PATH);
@@ -770,6 +771,7 @@ public final class ResourceManager {
         if (entry == null) return FILE_ICON;
         String extension = safe(entry.extension()).toLowerCase(Locale.ROOT);
         if (isImagePreviewable(entry)) return IMAGE_ICON;
+        if (isAudioPreviewable(entry)) return AUDIO_ICON;
         if (extension.equals("lock")) return LOCK_ICON;
         if (extension.equals("zip") || extension.equals("jar") || extension.equals("rar") || extension.equals("7z")) return ARCHIVE_ICON;
         if (extension.equals("json") || extension.equals("toml") || extension.equals("properties") || extension.equals("cfg") || extension.equals("conf")) return CONFIG_ICON;
@@ -787,8 +789,13 @@ public final class ResourceManager {
         return extension.equals("html") || extension.equals("htm");
     }
 
+    private static boolean isAudioPreviewable(Loader.StaticResourceEntry entry) {
+        String extension = entry == null ? "" : safe(entry.extension()).toLowerCase(Locale.ROOT);
+        return extension.equals("ogg") || extension.equals("wav");
+    }
+
     private static boolean isPreviewable(Loader.StaticResourceEntry entry) {
-        return isHtmlPreviewable(entry) || isImagePreviewable(entry) || ResourceFontAsset.isFont(entry);
+        return isHtmlPreviewable(entry) || isImagePreviewable(entry) || isAudioPreviewable(entry) || ResourceFontAsset.isFont(entry);
     }
 
     private static String resolveSourceForCopy(Loader.StaticResourceEntry entry) {

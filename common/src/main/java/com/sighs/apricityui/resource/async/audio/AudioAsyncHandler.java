@@ -61,14 +61,18 @@ public final class AudioAsyncHandler extends AbstractAsyncHandler<AudioAsyncHand
     private void decodeOnWorker(AudioHandle handle) {
         DecodedAudio decoded;
         try {
+            byte[] bytes;
             try (InputStream stream = ClientLoader.getResourceStream(handle.path())) {
                 if (stream == null) {
                     throw new IllegalStateException("未找到音频资源: " + handle.path());
                 }
-                decoded = AudioDecoder.decode(handle.path(), stream.readAllBytes());
+                bytes = stream.readAllBytes();
             }
+            decoded = AudioDecoder.decode(handle.path(), bytes);
             if (decoded == null) {
-                handle.markFailed(new IllegalStateException("音频解码失败: " + handle.path()), System.currentTimeMillis());
+                String reason = AudioDecoder.rejectionReason(handle.path(), bytes);
+                ApricityUI.LOGGER.warn("[AUI Audio] audio decode rejected path={} reason={}", handle.path(), reason);
+                handle.markFailed(new IllegalStateException("音频解码失败: " + handle.path() + "（" + reason + "）"), System.currentTimeMillis());
                 return;
             }
         } catch (Exception exception) {

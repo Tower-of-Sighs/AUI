@@ -101,6 +101,27 @@ class WavDecoderTest {
 
     // --------------------------------------------------------------
 
+    @Test
+    void rejectionReasonDiagnosesUnsupportedAndCorrupt() {
+        byte[] garbage = "not audio at all.........".getBytes();
+        // 不支持的扩展名：点名格式 + 后缀
+        String mp3 = AudioDecoder.rejectionReason("bgm.mp3", garbage);
+        assertTrue(mp3.contains("不支持的音频格式"), "mp3 应报不支持: " + mp3);
+        assertTrue(mp3.contains(".mp3"), "应带出扩展名: " + mp3);
+        // 无扩展名且无魔数
+        assertTrue(AudioDecoder.rejectionReason("no-extension", garbage).contains("不支持的音频格式"));
+        // wav 扩展名但内容不是 PCM（float 格式）
+        assertTrue(AudioDecoder.rejectionReason("bad.wav", wav(3, 1, 8000, 16, 100)).contains("WAV 解码失败"));
+        // RIFF 魔数但非法（扩展名无关也走 WAV 原因）
+        assertTrue(AudioDecoder.rejectionReason("bad.bin", wav(3, 1, 8000, 16, 100)).contains("WAV 解码失败"));
+        // ogg 扩展名但内容非 Vorbis
+        assertTrue(AudioDecoder.rejectionReason("bad.ogg", garbage).contains("OGG 解码失败"));
+        // 空文件
+        assertTrue(AudioDecoder.rejectionReason("empty.wav", new byte[0]).contains("为空"));
+    }
+
+    // --------------------------------------------------------------
+
     private static short sampleAt(byte[] pcm, int index) {
         return (short) ((pcm[index * 2] & 0xFF) | (pcm[index * 2 + 1] << 8));
     }
