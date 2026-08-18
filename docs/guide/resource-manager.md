@@ -118,7 +118,7 @@ src/main/resources/assets/apricityui/apricity/
 
 **新建 HTML**：NEW FILE 支持三种内容来源——本地文件导入、剪贴板、空白模板（可顺带配好常用 meta）。保存路径必须是 `.html` 结尾的相对路径，`../` 绕不出去。保存后自动触发重载，新页面立刻可用。
 
-**EDIT META**：编辑 HTML head 里的 AUI meta（`aui-font-mode`、`aui-viewport`、`aui-mouse-events` 和 charset），非 AUI 的 meta 和 body 原样保留。资源包里的文件没有可写来源，此项禁用。各 meta 的含义见 [ApricityScreen 文档](apricity-screen#页面-meta-配置)。
+**EDIT META**：编辑 HTML head 里的 AUI meta（`aui-viewport`、`aui-mouse-events` 和 charset），非 AUI 的 meta 和 body 原样保留。资源包里的文件没有可写来源，此项禁用。各 meta 的含义见 [ApricityScreen 文档](apricity-screen#页面-meta-配置)。
 
 **REFERENCE**：一键生成引用代码并复制到剪贴板——图片给 CSS 背景和 `<img>` 两种写法，字体给 `@font-face` 注册 + `font-family` 使用，HTML 给 Screen / Overlay / WorldWindow / KubeJS 等各种打开方式。
 

@@ -272,7 +272,8 @@ public final class ShorthandParser {
         }
 
         int numericCount = 0;
-        String basis = "auto";
+        // 规范：flex 简写省略 basis 时为 0%（如 `flex: 2 1` ≡ 2 1 0%），不是 auto。
+        String basis = "0%";
         String growValue = "0";
         String shrinkValue = "1";
 

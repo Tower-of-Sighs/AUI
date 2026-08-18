@@ -21,7 +21,6 @@ Overlay 是不依附于任何 Minecraft Screen 的 Document：`ApricityUI.create
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
 </head>
 <body>

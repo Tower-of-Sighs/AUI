@@ -529,18 +529,19 @@ public record Size(double width, double height) {
                                              String minValue, String maxValue, double percentBasis,
                                              boolean allowPercentResolution) {
         double result = contentExtent;
-        Double minParsed = parseNumber(minValue);
-        if (minParsed != null) {
-            if (!isPercent(minValue) || allowPercentResolution) {
-                double minTotal = resolveLength(minValue, percentBasis, minParsed);
-                result = Math.max(result, Math.max(0, minTotal - boxExtent));
-            }
-        }
+        // CSS2.1 §10.4/§10.7：min/max 冲突时 min 胜出——先钳 max 再钳 min。
         Double maxParsed = parseNumber(maxValue);
         if (maxParsed != null) {
             if (!isPercent(maxValue) || allowPercentResolution) {
                 double maxTotal = resolveLength(maxValue, percentBasis, maxParsed);
                 result = Math.min(result, Math.max(0, maxTotal - boxExtent));
+            }
+        }
+        Double minParsed = parseNumber(minValue);
+        if (minParsed != null) {
+            if (!isPercent(minValue) || allowPercentResolution) {
+                double minTotal = resolveLength(minValue, percentBasis, minParsed);
+                result = Math.max(result, Math.max(0, minTotal - boxExtent));
             }
         }
         return Math.max(0, result);

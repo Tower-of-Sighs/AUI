@@ -31,7 +31,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 - ✅ 属性各种写法、注释、doctype 剥离、自闭合与 void 标签、script/style raw text、总是合成 html/head/body；
 - 🟡 命名实体只有 `amp apos gt lt nbsp quot` 六个 + 数字实体；有弹栈错误恢复，但**没有浏览器的隐含标签生成**——不会自动闭合 `<p>`、不补 `<tbody>`；
 - 🟡 `<script>` 带 src 又写内联时**两个都执行**（非标准）；没有 defer/async/module；
-- `<head>` 子节点（title 等）不进 DOM，没有 `document.title`；`<meta>` 只读三个 aui-* 专用配置（见 [meta 章节](apricity-screen#页面-meta-配置)），charset 固定 UTF-8。
+- `<head>` 子节点（title 等）不进 DOM，没有 `document.title`；`<meta>` 只读 aui-viewport、aui-mouse-events 两个 aui-* 专用配置（见 [meta 章节](apricity-screen#页面-meta-配置)），charset 固定 UTF-8。
 
 ## HTML 元素
 
@@ -89,7 +89,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **定位**：static/relative/fixed/absolute ✅（absolute 包含块规则正常；已知偏差：双侧 auto 锚定包含块原点而非静态位置，transform/filter 祖先不形成包含块）；z-index ✅；**sticky ❌、float/clear ❌**。
 
-**Flexbox**：row/column、row-reverse/column-reverse、wrap/wrap-reverse、justify-content 六值、grow/shrink/basis、gap、auto margin、匿名 item、order、align-content 都 ✅；align-items/align-self 的 **baseline 在 row 方向生效**（column 方向仍退化为 flex-start）。
+**Flexbox**：row/column、row-reverse/column-reverse、wrap/wrap-reverse（**含 column 方向换行**：定高容器按累计高超限切列，列内 justify-content、列间 align-content、列内 align-items 均生效；auto 高按规范保持单列）、justify-content 六值及 `start`/`end`/`left`/`right`/`normal` 别名（`left`/`right` 在 column 方向按规范退 flex-start）、grow/shrink/basis（**`flex-basis: content` 取自然尺寸不塌缩**；`flex` 简写省略 basis 时按规范为 `0%`）、**分配过程遵守 min/max**（flex base 先钳成 hypothetical main size，min 冲突时胜出；grow 触 max 冻结并把余量重分给兄弟项，全冻结后剩余空间交给 justify-content）、gap、auto margin、匿名 item、order、align-content（含 `end`/`normal`，后者按规范等同 stretch）都 ✅；匿名文本项（直接文本）在 row 容器内容宽处**软换行** ✅（已知 MVP 偏差：混排时文本按容器全宽折行而非 shrink 后实分宽度；多个匿名项各自按全宽折行）；align-items/align-self 的 **baseline ✅**：row 方向按基线共享组对齐（混合 align-self 时仅 computed 值为 baseline 的项进组，其余项保持自身对齐）、wrap 容器按每一行分别对齐、column 方向按规范等价 flex-start；`first baseline`/`last baseline` 别名按规范等同 `baseline`。
 
 **Grid**（MVP）：template-columns/rows（px/auto/fr/minmax/repeat 含 auto-fill/fit）、gap、items/self 对齐、`grid-row/column` 的 `N`、`span N`、`N / M`、自动放置 ✅；❌ 命名线、template-areas、auto-flow、隐式轨道、place-* 简写、subgrid。
 
@@ -121,7 +121,8 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 - ✅ font-family（@font-face + 回退链）、font-size、line-height、text-indent、letter-spacing、white-space 六值、text-overflow:ellipsis、line-clamp、direction、text-transform（uppercase/lowercase/capitalize）；
 - 🟡 font-weight（bolder/lighter 固定映射 700/300，不按父权重算）；**font-style 只认 oblique，italic 不触发斜体**；text-align 的 **justify 等同 start**；text-decoration 只有 underline/line-through；
 - ❌ font 简写、text-shadow、word-break、overflow-wrap、word-spacing；
-- 非标准扩展：`selection-color`（选区颜色）、`text-stroke`（描边）。
+- 非标准扩展：`selection-color`（选区颜色）、`text-stroke`（描边）；
+- 默认字号固定 **16px**（web 语义：font-size 即实际渲染像素，em/rem 基准同为 16px）。
 
 ## 颜色、交互、动画
 

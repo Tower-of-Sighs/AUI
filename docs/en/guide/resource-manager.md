@@ -118,7 +118,7 @@ The UI has four areas: a resource tree on the left, a path navigator at the top,
 
 **New HTML**: NEW FILE supports three content sources — importing a local file, the clipboard, and a blank template (with common meta optionally pre-configured). The save path must be a relative path ending in `.html`; `../` cannot escape. Saving automatically triggers a reload, so the new page is usable immediately.
 
-**EDIT META**: Edits the AUI meta tags in the HTML head (`aui-font-mode`, `aui-viewport`, `aui-mouse-events`, and charset); non-AUI meta and the body are preserved as-is. Files from resource packs have no writable source, so this item is disabled for them. For the meaning of each meta, see the [ApricityScreen doc](apricity-screen#page-meta-configuration).
+**EDIT META**: Edits the AUI meta tags in the HTML head (`aui-viewport`, `aui-mouse-events`, and charset); non-AUI meta and the body are preserved as-is. Files from resource packs have no writable source, so this item is disabled for them. For the meaning of each meta, see the [ApricityScreen doc](apricity-screen#page-meta-configuration).
 
 **REFERENCE**: Generates reference code and copies it to the clipboard in one click — images get both CSS background and `<img>` snippets, fonts get `@font-face` registration + `font-family` usage, and HTML gets various opening methods such as Screen / Overlay / WorldWindow / KubeJS.
 

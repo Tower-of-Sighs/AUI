@@ -350,28 +350,36 @@ public final class TextSelection {
             }
             double px = originX + layout.position().x - unit.scrollLeft;
             double py = originY + layout.position().y - unit.scrollTop;
+            List<String> lines = layout.lines();
+            int[] starts = layout.lineStarts();
+            double totalHeight = lines.size() * text.lineHeight;
             double distance = y < py ? py - y
-                    : (y > py + text.lineHeight ? y - (py + text.lineHeight) : 0);
+                    : (y > py + totalHeight ? y - (py + totalHeight) : 0);
             if (distance > bestDistance) continue;
             bestDistance = distance;
-            double lineWidth = Text.measureLine(text, text.content);
+            // 软换行后先按 y 定位行，再在行内按字符宽度定位；
+            // offset 用行起始索引平移回原文坐标。
+            int lineIndex = (int) Math.floor((y - py) / text.lineHeight);
+            lineIndex = Math.max(0, Math.min(lines.size() - 1, lineIndex));
+            String line = lines.get(lineIndex);
+            double lineWidth = Text.measureLine(text, line);
             int local;
             double relativeX = x - px;
             if (relativeX <= 0) {
                 local = 0;
             } else if (relativeX >= lineWidth) {
-                local = text.content.length();
+                local = line.length();
             } else {
                 double currentWidth = 0;
                 local = 0;
-                for (int c = 0; c < text.content.length(); c++) {
-                    double charWidth = Text.measureLine(text, text.content.substring(c, c + 1));
+                for (int c = 0; c < line.length(); c++) {
+                    double charWidth = Text.measureLine(text, line.substring(c, c + 1));
                     if (relativeX <= currentWidth + charWidth / 2.0) break;
                     currentWidth += charWidth;
                     local++;
                 }
             }
-            bestOffset = Math.min(base + local, flattened.length());
+            bestOffset = Math.min(base + starts[lineIndex] + local, flattened.length());
         }
         return bestOffset;
     }
@@ -400,9 +408,14 @@ public final class TextSelection {
             if (text.content == null || text.content.isEmpty()) continue;
             double px = ox + layout.position().x - unit.scrollLeft;
             double py = oy + layout.position().y - unit.scrollTop;
-            if (y < py || y >= py + text.lineHeight) continue;
-            double lineWidth = Text.measureLine(text, text.content);
-            if (x >= px && x <= px + lineWidth) return true;
+            // 软换行后逐行判定：y 落在某一行内且 x 不超出该行宽度。
+            List<String> lines = layout.lines();
+            for (int i = 0; i < lines.size(); i++) {
+                double lineY = py + i * text.lineHeight;
+                if (y < lineY || y >= lineY + text.lineHeight) continue;
+                double lineWidth = Text.measureLine(text, lines.get(i));
+                if (x >= px && x <= px + lineWidth) return true;
+            }
         }
         return false;
     }

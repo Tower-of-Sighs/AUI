@@ -994,6 +994,18 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void flexShorthandOmittedBasisDefaultsToZeroPercent() {
+        Style style = new Style();
+        style.merge("flex: 2 1;");
+        style.finalizeComputedValues(null);
+
+        assertEquals("2", style.flexGrow);
+        assertEquals("1", style.flexShrink);
+        // 规范：简写省略 basis 时为 0%，不是 auto。
+        assertEquals("0%", style.flexBasis);
+    }
+
+    @Test
     void transformTranslateSupportsCalcSyntax() {
         List<Transform> transforms = Transform.parse("translateX(calc(100% + 2rem))");
 

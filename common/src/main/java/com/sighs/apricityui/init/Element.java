@@ -3101,12 +3101,18 @@ public class Element extends Node {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
             if (text.content == null || text.content.isEmpty()) continue;
+            Position paintPos = getFlexDirectTextPaintPosition(layout);
+            List<String> lines = layout.lines();
+            int[] starts = layout.lineStarts();
             if (selectionRange == null || fragments == null) {
-                FontDrawer.drawFont(
-                        poseStack,
-                        TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK),
-                        getFlexDirectTextPaintPosition(layout)
-                );
+                // 匿名文本项可能已按容器宽度软换行：逐行绘制，行距 lineHeight。
+                for (int i = 0; i < lines.size(); i++) {
+                    FontDrawer.drawFont(
+                            poseStack,
+                            TextMetrics.cloneTextForSegment(text, lines.get(i), Color.BLACK),
+                            new Position(paintPos.x, paintPos.y + i * text.lineHeight)
+                    );
+                }
                 continue;
             }
             int base = accumulatedBase;
@@ -3119,21 +3125,25 @@ public class Element extends Node {
             }
             int segStart = Math.max(selectionRange[0], base);
             int segEnd = Math.min(selectionRange[1], base + text.content.length());
-            Position paintPos = getFlexDirectTextPaintPosition(layout);
-            if (segStart >= segEnd) {
-                FontDrawer.drawFont(
-                        poseStack,
-                        TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK),
-                        paintPos
-                );
-                continue;
+            // 选中文字保持原色；高亮背景按行拆分：行内子串量宽逻辑不变，
+            // y 按行推进，offset 用行起始索引平移。每行仍整行一次绘制，
+            // 避免分段光栅的 ink 锚定差异导致垂直错位。
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                int lineStart = base + starts[i];
+                int lineEnd = lineStart + line.length();
+                double lineY = paintPos.y + i * text.lineHeight;
+                int highlightStart = Math.max(segStart, lineStart);
+                int highlightEnd = Math.min(segEnd, lineEnd);
+                if (highlightStart < highlightEnd) {
+                    double x0 = paintPos.x + measureTextSegment(text, line.substring(0, highlightStart - lineStart));
+                    double x1 = paintPos.x + measureTextSegment(text, line.substring(0, highlightEnd - lineStart));
+                    Graph.drawFillRect(poseStack.last().pose(), (float) x0, (float) lineY,
+                            (float) x1, (float) (lineY + text.lineHeight), Text.getSelectionColor(this));
+                }
+                FontDrawer.drawFont(poseStack, TextMetrics.cloneTextForSegment(text, line, Color.BLACK),
+                        new Position(paintPos.x, lineY));
             }
-            double x0 = paintPos.x + measureTextSegment(text, text.content.substring(0, segStart - base));
-            double x1 = paintPos.x + measureTextSegment(text, text.content.substring(0, segEnd - base));
-            Graph.drawFillRect(poseStack.last().pose(), (float) x0, (float) paintPos.y,
-                    (float) x1, (float) (paintPos.y + text.lineHeight), Text.getSelectionColor(this));
-            // 选中文字保持原色，整段一次绘制，避免分段光栅的 ink 锚定差异导致垂直错位
-            FontDrawer.drawFont(poseStack, TextMetrics.cloneTextForSegment(text, text.content, Color.BLACK), paintPos);
         }
     }
 

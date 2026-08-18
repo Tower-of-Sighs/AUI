@@ -42,7 +42,6 @@ Two ways to create one: use NEW FILE with a template in F10; or manually create 
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
     <meta name="aui-mouse-events" content="intercept">
     <style>
@@ -67,7 +66,7 @@ Two ways to create one: use NEW FILE with a template in F10; or manually create 
 
 It's just an ordinary web page. Only three things need explaining:
 
-**The three metas are page configuration**: `aui-font-mode=web` makes fonts follow web rules; `aui-viewport` gives the page a browser-style logical viewport; `aui-mouse-events=intercept` makes the page intercept the mouse — without this line, clicks may not reach the page. Full explanation in the [meta section of ApricityScreen](guide/apricity-screen#page-meta-configuration); for now it's enough to know each one controls one thing.
+**The two metas are page configuration**: `aui-viewport` gives the page a browser-style logical viewport; `aui-mouse-events=intercept` makes the page intercept the mouse — without this line, clicks may not reach the page. Full explanation in the [meta section of ApricityScreen](guide/apricity-screen#page-meta-configuration); for now it's enough to know each one controls one thing.
 
 **There are no browser default styles**: `h2`, `p`, and `button` come with no appearance at all — font size, color, and spacing are all yours to write. For which CSS works and which gets ignored, see [HTML/CSS Coverage](guide/html-css-coverage).
 

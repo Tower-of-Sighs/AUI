@@ -31,7 +31,7 @@ A regex-based tokenizer, not a standard tree builder.
 - ✅ All attribute syntaxes, comments, doctype stripping, self-closing and void tags, script/style raw text, always synthesizing html/head/body;
 - 🟡 Only six named entities — `amp apos gt lt nbsp quot` — plus numeric entities; there is pop-stack error recovery, but **no browser-style implicit tag generation** — `<p>` is not auto-closed, `<tbody>` is not inserted;
 - 🟡 A `<script>` with both src and inline content executes **both** (non-standard); no defer/async/module;
-- `<head>` children (title, etc.) don't enter the DOM; there is no `document.title`; `<meta>` only reads the three aui-* specific configs (see the [meta section](apricity-screen#page-meta-configuration)); charset is fixed to UTF-8.
+- `<head>` children (title, etc.) don't enter the DOM; there is no `document.title`; `<meta>` only reads the two aui-* specific configs aui-viewport and aui-mouse-events (see the [meta section](apricity-screen#page-meta-configuration)); charset is fixed to UTF-8.
 
 ## HTML Elements
 
@@ -85,7 +85,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 **Positioning**: static/relative/fixed/absolute ✅ (absolute containing block rules are normal; known deviations: both-sides-auto anchors to the containing block origin instead of the static position, and transform/filter ancestors don't establish a containing block); z-index ✅; **sticky ❌, float/clear ❌**.
 
-**Flexbox**: row/column, row-reverse/column-reverse, wrap/wrap-reverse, the six justify-content values, grow/shrink/basis, gap, auto margins, anonymous items, order, align-content all ✅; align-items/align-self **baseline works for row direction** (column direction still degrades to flex-start).
+**Flexbox**: row/column, row-reverse/column-reverse, wrap/wrap-reverse (**including column-direction wrapping**: a definite-height container breaks into columns when the accumulated height overflows; justify-content within a column, align-content between columns, and align-items inside each column all apply; an auto-height container stays a single column per spec), the six justify-content values plus the `start`/`end`/`left`/`right`/`normal` aliases (`left`/`right` fall back to flex-start in column direction per spec), grow/shrink/basis (**`flex-basis: content` uses the natural size instead of collapsing**; an omitted basis in the `flex` shorthand is `0%` per spec), **min/max respected during distribution** (the flex base size is first clamped to the hypothetical main size, min winning conflicts; a grow item that hits its max freezes and redistributes the remainder to siblings, and once everything is frozen the leftover goes to justify-content), gap, auto margins, anonymous items, order, align-content (including `end`/`normal`, the latter behaving as stretch per spec) all ✅; anonymous text items (direct text) **soft-wrap** at the row container's content width ✅ (known MVP deviation: in mixed layouts text wraps at the full container width rather than its shrunken share, and multiple anonymous items each wrap at the full width independently); align-items/align-self **baseline ✅**: row direction aligns within the baseline-sharing group (with mixed align-self, only items whose computed value is baseline join the group — the rest keep their own alignment), wrap containers align per line, and column direction equals flex-start per spec; the `first baseline`/`last baseline` aliases equal `baseline` per spec.
 
 **Grid** (MVP): template-columns/rows (px/auto/fr/minmax/repeat including auto-fill/fit), gap, items/self alignment, `grid-row/column`'s `N`, `span N`, `N / M`, auto placement ✅; ❌ named lines, template-areas, auto-flow, implicit tracks, place-* shorthands, subgrid.
 
@@ -117,7 +117,8 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 - ✅ font-family (@font-face + fallback chain), font-size, line-height, text-indent, letter-spacing, the six white-space values, text-overflow:ellipsis, line-clamp, direction;
 - 🟡 font-weight (bolder/lighter map fixed to 700/300, not computed from the parent's weight); **font-style only honors oblique — italic does not trigger italics**; text-align's **justify is equivalent to start**; text-decoration only has underline/line-through;
 - ❌ font shorthand, text-shadow, text-transform, word-break, overflow-wrap, word-spacing;
-- Non-standard extensions: `selection-color` (selection color), `text-stroke` (text outline).
+- Non-standard extensions: `selection-color` (selection color), `text-stroke` (text outline);
+- The default font size is fixed at **16px** (web semantics: font-size equals the rendered pixel size, and em/rem are based on 16px as well).
 
 ## Color, Interaction, Animation
 

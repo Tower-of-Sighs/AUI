@@ -42,7 +42,6 @@ dependencies {
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
     <meta name="aui-mouse-events" content="intercept">
     <style>
@@ -67,7 +66,7 @@ dependencies {
 
 就是一段普通网页。只有三件事需要解释：
 
-**三个 meta 是页面配置**：`aui-font-mode=web` 让字体按网页规则来；`aui-viewport` 给页面一个浏览器式逻辑视口；`aui-mouse-events=intercept` 让页面拦截鼠标——不加这行，点击可能落不到页面上。完整解释在 [ApricityScreen 的 meta 章节](guide/apricity-screen#页面-meta-配置)，现在知道各管一件事就够。
+**两个 meta 是页面配置**：`aui-viewport` 给页面一个浏览器式逻辑视口；`aui-mouse-events=intercept` 让页面拦截鼠标——不加这行，点击可能落不到页面上。完整解释在 [ApricityScreen 的 meta 章节](guide/apricity-screen#页面-meta-配置)，现在知道各管一件事就够。
 
 **没有浏览器默认样式**：`h2`、`p`、`button` 不自带任何外观，字号、颜色、间距全自己写。哪些 CSS 写法能用、哪些会被忽略，见 [HTML/CSS 覆盖面](guide/html-css-coverage)。
 

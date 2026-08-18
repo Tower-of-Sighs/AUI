@@ -260,12 +260,163 @@ class FlexReverseOrderAlignContentTest {
                 "字号更大的项贴顶，字号更小的项下移以共享基线");
     }
 
+    @Test
+    void justifyContentEndAndRightPackAtTheMainEndInRow() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        for (String keyword : new String[]{"end", "right"}) {
+            Element parent = new Element(document, "div");
+            parent.setAttribute("style", "display: flex; justify-content: " + keyword
+                    + "; align-items: flex-start; width: 200px; height: 100px;");
+            document.body.appendChild(parent);
+            Element first = fixedBox(document, 60, 40);
+            Element second = fixedBox(document, 40, 20);
+            parent.appendChild(first);
+            parent.appendChild(second);
+
+            // CSS Align §6.1/§8.2：row 主轴下 end/right 都等价 flex-end——
+            // 两项打包贴右：second 右缘 = 200，first 在其左。
+            assertEquals(100, Position.getOffset(first).x, 0.01, keyword + " 应等价 flex-end");
+            assertEquals(160, Position.getOffset(second).x, 0.01, keyword + " 应等价 flex-end");
+            parent.remove();
+        }
+    }
+
+    @Test
+    void justifyContentLeftAndRightFallBackToFlexStartInColumn() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // column 主轴与 inline 轴不平行：left/right 按规范退化为 flex-start（贴顶）。
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display: flex; flex-direction: column; justify-content: right; align-items: flex-start; width: 100px; height: 200px;");
+        document.body.appendChild(parent);
+        Element first = fixedBox(document, 60, 40);
+        Element second = fixedBox(document, 40, 20);
+        parent.appendChild(first);
+        parent.appendChild(second);
+
+        assertEquals(0, Position.getOffset(first).y, 0.01);
+        assertEquals(40, Position.getOffset(second).y, 0.01);
+    }
+
+    @Test
+    void alignContentEndPacksLinesAtTheBottom() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = wrapScenario(document, "end");
+
+        // align-content: end 等价 flex-end：剩余 40px 全部压到底部。
+        assertEquals(40, Position.getOffset(parent.getRenderChildren().get(0)).y, 0.01);
+        assertEquals(80, Position.getOffset(parent.getRenderChildren().get(2)).y, 0.01);
+    }
+
+    @Test
+    void alignContentNormalBehavesAsStretch() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // CSS Flexbox §8.3：flex 容器的 align-content: normal 行为同 stretch。
+        Element parent = wrapScenario(document, "normal");
+
+        // 与 alignContentStretchMakesLinesFillTheContainer 相同的几何：
+        // 剩余 40px 均分两行，每行 60px。
+        assertEquals(0, Position.getOffset(parent.getRenderChildren().get(0)).y, 0.01);
+        assertEquals(60, Position.getOffset(parent.getRenderChildren().get(2)).y, 0.01);
+    }
+
+    @Test
+    void firstAndLastBaselineAliasesJoinTheBaselineGroup() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // CSS Align §6.7：flex 场景下 first baseline / last baseline 与 baseline 等价。
+        Element row = new Element(document, "div");
+        row.setAttribute("style", "display: flex; align-items: first baseline; width: 240px; height: 80px;");
+        document.body.appendChild(row);
+
+        Element small = new Element(document, "div");
+        small.setAttribute("style", "width: 60px; height: 40px; font-size: 15px; line-height: 15px;");
+        small.innerText = "Alpha";
+        Element large = new Element(document, "div");
+        large.setAttribute("style", "align-self: last baseline; width: 60px; height: 60px; font-size: 25px; line-height: 25px;");
+        large.innerText = "Beta";
+        row.appendChild(small);
+        row.appendChild(large);
+
+        assertEquals(paintedBaseline(small), paintedBaseline(large), 0.5,
+                "first baseline / last baseline 别名必须与 baseline 一样进入基线共享组");
+        assertTrue(Position.getOffset(small).y > Position.getOffset(large).y,
+                "别名场景下大字号项贴顶、小字号项下移共享基线");
+    }
+
     private static double paintedBaseline(Element element) {
         return Position.getOffset(element).y
                 + Box.of(element).getMarginTop()
                 + Box.of(element).getBorderTop()
                 + Box.of(element).getPaddingTop()
                 + Text.baselineOffset(Text.of(element));
+    }
+
+    @Test
+    void baselineGroupOnlyContainsItemsWhoseComputedAlignSelfIsBaseline() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // 容器 align-items: center，两项 align-self: baseline 进基线共享组，
+        // 未声明 align-self 的项保持 center（CSS Flexbox §8.4：基线组只含
+        // computed align-self 为 baseline 的项，其余项按自己的对齐方式定位）。
+        Element row = new Element(document, "div");
+        row.setAttribute("style", "display: flex; align-items: center; width: 240px; height: 80px;");
+        document.body.appendChild(row);
+
+        Element small = new Element(document, "div");
+        small.setAttribute("style", "align-self: baseline; width: 60px; height: 40px; font-size: 15px; line-height: 15px;");
+        small.innerText = "Alpha";
+        Element large = new Element(document, "div");
+        large.setAttribute("style", "align-self: baseline; width: 60px; height: 60px; font-size: 25px; line-height: 25px;");
+        large.innerText = "Beta";
+        Element centered = fixedBox(document, 60, 40);
+        row.appendChild(small);
+        row.appendChild(large);
+        row.appendChild(centered);
+
+        // 组内两项基线仍然重合
+        assertEquals(paintedBaseline(small), paintedBaseline(large), 0.5,
+                "baseline 组内成员的首行文本基线必须重合");
+        // 组外项不被拉进基线对齐：center → (80-40)/2 = 20
+        assertEquals(20, Position.getOffset(centered).y, 0.01,
+                "computed align-self 为 center 的项保持居中，不参与基线对齐");
+    }
+
+    @Test
+    void columnBaselineFallsBackToFlexStartLikeBrowsers() {
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // CSS Flexbox §8.4：列主轴时项的 inline 轴与交叉轴同为水平方向，
+        // baseline 与 flex-start 等价（浏览器一致行为），不做基线对齐也不拉伸。
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display: flex; flex-direction: column; align-items: baseline; width: 200px; height: 120px;");
+        document.body.appendChild(parent);
+
+        Element first = fixedBox(document, 60, 40);
+        Element second = fixedBox(document, 90, 30);
+        parent.appendChild(first);
+        parent.appendChild(second);
+
+        // 与 flex-start 完全一致：都贴交叉轴起点（左边缘 x=0），按主轴堆叠。
+        assertEquals(0, Position.getOffset(first).x, 0.01);
+        assertEquals(0, Position.getOffset(first).y, 0.01);
+        assertEquals(0, Position.getOffset(second).x, 0.01);
+        assertEquals(40, Position.getOffset(second).y, 0.01);
+        // 降级为 flex-start 而非 stretch：定宽项保持声明宽度，不被拉满到 200px。
+        assertEquals(60, Box.of(first).size().width(), 0.01);
+        assertEquals(90, Box.of(second).size().width(), 0.01);
     }
 
     /** 150x120 的 wrap 容器 + 三个 60x40 子项，形成两行（每行一个 40px 的交叉轴高度）。 */
@@ -281,6 +432,57 @@ class FlexReverseOrderAlignContentTest {
         parent.appendChild(second);
         parent.appendChild(third);
         return parent;
+    }
+
+    @Test
+    void wrappedRowAlignsBaselinesPerLine() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // flex-wrap: wrap 的多行容器按“每一行”分别建基线共享组（CSS Flexbox §8.4/§9.4）。
+        // align-content: flex-start 关掉默认 stretch 的行拉伸，让期望几何精确。
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "display: flex; flex-wrap: wrap; align-content: flex-start; align-items: baseline; width: 150px; height: 120px;");
+        document.body.appendChild(parent);
+
+        // 第一行：small + large（60+60=120 ≤ 150，再加 60 换行）
+        Element small = textItem(document, "Alpha", 60, 40, 15);
+        Element large = textItem(document, "Beta", 60, 60, 25);
+        parent.appendChild(small);
+        parent.appendChild(large);
+        // 第二行：solo（baseline 组成员）+ box（align-self: center，组外项）
+        Element solo = textItem(document, "Solo", 60, 30, 15);
+        Element box = fixedBox(document, 40, 20);
+        box.setAttribute("style", "align-self: center; width: 40px; height: 20px;");
+        parent.appendChild(solo);
+        parent.appendChild(box);
+
+        // 第一行两项字体不同、高度不同，但绘制基线必须重合
+        assertEquals(paintedBaseline(small), paintedBaseline(large), 0.5,
+                "wrap 行内 baseline 组两项的首行文本基线必须重合");
+        // ascent 最大的项贴行顶
+        assertEquals(0, Position.getOffset(large).y, 0.01);
+
+        // 第一行行高 = 组 maxAscent + maxDescent
+        double bSmall = Text.baselineOffset(Text.of(small));
+        double bLarge = Text.baselineOffset(Text.of(large));
+        double lineOneHeight = Math.max(bSmall, bLarge) + Math.max(40 - bSmall, 60 - bLarge);
+
+        // solo 独占第二行的基线组 → 贴第二行行顶
+        assertEquals(lineOneHeight, Position.getOffset(solo).y, 0.5,
+                "换行后第二行的 baseline 项贴行顶（单成员组等价 flex-start）");
+        // 组外项按自己的 align-self: center 在第二行内居中：(30-20)/2 = 5
+        assertEquals(lineOneHeight + 5, Position.getOffset(box).y, 0.5,
+                "组外项不参与基线对齐，按自身 align-self 在行内定位");
+    }
+
+    private static Element textItem(Document document, String text, int width, int height, int fontSize) {
+        Element element = new Element(document, "div");
+        element.setAttribute("style", "width: " + width + "px; height: " + height
+                + "px; font-size: " + fontSize + "px; line-height: " + fontSize + "px;");
+        element.innerText = text;
+        return element;
     }
 
     private static Element fixedBox(Document document, int width, int height) {
