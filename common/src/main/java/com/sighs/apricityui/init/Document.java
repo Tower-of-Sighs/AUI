@@ -472,6 +472,8 @@ public class Document {
         if (lifecycleState == LifecycleState.DISPOSED) return;
         lifecycleState = LifecycleState.DISPOSED;
         clearMutationObservers();
+        // 文档关闭：停止并释放本文档全部音频（含 new Audio() 游离实例）
+        com.sighs.apricityui.media.AudioEngine.releaseDocument(this);
         // 选择单元缓存持有元素引用，随生命周期一并清空
         bumpSelectionCache();
         focus.clearFocus();

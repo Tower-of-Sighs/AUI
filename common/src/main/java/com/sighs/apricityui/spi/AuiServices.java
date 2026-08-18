@@ -40,6 +40,7 @@ public final class AuiServices {
     private static volatile AuiScriptService script = Defaults.SCRIPT;
     private static volatile AuiRenderService render = Defaults.RENDER;
     private static volatile AuiItemRenderService items = Defaults.ITEMS;
+    private static volatile AuiAudioService audio = Defaults.AUDIO;
     private static volatile boolean bootstrapped;
 
     private AuiServices() {
@@ -79,6 +80,10 @@ public final class AuiServices {
 
     public static void setItems(AuiItemRenderService implementation) {
         items = implementation == null ? Defaults.ITEMS : implementation;
+    }
+
+    public static void setAudio(AuiAudioService implementation) {
+        audio = implementation == null ? Defaults.AUDIO : implementation;
     }
 
     public static AuiClientService client() {
@@ -124,6 +129,11 @@ public final class AuiServices {
     public static AuiItemRenderService items() {
         bootstrap();
         return items;
+    }
+
+    public static AuiAudioService audio() {
+        bootstrap();
+        return audio;
     }
 
     /**
@@ -475,6 +485,92 @@ public final class AuiServices {
         };
 
         static final AuiItemRenderService ITEMS = request -> {
+        };
+
+        /**
+         * 时钟模拟后端：不出声，但 play/pause/seek/position 语义完整
+         * （position 按系统时钟推进），使 AudioPlayer 状态机在 headless
+         * 测试 JVM 里可完整测试。游戏内由 target 注册 OpenAL 真后端。
+         */
+        static final AuiAudioService AUDIO = new AuiAudioService() {
+            @Override
+            public AudioBufferHandle createBuffer(com.sighs.apricityui.media.DecodedAudio audio) {
+                if (audio == null) return null;
+                return new AudioBufferHandle() {
+                    @Override
+                    public double durationSeconds() {
+                        return audio.durationSeconds;
+                    }
+
+                    @Override
+                    public void destroy() {
+                    }
+                };
+            }
+
+            @Override
+            public AudioChannel openChannel(AudioBufferHandle buffer) {
+                if (buffer == null) return null;
+                return new AudioChannel() {
+                    private boolean playing;
+                    private boolean destroyed;
+                    private double baseSeconds;
+                    private long startedNanos;
+
+                    @Override
+                    public void play() {
+                        if (destroyed || playing) return;
+                        playing = true;
+                        startedNanos = System.nanoTime();
+                    }
+
+                    @Override
+                    public void pause() {
+                        if (destroyed || !playing) return;
+                        baseSeconds = positionSeconds();
+                        playing = false;
+                    }
+
+                    @Override
+                    public void stop() {
+                        if (destroyed) return;
+                        playing = false;
+                        baseSeconds = 0;
+                    }
+
+                    @Override
+                    public void seekSeconds(double seconds) {
+                        if (destroyed) return;
+                        baseSeconds = Math.max(0, Math.min(seconds, buffer.durationSeconds()));
+                        if (playing) startedNanos = System.nanoTime();
+                    }
+
+                    @Override
+                    public double positionSeconds() {
+                        if (destroyed) return 0;
+                        double position = playing
+                                ? baseSeconds + (System.nanoTime() - startedNanos) / 1_000_000_000.0
+                                : baseSeconds;
+                        return Math.max(0, Math.min(position, buffer.durationSeconds()));
+                    }
+
+                    @Override
+                    public void setVolume(float volume) {
+                    }
+
+                    @Override
+                    public boolean isPlaying() {
+                        // 与时钟一致：position 到尾即视为不在播放（ended 检测靠这个）
+                        return !destroyed && playing && positionSeconds() < buffer.durationSeconds();
+                    }
+
+                    @Override
+                    public void destroy() {
+                        destroyed = true;
+                        playing = false;
+                    }
+                };
+            }
         };
 
         static final AuiRenderService RENDER = new AuiRenderService() {

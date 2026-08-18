@@ -35,7 +35,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## HTML 元素
 
-**有专用实现的标签**：html/head/body、div/span、pre、textarea（多行编辑 + 拖拽 resize）、select/option/optgroup（弹出层 + 完整键盘操作）、canvas（仅 2d）、img（异步加载、load/error；**无 alt 渲染、无 srcset**）、a（仅点击用系统浏览器打开 href）、svg/path（子集）。
+**有专用实现的标签**：html/head/body、div/span、pre、textarea（多行编辑 + 拖拽 resize）、select/option/optgroup（弹出层 + 完整键盘操作）、canvas（仅 2d）、img（异步加载、load/error；**无 alt 渲染、无 srcset**）、audio（HTMLAudioElement 语义、OGG/WAV、controls 自绘控件条；**无视频、无 MP3**）、a（仅点击用系统浏览器打开 href）、svg/path（子集）。
 
 **input 按 type 分档**：
 
@@ -53,7 +53,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 **表单**：submit/requestSubmit/reset、约束校验、FormData 收集、label 关联、fieldset disabled 级联、`form=id` 外部关联都 ✅；action 提交和导航 ❌（只触发事件）。
 
-**无专用类的标签**：p/h1-h6/ul/ol/li/table 等按通用 block/inline 处理，**无 UA 样式**；table 没有表格布局，`display:table` 也降级为 block；br/hr 基本别用；iframe/video/audio/object/embed 无实现。
+**无专用类的标签**：p/h1-h6/ul/ol/li/table 等按通用 block/inline 处理，**无 UA 样式**；table 没有表格布局，`display:table` 也降级为 block；br/hr 基本别用；iframe/video/object/embed 无实现。
 
 **UA 默认样式表**全部内容：约 30 个标签是 inline（a、b、i、code、img、input 等），head/script/style/title/meta/option 等 display:none，其余一切 block。没了。
 

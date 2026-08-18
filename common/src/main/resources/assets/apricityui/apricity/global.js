@@ -31,6 +31,43 @@ let createImageBitmapAsync = function(source, sx, sy, sw, sh) {
 function OffscreenCanvas(width, height) { return window.createOffscreenCanvas(Number(width) || 0, Number(height) || 0); }
 function DOMMatrix(init) { return arguments.length === 0 ? window.createDOMMatrix() : window.createDOMMatrix(init); }
 
+// HTMLAudioElement 桥：Audio Java 元素（getPlayer 为标识）装媒体属性/方法桥。
+// 对 <audio> 解析元素与 new Audio() 游离实例同一生效（__auiDecorateNode 尾部调用）。
+function __auiDecorateAudio(el) {
+  if (!el || el.__auiDecoratedAudio) return el;
+  if (typeof el.getPlayer !== 'function') return el;
+  try {
+    Object.defineProperty(el, '__auiDecoratedAudio', { value: true });
+    __auiInstallValueBridge(el, 'src', () => el.getAttribute('src') || '', (v) => el.setAttribute('src', v == null ? '' : String(v)));
+    __auiInstallValueBridge(el, 'currentSrc', () => el.getAttribute('src') || '');
+    __auiInstallValueBridge(el, 'currentTime', () => el.getCurrentTime(), (v) => el.setCurrentTime(Number(v) || 0));
+    __auiInstallValueBridge(el, 'duration', () => el.getDuration());
+    __auiInstallValueBridge(el, 'volume', () => el.getVolume(), (v) => el.setVolume(Number(v)));
+    __auiInstallValueBridge(el, 'muted', () => !!el.isMuted(), (v) => el.setMuted(!!v));
+    __auiInstallValueBridge(el, 'loop', () => !!el.isLoop(), (v) => el.setLoop(!!v));
+    __auiInstallValueBridge(el, 'paused', () => !!el.isPaused());
+    __auiInstallValueBridge(el, 'ended', () => !!el.isEnded());
+    __auiInstallValueBridge(el, 'seeking', () => !!el.isSeeking());
+    __auiInstallValueBridge(el, 'readyState', () => el.getReadyState());
+    __auiInstallValueBridge(el, 'networkState', () => el.getNetworkState());
+    __auiInstallValueBridge(el, 'preload', () => el.getAttribute('preload') || 'auto', (v) => el.setAttribute('preload', v == null ? '' : String(v)));
+    __auiInstallValueBridge(el, 'autoplay', () => !!el.hasAttribute('autoplay'), (v) => el.toggleAttribute('autoplay', !!v));
+    __auiInstallValueBridge(el, 'controls', () => !!el.hasAttribute('controls'), (v) => el.toggleAttribute('controls', !!v));
+    let nativePlay = el.play;
+    el.play = function() {
+      let p = nativePlay.call(el);
+      p['catch'] = (fn) => p.catchError(fn);
+      return p;
+    };
+  } catch (e) {}
+  return el;
+}
+
+// new Audio(src)：创建挂到当前 document 但不入 DOM 树的 Audio 元素。
+function Audio(src) {
+  return __auiDecorateElement(window.createAudio(document, src == null ? '' : String(src)));
+}
+
 try {
   Object.defineProperty(document, 'readyState', { get: () => document.getReadyState() });
   Object.defineProperty(document, 'activeElement', { get: () => document.getActiveElement() });
@@ -889,6 +926,7 @@ function __auiDecorateNode(el) {
         return scrollBy.call(el, Number(x) || 0, Number(y) || 0);
       };
     }
+    __auiDecorateAudio(el);
   } catch (e) {}
   return el;
 }

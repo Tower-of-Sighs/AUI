@@ -35,7 +35,7 @@ A regex-based tokenizer, not a standard tree builder.
 
 ## HTML Elements
 
-**Tags with dedicated implementations**: html/head/body, div/span, pre, textarea (multi-line editing + drag resize), select/option/optgroup (popup layer + full keyboard operation), canvas (2d only), img (async loading, load/error; **no alt rendering, no srcset**), a (click only opens href in the system browser), svg/path (subset).
+**Tags with dedicated implementations**: html/head/body, div/span, pre, textarea (multi-line editing + drag resize), select/option/optgroup (popup layer + full keyboard operation), canvas (2d only), img (async loading, load/error; **no alt rendering, no srcset**), audio (HTMLAudioElement semantics, OGG/WAV, self-drawn controls bar; **no video, no MP3**), a (click only opens href in the system browser), svg/path (subset).
 
 **input, tiered by type**:
 
@@ -53,7 +53,7 @@ A regex-based tokenizer, not a standard tree builder.
 
 **Forms**: submit/requestSubmit/reset, constraint validation, FormData collection, label association, fieldset disabled cascading, and external association via `form=id` are all ✅; action submission and navigation are ❌ (only an event fires).
 
-**Tags without a dedicated class**: p/h1-h6/ul/ol/li/table, etc. are handled as generic block/inline with **no UA styles**; table has no table layout, and `display:table` also degrades to block; basically avoid br/hr; iframe/video/audio/object/embed are unimplemented.
+**Tags without a dedicated class**: p/h1-h6/ul/ol/li/table, etc. are handled as generic block/inline with **no UA styles**; table has no table layout, and `display:table` also degrades to block; basically avoid br/hr; iframe/video/object/embed are unimplemented.
 
 The entire **UA default stylesheet**: about 30 tags are inline (a, b, i, code, img, input, etc.), head/script/style/title/meta/option, etc. are display:none, and everything else is block. That's all.
 

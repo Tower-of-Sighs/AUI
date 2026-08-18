@@ -330,6 +330,30 @@ var cropped = createImageBitmap(canvas, 0, 0, 32, 32);  // 裁剪重载
 createImageBitmapAsync(canvas).then(function (b) { ... });  // 异步版
 ```
 
+## 音频
+
+两种用法，都是浏览器的 HTMLAudioElement 语义：`<audio>` 元素和 `new Audio()` 工厂。
+
+```html
+<audio src="apricityui/sounds/click.ogg" controls autoplay></audio>
+<script>
+    var audio = new Audio("apricityui/sounds/bgm.ogg");  // 游离实例，不入 DOM 树
+    audio.loop = true;
+    audio.volume = 0.6;
+    audio.addEventListener("ended", function () { console.log("播完"); });
+    audio.play().then(function () { /* 已开播 */ })['catch'](function (err) { /* 加载失败 */ });
+</script>
+```
+
+- **来源**：与图片/字体同一条资源链——开发环境 resource 目录、`<游戏目录>/apricity/`、classpath、资源包；`src` 相对路径按页面路径解析。不支持远程 URL。
+- **格式**：OGG Vorbis、WAV/PCM（8/16-bit、单/双声道）。无 MP3、无 Web Audio API。
+- **API**：`play()`（返回带 `then`/`['catch']` 的 Promise）、`pause()`、`load()`；`currentTime`（可读写，写 = seek）、`duration`（未就绪为 NaN）、`volume`（钳 0..1）、`muted`、`loop`、`paused`、`ended`、`seeking`、`readyState`（0→1→4，全量解码没有 2/3）、`networkState`（无 src 为 3）、`preload`（`none` 等到 play()/load()，`metadata`/`auto` 等价立即加载）、`autoplay`。
+- **事件序列**：`loadstart → durationchange → loadedmetadata → canplay → canplaythrough → play → playing → timeupdate（250ms 节流）→ pause / ended`；失败派 `error`；seek 派 `seeking → seeked`。内联 `oncanplay` 等属性同样可用。
+- **controls**：自绘控件条（播放/暂停键、进度条点击 + 拖动 seek、时间文本），UA 默认 240×28 可用 CSS 覆盖；无 `controls` 属性时 `display:none` 不占空间。
+- **音量合成**：实际音量 = `volume × (muted ? 0 : 1) × MC 主音量`，跟随游戏声音设置实时变化。
+- **生命周期**：文档关闭/刷新自动停止并释放全部音频（含 `new Audio()` 游离实例）；资源重载会停掉所有播放并清掉解码缓存。同路径共享解码结果，每个实例独立 channel，可叠加播放。
+- **降级**：无声卡/OpenAL 初始化失败时播放派 `error` 事件而不是崩溃。
+
 ## 生命周期和刷新
 
 ```text

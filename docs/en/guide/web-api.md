@@ -330,6 +330,30 @@ var cropped = createImageBitmap(canvas, 0, 0, 32, 32);  // crop overload
 createImageBitmapAsync(canvas).then(function (b) { ... });  // async version
 ```
 
+## Audio
+
+Two entry points, both with browser HTMLAudioElement semantics: the `<audio>` element and the `new Audio()` factory.
+
+```html
+<audio src="apricityui/sounds/click.ogg" controls autoplay></audio>
+<script>
+    var audio = new Audio("apricityui/sounds/bgm.ogg");  // detached instance, not in the DOM tree
+    audio.loop = true;
+    audio.volume = 0.6;
+    audio.addEventListener("ended", function () { console.log("done"); });
+    audio.play().then(function () { /* playing */ })['catch'](function (err) { /* load failed */ });
+</script>
+```
+
+- **Sources**: the same resource chain as images/fonts — dev-environment resource dirs, `<gamedir>/apricity/`, classpath, resource packs; relative `src` resolves against the page path. No remote URLs.
+- **Formats**: OGG Vorbis and WAV/PCM (8/16-bit, mono/stereo). No MP3, no Web Audio API.
+- **API**: `play()` (returns a Promise with `then`/`['catch']`), `pause()`, `load()`; `currentTime` (read/write, write = seek), `duration` (NaN until ready), `volume` (clamped to 0..1), `muted`, `loop`, `paused`, `ended`, `seeking`, `readyState` (0→1→4; full-decode skips 2/3), `networkState` (3 with no src), `preload` (`none` waits for play()/load(); `metadata`/`auto` both load immediately), `autoplay`.
+- **Event sequence**: `loadstart → durationchange → loadedmetadata → canplay → canplaythrough → play → playing → timeupdate (250ms throttle) → pause / ended`; failures dispatch `error`; seeks dispatch `seeking → seeked`. Inline `oncanplay`-style attributes work too.
+- **controls**: a self-drawn controls bar (play/pause button, click + drag seek on the progress track, time text), UA-sized 240×28 and overridable via CSS; without the `controls` attribute the element is `display:none` and takes no space.
+- **Volume mixing**: effective volume = `volume × (muted ? 0 : 1) × MC master volume`, tracking the game's sound settings in real time.
+- **Lifecycle**: closing/refreshing a document stops and releases all of its audio (including detached `new Audio()` instances); a resource reload stops everything and drops the decode cache. Decoded data is shared per path while every instance gets its own channel, so overlapping playback works.
+- **Degradation**: with no sound card or a failed OpenAL init, playback dispatches `error` instead of crashing.
+
 ## Lifecycle and Refresh
 
 ```text
