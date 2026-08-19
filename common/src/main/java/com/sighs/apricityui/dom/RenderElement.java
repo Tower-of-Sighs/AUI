@@ -105,6 +105,7 @@ public class RenderElement {
     };
     public Cache<Filter.FilterState> filter = new Cache<>();
     public Cache<Filter.FilterState> backdropFilter = new Cache<>();
+    public Cache<java.util.List<com.sighs.apricityui.style.MaskImage.ResolvedLayer>> maskLayers = new Cache<>();
     private Rect committedRect = null;
     private Matrix4f committedWorldTransform = null;
     private long styleVersion = 1L;
@@ -356,7 +357,12 @@ public class RenderElement {
     );
 
     private static final Set<String> STRUCTURAL_PROPS = Set.of(
-            "clipPath", "filter", "backdropFilter", "overflow", "overflowX", "overflowY"
+            "clipPath", "filter", "backdropFilter", "overflow", "overflowX", "overflowY", "maskImage"
+    );
+
+    private static final Set<String> MASK_PROPS = Set.of(
+            "maskImage", "maskMode", "maskRepeat", "maskPosition", "maskSize",
+            "maskClip", "maskOrigin", "maskComposite"
     );
 
     public static void observeStyle(Element element, Style origin, Style current) {
@@ -424,6 +430,11 @@ public class RenderElement {
 
         if (!origin.backdropFilter.equals(current.backdropFilter)) {
             renderer.backdropFilter.clear();
+            dirtyMask |= Drawer.REPAINT;
+        }
+
+        if (check.test(MASK_PROPS)) {
+            renderer.maskLayers.clear();
             dirtyMask |= Drawer.REPAINT;
         }
 

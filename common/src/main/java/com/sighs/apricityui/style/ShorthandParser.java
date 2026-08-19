@@ -231,6 +231,140 @@ public final class ShorthandParser {
         }
     }
 
+    public static void applyMask(Style style, String raw) {
+        String value = raw == null ? "" : raw.trim();
+
+        style.maskImage = "unset";
+        style.maskMode = "unset";
+        style.maskRepeat = "unset";
+        style.maskPosition = "unset";
+        style.maskSize = "unset";
+        style.maskClip = "unset";
+        style.maskOrigin = "unset";
+        style.maskComposite = "unset";
+
+        if (value.isEmpty() || isCssWideKeyword(value)) return;
+        if ("none".equalsIgnoreCase(value)) {
+            style.maskImage = "none";
+            return;
+        }
+
+        List<String> layers = Background.splitTopLevelComma(value);
+        if (layers.isEmpty()) return;
+
+        StringBuilder images = new StringBuilder();
+        StringBuilder repeats = new StringBuilder();
+        StringBuilder positions = new StringBuilder();
+        StringBuilder sizes = new StringBuilder();
+        StringBuilder modes = new StringBuilder();
+        StringBuilder clips = new StringBuilder();
+        StringBuilder origins = new StringBuilder();
+        StringBuilder composites = new StringBuilder();
+
+        for (String layer : layers) {
+            StringBuilder image = new StringBuilder();
+            StringBuilder position = new StringBuilder();
+            StringBuilder size = new StringBuilder();
+            String repeat = null;
+            String mode = null;
+            String origin = null;
+            String clip = null;
+            String composite = null;
+            boolean afterSlash = false;
+
+            for (String token : CssString.splitTopLevelTokens(layer)) {
+                String lowerToken = token.toLowerCase(Locale.ROOT);
+                if ("/".equals(token)) {
+                    afterSlash = true;
+                    continue;
+                }
+                if (isBackgroundImageToken(lowerToken) || "none".equals(lowerToken) || isVarToken(token)) {
+                    if (!image.isEmpty()) image.append(' ');
+                    image.append(token);
+                    continue;
+                }
+                if (isBackgroundRepeatToken(lowerToken)) {
+                    repeat = token;
+                    continue;
+                }
+                if (isMaskModeToken(lowerToken)) {
+                    mode = lowerToken;
+                    continue;
+                }
+                if (isMaskGeometryToken(lowerToken)) {
+                    // CSS mask 简写：第一个几何框 token 同时是 origin 与 clip，
+                    // 第二个只覆盖 clip；no-clip 只可能出现在 clip 位。
+                    if ("no-clip".equals(lowerToken)) {
+                        clip = "no-clip";
+                    } else if (origin == null) {
+                        origin = lowerToken;
+                        clip = lowerToken;
+                    } else {
+                        clip = lowerToken;
+                    }
+                    continue;
+                }
+                if (isMaskCompositeToken(lowerToken)) {
+                    composite = lowerToken;
+                    continue;
+                }
+                StringBuilder target = afterSlash ? size : position;
+                if (!target.isEmpty()) target.append(' ');
+                target.append(token);
+            }
+
+            if (!images.isEmpty()) {
+                images.append(", ");
+                repeats.append(", ");
+                positions.append(", ");
+                sizes.append(", ");
+                modes.append(", ");
+                clips.append(", ");
+                origins.append(", ");
+                composites.append(", ");
+            }
+            images.append(image.isEmpty() ? "none" : image);
+            repeats.append(repeat == null ? "repeat" : repeat);
+            positions.append(position.isEmpty() ? "0% 0%" : position);
+            sizes.append(size.isEmpty() ? "auto" : size);
+            modes.append(mode == null ? "match-source" : mode);
+            clips.append(clip == null ? "border-box" : clip);
+            origins.append(origin == null ? "border-box" : origin);
+            composites.append(composite == null ? "add" : composite);
+        }
+
+        style.maskImage = images.toString();
+        style.maskRepeat = repeats.toString();
+        style.maskPosition = positions.toString();
+        style.maskSize = sizes.toString();
+        style.maskMode = modes.toString();
+        style.maskClip = clips.toString();
+        style.maskOrigin = origins.toString();
+        style.maskComposite = composites.toString();
+    }
+
+    private static boolean isMaskModeToken(String token) {
+        return switch (token) {
+            case "alpha", "luminance", "match-source" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isMaskGeometryToken(String token) {
+        return switch (token) {
+            case "border-box", "padding-box", "content-box", "margin-box",
+                 "fill-box", "stroke-box", "view-box", "no-clip" -> true;
+            default -> false;
+        };
+    }
+
+    private static boolean isMaskCompositeToken(String token) {
+        return switch (token) {
+            case "add", "subtract", "intersect", "exclude" -> true;
+            default -> false;
+        };
+    }
+
     public static void applyFlex(Style style, String raw) {
         String value = raw == null ? "" : raw.trim();
         style.flex = value.isEmpty() ? "unset" : value;

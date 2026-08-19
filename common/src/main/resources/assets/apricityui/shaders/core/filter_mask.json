@@ -1,0 +1,22 @@
+{
+  "blend": {
+    "func": "add",
+    "srcrgb": "zero",
+    "dstrgb": "srcalpha",
+    "srcalpha": "zero",
+    "dstalpha": "srcalpha"
+  },
+  "vertex": "apricityui:filter",
+  "fragment": "apricityui:filter_mask",
+  "attributes": [
+    "Position",
+    "UV0"
+  ],
+  "samplers": [
+    { "name": "Sampler0" }
+  ],
+  "uniforms": [
+    { "name": "ProjMat", "type": "matrix4x4", "count": 16, "values": [ 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0 ] },
+    { "name": "MaskLuminance", "type": "float", "count": 1, "values": [ 0.0 ] }
+  ]
+}

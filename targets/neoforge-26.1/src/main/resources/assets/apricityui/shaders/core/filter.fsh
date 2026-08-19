@@ -14,6 +14,7 @@ layout(std140) uniform FilterParams {
     vec4 ClipRectValue;
     vec4 ClipRadiiValue;
     vec4 BlurDirection;
+    vec4 FilterColorMatrix;
 };
 
 #define Brightness FilterScalars.x
@@ -30,6 +31,9 @@ layout(std140) uniform FilterParams {
 #define ShadowColor ShadowColorValue
 #define ClipRect ClipRectValue
 #define ClipRadii ClipRadiiValue
+#define Contrast FilterColorMatrix.x
+#define Saturate FilterColorMatrix.y
+#define Sepia FilterColorMatrix.z
 
 in vec2 texCoord0;
 in vec2 screenPos;
@@ -102,7 +106,15 @@ void main() {
     }
 
     color.rgb *= Brightness;
+    color.rgb = (color.rgb - 0.5) * Contrast + 0.5;
     float gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+    color.rgb = mix(vec3(gray), color.rgb, Saturate);
+    vec3 sepiaRgb = vec3(
+        dot(color.rgb, vec3(0.393, 0.769, 0.189)),
+        dot(color.rgb, vec3(0.349, 0.686, 0.168)),
+        dot(color.rgb, vec3(0.272, 0.534, 0.131))
+    );
+    color.rgb = mix(color.rgb, sepiaRgb, Sepia);
     color.rgb = mix(color.rgb, vec3(gray), Grayscale);
     color.rgb = mix(color.rgb, 1.0 - color.rgb, Invert);
 

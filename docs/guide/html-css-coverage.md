@@ -18,7 +18,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 1. **UA 样式为零**：h1-h6、p、ul/li 的样式全部自己写；别用 br/hr 表达布局；
 2. **布局避开**：float、sticky、grid 的 areas/auto-flow/命名线、负 margin、表格布局；
-3. **值解析避开**：calc 乘除、border 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、contrast/saturate/sepia 滤镜、skew/matrix transform；
+3. **值解析避开**：calc 乘除、border 虚线等样式（只有实线）、currentColor、26 个以外的命名色、radial/conic 渐变、skew/matrix transform；
 4. **层叠注意**：层叠按浏览器标准排序——内联普通 > 样式表普通，样式表 `!important` > 内联普通，内联 `!important` 最高；
 5. **文本注意**：italic 无效（用 oblique）、justify 无效、vertical-align 只有 baseline 有效、text-decoration 只有下划线/删除线；
 6. **表单注意**：date/email/url 等 type 降级为纯文本框；form 提交只发事件不发请求；
@@ -109,8 +109,8 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 | object-fit / object-position | ✅ | |
 | visibility | 🟡 | collapse 等同 hidden |
 | clip-path | 🟡 | polygon/circle/ellipse/inset；inset 的 round 半径被忽略 |
-| mask | ❌ | |
-| filter / backdrop-filter | 🟡 | blur/brightness/grayscale/invert/hue-rotate/opacity/drop-shadow，可动画；无 contrast/saturate/sepia |
+| mask | 🟡 | mask 简写 + mask-image/mode/repeat/position/size/clip/origin/composite：url()、linear-gradient、多层逐层合成（add/subtract/intersect/exclude，对应 source-over/source-out/source-in/xor）、alpha 与 luminance 模式（多层混合 mode 时按 alpha）、mask-clip/origin 的 border-box/padding-box/content-box/no-clip（margin-box/fill-box 等按 border-box）；加载失败的 mask 层被跳过（内容保持可见，与浏览器"全遮掉"不同）；世界窗口中与 filter 一样不生效 |
+| filter / backdrop-filter | 🟡 | blur/brightness/contrast/saturate/sepia/grayscale/invert/hue-rotate/opacity/drop-shadow，可动画；函数按固定顺序应用（brightness→contrast→saturate→sepia→grayscale→invert→hue-rotate），而非书写顺序 |
 | transform | 🟡 | translate/rotate/scale 各轴向，角度单位全；**无 skew、matrix、perspective** |
 | transform-origin | ✅ | |
 | rotate 独立属性 | ✅ | translate/scale 独立属性 ❌ |

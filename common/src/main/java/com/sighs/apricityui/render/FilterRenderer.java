@@ -10,6 +10,7 @@ import com.sighs.apricityui.spi.MeshBuilder;
 import com.sighs.apricityui.spi.MeshFormat;
 import com.sighs.apricityui.spi.MeshMode;
 import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.MaskImage;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import org.joml.Matrix4f;
@@ -125,6 +126,157 @@ public class FilterRenderer {
 
     public static FboHandle getCurrentTarget() {
         return fboStack.isEmpty() ? AuiServices.render().getMainRenderTarget() : fboStack.peek();
+    }
+
+    /**
+     * CSS mask 合成。调用前 {@link #pushFilter()} 已把内容子树切到离屏 FBO C。
+     * 这里把 mask 层画进第二个池化 FBO M（M 的透明区域即被遮掉的区域），
+     * 用 dst-in 混合（C 是预乘 alpha，乘以 M 的 mask 值即挖空）写回 C，
+     * 最后以恒等 filter 把 C 合成回父目标。mask 值取 alpha 还是 luminance
+     * 由 {@link MaskImage#effectiveLuminance} 决定（混合 mode 按 alpha）。
+     *
+     * <p>加载失败/未就绪导致一层都画不上时跳过 dst-in，内容保持可见
+     * （fail-open，与浏览器"遮罩失败=全遮掉"的行为不同，见文档）。</p>
+     */
+    public static void popMaskImage(Element target, PoseStack poseStack) {
+        if (fboStack.isEmpty()) return;
+
+        // 与 popFilter 相同：先把子树剩余的批处理绘制落进内容 FBO
+        ImageDrawer.flushBatch();
+        Graph.endBatch();
+
+        List<MaskImage.ResolvedLayer> layers = MaskImage.layersOf(target);
+
+        // 注意顺序：必须在内容 FBO C 出栈之前取 mask 画布 M。
+        // 根级 mask 下栈一空 pushFilter 会把 poolPointer 归零，M 可能复用到 C 本身。
+        pushFilter();
+        FboHandle maskFbo = fboStack.peek();
+        boolean painted;
+        try {
+            painted = paintMaskLayers(target, poseStack, layers, maskFbo);
+        } finally {
+            ImageDrawer.flushBatch();
+            Graph.endBatch();
+            // mask 画布用完即出栈（不做 filter 合成）；stencil/scissor 状态
+            // 已由 MaskImagePainter 内部的 Mask.push/pop 成对恢复
+            fboStack.pop();
+        }
+
+        FboHandle contentFbo = fboStack.pop();
+        FboHandle parentFbo = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
+        try {
+            if (painted) {
+                AuiServices.render().bindWrite(contentFbo, true);
+                drawMaskBlit(maskFbo, MaskImage.effectiveLuminance(layers));
+            }
+            AuiServices.render().bindWrite(parentFbo, true);
+            drawWithShader(contentFbo, contentFbo, Filter.FilterState.EMPTY);
+        } finally {
+            if (parentFbo != null) AuiServices.render().bindWrite(parentFbo, true);
+        }
+    }
+
+    /**
+     * 自下而上逐层累积 mask 画布 M：add 层直接以标准半透明（source-over）画进 M；
+     * intersect/subtract/exclude 层先画进 scratch FBO L（栈上有 M，pushFilter 不会
+     * 重置 poolPointer，L 必然是新 FBO），再以对应 Porter-Duff 混合 merge 回 M。
+     * 最底层的 composite 值没有意义（下方无可合成对象），按 add 处理。
+     */
+    private static boolean paintMaskLayers(Element target, PoseStack poseStack,
+                                           List<MaskImage.ResolvedLayer> layers, FboHandle maskFbo) {
+        boolean any = false;
+        for (int i = layers.size() - 1; i >= 0; i--) {
+            MaskImage.ResolvedLayer layer = layers.get(i);
+            AuiRenderService.MaskCompositeOp op = mergeOpOf(layer.composite());
+            if (op == null || i == layers.size() - 1) {
+                any |= MaskImagePainter.paintLayer(target, poseStack, layer);
+                continue;
+            }
+            pushFilter();
+            FboHandle scratchFbo = fboStack.peek();
+            boolean scratchPainted;
+            try {
+                scratchPainted = MaskImagePainter.paintLayer(target, poseStack, layer);
+            } finally {
+                ImageDrawer.flushBatch();
+                Graph.endBatch();
+                fboStack.pop();
+            }
+            if (scratchPainted) {
+                AuiServices.render().bindWrite(maskFbo, true);
+                drawMaskMergeBlit(scratchFbo, op);
+                any = true;
+            }
+        }
+        return any;
+    }
+
+    /** 非 add 的 composite 值映射到 Porter-Duff merge 算子；add/未知值返回 null。 */
+    private static AuiRenderService.MaskCompositeOp mergeOpOf(String composite) {
+        return switch (composite) {
+            case "intersect" -> AuiRenderService.MaskCompositeOp.INTERSECT;
+            case "subtract" -> AuiRenderService.MaskCompositeOp.SUBTRACT;
+            case "exclude" -> AuiRenderService.MaskCompositeOp.EXCLUDE;
+            default -> null;
+        };
+    }
+
+    /**
+     * dst-in 全窗 blit：dest(C) *= src(M) 的 mask 值（alpha 或 luminance）。
+     * legacy 端由 filter_mask 着色器 JSON 自带 zero/srcalpha 混合
+     * （ShaderInstance.apply 会覆盖动态混合状态，不能靠 setBlendFuncSeparate），
+     * 26.1 端由 filter_mask pipeline 烘焙同款混合。
+     */
+    private static void drawMaskBlit(FboHandle maskFbo, boolean luminance) {
+        Object shader = AuiServices.render().getFilterMaskShader(luminance);
+        if (shader == null) return; // 后端未提供 mask shader 时 fail-open
+
+        withBlendRenderState(false, () -> {
+            Base.setShader(shader);
+            AuiServices.render().bindColorTexture(maskFbo, 0);
+            Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+            AuiServices.render().setShaderUniformFloat("MaskLuminance", luminance ? 1.0f : 0.0f);
+
+            float guiW = (float) AuiServices.client().getScaledWidth();
+            float guiH = (float) AuiServices.client().getScaledHeight();
+            Base.setProjectionMatrix(orthoProjection(guiW, guiH));
+
+            MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+            Matrix4f identity = new Matrix4f();
+            mesh.vertexUV(identity, 0, guiH, 0, 0, 0);
+            mesh.vertexUV(identity, guiW, guiH, 0, 1, 0);
+            mesh.vertexUV(identity, guiW, 0, 0, 1, 1);
+            mesh.vertexUV(identity, 0, 0, 0, 0, 1);
+            mesh.submit();
+        });
+    }
+
+    /**
+     * mask-composite merge 全窗 blit：L(src) 按 Porter-Duff 算子合成进 M(dst)。
+     * 算子完全由后端烘焙的混合状态表达（source-in / source-out / xor），
+     * 着色器只做 Sampler0 透传。
+     */
+    private static void drawMaskMergeBlit(FboHandle scratchFbo, AuiRenderService.MaskCompositeOp op) {
+        Object shader = AuiServices.render().getFilterMaskMergeShader(op);
+        if (shader == null) return; // 后端不支持 merge 时丢弃该层（fail-open）
+
+        withBlendRenderState(false, () -> {
+            Base.setShader(shader);
+            AuiServices.render().bindColorTexture(scratchFbo, 0);
+            Base.setShaderColor(1.0F, 1.0F, 1.0F, 1.0F);
+
+            float guiW = (float) AuiServices.client().getScaledWidth();
+            float guiH = (float) AuiServices.client().getScaledHeight();
+            Base.setProjectionMatrix(orthoProjection(guiW, guiH));
+
+            MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+            Matrix4f identity = new Matrix4f();
+            mesh.vertexUV(identity, 0, guiH, 0, 0, 0);
+            mesh.vertexUV(identity, guiW, guiH, 0, 1, 0);
+            mesh.vertexUV(identity, guiW, 0, 0, 1, 1);
+            mesh.vertexUV(identity, 0, 0, 0, 0, 1);
+            mesh.submit();
+        });
     }
 
     public static void popFilter(Filter.FilterState state) {
@@ -410,6 +562,9 @@ public class FilterRenderer {
                 : (forceAlpha ? Math.min(state.blurRadius(), MAX_REASONABLE_BACKDROP_BLUR) : state.blurRadius());
         AuiServices.render().setShaderUniformFloat("BlurRadius", blurRadius);
         AuiServices.render().setShaderUniformFloat("Brightness", state.brightness());
+        AuiServices.render().setShaderUniformFloat("Contrast", state.contrast());
+        AuiServices.render().setShaderUniformFloat("Saturate", state.saturate());
+        AuiServices.render().setShaderUniformFloat("Sepia", state.sepia());
         AuiServices.render().setShaderUniformFloat("Grayscale", state.grayscale());
         AuiServices.render().setShaderUniformFloat("Invert", state.invert());
         AuiServices.render().setShaderUniformFloat("HueRotate", state.hueRotate());

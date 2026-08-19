@@ -152,6 +152,14 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String clipPath = "none";
     public String filter = "none";
     public String backdropFilter = "none";
+    public String maskImage = "none";
+    public String maskMode = "match-source";
+    public String maskRepeat = "repeat";
+    public String maskPosition = "0% 0%";
+    public String maskSize = "auto";
+    public String maskClip = "border-box";
+    public String maskOrigin = "border-box";
+    public String maskComposite = "add";
 
     public String animation = "unset";
     public String animationName = "unset";
@@ -417,6 +425,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         String styleName = transformStyleName(name);
         if ("background".equals(styleName)) {
             ShorthandParser.applyBackground(this, value);
+            return;
+        }
+        if ("mask".equals(styleName)) {
+            ShorthandParser.applyMask(this, value);
             return;
         }
         if ("flex".equals(styleName)) {

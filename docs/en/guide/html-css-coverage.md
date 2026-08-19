@@ -18,7 +18,7 @@ If you're short on time, read only this section. Before moving a browser page in
 
 1. **UA styles are zero**: write all styles for h1-h6, p, ul/li yourself; don't use br/hr to express layout;
 2. **Layout to avoid**: float, sticky, grid's areas/auto-flow/named lines, negative margins, table layout;
-3. **Value parsing to avoid**: calc multiplication/division, border styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, contrast/saturate/sepia filters, skew/matrix transforms;
+3. **Value parsing to avoid**: calc multiplication/division, border styles like dashed (solid only), currentColor, named colors beyond the 26, radial/conic gradients, skew/matrix transforms;
 4. **Cascade caveat**: the cascade follows browser ordering — normal inline > normal stylesheet, stylesheet `!important` > normal inline, inline `!important` wins over everything;
 5. **Text caveats**: italic has no effect (use oblique), justify has no effect, vertical-align only works with baseline, text-decoration only has underline/line-through;
 6. **Form caveats**: types like date/email/url degrade to plain text boxes; form submission only fires an event, no request;
@@ -105,8 +105,8 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 | object-fit / object-position | ✅ | |
 | visibility | 🟡 | collapse is equivalent to hidden |
 | clip-path | 🟡 | polygon/circle/ellipse/inset; inset's round radii are ignored |
-| mask | ❌ | |
-| filter / backdrop-filter | 🟡 | blur/brightness/grayscale/invert/hue-rotate/opacity/drop-shadow, animatable; no contrast/saturate/sepia |
+| mask | 🟡 | mask shorthand + mask-image/mode/repeat/position/size/clip/origin/composite: url(), linear-gradient, per-layer compositing (add/subtract/intersect/exclude ≈ source-over/source-out/source-in/xor), alpha and luminance modes (mixed-mode layer stacks fall back to alpha), mask-clip/origin with border-box/padding-box/content-box/no-clip (margin-box/fill-box etc. treated as border-box); mask layers that fail to load are skipped (content stays visible, unlike browsers' "mask everything out"); like filter, has no effect inside world windows |
+| filter / backdrop-filter | 🟡 | blur/brightness/contrast/saturate/sepia/grayscale/invert/hue-rotate/opacity/drop-shadow, animatable; functions apply in a fixed order (brightness→contrast→saturate→sepia→grayscale→invert→hue-rotate), not the written order |
 | transform | 🟡 | translate/rotate/scale on each axis, all angle units; **no skew, matrix, perspective** |
 | transform-origin | ✅ | |
 | rotate as an independent property | ✅ | translate/scale as independent properties ❌ |

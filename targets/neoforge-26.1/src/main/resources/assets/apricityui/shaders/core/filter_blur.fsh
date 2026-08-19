@@ -13,6 +13,7 @@ layout(std140) uniform FilterParams {
     vec4 ClipRectValue;
     vec4 ClipRadiiValue;
     vec4 BlurDirection;
+    vec4 FilterColorMatrix;
 };
 
 #define Direction BlurDirection.xy

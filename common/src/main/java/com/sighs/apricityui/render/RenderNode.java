@@ -8,6 +8,7 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Interaction;
+import com.sighs.apricityui.style.MaskImage;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Transform;
@@ -59,6 +60,8 @@ public interface RenderNode {
         if (node instanceof RenderNode.ClipPathPopNode n) return n.target();
         if (node instanceof RenderNode.FilterPushNode n) return n.target();
         if (node instanceof RenderNode.FilterPopNode n) return n.target();
+        if (node instanceof RenderNode.MaskImagePushNode n) return n.target();
+        if (node instanceof RenderNode.MaskImagePopNode n) return n.target();
         if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
         return null;
     }
@@ -564,6 +567,36 @@ public interface RenderNode {
             if (clip.isValid() && Rect.of(target).getVisualBounds().intersects(clip)) {
                 FilterRenderer.renderBackdrop(target, poseStack);
             }
+        }
+    }
+
+    /**
+     * CSS mask：子树先画进离屏 FBO，pop 时把 mask 图像画进第二个 FBO，
+     * 再以 dst-in 合成回内容。与 filter 一样在世界窗口里整体跳过。
+     */
+    record MaskImagePushNode(Element target) implements RenderNode {
+        @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
+        @Override
+        public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderEffects()) return;
+            if (MaskImage.hasMask(target)) FilterRenderer.pushFilter();
+        }
+    }
+
+    record MaskImagePopNode(Element target) implements RenderNode {
+        @Override
+        public boolean advancesPaintDepth() {
+            return false;
+        }
+
+        @Override
+        public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderEffects()) return;
+            if (MaskImage.hasMask(target)) FilterRenderer.popMaskImage(target, poseStack);
         }
     }
 }

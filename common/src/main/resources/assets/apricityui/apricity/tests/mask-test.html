@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-viewport" content="mode=browser">
+    <title>Ore × Mask 测试</title>
+    <link rel="stylesheet" href="../apricityui/theme/ore/ore.css">
+    <style>
+        .ore-theme .stage { padding: 16px; }
+        .ore-theme .subject {
+            height: 150px; display: flex; align-items: center; justify-content: center;
+            padding: 12px; color: #ffffff; font-size: 14px; text-align: center;
+            background: linear-gradient(135deg, #f0b92d 0%, #b33b31 40%, #7345e5 75%, #2d78a8 100%);
+        }
+        .ore-theme .subject .tag { padding: 4px 8px; background: rgba(0, 0, 0, .45); }
+
+        /* mask-mode */
+        .mode-alpha-fade { mask-image: linear-gradient(90deg, #000000, transparent); }
+        .mode-alpha-color { mask-image: linear-gradient(90deg, #ff0000, #0000ff); }
+        .mode-luminance { mask-image: linear-gradient(90deg, #ffffff, #ff0000, #000000); mask-mode: luminance; }
+
+        /* mask-composite：第一层竖条（顶），第二层横条 */
+        .stripe-v { mask-image: linear-gradient(90deg, transparent 30%, #000000 30%, #000000 70%, transparent 30%); }
+        .comp-add, .comp-intersect, .comp-subtract, .comp-exclude {
+            mask-image: linear-gradient(90deg, transparent 30%, #000000 30%, #000000 70%, transparent 30%),
+                        linear-gradient(0deg, transparent 30%, #000000 30%, #000000 70%, transparent 30%);
+        }
+        .comp-add { mask-composite: add; }
+        .comp-intersect { mask-composite: intersect; }
+        .comp-subtract { mask-composite: subtract; }
+        .comp-exclude { mask-composite: exclude; }
+        .comp-shorthand {
+            mask: linear-gradient(90deg, transparent 30%, #000000 30%, #000000 70%, transparent 30%),
+                  linear-gradient(0deg, transparent 30%, #000000 30%, #000000 70%, transparent 30%) intersect;
+        }
+
+        /* mask-clip / mask-origin */
+        .ore-theme .geo {
+            height: 140px; padding: 20px; border: 10px solid var(--ore-purple); border-radius: 20px;
+            color: #ffffff; background: linear-gradient(135deg, #3c8527, #2d78a8);
+            mask-image: repeating-linear-gradient(45deg, #000000 0, #000000 10px, transparent 10px, transparent 20px);
+        }
+        .geo-clip-padding { mask-clip: padding-box; }
+        .geo-noclip {
+            border: 4px solid var(--ore-gold); border-radius: 0;
+            mask-size: 180% 180%; mask-position: center; mask-origin: border-box; mask-clip: no-clip;
+        }
+        .ore-theme .origin-box {
+            width: 130px; height: 110px; padding: 16px; border: 10px solid var(--ore-gold);
+            color: var(--ore-ink-muted); font-size: 11px; background: var(--ore-surface-deep);
+            mask-image: linear-gradient(#000000, #000000);
+            mask-size: 36px 36px; mask-repeat: no-repeat; mask-position: 0 0;
+        }
+        .origin-border { mask-origin: border-box; }
+        .origin-padding { mask-origin: padding-box; }
+        .origin-content { mask-origin: content-box; }
+
+        /* url() 图像 */
+        .img-bear {
+            mask-image: url(../devtools/bear.png);
+            mask-repeat: no-repeat; mask-position: center; mask-size: 85% auto;
+        }
+        .img-bear-tile {
+            mask-image: url(../devtools/bear.png);
+            mask-repeat: repeat; mask-size: 190px auto;
+        }
+        .img-broken { mask-image: url(missing-mask.png); }
+    </style>
+</head>
+<body class="ore-theme" style="background-color: var(--ore-canvas);">
+<main class="container mt-4 mb-4">
+    <div class="showcase-kicker font-display">APRICITYUI RENDER REGRESSION / ORE THEME</div>
+    <h1>Mask 测试</h1>
+    <p class="text-muted">覆盖 mask-mode（alpha / luminance）、mask-composite（add / subtract / intersect / exclude）、
+        mask-clip / mask-origin 几何盒、url() 图像遮罩与失败 fail-open。每张卡片标注预期效果，与浏览器不一致即回归。</p>
+    <div class="cluster mb-4">
+        <span class="badge badge-success">mode</span>
+        <span class="badge badge-purple">composite</span>
+        <span class="badge badge-warning">clip / origin</span>
+        <span class="badge badge-danger">url() / fail-open</span>
+    </div>
+
+    <h2>mask-mode</h2>
+    <div class="grid mt-3 mb-4">
+        <div class="col-6 card">
+            <div class="card-header">alpha：黑→透明渐变</div>
+            <div class="stage"><div class="subject mode-alpha-fade"><span class="tag">mask: linear-gradient(90deg, #000, transparent)</span></div></div>
+            <div class="card-body"><small>预期：内容自左向右淡出。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">alpha：不透明彩色渐变（对照组）</div>
+            <div class="stage"><div class="subject mode-alpha-color"><span class="tag">mask: linear-gradient(90deg, red, blue)</span></div></div>
+            <div class="card-body"><small>预期：渐变 alpha 处处为 1，无任何遮罩效果。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">luminance：白→红→黑</div>
+            <div class="stage"><div class="subject mode-luminance"><span class="tag">mask-mode: luminance</span></div></div>
+            <div class="card-body"><small>预期：按亮度遮罩——左侧几乎全显，红色段约 21% 可见，右侧全遮。与对照组（同渐变按 alpha 无效果）对比即 luminance 生效。</small></div>
+        </div>
+    </div>
+
+    <h2>mask-composite</h2>
+    <div class="grid mt-3 mb-4">
+        <div class="col-6 card">
+            <div class="card-header">add（默认）：竖条 + 横条</div>
+            <div class="stage"><div class="subject comp-add"><span class="tag">add</span></div></div>
+            <div class="card-body"><small>预期：十字（两层并集，source-over）。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">intersect：竖条 ∩ 横条</div>
+            <div class="stage"><div class="subject comp-intersect"><span class="tag">intersect</span></div></div>
+            <div class="card-body"><small>预期：只剩中央方块（source-in）。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">subtract：竖条 − 横条</div>
+            <div class="stage"><div class="subject comp-subtract"><span class="tag">subtract</span></div></div>
+            <div class="card-body"><small>预期：竖条被横条区域挖空，剩上下两截（source-out，源=第一层）。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">exclude：竖条 ⊕ 横条</div>
+            <div class="stage"><div class="subject comp-exclude"><span class="tag">exclude</span></div></div>
+            <div class="card-body"><small>预期：十字挖掉中央方块（xor）。</small></div>
+        </div>
+        <div class="col-6 card card-accent-green">
+            <div class="card-header">简写解析：第二层带 intersect</div>
+            <div class="stage"><div class="subject comp-shorthand"><span class="tag">mask: …, … intersect</span></div></div>
+            <div class="card-body"><small>预期：与 intersect 卡片一致（中央方块）——验证 mask 简写把 composite token 分配到对应层。</small></div>
+        </div>
+    </div>
+
+    <h2>mask-clip / mask-origin</h2>
+    <div class="grid mt-3 mb-4">
+        <div class="col-6 card">
+            <div class="card-header">clip: border-box（默认）+ 圆角</div>
+            <div class="stage"><div class="geo">border-box clip</div></div>
+            <div class="card-body"><small>预期：45° 条纹覆盖含边框的整个 border-box，并沿 20px 圆角外缘裁剪；紫色边框在条纹间可见。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">clip: padding-box</div>
+            <div class="stage"><div class="geo geo-clip-padding">padding-box clip</div></div>
+            <div class="card-body"><small>预期：条纹只画在 padding-box 内——紫色边框被整体遮掉（不可见），内容区仍是条纹。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">clip: no-clip + mask-size 180%</div>
+            <div class="stage"><div class="geo geo-noclip">no-clip overflow</div></div>
+            <div class="card-body"><small>预期：条纹按 border-box 定位但放大 180% 后不裁剪，溢出元素边界延伸到卡片内。</small></div>
+        </div>
+        <div class="col-6 card">
+            <div class="card-header">origin 对比（36px 窗口 @ 0 0）</div>
+            <div class="stage">
+                <div class="cluster">
+                    <div class="origin-box origin-border">border</div>
+                    <div class="origin-box origin-padding">padding</div>
+                    <div class="origin-box origin-content">content</div>
+                </div>
+            </div>
+            <div class="card-body"><small>预期：三个盒子都只露出 36px 小窗，位置分别在边框外角 / 边框内侧 / padding 内侧，逐盒右移错开。</small></div>
+        </div>
+    </div>
+
+    <h2>url() 图像遮罩</h2>
+    <div class="grid mt-3">
+        <div class="col-4 card">
+            <div class="card-header">bear.png：alpha 剪影</div>
+            <div class="stage"><div class="subject img-bear"></div></div>
+            <div class="card-body"><small>预期：内容只在熊剪影内可见（mask-size 85% auto，居中不重复）。</small></div>
+        </div>
+        <div class="col-4 card">
+            <div class="card-header">bear.png：平铺</div>
+            <div class="stage"><div class="subject img-bear-tile"></div></div>
+            <div class="card-body"><small>预期：190px 宽熊形重复平铺成队列。</small></div>
+        </div>
+        <div class="col-4 card card-accent-gold">
+            <div class="card-header">missing-mask.png：fail-open</div>
+            <div class="stage"><div class="subject img-broken"><span class="tag">mask-image: url(missing-mask.png)</span></div></div>
+            <div class="card-body"><small>预期：加载失败的层被跳过，内容完整可见（与浏览器"全遮掉"不同，文档化偏差）。</small></div>
+        </div>
+    </div>
+</main>
+</body>
+</html>

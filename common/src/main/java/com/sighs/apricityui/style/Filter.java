@@ -17,6 +17,9 @@ public class Filter {
     public record FilterState(
             float blurRadius,
             float brightness,
+            float contrast,
+            float saturate,
+            float sepia,
             float grayscale,
             float invert,
             float hueRotate,
@@ -26,10 +29,11 @@ public class Filter {
             float dropShadowBlur,
             int dropShadowColor
     ) {
-        public static final FilterState EMPTY = new FilterState(0, 1, 0, 0, 0, 1, 0, 0, 0, 0x00000000);
+        public static final FilterState EMPTY = new FilterState(0, 1, 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0x00000000);
 
         public boolean isEmpty() {
-            return blurRadius == 0 && brightness == 1 && grayscale == 0 && invert == 0 && hueRotate == 0 && opacity == 1
+            return blurRadius == 0 && brightness == 1 && contrast == 1 && saturate == 1 && sepia == 0
+                    && grayscale == 0 && invert == 0 && hueRotate == 0 && opacity == 1
                     && !hasDropShadow();
         }
 
@@ -40,6 +44,9 @@ public class Filter {
 
     private static final Pattern BLUR = Pattern.compile("blur\\(([^)]+)\\)");
     private static final Pattern BRIGHTNESS = Pattern.compile("brightness\\(([^)]+)\\)");
+    private static final Pattern CONTRAST = Pattern.compile("contrast\\(([^)]+)\\)");
+    private static final Pattern SATURATE = Pattern.compile("saturate\\(([^)]+)\\)");
+    private static final Pattern SEPIA = Pattern.compile("sepia\\(([^)]+)\\)");
     private static final Pattern GRAYSCALE = Pattern.compile("grayscale\\(([^)]+)\\)");
     private static final Pattern INVERT = Pattern.compile("invert\\(([^)]+)\\)");
     private static final Pattern HUE = Pattern.compile("hue-rotate\\(([^)]+)\\)");
@@ -77,6 +84,9 @@ public class Filter {
     public static FilterState parse(String filterStr, float opacityStyle) {
         float blur = extractVal(BLUR, filterStr, 0f, "px");
         float bright = extractVal(BRIGHTNESS, filterStr, 1f, "%");
+        float contrast = extractVal(CONTRAST, filterStr, 1f, "%");
+        float saturate = extractVal(SATURATE, filterStr, 1f, "%");
+        float sepia = extractVal(SEPIA, filterStr, 0f, "%");
         float gray = extractVal(GRAYSCALE, filterStr, 0f, "%");
         float inv = extractVal(INVERT, filterStr, 0f, "%");
         float hue = extractVal(HUE, filterStr, 0f, "deg");
@@ -84,7 +94,7 @@ public class Filter {
         DropShadow shadow = parseDropShadow(filterStr);
 
         return new FilterState(
-                blur, bright, gray, inv, hue, filterOpacity * opacityStyle,
+                blur, bright, contrast, saturate, sepia, gray, inv, hue, filterOpacity * opacityStyle,
                 shadow.x, shadow.y, shadow.blur, shadow.color
         );
     }
@@ -143,6 +153,12 @@ public class Filter {
             result.add(new Transition("filter-blur", start.blurRadius(), end.blurRadius(), duration, delay, time));
         if (start.brightness() != end.brightness())
             result.add(new Transition("filter-brightness", start.brightness(), end.brightness(), duration, delay, time));
+        if (start.contrast() != end.contrast())
+            result.add(new Transition("filter-contrast", start.contrast(), end.contrast(), duration, delay, time));
+        if (start.saturate() != end.saturate())
+            result.add(new Transition("filter-saturate", start.saturate(), end.saturate(), duration, delay, time));
+        if (start.sepia() != end.sepia())
+            result.add(new Transition("filter-sepia", start.sepia(), end.sepia(), duration, delay, time));
         if (start.grayscale() != end.grayscale())
             result.add(new Transition("filter-grayscale", start.grayscale(), end.grayscale(), duration, delay, time));
         if (start.invert() != end.invert())
@@ -174,6 +190,9 @@ public class Filter {
         FilterState base = parse(originStyle.filter, 1.0f);
         float blur = base.blurRadius();
         float brightness = base.brightness();
+        float contrast = base.contrast();
+        float saturate = base.saturate();
+        float sepia = base.sepia();
         float grayscale = base.grayscale();
         float invert = base.invert();
         float hueRotate = base.hueRotate();
@@ -194,6 +213,9 @@ public class Filter {
             switch (name) {
                 case "filter-blur" -> blur = (float) val;
                 case "filter-brightness" -> brightness = (float) val;
+                case "filter-contrast" -> contrast = (float) val;
+                case "filter-saturate" -> saturate = (float) val;
+                case "filter-sepia" -> sepia = (float) val;
                 case "filter-grayscale" -> grayscale = (float) val;
                 case "filter-invert" -> invert = (float) val;
                 case "filter-hue-rotate" -> hueRotate = (float) val;
@@ -207,7 +229,7 @@ public class Filter {
         }
 
         FilterState merged = new FilterState(
-                blur, brightness, grayscale, invert, hueRotate, opacity,
+                blur, brightness, contrast, saturate, sepia, grayscale, invert, hueRotate, opacity,
                 shadowX, shadowY, shadowBlur, shadowColor
         );
         originStyle.filter = serialize(merged);
@@ -217,6 +239,9 @@ public class Filter {
         Filter.FilterState s = Filter.parse(start, 1f), e = Filter.parse(end, 1f);
         Transition.addChange(changes, "filter-blur", Transition.getOffset("blur", s.blurRadius(), e.blurRadius(), progress));
         Transition.addChange(changes, "filter-brightness", Transition.getOffset("bright", s.brightness(), e.brightness(), progress));
+        Transition.addChange(changes, "filter-contrast", Transition.getOffset("contrast", s.contrast(), e.contrast(), progress));
+        Transition.addChange(changes, "filter-saturate", Transition.getOffset("saturate", s.saturate(), e.saturate(), progress));
+        Transition.addChange(changes, "filter-sepia", Transition.getOffset("sepia", s.sepia(), e.sepia(), progress));
         Transition.addChange(changes, "filter-grayscale", Transition.getOffset("gray", s.grayscale(), e.grayscale(), progress));
         Transition.addChange(changes, "filter-invert", Transition.getOffset("inv", s.invert(), e.invert(), progress));
         Transition.addChange(changes, "filter-hue-rotate", Transition.getOffset("hue", s.hueRotate(), e.hueRotate(), progress));
@@ -231,6 +256,9 @@ public class Filter {
         ArrayList<String> parts = new ArrayList<>();
         if (state.blurRadius() > 0.0001f) parts.add(String.format(Locale.ROOT, "blur(%.2fpx)", state.blurRadius()));
         if (Math.abs(state.brightness() - 1f) > 0.0001f) parts.add(String.format(Locale.ROOT, "brightness(%.3f)", state.brightness()));
+        if (Math.abs(state.contrast() - 1f) > 0.0001f) parts.add(String.format(Locale.ROOT, "contrast(%.3f)", state.contrast()));
+        if (Math.abs(state.saturate() - 1f) > 0.0001f) parts.add(String.format(Locale.ROOT, "saturate(%.3f)", state.saturate()));
+        if (Math.abs(state.sepia()) > 0.0001f) parts.add(String.format(Locale.ROOT, "sepia(%.3f)", state.sepia()));
         if (Math.abs(state.grayscale()) > 0.0001f) parts.add(String.format(Locale.ROOT, "grayscale(%.3f)", state.grayscale()));
         if (Math.abs(state.invert()) > 0.0001f) parts.add(String.format(Locale.ROOT, "invert(%.3f)", state.invert()));
         if (Math.abs(state.hueRotate()) > 0.0001f) parts.add(String.format(Locale.ROOT, "hue-rotate(%.2fdeg)", state.hueRotate()));

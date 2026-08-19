@@ -24,8 +24,6 @@ import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.ui.Tooltip;
 import com.sighs.apricityui.ui.ContextMenu;
 import com.sighs.apricityui.ui.DialogWindow;
-import com.sighs.apricityui.ui.FilePicker;
-import com.sighs.apricityui.editor.ore.OreEditor;
 import com.sighs.apricityui.dev.resource.ResourceMetaDialog;
 import com.sighs.apricityui.loader.ClientLoader;
 import net.minecraft.client.Minecraft;
@@ -867,7 +865,6 @@ public final class DevToolsController {
         Element reloadDocumentButton = toolDocument.querySelector("#reloadDocumentBtn");
         Element metaButton = toolDocument.querySelector("#metaButton");
         Element consoleButton = toolDocument.querySelector(".console-btn");
-        Element oreEditorButton = toolDocument.querySelector("#oreEditorButton");
         Element settingsButton = toolDocument.querySelector("#settingsButton");
         Element dragHandle = toolDocument.querySelector("#panelDragHandle");
         Element closeDevToolsButton = toolDocument.querySelector("#closeDevToolsBtn");
@@ -895,7 +892,6 @@ public final class DevToolsController {
         bindOnce(reloadDocumentButton, event -> reloadTargetDocument());
         bindOnce(metaButton, event -> openMetaEditor());
         bindOnce(consoleButton, event -> toggleConsoleMode());
-        bindOnce(oreEditorButton, event -> openOreEditorFilePicker());
         bindOnce(settingsButton, event -> configDialog.open(toolDocument));
         bindOnce(closeDevToolsButton, event -> close());
         bindOnce(closeDocumentButton, event -> closeTargetDocument());
@@ -904,7 +900,6 @@ public final class DevToolsController {
         bindTooltipOnce(reloadDocumentButton, "tooltip.apricityui.devtools.reload_document");
         bindTooltipOnce(metaButton, "tooltip.apricityui.devtools.meta");
         bindConsoleTooltip(consoleButton);
-        bindTooltipOnce(oreEditorButton, "tooltip.apricityui.ore_editor.open");
         bindTooltipOnce(settingsButton, "tooltip.apricityui.devtools.settings");
         bindTooltipOnce(closeDevToolsButton, "tooltip.apricityui.devtools.close");
         bindTooltipOnce(closeDocumentButton, "tooltip.apricityui.devtools.close_document");
@@ -941,20 +936,6 @@ public final class DevToolsController {
         console.bind();
     }
 
-    private void openOreEditorFilePicker() {
-        if (OreEditor.isOpen() && OreEditor.getSession().dirty()) {
-            showToast(DevToolsTranslations.translate("devtools.apricityui.ore_editor.unsaved"));
-            return;
-        }
-        FilePicker.pick(FilePicker.Options.htmlTranslation(
-                "devtools.apricityui.ore_editor.select_html", false
-        )).thenAccept(selection -> selection.ifPresent(file -> {
-            if (!OreEditor.openHtml(file.localPath())) {
-                showToast(DevToolsTranslations.translate("devtools.apricityui.ore_editor.open_failed"));
-            }
-        }));
-    }
-
     private void bindOnce(Element element, java.util.function.Consumer<Event> listener) {
         if (element == null || "1".equals(element.getAttribute("data-java-bound"))) return;
         element.setAttribute("data-java-bound", "1");
@@ -971,7 +952,6 @@ public final class DevToolsController {
         setAttribute("#pickBtn", "aria-label", "devtools.apricityui.inspect_elements");
         setAttribute(".console-btn", "aria-label",
                 consoleMode ? "devtools.apricityui.inspect_elements" : "devtools.apricityui.console");
-        setAttribute("#oreEditorButton", "aria-label", "tooltip.apricityui.ore_editor.open");
         setAttribute("#settingsButton", "aria-label", "tooltip.apricityui.devtools.settings");
         setAttribute("#closeDevToolsBtn", "aria-label", "tooltip.apricityui.devtools.close");
         setAttribute("#closeDocumentBtn", "aria-label", "tooltip.apricityui.devtools.close_document");

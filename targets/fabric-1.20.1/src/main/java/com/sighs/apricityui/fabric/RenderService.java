@@ -445,6 +445,21 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public Object getFilterMaskShader(boolean luminance) {
+        // luminance 由 filter_mask.fsh 的 MaskLuminance uniform 驱动，同一 shader
+        return FabricShaderRegistry.getFilterMaskShader();
+    }
+
+    @Override
+    public Object getFilterMaskMergeShader(MaskCompositeOp op) {
+        return switch (op) {
+            case INTERSECT -> FabricShaderRegistry.getFilterMaskIntersectShader();
+            case SUBTRACT -> FabricShaderRegistry.getFilterMaskSubtractShader();
+            case EXCLUDE -> FabricShaderRegistry.getFilterMaskExcludeShader();
+        };
+    }
+
+    @Override
     public void setDepthFunc(int func) {
         RenderSystem.depthFunc(func);
     }

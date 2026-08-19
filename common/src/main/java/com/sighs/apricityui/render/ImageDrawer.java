@@ -559,6 +559,22 @@ public class ImageDrawer {
         Graph.drawFillRect(poseStack.last().pose(), x, y, x + width, y + height, PLACEHOLDER_COLOR);
     }
 
+    /**
+     * Returns whether the texture for {@code path} is already loaded and drawable.
+     * Used by mask painting, which must skip not-yet-loaded layers instead of
+     * drawing the loading placeholder into the mask buffer.
+     */
+    public static boolean isTextureReady(String path, Element requester) {
+        if (path == null || path.isEmpty() || "unset".equals(path)) return false;
+        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, false);
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
+            return false;
+        }
+        Image.ITexture texture = handle.texture();
+        return texture.getWidth() > 0 && texture.getHeight() > 0
+                && AuiServices.resources().locationOf(texture.getKey()) != null;
+    }
+
     private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, float x, float y, float width, float height) {
         return requestReadyTexture(path, poseStack, x, y, width, height, null);
     }
