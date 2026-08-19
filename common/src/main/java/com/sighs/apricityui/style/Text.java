@@ -64,8 +64,25 @@ public class Text {
         }
     }
 
-    private String cachedKey = null;
-    private int cachedKeyHash = 0;
+    // content 会被逐行/逐段改写（Input/TextArea/ContentEditable 的 before/selected/after），
+    // 因此 key 分两层：样式部分稳定、走 hash 缓存；content 每次拼接一次即可。
+    private String cachedStyleKey = null;
+    private int cachedStyleKeyHash = 0;
+    // toKey 备忘：逐帧逐行绘制时 content 是缓存 lines 列表里的稳定实例，
+    // 引用相等 + styleStamp 不变即可复用上次拼接结果，省掉每行的字符串拼接。
+    private String cachedToKey = null;
+    private String cachedToKeyContent = null;
+    private int cachedToKeyStamp = 0;
+    /**
+     * 渲染层备忘槽（目前由 FontDrawer 缓存完整绘制 key）。Text 实例已按元素缓存，
+     * 槽随实例消亡；style 包不依赖 render 包，所以槽的类型是 Object。
+     */
+    public Object renderKeyMemo;
+    // measureLine 的按实例备忘：行字符串（稳定实例）→ 宽度。
+    // revision（字体度量版本）或 styleStamp 变化时整体作废。
+    java.util.IdentityHashMap<String, Double> lineWidthMemo;
+    long lineWidthMemoRevision = -1;
+    int lineWidthMemoStamp = 0;
     public double fontSize = -1;
     public int fontWeight = -1;
     public boolean oblique = false;
@@ -627,8 +644,21 @@ public class Text {
     public static double measureLine(Text text, String line) {
         if (text == null) return 0;
         if (line == null || line.isEmpty()) return 0;
+        // 逐帧逐行测量时 line 是缓存 lines 列表里的稳定实例：按实例备忘到 Text 上，
+        // 命中时零分配。全局 LineMeasureKey 路径保留用于跨 Text 共享与兜底。
+        long revision = Font.getMetricsRevision();
+        int stamp = text.styleStamp();
+        java.util.IdentityHashMap<String, Double> memo = text.lineWidthMemo;
+        if (memo != null && (text.lineWidthMemoRevision != revision || text.lineWidthMemoStamp != stamp)) {
+            memo = null;
+            text.lineWidthMemo = null;
+        }
+        if (memo != null) {
+            Double hit = memo.get(line);
+            if (hit != null) return hit;
+        }
         LineMeasureKey cacheKey = new LineMeasureKey(
-                Font.getMetricsRevision(),
+                revision,
                 text.fontSize,
                 text.fontWeight,
                 text.oblique,
@@ -638,10 +668,23 @@ public class Text {
                 line
         );
         Double cached = LINE_WIDTH_CACHE.get(cacheKey);
-        if (cached != null) return cached;
-
-        double measured = measureLineUncached(text, line);
-        LINE_WIDTH_CACHE.put(cacheKey, measured);
+        double measured;
+        if (cached != null) {
+            measured = cached;
+        } else {
+            measured = measureLineUncached(text, line);
+            LINE_WIDTH_CACHE.put(cacheKey, measured);
+        }
+        if (memo == null) {
+            memo = new java.util.IdentityHashMap<>();
+            text.lineWidthMemo = memo;
+            text.lineWidthMemoRevision = revision;
+            text.lineWidthMemoStamp = stamp;
+        } else if (memo.size() >= 512) {
+            // 输入框等内容持续变化的场景下防止备忘无限增长。
+            memo.clear();
+        }
+        memo.put(line, measured);
         return measured;
     }
 
@@ -675,6 +718,21 @@ public class Text {
     }
 
     public String toKey() {
+        String c = content;
+        int stamp = styleStamp();
+        if (cachedToKey != null && cachedToKeyContent == c && cachedToKeyStamp == stamp) return cachedToKey;
+        String key = styleKey() + '/' + (c == null ? "" : c);
+        cachedToKey = key;
+        cachedToKeyContent = c;
+        cachedToKeyStamp = stamp;
+        return key;
+    }
+
+    /**
+     * 15 个样式字段的指纹（不含 content）。调用方持有本实例的派生缓存时，
+     * 可以用它廉价检测样式是否被改写，避免每帧重新拷贝或重建 key 字符串。
+     */
+    public int styleStamp() {
         int h = 1;
         h = 31 * h + (int) Math.round(fontSize * 1000);
         h = 31 * h + fontWeight;
@@ -684,7 +742,6 @@ public class Text {
         h = 31 * h + (color == null ? 0 : color.getValue());
         h = 31 * h + (textDecoration == null ? 0 : textDecoration.hashCode());
         h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
-        h = 31 * h + (content == null ? 0 : content.hashCode());
         h = 31 * h + (direction == null ? 0 : direction.hashCode());
         h = 31 * h + (textAlign == null ? 0 : textAlign.hashCode());
         h = 31 * h + (verticalAlign == null ? 0 : verticalAlign.hashCode());
@@ -692,7 +749,12 @@ public class Text {
         h = 31 * h + (int) Math.round(textIndent * 1000);
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
         h = 31 * h + (rasterBackgroundColor == null ? 0 : rasterBackgroundColor.hashCode());
-        if (cachedKey != null && cachedKeyHash == h) return cachedKey;
+        return h;
+    }
+
+    private String styleKey() {
+        int h = styleStamp();
+        if (cachedStyleKey != null && cachedStyleKeyHash == h) return cachedStyleKey;
 
         StringBuilder sb = new StringBuilder(64);
         sb.append(fontSize).append('/')
@@ -703,7 +765,6 @@ public class Text {
                 .append(color == null ? 0 : color.getValue()).append('/')
                 .append(textDecoration == null ? "" : textDecoration).append('/')
                 .append(fontFamily == null ? "" : fontFamily).append('/')
-                .append(content == null ? "" : content).append('/')
                 .append(direction == null ? "" : direction).append('/')
                 .append(textAlign == null ? "" : textAlign).append('/')
                 .append(verticalAlign == null ? "" : verticalAlign).append('/')
@@ -711,9 +772,9 @@ public class Text {
                 .append(textIndent).append('/')
                 .append(letterSpacing).append('/')
                 .append(rasterBackgroundColor == null ? "" : rasterBackgroundColor);
-        cachedKey = sb.toString();
-        cachedKeyHash = h;
-        return cachedKey;
+        cachedStyleKey = sb.toString();
+        cachedStyleKeyHash = h;
+        return cachedStyleKey;
     }
 
     public boolean isUnderlined() {
@@ -868,6 +929,9 @@ public class Text {
         List<String> hardLines = splitLines(content);
         List<String> lines = new ArrayList<>();
         List<Integer> starts = new ArrayList<>();
+        // 字形宽度缓存提升到整个 wrap 生命周期：各硬行共享同一批字形，
+        // 避免每行各建一张 HashMap 且跨行重复测量同一字符。
+        Map<Integer, Double> codePointWidthCache = new java.util.HashMap<>();
         double maxWidth = 0;
         boolean allowsSoftWrap = allowsSoftWrap(text == null ? null : text.whiteSpace) && wrapWidth > 0;
         int cursor = 0;
@@ -878,7 +942,7 @@ public class Text {
                 starts.add(cursor);
                 maxWidth = Math.max(maxWidth, measureLine(text, hardLine));
             } else {
-                wrapHardLine(text, hardLine, cursor, wrapWidth, lines, starts);
+                wrapHardLine(text, hardLine, cursor, wrapWidth, lines, starts, codePointWidthCache);
             }
             cursor += hardLine.length() + 1;
         }
@@ -900,7 +964,8 @@ public class Text {
     }
 
     private static void wrapHardLine(Text text, String hardLine, int baseIndex, double wrapWidth,
-                                     List<String> lines, List<Integer> starts) {
+                                     List<String> lines, List<Integer> starts,
+                                     Map<Integer, Double> codePointWidthCache) {
         if (hardLine.isEmpty()) {
             lines.add("");
             starts.add(baseIndex);
@@ -908,7 +973,6 @@ public class Text {
         }
 
         int lineStart = 0;
-        Map<Integer, Double> codePointWidthCache = new java.util.HashMap<>();
         while (lineStart < hardLine.length()) {
             double width = 0;
             int lineEnd = lineStart;
@@ -919,7 +983,15 @@ public class Text {
                 int codePoint = hardLine.codePointAt(lineEnd);
                 int charCount = Character.charCount(codePoint);
                 char c = hardLine.charAt(lineEnd);
-                double charWidth = codePointWidthCache.computeIfAbsent(codePoint, key -> measureLine(text, new String(Character.toChars(key))));
+                // 手写 get/put：computeIfAbsent 的捕获 lambda 每次调用都会分配。
+                Double cachedWidth = codePointWidthCache.get(codePoint);
+                double charWidth;
+                if (cachedWidth != null) {
+                    charWidth = cachedWidth;
+                } else {
+                    charWidth = measureLine(text, new String(Character.toChars(codePoint)));
+                    codePointWidthCache.put(codePoint, charWidth);
+                }
                 if (!firstGlyph && width + charWidth > wrapWidth) break;
                 width += charWidth;
                 if (isPreferredBreakChar(text == null ? null : text.whiteSpace, c)) {
@@ -1038,6 +1110,19 @@ public class Text {
     }
 
     private static String collapseToSingleLine(String content) {
+        // 快路径：无可折叠字符（换行/制表/连续空格/首尾空格）时原样返回，
+        // 绝大多数文本节点落在这里，避免 StringBuilder + 底层数组分配
+        // （JFR 里 collapseToSingleLine 归因约 78MB）。
+        int len = content.length();
+        boolean simple = len > 0 && content.charAt(0) != ' ' && content.charAt(len - 1) != ' ';
+        for (int i = 0; simple && i < len; i++) {
+            char c = content.charAt(i);
+            if (c == '\r' || c == '\n' || isCollapsibleSpace(c)) {
+                if (c != ' ') simple = false;
+                else if (content.charAt(i + 1) == ' ') simple = false;
+            }
+        }
+        if (simple) return content;
         StringBuilder sb = new StringBuilder(content.length());
         boolean pendingSpace = false;
         boolean emitted = false;

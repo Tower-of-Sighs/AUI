@@ -16,10 +16,29 @@ public final class Layout {
     /**
      * 按顶层空白切分 CSS 值，函数体（calc()/min() 等）内的空白不切分。
      * 包内各布局器的 paren-aware 分词统一走这里（Box/Grid 原各自实现了一份）。
+     * 输入是样式表里的稳定字符串，布局阶段逐帧重复切分（JFR 归因约 42MB），缓存之。
+     * 返回不可变列表，调用方不得修改。
      */
     static List<String> splitTopLevelWhitespace(String value) {
+        if (value == null || value.isBlank()) return List.of();
+        List<String> cached = SPLIT_CACHE.get(value);
+        if (cached != null) return cached;
+        List<String> parts = splitTopLevelWhitespaceUncached(value);
+        SPLIT_CACHE.put(value, parts);
+        return parts;
+    }
+
+    private static final int SPLIT_CACHE_LIMIT = 1024;
+    private static final java.util.Map<String, List<String>> SPLIT_CACHE =
+            java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(128, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(java.util.Map.Entry<String, List<String>> eldest) {
+                    return size() > SPLIT_CACHE_LIMIT;
+                }
+            });
+
+    private static List<String> splitTopLevelWhitespaceUncached(String value) {
         List<String> parts = new ArrayList<>();
-        if (value == null || value.isBlank()) return parts;
         int depth = 0;
         int start = -1;
         for (int i = 0; i < value.length(); i++) {
@@ -36,7 +55,7 @@ public final class Layout {
             }
         }
         if (start >= 0) parts.add(value.substring(start));
-        return parts;
+        return List.copyOf(parts);
     }
 
     public static Position computeChildPosition(Element element, Element parent, List<Element> siblings) {

@@ -57,7 +57,26 @@ public class Flex {
     }
 
     public static Flex of(Element element) {
-        return new Flex(element.getComputedStyle());
+        Style style = element.getComputedStyle();
+        // 逐帧布局会对同一元素反复调用本方法。Flex 构造后不可变，五个关键字与当前
+        // computed style 逐值相同则内容必然相同，可以直接复用上次的实例，
+        // 省掉每帧 5 个 KeywordValue + 1 个 Flex 的分配（JFR 归因逾百 MB）。
+        Flex cached = element.getRenderer().flexCache;
+        if (cached != null
+                && keywordEquals(cached.flexDirection, style.flexDirection)
+                && keywordEquals(cached.flexWrap, style.flexWrap)
+                && keywordEquals(cached.alignContent, style.alignContent)
+                && keywordEquals(cached.justifyContent, style.justifyContent)
+                && keywordEquals(cached.alignItems, style.alignItems)) {
+            return cached;
+        }
+        Flex flex = new Flex(style);
+        element.getRenderer().flexCache = flex;
+        return flex;
+    }
+
+    private static boolean keywordEquals(KeywordValue keyword, String value) {
+        return java.util.Objects.equals(keyword.value, value);
     }
 
     /** wrap 与 wrap-reverse 都会触发换行，二者的交叉轴方向相反（见 crossReversed）。 */
@@ -405,8 +424,20 @@ public class Flex {
     }
 
     public static List<Element> getFlowItems(List<Element> siblings) {
-        List<Element> flowItems = new ArrayList<>();
-        for (Element sibling : siblings) {
+        // 快路径：全部在流（常见情形）时直接返回原列表，所有调用方只读。
+        // 布局逐帧多次过滤，新 ArrayList 的底层数组 JFR 归因约 24MB。
+        int size = siblings.size();
+        boolean allInFlow = true;
+        for (int i = 0; i < size; i++) {
+            if (!Layout.isInFlow(siblings.get(i).getComputedStyle())) {
+                allInFlow = false;
+                break;
+            }
+        }
+        if (allInFlow) return siblings;
+        List<Element> flowItems = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            Element sibling = siblings.get(i);
             if (!Layout.isInFlow(sibling.getComputedStyle())) continue;
             flowItems.add(sibling);
         }
@@ -1380,7 +1411,12 @@ public class Flex {
         ArrayList<FlexParticipant> participants = new ArrayList<>();
         if (parent == null) return participants;
         int flowIndex = 0;
-        for (Node child : parent.getRenderChildNodes()) {
+        boolean hasTextParticipant = false;
+        // 索引循环 + 手扫替代 stream：布局逐帧调用，for-each 迭代器与
+        // stream().noneMatch 的分配在 JFR 里累计约 20MB。
+        List<Node> childNodes = parent.getRenderChildNodes();
+        for (int i = 0; i < childNodes.size(); i++) {
+            Node child = childNodes.get(i);
             if (child instanceof Element childElement) {
                 if (flowIndex >= flowItems.size() || flowItems.get(flowIndex) != childElement) continue;
                 participants.add(new FlexParticipant(childElement, null, participantSize(parent, childElement), flowIndex, null));
@@ -1389,13 +1425,16 @@ public class Flex {
             }
             if (child instanceof TextNode textNode) {
                 FlexParticipant textParticipant = buildDirectTextParticipant(parent, textNode.getTextContent(), wrapWidth);
-                if (textParticipant != null) participants.add(textParticipant);
+                if (textParticipant != null) {
+                    participants.add(textParticipant);
+                    hasTextParticipant = true;
+                }
             }
         }
         // setTextContent stores direct text on innerText until a concrete text
         // node is needed. Generated boxes must not make that anonymous flex item
         // disappear during the host's initial intrinsic-size pass.
-        if (participants.stream().noneMatch(participant -> participant.text() != null)
+        if (!hasTextParticipant
                 && parent.innerText != null && !parent.innerText.isBlank()) {
             FlexParticipant textParticipant = buildDirectTextParticipant(parent, parent.innerText, wrapWidth);
             if (textParticipant != null) participants.add(textParticipant);

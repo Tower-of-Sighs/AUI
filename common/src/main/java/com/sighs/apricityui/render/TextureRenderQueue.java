@@ -4,6 +4,7 @@ import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.spi.RenderHandle;
 import org.joml.Matrix4f;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -14,18 +15,28 @@ import java.util.List;
  * <p>Depth-tested draws can be reordered by render handle because the depth
  * buffer determines visibility. Overlay draws keep their original order: an
  * alpha-composited overlay must not be moved across another texture.</p>
+ *
+ * <p>Draw/Batch objects are pooled: JFR 采样显示每个 quad 的 {@code new Matrix4f}
+ * 拷贝加每次 flush 重建的批次容器，在动画场景下累计数百 MB 分配。渲染仅在
+ * 渲染线程发生，池无需同步；flush 不可重入（emitTextureQuad 不会再调用 add）。</p>
  */
 final class TextureRenderQueue {
     private static final int MAX_QUEUED_QUADS = 8192;
 
     private final List<Draw> draws = new ArrayList<>();
+    private final ArrayDeque<Draw> drawPool = new ArrayDeque<>();
+    private final ArrayDeque<Batch> batchPool = new ArrayDeque<>();
+    private final List<Batch> batchesScratch = new ArrayList<>();
+    private final IdentityHashMap<RenderHandle, Batch> batchByHandle = new IdentityHashMap<>();
 
     void add(RenderHandle renderHandle, boolean depthTest, Matrix4f matrix,
              float x, float y, float width, float height,
              float u0, float v0, float u1, float v1) {
         if (draws.size() >= MAX_QUEUED_QUADS) flush();
-        draws.add(new Draw(renderHandle, depthTest, new Matrix4f(matrix),
-                x, y, width, height, u0, v0, u1, v1));
+        Draw draw = drawPool.pollFirst();
+        if (draw == null) draw = new Draw();
+        draw.set(renderHandle, depthTest, matrix, x, y, width, height, u0, v0, u1, v1);
+        draws.add(draw);
     }
 
     void flush() {
@@ -34,10 +45,10 @@ final class TextureRenderQueue {
         try {
             int segmentStart = 0;
             while (segmentStart < draws.size()) {
-                boolean depthTest = draws.get(segmentStart).depthTest();
+                boolean depthTest = draws.get(segmentStart).depthTest;
                 int segmentEnd = segmentStart + 1;
                 while (segmentEnd < draws.size()
-                        && draws.get(segmentEnd).depthTest() == depthTest) {
+                        && draws.get(segmentEnd).depthTest == depthTest) {
                     segmentEnd++;
                 }
 
@@ -49,61 +60,93 @@ final class TextureRenderQueue {
                 segmentStart = segmentEnd;
             }
         } finally {
+            for (int i = 0; i < draws.size(); i++) drawPool.offerFirst(draws.get(i));
             draws.clear();
         }
     }
 
     private void flushDepthTestedSegment(int start, int end) {
-        List<Batch> batches = new ArrayList<>();
-        IdentityHashMap<RenderHandle, Batch> byRenderHandle = new IdentityHashMap<>();
+        batchesScratch.clear();
+        batchByHandle.clear();
         for (int i = start; i < end; i++) {
             Draw draw = draws.get(i);
-            Batch batch = byRenderHandle.get(draw.renderHandle());
+            Batch batch = batchByHandle.get(draw.renderHandle);
             if (batch == null) {
-                batch = new Batch(draw.renderHandle());
-                byRenderHandle.put(draw.renderHandle(), batch);
-                batches.add(batch);
+                batch = obtainBatch(draw.renderHandle);
+                batchByHandle.put(draw.renderHandle, batch);
+                batchesScratch.add(batch);
             }
-            batch.draws().add(draw);
+            batch.draws.add(draw);
         }
-        flushBatches(batches);
+        flushBatches();
     }
 
     private void flushOverlaySegment(int start, int end) {
-        List<Batch> batches = new ArrayList<>();
+        batchesScratch.clear();
         Batch previous = null;
         for (int i = start; i < end; i++) {
             Draw draw = draws.get(i);
-            if (previous == null || previous.renderHandle() != draw.renderHandle()) {
-                previous = new Batch(draw.renderHandle());
-                batches.add(previous);
+            if (previous == null || previous.renderHandle != draw.renderHandle) {
+                previous = obtainBatch(draw.renderHandle);
+                batchesScratch.add(previous);
             }
-            previous.draws().add(draw);
+            previous.draws.add(draw);
         }
-        flushBatches(batches);
+        flushBatches();
     }
 
-    private void flushBatches(List<Batch> batches) {
-        for (Batch batch : batches) {
-            Object token = AuiServices.render().beginTextureBatch(batch.renderHandle());
-            for (Draw draw : batch.draws()) {
-                AuiServices.render().emitTextureQuad(token, draw.matrix(),
-                        draw.x(), draw.y(), draw.width(), draw.height(),
-                        draw.u0(), draw.v0(), draw.u1(), draw.v1());
+    private Batch obtainBatch(RenderHandle renderHandle) {
+        Batch batch = batchPool.pollFirst();
+        if (batch == null) batch = new Batch();
+        batch.renderHandle = renderHandle;
+        batch.draws.clear();
+        return batch;
+    }
+
+    private void flushBatches() {
+        for (int i = 0; i < batchesScratch.size(); i++) {
+            Batch batch = batchesScratch.get(i);
+            Object token = AuiServices.render().beginTextureBatch(batch.renderHandle);
+            List<Draw> batchDraws = batch.draws;
+            for (int j = 0; j < batchDraws.size(); j++) {
+                Draw draw = batchDraws.get(j);
+                AuiServices.render().emitTextureQuad(token, draw.matrix,
+                        draw.x, draw.y, draw.width, draw.height,
+                        draw.u0, draw.v0, draw.u1, draw.v1);
             }
-            AuiServices.render().flushTextureBatch(token, batch.renderHandle());
+            AuiServices.render().flushTextureBatch(token, batch.renderHandle);
             RenderBatchStats.recordImageFlush();
+            batch.renderHandle = null;
+            batchPool.offerFirst(batch);
+        }
+        batchesScratch.clear();
+    }
+
+    private static final class Draw {
+        RenderHandle renderHandle;
+        boolean depthTest;
+        final Matrix4f matrix = new Matrix4f();
+        float x, y, width, height, u0, v0, u1, v1;
+
+        void set(RenderHandle renderHandle, boolean depthTest, Matrix4f source,
+                 float x, float y, float width, float height,
+                 float u0, float v0, float u1, float v1) {
+            this.renderHandle = renderHandle;
+            this.depthTest = depthTest;
+            this.matrix.set(source);
+            this.x = x;
+            this.y = y;
+            this.width = width;
+            this.height = height;
+            this.u0 = u0;
+            this.v0 = v0;
+            this.u1 = u1;
+            this.v1 = v1;
         }
     }
 
-    private record Draw(RenderHandle renderHandle, boolean depthTest, Matrix4f matrix,
-                        float x, float y, float width, float height,
-                        float u0, float v0, float u1, float v1) {
-    }
-
-    private record Batch(RenderHandle renderHandle, List<Draw> draws) {
-        private Batch(RenderHandle renderHandle) {
-            this(renderHandle, new ArrayList<>());
-        }
+    private static final class Batch {
+        RenderHandle renderHandle;
+        final List<Draw> draws = new ArrayList<>();
     }
 }

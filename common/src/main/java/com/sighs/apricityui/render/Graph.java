@@ -47,7 +47,8 @@ public class Graph {
     }
 
     public static void addRect(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1, int color) {
-        addRect(mesh, mat, x0, y0, x1, y1, (x, y) -> color);
+        // 直接走四角变体：`(x, y) -> color` 的捕获 lambda 每次调用都会分配（JFR 可见）。
+        addRect(mesh, mat, x0, y0, x1, y1, color, color, color, color);
     }
 
     private static void addRect(MeshBuilder mesh, Matrix4f mat, float x0, float y0, float x1, float y1, int cTL, int cBL, int cBR, int cTR) {
@@ -158,11 +159,43 @@ public class Graph {
         Base.finishRendering();
     }
 
+    /**
+     * withBatchOrImmediate 的无 lambda 变体：热路径（drawFillRect/纯色圆角矩形）
+     * 每次调用分配一个捕获 Runnable 在 JFR 里累计几十 MB。返回非 null 表示
+     * 立即模式，调用方发完顶点后必须交给 endImmediateIfNeeded 提交。
+     */
+    private static MeshBuilder beginImmediateIfNeeded() {
+        if (batchActive) return null;
+        MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.TRIANGLES, MeshFormat.POSITION_COLOR);
+        Base.setMesh(mesh);
+        Base.beginRendering();
+        prepare(mesh);
+        return mesh;
+    }
+
+    private static void endImmediateIfNeeded(MeshBuilder immediate) {
+        if (immediate == null) return;
+        immediate.submit();
+        Base.setMesh(null);
+        Base.finishRendering();
+    }
+
+    /** 纯色场景的共享 resolver：避免每个纯色圆角/圆角扇形都分配捕获 lambda。仅渲染线程使用。 */
+    private static final ConstColorResolver CONST_COLOR_RESOLVER = new ConstColorResolver();
+
+    private static final class ConstColorResolver implements ColorResolver {
+        int color;
+
+        @Override
+        public int resolve(float x, float y) {
+            return color;
+        }
+    }
+
     public static void drawFillRect(Matrix4f matrix, float x0, float y0, float x1, float y1, int color) {
-        withBatchOrImmediate(() -> {
-            MeshBuilder mesh = Base.getMesh();
-            addRect(mesh, matrix, x0, y0, x1, y1, color);
-        });
+        MeshBuilder immediate = beginImmediateIfNeeded();
+        addRect(Base.getMesh(), matrix, x0, y0, x1, y1, color);
+        endImmediateIfNeeded(immediate);
     }
 
     /** 实心菱形：逐行矩形扫描，中线最宽、上下收尖（控件 UI 的统一造型）。 */
@@ -179,7 +212,10 @@ public class Graph {
     }
 
     public static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, int color) {
-        drawUnifiedRoundedRect(mat, x, y, w, h, radii, (px, py) -> color);
+        CONST_COLOR_RESOLVER.color = color;
+        MeshBuilder immediate = beginImmediateIfNeeded();
+        addUnifiedRoundedRectVertices(Base.getMesh(), mat, x, y, w, h, radii, CONST_COLOR_RESOLVER);
+        endImmediateIfNeeded(immediate);
     }
 
     public static void drawUnifiedRoundedRect(Matrix4f mat, float x, float y, float w, float h, float[] radii, Gradient gradient) {
@@ -420,7 +456,8 @@ public class Graph {
     }
 
     public static void addUnifiedRoundedRectVertices(MeshBuilder mesh, Matrix4f mat, float x, float y, float width, float height, float[] radii, int color) {
-        addUnifiedRoundedRectVertices(mesh, mat, x, y, width, height, radii, (px, py) -> color);
+        CONST_COLOR_RESOLVER.color = color;
+        addUnifiedRoundedRectVertices(mesh, mat, x, y, width, height, radii, CONST_COLOR_RESOLVER);
     }
 
     /**
@@ -475,7 +512,8 @@ public class Graph {
     }
 
     private static void addCorner(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float r, int startIndex, int color) {
-        addCorner(mesh, mat, cx, cy, r, r, startIndex, (px, py) -> color);
+        CONST_COLOR_RESOLVER.color = color;
+        addCorner(mesh, mat, cx, cy, r, r, startIndex, CONST_COLOR_RESOLVER);
     }
 
     private static void addCorner(MeshBuilder mesh, Matrix4f mat, float cx, float cy, float rx, float ry, int startIndex, ColorResolver colorRes) {

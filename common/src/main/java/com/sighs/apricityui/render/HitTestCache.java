@@ -36,30 +36,59 @@ public final class HitTestCache {
         dirty = true;
     }
 
+    // clip 栈 + 有效裁剪结果的记忆：动画驱动的逐帧 rebuild 中，连续兄弟元素的
+    // clip 栈几乎总是一样的，原实现却逐元素重新走栈、每层 new Bounds + intersection
+    // （JFR 里 HitTestCache$Bounds 归因约 42MB）。栈 push/pop 时版本号递增，
+    // 版本不变直接复用上次结果。
+    private static final class ClipContext {
+        final ArrayDeque<Element> stack = new ArrayDeque<>();
+        long version = 0;
+        long computedVersion = -1;
+        Bounds result = null;
+
+        void push(Element element) {
+            stack.push(element);
+            version++;
+        }
+
+        void pop() {
+            stack.pop();
+            version++;
+        }
+
+        boolean isEmpty() {
+            return stack.isEmpty();
+        }
+
+        Element peek() {
+            return stack.peek();
+        }
+    }
+
     public void rebuild(List<RenderNode> paintOrder) {
         entries.clear();
         dirty = false;
         if (owner == null || owner.body == null || paintOrder == null || paintOrder.isEmpty()) return;
 
-        ArrayDeque<Element> clipStack = new ArrayDeque<>();
+        ClipContext clipContext = new ClipContext();
         Map<Element, Bounds> boundsCache = new IdentityHashMap<>();
         Set<Element> seenElements = Collections.newSetFromMap(new IdentityHashMap<>());
         for (int i = paintOrder.size() - 1; i >= 0; i--) {
             RenderNode node = paintOrder.get(i);
             if (node instanceof RenderNode.ScrollbarNode scrollbarNode) {
-                appendScrollbarEntries(scrollbarNode.target(), clipStack, boundsCache, entries);
+                appendScrollbarEntries(scrollbarNode.target(), clipContext, boundsCache, entries);
                 continue;
             }
             if (node instanceof RenderNode.MaskPopNode popNode) {
                 Element target = popNode.target();
                 if (target != null) {
-                    clipStack.push(target);
+                    clipContext.push(target);
                 }
                 continue;
             }
             if (node instanceof RenderNode.MaskPushNode pushNode) {
-                if (!clipStack.isEmpty() && clipStack.peek() == pushNode.target()) {
-                    clipStack.pop();
+                if (!clipContext.isEmpty() && clipContext.peek() == pushNode.target()) {
+                    clipContext.pop();
                 }
                 continue;
             }
@@ -71,7 +100,7 @@ public final class HitTestCache {
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            Bounds clip = resolveCommittedClipBounds(clipStack, boundsCache);
+            Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
             if (clip != null && clip.isEmpty()) continue;
             entries.add(new Entry(element, bounds, clip));
         }
@@ -87,11 +116,11 @@ public final class HitTestCache {
             return;
         }
 
-        Set<Element> roots = minimizeRoots(dirtyRoots);
+        List<Element> roots = minimizeRoots(dirtyRoots);
         if (roots.isEmpty()) return;
         removeEntriesForRoots(roots);
 
-        ArrayDeque<Element> clipStack = new ArrayDeque<>();
+        ClipContext clipContext = new ClipContext();
         Map<Element, Bounds> boundsCache = new IdentityHashMap<>();
         Set<Element> seenElements = Collections.newSetFromMap(new IdentityHashMap<>());
         ArrayList<Entry> rebuilt = new ArrayList<>();
@@ -100,20 +129,20 @@ public final class HitTestCache {
             if (node instanceof RenderNode.ScrollbarNode scrollbarNode) {
                 Element target = scrollbarNode.target();
                 if (isInAnyRoot(target, roots)) {
-                    appendScrollbarEntries(target, clipStack, boundsCache, rebuilt);
+                    appendScrollbarEntries(target, clipContext, boundsCache, rebuilt);
                 }
                 continue;
             }
             if (node instanceof RenderNode.MaskPopNode popNode) {
                 Element target = popNode.target();
                 if (target != null) {
-                    clipStack.push(target);
+                    clipContext.push(target);
                 }
                 continue;
             }
             if (node instanceof RenderNode.MaskPushNode pushNode) {
-                if (!clipStack.isEmpty() && clipStack.peek() == pushNode.target()) {
-                    clipStack.pop();
+                if (!clipContext.isEmpty() && clipContext.peek() == pushNode.target()) {
+                    clipContext.pop();
                 }
                 continue;
             }
@@ -126,7 +155,7 @@ public final class HitTestCache {
 
             Bounds bounds = resolveCommittedBounds(element, boundsCache);
             if (!bounds.isValid()) continue;
-            Bounds clip = resolveCommittedClipBounds(clipStack, boundsCache);
+            Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
             if (clip != null && clip.isEmpty()) continue;
             rebuilt.add(new Entry(element, bounds, clip));
         }
@@ -182,10 +211,11 @@ public final class HitTestCache {
         return bounds;
     }
 
-    private static Bounds resolveCommittedClipBounds(ArrayDeque<Element> clipStack, Map<Element, Bounds> boundsCache) {
-        if (clipStack.isEmpty()) return null;
+    private static Bounds resolveCommittedClipBounds(ClipContext clipContext, Map<Element, Bounds> boundsCache) {
+        if (clipContext.isEmpty()) return null;
+        if (clipContext.computedVersion == clipContext.version) return clipContext.result;
         Bounds effective = null;
-        for (Element clip : clipStack) {
+        for (Element clip : clipContext.stack) {
             Rect rect = clip.getRenderer().getCommittedRect();
             if (rect == null) continue;
             Position position = rect.getBodyRectPosition();
@@ -196,15 +226,21 @@ public final class HitTestCache {
                     Math.max(0, size.width() - clip.getVerticalScrollbarGutter()),
                     Math.max(0, size.height() - clip.getHorizontalScrollbarGutter())
             );
-            if (clipBounds.isEmpty()) return Bounds.EMPTY;
+            if (clipBounds.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
             effective = effective == null ? clipBounds : effective.intersection(clipBounds);
-            if (effective.isEmpty()) return Bounds.EMPTY;
+            if (effective.isEmpty()) return memoClip(clipContext, Bounds.EMPTY);
         }
-        return effective;
+        return memoClip(clipContext, effective);
+    }
+
+    private static Bounds memoClip(ClipContext clipContext, Bounds result) {
+        clipContext.computedVersion = clipContext.version;
+        clipContext.result = result;
+        return result;
     }
 
     private static void appendScrollbarEntries(Element element,
-                                               ArrayDeque<Element> clipStack,
+                                               ClipContext clipContext,
                                                Map<Element, Bounds> boundsCache,
                                                List<Entry> output) {
         if (element == null || output == null || !element.isPointerEnabled || !element.isVisible) return;
@@ -214,7 +250,7 @@ public final class HitTestCache {
         Size size = rect.getBodyRectSize();
         double vertical = element.getVerticalScrollbarGutter();
         double horizontal = element.getHorizontalScrollbarGutter();
-        Bounds clip = resolveCommittedClipBounds(clipStack, boundsCache);
+        Bounds clip = resolveCommittedClipBounds(clipContext, boundsCache);
         if (clip != null && clip.isEmpty()) return;
         if (vertical > 0) {
             Bounds bounds = new Bounds(
@@ -236,7 +272,7 @@ public final class HitTestCache {
         }
     }
 
-    private void removeEntriesForRoots(Set<Element> roots) {
+    private void removeEntriesForRoots(List<Element> roots) {
         for (Iterator<Entry> iterator = entries.iterator(); iterator.hasNext(); ) {
             Entry entry = iterator.next();
             if (isInAnyRoot(entry.element, roots)) {
@@ -245,15 +281,18 @@ public final class HitTestCache {
         }
     }
 
-    private static Set<Element> minimizeRoots(Set<Element> roots) {
+    private static List<Element> minimizeRoots(Set<Element> roots) {
         ArrayList<Element> sorted = new ArrayList<>(roots);
         sorted.sort(java.util.Comparator.comparingInt(Element::getDepth));
-        Set<Element> result = Collections.newSetFromMap(new IdentityHashMap<>());
+        // 返回 List 而非 IdentityHashMap-backed Set：isInAnyRoot 每次调用都会迭代它,
+        // Set 的 for-each 每次分配一个 IdentityHashMap$KeyIterator(JFR 采样里这笔
+        // 分配随动画期间的逐帧 hit-test 提交累计到数百 MB)。
+        ArrayList<Element> result = new ArrayList<>();
         for (Element root : sorted) {
             if (root == null || !root.isConnected()) continue;
             boolean covered = false;
-            for (Element selected : result) {
-                if (RenderNode.isSameOrDescendant(root, selected)) {
+            for (int i = 0; i < result.size(); i++) {
+                if (RenderNode.isSameOrDescendant(root, result.get(i))) {
                     covered = true;
                     break;
                 }
@@ -263,10 +302,10 @@ public final class HitTestCache {
         return result;
     }
 
-    private static boolean isInAnyRoot(Element element, Set<Element> roots) {
+    private static boolean isInAnyRoot(Element element, List<Element> roots) {
         if (element == null || roots == null || roots.isEmpty()) return false;
-        for (Element root : roots) {
-            if (RenderNode.isSameOrDescendant(element, root)) return true;
+        for (int i = 0; i < roots.size(); i++) {
+            if (RenderNode.isSameOrDescendant(element, roots.get(i))) return true;
         }
         return false;
     }

@@ -32,6 +32,13 @@ import java.util.List;
  */
 public final class TextSelection {
     private final Element owner;
+    // drawInnerText 每帧都会经过 selectableText()。Text.of(owner) 本身已按元素缓存，
+    // 这里再缓存一份拷贝（绘制时会逐行改写 content/color，不能直接用共享缓存实例），
+    // 基准实例身份 + styleStamp 都没变就复用，避免每帧 new Text + 全量样式 key 重算。
+    private Text cachedSelectableText;
+    private Text cachedSelectableBase;
+    private int cachedSelectableStamp;
+    private Position reusableLinePos;
 
     public TextSelection(Element owner) {
         this.owner = owner;
@@ -686,7 +693,8 @@ public final class TextSelection {
         if (SelectionUnits.paintsTextViaRuns(owner)) return;
         Text text = selectableText();
         Position contentPos = rectRenderer.getContentPosition();
-        text.color = new Color(Text.getFontColor(owner));
+        int fontColor = Text.getFontColor(owner);
+        if (text.color == null || text.color.getValue() != fontColor) text.color = new Color(fontColor);
 
         if (!hasDrawableText(text.content)) return;
 
@@ -701,7 +709,8 @@ public final class TextSelection {
         // 选中文字与普通文字同色（高亮矩形由 drawInnerTextSelection 先行绘制），
         // 整行一次绘制，不做按段光栅化：非锚定路径的 glyphAnchorTexel 依赖各段
         // 内容的光栅 ink 统计，分段会让各段垂直锚定不同，导致选中区域后面的文字上浮。
-        Position linePos = new Position(0, 0);
+        if (reusableLinePos == null) reusableLinePos = new Position(0, 0);
+        Position linePos = reusableLinePos;
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             double lineWidth = Text.measureLine(text, line);
@@ -721,6 +730,11 @@ public final class TextSelection {
 
     private Text selectableText() {
         Text base = Text.of(owner);
+        int stamp = base.styleStamp();
+        if (cachedSelectableText != null && cachedSelectableBase == base && cachedSelectableStamp == stamp) {
+            cachedSelectableText.content = SelectionUnits.ownSelectableText(owner);
+            return cachedSelectableText;
+        }
         Text copy = new Text();
         copy.fontSize = base.fontSize;
         copy.fontWeight = base.fontWeight;
@@ -743,6 +757,9 @@ public final class TextSelection {
         // Flattening the whole subtree here makes a block container paint all
         // of its child labels again at the container's content origin.
         copy.content = SelectionUnits.ownSelectableText(owner);
+        cachedSelectableText = copy;
+        cachedSelectableBase = base;
+        cachedSelectableStamp = stamp;
         return copy;
     }
 

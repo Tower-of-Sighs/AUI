@@ -150,7 +150,7 @@ public class FontDrawer {
         }
 
         RasterMode rasterMode = resolveRasterMode(text);
-        TextQuadMode quadMode = resolveTextQuadMode();
+        TextQuadMode quadMode = RasterTuning.QUAD_MODE;
         FontEntry entry = textureEntry(text, content, rasterMode, quadMode);
         if (entry == null) {
             Position drawPosition = baselineAnchored
@@ -278,8 +278,61 @@ public class FontDrawer {
     }
 
     private static FontEntry textureEntry(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
+        String key = drawCacheKey(text, content, rasterMode, quadMode);
+        // get/put 而非 computeIfAbsent：后者每次都分配一个捕获 lambda。仅渲染线程访问。
+        // rebuildTextureEntry 可能返回 null（无可光栅化的 run），null 不入缓存，与 computeIfAbsent 语义一致。
+        FontEntry entry = CACHE.get(key);
+        if (entry != null) return entry;
+        entry = rebuildTextureEntry(text, content, key, rasterMode, quadMode);
+        if (entry != null) CACHE.put(key, entry);
+        return entry;
+    }
+
+    /**
+     * 每行文字每帧都会算一次完整 key（多次字符串拼接）。同一 Text 实例逐帧绘制时
+     * content 是缓存 lines 列表里的稳定实例，所以按「content/textContent 引用 +
+     * styleStamp + raster 参数 + quadMode」备忘上一次结果，命中时零分配。
+     */
+    private static String drawCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
+        // 逐 glyph 路径（letter-spacing）每次新建 glyph 串，备忘永远不中还会白分配，直接跳过。
+        if (content != text.content) return toCacheKey(text, content, rasterMode, quadMode);
+        long fontSizeMillis = Math.round(rasterMode.rasterFontSize() * 1000.0d);
+        long drawScaleMicros = Math.round(rasterMode.drawScale() * 1000000.0d);
+        long pixelScaleMicros = Math.round(rasterMode.pixelScale() * 1000000.0d);
+        int stamp = text.styleStamp();
+        if (text.renderKeyMemo instanceof DrawKeyMemo memo
+                && memo.content == content
+                && memo.styleStamp == stamp
+                && memo.fontSizeMillis == fontSizeMillis
+                && memo.drawScaleMicros == drawScaleMicros
+                && memo.pixelScaleMicros == pixelScaleMicros
+                && memo.targetPhysical == rasterMode.targetPhysical()
+                && memo.quadMode.equals(quadMode)) {
+            return memo.key;
+        }
         String key = toCacheKey(text, content, rasterMode, quadMode);
-        return CACHE.computeIfAbsent(key, ignored -> rebuildTextureEntry(text, content, key, rasterMode, quadMode));
+        DrawKeyMemo memo = new DrawKeyMemo();
+        memo.content = content;
+        memo.styleStamp = stamp;
+        memo.fontSizeMillis = fontSizeMillis;
+        memo.drawScaleMicros = drawScaleMicros;
+        memo.pixelScaleMicros = pixelScaleMicros;
+        memo.targetPhysical = rasterMode.targetPhysical();
+        memo.quadMode = quadMode;
+        memo.key = key;
+        text.renderKeyMemo = memo;
+        return key;
+    }
+
+    private static final class DrawKeyMemo {
+        String content;
+        int styleStamp;
+        long fontSizeMillis;
+        long drawScaleMicros;
+        long pixelScaleMicros;
+        boolean targetPhysical;
+        TextQuadMode quadMode;
+        String key;
     }
 
     private static boolean drawRuntimeRightFracCutoff(PoseStack poseStack, Text text, String content, Position position,
@@ -358,7 +411,7 @@ public class FontDrawer {
         String raw = text.content;
         String rasterKey = "|raster=" + rasterMode.cacheKey()
                 + "|comp=" + resolveTextCompositeMode(text).cacheKey()
-                + "|filter=" + resolveTextureFilterMode().cacheKey()
+                + "|filter=" + RasterTuning.FILTER.cacheKey()
                 + "|quadTexture=" + quadMode.textureCacheKey();
         if (Objects.equals(raw, content)) {
             return text.toKey() + rasterKey;
@@ -373,17 +426,17 @@ public class FontDrawer {
         if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
         var runs = Font.planFontRuns(fontKey, fontStyle, (float) rasterMode.rasterFontSize(), content);
         if (runs.isEmpty()) return null;
-        TextAntialiasMode aaMode = resolveTextAntialiasMode();
-        FractionalMetricsMode fractionalMetricsMode = resolveFractionalMetricsMode();
-        AlphaGammaMode alphaGammaMode = resolveAlphaGammaMode();
-        AlphaScaleMode alphaScaleMode = resolveAlphaScaleMode();
-        AlphaCapMode alphaCapMode = resolveAlphaCapMode();
-        AlphaRemapMode alphaRemapMode = resolveAlphaRemapMode();
-        GlyphRasterSourceMode sourceMode = resolveGlyphRasterSourceMode();
-        StrokeControlMode strokeControlMode = resolveStrokeControlMode();
-        FontRenderContextMode frcMode = resolveFontRenderContextMode();
+        TextAntialiasMode aaMode = RasterTuning.AA;
+        FractionalMetricsMode fractionalMetricsMode = RasterTuning.FRACTIONAL_METRICS;
+        AlphaGammaMode alphaGammaMode = RasterTuning.ALPHA_GAMMA;
+        AlphaScaleMode alphaScaleMode = RasterTuning.ALPHA_SCALE;
+        AlphaCapMode alphaCapMode = RasterTuning.ALPHA_CAP;
+        AlphaRemapMode alphaRemapMode = RasterTuning.ALPHA_REMAP;
+        GlyphRasterSourceMode sourceMode = RasterTuning.SOURCE;
+        StrokeControlMode strokeControlMode = RasterTuning.STROKE_CONTROL;
+        FontRenderContextMode frcMode = RasterTuning.FRC;
         TextCompositeMode compositeMode = resolveTextCompositeMode(text);
-        TextureFilterMode filterMode = resolveTextureFilterMode();
+        TextureFilterMode filterMode = RasterTuning.FILTER;
         Color color = text.color;
         Color strokeColor = text.strokeColor;
         int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
@@ -1125,6 +1178,45 @@ public class FontDrawer {
                                float strikethroughOffset, float strikethroughThickness) {
     }
 
+    /**
+     * 字体光栅化的调优开关（系统属性/环境变量）。这些是进程启动期配置，
+     * 首次使用时解析一次后缓存——此前每次组装缓存 key（每帧每个 text run）
+     * 都要做 10 次 getProperty/getenv + trim + toLowerCase + 字符串拼接。
+     * 缓存 key 与实际光栅化参数必须同源，否则运行中改属性会导致 key 与内容不一致。
+     */
+    private static final class RasterTuning {
+        static final TextAntialiasMode AA = resolveTextAntialiasMode();
+        static final FractionalMetricsMode FRACTIONAL_METRICS = resolveFractionalMetricsMode();
+        static final AlphaGammaMode ALPHA_GAMMA = resolveAlphaGammaMode();
+        static final AlphaScaleMode ALPHA_SCALE = resolveAlphaScaleMode();
+        static final AlphaCapMode ALPHA_CAP = resolveAlphaCapMode();
+        static final AlphaRemapMode ALPHA_REMAP = resolveAlphaRemapMode();
+        static final GlyphRasterSourceMode SOURCE = resolveGlyphRasterSourceMode();
+        static final StrokeControlMode STROKE_CONTROL = resolveStrokeControlMode();
+        static final FontRenderContextMode FRC = resolveFontRenderContextMode();
+        static final TextureFilterMode FILTER = resolveTextureFilterMode();
+        static final TextQuadMode QUAD_MODE = resolveTextQuadMode();
+        /** 归一化后的 composite 原始配置（"" 表示未设置）；solid-bg 模式需在 key 中带上文本背景色。 */
+        static final String COMPOSITE_RAW = resolveCompositeRaw();
+        static final String MODES_TAIL = ":aa=" + AA.cacheKey()
+                + ":fm=" + FRACTIONAL_METRICS.cacheKey()
+                + ":ag=" + ALPHA_GAMMA.cacheKey()
+                + ":as=" + ALPHA_SCALE.cacheKey()
+                + ":ac=" + ALPHA_CAP.cacheKey()
+                + ":ar=" + ALPHA_REMAP.cacheKey()
+                + ":source=" + SOURCE.cacheKey()
+                + ":sc=" + STROKE_CONTROL.cacheKey()
+                + ":frc=" + FRC.cacheKey();
+
+        private static String resolveCompositeRaw() {
+            String mode = System.getProperty(COMPOSITE_MODE_PROPERTY);
+            if (mode == null || mode.isBlank()) {
+                mode = System.getenv("APRICITYUI_FONT_RASTER_COMPOSITE");
+            }
+            return mode == null || mode.isBlank() ? "" : mode.trim().toLowerCase(java.util.Locale.ROOT);
+        }
+    }
+
     private static TextAntialiasMode resolveTextAntialiasMode() {
         String mode = System.getProperty(AA_MODE_PROPERTY);
         if (mode == null || mode.isBlank()) {
@@ -1144,18 +1236,9 @@ public class FontDrawer {
     }
 
     private static TextCompositeMode resolveTextCompositeMode(Text text) {
-        String mode = System.getProperty(COMPOSITE_MODE_PROPERTY);
-        if (mode == null || mode.isBlank()) {
-            mode = System.getenv("APRICITYUI_FONT_RASTER_COMPOSITE");
-        }
-        if (mode == null || mode.isBlank()) {
-            return TextCompositeMode.TRANSPARENT;
-        }
-        String normalized = mode.trim().toLowerCase(java.util.Locale.ROOT);
-        return switch (normalized) {
+        return switch (RasterTuning.COMPOSITE_RAW) {
             case "opaque-white", "opaque_white", "white", "background-white", "background_white" -> TextCompositeMode.OPAQUE_WHITE;
             case "solid-bg", "solid_bg", "solid-background", "solid_background" -> TextCompositeMode.solidBackground(text == null ? null : text.rasterBackgroundColor);
-            case "transparent", "alpha", "default" -> TextCompositeMode.TRANSPARENT;
             default -> TextCompositeMode.TRANSPARENT;
         };
     }
@@ -1166,15 +1249,7 @@ public class FontDrawer {
                     + ":" + Math.round(rasterFontSize * 1000.0d)
                     + ":" + Math.round(drawScale * 1000000.0d)
                     + ":" + Math.round(pixelScale * 1000000.0d)
-                    + ":aa=" + resolveTextAntialiasMode().cacheKey()
-                    + ":fm=" + resolveFractionalMetricsMode().cacheKey()
-                    + ":ag=" + resolveAlphaGammaMode().cacheKey()
-                    + ":as=" + resolveAlphaScaleMode().cacheKey()
-                    + ":ac=" + resolveAlphaCapMode().cacheKey()
-                    + ":ar=" + resolveAlphaRemapMode().cacheKey()
-                    + ":source=" + resolveGlyphRasterSourceMode().cacheKey()
-                    + ":sc=" + resolveStrokeControlMode().cacheKey()
-                    + ":frc=" + resolveFontRenderContextMode().cacheKey();
+                    + RasterTuning.MODES_TAIL;
         }
     }
 

@@ -26,6 +26,28 @@ public interface Transform {
         return parse(transform, window.width(), window.height());
     }
 
+    // 默认基准 parse 的缓存：readTransition 每帧对每个过渡元素都要 parse 一次
+    // 基础 transform 字符串（JFR 归因大头在 readTransition，约 56MB/段）。
+    // 只有不含 % 的字符串与窗口尺寸无关，可直接按字符串缓存。
+    int DEFAULT_PARSE_CACHE_LIMIT = 256;
+    Map<String, List<Transform>> DEFAULT_PARSE_CACHE =
+            Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, List<Transform>> eldest) {
+                    return size() > DEFAULT_PARSE_CACHE_LIMIT;
+                }
+            });
+
+    static List<Transform> parseDefaultBasis(String transform) {
+        if (transform == null) return List.of();
+        if (transform.indexOf('%') >= 0) return parse(transform);
+        List<Transform> cached = DEFAULT_PARSE_CACHE.get(transform);
+        if (cached != null) return cached;
+        List<Transform> parsed = List.copyOf(parse(transform));
+        DEFAULT_PARSE_CACHE.put(transform, parsed);
+        return parsed;
+    }
+
     static List<Transform> parse(String transform, double percentBasisWidth, double percentBasisHeight) {
         List<Transform> result = new ArrayList<>();
 
@@ -37,7 +59,9 @@ public interface Transform {
             return List.of();
         }
 
-        for (FunctionCall call : extractFunctionCalls(transform)) {
+        List<FunctionCall> calls = extractFunctionCalls(transform);
+        for (int ci = 0; ci < calls.size(); ci++) {
+            FunctionCall call = calls.get(ci);
             String func = call.name().toLowerCase(Locale.ENGLISH);
             String argText = call.arguments().trim();
             List<String> args = splitArgs(argText);
@@ -275,18 +299,33 @@ public interface Transform {
     }
 
     static void readTransition(List<Transition.Change> changeList, Style originStyle) {
-        // 提取所有 transform 相关的变化
-        Map<String, Double> vals = new HashMap<>();
+        // 提取所有 transform 相关的变化。逐帧调用，避免 HashMap + Double 装箱
+        // （8 个固定通道用 NaN 哨兵）和 String.format（Formatter 分配很重）。
+        double tx = Double.NaN, ty = Double.NaN, tz = Double.NaN;
+        double rx = Double.NaN, ry = Double.NaN, rz = Double.NaN;
+        double sx = Double.NaN, sy = Double.NaN;
+        boolean found = false;
         Iterator<Transition.Change> it = changeList.iterator();
         while (it.hasNext()) {
             Transition.Change c = it.next();
-            if (c.name().startsWith("transform-")) {
-                vals.put(c.name(), c.value());
-                it.remove();
+            String name = c.name();
+            if (!name.startsWith("transform-")) continue;
+            switch (name) {
+                case "transform-translatex" -> tx = c.value();
+                case "transform-translatey" -> ty = c.value();
+                case "transform-translatez" -> tz = c.value();
+                case "transform-rotatex" -> rx = c.value();
+                case "transform-rotatey" -> ry = c.value();
+                case "transform-rotatez" -> rz = c.value();
+                case "transform-scalex" -> sx = c.value();
+                case "transform-scaley" -> sy = c.value();
+                default -> { }
             }
+            it.remove();
+            found = true;
         }
 
-        if (vals.isEmpty()) return;
+        if (!found) return;
 
         Translate baseTranslate = Translate.DEFAULT;
         Rotate baseRotate = Rotate.DEFAULT;
@@ -294,7 +333,7 @@ public interface Transform {
         boolean hasBaseTranslate = false;
         boolean hasBaseRotate = false;
         boolean hasBaseScale = false;
-        for (Transform transform : parse(originStyle.transform)) {
+        for (Transform transform : parseDefaultBasis(originStyle.transform)) {
             if (transform instanceof Translate value) {
                 baseTranslate = value;
                 hasBaseTranslate = true;
@@ -307,32 +346,57 @@ public interface Transform {
             }
         }
 
-        StringBuilder sb = new StringBuilder();
+        StringBuilder sb = new StringBuilder(96);
 
-        if (hasBaseTranslate || vals.containsKey("transform-translatex") || vals.containsKey("transform-translatey") || vals.containsKey("transform-translatez")) {
-            sb.append(String.format("translate3d(%.2fpx, %.2fpx, %.2fpx) ",
-                    vals.getOrDefault("transform-translatex", baseTranslate.x()),
-                    vals.getOrDefault("transform-translatey", baseTranslate.y()),
-                    vals.getOrDefault("transform-translatez", baseTranslate.z())));
+        if (hasBaseTranslate || !Double.isNaN(tx) || !Double.isNaN(ty) || !Double.isNaN(tz)) {
+            sb.append("translate3d(");
+            append2f(sb, Double.isNaN(tx) ? baseTranslate.x() : tx);
+            sb.append("px, ");
+            append2f(sb, Double.isNaN(ty) ? baseTranslate.y() : ty);
+            sb.append("px, ");
+            append2f(sb, Double.isNaN(tz) ? baseTranslate.z() : tz);
+            sb.append("px) ");
         }
 
-        if (hasBaseRotate || vals.containsKey("transform-rotatex") || vals.containsKey("transform-rotatey") || vals.containsKey("transform-rotatez")) {
-            sb.append(String.format("rotateX(%.2fdeg) rotateY(%.2fdeg) rotateZ(%.2fdeg) ",
-                    vals.getOrDefault("transform-rotatex", baseRotate.x()),
-                    vals.getOrDefault("transform-rotatey", baseRotate.y()),
-                    vals.getOrDefault("transform-rotatez", baseRotate.z())));
+        if (hasBaseRotate || !Double.isNaN(rx) || !Double.isNaN(ry) || !Double.isNaN(rz)) {
+            sb.append("rotateX(");
+            append2f(sb, Double.isNaN(rx) ? baseRotate.x() : rx);
+            sb.append("deg) rotateY(");
+            append2f(sb, Double.isNaN(ry) ? baseRotate.y() : ry);
+            sb.append("deg) rotateZ(");
+            append2f(sb, Double.isNaN(rz) ? baseRotate.z() : rz);
+            sb.append("deg) ");
         }
 
-        if (hasBaseScale || vals.containsKey("transform-scalex") || vals.containsKey("transform-scaley")) {
-            sb.append(String.format("scale(%.2f, %.2f) ",
-                    vals.getOrDefault("transform-scalex", baseScale.x()),
-                    vals.getOrDefault("transform-scaley", baseScale.y())));
+        if (hasBaseScale || !Double.isNaN(sx) || !Double.isNaN(sy)) {
+            sb.append("scale(");
+            append2f(sb, Double.isNaN(sx) ? baseScale.x() : sx);
+            sb.append(", ");
+            append2f(sb, Double.isNaN(sy) ? baseScale.y() : sy);
+            sb.append(") ");
         }
 
-        String result = sb.toString().trim();
-        if (!result.isEmpty()) {
-            originStyle.transform = result;
+        int len = sb.length();
+        while (len > 0 && sb.charAt(len - 1) <= ' ') len--;
+        if (len > 0) {
+            originStyle.transform = sb.substring(0, len);
         }
+    }
+
+    // 与 String.format("%.2f") 对齐：按二进制精确值十进制展开后半进（HALF_UP），
+    // 保留负零符号。Formatter 的分配（Locale/Formatter/装箱数组）在这条逐帧路径上太重。
+    private static void append2f(StringBuilder sb, double v) {
+        if (Double.isNaN(v)) {
+            sb.append("NaN");
+            return;
+        }
+        if (Double.isInfinite(v)) {
+            sb.append(v > 0 ? "Infinity" : "-Infinity");
+            return;
+        }
+        java.math.BigDecimal bd = new java.math.BigDecimal(v).setScale(2, java.math.RoundingMode.HALF_UP);
+        if (bd.signum() == 0 && Double.doubleToRawLongBits(v) < 0) sb.append('-');
+        sb.append(bd.toPlainString());
     }
 
     static void interpolateTransform(List<Transition.Change> changes, String start, String end, double progress) {

@@ -103,28 +103,55 @@ public final class NormalFlow {
         return Math.max(0, Size.getScaleWidth(element));
     }
 
+    // FlowState 池：computeFlow 可经子元素位置查询重入，所以用栈式池而非单例。
+    // 动画驱动的逐帧布局失效让每个 flow 容器每帧重建 3 个 IdentityHashMap
+    // （内部 Object[] 数组重新扩容，JFR 归因约 102MB）；池化后 clear 保容复用。
+    private static final ThreadLocal<java.util.ArrayDeque<FlowState>> FLOW_STATE_POOL =
+            ThreadLocal.withInitial(java.util.ArrayDeque::new);
+
+    private static FlowState obtainState(double lineLimit, Element target) {
+        FlowState state = FLOW_STATE_POOL.get().poll();
+        if (state == null) return new FlowState(lineLimit, target);
+        state.reset(lineLimit, target);
+        return state;
+    }
+
+    private static void releaseState(FlowState state) {
+        state.childPositions.clear();
+        state.lineAtomicAscents.clear();
+        state.lineTextRunAscents.clear();
+        state.textRuns.clear();
+        java.util.ArrayDeque<FlowState> pool = FLOW_STATE_POOL.get();
+        if (pool.size() < 16) pool.push(state);
+    }
+
     private static FlowResult computeFlow(Element owner, List<Node> children, double lineLimit, Element target) {
-        FlowState state = new FlowState(lineLimit, target);
-        layoutChildren(owner, children, state);
+        FlowState state = obtainState(lineLimit, target);
+        try {
+            layoutChildren(owner, children, state);
 
-        if (!state.foundTarget) {
-            state.targetX = 0;
-            state.targetY = state.cursorY;
+            if (!state.foundTarget) {
+                state.targetX = 0;
+                state.targetY = state.cursorY;
+            }
+
+            double contentWidth = Math.max(state.maxLineWidth, state.cursorX);
+            double contentHeight = state.cursorY + state.lineHeight;
+            return new FlowResult(
+                    new FlowMetrics(state.targetX, state.targetY, new Size(contentWidth, contentHeight)),
+                    new IdentityHashMap<>(state.childPositions),
+                    List.copyOf(state.textRuns)
+            );
+        } finally {
+            releaseState(state);
         }
-
-        double contentWidth = Math.max(state.maxLineWidth, state.cursorX);
-        double contentHeight = state.cursorY + state.lineHeight;
-        return new FlowResult(
-                new FlowMetrics(state.targetX, state.targetY, new Size(contentWidth, contentHeight)),
-                new IdentityHashMap<>(state.childPositions),
-                List.copyOf(state.textRuns)
-        );
     }
 
     private static void layoutChildren(Element owner, List<Node> children, FlowState state) {
-        for (Node child : children) {
+        // 索引循环：flow 布局逐帧高频，for-each 迭代器分配 JFR 归因约 8MB。
+        for (int i = 0; i < children.size(); i++) {
             if (state.foundTarget) return;
-            layoutChild(owner, child, state);
+            layoutChild(owner, children.get(i), state);
         }
     }
 
@@ -498,9 +525,47 @@ public final class NormalFlow {
     }
 
     private static String collapseInlineSpaces(String content) {
-        String normalized = content.replace("\r\n", "\n").replace('\r', '\n');
-        normalized = normalized.replace('\n', ' ');
-        return normalized.replaceAll("[\\t\\x0B\\f ]+", " ");
+        // 原实现 replace×2 + replaceAll 正则每次调用重新编译 Pattern
+        // （int[] NFA 数组，JFR 归因约 58MB）。快路径：无需折叠时原样返回；
+        // 否则单遍手工折叠，语义与 "\r\n/\r→\n→空格，[\t\x0B\f ]+→单空格" 完全一致。
+        int len = content.length();
+        boolean simple = true;
+        for (int i = 0; i < len; i++) {
+            char c = content.charAt(i);
+            if (c == '\r' || c == '\n' || c == '\t' || c == '\u000B' || c == '\f') {
+                simple = false;
+                break;
+            }
+            if (c == ' ' && i + 1 < len) {
+                char next = content.charAt(i + 1);
+                if (next == ' ' || next == '\t' || next == '\u000B' || next == '\f'
+                        || next == '\r' || next == '\n') {
+                    simple = false;
+                    break;
+                }
+            }
+        }
+        if (simple) return content;
+        StringBuilder sb = new StringBuilder(len);
+        boolean pendingSpace = false;
+        for (int i = 0; i < len; i++) {
+            char c = content.charAt(i);
+            if (c == '\r') {
+                if (i + 1 < len && content.charAt(i + 1) == '\n') i++;
+                c = ' ';
+            } else if (c == '\n') {
+                c = ' ';
+            }
+            if (c == ' ' || c == '\t' || c == '\u000B' || c == '\f') {
+                if (pendingSpace) continue;
+                pendingSpace = true;
+                sb.append(' ');
+            } else {
+                pendingSpace = false;
+                sb.append(c);
+            }
+        }
+        return sb.toString();
     }
 
     private static String collapseInlineSpacesPreserveNewlines(String content) {
@@ -605,8 +670,8 @@ public final class NormalFlow {
     }
 
     private static final class FlowState {
-        private final double lineLimit;
-        private final Element target;
+        private double lineLimit;
+        private Element target;
         private final ArrayList<TextRunLayout> textRuns = new ArrayList<>();
         private double cursorX = 0;
         private double cursorY = 0;
@@ -625,8 +690,24 @@ public final class NormalFlow {
         private boolean previousFlowWasBlock = false;
 
         private FlowState(double lineLimit, Element target) {
+            reset(lineLimit, target);
+        }
+
+        private void reset(double lineLimit, Element target) {
             this.lineLimit = Math.max(0, lineLimit);
             this.target = target;
+            this.cursorX = 0;
+            this.cursorY = 0;
+            this.lineHeight = 0;
+            this.lineAscent = 0;
+            this.lineDescent = 0;
+            this.lineStrutIncluded = false;
+            this.maxLineWidth = 0;
+            this.targetX = 0;
+            this.targetY = 0;
+            this.foundTarget = false;
+            this.previousBlockMarginBottom = 0;
+            this.previousFlowWasBlock = false;
         }
     }
 

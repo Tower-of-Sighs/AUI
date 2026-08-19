@@ -106,6 +106,16 @@ public class RenderElement {
     public Cache<Filter.FilterState> filter = new Cache<>();
     public Cache<Filter.FilterState> backdropFilter = new Cache<>();
     public Cache<java.util.List<com.sighs.apricityui.style.MaskImage.ResolvedLayer>> maskLayers = new Cache<>();
+    /**
+     * Flex.of 的按元素缓存。不做主动失效：Flex.of 每次用五个关键字与当前
+     * computed style 逐值校验，关键字相同则内容必然相同（Flex 构造后不可变）。
+     */
+    public com.sighs.apricityui.layout.Flex flexCache = null;
+    // resolveOwnExplicitContentHeight 的按 layoutDependency 验证的记忆：结果恒 >= 0
+    // 或 null，NaN 表示"结果为 null"，memoDep 不等表示无记忆。高度解析沿祖先链
+    // 递归，逐层装箱 Double（JFR 归因约 107MB）；记忆把整条链摊成每层一次。
+    public double explicitHeightMemoValue = Double.NaN;
+    public long explicitHeightMemoDep = Long.MIN_VALUE;
     private Rect committedRect = null;
     private Matrix4f committedWorldTransform = null;
     private long styleVersion = 1L;

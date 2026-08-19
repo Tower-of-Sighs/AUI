@@ -120,6 +120,8 @@ public class Element extends Node {
     private Selector.PseudoElement pseudoElementKind = null;
     private Element pseudoElementHost = null;
     private Style pseudoElementPreviousStyle = null;
+    // 伪元素上次同步所用的样式表实例（宿主持有的缓存实例）；同一实例即内容未变
+    private HashMap<String, CSS.Declaration> lastSyncedPseudoStyles = null;
     public boolean isPointerEnabled = true;
     public boolean isVisible = true;
     public String id = null;
@@ -1389,7 +1391,15 @@ public class Element extends Node {
         parentElement = pseudoElementHost;
         depth = pseudoElementHost.depth + 1;
 
+        // 快路径：resolvePseudoElementStyles 在宿主缓存清理前每帧返回同一实例，
+        // 同一实例即未变化，跳过 samePseudoStyles 的 HashMap.equals 逐 entry 比较
+        // （LinkedEntryIterator 分配 JFR 归因约 28MB）。
+        if (styles == lastSyncedPseudoStyles && renderElement.computedStyle.get() != null) {
+            isPointerEnabled = false;
+            return;
+        }
         if (samePseudoStyles(cssCache, styles) && renderElement.computedStyle.get() != null) {
+            lastSyncedPseudoStyles = styles;
             isPointerEnabled = false;
             return;
         }
@@ -1412,6 +1422,7 @@ public class Element extends Node {
         // 伪元素文本参与父级单元的扁平文本，内容变化时选择缓存随之失效
         if (document != null) document.bumpSelectionCache();
         isPointerEnabled = false;
+        lastSyncedPseudoStyles = styles;
         invalidatePseudoElementHostLayout();
     }
 
@@ -1477,6 +1488,7 @@ public class Element extends Node {
         Style cachedStyle = renderElement.computedStyle.get();
         if (cachedStyle != null) pseudoElementPreviousStyle = cachedStyle.clone();
         cssCache.clear();
+        lastSyncedPseudoStyles = null;
         renderElement.computedStyle.clear();
         renderElement.text.clear();
         renderElement.wrappedText.clear();
@@ -3059,7 +3071,11 @@ public class Element extends Node {
      */
     private boolean shouldAlignDirectNormalFlowTextRuns() {
         boolean hasText = false;
-        for (Node child : getRenderChildNodes()) {
+        // 索引循环：normal-flow 文本对齐判定逐帧高频，for-each 迭代器分配
+        // JFR 归因约 6MB。
+        List<Node> childNodes = getRenderChildNodes();
+        for (int i = 0; i < childNodes.size(); i++) {
+            Node child = childNodes.get(i);
             if (child instanceof CommentNode) continue;
             if (child instanceof TextNode textNode) {
                 hasText |= textNode.getTextContent() != null && !textNode.getTextContent().isEmpty();

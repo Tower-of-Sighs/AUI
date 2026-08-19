@@ -7,6 +7,8 @@ import java.util.List;
 public class Gradient {
     private final float angle;
     private final List<Stop> stops = new ArrayList<>();
+    // stops() 在逐帧绘制路径上会被多次调用，缓存只读视图避免每次分配包装器。
+    private final List<Stop> stopsView = Collections.unmodifiableList(stops);
     private boolean repeating = false;
 
     public Gradient(float angle) {
@@ -18,7 +20,7 @@ public class Gradient {
     }
 
     public List<Stop> stops() {
-        return Collections.unmodifiableList(stops);
+        return stopsView;
     }
 
     public boolean repeating() {

@@ -6,56 +6,56 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 public final class RectFrameCache {
-    private static final ThreadLocal<Map<Element, Rect>> CACHE = new ThreadLocal<>();
-    private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
-    private static final ThreadLocal<Integer> COMMITTED_FALLBACK_DISABLED = ThreadLocal.withInitial(() -> 0);
+    // 单 State 对象持有全部逐帧状态：原先 begin/end/get 要操作 3 个 ThreadLocal
+    // （set/remove 在逐帧路径上累计 24 CPU 样本），且每帧新建 IdentityHashMap。
+    // 现在 map 常驻 clear 复用，激活判定看 depth。
+    private static final class State {
+        int depth = 0;
+        int committedFallbackDisabled = 0;
+        final Map<Element, Rect> map = new IdentityHashMap<>();
+    }
+
+    private static final ThreadLocal<State> STATE = ThreadLocal.withInitial(State::new);
 
     private RectFrameCache() {
     }
 
     public static void begin() {
-        int depth = DEPTH.get();
-        if (depth == 0) {
-            CACHE.set(new IdentityHashMap<>());
+        State state = STATE.get();
+        if (state.depth == 0) {
+            state.map.clear();
         }
-        DEPTH.set(depth + 1);
+        state.depth++;
     }
 
     public static void end() {
-        int depth = DEPTH.get();
-        if (depth <= 1) {
-            DEPTH.remove();
-            CACHE.remove();
-        } else {
-            DEPTH.set(depth - 1);
-        }
+        State state = STATE.get();
+        state.depth = Math.max(0, state.depth - 1);
     }
 
     public static void disableCommittedFallback() {
-        COMMITTED_FALLBACK_DISABLED.set(COMMITTED_FALLBACK_DISABLED.get() + 1);
+        STATE.get().committedFallbackDisabled++;
     }
 
     public static void enableCommittedFallback() {
-        int depth = COMMITTED_FALLBACK_DISABLED.get();
-        if (depth <= 1) {
-            COMMITTED_FALLBACK_DISABLED.remove();
-        } else {
-            COMMITTED_FALLBACK_DISABLED.set(depth - 1);
-        }
+        State state = STATE.get();
+        state.committedFallbackDisabled = Math.max(0, state.committedFallbackDisabled - 1);
     }
 
     public static Rect get(Element element) {
-        Map<Element, Rect> map = CACHE.get();
-        Rect cached = map == null ? null : map.get(element);
-        if (cached != null) return cached;
-        if (COMMITTED_FALLBACK_DISABLED.get() > 0) return null;
+        State state = STATE.get();
+        if (state.depth > 0) {
+            Rect cached = state.map.get(element);
+            if (cached != null) return cached;
+        }
+        if (state.committedFallbackDisabled > 0) return null;
         return element == null ? null : element.getRenderer().getCommittedRectIfValid();
     }
 
     public static void put(Element element, Rect rect) {
-        Map<Element, Rect> map = CACHE.get();
-        if (map != null) {
-            map.put(element, rect);
+        State state = STATE.get();
+        if (state.depth > 0) {
+            state.map.put(element, rect);
         }
     }
 }

@@ -5,9 +5,18 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /** Ordered parser and serializer for an element's inline declaration list. */
 public final class InlineStyleDeclaration {
+    /**
+     * 属性名归一化结果缓存。每帧每个元素的内联样式同步都会走过这里
+     * （trim + camelToKebab + toLowerCase 全是分配），而属性名实际是个小集合。
+     * 设上限防恶意/异常输入撑爆；满了就退化为每次现算。
+     */
+    private static final int NORMALIZE_CACHE_LIMIT = 4096;
+    private static final ConcurrentHashMap<String, String> NORMALIZE_CACHE = new ConcurrentHashMap<>();
+
     private InlineStyleDeclaration() {
     }
 
@@ -118,9 +127,14 @@ public final class InlineStyleDeclaration {
 
     public static String normalizeProperty(String property) {
         if (property == null) return "";
+        String cached = NORMALIZE_CACHE.get(property);
+        if (cached != null) return cached;
         String normalized = property.trim();
-        if (normalized.startsWith("--")) return normalized;
-        return camelToKebab(normalized).toLowerCase(Locale.ROOT);
+        String result = normalized.startsWith("--") ? normalized : camelToKebab(normalized).toLowerCase(Locale.ROOT);
+        if (NORMALIZE_CACHE.size() < NORMALIZE_CACHE_LIMIT) {
+            NORMALIZE_CACHE.putIfAbsent(property, result);
+        }
+        return result;
     }
 
     public static String valueWithoutPriority(String value) {
