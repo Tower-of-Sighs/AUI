@@ -2,7 +2,6 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
     <title>Filter and Backdrop Filter Lab</title>
     <style>
@@ -55,15 +54,36 @@
         .mini.filter-on { filter: brightness(1.25) grayscale(.25) hue-rotate(110deg) drop-shadow(6px 6px 3px rgba(0,0,0,.7)); }
         .case-copy { width: 44%; color: #b9c7e8; font-size: 11px; line-height: 16px; }
 
+        .wide { grid-column: 1 / -1; }
+        .swatch-row { display: flex; flex-wrap: wrap; gap: 14px; padding: 16px 15px; }
+        .swatch { flex: 1; min-width: 170px; }
+        .swatch .chip { height: 96px; position: relative; overflow: hidden; background: linear-gradient(120deg, #0ea5e9, #a855f7, #f43f5e); border: 1px solid #304260; }
+        .swatch .chip::before { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(255,255,255,.22), rgba(255,255,255,.22) 8px, transparent 8px, transparent 16px); }
+        .swatch .chip::after { content: attr(data-label); position: absolute; left: 10px; bottom: 8px; padding: 3px 7px; background: rgba(10,14,26,.82); color: #fff; font-size: 11px; font-weight: 700; }
+        .swatch .note { margin-top: 6px; color: #b9c7e8; font-size: 11px; line-height: 15px; }
+        .chip.contrast-high { filter: contrast(1.7); }
+        .chip.contrast-low { filter: contrast(.35); }
+        .chip.saturate-high { filter: saturate(2.6); }
+        .chip.saturate-zero { filter: saturate(0); }
+        .chip.sepia-full { filter: sepia(1); }
+        .chip.sepia-mid { filter: sepia(.55); }
+        .chip.combo { filter: contrast(1.35) saturate(1.6) sepia(.3); }
+        .chip.animated { animation: chip-matrix 4s ease-in-out infinite alternate; }
+        .filter-stage.paused .chip.animated, .scene.paused ~ .chip.animated { animation-play-state: paused; }
+
         @keyframes drift-one { from { transform: translate(0, 0) scale(.78); } to { transform: translate(260px, 92px) scale(1.2); } }
         @keyframes drift-two { from { transform: translate(0, 0) rotate(0deg); } to { transform: translate(-250px, 120px) rotate(170deg); } }
         @keyframes spin-square { from { transform: rotate(22deg) scale(.72); } to { transform: rotate(382deg) scale(1.12); } }
         @keyframes ticker-slide { from { transform: translateX(-8%) rotate(-7deg); } to { transform: translateX(12%) rotate(-7deg); } }
         @keyframes scan { from { transform: translateX(-28px); } to { transform: translateX(28px); } }
         @keyframes subject-filter {
-            0% { filter: blur(0px) brightness(1) grayscale(0) hue-rotate(0deg) opacity(1) drop-shadow(0px 0px 0px rgba(0,0,0,0)); transform: rotate(-2deg) scale(.94); }
-            48% { filter: blur(1.8px) brightness(1.42) grayscale(.45) hue-rotate(130deg) opacity(.84) drop-shadow(8px 9px 5px rgba(8,15,35,.72)); transform: rotate(3deg) scale(1.04); }
-            100% { filter: blur(.4px) brightness(.86) grayscale(.12) hue-rotate(280deg) opacity(1) drop-shadow(-7px 7px 3px rgba(8,15,35,.62)); transform: rotate(-1deg) scale(.98); }
+            0% { filter: blur(0px) brightness(1) contrast(1) saturate(1) sepia(0) grayscale(0) hue-rotate(0deg) opacity(1) drop-shadow(0px 0px 0px rgba(0,0,0,0)); transform: rotate(-2deg) scale(.94); }
+            48% { filter: blur(1.8px) brightness(1.42) contrast(1.55) saturate(1.9) sepia(.3) grayscale(.45) hue-rotate(130deg) opacity(.84) drop-shadow(8px 9px 5px rgba(8,15,35,.72)); transform: rotate(3deg) scale(1.04); }
+            100% { filter: blur(.4px) brightness(.86) contrast(.82) saturate(.35) sepia(.55) grayscale(.12) hue-rotate(280deg) opacity(1) drop-shadow(-7px 7px 3px rgba(8,15,35,.62)); transform: rotate(-1deg) scale(.98); }
+        }
+        @keyframes chip-matrix {
+            from { filter: contrast(1) saturate(1) sepia(0); }
+            to { filter: contrast(1.5) saturate(2.2) sepia(.7); }
         }
         @media (max-width: 760px) { .page { padding: 16px; } .header { align-items: start; flex-direction: column; } .status { text-align: left; } .grid { grid-template-columns: 1fr; } .glass { width: 88%; } }
     </style>
@@ -92,9 +112,24 @@
         </article>
 
         <article class="panel">
-            <div class="panel-head"><div class="panel-title">Animated element filter chain</div><div class="panel-note">blur, brightness, grayscale, hue rotation, opacity, drop shadow and transform run together.</div></div>
+            <div class="panel-head"><div class="panel-title">Animated element filter chain</div><div class="panel-note">blur, brightness, contrast, saturate, sepia, grayscale, hue rotation, opacity, drop shadow and transform run together.</div></div>
             <div class="filter-stage" id="filterStage"><div class="subject"><span class="badge">FILTER TARGET</span><h2>Chromatic card</h2><p>The element and its descendants are rendered into the filter target before compositing.</p></div></div>
             <div class="case-row"><div class="mini" id="staticFilter"></div><div class="case-copy">Static comparison target checks non-animated filter invalidation and drop-shadow bounds.</div></div>
+        </article>
+
+        <article class="panel wide">
+            <div class="panel-head"><div class="panel-title">Color-matrix functions: contrast / saturate / sepia</div><div class="panel-note">Same gradient under each function. Contrast pivots at 0.5; saturate mixes against luma; sepia blends the spec matrix. Functions apply in a fixed order (brightness→contrast→saturate→sepia→grayscale→invert→hue-rotate), not the written order.</div></div>
+            <div class="swatch-row">
+                <div class="swatch"><div class="chip" data-label="control"></div><div class="note">No filter — reference gradient.</div></div>
+                <div class="swatch"><div class="chip contrast-high" data-label="contrast(1.7)"></div><div class="note">Darker darks, brighter brights around the 0.5 pivot.</div></div>
+                <div class="swatch"><div class="chip contrast-low" data-label="contrast(.35)"></div><div class="note">Everything compressed toward mid gray.</div></div>
+                <div class="swatch"><div class="chip saturate-high" data-label="saturate(2.6)"></div><div class="note">Oversaturated, hues pushed away from luma.</div></div>
+                <div class="swatch"><div class="chip saturate-zero" data-label="saturate(0)"></div><div class="note">Equals grayscale(1) — pure luma.</div></div>
+                <div class="swatch"><div class="chip sepia-mid" data-label="sepia(.55)"></div><div class="note">Half-blended sepia matrix.</div></div>
+                <div class="swatch"><div class="chip sepia-full" data-label="sepia(1)"></div><div class="note">Full sepia tone.</div></div>
+                <div class="swatch"><div class="chip combo" data-label="combo"></div><div class="note">contrast(1.35) saturate(1.6) sepia(.3) chained.</div></div>
+                <div class="swatch"><div class="chip animated" data-label="animated"></div><div class="note">contrast/saturate/sepia interpolating — proves the three functions are animatable.</div></div>
+            </div>
         </article>
     </section>
 </main>

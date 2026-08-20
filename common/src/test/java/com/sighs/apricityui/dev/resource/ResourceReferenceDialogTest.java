@@ -36,15 +36,6 @@ class ResourceReferenceDialogTest {
     }
 
     @Test
-    void fontReferenceDefaultsToTheFileStem() {
-        Loader.StaticResourceEntry entry = entry("fonts/lxgw3500.ttf", "ttf");
-
-        List<ResourceReferenceDialog.ReferenceOption> options = ResourceReferenceDialog.optionsFor(entry, "");
-
-        assertEquals("font-family: \"lxgw3500\", sans-serif;", options.get(1).snippet());
-    }
-
-    @Test
     void htmlJavaReferencesCoverAllFourRenderingScenarios() {
         Loader.StaticResourceEntry entry = entry("screens/inventory.html", "html");
 

@@ -60,6 +60,16 @@ public class Window {
         return new OffscreenCanvas(width, height);
     }
 
+    /**
+     * `new Audio(src)` 的 Java 侧工厂：创建挂到 context document 但不入 DOM 树的
+     * Audio 元素（注册进 AudioEngine，随文档关闭自动停止；事件/addEventListener 走常规元素链路）。
+     */
+    public com.sighs.apricityui.element.Audio createAudio(Document document, String src) {
+        com.sighs.apricityui.element.Audio audio = new com.sighs.apricityui.element.Audio(document);
+        if (src != null && !src.isEmpty()) audio.setAttribute("src", src);
+        return audio;
+    }
+
     public DOMMatrix createDOMMatrix() {
         return new DOMMatrix();
     }

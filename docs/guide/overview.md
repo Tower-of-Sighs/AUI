@@ -17,7 +17,7 @@ ApricityUI 是一个 Minecraft 模组：用 HTML、CSS、JavaScript 三件套写
 
 四种宿主里跑的是同一套页面：同样的 DOM、CSS、脚本能力，只是显示位置和输入路径不同。
 
-页面行为由三个 meta 控制——逻辑视口（`aui-viewport`）、字体模式（`aui-font-mode`）、鼠标拦截（`aui-mouse-events`）。完整说明集中在 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)。
+页面行为由两个 meta 控制——逻辑视口（`aui-viewport`）、鼠标拦截（`aui-mouse-events`）。完整说明集中在 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)。
 
 ## 页面里能用什么
 

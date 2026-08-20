@@ -3,6 +3,7 @@ package com.sighs.apricityui.dom;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.layout.Layout;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Style;
 
@@ -309,7 +310,8 @@ public final class InnerText {
     }
 
     private static String declaredDisplay(Element element) {
-        String declared = element.cssCache.get("display");
+        CSS.Declaration declaredCss = element.cssCache.get("display");
+        String declared = declaredCss == null ? null : declaredCss.value();
         String styleAttribute = element.getAttribute("style");
         if (styleAttribute != null && styleAttribute.toLowerCase(Locale.ROOT).contains("display")) {
             declared = element.getInlineStylePropertyValue("display");

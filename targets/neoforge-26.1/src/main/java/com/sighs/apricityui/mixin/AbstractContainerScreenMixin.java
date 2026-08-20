@@ -5,15 +5,10 @@ import com.sighs.apricityui.screen.ApricityContainerScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
-import net.minecraft.world.inventory.AbstractContainerMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import org.spongepowered.asm.mixin.Final;
 import org.spongepowered.asm.mixin.Mixin;
-import org.spongepowered.asm.mixin.Shadow;
-import org.spongepowered.asm.mixin.Unique;
-
-import java.util.Set;
+import org.spongepowered.asm.mixin.gen.Invoker;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
@@ -21,49 +16,23 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 @Mixin(value = AbstractContainerScreen.class)
 public abstract class AbstractContainerScreenMixin {
-    @Shadow
-    protected int leftPos;
-    @Shadow
-    protected int topPos;
-    @Shadow
-    @Final
-    protected AbstractContainerMenu menu = null;
-    @Shadow
-    @Final
-    protected Set<Slot> quickCraftSlots = null;
-    @Shadow
-    protected boolean isQuickCrafting;
-    @Shadow
-    protected abstract void recalculateQuickCraftRemaining();
+    @Invoker("recalculateQuickCraftRemaining")
+    protected abstract void apricityui$recalculateQuickCraftRemaining();
 
     @Inject(method = "extractSlot", at = @At("HEAD"), cancellable = true)
     private void apricityui$cancelVanillaRenderSlot(
-            GuiGraphicsExtractor guiGraphics,
+            GuiGraphicsExtractor graphics,
             Slot slot,
             int mouseX,
             int mouseY,
             CallbackInfo ci
     ) {
-        if ((Object) this instanceof ApricityContainerScreen) {
-            apricityui$pruneInvalidQuickCraftSlot(slot);
+        if ((Object) this instanceof ApricityContainerScreen screen) {
+            if (screen.pruneInvalidQuickCraftSlot(slot)) {
+                apricityui$recalculateQuickCraftRemaining();
+            }
             ci.cancel();
         }
-    }
-
-    @Unique
-    private void apricityui$pruneInvalidQuickCraftSlot(Slot slot) {
-        if (!isQuickCrafting || quickCraftSlots == null || quickCraftSlots.size() <= 1 || !quickCraftSlots.contains(slot)) {
-            return;
-        }
-
-        ItemStack carried = menu.getCarried();
-        if (carried.isEmpty()
-                || AbstractContainerMenu.canItemQuickReplace(slot, carried, true) && menu.canDragTo(slot)) {
-            return;
-        }
-
-        quickCraftSlots.remove(slot);
-        recalculateQuickCraftRemaining();
     }
 
     @Inject(method = "extractSlotHighlightBack", at = @At("HEAD"), cancellable = true)
@@ -114,8 +83,8 @@ public abstract class AbstractContainerScreenMixin {
             slotSize = Math.max(1, uiSlot.getUiSlotSize());
         }
 
-        double localX = mouseX - (double) leftPos;
-        double localY = mouseY - (double) topPos;
+        double localX = mouseX - (double) screen.getGuiLeft();
+        double localY = mouseY - (double) screen.getGuiTop();
         cir.setReturnValue(localX >= (double) (slot.x - 1)
                 && localX < (double) (slot.x + slotSize + 1)
                 && localY >= (double) (slot.y - 1)

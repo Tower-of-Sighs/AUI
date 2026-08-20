@@ -8,7 +8,6 @@ World windows are recommended to use `mode=fixed` with an explicitly declared lo
 
 ```html
 <meta name="aui-viewport" content="mode=fixed,width=240,height=96,scale=1">
-<meta name="aui-font-mode" content="web">
 <meta name="aui-mouse-events" content="intercept">
 ```
 

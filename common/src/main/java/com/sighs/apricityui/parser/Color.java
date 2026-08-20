@@ -2,9 +2,17 @@ package com.sighs.apricityui.parser;
 
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Color {
     private int value;
+    /**
+     * parse 结果缓存（按原始输入串）。trim/toLowerCase/parseHex 全是分配，
+     * 而渲染路径上同一颜色串每帧都会重解析（如阴影、渐变色标）。设上限防撑爆。
+     * 注意必须声明在 BLACK 之前：BLACK 初始化时会走进 parse。
+     */
+    private static final int PARSE_CACHE_LIMIT = 4096;
+    private static final ConcurrentHashMap<String, Integer> PARSE_CACHE = new ConcurrentHashMap<>();
     public static final Color BLACK = new Color("#000");
     private static final Map<String, Integer> NAMED_COLORS = Map.ofEntries(
             Map.entry("black", 0xFF000000),
@@ -57,6 +65,16 @@ public class Color {
 
     public static int parse(String string) {
         if (string == null) return 0;
+        Integer cached = PARSE_CACHE.get(string);
+        if (cached != null) return cached;
+        int result = parseUncached(string);
+        if (PARSE_CACHE.size() < PARSE_CACHE_LIMIT) {
+            PARSE_CACHE.putIfAbsent(string, result);
+        }
+        return result;
+    }
+
+    private static int parseUncached(String string) {
         if (string.equals("unset")) string = "#000";
 
         String input = string.trim().toLowerCase(Locale.ROOT);

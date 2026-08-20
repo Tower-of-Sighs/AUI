@@ -61,18 +61,23 @@ public class Animation {
         final Map<String, Long> pausedAt = new HashMap<>();
         String lastSpec = null;
         List<AnimationConfig> cachedConfigs = List.of();
-        final Set<String> live = new HashSet<>();
+        // 每帧 clear+重加的 HashSet 每次 add 都 new Node（JFR 归因约 26MB）；
+        // 动画名数量极小，ArrayList + contains 足够且零分配。
+        final List<String> live = new ArrayList<>();
         final Transition.ChangeBuffer changes = new Transition.ChangeBuffer();
 
-        void forgetExcept(Set<String> names) {
+        void forgetExcept(List<String> names) {
             starts.keySet().retainAll(names);
             pausedAt.keySet().retainAll(names);
         }
     }
 
+    private static final Map<String, PropIndex> PROP_INDEX = new HashMap<>();
+
     public static void registerKeyframe(String name, double percent, Map<String, String> props) {
         KEYFRAMES.computeIfAbsent(name, k -> new TreeMap<>()).put(percent, props);
         KEYFRAME_PROPS.computeIfAbsent(name, k -> new HashSet<>()).addAll(props.keySet());
+        PROP_INDEX.clear();
     }
 
     public static boolean isActive(Element e) {
@@ -136,7 +141,7 @@ public class Animation {
         }
 
         long now = System.currentTimeMillis();
-        Set<String> live = state.live;
+        List<String> live = state.live;
         live.clear();
 
         for (AnimationConfig config : configs) {
@@ -147,9 +152,9 @@ public class Animation {
         else state.forgetExcept(live);
     }
 
-    private static void apply(AnimationState state, Element element, Style style, AnimationConfig config, long now, Set<String> live) {
+    private static void apply(AnimationState state, Element element, Style style, AnimationConfig config, long now, List<String> live) {
         if ("none".equals(config.name) || !KEYFRAMES.containsKey(config.name)) return;
-        live.add(config.name);
+        if (!live.contains(config.name)) live.add(config.name);
 
         long start = state.starts.computeIfAbsent(config.name, k -> now);
         boolean paused = "paused".equals(config.playState);
@@ -212,8 +217,8 @@ public class Animation {
 
         Size transformBasis = allProps.contains("transform") ? Size.of(element) : null;
         for (String p : allProps) {
-            String vS = findProperty(timeline, percent, p, true, style.get(p));
-            String vE = findProperty(timeline, percent, p, false, vS);
+            String vS = findProperty(name, timeline, percent, p, true, style.get(p));
+            String vE = findProperty(name, timeline, percent, p, false, vS);
 
             if (p.equals("transform")) {
                 Transform.interpolateTransform(
@@ -274,12 +279,55 @@ public class Animation {
                 || name.equals("border-bottom-width");
     }
 
-    private static String findProperty(TreeMap<Double, Map<String, String>> timeline, double percent, String prop, boolean backward, String fallback) {
-        NavigableMap<Double, Map<String, String>> subMap = backward ? timeline.headMap(percent, true).descendingMap() : timeline.tailMap(percent, true);
-        for (Map<String, String> step : subMap.values()) {
-            if (step.containsKey(prop)) return step.get(prop);
+    // 每个动画属性在 timeline 上的稀疏索引：只有声明了该属性的关键帧的 (percent, value)。
+    // 原实现每次查找都 headMap/tailMap + descendingMap 创建子视图和迭代器，
+    // 逐帧 × 逐属性 × 前后两次，JFR 归因约 44MB。时间轴注册后不变，二分即可零分配。
+    private static class PropIndex {
+        double[] percents = new double[0];
+        String[] values = new String[0];
+    }
+
+    private static String findProperty(String name, TreeMap<Double, Map<String, String>> timeline,
+                                       double percent, String prop, boolean backward, String fallback) {
+        PropIndex index = PROP_INDEX.get(name + "" + prop);
+        if (index == null) {
+            index = new PropIndex();
+            int count = 0;
+            for (Map<String, String> step : timeline.values()) {
+                if (step.containsKey(prop)) count++;
+            }
+            index.percents = new double[count];
+            index.values = new String[count];
+            int i = 0;
+            for (Map.Entry<Double, Map<String, String>> entry : timeline.entrySet()) {
+                if (entry.getValue().containsKey(prop)) {
+                    index.percents[i] = entry.getKey();
+                    index.values[i] = entry.getValue().get(prop);
+                    i++;
+                }
+            }
+            PROP_INDEX.put(name + "" + prop, index);
         }
-        return fallback;
+        double[] percents = index.percents;
+        int lo = 0;
+        int hi = percents.length - 1;
+        int found = -1;
+        if (backward) {
+            // 最后一个 percent <= 目标 的关键帧（与原 headMap(percent, true) 倒序取首个等价）
+            while (lo <= hi) {
+                int mid = (lo + hi) >>> 1;
+                if (percents[mid] <= percent) { found = mid; lo = mid + 1; }
+                else hi = mid - 1;
+            }
+        } else {
+            // 第一个 percent >= 目标 的关键帧（与原 tailMap(percent, true) 正序取首个等价）
+            while (lo <= hi) {
+                int mid = (lo + hi) >>> 1;
+                if (percents[mid] >= percent) { found = mid; hi = mid - 1; }
+                else lo = mid + 1;
+            }
+        }
+        return found >= 0 ? index.values[found] : fallback;
     }
 
     static double applyTiming(double p, String tf) {

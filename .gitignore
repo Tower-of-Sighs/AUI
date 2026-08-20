@@ -116,6 +116,9 @@ gradle-app.setting
 # Common working directory
 run/
 runs/
+
+# Local dev-only mod jars (spark 等性能分析器), see targets/*/build.gradle
+**/dev-libs/
 logs/
 
 # Local screenshots / profiler captures produced during visual parity work.

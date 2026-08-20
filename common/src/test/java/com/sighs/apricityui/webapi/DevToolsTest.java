@@ -33,7 +33,6 @@ class DevToolsTest {
 
         assertFalse(template.toLowerCase().contains("<script"));
         assertFalse(template.contains("onclick="));
-        assertTrue(template.contains("<meta name=\"aui-font-mode\" content=\"web\">"));
         assertTrue(template.contains("<meta name=\"aui-viewport\" content=\"mode=browser\">"));
         assertTrue(template.contains("<meta name=\"aui-mouse-events\" content=\"intercept\">"));
         assertTrue(template.indexOf("id=\"closeDocumentBtn\"") < template.indexOf("id=\"documentSelect\""));

@@ -385,7 +385,11 @@ public final class SelectionUnits {
 
     private static void flattenRaw(Element unit, Element current, StringBuilder raw) {
         boolean contributed = false;
-        for (Node child : current.getRenderChildNodes()) {
+        // 索引循环：选区文本扁平化逐帧递归走整棵子树，for-each 迭代器分配
+        // JFR 归因约 10MB。
+        List<Node> childNodes = current.getRenderChildNodes();
+        for (int i = 0; i < childNodes.size(); i++) {
+            Node child = childNodes.get(i);
             if (child instanceof TextNode textNode) {
                 String content = textNode.getTextContent();
                 if (content != null && !content.isEmpty()) contributed = true;

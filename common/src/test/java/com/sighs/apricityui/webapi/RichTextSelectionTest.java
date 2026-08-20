@@ -78,7 +78,7 @@ class RichTextSelectionTest {
         assertTrue(selection.hasAnchor());
         assertTrue(selection.collapsed());
         assertEquals(rich, selection.getAnchorUnit());
-        // "hello " 是 6 个字符（含空格），点击 "world" 的 'w' 中段应落在 6
+        // "hello " 是 6 个字符（含空格），点击 "world" 的 'w' 前段应落在 6
         assertEquals(6, selection.getAnchorOffset());
     }
 
@@ -411,12 +411,12 @@ class RichTextSelectionTest {
     // 工具
     // ------------------------------------------------------------------
 
-    /** 找到内容为 word 的 run 段，返回其首个字符中段的坐标。 */
+    /** 找到内容为 word 的 run 段，返回其首个字符前段的坐标。 */
     private static Position pointInWord(RichText unit, String word) {
         for (RichTextNavigation.VisualLine line : RichTextNavigation.linesOf(unit)) {
             for (RichTextNavigation.RunSegment segment : line.segments()) {
                 if (segment.content() == null || !segment.content().equals(word)) continue;
-                double x = segment.x0() + Text.measureLine(segment.text(), word.substring(0, 1)) / 2.0;
+                double x = segment.x0() + Text.measureLine(segment.text(), word.substring(0, 1)) / 4.0;
                 double y = line.y0() + line.lineHeight() / 2.0;
                 return new Position(x, y);
             }

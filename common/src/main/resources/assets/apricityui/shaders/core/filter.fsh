@@ -3,6 +3,9 @@
 uniform sampler2D Sampler0;
 uniform sampler2D Sampler1;
 uniform float Brightness;
+uniform float Contrast;
+uniform float Saturate;
+uniform float Sepia;
 uniform float Grayscale;
 uniform float Invert;
 uniform float HueRotate;
@@ -86,7 +89,15 @@ void main() {
     }
 
     color.rgb *= Brightness;
+    color.rgb = (color.rgb - 0.5) * Contrast + 0.5;
     float gray = dot(color.rgb, vec3(0.2126, 0.7152, 0.0722));
+    color.rgb = mix(vec3(gray), color.rgb, Saturate);
+    vec3 sepiaRgb = vec3(
+        dot(color.rgb, vec3(0.393, 0.769, 0.189)),
+        dot(color.rgb, vec3(0.349, 0.686, 0.168)),
+        dot(color.rgb, vec3(0.272, 0.534, 0.131))
+    );
+    color.rgb = mix(color.rgb, sepiaRgb, Sepia);
     color.rgb = mix(color.rgb, vec3(gray), Grayscale);
     color.rgb = mix(color.rgb, 1.0 - color.rgb, Invert);
 

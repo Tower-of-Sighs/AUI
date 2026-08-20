@@ -88,7 +88,8 @@ public class Texture extends Element {
     }
 
     private void syncSource() {
-        String src = getAttribute("src").trim();
+        String src = getAttribute("src");
+        src = src == null ? "" : src.trim();
         if (src.equals(observedSrc)) return;
         observedSrc = src;
         textureLocation = com.sighs.apricityui.spi.AuiServices.resources().tryParseTextureKey(src);

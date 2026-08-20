@@ -103,8 +103,11 @@ public final class RenderService implements AuiRenderService {
 
     // 26.1 stores custom shader values in std140 blocks instead of the old
     // per-uniform ShaderInstance setters. These fields mirror the FilterParams
-    // block (8 vec4s) consumed by the filter/filter_blur fragment shaders.
+    // block (9 vec4s) consumed by the filter/filter_blur fragment shaders.
     private float brightness = 1.0f;
+    private float contrast = 1.0f;
+    private float saturate = 1.0f;
+    private float sepia;
     private float grayscale;
     private float invert;
     private float hueRotate;
@@ -291,11 +294,24 @@ public final class RenderService implements AuiRenderService {
     @Override public void setShaderColor(float a, float r, float g, float b) { }
     @Override public Object getFilterShader() { return PipelineRegistry.getFilter(); }
     @Override public Object getFilterBlurShader() { return PipelineRegistry.getFilterBlur(); }
+    @Override public Object getFilterMaskShader(boolean luminance) {
+        return luminance ? PipelineRegistry.getFilterMaskLum() : PipelineRegistry.getFilterMask();
+    }
+    @Override public Object getFilterMaskMergeShader(MaskCompositeOp op) {
+        return switch (op) {
+            case INTERSECT -> PipelineRegistry.getFilterMaskIntersect();
+            case SUBTRACT -> PipelineRegistry.getFilterMaskSubtract();
+            case EXCLUDE -> PipelineRegistry.getFilterMaskExclude();
+        };
+    }
 
     @Override
     public void setShaderUniformFloat(String name, float value) {
         switch (name) {
             case "Brightness" -> brightness = value;
+            case "Contrast" -> contrast = value;
+            case "Saturate" -> saturate = value;
+            case "Sepia" -> sepia = value;
             case "Grayscale" -> grayscale = value;
             case "Invert" -> invert = value;
             case "HueRotate" -> hueRotate = value;
@@ -471,7 +487,7 @@ public final class RenderService implements AuiRenderService {
     }
 
     private GpuBuffer updateFilterUniforms(GpuDevice device) {
-        final int size = 8 * 16;
+        final int size = 9 * 16;
         if (filterUniformBuffer == null || filterUniformBuffer.size() < size) {
             if (filterUniformBuffer != null) filterUniformBuffer.close();
             filterUniformBuffer = device.createBuffer(
@@ -491,6 +507,7 @@ public final class RenderService implements AuiRenderService {
                     .putVec4(clipRadiusTopLeft, clipRadiusTopRight,
                             clipRadiusBottomRight, clipRadiusBottomLeft)
                     .putVec4(directionX, directionY, 0.0f, 0.0f)
+                    .putVec4(contrast, saturate, sepia, 0.0f)
                     .get();
         }
         return filterUniformBuffer;

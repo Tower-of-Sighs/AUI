@@ -558,8 +558,9 @@ public final class Grid {
     }
 
     private static List<Element> collectFlowChildren(List<Element> siblings) {
-        List<Element> flow = new ArrayList<>();
-        for (Element c : siblings) {
+        List<Element> flow = new ArrayList<>(siblings.size());
+        for (int i = 0; i < siblings.size(); i++) {
+            Element c = siblings.get(i);
             Style cs = c.getComputedStyle();
             if ("none".equals(cs.display)) continue;
             if ("absolute".equals(cs.position) || "fixed".equals(cs.position)) continue;

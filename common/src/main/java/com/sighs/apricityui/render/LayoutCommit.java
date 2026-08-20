@@ -17,6 +17,21 @@ public final class LayoutCommit {
     private LayoutCommit() {
     }
 
+    // visited 集合池：动画期间 commit 逐帧执行，每帧 new IdentityHashMap 从空表
+    // 重新扩容到全文档元素数（内部 Object[] 链，JFR 归因约 81MB）。栈式池
+    // 允许理论上的重入（多文档嵌套提交），clear 保容复用。
+    private static final java.util.ArrayDeque<Set<Element>> VISITED_POOL = new java.util.ArrayDeque<>();
+
+    private static Set<Element> obtainVisited() {
+        Set<Element> set = VISITED_POOL.poll();
+        return set != null ? set : Collections.newSetFromMap(new IdentityHashMap<>());
+    }
+
+    private static void releaseVisited(Set<Element> set) {
+        set.clear();
+        if (VISITED_POOL.size() < 4) VISITED_POOL.push(set);
+    }
+
     public static void commit(Document document) {
         if (document == null || !document.isActive()) return;
         List<RenderNode> paintList = document.getPaintList();
@@ -24,15 +39,15 @@ public final class LayoutCommit {
 
         boolean firstLayout = document.markFirstLayoutCommitForTiming();
         long startedNs = firstLayout ? System.nanoTime() : 0L;
-        Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Element> visited = obtainVisited();
         RectFrameCache.begin();
         TransformFrameCache.begin();
         RectFrameCache.disableCommittedFallback();
         TransformFrameCache.disableCommittedFallback();
         LayoutMeasureCache.begin();
         try {
-            for (RenderNode node : paintList) {
-                Element target = RenderNode.getRenderNodeTarget(node);
+            for (int i = 0; i < paintList.size(); i++) {
+                Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
                 if (target == null || target.document != document || !visited.add(target)) continue;
                 commitElement(target);
             }
@@ -54,6 +69,7 @@ public final class LayoutCommit {
                         (System.nanoTime() - startedNs) / 1_000_000L
                 );
             }
+            releaseVisited(visited);
         }
     }
 
@@ -67,12 +83,12 @@ public final class LayoutCommit {
         List<RenderNode> paintList = document.getPaintList();
         if (paintList == null || paintList.isEmpty()) return;
 
-        Set<Element> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        Set<Element> visited = obtainVisited();
         RectFrameCache.begin();
         TransformFrameCache.begin();
         try {
-            for (RenderNode node : paintList) {
-                Element target = RenderNode.getRenderNodeTarget(node);
+            for (int i = 0; i < paintList.size(); i++) {
+                Element target = RenderNode.getRenderNodeTarget(paintList.get(i));
                 if (target == null || target.document != document || !visited.add(target)) continue;
                 if (!isInTransformSubtree(target, roots)) continue;
                 commitTransformElement(target);
@@ -80,6 +96,7 @@ public final class LayoutCommit {
         } finally {
             TransformFrameCache.end();
             RectFrameCache.end();
+            releaseVisited(visited);
         }
     }
 

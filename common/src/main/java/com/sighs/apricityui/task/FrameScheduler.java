@@ -22,9 +22,11 @@ public final class FrameScheduler {
     public static void tick() {
         ToastManager.tick();
 
-        // 1) Drain async apply tasks (style/image decode -> apply)
+        // 1) Drain async apply tasks (style/image/audio decode -> apply)
         StyleAsyncHandler.INSTANCE.tickApplyQueue();
         ImageAsyncHandler.INSTANCE.tickApplyQueue();
+        com.sighs.apricityui.resource.async.audio.AudioAsyncHandler.INSTANCE.tickApplyQueue();
+        com.sighs.apricityui.media.AudioEngine.tick();
 
         // 2) Frame-budgeted initialization and UI build tasks.
         FrameTaskScheduler.tick();

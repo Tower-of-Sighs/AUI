@@ -117,6 +117,18 @@ dependencies {
     compileOnly "dev.latvian.mods:kubejs-neoforge:${kubejs_121_version}"
     runtimeOnly "dev.latvian.mods:rhino:${rhino_121_version}"
     runtimeOnly "dev.latvian.mods:kubejs-neoforge:${kubejs_121_version}"
+
+    // 本地 dev 工具（spark 性能分析器等）：把 mod jar 放进 dev-libs/（gitignored）
+    // 即被 client/server run 加载，不进发布产物。走本地文件而非 Modrinth maven
+    // 是因为当前网络下 JVM 对 maven.neoforged.net 的 TLS 连接被重置，Gradle 8
+    // 对仓库硬错误 fail-fast，任何未缓存的坐标都会解析失败。
+    // spark 用法：/spark profiler --thread Render（渲染线程采样）、/spark tps、
+    // /spark gcmonitor。当前放入的是 spark-1.10.124-neoforge（MC 1.21.1）。
+    def devLibs = file('dev-libs')
+    if (devLibs.isDirectory()) {
+        def jars = devLibs.listFiles()?.findAll { it.name.endsWith('.jar') }
+        if (jars) runtimeOnly files(jars)
+    }
 }
 
 tasks.named('sourcesJar', Jar).configure {
@@ -155,12 +167,15 @@ configurations {
         // KubeJS is optional at runtime and is not needed by headless unit tests.
         // Keeping it off this classpath avoids resolving its dynamic transitives.
         exclude group: 'dev.latvian.mods', module: 'kubejs-neoforge'
+        // spark 是 dev-run 专用分析器，单测 worker 不需要，排除以保持 --offline 可跑
+        exclude group: 'maven.modrinth', module: 'spark'
     }
     auiTestModRuntime {
         canBeConsumed = false
         canBeResolved = true
         extendsFrom modDevRuntimeDependencies
         exclude group: 'dev.latvian.mods', module: 'kubejs-neoforge'
+        exclude group: 'maven.modrinth', module: 'spark'
     }
 }
 

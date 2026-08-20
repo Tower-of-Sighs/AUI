@@ -18,6 +18,9 @@ public final class FabricServicesBootstrap {
         AuiServices.setKeys(FabricKeyService.INSTANCE);
         AuiServices.setRender(RenderService.INSTANCE);
         AuiServices.setItems(ItemRenderService.INSTANCE);
+        AuiServices.setAudio(com.sighs.apricityui.media.openal.OpenAlAudioService.create(
+                () -> net.minecraft.client.Minecraft.getInstance().options
+                        .getSoundSourceVolume(net.minecraft.sounds.SoundSource.MASTER)));
         DevToolsLogBridge.install(ApricityUI.LOGGER);
     }
 }

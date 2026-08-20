@@ -27,6 +27,8 @@ public class Font {
     private static final Map<String, List<java.awt.Font>> SINGLE_FAMILY_CHAIN_CACHE = createLruCache(BASE_FONT_CHAIN_CACHE_LIMIT);
     private static final Map<DerivedFontKey, java.awt.Font> DERIVED_FONT_CACHE = new ConcurrentHashMap<>();
     private static final Map<RunPlanKey, List<FontRun>> RUN_PLAN_CACHE = createLruCache(RUN_PLAN_CACHE_LIMIT);
+    private static final int NORMALIZED_CHAIN_CACHE_LIMIT = 1024;
+    private static final Map<String, String> NORMALIZED_CHAIN_CACHE = createLruCache(NORMALIZED_CHAIN_CACHE_LIMIT);
     private static final Set<String> UNAVAILABLE_FAMILIES = ConcurrentHashMap.newKeySet();
     private static final AtomicLong METRICS_REVISION = new AtomicLong(1L);
     private static final Map<String, String> GENERIC_FAMILY_MAPPING = Map.ofEntries(
@@ -510,8 +512,16 @@ public class Font {
     }
 
     private static String normalizeFamilyChain(String rawFamilyChain) {
+        if (rawFamilyChain == null) return "";
+        // 归一化是 planFontRuns/resolveBaseFontChain 每次调用算 key 的必经之路，
+        // 其中的 parseFontFamilies（StringBuilder+逐 family 清洗）在逐帧测量路径上
+        // 累计了几十 MB 分配。输入是样式表里的稳定字符串集合，缓存之。
+        String cached = NORMALIZED_CHAIN_CACHE.get(rawFamilyChain);
+        if (cached != null) return cached;
         List<String> families = parseFontFamilies(rawFamilyChain);
-        return families.isEmpty() ? "" : String.join(",", families);
+        String normalized = families.isEmpty() ? "" : String.join(",", families);
+        NORMALIZED_CHAIN_CACHE.put(rawFamilyChain, normalized);
+        return normalized;
     }
 
     private static <K, V> Map<K, V> createLruCache(int maxSize) {

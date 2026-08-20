@@ -6,6 +6,7 @@ import com.sighs.apricityui.ApricityUI;
 import com.sighs.apricityui.element.AbstractText;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.resource.Font;
@@ -18,6 +19,7 @@ import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
 import com.sighs.apricityui.init.Node;
 import com.sighs.apricityui.dom.TextNode;
 import com.sighs.apricityui.style.Text;
@@ -38,8 +40,48 @@ public record Size(double width, double height) {
             return size() > NUMBER_CACHE_LIMIT;
         }
     });
+    // 长度 token（数值+单位）与 calc 项列表的解析缓存：逐帧布局会对同一批
+    // calc()/长度串反复 trim/小写化/截取子串再 parseNumber（JFR 归因约 150MB），
+    // 解析结果只依赖字符串本身，求值时才读 percentBasis/emBasis/根字号/视口。
+    private static final int UNIT_PX = 0;
+    private static final int UNIT_PERCENT = 1;
+    private static final int UNIT_REM = 2;
+    private static final int UNIT_EM = 3;
+    private static final int UNIT_VW = 4;
+    private static final int UNIT_VH = 5;
+
+    private record LengthToken(double value, int unit) {
+    }
+
+    private static final LengthToken INVALID_TOKEN = new LengthToken(0, -1);
+    private static final int LENGTH_TOKEN_CACHE_LIMIT = 4096;
+    private static final Map<String, LengthToken> LENGTH_TOKEN_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, LengthToken> eldest) {
+            return size() > LENGTH_TOKEN_CACHE_LIMIT;
+        }
+    });
+    /** calc 解析失败哨兵（空表达式不进缓存，所以空列表不会与合法解析冲突）。 */
+    private static final List<LengthToken> INVALID_CALC = List.of();
+    private static final int CALC_CACHE_LIMIT = 2048;
+    private static final Map<String, List<LengthToken>> CALC_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(128, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, List<LengthToken>> eldest) {
+            return size() > CALC_CACHE_LIMIT;
+        }
+    });
     private static volatile Size viewportOverride;
     private static volatile Double rootFontOverride;
+
+    /** aspect-ratio 字符串 → 解析结果；ASPECT_RATIO_NULL 表示解析失败/无效。 */
+    private static final Double ASPECT_RATIO_NULL = Double.valueOf(Double.NaN);
+    private static final int ASPECT_RATIO_CACHE_LIMIT = 256;
+    private static final Map<String, Double> ASPECT_RATIO_CACHE = Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, Double> eldest) {
+            return size() > ASPECT_RATIO_CACHE_LIMIT;
+        }
+    });
 
     public Size add(Size size) {
         return new Size(width + size.width, height + size.height);
@@ -158,10 +200,27 @@ public record Size(double width, double height) {
         return (int) Math.round(number);
     }
 
+    // 线程本地前置缓存：全局 NUMBER_CACHE 是 accessOrder 的同步 LinkedHashMap，
+    // 命中也要抢锁并重链表尾，parseNumber 在 JFR CPU 自时间上排第一（45 样本）。
+    // 渲染线程的逐帧热点走本地小表，零锁零同步。
+    private static final ThreadLocal<Map<String, Double>> NUMBER_CACHE_LOCAL = ThreadLocal.withInitial(
+            () -> new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Double> eldest) {
+                    return size() > 512;
+                }
+            }
+    );
+
     public static Double parseNumber(String str) {
         if (str == null) return null;
+        Double localHit = NUMBER_CACHE_LOCAL.get().get(str);
+        if (localHit != null) return localHit;
         Double cached = NUMBER_CACHE.get(str);
-        if (cached != null) return cached;
+        if (cached != null) {
+            NUMBER_CACHE_LOCAL.get().put(str, cached);
+            return cached;
+        }
         int len = str.length();
         int i = 0;
         while (i < len && Character.isWhitespace(str.charAt(i))) i++;
@@ -192,6 +251,7 @@ public record Size(double width, double height) {
         try {
             Double parsed = Double.parseDouble(str.substring(start, i));
             NUMBER_CACHE.put(str, parsed);
+            NUMBER_CACHE_LOCAL.get().put(str, parsed);
             return parsed;
         } catch (NumberFormatException ignored) {
             return null;
@@ -528,18 +588,19 @@ public record Size(double width, double height) {
                                              String minValue, String maxValue, double percentBasis,
                                              boolean allowPercentResolution) {
         double result = contentExtent;
-        Double minParsed = parseNumber(minValue);
-        if (minParsed != null) {
-            if (!isPercent(minValue) || allowPercentResolution) {
-                double minTotal = resolveLength(minValue, percentBasis, minParsed);
-                result = Math.max(result, Math.max(0, minTotal - boxExtent));
-            }
-        }
+        // CSS2.1 §10.4/§10.7：min/max 冲突时 min 胜出——先钳 max 再钳 min。
         Double maxParsed = parseNumber(maxValue);
         if (maxParsed != null) {
             if (!isPercent(maxValue) || allowPercentResolution) {
                 double maxTotal = resolveLength(maxValue, percentBasis, maxParsed);
                 result = Math.min(result, Math.max(0, maxTotal - boxExtent));
+            }
+        }
+        Double minParsed = parseNumber(minValue);
+        if (minParsed != null) {
+            if (!isPercent(minValue) || allowPercentResolution) {
+                double minTotal = resolveLength(minValue, percentBasis, minParsed);
+                result = Math.max(result, Math.max(0, minTotal - boxExtent));
             }
         }
         return Math.max(0, result);
@@ -558,8 +619,11 @@ public record Size(double width, double height) {
 
     private static boolean hasDirectTextNodeChildren(Element element) {
         if (element == null) return false;
-        for (com.sighs.apricityui.init.Node child : element.getRenderChildNodes()) {
-            if (child instanceof com.sighs.apricityui.dom.TextNode textNode && !textNode.getTextContent().isEmpty()) {
+        // 索引循环：该判定在自然测量路径逐帧高频调用，for-each 的迭代器分配
+        // 在 JFR 里累计约 22MB。
+        List<com.sighs.apricityui.init.Node> children = element.getRenderChildNodes();
+        for (int i = 0; i < children.size(); i++) {
+            if (children.get(i) instanceof com.sighs.apricityui.dom.TextNode textNode && !textNode.getTextContent().isEmpty()) {
                 return true;
             }
         }
@@ -731,6 +795,19 @@ public record Size(double width, double height) {
 
     private static Double resolveOwnExplicitContentHeight(Element element) {
         if (element == null) return null;
+        com.sighs.apricityui.dom.RenderElement renderer = element.getRenderer();
+        long memoDep = renderer.layoutDependency();
+        if (renderer.explicitHeightMemoDep == memoDep) {
+            double memo = renderer.explicitHeightMemoValue;
+            return Double.isNaN(memo) ? null : memo;
+        }
+        Double result = resolveOwnExplicitContentHeightUncached(element);
+        renderer.explicitHeightMemoDep = memoDep;
+        renderer.explicitHeightMemoValue = result == null ? Double.NaN : result;
+        return result;
+    }
+
+    private static Double resolveOwnExplicitContentHeightUncached(Element element) {
         Style style = element.getRawComputedStyle();
 
         Double containingBlockHeight = element.parentElement == null
@@ -875,7 +952,25 @@ public record Size(double width, double height) {
         String expr = expression == null ? "" : expression.trim();
         if (expr.isEmpty()) return null;
 
+        List<LengthToken> terms = CALC_CACHE.get(expr);
+        if (terms == null) {
+            terms = parseCalcTerms(expr);
+            CALC_CACHE.put(expr, terms == null ? INVALID_CALC : terms);
+            if (terms == null) return null;
+        } else if (terms.isEmpty()) {
+            return null;
+        }
+
         double result = 0;
+        for (int i = 0; i < terms.size(); i++) {
+            result += evalLengthToken(terms.get(i), percentBasis, emBasis);
+        }
+        return result;
+    }
+
+    /** 逐项解析 calc 表达式，符号折叠进数值；任何一项非法则整体返回 null。 */
+    private static List<LengthToken> parseCalcTerms(String expr) {
+        List<LengthToken> terms = new ArrayList<>();
         int sign = 1;
         int start = 0;
         for (int i = 0; i <= expr.length(); i++) {
@@ -896,9 +991,9 @@ public record Size(double width, double height) {
                     sign *= -1;
                     term = term.substring(1).trim();
                 }
-                Double resolved = resolveSingleLength(term, percentBasis, emBasis);
-                if (resolved == null) return null;
-                result += sign * resolved;
+                LengthToken token = parseLengthToken(term);
+                if (token == INVALID_TOKEN) return null;
+                terms.add(new LengthToken(sign * token.value(), token.unit()));
             }
 
             if (i < expr.length()) {
@@ -906,7 +1001,7 @@ public record Size(double width, double height) {
             }
             start = i + 1;
         }
-        return result;
+        return terms;
     }
 
     private static Double resolveSingleLength(String token, double percentBasis) {
@@ -915,17 +1010,44 @@ public record Size(double width, double height) {
 
     private static Double resolveSingleLength(String token, double percentBasis, double emBasis) {
         if (token == null) return null;
-        String value = token.trim().toLowerCase(Locale.ROOT);
-        if (value.isEmpty()) return null;
+        LengthToken parsed = parseLengthToken(token);
+        if (parsed == INVALID_TOKEN) return null;
+        return evalLengthToken(parsed, percentBasis, emBasis);
+    }
 
+    /** 数值+单位分类。与历史行为一致：无法识别的后缀按 px 数值处理。 */
+    private static LengthToken parseLengthToken(String token) {
+        LengthToken cached = LENGTH_TOKEN_CACHE.get(token);
+        if (cached != null) return cached;
+        LengthToken parsed = parseLengthTokenUncached(token);
+        LENGTH_TOKEN_CACHE.put(token, parsed);
+        return parsed;
+    }
+
+    private static LengthToken parseLengthTokenUncached(String token) {
+        String value = token.trim().toLowerCase(Locale.ROOT);
+        if (value.isEmpty()) return INVALID_TOKEN;
         Double number = parseNumber(value);
-        if (number == null) return null;
-        if (value.endsWith("%")) return percentBasis * (number / 100d);
-        if (value.endsWith("rem")) return number * getRootFontSize();
-        if (value.endsWith("em")) return number * emBasis;
-        if (value.endsWith("vw")) return getWindowWidth() * (number / 100d);
-        if (value.endsWith("vh")) return getWindowHeight() * (number / 100d);
-        return number;
+        if (number == null) return INVALID_TOKEN;
+        int unit;
+        if (value.endsWith("%")) unit = UNIT_PERCENT;
+        else if (value.endsWith("rem")) unit = UNIT_REM;
+        else if (value.endsWith("em")) unit = UNIT_EM;
+        else if (value.endsWith("vw")) unit = UNIT_VW;
+        else if (value.endsWith("vh")) unit = UNIT_VH;
+        else unit = UNIT_PX;
+        return new LengthToken(number, unit);
+    }
+
+    private static double evalLengthToken(LengthToken token, double percentBasis, double emBasis) {
+        return switch (token.unit()) {
+            case UNIT_PERCENT -> percentBasis * (token.value() / 100d);
+            case UNIT_REM -> token.value() * getRootFontSize();
+            case UNIT_EM -> token.value() * emBasis;
+            case UNIT_VW -> getWindowWidth() * (token.value() / 100d);
+            case UNIT_VH -> getWindowHeight() * (token.value() / 100d);
+            default -> token.value();
+        };
     }
 
     public static double getRootFontSize() {
@@ -997,7 +1119,7 @@ public record Size(double width, double height) {
             if (parsed != null && parsed > 0) {
                 return parsed;
             }
-            return preferredDocument.getFontMode().defaultFontSize();
+            return Text.DEFAULT_FONT_SIZE;
         }
         Double override = rootFontOverride;
         if (override != null && override > 0) {
@@ -1015,20 +1137,31 @@ public record Size(double width, double height) {
 
     private static Double resolveDocumentRootFontSize(Document document) {
         if (document == null || document.documentElement == null) return null;
-        double defaultFontSize = document.getFontMode().defaultFontSize();
+        double defaultFontSize = Text.DEFAULT_FONT_SIZE;
         document.documentElement.getComputedStyle();
         String fontSize = document.documentElement.getInlineStylePropertyValue("font-size");
         if (fontSize == null || fontSize.isBlank() || fontSize.equals("unset")) {
-            fontSize = document.documentElement.cssCache.get("font-size");
+            CSS.Declaration declared = document.documentElement.cssCache.get("font-size");
+            fontSize = declared == null ? null : declared.value();
         }
         if (fontSize == null || fontSize.equals("unset")) {
-            fontSize = document.documentElement.cssCache.get("fontSize");
+            CSS.Declaration declared = document.documentElement.cssCache.get("fontSize");
+            fontSize = declared == null ? null : declared.value();
         }
         return tryResolveLength(fontSize, defaultFontSize, defaultFontSize);
     }
 
     static Double parseAspectRatio(String raw) {
         if (raw == null) return null;
+        // 样式表里的 aspect-ratio 是稳定字符串集合，布局阶段反复解析（JFR 归因约 44MB）。
+        Double cached = ASPECT_RATIO_CACHE.get(raw);
+        if (cached != null) return cached == ASPECT_RATIO_NULL ? null : cached;
+        Double parsed = parseAspectRatioUncached(raw);
+        ASPECT_RATIO_CACHE.put(raw, parsed == null ? ASPECT_RATIO_NULL : parsed);
+        return parsed;
+    }
+
+    private static Double parseAspectRatioUncached(String raw) {
         String value = raw.trim();
         if (value.isEmpty() || "auto".equalsIgnoreCase(value) || "none".equalsIgnoreCase(value) || "unset".equalsIgnoreCase(value)) {
             return null;
@@ -1065,7 +1198,6 @@ public record Size(double width, double height) {
         measuring.textAlign = base.textAlign;
         measuring.verticalAlign = base.verticalAlign;
         measuring.whiteSpace = base.whiteSpace;
-        measuring.fontMode = base.fontMode;
         measuring.textIndent = 0;
         measuring.letterSpacing = base.letterSpacing;
         measuring.content = text;

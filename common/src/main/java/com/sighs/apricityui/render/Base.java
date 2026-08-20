@@ -42,6 +42,37 @@ public class Base {
     private static final float FLAT_DOCUMENT_LAYER_STEP = GuiItemDepths.FLAT_DOCUMENT_LAYER_STEP;
     private static final java.util.ArrayDeque<Float> DOCUMENT_Z_OFFSET_STACK = new java.util.ArrayDeque<>();
     private static final java.util.ArrayDeque<GuiItemZ> GUI_ITEM_Z_STACK = new java.util.ArrayDeque<>();
+
+    /**
+     * paint 循环里每个 node 每帧一对 pushPose/popPose,各分配 Pose + Matrix4f +
+     * Matrix3f(JFR 采样里这是渲染侧最大的分配源)。节点渲染只需"结束后恢复数值",
+     * 用池化快照就地保存/恢复 last() 即可,语义与 push/pop 等价——节点内部的
+     * push/pop 必须自平衡,这一点两种方案都要求。
+     * 渲染限定在 Render thread,静态池无需同步;嵌套文档(PIP/世界窗口)会在
+     * 外层 node.render 期间进入内层循环,快照从池里逐个取用,天然支持重入。
+     */
+    private static final java.util.ArrayDeque<PoseSnapshot> POSE_SNAPSHOT_POOL = new java.util.ArrayDeque<>();
+
+    private static final class PoseSnapshot {
+        final Matrix4f pose = new Matrix4f();
+        final org.joml.Matrix3f normal = new org.joml.Matrix3f();
+    }
+
+    private static PoseSnapshot savePose(PoseStack poseStack) {
+        PoseSnapshot snapshot = POSE_SNAPSHOT_POOL.pollLast();
+        if (snapshot == null) snapshot = new PoseSnapshot();
+        PoseStack.Pose last = poseStack.last();
+        snapshot.pose.set(last.pose());
+        snapshot.normal.set(last.normal());
+        return snapshot;
+    }
+
+    private static void restorePose(PoseStack poseStack, PoseSnapshot snapshot) {
+        PoseStack.Pose last = poseStack.last();
+        last.pose().set(snapshot.pose);
+        last.normal().set(snapshot.normal);
+        POSE_SNAPSHOT_POOL.addLast(snapshot);
+    }
     private static float guiItemModelZ = GUI_ITEM_MODEL_Z_OFFSET;
     private static float guiItemDecorationZ = GUI_ITEM_DECORATION_Z_OFFSET;
     private static final java.util.ArrayDeque<Float> DEPTH_STEP_STACK = new java.util.ArrayDeque<>();
@@ -174,6 +205,21 @@ public class Base {
      * Draws a document while its document context is active. Keeping this
      * boundary inside Base makes standalone surfaces behave like overlays.
      */
+    // enteredSubtrees 集合池：逐帧逐文档 new IdentityHashMap 从空表扩容到全文档
+    // 元素数（内部 Object[] 链，JFR 归因约 67MB），池化后 clear 保容复用。
+    // 栈式池容许嵌套文档渲染的理论重入。
+    private static final java.util.ArrayDeque<Set<Element>> ENTERED_SUBTREES_POOL = new java.util.ArrayDeque<>();
+
+    private static Set<Element> obtainEnteredSubtrees() {
+        Set<Element> set = ENTERED_SUBTREES_POOL.poll();
+        return set != null ? set : Collections.newSetFromMap(new IdentityHashMap<>());
+    }
+
+    private static void releaseEnteredSubtrees(Set<Element> set) {
+        set.clear();
+        if (ENTERED_SUBTREES_POOL.size() < 4) ENTERED_SUBTREES_POOL.push(set);
+    }
+
     private static void drawDocumentInContext(
             PoseStack poseStack,
             Document document,
@@ -198,20 +244,22 @@ public class Base {
                 // 输入/脚本改 DOM 产生的 RELAYOUT dirty 若尚未提交(布局提交在 20Hz tick,
                 // 而绘制是每帧),当前帧绘制会读到未提交的旧几何 —— 光标 caretPosition 返回
                 // (0,0) 画在左上角。绘制前强制提交一次 pending 布局工作(无 pending 时廉价)。
-                if (document.hasPendingRenderState()) {
+                // Pointer state can change between client ticks. Commit only the
+                // queued style roots before render work so a class/attribute change
+                // cannot populate this frame's Rect cache with the previous style.
+                boolean styleChanged = document.commitPendingStyleRecalcForRender();
+                boolean styleNeedsGeometryCommit = false;
+                if (styleChanged) {
+                    // A newly-created transition must publish its first style before
+                    // geometry is committed for this frame.
+                    styleNeedsGeometryCommit = document.commitRenderStateForMotion();
+                } else if (document.hasPendingRenderState()) {
                     document.commitRenderState();
                 }
-                // Pointer state can change between client ticks. Commit only the
-                // queued style roots here so CSS transitions start on this frame.
-                boolean styleChanged = document.commitPendingStyleRecalcForRender();
                 // CSS transition/animation time is render-frame time, not Minecraft's 20 Hz logic tick.
                 // Layout-affecting motion must also refresh committed bounds before this paint pass.
                 boolean motionNeedsGeometryCommit = document.stepMotionRender();
                 boolean scrollChanged = document.stepScrollRender();
-                boolean styleNeedsGeometryCommit = false;
-                if (styleChanged) {
-                    styleNeedsGeometryCommit = document.commitRenderStateForMotion();
-                }
                 if (styleNeedsGeometryCommit || scrollChanged) {
                     LayoutCommit.commit(document);
                     document.commitMotionHitTest();
@@ -231,11 +279,13 @@ public class Base {
                 }
                 poseStack.translate(0, 0, documentZOffset);
                 Element skippedSubtree = null;
-                Set<Element> enteredSubtrees = Collections.newSetFromMap(new IdentityHashMap<>());
+                Set<Element> enteredSubtrees = obtainEnteredSubtrees();
                 Element activeTopLayerRoot = null;
                 TopLayerDepthScope topLayerDepthScope = null;
                 try {
-                    for (RenderNode node : document.getPaintList()) {
+                    List<? extends RenderNode> paintNodes = document.getPaintList();
+                    for (int pi = 0; pi < paintNodes.size(); pi++) {
+                        RenderNode node = paintNodes.get(pi);
                         Element target = RenderNode.getRenderNodeTarget(node);
                         if (skippedSubtree != null) {
                             if (target != null && RenderNode.isSameOrDescendant(target, skippedSubtree)) {
@@ -263,13 +313,17 @@ public class Base {
                             }
                         }
 
-                        poseStack.pushPose();
-                        Base.resolvePaintOffset(poseStack, node);
-                        node.render(poseStack);
-                        poseStack.popPose();
+                        PoseSnapshot snapshot = savePose(poseStack);
+                        try {
+                            Base.resolvePaintOffset(poseStack, node);
+                            node.render(poseStack);
+                        } finally {
+                            restorePose(poseStack, snapshot);
+                        }
                     }
                 } finally {
                     if (topLayerDepthScope != null) topLayerDepthScope.close();
+                    releaseEnteredSubtrees(enteredSubtrees);
                 }
                 if (topLayerDepthScope != null) {
                     topLayerDepthScope.close();
@@ -279,10 +333,13 @@ public class Base {
                 try {
                     for (RenderNode overlayNode : overlayNodes) {
                         if (overlayNode == null) continue;
-                        poseStack.pushPose();
-                        resolvePaintOffset(poseStack, overlayNode);
-                        overlayNode.render(poseStack);
-                        poseStack.popPose();
+                        PoseSnapshot snapshot = savePose(poseStack);
+                        try {
+                            resolvePaintOffset(poseStack, overlayNode);
+                            overlayNode.render(poseStack);
+                        } finally {
+                            restorePose(poseStack, snapshot);
+                        }
                     }
                 } finally {
                     popGuiItemZ();
@@ -459,7 +516,8 @@ public class Base {
                 float originX = origin[0];
                 float originY = origin[1];
 
-                for (Transform transform : functions) {
+                for (int fi = 0; fi < functions.size(); fi++) {
+                    Transform transform = functions.get(fi);
                     if (transform instanceof Transform.Translate t) {
                         // WorldWindow uses the paint-depth cursor for CSS stacking.
                         // Keep translateZ as a stacking-order input, but do not turn

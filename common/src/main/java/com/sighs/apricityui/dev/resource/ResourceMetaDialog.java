@@ -18,12 +18,6 @@ import com.sighs.apricityui.parser.HTML;
 public final class ResourceMetaDialog {
     private static final double MIN_ZOOM = 0.01d;
     private static final double MAX_ZOOM = 10.0d;
-    private static final List<Choice> FONT_MODE_CHOICES = List.of(
-            new Choice("NOT SET", "", "tooltip.apricityui.meta.font_mode.not_set"),
-            new Choice("MC", "mc", "tooltip.apricityui.meta.font_mode.mc"),
-            new Choice("WEB", "web", "tooltip.apricityui.meta.font_mode.web"),
-            new Choice("WEB SCALED", "web-scaled", "tooltip.apricityui.meta.font_mode.web_scaled")
-    );
     private static final List<Choice> VIEWPORT_CHOICES = List.of(
             new Choice("NOT SET", "", "tooltip.apricityui.meta.viewport.not_set"),
             new Choice("GUI", "mode=gui", "tooltip.apricityui.meta.viewport.gui"),
@@ -37,7 +31,6 @@ public final class ResourceMetaDialog {
             new Choice("INTERCEPT", "intercept", "tooltip.apricityui.meta.mouse_events.intercept")
     );
     private DialogWindow dialog;
-    private Element fontModeSelect;
     private Element viewportSelect;
     private Element mouseEventsSelect;
     private Element zoomInput;
@@ -83,7 +76,7 @@ public final class ResourceMetaDialog {
         close();
         if (document == null || document.body == null) return;
         HtmlMetaEditor.MetaSettings browserDefaults = new HtmlMetaEditor.MetaSettings(
-                "UTF-8", "web", "mode=browser", "intercept", List.of());
+                "UTF-8", "mode=browser", "intercept", List.of());
         openEditor(document, "NEW HTML META", null, null, browserDefaults, onSave,
                 Double.NaN, null);
     }
@@ -109,7 +102,6 @@ public final class ResourceMetaDialog {
         charset = settings.charset();
         preservedMeta = settings.preservedMeta();
         viewportSelect = appendSelectField(fields, "VIEWPORT", "tooltip.apricityui.meta.viewport", VIEWPORT_CHOICES, settings.viewport());
-        fontModeSelect = appendSelectField(fields, "FONT MODE", "tooltip.apricityui.meta.font_mode", FONT_MODE_CHOICES, settings.fontMode());
         mouseEventsSelect = appendSelectField(fields, "MOUSE EVENTS", "tooltip.apricityui.meta.mouse_events", MOUSE_EVENT_CHOICES, settings.mouseEvents());
         if (zoomSave != null) zoomInput = appendZoomField(fields, currentZoom);
         root.append(fields);
@@ -138,7 +130,7 @@ public final class ResourceMetaDialog {
             return;
         }
         String markup = HtmlMetaEditor.toMetaMarkup(new HtmlMetaEditor.MetaSettings(
-                charset, valueOf(fontModeSelect), valueOf(viewportSelect),
+                charset, valueOf(viewportSelect),
                 valueOf(mouseEventsSelect), preservedMeta));
         Consumer<String> templateCallback = templateSave;
         if (templateCallback != null) {
@@ -254,7 +246,6 @@ public final class ResourceMetaDialog {
 
     private void clearReferences() {
         dialog = null;
-        fontModeSelect = null;
         viewportSelect = null;
         mouseEventsSelect = null;
         zoomInput = null;

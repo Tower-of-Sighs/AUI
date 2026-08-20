@@ -335,7 +335,10 @@ class TextSelectionRenderEdgeTest {
         Document document = TestDocumentFactory.createDocument();
         document.body.setAttribute("style", "width: 300px; height: 200px;");
         Element element = new Element(document, "span");
-        element.setAttribute("style", "display: " + display + "; align-items: center; width: 120px; height: 32px;");
+        // 宽度必须容得下整段文本（"Pure CSS" 自然宽 ≈122.7px），否则按浏览器标准
+        // 直接文本会在容器内容宽处软换行、分两次绘制——本测试断言的是"不重复绘制"，
+        // 不是"不换行"。
+        element.setAttribute("style", "display: " + display + "; align-items: center; width: 160px; height: 32px;");
         if (legacyInnerText) element.innerText = expected;
         else element.appendChild(new TextNode(document, expected));
         document.body.appendChild(element);

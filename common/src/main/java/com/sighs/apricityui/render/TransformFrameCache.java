@@ -7,60 +7,57 @@ import java.util.IdentityHashMap;
 import java.util.Map;
 
 public final class TransformFrameCache {
-    private static final ThreadLocal<Map<Element, Matrix4f>> CACHE = new ThreadLocal<>();
-    private static final ThreadLocal<Integer> DEPTH = ThreadLocal.withInitial(() -> 0);
-    private static final ThreadLocal<Integer> COMMITTED_FALLBACK_DISABLED = ThreadLocal.withInitial(() -> 0);
+    // 与 RectFrameCache 同构：单 State ThreadLocal + 常驻 map clear 复用，
+    // 避免逐帧 3 个 ThreadLocal 的 set/remove 与 IdentityHashMap 重建。
+    private static final class State {
+        int depth = 0;
+        int committedFallbackDisabled = 0;
+        final Map<Element, Matrix4f> map = new IdentityHashMap<>();
+    }
+
+    private static final ThreadLocal<State> STATE = ThreadLocal.withInitial(State::new);
 
     private TransformFrameCache() {
     }
 
     public static void begin() {
-        int depth = DEPTH.get();
-        if (depth == 0) {
-            CACHE.set(new IdentityHashMap<>());
+        State state = STATE.get();
+        if (state.depth == 0) {
+            state.map.clear();
         }
-        DEPTH.set(depth + 1);
+        state.depth++;
     }
 
     public static void end() {
-        int depth = DEPTH.get();
-        if (depth <= 1) {
-            DEPTH.remove();
-            CACHE.remove();
-        } else {
-            DEPTH.set(depth - 1);
-        }
+        State state = STATE.get();
+        state.depth = Math.max(0, state.depth - 1);
     }
 
     public static void disableCommittedFallback() {
-        COMMITTED_FALLBACK_DISABLED.set(COMMITTED_FALLBACK_DISABLED.get() + 1);
+        STATE.get().committedFallbackDisabled++;
     }
 
     public static void enableCommittedFallback() {
-        int depth = COMMITTED_FALLBACK_DISABLED.get();
-        if (depth <= 1) {
-            COMMITTED_FALLBACK_DISABLED.remove();
-        } else {
-            COMMITTED_FALLBACK_DISABLED.set(depth - 1);
-        }
+        State state = STATE.get();
+        state.committedFallbackDisabled = Math.max(0, state.committedFallbackDisabled - 1);
     }
 
     public static Matrix4f get(Element element) {
         Matrix4f cached = getFrame(element);
         if (cached != null) return cached;
-        if (COMMITTED_FALLBACK_DISABLED.get() > 0) return null;
+        if (STATE.get().committedFallbackDisabled > 0) return null;
         return element == null ? null : element.getRenderer().getCommittedWorldTransformIfValid();
     }
 
     static Matrix4f getFrame(Element element) {
-        Map<Element, Matrix4f> map = CACHE.get();
-        return map == null ? null : map.get(element);
+        State state = STATE.get();
+        return state.depth > 0 ? state.map.get(element) : null;
     }
 
     public static void put(Element element, Matrix4f matrix) {
-        Map<Element, Matrix4f> map = CACHE.get();
-        if (map != null) {
-            map.put(element, matrix);
+        State state = STATE.get();
+        if (state.depth > 0) {
+            state.map.put(element, matrix);
         }
     }
 }

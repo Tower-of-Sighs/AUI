@@ -26,7 +26,6 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
     <style>
         body { margin: 0; padding: 12px; color: #e2e8f0; background: #1e293b; }

@@ -32,6 +32,13 @@ import java.util.List;
  */
 public final class TextSelection {
     private final Element owner;
+    // drawInnerText 每帧都会经过 selectableText()。Text.of(owner) 本身已按元素缓存，
+    // 这里再缓存一份拷贝（绘制时会逐行改写 content/color，不能直接用共享缓存实例），
+    // 基准实例身份 + styleStamp 都没变就复用，避免每帧 new Text + 全量样式 key 重算。
+    private Text cachedSelectableText;
+    private Text cachedSelectableBase;
+    private int cachedSelectableStamp;
+    private Position reusableLinePos;
 
     public TextSelection(Element owner) {
         this.owner = owner;
@@ -328,7 +335,11 @@ public final class TextSelection {
         if (layouts.isEmpty()) return 0;
         List<String> fragments = SelectionUnits.flexTextFragments(unit);
         String flattened = SelectionUnits.flattenedSelectableText(unit);
-        Position origin = Position.of(unit);
+        // 与 flex 直接文本的绘制坐标（forRender + margin）保持一致。
+        Position origin = Position.forRender(unit);
+        Box box = Box.of(unit);
+        double originX = origin.x + box.getMarginLeft();
+        double originY = origin.y + box.getMarginTop();
         int bestOffset = 0;
         double bestDistance = Double.MAX_VALUE;
         int fragmentIndex = 0;
@@ -344,32 +355,129 @@ public final class TextSelection {
                 // 片段对不上（order 参与方等特殊情况）：放弃后续分段
                 fragmentIndex = fragments.size();
             }
-            double px = origin.x + layout.position().x - unit.scrollLeft;
-            double py = origin.y + layout.position().y - unit.scrollTop;
+            double px = originX + layout.position().x - unit.scrollLeft;
+            double py = originY + layout.position().y - unit.scrollTop;
+            List<String> lines = layout.lines();
+            int[] starts = layout.lineStarts();
+            double totalHeight = lines.size() * text.lineHeight;
             double distance = y < py ? py - y
-                    : (y > py + text.lineHeight ? y - (py + text.lineHeight) : 0);
+                    : (y > py + totalHeight ? y - (py + totalHeight) : 0);
             if (distance > bestDistance) continue;
             bestDistance = distance;
-            double lineWidth = Text.measureLine(text, text.content);
+            // 软换行后先按 y 定位行，再在行内按字符宽度定位；
+            // offset 用行起始索引平移回原文坐标。
+            int lineIndex = (int) Math.floor((y - py) / text.lineHeight);
+            lineIndex = Math.max(0, Math.min(lines.size() - 1, lineIndex));
+            String line = lines.get(lineIndex);
+            double lineWidth = Text.measureLine(text, line);
             int local;
             double relativeX = x - px;
             if (relativeX <= 0) {
                 local = 0;
             } else if (relativeX >= lineWidth) {
-                local = text.content.length();
+                local = line.length();
             } else {
                 double currentWidth = 0;
                 local = 0;
-                for (int c = 0; c < text.content.length(); c++) {
-                    double charWidth = Text.measureLine(text, text.content.substring(c, c + 1));
+                for (int c = 0; c < line.length(); c++) {
+                    double charWidth = Text.measureLine(text, line.substring(c, c + 1));
                     if (relativeX <= currentWidth + charWidth / 2.0) break;
                     currentWidth += charWidth;
                     local++;
                 }
             }
-            bestOffset = Math.min(base + local, flattened.length());
+            bestOffset = Math.min(base + starts[lineIndex] + local, flattened.length());
         }
         return bestOffset;
+    }
+
+    /**
+     * 鼠标位置是否落在单元的可选文本（行盒）上。供光标/命中判定使用，
+     * 几何与 {@link #locateOffsetInUnit} 完全一致，避免光标与选区错位。
+     */
+    public static boolean isPositionOverSelectableText(Element unit, double x, double y) {
+        if (unit == null) return false;
+        String display = unit.getComputedStyle().display;
+        if (Layout.isFlexDisplay(display)) return overFlexDirectText(unit, x, y);
+        if (Layout.isGridDisplay(display)) return overLeafText(unit, x, y);
+        if (SelectionUnits.paintsTextViaRuns(unit)) return overRunsText(unit, x, y);
+        return overLeafText(unit, x, y);
+    }
+
+    private static boolean overFlexDirectText(Element unit, double x, double y) {
+        Position origin = Position.forRender(unit);
+        Box box = Box.of(unit);
+        double ox = origin.x + box.getMarginLeft();
+        double oy = origin.y + box.getMarginTop();
+        for (Flex.DirectTextLayout layout : Flex.computeDirectTextLayouts(unit)) {
+            if (layout == null || layout.text() == null || layout.position() == null) continue;
+            Text text = layout.text();
+            if (text.content == null || text.content.isEmpty()) continue;
+            double px = ox + layout.position().x - unit.scrollLeft;
+            double py = oy + layout.position().y - unit.scrollTop;
+            // 软换行后逐行判定：y 落在某一行内且 x 不超出该行宽度。
+            List<String> lines = layout.lines();
+            for (int i = 0; i < lines.size(); i++) {
+                double lineY = py + i * text.lineHeight;
+                if (y < lineY || y >= lineY + text.lineHeight) continue;
+                double lineWidth = Text.measureLine(text, lines.get(i));
+                if (x >= px && x <= px + lineWidth) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean overRunsText(Element unit, double x, double y) {
+        List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(unit);
+        if (runs.isEmpty()) return false;
+        Position contentPos = Rect.of(unit).getContentPosition();
+        boolean alignDirect = shouldAlignDirectTextRuns(unit);
+        double contentWidth = alignDirect ? Box.of(unit).innerSize().width() : 0;
+        for (NormalFlow.TextRunLayout run : runs) {
+            if (run == null || run.text() == null || run.lines() == null) continue;
+            double lineHeight = run.text().lineHeight;
+            for (int i = 0; i < run.lines().size(); i++) {
+                String line = run.lines().get(i);
+                if (line == null || line.isEmpty()) continue;
+                double lineY0 = contentPos.y + run.y() + i * lineHeight;
+                if (y < lineY0 || y >= lineY0 + lineHeight) continue;
+                double lineWidth = Text.measureLine(run.text(), line);
+                double alignOffset = (alignDirect && run.owner() == unit)
+                        ? TextMetrics.computeAlignedX(run.text(), contentWidth, lineWidth, i == 0) : 0;
+                double lineX0 = contentPos.x + (i == 0 ? run.x() : 0) + alignOffset - unit.scrollLeft;
+                if (x >= lineX0 && x <= lineX0 + lineWidth) return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean overLeafText(Element unit, double x, double y) {
+        Text text = selectableTextFor(unit);
+        if (text == null || text.content == null || text.content.isEmpty()) return false;
+        Box box = Box.of(unit);
+        double contentWidth = box.innerSize().width();
+        double contentHeight = box.innerSize().height();
+        List<String> lines = unit.resolveRenderedLines(text, contentWidth, contentHeight);
+        if (lines.isEmpty()) return false;
+        String display = unit.getComputedStyle().display;
+        boolean flexLike = Layout.isFlexDisplay(display) || Layout.isGridDisplay(display);
+        Position contentPos = Rect.of(unit).getContentPosition();
+        Position flexTextOffset = flexLike ? unit.getFlexTextOffset() : Position.ZERO;
+        double textHeight = Math.max(text.lineHeight, lines.size() * text.lineHeight);
+        double drawY = contentPos.y + (flexLike ? flexTextOffset.y
+                : TextMetrics.computeVerticalOffset(text, contentHeight, textHeight));
+        for (int i = 0; i < lines.size(); i++) {
+            double lineY = drawY + i * text.lineHeight;
+            if (y < lineY || y >= lineY + text.lineHeight) continue;
+            String line = lines.get(i);
+            double lineWidth = Text.measureLine(text, line);
+            double drawX = contentPos.x + (flexLike
+                    ? TextMetrics.computeFlexTextAlignedX(unit, text, contentWidth, lineWidth)
+                    : TextMetrics.computeAlignedX(text, contentWidth, lineWidth, i == 0));
+            double startX = drawX - unit.scrollLeft;
+            if (x >= startX && x <= startX + lineWidth) return true;
+        }
+        return false;
     }
 
     /** 叶子单元（文本由 drawInnerText 绘制）的命中：与 drawInnerText 的排版坐标一致。 */
@@ -585,7 +693,8 @@ public final class TextSelection {
         if (SelectionUnits.paintsTextViaRuns(owner)) return;
         Text text = selectableText();
         Position contentPos = rectRenderer.getContentPosition();
-        text.color = new Color(Text.getFontColor(owner));
+        int fontColor = Text.getFontColor(owner);
+        if (text.color == null || text.color.getValue() != fontColor) text.color = new Color(fontColor);
 
         if (!hasDrawableText(text.content)) return;
 
@@ -600,7 +709,8 @@ public final class TextSelection {
         // 选中文字与普通文字同色（高亮矩形由 drawInnerTextSelection 先行绘制），
         // 整行一次绘制，不做按段光栅化：非锚定路径的 glyphAnchorTexel 依赖各段
         // 内容的光栅 ink 统计，分段会让各段垂直锚定不同，导致选中区域后面的文字上浮。
-        Position linePos = new Position(0, 0);
+        if (reusableLinePos == null) reusableLinePos = new Position(0, 0);
+        Position linePos = reusableLinePos;
         for (int i = 0; i < lines.size(); i++) {
             String line = lines.get(i);
             double lineWidth = Text.measureLine(text, line);
@@ -620,6 +730,11 @@ public final class TextSelection {
 
     private Text selectableText() {
         Text base = Text.of(owner);
+        int stamp = base.styleStamp();
+        if (cachedSelectableText != null && cachedSelectableBase == base && cachedSelectableStamp == stamp) {
+            cachedSelectableText.content = SelectionUnits.ownSelectableText(owner);
+            return cachedSelectableText;
+        }
         Text copy = new Text();
         copy.fontSize = base.fontSize;
         copy.fontWeight = base.fontWeight;
@@ -634,7 +749,6 @@ public final class TextSelection {
         copy.textAlign = base.textAlign;
         copy.verticalAlign = base.verticalAlign;
         copy.whiteSpace = base.whiteSpace;
-        copy.fontMode = base.fontMode;
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;
@@ -643,6 +757,9 @@ public final class TextSelection {
         // Flattening the whole subtree here makes a block container paint all
         // of its child labels again at the container's content origin.
         copy.content = SelectionUnits.ownSelectableText(owner);
+        cachedSelectableText = copy;
+        cachedSelectableBase = base;
+        cachedSelectableStamp = stamp;
         return copy;
     }
 
@@ -662,7 +779,6 @@ public final class TextSelection {
         copy.textAlign = base.textAlign;
         copy.verticalAlign = base.verticalAlign;
         copy.whiteSpace = base.whiteSpace;
-        copy.fontMode = base.fontMode;
         copy.textIndent = base.textIndent;
         copy.letterSpacing = base.letterSpacing;
         copy.rasterBackgroundColor = base.rasterBackgroundColor;

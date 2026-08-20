@@ -41,7 +41,7 @@ public final class ImageAsyncHandler extends AbstractAsyncHandler<ImageAsyncHand
         Set<String> paths = new HashSet<>();
         for (Element element : document.getElements()) {
             String src = element.getAttribute("src");
-            if (!src.isEmpty() && "IMG".equals(element.tagName)) {
+            if (src != null && !src.isEmpty() && "IMG".equals(element.tagName)) {
                 addIfValid(paths, Loader.resolve(document.getPath(), src));
             }
 

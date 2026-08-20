@@ -52,7 +52,7 @@ public final class LayoutMeasureCache {
         if (mode == CONTENT_FLEX && Double.isNaN(availableWidth) && Double.isNaN(availableHeight)) {
             return state.getVersioned(natural ? state.naturalFlexContentSizes : state.flexContentSizes, element);
         }
-        return state.sizes.get(new Key(mode, element, availableWidth, availableHeight, natural));
+        return state.sizes.get(state.probeKey(mode, element, availableWidth, availableHeight, natural, false));
     }
 
     public static void putSize(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Size size) {
@@ -72,7 +72,7 @@ public final class LayoutMeasureCache {
     public static Object getObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
         State state = STATE.get();
         if (state == null || state.depth <= 0 || element == null) return null;
-        return state.objects.get(new Key(mode, element, availableWidth, availableHeight, natural, true));
+        return state.objects.get(state.probeKey(mode, element, availableWidth, availableHeight, natural, true));
     }
 
     public static void putObject(int mode, Element element, double availableWidth, double availableHeight, boolean natural, Object value) {
@@ -88,6 +88,16 @@ public final class LayoutMeasureCache {
         private final Map<Element, VersionedSize> naturalFlexContentSizes = new WeakHashMap<>();
         private final Map<Key, Size> sizes = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
         private final Map<Key, Object> objects = new BoundedCache<>(MAX_PARAMETERIZED_ENTRIES);
+        // 探测用的可变 key：每帧数十万次 get 各 new 一个 Key 是 JFR 里的大头
+        // （约 104MB）。命中路径用共享 probe 零分配；put（未命中）才 new 真 key。
+        // State 是 ThreadLocal，不存在并发复用。
+        private final Key probe = new Key();
+
+        private Key probeKey(int mode, Element element, double availableWidth, double availableHeight,
+                             boolean natural, boolean includeTextDependency) {
+            probe.set(mode, element, availableWidth, availableHeight, natural, includeTextDependency);
+            return probe;
+        }
 
         private Size getVersioned(Map<Element, VersionedSize> entries, Element element) {
             VersionedSize entry = entries.get(element);
@@ -118,14 +128,18 @@ public final class LayoutMeasureCache {
     }
 
     private static final class Key {
-        private final int mode;
-        private final Element element;
-        private final long availableWidth;
-        private final long availableHeight;
-        private final boolean natural;
-        private final long dependency;
-        private final long textDependency;
-        private final int hash;
+        private int mode;
+        private Element element;
+        private long availableWidth;
+        private long availableHeight;
+        private boolean natural;
+        private long dependency;
+        private long textDependency;
+        private int hash;
+
+        /** 探测 key（State.probe）专用；随后必须调用 set。 */
+        private Key() {
+        }
 
         private Key(int mode, Element element, double availableWidth, double availableHeight, boolean natural) {
             this(mode, element, availableWidth, availableHeight, natural, false);
@@ -133,6 +147,11 @@ public final class LayoutMeasureCache {
 
         private Key(int mode, Element element, double availableWidth, double availableHeight,
                     boolean natural, boolean includeTextDependency) {
+            set(mode, element, availableWidth, availableHeight, natural, includeTextDependency);
+        }
+
+        private void set(int mode, Element element, double availableWidth, double availableHeight,
+                         boolean natural, boolean includeTextDependency) {
             this.mode = mode;
             this.element = element;
             this.availableWidth = bits(availableWidth);

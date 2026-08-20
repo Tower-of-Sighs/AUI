@@ -36,6 +36,7 @@ public class Input extends AbstractText {
     private static final float MARK_DEPTH_OFFSET = 0.20f;
     private boolean rangeDragging;
     private boolean rangeValueChanged;
+    private boolean rangeInputEventPending;
 
     private enum Mode {
         TEXT,
@@ -67,6 +68,9 @@ public class Input extends AbstractText {
         addInternalEventListener("mousemove", event -> {
             if (!(event instanceof MouseEvent mouse)
                     || getMode() != Mode.RANGE || !rangeDragging || isDisabled()) return;
+            // mousemove 是 20Hz tick 派发的旧缓存坐标；有每帧直读路径时让它接管取值，
+            // 否则旧坐标会把每帧算出的新值覆盖回去，滑块来回跳。
+            if (livePointerOrNull() != null) return;
             if (setRangeValueFromPointer(mouse)) {
                 rangeValueChanged = true;
                 triggerInputEvent();
@@ -76,6 +80,7 @@ public class Input extends AbstractText {
             if (!(event instanceof MouseEvent)
                     || getMode() != Mode.RANGE || !rangeDragging) return;
             rangeDragging = false;
+            flushRangeInputEvent(); // 补发未发的 input，保证 input 先于 change
             if (rangeValueChanged) {
                 rangeValueChanged = false;
                 triggerChangeOnlyEvent();
@@ -84,6 +89,7 @@ public class Input extends AbstractText {
         addInternalEventListener("blur", event -> {
             rangeDragging = false;
             rangeValueChanged = false;
+            rangeInputEventPending = false;
         });
         addInternalEventListener("wheel", event -> {
             if (!(event instanceof MouseEvent mouse)) return;
@@ -630,20 +636,58 @@ public class Input extends AbstractText {
     }
 
     private void drawRangeInput(PoseStack poseStack, Rect rectRenderer) {
+        updateRangeDragFromLivePointer();
         double width = rectRenderer.box.innerSize().width();
         double centerY = rectRenderer.getContentPosition().y + rectRenderer.box.innerSize().height() / 2.0d;
         double left = rectRenderer.getContentPosition().x;
         double right = left + Math.max(0d, width);
         double fraction = rangeFraction();
-        int track = new Color(isDisabled() ? "#A5A5A5" : "#777777").getValue();
+        // 菱形 + 紫白默认配色（与 audio controls 同款；accentColor 可覆盖紫）；轨道 3px（加粗一半）
+        int track = new Color(isDisabled() ? "#A5A5A5" : "#DDD6FE").getValue();
         int accent = resolveAccentColor();
-        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1f, (float) right, (float) centerY + 1f, track);
-        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1f,
-                (float) (left + (right - left) * fraction), (float) centerY + 1f, accent);
+        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1.5f, (float) right, (float) centerY + 1.5f, track);
+        Graph.drawFillRect(poseStack.last().pose(), (float) left, (float) centerY - 1.5f,
+                (float) (left + (right - left) * fraction), (float) centerY + 1.5f, accent);
         Base.offsetPaintDepth(poseStack, DETAIL_DEPTH_OFFSET);
-        float knobX = (float) (left + (right - left) * fraction - 5f);
-        Graph.drawUnifiedRoundedRect(poseStack.last().pose(), knobX, (float) centerY - 5f, 10f, 10f,
-                uniformRadii(5f), isDisabled() ? new Color("#B7B7B7").getValue() : accent);
+        float knobX = (float) (left + (right - left) * fraction);
+        Graph.drawDiamond(poseStack.last().pose(), knobX, (float) centerY, 12f,
+                isDisabled() ? new Color("#B7B7B7").getValue() : accent);
+    }
+
+    /**
+     * 拖拽期间每帧（绘制时）直读 GLFW 光标换算取值：mousemove 事件由 20Hz tick 派发
+     * 且坐标是轮询缓存，只靠它滑块会卡。这里只静默改值，input 事件攒到 tick 补发
+     * （{@link #tick()}），避免在绘制期执行脚本。世界窗指针坐标系不同，仍走事件路径。
+     */
+    private void updateRangeDragFromLivePointer() {
+        if (!rangeDragging || getMode() != Mode.RANGE || isDisabled()) return;
+        Position mouse = livePointerOrNull();
+        if (mouse == null) return;
+        Position pointer = document.screenToDocumentPosition(mouse);
+        Element.DOMRect rect = getBoundingClientRect();
+        if (rect == null || !Double.isFinite(rect.width) || rect.width <= 0.0d) return;
+        if (setRangeValueFromFraction((pointer.x - rect.x) / rect.width)) {
+            rangeValueChanged = true;
+            rangeInputEventPending = true;
+        }
+    }
+
+    /** 每帧直读的 GLFW 光标（屏幕文档 + 有窗口时非 null）；headless/世界窗返回 null。 */
+    private Position livePointerOrNull() {
+        if (document == null || document.inWorld) return null;
+        return com.sighs.apricityui.spi.AuiServices.client().getMousePositionDirectly();
+    }
+
+    private void flushRangeInputEvent() {
+        if (!rangeInputEventPending) return;
+        rangeInputEventPending = false;
+        triggerInputEvent();
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        flushRangeInputEvent();
     }
 
     public boolean handleRangeKey(int key) {
@@ -720,7 +764,7 @@ public class Input extends AbstractText {
         String accent = getComputedStyle().accentColor;
         if (accent == null || accent.isBlank() || "unset".equalsIgnoreCase(accent)
                 || "auto".equalsIgnoreCase(accent)) {
-            accent = "#0075FF";
+            accent = "#8b5cf6"; // 默认紫（与 audio controls / 资源管理器同款）
         }
         return new Color(accent).getValue();
     }

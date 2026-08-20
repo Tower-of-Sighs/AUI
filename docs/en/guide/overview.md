@@ -17,7 +17,7 @@ An HTML page (Document) has four kinds of hosts, covering every Minecraft UI sce
 
 The same page runs in all four hosts: the same DOM, CSS, and scripting capabilities — only the display position and input path differ.
 
-Page behavior is controlled by three metas — logical viewport (`aui-viewport`), font mode (`aui-font-mode`), and mouse interception (`aui-mouse-events`). The full explanation is consolidated in [the meta section of ApricityScreen](apricity-screen#page-meta-configuration).
+Page behavior is controlled by two metas — logical viewport (`aui-viewport`) and mouse interception (`aui-mouse-events`). The full explanation is consolidated in [the meta section of ApricityScreen](apricity-screen#page-meta-configuration).
 
 ## What you can use in a page
 

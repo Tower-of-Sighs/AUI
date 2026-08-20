@@ -329,7 +329,11 @@ public class Rect {
     public void drawShadow(PoseStack poseStack) {
         if (box.shadows.isEmpty()) return;
         Size s = getShadowSize();
-        long outerShadowCount = box.shadows.stream().filter(shadow -> !shadow.inset()).count();
+        // 逐帧路径用索引循环而非 stream()：流管道对象在 JFR 采样里是明显的分配源。
+        int outerShadowCount = 0;
+        for (int i = 0; i < box.shadows.size(); i++) {
+            if (!box.shadows.get(i).inset()) outerShadowCount++;
+        }
         if (outerShadowCount == 0) return;
         boolean layered = outerShadowCount > 1;
         if (layered) Graph.beginLayeredBatch();
@@ -362,14 +366,21 @@ public class Rect {
                 );
             } else {
                 float[] shadowRadii = box.getCalculatedRadii((float) width, (float) height, (float) -spread);
-                Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) width, (float) height, shadowRadii, (float) shadow.size(), shadow.color().getValue(), Color.parse("#00000000"));
+                Graph.drawUnifiedShadow(poseStack.last().pose(), (float) x, (float) y, (float) width, (float) height, shadowRadii, (float) shadow.size(), shadow.color().getValue(), 0x00000000);
             }
         }
         if (layered) Graph.endBatch();
     }
 
     private void drawInsetShadow(PoseStack poseStack) {
-        if (box.shadows.stream().noneMatch(Box.Shadow::inset)) return;
+        boolean hasInset = false;
+        for (int i = 0; i < box.shadows.size(); i++) {
+            if (box.shadows.get(i).inset()) {
+                hasInset = true;
+                break;
+            }
+        }
+        if (!hasInset) return;
         Position p = getBodyRectPosition();
         Size s = getBodyRectSize();
         float width = (float) Math.max(0, s.width());

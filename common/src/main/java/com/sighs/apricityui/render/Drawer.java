@@ -148,6 +148,11 @@ public class Drawer {
             return;
         }
 
+        boolean hasMaskImage = com.sighs.apricityui.style.MaskImage.hasMask(contextRoot);
+        if (hasMaskImage) {
+            paintList.add(new RenderNode.MaskImagePushNode(contextRoot));
+        }
+
         boolean hasClipPath = !"none".equals(rootStyle.clipPath);
         if (hasClipPath) {
             paintList.add(new RenderNode.ClipPathPushNode(contextRoot));
@@ -198,6 +203,7 @@ public class Drawer {
             }
             if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
             if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
+            if (hasMaskImage) paintList.add(new RenderNode.MaskImagePopNode(contextRoot));
             return;
         }
 
@@ -280,6 +286,7 @@ public class Drawer {
         }
         if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
+        if (hasMaskImage) paintList.add(new RenderNode.MaskImagePopNode(contextRoot));
     }
 
     private static final Comparator<Paintable> PAINTABLE_ORDER = Comparator

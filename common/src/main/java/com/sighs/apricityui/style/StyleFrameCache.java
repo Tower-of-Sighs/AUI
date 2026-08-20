@@ -14,31 +14,37 @@ public final class StyleFrameCache {
     public static void begin() {
         int depth = DEPTH.get();
         if (depth == 0) {
-            CACHE.set(new IdentityHashMap<>());
+            // 跨帧复用同一张表：每帧新建 IdentityHashMap 会让内部数组随元素数量
+            // 重新扩容一整轮（JFR 里约 90MB/段），clear 保容即可避免。
+            Map<Element, Style> map = CACHE.get();
+            if (map == null) {
+                map = new IdentityHashMap<>();
+                CACHE.set(map);
+            } else {
+                map.clear();
+            }
         }
         DEPTH.set(depth + 1);
     }
 
     public static void end() {
         int depth = DEPTH.get();
-        if (depth <= 1) {
-            DEPTH.remove();
-            CACHE.remove();
-        } else {
-            DEPTH.set(depth - 1);
-        }
+        DEPTH.set(Math.max(0, depth - 1));
     }
 
     public static boolean isActive() {
-        return CACHE.get() != null;
+        // begin/end 之间才算激活：底层表为复用而常驻，不能以表是否存在判断。
+        return DEPTH.get() > 0;
     }
 
     public static Style get(Element element) {
+        if (DEPTH.get() <= 0) return null;
         Map<Element, Style> map = CACHE.get();
         return map == null ? null : map.get(element);
     }
 
     public static void put(Element element, Style style) {
+        if (DEPTH.get() <= 0) return;
         Map<Element, Style> map = CACHE.get();
         if (map != null) {
             map.put(element, style);

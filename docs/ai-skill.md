@@ -40,12 +40,10 @@ AUI 让你用 HTML/CSS/JS 写 Minecraft 界面。它不是内嵌浏览器：HTML
 放在 `<head>` 里，只在页面创建和 refresh 时读取：
 
 ```html
-<meta name="aui-font-mode" content="web">
 <meta name="aui-viewport" content="mode=browser">
 <meta name="aui-mouse-events" content="intercept">
 ```
 
-- **aui-font-mode**：`mc`（原版字体）、`web`（网页字体规则，大多数页面选它）、`web-scaled`（web + 跟随缩放）；
 - **aui-viewport**：`mode=browser` 跟随窗口（Screen 首选）；`mode=fixed,width=N,height=N` 固定逻辑尺寸（**WorldWindow 必须用它**，否则默认宽度上千像素，面板在世界里巨大无比）；`mode=gui` 跟随 MC GUI 缩放（兼容旧页面）。缩放参数 `zoom/min-zoom/max-zoom/zoom-step/user-scalable` 可选；
 - **aui-mouse-events**：写 `intercept` 页面才拦截鼠标。**页面有任何可交互元素就必须写**，否则点击落到游戏而不是页面；纯展示 Overlay 不写（让它穿透）。
 

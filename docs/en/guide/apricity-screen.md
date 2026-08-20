@@ -23,7 +23,6 @@ Put the HTML at `src/main/resources/assets/apricityui/apricity/screens/example.h
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
     <meta name="aui-mouse-events" content="intercept">
     <style>
@@ -92,7 +91,7 @@ A few easy traps:
 
 ## Page Meta Configuration
 
-These three meta tags are AUI's page-level configuration, **shared by all hosts** (Screen, Overlay, Container, and WorldWindow all read them). The full explanation is maintained only here and is not repeated in other documents.
+These two meta tags are AUI's page-level configuration, **shared by all hosts** (Screen, Overlay, Container, and WorldWindow all read them). The full explanation is maintained only here and is not repeated in other documents.
 
 ### aui-viewport: Logical Viewport
 
@@ -126,20 +125,6 @@ All modes support zoom parameters:
 | `user-scalable` | true | Whether shortcut-key zoom is allowed |
 
 When zooming is allowed: Ctrl+wheel and Ctrl+`+`/`-` zoom, Ctrl+`0` resets. The zoom value is stored per page path in `config/apricityui/viewport-zoom.properties`, so reopening the page remembers the last value.
-
-### aui-font-mode: Font Mode
-
-```html
-<meta name="aui-font-mode" content="web">
-```
-
-| Value | Default font size | Suitable for |
-| --- | ---: | --- |
-| `mc` | 9 | Small controls in native MC style |
-| `web` | 16 | Layout at web-logical font sizes |
-| `web-scaled` | 16 | Web font sizes + MC glyph proportions when drawing; **default value** |
-
-It affects the default font size and how text is rasterized; an explicit `font-size` in CSS always wins. Pages migrated from browser designs generally use the `web` + `mode=browser` combination.
 
 ### aui-mouse-events: Input Interception
 

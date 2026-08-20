@@ -21,7 +21,6 @@ An Overlay is a Document not attached to any Minecraft Screen: `ApricityUI.creat
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
 </head>
 <body>

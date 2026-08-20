@@ -68,7 +68,7 @@ class GlobalJsBootstrapTest {
         assertTrue(script.contains("field.value || 'on'"));
         assertTrue(script.contains("let options = field.getElementsByTagName ? field.getElementsByTagName('option') : (field.options || []);"));
         assertTrue(script.contains("option.hasAttribute('selected')"));
-        assertTrue(script.contains("__auiInstallValueBridge(el, 'name', () => el.getAttribute('name')"));
+        assertTrue(script.contains("__auiInstallValueBridge(el, 'name', () => el.getAttribute('name') || ''"));
         assertTrue(script.contains("__auiInstallValueBridge(el, 'type', () => el.getType()"));
         assertTrue(script.contains("__auiInstallValueBridge(el, 'multiple', () => !!el.hasAttribute('multiple')"));
         assertTrue(script.contains("__auiInstallValueBridge(el, 'selected', () => el.isSelected()"));

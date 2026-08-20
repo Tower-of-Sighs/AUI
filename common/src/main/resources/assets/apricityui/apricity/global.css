@@ -98,6 +98,17 @@ input {
     width: 64px;
     overflow: hidden;
 }
+
+/* <audio> 无 controls 属性时不渲染、不占空间（浏览器语义：display:none 等效）；
+ * 带 controls 时给默认控件条尺寸，作者 CSS 可覆盖。 */
+audio:not([controls]) {
+    display: none;
+}
+
+audio[controls] {
+    width: 240px;
+    height: 28px;
+}
 /* Chromium paints a disabled native select as a faded control even when
  * author styles provide its border, background and inset shadow. ApricityUI
  * owns the select renderer, so reproduce that native disabled-state
@@ -282,8 +293,3 @@ recipe[data-recipe-layout="fallback"] {
     --aui-recipe-columns: 6;
 }
 recipe[data-recipe-layout="fallback"] > .aui-recipe-output[data-i="0"] { grid-column: 6; grid-row: 2; }
-
-@font-face {
-    font-family: "lxgw";
-    src: url("apricityui/lxgw3500.ttf");
-}

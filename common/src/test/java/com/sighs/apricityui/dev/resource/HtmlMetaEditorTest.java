@@ -52,11 +52,11 @@ class HtmlMetaEditorTest {
     @Test
     void createsHeadBeforeBodyWhenMissing() {
         String updated = HtmlMetaEditor.replaceMetaMarkup("<body>Test</body>",
-                "<meta name=\"aui-font-mode\" content=\"web\">");
+                "<meta name=\"aui-viewport\" content=\"mode=browser\">");
 
         assertTrue(updated.startsWith("<head>"));
         assertTrue(updated.indexOf("</head>") < updated.indexOf("<body>"));
-        assertEquals("<meta name=\"aui-font-mode\" content=\"web\">",
+        assertEquals("<meta name=\"aui-viewport\" content=\"mode=browser\">",
                 HtmlMetaEditor.extractMetaMarkup(updated));
     }
 
@@ -129,7 +129,6 @@ class HtmlMetaEditorTest {
         String markup = """
                 <meta charset="utf-8">
                 <meta name="description" content="Keep &amp; preserve">
-                <meta name="aui-font-mode" content="mc">
                 <meta name="aui-viewport" content="mode=fixed,width=427,height=249">
                 <meta name="aui-mouse-events" content="intercept">
                 """;
@@ -137,7 +136,6 @@ class HtmlMetaEditorTest {
         HtmlMetaEditor.MetaSettings settings = HtmlMetaEditor.parseSettings(markup);
 
         assertEquals("utf-8", settings.charset());
-        assertEquals("mc", settings.fontMode());
         assertEquals("mode=fixed,width=427,height=249", settings.viewport());
         assertEquals("intercept", settings.mouseEvents());
         assertEquals(List.of("<meta name=\"description\" content=\"Keep &amp; preserve\">"),
@@ -147,13 +145,12 @@ class HtmlMetaEditorTest {
     @Test
     void serializesDropdownSettingsWithoutDroppingCustomMeta() {
         HtmlMetaEditor.MetaSettings settings = new HtmlMetaEditor.MetaSettings(
-                "UTF-8", "web", "mode=browser", "", List.of(
+                "UTF-8", "mode=browser", "", List.of(
                 "<meta name=\"description\" content=\"Custom\">"));
 
         String markup = HtmlMetaEditor.toMetaMarkup(settings);
 
         assertTrue(markup.contains("<meta charset=\"UTF-8\">"));
-        assertTrue(markup.contains("<meta name=\"aui-font-mode\" content=\"web\">"));
         assertTrue(markup.contains("<meta name=\"aui-viewport\" content=\"mode=browser\">"));
         assertFalse(markup.contains("aui-mouse-events"));
         assertTrue(markup.contains("<meta name=\"description\" content=\"Custom\">"));

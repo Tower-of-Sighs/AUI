@@ -60,8 +60,23 @@ public class Background {
         this.gradient = null;
         this.layers.clear();
 
+        for (Layer layer : parseLayers(contextPath, image, repeat, size, position, "no-repeat", "auto", "0 0")) {
+            layers.add(layer);
+            if (gradient == null && layer.gradient != null) gradient = layer.gradient;
+            if ("unset".equals(imagePath) && !"unset".equals(layer.imagePath)) imagePath = layer.imagePath;
+        }
+    }
+
+    /**
+     * 解析逗号分隔的多层图像（background-image / mask-image 共用）。
+     * repeat/size/position 逐层按索引对齐，缺省用给定的默认值——
+     * background 与 mask 的初始值不同（mask-repeat 默认 repeat），由调用方传入。
+     */
+    public static List<Layer> parseLayers(String contextPath, String image, String repeat, String size, String position,
+                                          String defaultRepeat, String defaultSize, String defaultPosition) {
+        List<Layer> result = new ArrayList<>();
         List<String> images = splitTopLevelComma(image);
-        if (images.isEmpty()) return;
+        if (images.isEmpty()) return result;
 
         List<String> repeats = splitTopLevelComma(repeat);
         List<String> sizes = splitTopLevelComma(size);
@@ -69,18 +84,16 @@ public class Background {
 
         for (int i = 0; i < images.size(); i++) {
             Layer layer = parseImageLayer(contextPath, images.get(i));
-            layer.repeat = normalizeLayerValue(pickLayerToken(repeats, i, "no-repeat"), "no-repeat");
-            layer.size = normalizeLayerValue(pickLayerToken(sizes, i, "auto"), "auto");
-            layer.position = normalizeLayerValue(pickLayerToken(positions, i, "0 0"), "0 0");
+            layer.repeat = normalizeLayerValue(pickLayerToken(repeats, i, defaultRepeat), defaultRepeat);
+            layer.size = normalizeLayerValue(pickLayerToken(sizes, i, defaultSize), defaultSize);
+            layer.position = normalizeLayerValue(pickLayerToken(positions, i, defaultPosition), defaultPosition);
             if (layer.intrinsicRepeat) {
                 if (layer.intrinsicRepeatValue != null) layer.repeat = layer.intrinsicRepeatValue;
                 if (layer.intrinsicSizeValue != null) layer.size = layer.intrinsicSizeValue;
             }
-            layers.add(layer);
-
-            if (gradient == null && layer.gradient != null) gradient = layer.gradient;
-            if ("unset".equals(imagePath) && !"unset".equals(layer.imagePath)) imagePath = layer.imagePath;
+            result.add(layer);
         }
+        return result;
     }
 
     public static List<String> resolveImagePaths(String contextPath, String imageValue) {

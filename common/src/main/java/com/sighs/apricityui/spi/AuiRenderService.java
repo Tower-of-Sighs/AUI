@@ -134,6 +134,40 @@ public interface AuiRenderService {
     /** Returns the loader's filter blur shader, or {@code null}. */
     Object getFilterBlurShader();
 
+    /**
+     * CSS mask-composite 的非 add 算子（逐层合成时源=当前层、目标=下层累积，
+     * 对应 Porter-Duff source-in / source-out / xor）。
+     */
+    enum MaskCompositeOp {
+        INTERSECT,
+        SUBTRACT,
+        EXCLUDE
+    }
+
+    /**
+     * Returns the loader's CSS-mask dst-in blit shader, or {@code null}
+     * (mask then degrades to fail-open: content is composited unmasked).
+     * {@code luminance} selects the luminance variant (mask value taken from
+     * the luminance of the premultiplied rgb instead of the alpha channel).
+     * Legacy targets register dedicated {@code filter_mask} shaders whose JSON
+     * carries the zero/src-alpha blend ({@code ShaderInstance.apply} overwrites
+     * any dynamic blend state); pipeline backends bake the same blend into a
+     * dedicated pipeline instead.
+     */
+    default Object getFilterMaskShader(boolean luminance) {
+        return null;
+    }
+
+    /**
+     * Returns the merge shader for a non-add {@link MaskCompositeOp}, or
+     * {@code null}. The shader must sample {@code Sampler0} unchanged; the
+     * Porter-Duff operator is carried entirely by the baked blend state
+     * (legacy: shader JSON; pipeline backends: ColorTargetState).
+     */
+    default Object getFilterMaskMergeShader(MaskCompositeOp op) {
+        return null;
+    }
+
     // ------------------------------------------------------------------
     // Version-neutral render-state passthrough (added for the 26.1 target).
     // The pre-1.21.5 RenderSystem/GlStateManager global-state model was

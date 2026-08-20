@@ -152,10 +152,10 @@ class LayoutPositionTest {
     @Test
     void rowFlexShrinkRelayoutsTextAgainstFinalItemWidth() {
         Document document = TestDocumentFactory.createDocument();
-        document.body.setAttribute("style", "width: 300px; height: 200px;");
+        document.body.setAttribute("style", "width: 600px; height: 200px;");
 
         Element row = new Element(document, "div");
-        row.setAttribute("style", "display: flex; align-items: center; width: 220px; gap: 20px;");
+        row.setAttribute("style", "display: flex; align-items: center; width: 340px; gap: 20px;");
         Element copy = new Element(document, "div");
         copy.setAttribute("style", "min-width: 0;");
         Element paragraph = new Element(document, "p");
@@ -170,7 +170,7 @@ class LayoutPositionTest {
 
         Size.of(paragraph);
         assertEquals(1, Text.wrap(paragraph).lines().size());
-        assertEquals(140, Size.of(copy).width(), 0.01);
+        assertEquals(260, Size.of(copy).width(), 0.01);
         assertTrue(Text.wrap(paragraph).lines().size() > 1);
         assertTrue(Size.of(paragraph).height() >= 40);
         assertTrue(Size.of(copy).height() >= 40);
@@ -181,7 +181,6 @@ class LayoutPositionTest {
     void replacingARegisteredFontInvalidatesLineMeasurements() throws IOException {
         String family = "font-revision-test-" + UUID.randomUUID();
         Text text = new Text();
-        text.fontMode = Document.FontMode.WEB;
         text.fontFamily = family;
         text.fontSize = 20;
 
@@ -205,7 +204,6 @@ class LayoutPositionTest {
     @Test
     void normalWhiteSpaceBreaksAfterVisibleHyphensBeforeEmergencyCharacterBreaking() {
         Text text = new Text();
-        text.fontMode = Document.FontMode.WEB;
         text.fontFamily = "sans-serif";
         text.fontSize = 20;
         text.whiteSpace = "normal";
@@ -498,7 +496,6 @@ class LayoutPositionTest {
     @Test
     void oreThemeContractRowsRemainInsideTheStretchedGridCard() throws IOException {
         Document document = TestDocumentFactory.createDocument();
-        document.setFontMode(Document.FontMode.WEB);
         Path stylesheet = Path.of(
                 "../../common/src/main/resources/assets/apricityui/apricity/apricityui/theme/ore/ore.css");
         assertTrue(Font.registerFont("OreRegular", Path.of(
@@ -664,7 +661,6 @@ class LayoutPositionTest {
         text.fontFamily = "OreDisplayFractionalTest";
         text.fontSize = 25;
         text.fontWeight = 400;
-        text.fontMode = Document.FontMode.WEB;
         assertEquals(71.7503, Text.measureLine(text, "ORE UI"), 0.001);
     }
 
@@ -1301,37 +1297,6 @@ class LayoutPositionTest {
 
         assertEquals(16.0, Text.of(label).fontSize);
         assertEquals(16.0, Text.getFontSize(label));
-    }
-
-    @Test
-    void documentFontModePresetsControlDefaultFontSizeAndMinecraftScale() {
-        Document document = TestDocumentFactory.createDocument();
-        Element label = new Element(document, "span");
-        label.innerText = "HUD";
-        label.setAttribute("style", "font-family: sans-serif;");
-        document.body.appendChild(label);
-
-        Text webScaled = Text.of(label);
-        assertEquals(Document.FontMode.WEB_SCALED, webScaled.fontMode);
-        assertEquals(16.0, webScaled.fontSize);
-        assertEquals(1.0, webScaled.defaultFontScale());
-        assertEquals(9.0, webScaled.renderedFontSize());
-
-        label.getRenderer().text.clear();
-        label.getRenderer().wrappedText.clear();
-        document.setFontMode(Document.FontMode.MC);
-        Text mc = Text.of(label);
-        assertEquals(9.0, mc.fontSize);
-        assertEquals(1.0, mc.defaultFontScale());
-        assertEquals(9.0, mc.renderedFontSize());
-
-        label.getRenderer().text.clear();
-        label.getRenderer().wrappedText.clear();
-        document.setFontMode(Document.FontMode.WEB);
-        Text web = Text.of(label);
-        assertEquals(16.0, web.fontSize);
-        assertEquals(16.0 / 9.0, web.defaultFontScale());
-        assertEquals(16.0, web.renderedFontSize());
     }
 
     @Test

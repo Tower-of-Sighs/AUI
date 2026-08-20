@@ -206,30 +206,6 @@ class ResourcePipelineTest {
     }
 
     @Test
-    void htmlMetaFontModePresetAppliesDuringDocumentRefresh() {
-        HTML.putTemple("test://font-mode", """
-                <html>
-                  <head>
-                    <meta name="aui-font-mode" content="mc">
-                  </head>
-                  <body>
-                    <span style="font-family: sans-serif;">font</span>
-                  </body>
-                </html>
-                """);
-        Document document = new Document("test://font-mode", false);
-
-        try {
-            document.refresh();
-
-            assertEquals(Document.FontMode.MC, document.getFontMode());
-            assertEquals(9.0, Text.of(document.body.getFirstElementChild()).fontSize);
-        } finally {
-            Size.clearRootFontOverride();
-        }
-    }
-
-    @Test
     void commitRenderStateSkipsDisplayNoneSubtreesWhenRebuildingPaintList() {
         Document document = TestDocumentFactory.createDocument();
         Element visible = new Element(document, "div");

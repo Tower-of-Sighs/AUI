@@ -77,7 +77,7 @@ public class ImageDrawer {
         float width = (float) size.width();
         float height = (float) size.height();
         boolean needRelayout = width == 0 || height == 0;
-        draw(poseStack, resolvedPath, x, y, width, height, element.getAttribute("blur").equals("true"), element, needRelayout);
+        draw(poseStack, resolvedPath, x, y, width, height, "true".equals(element.getAttribute("blur")), element, needRelayout);
     }
 
     public static void draw(PoseStack poseStack, String path, int x, int y, int width, int height, boolean blur) {
@@ -557,6 +557,22 @@ public class ImageDrawer {
         flushBatch();
         Base.resolveOffset(poseStack);
         Graph.drawFillRect(poseStack.last().pose(), x, y, x + width, y + height, PLACEHOLDER_COLOR);
+    }
+
+    /**
+     * Returns whether the texture for {@code path} is already loaded and drawable.
+     * Used by mask painting, which must skip not-yet-loaded layers instead of
+     * drawing the loading placeholder into the mask buffer.
+     */
+    public static boolean isTextureReady(String path, Element requester) {
+        if (path == null || path.isEmpty() || "unset".equals(path)) return false;
+        ImageHandle handle = ImageAsyncHandler.INSTANCE.request(path, requester, false);
+        if (handle == null || handle.state() != AbstractAsyncHandler.AsyncState.READY || handle.texture() == null) {
+            return false;
+        }
+        Image.ITexture texture = handle.texture();
+        return texture.getWidth() > 0 && texture.getHeight() > 0
+                && AuiServices.resources().locationOf(texture.getKey()) != null;
     }
 
     private static ReadyTexture requestReadyTexture(String path, PoseStack poseStack, float x, float y, float width, float height) {

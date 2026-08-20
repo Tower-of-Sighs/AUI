@@ -82,6 +82,26 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         return slotBinder != null && slotBinder.isBoundElementHovered(slot, mouseX, mouseY);
     }
 
+    public boolean pruneInvalidQuickCraftSlot(Slot slot) {
+        Set<Slot> quickCraftSlots = this.quickCraftSlots;
+        if (!isQuickCrafting
+                || quickCraftSlots == null
+                || quickCraftSlots.size() <= 1
+                || !quickCraftSlots.contains(slot)) {
+            return false;
+        }
+
+        ItemStack carried = menu.getCarried();
+        if (carried.isEmpty()
+                || (net.minecraft.world.inventory.AbstractContainerMenu.canItemQuickReplace(slot, carried, true)
+                && menu.canDragTo(slot))) {
+            return false;
+        }
+
+        quickCraftSlots.remove(slot);
+        return true;
+    }
+
     public void captureFloatingItem(ItemStack stack, int x, int y, String overlayText) {
         int decorationOffsetY = draggingItem.isEmpty() ? 0 : -8;
         floatingItems.add(stack, x, y, overlayText, decorationOffsetY);

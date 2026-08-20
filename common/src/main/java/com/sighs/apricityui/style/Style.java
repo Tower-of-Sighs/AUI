@@ -152,6 +152,14 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String clipPath = "none";
     public String filter = "none";
     public String backdropFilter = "none";
+    public String maskImage = "none";
+    public String maskMode = "match-source";
+    public String maskRepeat = "repeat";
+    public String maskPosition = "0% 0%";
+    public String maskSize = "auto";
+    public String maskClip = "border-box";
+    public String maskOrigin = "border-box";
+    public String maskComposite = "add";
 
     public String animation = "unset";
     public String animationName = "unset";
@@ -372,6 +380,39 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
                 update(property, InlineStyleDeclaration.valueWithoutPriority(value)));
     }
 
+    /**
+     * 按浏览器层叠顺序合并样式表命中结果与内联 style：
+     * 样式表普通 → 内联普通 → 样式表 !important → 内联 !important。
+     * 内联普通高于样式表普通但被样式表 !important 覆盖；内联 !important 优先级最高。
+     */
+    public void mergeCascade(Map<String, CSS.Declaration> stylesheet, String inlineStyle) {
+        applyStylesheet(stylesheet, false);
+        applyInline(inlineStyle, false);
+        applyStylesheet(stylesheet, true);
+        applyInline(inlineStyle, true);
+    }
+
+    private void applyStylesheet(Map<String, CSS.Declaration> stylesheet, boolean important) {
+        if (stylesheet == null) return;
+        for (Map.Entry<String, CSS.Declaration> entry : stylesheet.entrySet()) {
+            CSS.Declaration declaration = entry.getValue();
+            if (declaration != null && declaration.important() == important) {
+                update(entry.getKey(), declaration.value());
+            }
+        }
+    }
+
+    private void applyInline(String inlineStyle, boolean important) {
+        if (inlineStyle == null || inlineStyle.isBlank()) return;
+        for (Map.Entry<String, String> entry : InlineStyleDeclaration.parse(inlineStyle).entrySet()) {
+            String value = entry.getValue();
+            if (value == null || value.isBlank()) continue;
+            if (("important".equals(InlineStyleDeclaration.priorityOf(value))) == important) {
+                update(entry.getKey(), InlineStyleDeclaration.valueWithoutPriority(value));
+            }
+        }
+    }
+
     public void update(String name, String value) {
         if (name == null || name.isBlank()) return;
         if (value == null) value = "";
@@ -384,6 +425,10 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
         String styleName = transformStyleName(name);
         if ("background".equals(styleName)) {
             ShorthandParser.applyBackground(this, value);
+            return;
+        }
+        if ("mask".equals(styleName)) {
+            ShorthandParser.applyMask(this, value);
             return;
         }
         if ("flex".equals(styleName)) {

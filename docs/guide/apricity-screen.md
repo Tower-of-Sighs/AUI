@@ -23,7 +23,6 @@ HTML 放在 `src/main/resources/assets/apricityui/apricity/screens/example.html`
 <html>
 <head>
     <meta charset="utf-8">
-    <meta name="aui-font-mode" content="web">
     <meta name="aui-viewport" content="mode=browser">
     <meta name="aui-mouse-events" content="intercept">
     <style>
@@ -92,7 +91,7 @@ new ApricityScreen(path)      // 只保存路径，不读 HTML
 
 ## 页面 Meta 配置
 
-这三个 meta 标签是 AUI 的页面级配置，**所有宿主通用**（Screen、Overlay、Container、WorldWindow 都读它们）。完整说明只在这里维护一份，其他文档不再重复。
+这两个 meta 标签是 AUI 的页面级配置，**所有宿主通用**（Screen、Overlay、Container、WorldWindow 都读它们）。完整说明只在这里维护一份，其他文档不再重复。
 
 ### aui-viewport：逻辑视口
 
@@ -126,20 +125,6 @@ fixed 模式的 `scale` 可以是数值（`scale=1`）、`fit`（等比放进窗
 | `user-scalable` | true | 是否允许快捷键缩放 |
 
 允许缩放时：Ctrl+滚轮、Ctrl+`+`/`-` 缩放，Ctrl+`0` 重置。缩放值按页面路径存到 `config/apricityui/viewport-zoom.properties`，重开页面会记住上次的值。
-
-### aui-font-mode：字体模式
-
-```html
-<meta name="aui-font-mode" content="web">
-```
-
-| 值 | 默认字号 | 适用 |
-| --- | ---: | --- |
-| `mc` | 9 | MC 原生风格的小控件 |
-| `web` | 16 | 按网页逻辑字号布局 |
-| `web-scaled` | 16 | 网页字号 + MC 字形比例绘制，**默认值** |
-
-它影响默认字号和文字栅格化方式；CSS 里显式写的 `font-size` 永远优先。从浏览器设计稿迁移的页面，一般就是 `web` + `mode=browser` 这对组合。
 
 ### aui-mouse-events：输入拦截
 
