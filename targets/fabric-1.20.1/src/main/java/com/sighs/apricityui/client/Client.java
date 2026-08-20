@@ -21,6 +21,7 @@ import com.sighs.apricityui.screen.ApricityScreen;
 import com.sighs.apricityui.style.Cursor;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.task.FrameScheduler;
+import com.sighs.apricityui.task.MouseMoveEngine;
 import com.sighs.apricityui.ui.Tooltip;
 
 import com.sighs.apricityui.world.WorldWindow;
@@ -51,14 +52,7 @@ public final class Client {
         FrameScheduler.tick();
         ResourceManager.reconcileConfiguredMode();
         DevTools.drainLogs();
-        Operation.onMouseMove(getMousePosition());
-        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
-            Position realPos = window.getRealPos();
-            if (realPos != null) {
-                MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
-                MouseEvent.tiggerEvent(moveEvent, window.document);
-            }
-        }
+        MouseMoveEngine.poll(Client::getMousePosition);
         Window window = minecraft.getWindow();
         int width = window.getScreenWidth();
         int height = window.getScreenHeight();
@@ -79,6 +73,8 @@ public final class Client {
     }
 
     public static void drawScreenLike(GuiGraphics graphics) {
+        // 渲染帧仅作轮询载具：60Hz 固定节拍由 MouseMoveEngine 调度，未到期零成本返回。
+        MouseMoveEngine.poll(Client::getMousePosition);
         Minecraft minecraft = Minecraft.getInstance();
         if (minecraft.screen instanceof ApricityContainerScreen || minecraft.screen instanceof ApricityScreen) return;
         Position mousePosition = getMousePosition();
@@ -97,6 +93,8 @@ public final class Client {
     }
 
     public static void drawOverlayLike(GuiGraphics graphics) {
+        // 渲染帧仅作轮询载具：60Hz 固定节拍由 MouseMoveEngine 调度，未到期零成本返回。
+        MouseMoveEngine.poll(Client::getMousePosition);
         // F1(hideGui)隐藏原版 HUD 时,overlay 文档一并隐藏
         if (Minecraft.getInstance().screen != null) return;
         if (Minecraft.getInstance().options.hideGui) return;

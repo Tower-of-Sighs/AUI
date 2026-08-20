@@ -9,6 +9,7 @@ import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.task.FrameScheduler;
+import com.sighs.apricityui.task.MouseMoveEngine;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
@@ -328,16 +329,11 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void mouseMove(TickEvent.ClientTickEvent event) {
-        if (event.phase == TickEvent.Phase.END) {
-            Operation.onMouseMove(getMousePosition());
-            for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
-                Position realPos = window.getRealPos();
-                if (realPos != null) {
-                    MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
-                    MouseEvent.tiggerEvent(moveEvent, window.document);
-                }
-            }
+    public static void mouseMove(TickEvent.RenderTickEvent event) {
+        // 渲染帧仅作轮询载具：60Hz 固定节拍由 MouseMoveEngine 调度，
+        // 未到期时一次 nanoTime 比较即返回，不会随刷新率放大分发频率。
+        if (event.phase == TickEvent.Phase.START) {
+            MouseMoveEngine.poll(Client::getMousePosition);
         }
     }
 

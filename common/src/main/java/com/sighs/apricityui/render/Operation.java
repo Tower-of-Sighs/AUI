@@ -18,7 +18,9 @@ import org.lwjgl.glfw.GLFW;
 import com.sighs.apricityui.event.Event;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
+import com.sighs.apricityui.world.WorldWindow;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Operation {
@@ -70,6 +72,19 @@ public class Operation {
     /** Returns whether the most recent mouse press/release was consumed by DevTools picking. */
     public static boolean wasDevToolsInspectConsumed() {
         return lastDevToolsInspectConsumed;
+    }
+
+    /**
+     * 逐帧（渲染帧，而非 20Hz tick）的 mousemove 分发入口。
+     * 屏幕文档由 {@link #onMouseMove(Position)} 的坐标门控去重；
+     * 世界窗口由 {@link WorldWindow#dispatchMouseMove()} 按投影坐标门控，
+     * 因此以帧率调用时，光标、相机、窗口都静止的场景下零事件分发。
+     */
+    public static void onMouseMoveFrame(Position currentMousePosition) {
+        onMouseMove(currentMousePosition);
+        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
+            if (window != null) window.dispatchMouseMove();
+        }
     }
 
     public static void onMouseMove(Position currentMousePosition) {

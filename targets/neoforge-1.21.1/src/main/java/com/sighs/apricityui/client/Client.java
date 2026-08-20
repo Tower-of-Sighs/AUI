@@ -9,6 +9,7 @@ import com.sighs.apricityui.dev.ResourceManager;
 import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.task.FrameScheduler;
+import com.sighs.apricityui.task.MouseMoveEngine;
 import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.DocumentLayerOrder;
@@ -28,6 +29,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.neoforge.client.event.InputEvent;
+import net.neoforged.neoforge.client.event.RenderFrameEvent;
 import net.neoforged.neoforge.client.event.RenderGuiEvent;
 import net.neoforged.neoforge.client.event.ScreenEvent;
 import net.neoforged.neoforge.client.event.ClientTickEvent;
@@ -333,15 +335,10 @@ public class Client {
     }
 
     @SubscribeEvent
-    public static void mouseMove(ClientTickEvent.Post event) {
-        Operation.onMouseMove(getMousePosition());
-        for (WorldWindow window : new ArrayList<>(WorldWindow.windows)) {
-            Position realPos = window.getRealPos();
-            if (realPos != null) {
-                MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
-                MouseEvent.tiggerEvent(moveEvent, window.document);
-            }
-        }
+    public static void mouseMove(RenderFrameEvent.Pre event) {
+        // 渲染帧仅作轮询载具：60Hz 固定节拍由 MouseMoveEngine 调度，
+        // 未到期时一次 nanoTime 比较即返回，不会随刷新率放大分发频率。
+        MouseMoveEngine.poll(Client::getMousePosition);
     }
 
     @SubscribeEvent

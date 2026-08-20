@@ -2,6 +2,7 @@ package com.sighs.apricityui.world;
 
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.sighs.apricityui.dev.resource.ResourcePreviewDialog;
+import com.sighs.apricityui.event.MouseEvent;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.Mask;
@@ -80,6 +81,14 @@ public class WorldWindow {
     private Matrix4f interactionClipMatrix;
     private Matrix4f interactionWorldMatrix;
     private Vec3 interactionPosition;
+    /**
+     * mousemove 逐帧分发的位置门控：投影坐标 realPos 与上次分发一致时跳过。
+     * realPos 由光标位置与相机/窗口矩阵共同决定，任一方变化都会改变取值，
+     * 因此静止场景下零分发，而推镜头、窗口跟随等场景仍会逐帧刷新 hover。
+     * NaN 表示当前无光标投影（光标不在窗口上），重新进入时必定分发一次。
+     */
+    private double lastMouseMoveRealX = Double.NaN;
+    private double lastMouseMoveRealY = Double.NaN;
 
     /** Creates a world window whose logical size comes from the document viewport. */
     public WorldWindow(String documentPath, Vec3 position, int maxDistance) {
@@ -673,6 +682,26 @@ public class WorldWindow {
         Position documentPosition = getDocumentPositionAtScreen(screenPosition);
         return documentPosition == null || document == null
                 ? null : document.documentToScreenPosition(documentPosition);
+    }
+
+    /**
+     * 逐帧 mousemove 分发入口（替代原先每 tick 无条件分发）：投影位置不变时跳过。
+     * 光标离开窗口（realPos 为 null）时重置门控，下次进入必定重新分发，
+     * 保证离开期间文档内容变化后 hover 状态能恢复正确。
+     */
+    public void dispatchMouseMove() {
+        Position realPos = getRealPos();
+        if (realPos == null) {
+            lastMouseMoveRealX = Double.NaN;
+            lastMouseMoveRealY = Double.NaN;
+            return;
+        }
+        if (Double.compare(realPos.x, lastMouseMoveRealX) == 0
+                && Double.compare(realPos.y, lastMouseMoveRealY) == 0) return;
+        lastMouseMoveRealX = realPos.x;
+        lastMouseMoveRealY = realPos.y;
+        MouseEvent moveEvent = new MouseEvent("mousemove", realPos);
+        MouseEvent.tiggerEvent(moveEvent, document);
     }
 
     private Position unprojectToDocument(Position screenPosition) {
