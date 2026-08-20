@@ -806,7 +806,7 @@ public class Text {
 
     private boolean hasDecorationLine(String line) {
         if (textDecoration == null || textDecoration.isBlank()) return false;
-        for (String token : textDecoration.trim().toLowerCase(Locale.ROOT).split("\\s+")) {
+        for (String token : com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(textDecoration.trim().toLowerCase(Locale.ROOT))) {
             if (token.equals("none")) return false;
             if (token.equals(line)) return true;
         }

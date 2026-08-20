@@ -24,7 +24,7 @@ public final class CssString {
         if (trimmed.isEmpty()) return Collections.emptySet();
         // 只在 class 属性变化时解析；selector match 路径只读缓存，避免 split/Set.of 的高频分配。
         // class token 允许重复输入，这里按出现顺序去重，避免因为重复 class 导致整个页面初始化失败。
-        LinkedHashSet<String> classNames = new LinkedHashSet<>(Arrays.asList(trimmed.split("\\s+")));
+        LinkedHashSet<String> classNames = new LinkedHashSet<>(com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(trimmed));
         if (classNames.isEmpty()) return Collections.emptySet();
         return Collections.unmodifiableSet(classNames);
     }

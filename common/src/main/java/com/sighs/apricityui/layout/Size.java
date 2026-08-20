@@ -785,6 +785,32 @@ public record Size(double width, double height) {
         return containingBlockPaddingBoxExtent(element, true, false);
     }
 
+    /**
+     * 样式/动画阶段使用的非强制变体：containing block 尺寸已缓存时直接返回，
+     * 尚未布局过时返回 null，绝不触发 {@link #of} 的整树布局计算。
+     */
+    public static Double getCachedContainingBlockPaddingBoxHeight(Element element) {
+        return cachedContainingBlockPaddingBoxExtent(element, false);
+    }
+
+    public static Double getCachedContainingBlockPaddingBoxWidth(Element element) {
+        return cachedContainingBlockPaddingBoxExtent(element, true);
+    }
+
+    private static Double cachedContainingBlockPaddingBoxExtent(Element element, boolean horizontal) {
+        Element cb = Position.findContainingBlock(element);
+        if (cb == null) {
+            Size viewport = Position.viewportContainingBlockSize(element);
+            return Math.max(0, horizontal ? viewport.width() : viewport.height());
+        }
+        Size cbSize = cb.getRenderer().size.get();
+        if (cbSize == null) return null;
+        Box cbBox = Box.of(cb);
+        return Math.max(0, horizontal
+                ? cbSize.width() - cbBox.getBorderHorizontal()
+                : cbSize.height() - cbBox.getBorderVertical());
+    }
+
     private static Double getExplicitContainingBlockPaddingBoxWidth(Element element) {
         return containingBlockPaddingBoxExtent(element, true, true);
     }

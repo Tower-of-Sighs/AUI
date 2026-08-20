@@ -1,5 +1,6 @@
 package com.sighs.apricityui.style;
 
+import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.layout.Size;
 
 import java.util.ArrayList;
@@ -390,7 +391,7 @@ public final class ShorthandParser {
             return;
         }
 
-        String[] parts = value.split("\\s+");
+        String[] parts = Layout.splitTopLevelWhitespace(value).toArray(String[]::new);
         if (parts.length == 1) {
             Double grow = Size.parseNumber(parts[0]);
             if (grow != null) {
@@ -448,7 +449,7 @@ public final class ShorthandParser {
             return;
         }
 
-        String[] parts = value.split("\\s+");
+        String[] parts = Layout.splitTopLevelWhitespace(value).toArray(String[]::new);
         String rowValue = parts.length > 0 ? parts[0] : "0px";
         String columnValue = parts.length > 1 ? parts[1] : rowValue;
         style.rowGap = rowValue;

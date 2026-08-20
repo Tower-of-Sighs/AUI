@@ -183,7 +183,7 @@ public class ImageDrawer {
         String normalized = value == null || value.isBlank() || "unset".equalsIgnoreCase(value.trim())
                 ? "50% 50%"
                 : value.trim().toLowerCase(Locale.ROOT);
-        String[] parts = normalized.split("\\s+");
+        String[] parts = com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(normalized).toArray(String[]::new);
         String xToken = parts.length > 0 ? parts[0] : "50%";
         String yToken = parts.length > 1 ? parts[1] : "50%";
 
@@ -357,7 +357,7 @@ public class ImageDrawer {
             }
         }
 
-        String[] parts = size.split("\\s+");
+        String[] parts = com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(size).toArray(String[]::new);
         String widthToken = parts.length > 0 ? parts[0] : "auto";
         String heightToken = parts.length > 1 ? parts[1] : "auto";
 
@@ -404,7 +404,7 @@ public class ImageDrawer {
         String normalized = (position == null || position.isEmpty() || "unset".equals(position))
                 ? "0 0"
                 : position.trim().toLowerCase(Locale.ROOT);
-        String[] parts = normalized.split("\\s+");
+        String[] parts = com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(normalized).toArray(String[]::new);
 
         String xPart = parts.length > 0 ? parts[0] : "0";
         String yPart = parts.length > 1 ? parts[1] : "0";

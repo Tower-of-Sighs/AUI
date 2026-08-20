@@ -570,7 +570,8 @@ public class Base {
             return new float[]{(float) (width / 2.0), (float) (height / 2.0)};
         }
 
-        String[] raw = value.trim().toLowerCase(java.util.Locale.ROOT).split("\\s+");
+        String[] raw = com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(
+                value.trim().toLowerCase(java.util.Locale.ROOT)).toArray(String[]::new);
         String xToken = "50%";
         String yToken = "50%";
         if (raw.length == 1) {

@@ -368,9 +368,11 @@ public record Transition(String name, double start, double end, double duration,
                 return isVerticalLengthProperty(name) ? viewport.height() : viewport.width();
             }
             if ("absolute".equals(position)) {
+                // 样式重算阶段不做强制布局：containing block 尺寸已缓存时取精确基准，
+                // 否则回退到父级 scale，避免为解析 transition 反复触发整树布局。
                 Double containingBlock = isVerticalLengthProperty(name)
-                        ? Size.getContainingBlockPaddingBoxHeight(element)
-                        : Size.getContainingBlockPaddingBoxWidth(element);
+                        ? Size.getCachedContainingBlockPaddingBoxHeight(element)
+                        : Size.getCachedContainingBlockPaddingBoxWidth(element);
                 if (containingBlock != null) return containingBlock;
             }
         }

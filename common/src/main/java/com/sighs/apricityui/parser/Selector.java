@@ -96,7 +96,7 @@ public class Selector {
             }
             return switch (operator) {
                 case "=" -> value.equals(target);
-                case "~=" -> Arrays.stream(value.trim().split("\\s+")).anyMatch(target::equals);
+                case "~=" -> com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(value.trim()).contains(target);
                 case "|=" -> value.equals(target) || value.startsWith(target + "-");
                 case "^=" -> value.startsWith(target);
                 case "$=" -> value.endsWith(target);

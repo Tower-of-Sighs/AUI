@@ -574,9 +574,9 @@ public final class Grid {
         int col = (s.columnGap != null && !"unset".equals(s.columnGap)) ? Size.parse(s.columnGap) : -1;
 
         String gap = (s.gap == null) ? "0px" : s.gap.trim();
-        String[] parts = gap.split("\\s+");
-        int a = parts.length > 0 ? Size.parse(parts[0]) : 0;
-        int b = parts.length > 1 ? Size.parse(parts[1]) : a;
+        java.util.List<String> parts = Layout.splitTopLevelWhitespace(gap);
+        int a = !parts.isEmpty() ? Size.parse(parts.get(0)) : 0;
+        int b = parts.size() > 1 ? Size.parse(parts.get(1)) : a;
 
         if (row < 0) row = Math.max(0, a);
         if (col < 0) col = Math.max(0, b);

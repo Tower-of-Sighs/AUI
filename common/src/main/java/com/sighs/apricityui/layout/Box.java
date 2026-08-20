@@ -291,10 +291,10 @@ public class Box {
             java.util.Arrays.fill(out, zero);
             return out;
         }
-        String[] parts = raw.trim().split("\\s+");
+        List<String> parts = Layout.splitTopLevelWhitespace(raw);
         List<T> values = new ArrayList<>(4);
-        for (int i = 0; i < Math.min(parts.length, 4); i++) {
-            values.add(mapper.apply(parts[i]));
+        for (int i = 0; i < Math.min(parts.size(), 4); i++) {
+            values.add(mapper.apply(parts.get(i)));
         }
         return expandFourSideShorthand(values, allocator, zero);
     }
@@ -597,7 +597,7 @@ public class Box {
             bi.source = extractUrl(style.borderImage);
         }
 
-        String mainPart = style.borderImage.replaceAll("url\\(.*?\\)", "").trim();
+        String mainPart = removeUrlFunctions(style.borderImage).trim();
         String[] repeats = {"stretch", "repeat", "round", "space"};
         for (String r : repeats) {
             if (mainPart.contains(r)) {
@@ -641,10 +641,29 @@ public class Box {
         return input.substring(input.indexOf("url(") + 4, input.lastIndexOf(")")).replace("\"", "").replace("'", "");
     }
 
+    /** 与 replaceAll("url\\(.*?\\)", "") 等价，但不触发每次调用的正则编译。 */
+    private static String removeUrlFunctions(String input) {
+        if (input == null) return "";
+        StringBuilder sb = null;
+        int i = 0;
+        while (true) {
+            int start = input.indexOf("url(", i);
+            if (start < 0) break;
+            int end = input.indexOf(')', start + 4);
+            if (end < 0) break;
+            if (sb == null) sb = new StringBuilder(input.length());
+            sb.append(input, i, start);
+            i = end + 1;
+        }
+        if (sb == null) return input;
+        sb.append(input.substring(i));
+        return sb.toString();
+    }
+
     private static int[] parse4Values(String input) {
         try {
             List<Integer> vals = new ArrayList<>();
-            for (String p : input.trim().split("\\s+")) {
+            for (String p : Layout.splitTopLevelWhitespace(input)) {
                 if (p.equals("fill") || p.isEmpty()) continue;
                 int v = Size.parse(p);
                 vals.add(v == -1 ? 0 : v);

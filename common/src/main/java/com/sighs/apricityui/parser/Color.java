@@ -179,17 +179,8 @@ public class Color {
         String inside = input.substring(start + 1, end).trim();
 
         // 将逗号替换为空格，保留 "/" 作为 alpha 分隔符（CSS 允许 "r g b / a"）
-        inside = inside.replace(",", " ").replaceAll("\\s+", " ");
-        String[] parts;
-        if (inside.contains("/")) {
-            String[] split = inside.split("/");
-            if (split.length != 2) return 0;
-            String left = split[0].trim();
-            String right = split[1].trim();
-            parts = (left + " " + right).trim().split("\\s+");
-        } else {
-            parts = inside.split("\\s+");
-        }
+        inside = inside.replace(",", " ");
+        String[] parts = splitColorComponents(inside);
 
         if (parts.length < 3) return 0;
 
@@ -207,6 +198,19 @@ public class Color {
         }
     }
 
+    /** 空白切分（无正则），"/" 两侧的分量按 CSS 语法合并为一个序列。 */
+    private static String[] splitColorComponents(String inside) {
+        if (inside.contains("/")) {
+            String[] split = inside.split("/");
+            if (split.length != 2) return new String[0];
+            java.util.List<String> tokens = new java.util.ArrayList<>(
+                    com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(split[0]));
+            tokens.addAll(com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(split[1]));
+            return tokens.toArray(String[]::new);
+        }
+        return com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(inside).toArray(String[]::new);
+    }
+
     private static int parseHsl(String input) {
         if (input == null) return 0;
         int start = input.indexOf('(');
@@ -214,17 +218,8 @@ public class Color {
         if (start < 0 || end < 0 || end <= start) return 0;
         String inside = input.substring(start + 1, end).trim();
 
-        inside = inside.replace(",", " ").replaceAll("\\s+", " ");
-        String[] parts;
-        if (inside.contains("/")) {
-            String[] split = inside.split("/");
-            if (split.length != 2) return 0;
-            String left = split[0].trim();
-            String right = split[1].trim();
-            parts = (left + " " + right).trim().split("\\s+");
-        } else {
-            parts = inside.split("\\s+");
-        }
+        inside = inside.replace(",", " ");
+        String[] parts = splitColorComponents(inside);
 
         if (parts.length < 3) return 0;
 

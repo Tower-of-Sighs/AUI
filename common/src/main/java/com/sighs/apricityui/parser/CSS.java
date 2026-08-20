@@ -243,7 +243,7 @@ public class CSS {
         private static boolean isStylesheetLink(String attrText) {
             String relValue = HTML.findAttrValue(attrText, "rel");
             if (relValue == null || relValue.isBlank()) return false;
-            for (String token : relValue.trim().split("\\s+")) {
+            for (String token : com.sighs.apricityui.layout.Layout.splitTopLevelWhitespace(relValue.trim())) {
                 if ("stylesheet".equalsIgnoreCase(token)) return true;
             }
             return false;

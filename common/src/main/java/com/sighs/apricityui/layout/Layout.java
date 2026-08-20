@@ -19,7 +19,7 @@ public final class Layout {
      * 输入是样式表里的稳定字符串，布局阶段逐帧重复切分（JFR 归因约 42MB），缓存之。
      * 返回不可变列表，调用方不得修改。
      */
-    static List<String> splitTopLevelWhitespace(String value) {
+    public static List<String> splitTopLevelWhitespace(String value) {
         if (value == null || value.isBlank()) return List.of();
         List<String> cached = SPLIT_CACHE.get(value);
         if (cached != null) return cached;
@@ -27,7 +27,6 @@ public final class Layout {
         SPLIT_CACHE.put(value, parts);
         return parts;
     }
-
     private static final int SPLIT_CACHE_LIMIT = 1024;
     private static final java.util.Map<String, List<String>> SPLIT_CACHE =
             java.util.Collections.synchronizedMap(new java.util.LinkedHashMap<>(128, 0.75f, true) {
