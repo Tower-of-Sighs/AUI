@@ -233,6 +233,8 @@ public class Base {
             // fenced render tasks (such as texture uploads) at this boundary.
             FrameScheduler.renderBegin();
             RenderBatchStats.beginDocument();
+            // 后台完成的文字光栅在这里限量上传，完成前各文字走原版字体回退。
+            FontDrawer.drainCompletedRasters();
             RectFrameCache.begin();
             TransformFrameCache.begin();
             LayoutMeasureCache.begin();
@@ -260,8 +262,22 @@ public class Base {
                 // Layout-affecting motion must also refresh committed bounds before this paint pass.
                 boolean motionNeedsGeometryCommit = document.stepMotionRender();
                 boolean scrollChanged = document.stepScrollRender();
-                if (styleNeedsGeometryCommit || scrollChanged) {
+                if (styleNeedsGeometryCommit) {
                     LayoutCommit.commit(document);
+                    document.discardScrollShifts();
+                    document.commitMotionHitTest();
+                } else if (scrollChanged) {
+                    // 滚动只平移子树几何：走 commitScrollTranslation 快速路径，
+                    // 避免每帧全量 Rect 重建（JFR 里滚动帧的主要分配/耗时来源）。
+                    Set<Element> layoutRoots = document.drainMotionLayoutRoots();
+                    Set<Element> geometryRoots = document.drainMotionGeometryRoots();
+                    if (!layoutRoots.isEmpty() || (motionNeedsGeometryCommit && geometryRoots.isEmpty())) {
+                        LayoutCommit.commit(document);
+                        document.discardScrollShifts();
+                    } else {
+                        LayoutCommit.commitScrollTranslation(document, document.getScrollShifts());
+                        if (!geometryRoots.isEmpty()) LayoutCommit.commitTransforms(document, geometryRoots);
+                    }
                     document.commitMotionHitTest();
                 } else if (motionNeedsGeometryCommit) {
                     Set<Element> layoutRoots = document.drainMotionLayoutRoots();

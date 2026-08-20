@@ -159,6 +159,7 @@ public class FontDrawer {
             AuiServices.client().drawDefaultFont(poseStack, text, content, drawPosition);
             return;
         }
+        int tintArgb = tintOf(text, isTintableRaster(text));
 
         float drawScale = (float) rasterMode.drawScale();
         float drawW = entry.width() * drawScale;
@@ -211,7 +212,8 @@ public class FontDrawer {
                     true,
                     (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
                     (float) Math.max(0.0d, entry.width() - quadMode.physicalRightCropTexels() - quadMode.uvRightInsetTexels()),
-                    (float) (entry.height() - quadMode.uvBottomInsetTexels())
+                    (float) (entry.height() - quadMode.uvBottomInsetTexels()),
+                    tintArgb
             );
         } else if (quadMode.hasUvWindowOffset()) {
             drawEntryWithUvWindow(poseStack, entry,
@@ -220,72 +222,259 @@ public class FontDrawer {
                     true,
                     (float) quadMode.uvLeftOffsetTexels(), (float) quadMode.uvTopOffsetTexels(),
                     (float) (entry.width() - quadMode.uvRightInsetTexels()),
-                    (float) (entry.height() - quadMode.uvBottomInsetTexels())
+                    (float) (entry.height() - quadMode.uvBottomInsetTexels()),
+                    tintArgb
             );
         } else if (quadMode.hasUvInset()) {
             drawEntryWithUvInset(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
                     true,
-                    (float) quadMode.uvRightInsetTexels(), (float) quadMode.uvBottomInsetTexels()
+                    (float) quadMode.uvRightInsetTexels(), (float) quadMode.uvBottomInsetTexels(),
+                    tintArgb
             );
         } else {
             drawEntry(poseStack, entry,
                     drawX, drawY,
                     drawW, drawH,
-                    true
+                    true,
+                    tintArgb
             );
         }
     }
 
     private static void drawEntry(PoseStack poseStack, FontEntry entry,
-                                  float x, float y, float width, float height, boolean blur) {
+                                  float x, float y, float width, float height, boolean blur, int tintArgb) {
         FontAtlas.Region region = ATLAS_REGIONS.get(entry);
         if (region == null) {
-            ImageDrawer.draw(poseStack, entry.location(), x, y, width, height, blur);
+            ImageDrawer.draw(poseStack, entry.location(), x, y, width, height, blur, tintArgb);
             return;
         }
         ImageDrawer.drawWithUvWindow(poseStack, region.location(),
                 x, y, width, height, blur,
                 region.textureWidth(), region.textureHeight(),
-                region.x(), region.y(), entry.width(), entry.height());
+                region.x(), region.y(), entry.width(), entry.height(), tintArgb);
     }
 
     private static void drawEntryWithUvInset(PoseStack poseStack, FontEntry entry,
                                              float x, float y, float width, float height, boolean blur,
-                                             float rightTexelInset, float bottomTexelInset) {
+                                             float rightTexelInset, float bottomTexelInset, int tintArgb) {
         float sampleWidth = Math.max(0.0f, entry.width() - Math.max(0.0f, rightTexelInset));
         float sampleHeight = Math.max(0.0f, entry.height() - Math.max(0.0f, bottomTexelInset));
         drawEntryWithUvWindow(poseStack, entry, x, y, width, height, blur,
-                0.0f, 0.0f, sampleWidth, sampleHeight);
+                0.0f, 0.0f, sampleWidth, sampleHeight, tintArgb);
     }
 
     private static void drawEntryWithUvWindow(PoseStack poseStack, FontEntry entry,
                                               float x, float y, float width, float height, boolean blur,
                                               float uTexel, float vTexel,
-                                              float widthTexels, float heightTexels) {
+                                              float widthTexels, float heightTexels, int tintArgb) {
         FontAtlas.Region region = ATLAS_REGIONS.get(entry);
         if (region == null) {
             ImageDrawer.drawWithUvWindow(poseStack, entry.location(),
                     x, y, width, height, blur,
-                    entry.width(), entry.height(), uTexel, vTexel, widthTexels, heightTexels);
+                    entry.width(), entry.height(), uTexel, vTexel, widthTexels, heightTexels, tintArgb);
             return;
         }
         ImageDrawer.drawWithUvWindow(poseStack, region.location(),
                 x, y, width, height, blur,
                 region.textureWidth(), region.textureHeight(),
-                region.x() + uTexel, region.y() + vTexel, widthTexels, heightTexels);
+                region.x() + uTexel, region.y() + vTexel, widthTexels, heightTexels, tintArgb);
     }
 
     private static FontEntry textureEntry(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
-        String key = drawCacheKey(text, content, rasterMode, quadMode);
+        boolean tintable = isTintableRaster(text);
+        String key = drawCacheKey(text, content, rasterMode, quadMode, tintable);
         // get/put 而非 computeIfAbsent：后者每次都分配一个捕获 lambda。仅渲染线程访问。
-        // rebuildTextureEntry 可能返回 null（无可光栅化的 run），null 不入缓存，与 computeIfAbsent 语义一致。
         FontEntry entry = CACHE.get(key);
         if (entry != null) return entry;
-        entry = rebuildTextureEntry(text, content, key, rasterMode, quadMode);
-        if (entry != null) CACHE.put(key, entry);
-        return entry;
+        if (RASTER_EMPTY.contains(key)) return null;
+        requestAsyncRaster(text, content, key, rasterMode, quadMode, tintable);
+        return null;
+    }
+
+    /**
+     * 白色光栅 + 绘制时染色：无描边且透明合成（默认）时，颜色不参与光栅，
+     * 缓存 key 不含颜色，:hover 变色/颜色过渡动画只是改顶点色，不再触发重新光栅。
+     * 描边文字描边色与填充色不同、仍需烘焙，保持旧行为。
+     */
+    private static boolean isTintableRaster(Text text) {
+        return text != null && text.strokeWidth <= 0 && resolveTextCompositeMode(text) == TextCompositeMode.TRANSPARENT;
+    }
+
+    /** 可染色条目在绘制时叠加的当前文字颜色；不可染色条目恒为白（即不染色）。 */
+    private static int tintOf(Text text, boolean tintable) {
+        if (!tintable) return 0xFFFFFFFF;
+        return text.color == null ? 0xFFFFFFFF : text.color.getValue();
+    }
+
+    // ===== 异步光栅化 =====
+    // 页面打开时整页文字（尤其 CJK）的 AWT 光栅化此前在渲染线程同步执行，是打开峰值主因。
+    // 现在缓存 miss 时把光栅化投递到工作线程，完成前 drawSingleRun 回退原版字体绘制；
+    // 完成后由渲染线程按帧限量上传图集，下一帧自动换成真实字体（无需标脏，绘制每帧都查缓存）。
+    private static final int RASTER_UPLOAD_BUDGET_PER_FRAME = 16;
+    private static final java.util.concurrent.ExecutorService RASTER_EXECUTOR = java.util.concurrent.Executors.newFixedThreadPool(
+            Math.max(2, Math.min(4, Runtime.getRuntime().availableProcessors() / 4)),
+            runnable -> {
+                Thread thread = new Thread(runnable, "ApricityUI-FontRaster");
+                thread.setDaemon(true);
+                return thread;
+            });
+    private static final java.util.Set<String> RASTER_PENDING = ConcurrentHashMap.newKeySet();
+    // 光栅化结果为 null（无可绘制 run）或失败的 key：保持原版字体回退，避免每帧重复投递。
+    private static final java.util.Set<String> RASTER_EMPTY = ConcurrentHashMap.newKeySet();
+    private static final java.util.concurrent.ConcurrentLinkedQueue<RasterResult> RASTER_COMPLETED = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    // clearCache 代际：工作线程完成的旧字体结果在代际不匹配时丢弃，防止过期纹理回流。
+    private static volatile long rasterGeneration = 0;
+
+    private static void requestAsyncRaster(Text text, String content, String cacheKey, RasterMode rasterMode, TextQuadMode quadMode, boolean tintable) {
+        if (!RASTER_PENDING.add(cacheKey)) return;
+        // Text 字段可变且归渲染线程所有，跨线程前快照成不可变请求。
+        RasterRequest request = RasterRequest.of(text, content, cacheKey, rasterMode, quadMode, rasterGeneration, tintable);
+        try {
+            RASTER_EXECUTOR.execute(() -> {
+                try {
+                    RasterResult result = rasterizeOffThread(request);
+                    if (result != null) RASTER_COMPLETED.add(result);
+                    else markRasterEmpty(cacheKey, request.generation());
+                } catch (Throwable failure) {
+                    markRasterEmpty(cacheKey, request.generation());
+                } finally {
+                    RASTER_PENDING.remove(cacheKey);
+                }
+            });
+        } catch (java.util.concurrent.RejectedExecutionException rejected) {
+            RASTER_PENDING.remove(cacheKey);
+            RASTER_EMPTY.add(cacheKey);
+        }
+    }
+
+    /** 只有仍是当代的结果才允许落入 EMPTY：clearCache 后迟到的失败不能屏蔽新字体的重试。 */
+    private static void markRasterEmpty(String cacheKey, long generation) {
+        if (generation == rasterGeneration) RASTER_EMPTY.add(cacheKey);
+    }
+
+    /**
+     * 每帧渲染前调用：把后台完成的文字光栅按预算上传到图集/纹理管理器。
+     * 限量是防止页面打开后第一批完成的几十条文字在同一帧集中上传再造一个尖峰。
+     */
+    public static void drainCompletedRasters() {
+        int budget = RASTER_UPLOAD_BUDGET_PER_FRAME;
+        RasterResult result;
+        while (budget-- > 0 && (result = RASTER_COMPLETED.poll()) != null) {
+            if (result.generation != rasterGeneration) {
+                result.close();
+                continue;
+            }
+            FontEntry entry = finishRaster(result);
+            if (entry != null) CACHE.put(result.cacheKey, entry);
+            else RASTER_EMPTY.add(result.cacheKey);
+        }
+    }
+
+    /**
+     * 渲染线程阶段：把光栅结果写进图集（放不下则注册独立纹理）。
+     * 只有这里有 GL/纹理管理器调用，工作线程不触碰。
+     */
+    private static FontEntry finishRaster(RasterResult result) {
+        try {
+            FontAtlas.Region atlasRegion = fontAtlasFor(result.linear).add(result.nativeImage);
+            if (atlasRegion != null) {
+                result.close();
+                FontEntry atlasEntry = new FontEntry(atlasRegion.location(), null, null, result.width, result.height,
+                        result.textureStats, result.rasterLayout);
+                ATLAS_REGIONS.put(atlasEntry, atlasRegion);
+                return atlasEntry;
+            }
+            Object texture = AuiServices.render().createDynamicTexture(
+                    "apricityui:font/" + UUID.nameUUIDFromBytes(result.cacheKey.getBytes(StandardCharsets.UTF_8)),
+                    result.nativeImage,
+                    result.linear
+            );
+            TextureKey location = TextureKey.of(
+                    "font/" + UUID.nameUUIDFromBytes(result.cacheKey.getBytes(StandardCharsets.UTF_8))
+            );
+            AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(location));
+            return new FontEntry(location, result.nativeImage, texture, result.width, result.height,
+                    result.textureStats, result.rasterLayout);
+        } catch (RuntimeException exception) {
+            result.close();
+            return null;
+        }
+    }
+
+    /** 文字光栅化的不可变快照：enqueue 时（渲染线程）从 Text 捕获，工作线程只读它。 */
+    private record RasterRequest(
+            String cacheKey,
+            long generation,
+            String content,
+            String fontFamily,
+            int fontStyle,
+            double letterSpacing,
+            int colorArgb,
+            int strokeColorArgb,
+            int stroke,
+            boolean underlined,
+            boolean strikethrough,
+            boolean linear,
+            TextCompositeMode compositeMode,
+            RasterMode rasterMode,
+            TextQuadMode quadMode
+    ) {
+        static RasterRequest of(Text text, String content, String cacheKey, RasterMode rasterMode, TextQuadMode quadMode, long generation, boolean tintable) {
+            int fontStyle = java.awt.Font.PLAIN;
+            if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
+            if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
+            return new RasterRequest(
+                    cacheKey,
+                    generation,
+                    content == null ? "" : content,
+                    text.fontFamily,
+                    fontStyle,
+                    text.letterSpacing,
+                    // 可染色路径光栅成纯白（alpha=覆盖率），绘制时再用顶点色染成当前颜色。
+                    tintable || text.color == null ? 0xFFFFFFFF : text.color.getValue(),
+                    text.strokeColor == null ? 0 : text.strokeColor.getValue(),
+                    Math.max(0, (int) Math.ceil(text.strokeWidth)),
+                    text.isUnderlined(),
+                    text.isStrikethrough(),
+                    RasterTuning.FILTER.linear(),
+                    resolveTextCompositeMode(text),
+                    rasterMode,
+                    quadMode
+            );
+        }
+    }
+
+    /** 工作线程产出的光栅结果：像素已写入 NativeImage，但尚未做任何 GL 上传。 */
+    private static final class RasterResult {
+        final String cacheKey;
+        final long generation;
+        final boolean linear;
+        final int width;
+        final int height;
+        final TextureStats textureStats;
+        final RasterLayout rasterLayout;
+        NativeImage nativeImage;
+
+        RasterResult(String cacheKey, long generation, boolean linear, int width, int height,
+                     TextureStats textureStats, RasterLayout rasterLayout, NativeImage nativeImage) {
+            this.cacheKey = cacheKey;
+            this.generation = generation;
+            this.linear = linear;
+            this.width = width;
+            this.height = height;
+            this.textureStats = textureStats;
+            this.rasterLayout = rasterLayout;
+            this.nativeImage = nativeImage;
+        }
+
+        void close() {
+            if (nativeImage != null) {
+                nativeImage.close();
+                nativeImage = null;
+            }
+        }
     }
 
     /**
@@ -293,13 +482,14 @@ public class FontDrawer {
      * content 是缓存 lines 列表里的稳定实例，所以按「content/textContent 引用 +
      * styleStamp + raster 参数 + quadMode」备忘上一次结果，命中时零分配。
      */
-    private static String drawCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
+    private static String drawCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode, boolean tintable) {
         // 逐 glyph 路径（letter-spacing）每次新建 glyph 串，备忘永远不中还会白分配，直接跳过。
-        if (content != text.content) return toCacheKey(text, content, rasterMode, quadMode);
+        if (content != text.content) return toCacheKey(text, content, rasterMode, quadMode, tintable);
         long fontSizeMillis = Math.round(rasterMode.rasterFontSize() * 1000.0d);
         long drawScaleMicros = Math.round(rasterMode.drawScale() * 1000000.0d);
         long pixelScaleMicros = Math.round(rasterMode.pixelScale() * 1000000.0d);
-        int stamp = text.styleStamp();
+        // 可染色路径用不含颜色的指纹：颜色过渡动画期间指纹稳定，备忘持续命中。
+        int stamp = tintable ? text.styleStamp(false) : text.styleStamp();
         if (text.renderKeyMemo instanceof DrawKeyMemo memo
                 && memo.content == content
                 && memo.styleStamp == stamp
@@ -310,7 +500,7 @@ public class FontDrawer {
                 && memo.quadMode.equals(quadMode)) {
             return memo.key;
         }
-        String key = toCacheKey(text, content, rasterMode, quadMode);
+        String key = toCacheKey(text, content, rasterMode, quadMode, tintable);
         DrawKeyMemo memo = new DrawKeyMemo();
         memo.content = content;
         memo.styleStamp = stamp;
@@ -357,13 +547,15 @@ public class FontDrawer {
         if (!apply) return false;
 
         TextQuadMode actionMode = quadMode.runtimeTextureModeForCutoffColumns(cutoffColumns);
+        int tintArgb = tintOf(text, isTintableRaster(text));
         if (actionMode != quadMode) {
             FontEntry actionEntry = textureEntry(text, content, rasterMode, actionMode);
             if (actionEntry == null) return false;
             drawEntry(poseStack, actionEntry,
                     drawX, drawY,
                     drawW, drawH,
-                    true
+                    true,
+                    tintArgb
             );
             return true;
         }
@@ -375,7 +567,8 @@ public class FontDrawer {
                 croppedDrawW, drawH,
                 true,
                 0.0f, 0.0f,
-                widthTexels, entry.height()
+                widthTexels, entry.height(),
+                tintArgb
         );
         return true;
     }
@@ -405,7 +598,7 @@ public class FontDrawer {
         return scale != null && scale > 0 && Double.isFinite(scale) ? scale : 1.0d;
     }
 
-    private static String toCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode) {
+    private static String toCacheKey(Text text, String content, RasterMode rasterMode, TextQuadMode quadMode, boolean tintable) {
         // 常见路径：调用方已将 text.content 设置为本次绘制的内容（比如 Element.drawInnerText 一行一画）。
         // 这种情况下 text.toKey() 已包含 content，无需再拼接一次，避免额外 String 分配。
         String raw = text.content;
@@ -413,20 +606,24 @@ public class FontDrawer {
                 + "|comp=" + resolveTextCompositeMode(text).cacheKey()
                 + "|filter=" + RasterTuning.FILTER.cacheKey()
                 + "|quadTexture=" + quadMode.textureCacheKey();
+        // 可染色路径用不含颜色的 key：同一段文字的所有颜色共享同一份白色光栅。
+        String baseKey = tintable ? text.toKey(false) : text.toKey();
         if (Objects.equals(raw, content)) {
-            return text.toKey() + rasterKey;
+            return baseKey + rasterKey;
         }
-        return text.toKey() + "|" + (content == null ? "" : content) + rasterKey;
+        return baseKey + "|" + (content == null ? "" : content) + rasterKey;
     }
 
-    private static FontEntry rebuildTextureEntry(Text text, String content, String cacheKey, RasterMode rasterMode, TextQuadMode quadMode) {
-        String fontKey = text.fontFamily;
-        int fontStyle = java.awt.Font.PLAIN;
-        if (text.isBold()) fontStyle |= java.awt.Font.BOLD;
-        if (text.isOblique()) fontStyle |= java.awt.Font.ITALIC;
-        var runs = Font.planFontRuns(fontKey, fontStyle, (float) rasterMode.rasterFontSize(), content);
+    /**
+     * 工作线程阶段：AWT 光栅化 + 像素格式转换。不触碰 GL、图集与纹理管理器，
+     * 产物（填好像素的 NativeImage）交给渲染线程的 {@link #finishRaster} 上传。
+     */
+    private static RasterResult rasterizeOffThread(RasterRequest request) {
+        RasterMode rasterMode = request.rasterMode();
+        TextQuadMode quadMode = request.quadMode();
+        TextCompositeMode compositeMode = request.compositeMode();
+        var runs = Font.planFontRuns(request.fontFamily(), request.fontStyle(), (float) rasterMode.rasterFontSize(), request.content());
         if (runs.isEmpty()) return null;
-        TextAntialiasMode aaMode = RasterTuning.AA;
         FractionalMetricsMode fractionalMetricsMode = RasterTuning.FRACTIONAL_METRICS;
         AlphaGammaMode alphaGammaMode = RasterTuning.ALPHA_GAMMA;
         AlphaScaleMode alphaScaleMode = RasterTuning.ALPHA_SCALE;
@@ -435,12 +632,9 @@ public class FontDrawer {
         GlyphRasterSourceMode sourceMode = RasterTuning.SOURCE;
         StrokeControlMode strokeControlMode = RasterTuning.STROKE_CONTROL;
         FontRenderContextMode frcMode = RasterTuning.FRC;
-        TextCompositeMode compositeMode = resolveTextCompositeMode(text);
-        TextureFilterMode filterMode = RasterTuning.FILTER;
-        Color color = text.color;
-        Color strokeColor = text.strokeColor;
-        int stroke = Math.max(0, (int) Math.ceil(text.strokeWidth));
-        String drawText = content == null ? "" : content;
+        int colorArgb = request.colorArgb();
+        int strokeColorArgb = request.strokeColorArgb();
+        int stroke = request.stroke();
 
         try {
             BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
@@ -449,8 +643,8 @@ public class FontDrawer {
             g2d.dispose();
 
             double rasterLetterSpacing = rasterMode.targetPhysical()
-                    ? text.letterSpacing * rasterMode.pixelScale()
-                    : text.letterSpacing / rasterMode.drawScale();
+                    ? request.letterSpacing() * rasterMode.pixelScale()
+                    : request.letterSpacing() / rasterMode.drawScale();
             int textW = Math.max(1, measureRunsWidth(runs, rasterLetterSpacing, frcMode));
             int textH = Math.max(1, metrics.height());
             int pad = 2 + stroke;
@@ -460,7 +654,7 @@ public class FontDrawer {
 
             BufferedImage img = new BufferedImage(imgW, imgH, BufferedImage.TYPE_INT_ARGB);
             Graphics2D g = img.createGraphics();
-            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, aaMode.hint());
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RasterTuning.AA.hint());
             if (fractionalMetricsMode.hint() != null) {
                 g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, fractionalMetricsMode.hint());
             }
@@ -480,13 +674,13 @@ public class FontDrawer {
             int baseline = pad + metrics.ascent();
             if (sourceMode == GlyphRasterSourceMode.OUTLINE_COVERAGE_4X || sourceMode == GlyphRasterSourceMode.OUTLINE_COVERAGE_4X_ROW_CLAMP) {
                 drawRunsOutlineCoverage(img, g, runs, pad, baseline, rasterLetterSpacing, stroke,
-                        strokeColor, color, frcMode, sourceMode.coverageSamples(), sourceMode.rowClamped());
+                        strokeColorArgb, colorArgb, frcMode, sourceMode.coverageSamples(), sourceMode.rowClamped());
             } else if (sourceMode == GlyphRasterSourceMode.OVERSAMPLE_2X) {
-                drawRunsOversampled(g, runs, pad, baseline, rasterLetterSpacing, stroke, strokeColor, color,
-                        sourceMode, frcMode, compositeMode, aaMode, fractionalMetricsMode, strokeControlMode, imgW, imgH);
+                drawRunsOversampled(g, runs, pad, baseline, rasterLetterSpacing, stroke, strokeColorArgb, colorArgb,
+                        sourceMode, frcMode, compositeMode, RasterTuning.AA, fractionalMetricsMode, strokeControlMode, imgW, imgH);
             } else {
                 if (stroke > 0) {
-                    g.setColor(new java.awt.Color(strokeColor.getR(), strokeColor.getG(), strokeColor.getB(), strokeColor.getA()));
+                    g.setColor(new java.awt.Color(strokeColorArgb, true));
                     for (int ox = -stroke; ox <= stroke; ox++) {
                         for (int oy = -stroke; oy <= stroke; oy++) {
                             if (ox == 0 && oy == 0) continue;
@@ -496,14 +690,14 @@ public class FontDrawer {
                     }
                 }
 
-                g.setColor(new java.awt.Color(color.getR(), color.getG(), color.getB(), color.getA()));
+                g.setColor(new java.awt.Color(colorArgb, true));
                 drawRuns(g, runs, pad, baseline, rasterLetterSpacing, sourceMode, frcMode);
             }
             // Keep the glyph positioning anchor independent from text decorations.
             // Underlines extend the raster downward; including them in the ink
             // bounds would move the whole text run upward when :hover adds one.
             TextureStats glyphTextureStats = computeTextureStats(img);
-            drawTextDecorations(g, text, pad, baseline, textW, metrics, rasterMode);
+            drawTextDecorations(g, request, pad, baseline, textW, metrics, rasterMode);
             g.dispose();
 
             if (!compositeMode.hasOpaqueRasterBackground()) {
@@ -527,36 +721,15 @@ public class FontDrawer {
                 for (int x = 0; x < imgW; x++) {
                     int argb = pixels[y * imgW + x];
                     if (compositeMode.solidBackground()) {
-                        argb = uncomposeSolidBackground(argb, color, compositeMode);
+                        argb = uncomposeSolidBackground(argb, colorArgb, compositeMode);
                     }
                     com.sighs.apricityui.spi.AuiServices.render().setImagePixel(nativeImg, x, y, argbToAbgr(argb));
                 }
             }
 
-            FontAtlas.Region atlasRegion = fontAtlasFor(filterMode.linear()).add(nativeImg);
-            if (atlasRegion != null) {
-                nativeImg.close();
-                FontEntry atlasEntry = new FontEntry(atlasRegion.location(), null, null, imgW, imgH, textureStats,
-                        new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height()),
-                                pad + metrics.ascent()));
-                ATLAS_REGIONS.put(atlasEntry, atlasRegion);
-                return atlasEntry;
-            }
-            Object texture = AuiServices.render().createDynamicTexture(
-                    "apricityui:font/" + UUID.nameUUIDFromBytes(cacheKey.getBytes(StandardCharsets.UTF_8)),
-                    nativeImg,
-                    filterMode.linear()
-            );
-
-            TextureKey location = TextureKey.of(
-                    "font/" + UUID.nameUUIDFromBytes(cacheKey.getBytes(StandardCharsets.UTF_8))
-            );
-
-            AuiServices.render().registerTexture(texture, AuiServices.resources().textureLocation(location));
-
-            return new FontEntry(location, nativeImg, texture, imgW, imgH, textureStats,
+            return new RasterResult(request.cacheKey(), request.generation(), request.linear(), imgW, imgH, textureStats,
                     new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height()),
-                            pad + metrics.ascent()));
+                            pad + metrics.ascent()), nativeImg);
 
         } catch (Exception e) {
             return null;
@@ -761,6 +934,12 @@ public class FontDrawer {
     }
 
     public static void clearCache() {
+        // 代际递增让在途工作线程的结果在 drain 时被丢弃，旧字体的纹理不会回流。
+        rasterGeneration++;
+        RasterResult stale;
+        while ((stale = RASTER_COMPLETED.poll()) != null) stale.close();
+        RASTER_PENDING.clear();
+        RASTER_EMPTY.clear();
         for (FontEntry entry : CACHE.values()) {
             if (entry == null) continue;
             try {
@@ -788,13 +967,13 @@ public class FontDrawer {
         return (a << 24) | (b << 16) | (g << 8) | r;
     }
 
-    private static int uncomposeSolidBackground(int argb, Color textColor, TextCompositeMode compositeMode) {
+    private static int uncomposeSolidBackground(int argb, int textArgb, TextCompositeMode compositeMode) {
         int pr = (argb >>> 16) & 0xFF;
         int pg = (argb >>> 8) & 0xFF;
         int pb = argb & 0xFF;
-        int tr = textColor.getR();
-        int tg = textColor.getG();
-        int tb = textColor.getB();
+        int tr = (textArgb >>> 16) & 0xFF;
+        int tg = (textArgb >>> 8) & 0xFF;
+        int tb = textArgb & 0xFF;
         int alpha = Math.max(
                 solveCoverage(pr, tr, compositeMode.backgroundR()),
                 Math.max(
@@ -803,7 +982,7 @@ public class FontDrawer {
                 )
         );
         if (alpha <= 0) return 0;
-        alpha = Math.min(alpha, textColor.getA());
+        alpha = Math.min(alpha, (textArgb >>> 24) & 0xFF);
         return (alpha << 24) | (tr << 16) | (tg << 8) | tb;
     }
 
@@ -903,7 +1082,7 @@ public class FontDrawer {
 
     private static void drawRunsOversampled(Graphics2D target, java.util.List<Font.FontRun> runs,
                                             int pad, int baseline, double spacing, int stroke,
-                                            Color strokeColor, Color color, GlyphRasterSourceMode sourceMode,
+                                            int strokeColorArgb, int colorArgb, GlyphRasterSourceMode sourceMode,
                                             FontRenderContextMode frcMode, TextCompositeMode compositeMode,
                                             TextAntialiasMode aaMode, FractionalMetricsMode fractionalMetricsMode,
                                             StrokeControlMode strokeControlMode, int targetWidth, int targetHeight) {
@@ -940,7 +1119,7 @@ public class FontDrawer {
             int highStroke = stroke * factor;
 
             if (highStroke > 0) {
-                hg.setColor(new java.awt.Color(strokeColor.getR(), strokeColor.getG(), strokeColor.getB(), strokeColor.getA()));
+                hg.setColor(new java.awt.Color(strokeColorArgb, true));
                 for (int ox = -highStroke; ox <= highStroke; ox++) {
                     for (int oy = -highStroke; oy <= highStroke; oy++) {
                         if (ox == 0 && oy == 0) continue;
@@ -950,7 +1129,7 @@ public class FontDrawer {
                 }
             }
 
-            hg.setColor(new java.awt.Color(color.getR(), color.getG(), color.getB(), color.getA()));
+            hg.setColor(new java.awt.Color(colorArgb, true));
             drawRuns(hg, highRuns, highPad, highBaseline, highSpacing, GlyphRasterSourceMode.DRAW_STRING, frcMode);
         } finally {
             hg.dispose();
@@ -965,12 +1144,12 @@ public class FontDrawer {
 
     private static void drawRunsOutlineCoverage(BufferedImage target, Graphics2D metricsGraphics,
                                                 java.util.List<Font.FontRun> runs, double x, int baselineY,
-                                                double spacing, int stroke, Color strokeColor, Color color,
+                                                double spacing, int stroke, int strokeColorArgb, int colorArgb,
                                                 FontRenderContextMode frcMode, int samples, boolean rowClamped) {
         int safeSamples = Math.max(1, samples);
         boolean[] allowedRows = rowClamped
                 ? baselineInkRows(target.getWidth(), target.getHeight(), metricsGraphics, runs, x, baselineY, spacing,
-                stroke, strokeColor, color, frcMode)
+                stroke, strokeColorArgb, colorArgb, frcMode)
                 : null;
         if (stroke > 0) {
             for (int ox = -stroke; ox <= stroke; ox++) {
@@ -978,17 +1157,17 @@ public class FontDrawer {
                     if (ox == 0 && oy == 0) continue;
                     if (ox * ox + oy * oy > stroke * stroke) continue;
                     Shape strokeShape = buildRunsOutline(metricsGraphics, runs, x + ox, baselineY + oy, spacing, frcMode);
-                    rasterizeOutlineCoverage(target, strokeShape, strokeColor, safeSamples, allowedRows);
+                    rasterizeOutlineCoverage(target, strokeShape, strokeColorArgb, safeSamples, allowedRows);
                 }
             }
         }
         Shape fillShape = buildRunsOutline(metricsGraphics, runs, x, baselineY, spacing, frcMode);
-        rasterizeOutlineCoverage(target, fillShape, color, safeSamples, allowedRows);
+        rasterizeOutlineCoverage(target, fillShape, colorArgb, safeSamples, allowedRows);
     }
 
     private static boolean[] baselineInkRows(int width, int height, Graphics2D metricsGraphics,
                                              java.util.List<Font.FontRun> runs, double x, int baselineY,
-                                             double spacing, int stroke, Color strokeColor, Color color,
+                                             double spacing, int stroke, int strokeColorArgb, int colorArgb,
                                              FontRenderContextMode frcMode) {
         boolean[] rows = new boolean[Math.max(0, height)];
         if (width <= 0 || height <= 0) return rows;
@@ -1000,7 +1179,7 @@ public class FontDrawer {
             bg.fillRect(0, 0, width, height);
             bg.setComposite(AlphaComposite.SrcOver);
             if (stroke > 0) {
-                bg.setColor(new java.awt.Color(strokeColor.getR(), strokeColor.getG(), strokeColor.getB(), strokeColor.getA()));
+                bg.setColor(new java.awt.Color(strokeColorArgb, true));
                 for (int ox = -stroke; ox <= stroke; ox++) {
                     for (int oy = -stroke; oy <= stroke; oy++) {
                         if (ox == 0 && oy == 0) continue;
@@ -1009,7 +1188,7 @@ public class FontDrawer {
                     }
                 }
             }
-            bg.setColor(new java.awt.Color(color.getR(), color.getG(), color.getB(), color.getA()));
+            bg.setColor(new java.awt.Color(colorArgb, true));
             drawRuns(bg, runs, x, baselineY, spacing, GlyphRasterSourceMode.DRAW_STRING, frcMode);
         } finally {
             bg.dispose();
@@ -1065,8 +1244,8 @@ public class FontDrawer {
         return area;
     }
 
-    private static void rasterizeOutlineCoverage(BufferedImage target, Shape shape, Color color, int samples, boolean[] allowedRows) {
-        if (target == null || shape == null || color == null || color.getA() <= 0) return;
+    private static void rasterizeOutlineCoverage(BufferedImage target, Shape shape, int colorArgb, int samples, boolean[] allowedRows) {
+        if (target == null || shape == null || ((colorArgb >>> 24) & 0xFF) <= 0) return;
         Rectangle bounds = shape.getBounds();
         int minX = Math.max(0, bounds.x - 1);
         int minY = Math.max(0, bounds.y - 1);
@@ -1087,25 +1266,28 @@ public class FontDrawer {
                     }
                 }
                 if (covered <= 0) continue;
-                int sourceAlpha = clamp255((int) Math.round(color.getA() * (covered / (double) total)));
+                int sourceAlpha = clamp255((int) Math.round(((colorArgb >>> 24) & 0xFF) * (covered / (double) total)));
                 int index = y * targetWidth + x;
-                pixels[index] = sourceOver(pixels[index], color, sourceAlpha);
+                pixels[index] = sourceOver(pixels[index], colorArgb, sourceAlpha);
             }
         }
     }
 
-    private static int sourceOver(int dstArgb, Color color, int sourceAlpha) {
+    private static int sourceOver(int dstArgb, int srcArgb, int sourceAlpha) {
         double srcA = clamp255(sourceAlpha) / 255.0d;
         if (srcA <= 0.0d) return dstArgb;
         double dstA = ((dstArgb >>> 24) & 0xff) / 255.0d;
         int dstR = (dstArgb >>> 16) & 0xff;
         int dstG = (dstArgb >>> 8) & 0xff;
         int dstB = dstArgb & 0xff;
+        int srcR = (srcArgb >>> 16) & 0xff;
+        int srcG = (srcArgb >>> 8) & 0xff;
+        int srcB = srcArgb & 0xff;
         double outA = srcA + dstA * (1.0d - srcA);
         if (outA <= 1e-9d) return 0;
-        int outR = clamp255((int) Math.round((color.getR() * srcA + dstR * dstA * (1.0d - srcA)) / outA));
-        int outG = clamp255((int) Math.round((color.getG() * srcA + dstG * dstA * (1.0d - srcA)) / outA));
-        int outB = clamp255((int) Math.round((color.getB() * srcA + dstB * dstA * (1.0d - srcA)) / outA));
+        int outR = clamp255((int) Math.round((srcR * srcA + dstR * dstA * (1.0d - srcA)) / outA));
+        int outG = clamp255((int) Math.round((srcG * srcA + dstG * dstA * (1.0d - srcA)) / outA));
+        int outB = clamp255((int) Math.round((srcB * srcA + dstB * dstA * (1.0d - srcA)) / outA));
         int outAlpha = clamp255((int) Math.round(outA * 255.0d));
         return (outAlpha << 24) | (outR << 16) | (outG << 8) | outB;
     }
@@ -1154,11 +1336,12 @@ public class FontDrawer {
                 underlineOffset, underlineThickness, strikethroughOffset, strikethroughThickness);
     }
 
-    private static void drawTextDecorations(Graphics2D g, Text text, int x, int baseline, int width,
+    private static void drawTextDecorations(Graphics2D g, RasterRequest request, int x, int baseline, int width,
                                             LineMetrics metrics, RasterMode rasterMode) {
-        if (text == null || width <= 0 || (!text.isUnderlined() && !text.isStrikethrough())) return;
-        g.setColor(new java.awt.Color(text.color.getR(), text.color.getG(), text.color.getB(), text.color.getA()));
-        if (text.isUnderlined()) {
+        if (request == null || width <= 0 || (!request.underlined() && !request.strikethrough())) return;
+        int argb = request.colorArgb();
+        g.setColor(new java.awt.Color(argb, true));
+        if (request.underlined()) {
             double drawScale = rasterMode == null ? 1.0d : Math.max(1.0e-6d, rasterMode.drawScale());
             double naturalCssThickness = metrics.underlineThickness() * drawScale;
             double thickness = Math.ceil(Math.max(1.0d, naturalCssThickness)) / drawScale;
@@ -1166,7 +1349,7 @@ public class FontDrawer {
             g.fill(new java.awt.geom.Rectangle2D.Double(
                     x, baseline + offset, width, thickness));
         }
-        if (text.isStrikethrough()) {
+        if (request.strikethrough()) {
             double thickness = Math.max(1.0d, metrics.strikethroughThickness());
             g.fill(new java.awt.geom.Rectangle2D.Double(
                     x, baseline + metrics.strikethroughOffset(), width, thickness));

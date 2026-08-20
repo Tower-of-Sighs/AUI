@@ -2332,6 +2332,14 @@ public class Element extends Node {
         return scroll.stepRender();
     }
 
+    double getScrollRenderStepDeltaLeft() {
+        return scroll.getLastRenderStepDeltaLeft();
+    }
+
+    double getScrollRenderStepDeltaTop() {
+        return scroll.getLastRenderStepDeltaTop();
+    }
+
     boolean needsScrollRenderStep() {
         return scroll.needsRenderStep();
     }

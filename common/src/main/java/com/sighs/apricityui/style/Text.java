@@ -718,10 +718,19 @@ public class Text {
     }
 
     public String toKey() {
+        return toKey(true);
+    }
+
+    /**
+     * @param includeRasterColor false 时排除 color/rasterBackgroundColor/strokeColor：
+     * 白色光栅 + 绘制时染色的文字（FontDrawer 无描边透明合成路径）颜色不进缓存 key，
+     * :hover 变色、颜色过渡动画不再触发重新光栅。
+     */
+    public String toKey(boolean includeRasterColor) {
         String c = content;
-        int stamp = styleStamp();
+        int stamp = styleStamp(includeRasterColor);
         if (cachedToKey != null && cachedToKeyContent == c && cachedToKeyStamp == stamp) return cachedToKey;
-        String key = styleKey() + '/' + (c == null ? "" : c);
+        String key = styleKey(includeRasterColor) + '/' + (c == null ? "" : c);
         cachedToKey = key;
         cachedToKeyContent = c;
         cachedToKeyStamp = stamp;
@@ -733,13 +742,19 @@ public class Text {
      * 可以用它廉价检测样式是否被改写，避免每帧重新拷贝或重建 key 字符串。
      */
     public int styleStamp() {
+        return styleStamp(true);
+    }
+
+    public int styleStamp(boolean includeRasterColor) {
         int h = 1;
+        // 变体位：有色/无色指纹错开，防止 toKey/styleKey 的单槽备忘跨变体串用。
+        h = 31 * h + (includeRasterColor ? 1 : 0);
         h = 31 * h + (int) Math.round(fontSize * 1000);
         h = 31 * h + fontWeight;
         h = 31 * h + (oblique ? 1 : 0);
         h = 31 * h + (int) Math.round(strokeWidth * 1000);
-        h = 31 * h + (strokeColor == null ? 0 : strokeColor.getValue());
-        h = 31 * h + (color == null ? 0 : color.getValue());
+        h = 31 * h + (includeRasterColor && strokeColor != null ? strokeColor.getValue() : 0);
+        h = 31 * h + (includeRasterColor && color != null ? color.getValue() : 0);
         h = 31 * h + (textDecoration == null ? 0 : textDecoration.hashCode());
         h = 31 * h + (fontFamily == null ? 0 : fontFamily.hashCode());
         h = 31 * h + (direction == null ? 0 : direction.hashCode());
@@ -748,12 +763,16 @@ public class Text {
         h = 31 * h + (whiteSpace == null ? 0 : whiteSpace.hashCode());
         h = 31 * h + (int) Math.round(textIndent * 1000);
         h = 31 * h + (int) Math.round(letterSpacing * 1000);
-        h = 31 * h + (rasterBackgroundColor == null ? 0 : rasterBackgroundColor.hashCode());
+        h = 31 * h + (includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor.hashCode() : 0);
         return h;
     }
 
     private String styleKey() {
-        int h = styleStamp();
+        return styleKey(true);
+    }
+
+    private String styleKey(boolean includeRasterColor) {
+        int h = styleStamp(includeRasterColor);
         if (cachedStyleKey != null && cachedStyleKeyHash == h) return cachedStyleKey;
 
         StringBuilder sb = new StringBuilder(64);
@@ -761,8 +780,8 @@ public class Text {
                 .append(fontWeight).append('/')
                 .append(oblique).append('/')
                 .append(strokeWidth).append('/')
-                .append(strokeColor == null ? 0 : strokeColor.getValue()).append('/')
-                .append(color == null ? 0 : color.getValue()).append('/')
+                .append(includeRasterColor && strokeColor != null ? strokeColor.getValue() : 0).append('/')
+                .append(includeRasterColor && color != null ? color.getValue() : 0).append('/')
                 .append(textDecoration == null ? "" : textDecoration).append('/')
                 .append(fontFamily == null ? "" : fontFamily).append('/')
                 .append(direction == null ? "" : direction).append('/')
@@ -771,7 +790,7 @@ public class Text {
                 .append(whiteSpace == null ? "" : whiteSpace).append('/')
                 .append(textIndent).append('/')
                 .append(letterSpacing).append('/')
-                .append(rasterBackgroundColor == null ? "" : rasterBackgroundColor);
+                .append(includeRasterColor && rasterBackgroundColor != null ? rasterBackgroundColor : "");
         cachedStyleKey = sb.toString();
         cachedStyleKeyHash = h;
         return cachedStyleKey;

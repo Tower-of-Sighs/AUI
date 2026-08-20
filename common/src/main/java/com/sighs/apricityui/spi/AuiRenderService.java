@@ -53,6 +53,15 @@ public interface AuiRenderService {
     void emitTextureQuad(Object batch, Matrix4f mat, float x, float y, float width, float height,
                          float u0, float v0, float u1, float v1);
 
+    /**
+     * Tinted variant: colorArgb is an ARGB vertex color multiplied with the texture
+     * (FontDrawer 的白色光栅文字靠它上色). 默认实现忽略色调，保证旧加载器行为不变。
+     */
+    default void emitTextureQuad(Object batch, Matrix4f mat, float x, float y, float width, float height,
+                                 float u0, float v0, float u1, float v1, int colorArgb) {
+        emitTextureQuad(batch, mat, x, y, width, height, u0, v0, u1, v1);
+    }
+
     /** Ends and submits the batch, uploading the quads drawn for the given render handle. */
     void flushTextureBatch(Object batch, RenderHandle render);
 

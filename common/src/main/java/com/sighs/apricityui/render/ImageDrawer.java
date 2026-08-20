@@ -45,16 +45,31 @@ public class ImageDrawer {
         innerBlit(poseStack, texture, x, y, width, height, 0, 0, 1, 1, 1, 1, blur, true);
     }
 
+    /** 带顶点染色的绘制：tintArgb 为 ARGB，白色等于不染色（FontDrawer 白色光栅路径用）。 */
+    public static void draw(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, boolean blur, int tintArgb) {
+        if (texture == null) return;
+        innerBlit(poseStack, texture, x, y, width, height, 0.0f, 0.0f, 1.0f, 1.0f, 1, 1, blur, true, tintArgb);
+    }
+
     public static void drawWithUvWindow(PoseStack poseStack, TextureKey texture,
                                         float x, float y, float width, float height, boolean blur,
                                         int textureWidth, int textureHeight,
                                         float uTexel, float vTexel,
                                         float widthTexels, float heightTexels) {
+        drawWithUvWindow(poseStack, texture, x, y, width, height, blur,
+                textureWidth, textureHeight, uTexel, vTexel, widthTexels, heightTexels, 0xFFFFFFFF);
+    }
+
+    public static void drawWithUvWindow(PoseStack poseStack, TextureKey texture,
+                                        float x, float y, float width, float height, boolean blur,
+                                        int textureWidth, int textureHeight,
+                                        float uTexel, float vTexel,
+                                        float widthTexels, float heightTexels, int tintArgb) {
         if (texture == null || textureWidth <= 0 || textureHeight <= 0) return;
         innerBlit(poseStack, texture, x, y, width, height,
                 uTexel, vTexel,
                 Math.max(0.0f, widthTexels), Math.max(0.0f, heightTexels),
-                textureWidth, textureHeight, blur, true);
+                textureWidth, textureHeight, blur, true, tintArgb);
     }
 
     public static void drawOverlay(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, boolean blur) {
@@ -601,6 +616,11 @@ public class ImageDrawer {
     }
 
     private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest) {
+        innerBlit(poseStack, texture, x, y, width, height, uTexture, vTexture,
+                widthTexture, heightTexture, textureWidth, textureHeight, blur, depthTest, 0xFFFFFFFF);
+    }
+
+    private static void innerBlit(PoseStack poseStack, TextureKey texture, float x, float y, float width, float height, float uTexture, float vTexture, float widthTexture, float heightTexture, int textureWidth, int textureHeight, boolean blur, boolean depthTest, int tintArgb) {
         Graph.endBatch();
         RenderHandle renderHandle = getRenderHandle(texture, blur, depthTest);
         float minU = uTexture / (float) textureWidth;
@@ -609,7 +629,7 @@ public class ImageDrawer {
         float maxV = (vTexture + heightTexture) / (float) textureHeight;
         TEXTURE_QUEUE.add(renderHandle, depthTest && Base.isDepthTestEnabled(),
                 poseStack.last().pose(), x, y, width, height,
-                minU, minV, maxU, maxV);
+                minU, minV, maxU, maxV, tintArgb);
     }
 
     private record ReadyTexture(TextureKey location, int width, int height) {

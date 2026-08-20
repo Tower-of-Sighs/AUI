@@ -120,12 +120,22 @@ public final class RenderService implements AuiRenderService {
     @Override
     public void emitTextureQuad(Object batch, Matrix4f mat, float x, float y, float width, float height,
                                 float u0, float v0, float u1, float v1) {
+        emitTextureQuad(batch, mat, x, y, width, height, u0, v0, u1, v1, 0xFFFFFFFF);
+    }
+
+    @Override
+    public void emitTextureQuad(Object batch, Matrix4f mat, float x, float y, float width, float height,
+                                float u0, float v0, float u1, float v1, int colorArgb) {
         TextureBatchHandle handle = (TextureBatchHandle) batch;
         VertexConsumer consumer = handle.source().getBuffer(handle.renderType());
-        consumer.addVertex(mat, x, y + height, 0.0F).setColor(255, 255, 255, 255).setUv(u0, v1).setLight(0xF000F0);
-        consumer.addVertex(mat, x + width, y + height, 0.0F).setColor(255, 255, 255, 255).setUv(u1, v1).setLight(0xF000F0);
-        consumer.addVertex(mat, x + width, y, 0.0F).setColor(255, 255, 255, 255).setUv(u1, v0).setLight(0xF000F0);
-        consumer.addVertex(mat, x, y, 0.0F).setColor(255, 255, 255, 255).setUv(u0, v0).setLight(0xF000F0);
+        int a = (colorArgb >>> 24) & 0xFF;
+        int r = (colorArgb >>> 16) & 0xFF;
+        int g = (colorArgb >>> 8) & 0xFF;
+        int b = colorArgb & 0xFF;
+        consumer.addVertex(mat, x, y + height, 0.0F).setColor(r, g, b, a).setUv(u0, v1).setLight(0xF000F0);
+        consumer.addVertex(mat, x + width, y + height, 0.0F).setColor(r, g, b, a).setUv(u1, v1).setLight(0xF000F0);
+        consumer.addVertex(mat, x + width, y, 0.0F).setColor(r, g, b, a).setUv(u1, v0).setLight(0xF000F0);
+        consumer.addVertex(mat, x, y, 0.0F).setColor(r, g, b, a).setUv(u0, v0).setLight(0xF000F0);
     }
 
     @Override

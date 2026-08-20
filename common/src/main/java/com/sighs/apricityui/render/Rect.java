@@ -63,6 +63,19 @@ public class Rect {
         return result;
     }
 
+    /**
+     * 滚动平移快速路径：滚动只让子树的绘制位置整体偏移，盒模型、尺寸、圆角、
+     * 背景都不变。平移 position 并丢弃派生位置缓存（尺寸类缓存与位置无关，保留）。
+     * 不就地修改 position 字段——它可能引用共享的 {@link Position#ZERO}。
+     */
+    public void translate(double dx, double dy) {
+        position = new Position(position.x + dx, position.y + dy);
+        visualBounds = null;
+        bodyRectPosition = null;
+        shadowPosition = null;
+        contentPosition = null;
+    }
+
     public AABB getVisualBounds() {
         if (visualBounds != null) return visualBounds;
         double x = position.x + box.getMarginLeft();

@@ -125,6 +125,10 @@ public class RenderElement {
     private long transformVersion = 1L;
     private long committedRectDependency = Long.MIN_VALUE;
     private long committedTransformDependency = Long.MIN_VALUE;
+    // 提交时刻的 scroll-free 依赖（不含任何 scrollVersion）。滚动平移快速路径用它判定
+    // “committed 几何只有滚动分量过期”——成立则整体平移即可，否则退回完整重建。
+    private long committedRectScrollFreeDependency = Long.MIN_VALUE;
+    private long committedTransformScrollFreeDependency = Long.MIN_VALUE;
 
     public RenderElement(Element element) {
         this.element = element;
@@ -157,11 +161,27 @@ public class RenderElement {
     public void commitRect(Rect rect, long dependency) {
         committedRect = rect;
         committedRectDependency = dependency;
+        committedRectScrollFreeDependency = rectDependencyExcludingScroll(element.document);
     }
 
     public void commitWorldTransform(Matrix4f worldTransform, long dependency) {
         committedWorldTransform = worldTransform;
         committedTransformDependency = dependency;
+        committedTransformScrollFreeDependency = transformDependencyExcludingScroll(element.document);
+    }
+
+    /**
+     * committed rect 是否只差滚动分量没有同步：scroll-free 依赖未变，
+     * 说明自提交以来只有 route 上的 scrollVersion 变了，整体平移即可恢复有效。
+     */
+    public boolean hasScrollStableCommittedRect() {
+        return committedRect != null
+                && committedRectScrollFreeDependency == rectDependencyExcludingScroll(element.document);
+    }
+
+    public boolean hasScrollStableCommittedWorldTransform() {
+        return committedWorldTransform != null
+                && committedTransformScrollFreeDependency == transformDependencyExcludingScroll(element.document);
     }
 
     public void invalidateLayoutVersion() {
@@ -249,14 +269,24 @@ public class RenderElement {
     }
 
     public long rectDependency(Document document) {
-        return dependency(document, false);
+        return dependency(document, false, true);
     }
 
     public long transformDependency(Document document) {
-        return dependency(document, true);
+        return dependency(document, true, true);
     }
 
-    private long dependency(Document document, boolean includeTransform) {
+    /** 与 {@link #rectDependency} 相同，但不混入 route 上任何 scrollVersion。 */
+    public long rectDependencyExcludingScroll(Document document) {
+        return dependency(document, false, false);
+    }
+
+    /** 与 {@link #transformDependency} 相同，但不混入 route 上任何 scrollVersion。 */
+    public long transformDependencyExcludingScroll(Document document) {
+        return dependency(document, true, false);
+    }
+
+    private long dependency(Document document, boolean includeTransform, boolean includeScroll) {
         long value = 17L;
         if (document != null) {
             value = mix(value, document.getViewportVersion());
@@ -267,7 +297,9 @@ public class RenderElement {
                 value = mix(value, renderer.styleVersion);
             }
             value = mix(value, renderer.layoutVersion);
-            value = mix(value, renderer.scrollVersion);
+            if (includeScroll) {
+                value = mix(value, renderer.scrollVersion);
+            }
             if (includeTransform) {
                 value = mix(value, renderer.transformVersion);
             }
@@ -284,11 +316,14 @@ public class RenderElement {
         committedWorldTransform = null;
         committedRectDependency = Long.MIN_VALUE;
         committedTransformDependency = Long.MIN_VALUE;
+        committedRectScrollFreeDependency = Long.MIN_VALUE;
+        committedTransformScrollFreeDependency = Long.MIN_VALUE;
     }
 
     public void clearCommittedWorldTransform() {
         committedWorldTransform = null;
         committedTransformDependency = Long.MIN_VALUE;
+        committedTransformScrollFreeDependency = Long.MIN_VALUE;
     }
 
     /** Clears visual box parsing without invalidating the unchanged hit-test geometry. */
@@ -341,8 +376,13 @@ public class RenderElement {
             "position", "top", "bottom", "left", "right", "display"
     );
 
-    private static final Set<String> PADDING_AND_BORDER_PROPS = Set.of(
-            "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight",
+    private static final Set<String> PADDING_PROPS = Set.of(
+            "padding", "paddingTop", "paddingBottom", "paddingLeft", "paddingRight"
+    );
+
+    // border 单独处理：ShorthandParser.applyBorderColor 会把 border-color 改写进
+    // borderTop/Right/Bottom/Left 字符串，颜色/线型变化不影响几何，不该触发 RELAYOUT。
+    private static final Set<String> BORDER_PROPS = Set.of(
             "border", "borderTop", "borderBottom", "borderLeft", "borderRight"
     );
 
@@ -475,10 +515,12 @@ public class RenderElement {
             }
         }
 
-        boolean paddingOrBorderChanged = check.test(PADDING_AND_BORDER_PROPS);
+        boolean paddingChanged = check.test(PADDING_PROPS);
+        boolean borderChanged = check.test(BORDER_PROPS);
+        boolean borderGeometryChanged = borderChanged && borderGeometryChanged(origin, current);
         boolean layoutChanged = check.test(LAYOUT_PROPS);
 
-        if (paddingOrBorderChanged) {
+        if (paddingChanged || borderGeometryChanged) {
             element.forEachRoute(e -> e.getRenderer().size.clear());
             element.forEachRoute(e -> e.getRenderer().box.clear());
             if (element.parentElement != null) {
@@ -487,6 +529,14 @@ public class RenderElement {
             } else renderer.position.clear();
 
             dirtyMask |= Drawer.RELAYOUT;
+        }
+
+        if (borderChanged && !borderGeometryChanged) {
+            // 纯 border 颜色/线型变化：几何不变，只重解析 Box 视觉字段并重绘。
+            // 避免 hover 切换 border-color 时整棵子树 full relayout。
+            renderer.clearVisualBoxCache();
+            renderer.invalidateStyleVersion();
+            dirtyMask |= Drawer.REPAINT;
         }
 
         if (layoutChanged) {
@@ -500,7 +550,7 @@ public class RenderElement {
             dirtyMask |= Drawer.RELAYOUT;
         }
 
-        if (paddingOrBorderChanged || layoutChanged) {
+        if (paddingChanged || borderGeometryChanged || layoutChanged) {
             renderer.invalidateLayoutSubtree();
         }
 
@@ -547,5 +597,22 @@ public class RenderElement {
         if (dirtyMask != 0 && element.document != null) {
             element.document.markDirty(element, dirtyMask);
         }
+    }
+
+    /**
+     * 判断 border 变化是否影响几何（宽度或线型）。解析失败时 SideBorder 落到默认值，
+     * 与另一侧默认值比较仍成立则视为纯视觉变化；只有 size/type 有差异才需要重排。
+     */
+    private static boolean borderGeometryChanged(Style origin, Style current) {
+        for (String prop : BORDER_PROPS) {
+            String oVal = origin.get(prop);
+            String cVal = current.get(prop);
+            if (oVal == null && cVal == null) continue;
+            if (oVal != null && oVal.equals(cVal)) continue;
+            Box.SideBorder oSide = Box.parseSideBorder(oVal);
+            Box.SideBorder cSide = Box.parseSideBorder(cVal);
+            if (oSide.size() != cSide.size() || !oSide.type().equals(cSide.type())) return true;
+        }
+        return false;
     }
 }

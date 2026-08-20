@@ -646,6 +646,7 @@ public class Document {
 
     /** Advances smooth scrolling once per paint frame and reports whether a visible offset changed. */
     public boolean stepScrollRender() {
+        scrollShifts.clear();
         if (!isActive()) return false;
         if (activeScrollElements.isEmpty()) return false;
         boolean changed = false;
@@ -658,6 +659,11 @@ public class Document {
             if (elementChanged) {
                 element.getRenderer().invalidateScrollVersion();
                 render.markHitTestDirty(element);
+                scrollShifts.add(new ScrollShift(
+                        element,
+                        element.getScrollRenderStepDeltaLeft(),
+                        element.getScrollRenderStepDeltaTop()
+                ));
                 changed = true;
             }
             if (!element.needsScrollRenderStep()) {
@@ -666,6 +672,25 @@ public class Document {
         }
         if (changed) render.markVisualDirty();
         return changed;
+    }
+
+    /**
+     * 一次渲染帧内滚动容器的位移记录。滚动只让后代整体平移，
+     * {@code LayoutCommit.commitScrollTranslation} 借此避免全量几何重建。
+     */
+    public record ScrollShift(Element element, double dx, double dy) {
+    }
+
+    private final ArrayList<ScrollShift> scrollShifts = new ArrayList<>();
+
+    /** 本帧 stepScrollRender 产生的滚动位移；仅当 stepScrollRender 返回 true 时非空。 */
+    public List<ScrollShift> getScrollShifts() {
+        return scrollShifts;
+    }
+
+    /** 滚动帧改走全量 LayoutCommit 时调用，丢弃未被平移快速路径消费的位移记录。 */
+    public void discardScrollShifts() {
+        scrollShifts.clear();
     }
 
     void registerActiveScroll(Element element) {

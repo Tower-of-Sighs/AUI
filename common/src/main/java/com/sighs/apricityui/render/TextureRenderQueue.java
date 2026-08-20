@@ -32,10 +32,16 @@ final class TextureRenderQueue {
     void add(RenderHandle renderHandle, boolean depthTest, Matrix4f matrix,
              float x, float y, float width, float height,
              float u0, float v0, float u1, float v1) {
+        add(renderHandle, depthTest, matrix, x, y, width, height, u0, v0, u1, v1, 0xFFFFFFFF);
+    }
+
+    void add(RenderHandle renderHandle, boolean depthTest, Matrix4f matrix,
+             float x, float y, float width, float height,
+             float u0, float v0, float u1, float v1, int tintArgb) {
         if (draws.size() >= MAX_QUEUED_QUADS) flush();
         Draw draw = drawPool.pollFirst();
         if (draw == null) draw = new Draw();
-        draw.set(renderHandle, depthTest, matrix, x, y, width, height, u0, v0, u1, v1);
+        draw.set(renderHandle, depthTest, matrix, x, y, width, height, u0, v0, u1, v1, tintArgb);
         draws.add(draw);
     }
 
@@ -112,7 +118,7 @@ final class TextureRenderQueue {
                 Draw draw = batchDraws.get(j);
                 AuiServices.render().emitTextureQuad(token, draw.matrix,
                         draw.x, draw.y, draw.width, draw.height,
-                        draw.u0, draw.v0, draw.u1, draw.v1);
+                        draw.u0, draw.v0, draw.u1, draw.v1, draw.tintArgb);
             }
             AuiServices.render().flushTextureBatch(token, batch.renderHandle);
             RenderBatchStats.recordImageFlush();
@@ -127,10 +133,11 @@ final class TextureRenderQueue {
         boolean depthTest;
         final Matrix4f matrix = new Matrix4f();
         float x, y, width, height, u0, v0, u1, v1;
+        int tintArgb;
 
         void set(RenderHandle renderHandle, boolean depthTest, Matrix4f source,
                  float x, float y, float width, float height,
-                 float u0, float v0, float u1, float v1) {
+                 float u0, float v0, float u1, float v1, int tintArgb) {
             this.renderHandle = renderHandle;
             this.depthTest = depthTest;
             this.matrix.set(source);
@@ -142,6 +149,7 @@ final class TextureRenderQueue {
             this.v0 = v0;
             this.u1 = u1;
             this.v1 = v1;
+            this.tintArgb = tintArgb;
         }
     }
 

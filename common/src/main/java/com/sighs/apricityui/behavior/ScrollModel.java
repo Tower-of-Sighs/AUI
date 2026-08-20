@@ -37,6 +37,8 @@ public final class ScrollModel {
     private DragAxis dragAxis = DragAxis.NONE;
     private double dragPointerOffset;
     private boolean scrollbarPointerActive;
+    private double lastRenderStepDeltaLeft;
+    private double lastRenderStepDeltaTop;
 
     public ScrollModel(Element owner) {
         this.owner = owner;
@@ -111,6 +113,8 @@ public final class ScrollModel {
     public boolean stepRender() {
         if (!needsRenderStep()) {
             lastRenderStepNs = 0L;
+            lastRenderStepDeltaLeft = 0;
+            lastRenderStepDeltaTop = 0;
             return false;
         }
 
@@ -119,8 +123,20 @@ public final class ScrollModel {
         double frameScale = consumeFrameScale();
         stepHorizontalScroll(frameScale);
         stepVerticalScroll(frameScale);
+        lastRenderStepDeltaLeft = owner.scrollLeft - previousLeft;
+        lastRenderStepDeltaTop = owner.scrollTop - previousTop;
         return Double.compare(previousLeft, owner.scrollLeft) != 0
                 || Double.compare(previousTop, owner.scrollTop) != 0;
+    }
+
+    /** 最近一次 {@link #stepRender()} 产生的 scrollLeft 位移；供滚动平移快速路径使用。 */
+    public double getLastRenderStepDeltaLeft() {
+        return lastRenderStepDeltaLeft;
+    }
+
+    /** 最近一次 {@link #stepRender()} 产生的 scrollTop 位移；供滚动平移快速路径使用。 */
+    public double getLastRenderStepDeltaTop() {
+        return lastRenderStepDeltaTop;
     }
 
     public boolean needsRenderStep() {
