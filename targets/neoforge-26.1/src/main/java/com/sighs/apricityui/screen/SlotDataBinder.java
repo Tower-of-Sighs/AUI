@@ -1,10 +1,14 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.ApricityUI;
+import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Container;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
 import com.sighs.apricityui.init.Document;
+import com.sighs.apricityui.network.client.ApricityClientNetwork;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
 import net.minecraft.world.item.ItemStack;
@@ -12,6 +16,7 @@ import net.minecraft.world.item.ItemStack;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -91,6 +96,7 @@ public final class SlotDataBinder {
         }
 
         syncBoundSlotStates();
+        sendDeclaredSelectorIndices(document);
         lastBindSlotCount = countSlotElements(document);
         lastBindGeneration = document.getRefreshGeneration();
     }
@@ -279,6 +285,62 @@ public final class SlotDataBinder {
         Document document = first.slotElement().document;
         if (document == null) return null;
         return document.screenToDocumentPosition(new Position(mouseX, mouseY));
+    }
+
+    /**
+     * 只解析服务端经 SlotLayout 下发的 selector，并从对应顶层 Container 的 DOM 子树回传最终 slot-index。
+     */
+    private void sendDeclaredSelectorIndices(Document document) {
+        if (document == null || menu.getLayout().filterSelectorsByContainer().isEmpty()) return;
+        for (Element element : document.getElements()) {
+            if (!(element instanceof Container container)) continue;
+            if (container.findAncestor(Container.class) != null) continue;
+
+            String containerId = container.getAttribute("id");
+            if (containerId == null || containerId.isBlank()) {
+                containerId = resolveImplicitContainerId(document, container);
+            }
+            SlotLayout.ContainerEntry layoutEntry = menu.getLayout().findContainer(containerId);
+            if (layoutEntry == null) {
+                ApricityUI.LOGGER.warn("Selector filter ignored on client: container={} / reason=UNKNOWN_CONTAINER", containerId);
+                continue;
+            }
+            List<String> selectors = menu.getLayout().filterSelectors(containerId);
+            if (selectors.isEmpty()) continue;
+
+            for (String selector : selectors) {
+                try {
+                    LinkedHashSet<Integer> indices = new LinkedHashSet<>();
+                    for (Element matched : container.querySelectorAll(selector)) {
+                        if (!(matched instanceof Slot slot)) continue;
+                        if (slot.findAncestor(Recipe.class) != null) {
+                            ApricityUI.LOGGER.warn("Selector filter ignored on client: container={} / selector={} / reason=RECIPE_SLOT",
+                                    containerId, selector);
+                            continue;
+                        }
+                        Container owner = slot.findAncestor(Container.class);
+                        if (owner != container) {
+                            ApricityUI.LOGGER.warn("Selector filter ignored on client: container={} / selector={} / reason=NESTED_CONTAINER_SLOT",
+                                    containerId, selector);
+                            continue;
+                        }
+                        int localIndex = slot.getSlotIndex();
+                        if (localIndex < 0 || localIndex >= layoutEntry.capacity()) {
+                            ApricityUI.LOGGER.warn("Selector filter ignored on client: container={} / selector={} / index={} / reason=INVALID_SLOT_INDEX",
+                                    containerId, selector, localIndex);
+                            continue;
+                        }
+                        indices.add(localIndex);
+                    }
+                    if (!indices.isEmpty()) {
+                        ApricityClientNetwork.sendSelectorFilterIndices(menu.containerId, containerId, selector, List.copyOf(indices));
+                    }
+                } catch (RuntimeException exception) {
+                    ApricityUI.LOGGER.warn("Selector filter ignored on client: container={} / selector={} / reason=INVALID_SELECTOR",
+                            containerId, selector, exception);
+                }
+            }
+        }
     }
 
     private int scaleSlotSize(int logicalSize) {

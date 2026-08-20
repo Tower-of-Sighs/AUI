@@ -2,6 +2,8 @@ package com.sighs.apricityui.screen;
 
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Container;
+import com.sighs.apricityui.element.Recipe;
+import com.sighs.apricityui.network.packet.ResolveSlotFiltersPacket;
 import com.sighs.apricityui.element.Item;
 import com.sighs.apricityui.element.Slot;
 import com.sighs.apricityui.init.Document;
@@ -132,6 +134,41 @@ public final class SlotDataBinder {
         if (document == null) return false;
         if (document.getRefreshGeneration() != lastBindGeneration) return true;
         return countSlotElements(document) != lastBindSlotCount;
+    }
+
+    /** Resolves server-authored selectors against the fully expanded local DOM. */
+    public ResolveSlotFiltersPacket resolveSlotFilters(Document document, int menuId) {
+        if (document == null || menu.getLayout().isUiOnly()) {
+            return new ResolveSlotFiltersPacket(menuId, java.util.Map.of());
+        }
+        LinkedHashMap<String, java.util.Map<String, List<Integer>>> resolved = new LinkedHashMap<>();
+        for (com.sighs.apricityui.container.SlotLayout.ContainerEntry entry : menu.getLayout().containers()) {
+            List<String> selectors = menu.getLayout().filterSelectors(entry.id());
+            if (selectors.isEmpty()) continue;
+            if (entry.bindType() == com.sighs.apricityui.container.bind.ContainerBindType.PLAYER) continue;
+            Container container = findContainer(document, entry.id());
+            if (container == null) continue;
+            LinkedHashMap<String, List<Integer>> selectorMatches = new LinkedHashMap<>();
+            for (String selector : selectors) {
+                try {
+                    java.util.LinkedHashSet<Integer> indices = new java.util.LinkedHashSet<>();
+                    for (Element element : container.querySelectorAll(selector)) {
+                        if (!(element instanceof Slot slot) || slot.findAncestor(Container.class) != container) continue;
+                        if (slot.findAncestor(Recipe.class) != null) continue;
+                        int localIndex = slot.getSlotIndex();
+                        if (localIndex < 0 || localIndex >= entry.capacity()) continue;
+                        if (menu.resolveGlobalSlotIndex(entry.id(), localIndex) != null) indices.add(localIndex);
+                    }
+                    if (!indices.isEmpty()) selectorMatches.put(selector, List.copyOf(indices));
+                } catch (RuntimeException exception) {
+                    com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                            "Open screen filter selector ignored: path={} / container={} / selector={}",
+                            document.getPath(), entry.id(), selector, exception);
+                }
+            }
+            if (!selectorMatches.isEmpty()) resolved.put(entry.id(), java.util.Map.copyOf(selectorMatches));
+        }
+        return new ResolveSlotFiltersPacket(menuId, java.util.Map.copyOf(resolved));
     }
 
     /**
@@ -283,6 +320,20 @@ public final class SlotDataBinder {
 
     private int scaleSlotSize(int logicalSize) {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
+    }
+
+    private static Container findContainer(Document document, String containerId) {
+        int topLevelIndex = 0;
+        for (Element element : document.getElements()) {
+            if (!(element instanceof Container container)) continue;
+            if (container.findAncestor(Container.class) != null) continue;
+            String rawId = container.getAttribute("id");
+            String resolvedId = com.sighs.apricityui.util.common.NormalizeUtil.normalizeContainerId(rawId);
+            if (resolvedId == null) resolvedId = "c" + topLevelIndex;
+            if (resolvedId.equals(containerId)) return container;
+            topLevelIndex++;
+        }
+        return null;
     }
 
     private static Item directItem(Slot slot) {

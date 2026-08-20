@@ -39,6 +39,7 @@ public class ApricityUIForge {
         modEventBus.addListener(this::onConfigReload);
         if (ModList.get().isLoaded("kubejs")) {
             KubeJS.scanPackage("com.sighs.apricityui.util.kjs");
+            KubeJS.scanPackage("com.sighs.apricityui.container.filter");
         }
         ApricityUIRegistry.scanPackages("com.sighs.apricityui.element", "com.sighs.apricityui.element");
         ApricityMenus.register(modEventBus);

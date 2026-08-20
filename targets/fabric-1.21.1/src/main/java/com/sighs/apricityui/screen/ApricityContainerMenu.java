@@ -4,6 +4,8 @@ import com.sighs.apricityui.container.PlayerInventorySlotOrder;
 import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.container.bind.ContainerBindType;
 import com.sighs.apricityui.container.datasource.ContainerDataSource;
+import com.sighs.apricityui.container.filter.ContainerSlotSelector;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import com.sighs.apricityui.registry.ApricityMenus;
 import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.server.level.ServerPlayer;
@@ -24,6 +26,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
     private final SlotLayout layout;
     private final Inventory playerInventory;
     private final ArrayList<ContainerDataSource> activeSources = new ArrayList<>();
+    private final Map<String, Map<Integer, com.sighs.apricityui.container.datasource.SlotFilter>> slotFilters = new LinkedHashMap<>();
+    private final Map<ContainerSlotSelector, FilterUtil> selectorFilters;
     private final ServerPlayer owner;
 
     private int customSlotCount = 0;
@@ -34,11 +38,11 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
      * 客户端反序列化构造。
      */
     public ApricityContainerMenu(int containerId, Inventory playerInventory, FriendlyByteBuf extraData) {
-        this(containerId, playerInventory, readLayout(extraData), Map.of(), null);
+        this(containerId, playerInventory, readLayout(extraData), Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId, Inventory playerInventory, SlotLayout layout) {
-        this(containerId, playerInventory, layout, Map.of(), null);
+        this(containerId, playerInventory, layout, Map.of(), Map.of(), null);
     }
 
     public ApricityContainerMenu(int containerId,
@@ -46,11 +50,21 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
                                  SlotLayout layout,
                                  Map<String, ContainerDataSource> containerSources,
                                  ServerPlayer owner) {
+        this(containerId, playerInventory, layout, containerSources, Map.of(), owner);
+    }
+
+    public ApricityContainerMenu(int containerId,
+                                 Inventory playerInventory,
+                                 SlotLayout layout,
+                                 Map<String, ContainerDataSource> containerSources,
+                                 Map<ContainerSlotSelector, FilterUtil> selectorFilters,
+                                 ServerPlayer owner) {
         super(ApricityMenus.APRICITY_CONTAINER, containerId);
         this.playerInventory = playerInventory;
         this.layout = Objects.requireNonNull(layout, "SlotLayout 不能为空");
         this.owner = owner;
-        initializeSlots(containerSources == null ? Map.of() : containerSources);
+        this.selectorFilters = selectorFilters == null ? Map.of() : Map.copyOf(selectorFilters);
+        initializeSlots(containerSources == null ? Map.of() : containerSources, Map.of());
     }
 
     private static SlotLayout readLayout(FriendlyByteBuf extraData) {
@@ -64,7 +78,8 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
         return new ApricityContainerMenu(-1, playerInventory, SlotLayout.createUiOnly(templatePath));
     }
 
-    private void initializeSlots(Map<String, ContainerDataSource> containerSources) {
+    private void initializeSlots(Map<String, ContainerDataSource> containerSources,
+                                 Map<String, Map<Integer, FilterUtil>> filtersByLocalIndex) {
         activeSources.clear();
         customSlotCount = 0;
         playerSlotStart = -1;
@@ -84,13 +99,19 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
             if (!initializedCustomPools.add(customPoolKey)) continue;
 
             ContainerDataSource source = containerSources.get(entry.id());
+            Map<Integer, FilterUtil> entryFilters = filtersByLocalIndex.getOrDefault(entry.id(), Map.of());
+            Map<Integer, com.sighs.apricityui.container.datasource.SlotFilter> entryFilterRefs =
+                    slotFilters.computeIfAbsent(entry.id(), ignored -> new LinkedHashMap<>());
             int resolvedCapacity = entry.capacity();
             SimpleContainer fallback = source == null ? new SimpleContainer(Math.max(1, resolvedCapacity)) : null;
 
             for (int localIndex = 0; localIndex < resolvedCapacity; localIndex++) {
+                com.sighs.apricityui.container.datasource.SlotFilter filterRef =
+                        entryFilterRefs.computeIfAbsent(localIndex, ignored -> new com.sighs.apricityui.container.datasource.SlotFilter());
+                filterRef.set(entryFilters.get(localIndex));
                 Slot slot = source == null
                         ? new UiSlot(fallback, localIndex, 0, 0)
-                        : source.createSlot(localIndex, 0, 0);
+                        : source.createSlot(localIndex, 0, 0, filterRef);
                 addSlot(slot);
             }
 
@@ -125,6 +146,26 @@ public class ApricityContainerMenu extends AbstractContainerMenu {
                     menuRelativeIndex, normalized);
             addSlot(new UiSlot(playerInventory, playerInventoryIndex, 0, 0));
         }
+    }
+
+    public Map<ContainerSlotSelector, FilterUtil> selectorFilters() {
+        return selectorFilters;
+    }
+
+    /** Applies server-authorized rules to the already-created slot views. */
+    public void installSlotFilters(Map<String, Map<Integer, FilterUtil>> filtersByLocalIndex) {
+        for (Map<Integer, com.sighs.apricityui.container.datasource.SlotFilter> entry : slotFilters.values()) {
+            entry.values().forEach(filter -> filter.set(null));
+        }
+        if (filtersByLocalIndex == null || filtersByLocalIndex.isEmpty()) return;
+        filtersByLocalIndex.forEach((containerId, resolved) -> {
+            Map<Integer, com.sighs.apricityui.container.datasource.SlotFilter> entry = slotFilters.get(containerId);
+            if (entry == null || resolved == null) return;
+            resolved.forEach((localIndex, filter) -> {
+                com.sighs.apricityui.container.datasource.SlotFilter ref = entry.get(localIndex);
+                if (ref != null) ref.set(filter);
+            });
+        });
     }
 
     public SlotLayout getLayout() {

@@ -1,12 +1,12 @@
 package com.sighs.apricityui.container.datasource;
 
 import com.sighs.apricityui.container.bind.ContainerBindType;
+import com.sighs.apricityui.container.filter.FilterUtil;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.inventory.Slot;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.items.IItemHandler;
-import net.neoforged.neoforge.items.SlotItemHandler;
 import net.neoforged.neoforge.transfer.ResourceHandler;
 import net.neoforged.neoforge.transfer.item.ItemResource;
 
@@ -37,8 +37,8 @@ public final class EntityDataSource implements ContainerDataSource {
     }
 
     @Override
-    public Slot createSlot(int slotIndex, int x, int y) {
-        return new SlotItemHandler(itemHandler, slotIndex, x, y);
+    public Slot createSlot(int slotIndex, int x, int y, FilterUtil filter) {
+        return new MenuFilteredSlotItemHandler(itemHandler, slotIndex, x, y, filter);
     }
 
     @Override

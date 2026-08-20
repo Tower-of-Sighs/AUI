@@ -1,17 +1,22 @@
 package com.sighs.apricityui.screen;
 
+import com.sighs.apricityui.container.SlotLayout;
 import com.sighs.apricityui.dom.SlotContentRules;
 import com.sighs.apricityui.element.Container;
 import com.sighs.apricityui.element.Item;
+import com.sighs.apricityui.element.Recipe;
 import com.sighs.apricityui.element.Slot;
 import com.sighs.apricityui.init.Document;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.layout.Position;
+import com.sighs.apricityui.network.api.NetworkManager;
+import com.sighs.apricityui.network.packet.ApplySlotFiltersRequestPacket;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -91,6 +96,7 @@ public final class SlotDataBinder {
         }
 
         syncBoundSlotStates();
+        sendDeclaredFilterMappings(document);
         lastBindSlotCount = countSlotElements(document);
         lastBindGeneration = document.getRefreshGeneration();
     }
@@ -283,6 +289,76 @@ public final class SlotDataBinder {
 
     private int scaleSlotSize(int logicalSize) {
         return Math.max(1, (int) Math.round(Math.max(1, logicalSize) * viewportScaleX));
+    }
+
+    private void sendDeclaredFilterMappings(Document document) {
+        if (document == null || menu.getLayout().filterSelectorsByContainer().isEmpty()) return;
+        ArrayList<ApplySlotFiltersRequestPacket.SelectorSlotMapping> mappings = new ArrayList<>();
+        for (SlotLayout.ContainerEntry entry : menu.getLayout().containers()) {
+            List<String> selectors = menu.getLayout().filterSelectors(entry.id());
+            if (selectors.isEmpty()) continue;
+
+            Container container = findTopLevelContainer(document, entry.id());
+            if (container == null) {
+                com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                        "Slot filter selector ignored: path={} / container={} / reason=CONTAINER_UNAVAILABLE",
+                        document.getPath(), entry.id());
+                continue;
+            }
+            for (String selector : selectors) {
+                if (selector == null || selector.isBlank()) continue;
+                try {
+                    LinkedHashSet<Integer> localIndices = new LinkedHashSet<>();
+                    for (Element element : container.querySelectorAll(selector)) {
+                        if (!(element instanceof Slot slot)) continue;
+                        if (slot.findAncestor(Recipe.class) != null) {
+                            logSelectorSkip(document, entry.id(), selector, "RECIPE_SLOT");
+                            continue;
+                        }
+                        if (slot.findAncestor(Container.class) != container) {
+                            logSelectorSkip(document, entry.id(), selector, "NESTED_CONTAINER");
+                            continue;
+                        }
+                        int localIndex = slot.getSlotIndex();
+                        if (localIndex < 0 || localIndex >= entry.capacity()) {
+                            logSelectorSkip(document, entry.id(), selector, "INVALID_INDEX");
+                            continue;
+                        }
+                        localIndices.add(localIndex);
+                    }
+                    if (!localIndices.isEmpty()) {
+                        mappings.add(new ApplySlotFiltersRequestPacket.SelectorSlotMapping(
+                                entry.id(), selector, List.copyOf(localIndices)));
+                    }
+                } catch (RuntimeException exception) {
+                    com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                            "Slot filter selector ignored: path={} / container={} / selector={} / reason=INVALID_SELECTOR",
+                            document.getPath(), entry.id(), selector, exception);
+                }
+            }
+        }
+        if (!mappings.isEmpty() && menu.containerId >= 0) {
+            NetworkManager.sendToServer(new ApplySlotFiltersRequestPacket(menu.containerId, mappings));
+        }
+    }
+
+    private static void logSelectorSkip(Document document, String containerId, String selector, String reason) {
+        com.sighs.apricityui.ApricityUI.LOGGER.warn(
+                "Slot filter selector ignored: path={} / container={} / selector={} / reason={}",
+                document.getPath(), containerId, selector, reason);
+    }
+
+    private Container findTopLevelContainer(Document document, String containerId) {
+        int index = 0;
+        for (Element element : document.getElements()) {
+            if (!(element instanceof Container container)) continue;
+            if (container.findAncestor(Container.class) != null) continue;
+            String id = container.getAttribute("id");
+            String resolvedId = id == null || id.isBlank() ? "c" + index : id;
+            if (containerId.equals(resolvedId)) return container;
+            index++;
+        }
+        return null;
     }
 
     private static Item directItem(Slot slot) {

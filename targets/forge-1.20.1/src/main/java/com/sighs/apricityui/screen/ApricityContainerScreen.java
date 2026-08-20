@@ -137,6 +137,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
         slotBinder.setDisplayStateResolver(this::resolveMenuSlotDisplayState);
         slotBinder.bindSlotsFromDocument(linkedDocument);
         slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+        com.sighs.apricityui.network.client.ApricityClientNetwork.resolveSlotFilters(
+                slotBinder.resolveSlotFilters(linkedDocument, menu.containerId)
+        );
     }
 
     @Override
@@ -185,6 +188,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
                 if (slotBinder.shouldRebindSlotsFromDom(linkedDocument)) {
                     slotBinder.bindSlotsFromDocument(linkedDocument);
                     slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, true);
+                    com.sighs.apricityui.network.client.ApricityClientNetwork.resolveSlotFilters(
+                            slotBinder.resolveSlotFilters(linkedDocument, menu.containerId)
+                    );
                 } else {
                     slotBinder.syncAllSlotPositions(linkedDocument, leftPos, topPos, false);
                 }

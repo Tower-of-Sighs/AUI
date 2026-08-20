@@ -81,7 +81,42 @@ Passing capacity 0 means using the data source's full capacity (SavedData has at
 
 You can chain multiple bindings of different types: `binding.blockEntity(pos).saveddata("cache", 9).player()`. The first non-player binding automatically becomes primary (which decides the shift-click direction), even if `player()` is written first.
 
-Only one binding per type is allowed — for two machines you need the advanced declaration API: `ApricityScreenNetworkHandler.openScreen(player, path, declarations, argsById)`. Each `ContainerDeclaration` carries its own id, type, capacity, and primary flag; parameters are passed through argsById (block_entity requires `x/y/z`, entity requires `entity_id`, saved_data optionally takes `data_name`). The HTML container ids must match the declaration ids. This is meant for Java mod code; KubeJS scripts generally won't need it.
+### Item insertion filters
+
+A non-player binding step supports `.slot("selector").filter(FilterUtil)`; the type returned by `player()` **does not expose** either `slot(...)` or `.filter(...)`. The argument is an existing CSS selector matched against direct child-owned `<slot>` elements of the most recently declared container: for example, `#fuel`, `slot.fuel`, or `slot[slot-index="0"]`. An id is not required. Selectors resolve after the client expands automatic, repeated, and implicit-index slots; the server installs rules only for validated local indices. A filter restricts only which items can be **inserted** into matched slots. It does not restrict extraction and does not replace underlying capability/container restrictions. Overlapping selectors narrow a slot with AND.
+
+```html
+<container id="block_entity" bind="block_entity" size="3">
+    <slot id="input" slot-index="0"></slot>
+    <slot id="fuel" slot-index="1"></slot>
+    <slot id="output" slot-index="2"></slot>
+</container>
+```
+
+```java
+FilterUtil fuel = FilterUtil.anyOf(FilterUtil.item(Items.COAL), FilterUtil.tag("c:coals"));
+ApricityUI.menu(player, "screens/furnace.html")
+        .bind(binding -> binding.blockEntity(pos)
+                .slot("#input").filter(FilterUtil.not(FilterUtil.item(Items.LAVA_BUCKET)))
+                .slot("#fuel").filter(fuel)
+                .player());
+```
+
+KubeJS uses the same factories and composition semantics:
+
+```javascript
+ApricityUI.menu(player, "screens/furnace.html")
+    .bind(function (binding) {
+        binding.blockEntity(pos)
+            .slot("#input").filter(FilterUtil.not(FilterUtil.item(Items.LAVA_BUCKET)))
+            .slot("#fuel").filter(FilterUtil.anyOf(FilterUtil.item(Items.COAL), FilterUtil.tag("c:coals")))
+            .player();
+    });
+```
+
+`FilterUtil` is usable from Java and KubeJS: `ANY` accepts all items; `NONE` rejects all items; `EMPTY` accepts only an empty ItemStack. Use `item(Item)`, `tag(String)` / `tag(TagKey<Item>)`, `custom(Predicate<ItemStack>)`, `allOf(...)`, `anyOf(...)`, and `not(...)`; existing filters can also be composed with `and(...)`, `or(...)`, and `negate()`. Not calling `.filter(...)` preserves the existing behavior. The filtered view belongs only to this AUI menu and never changes the machine capability, hoppers, or other menus globally. Missing, duplicate, invalid, or foreign slot ids are ignored server-side with a warning; automatically generated slots have no stable id and cannot be filtered.
+
+This is an API migration: the old `binding.blockEntity(pos).filter(...)` is removed; use `binding.blockEntity(pos).slot("...").filter(...)` instead. Only one binding per type is allowed — for two machines you need the advanced declaration API: `ApricityScreenNetworkHandler.openScreen(player, path, declarations, argsById)`. Each `ContainerDeclaration` carries its own id, type, capacity, and primary flag; parameters are passed through argsById (block_entity requires `x/y/z`, entity requires `entity_id`, saved_data optionally takes `data_name`). The HTML container ids must match the declaration ids. This is meant for Java mod code; KubeJS scripts generally won't need it; this advanced entry point does not accept slot-filter rules.
 
 Legacy entry points (`openScreen`, etc.) still exist, but new code should not use them. Things like `ApricityUI.bind()` and `primarySavedData()` from old examples are no longer current API.
 

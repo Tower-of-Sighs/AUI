@@ -146,9 +146,10 @@ If the ids don't match → all slots degrade into display-only slots. The first 
 Rules:
 
 - An empty container with `bind` and `size` auto-generates its slots; `bind="player"` automatically gets 36 slots, and `layout="preset:player"` arranges them in the vanilla inventory layout;
-- When hand-writing `<slot slot-index="N">`, N is the local index within the container — either hand-write all of them or auto-generate all of them, don't mix;
+- When hand-writing `<slot slot-index="N">`, N is the local index within the container; slot filters use `.slot("selector")` with the existing CSS selector syntax, such as `#fuel`, `slot.fuel`, or `slot[slot-index="N"]`, so an id is not required. Automatic, repeated, and implicit-index slots can also be selected;
 - Slots opened UI-only (`screen(path)`) are all display-type — **a real container must be opened server-side with `menu(player, path).bind(b -> b.blockEntity(pos).player())`**;
 - The shift-click direction is determined by the server-side bind order (the first non-player bind is primary); the HTML `primary="true"` cannot change that;
+- After a non-player binding, chain `.slot("slot.fuel").filter(FilterUtil)` to restrict insertion into slots matched by an existing CSS selector; `#fuel` and `slot[slot-index="0"]` are also valid, and an HTML id is not required. `player()` exposes neither `slot(...)` nor a filter API. `FilterUtil` provides `ANY`, `NONE`, `EMPTY`, `item`, `tag`, `custom`, `allOf`, `anyOf`, `not`, plus `and` / `or` / `negate` composition. Filtering affects only the current menu's insertion path and still obeys underlying inventory restrictions;
 - `<recipe type="crafting_shaped">recipeID</recipe>` generates a recipe preview — purely presentational, occupies no slot.
 
 ## Step 7: Debugging (Focus: Features the Mod Provides for AI Debugging)
