@@ -52,6 +52,21 @@ final class CanvasTextSupport {
         }
     }
 
+    /**
+     * Builds the draw-ready outline using a scratch graphics of the canvas surface, so
+     * callers can compute dirty bounds before the actual render pass. NaN/infinite
+     * maxWidth means "no condensing", matching the 3-argument fillText/strokeText.
+     */
+    static Shape buildTextOutline(Canvas canvas, CanvasState state, String text, double x, double y, double maxWidth) {
+        Graphics2D g = canvas.getSurface().createGraphics();
+        try {
+            Canvas.applyGraphicsDefaults(g);
+            return buildTextOutline(g, state, text, x, y, maxWidth);
+        } finally {
+            g.dispose();
+        }
+    }
+
     static Shape buildTextOutline(Graphics2D g, CanvasState state, String text, double x, double y) {
         Font font = CanvasStyleUtil.parseFont(state.font);
         g.setFont(font);

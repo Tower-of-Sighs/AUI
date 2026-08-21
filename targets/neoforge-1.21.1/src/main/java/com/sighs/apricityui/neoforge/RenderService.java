@@ -373,6 +373,17 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public void writeImagePixels(Object nativeImage, int x, int y, int width, int height, int[] abgrPixels) {
+        NativeImage image = (NativeImage) nativeImage;
+        int index = 0;
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                image.setPixelRGBA(x + col, y + row, abgrPixels[index++]);
+            }
+        }
+    }
+
+    @Override
     public void closeTexture(Object texture) {
         ((DynamicTexture) texture).close();
     }

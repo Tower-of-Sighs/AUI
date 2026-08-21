@@ -248,35 +248,41 @@ public class CanvasRenderingContext2D {
             applyTransformAndClip(g);
             g.setComposite(AlphaComposite.Clear);
             g.fill(new Rectangle2D.Double(x, y, width, height));
-        });
+        }, dirtyBounds(new Rectangle2D.Double(x, y, width, height), true));
     }
 
     public void fillRect(double x, double y, double width, double height) {
-        canvas.renderOperation(g -> renderShape(g, new Rectangle2D.Double(x, y, width, height), true));
+        Rectangle2D rect = new Rectangle2D.Double(x, y, width, height);
+        canvas.renderOperation(g -> renderShape(g, rect, true), dirtyBounds(rect, true));
     }
 
     public void strokeRect(double x, double y, double width, double height) {
-        canvas.renderOperation(g -> renderShape(g, new Rectangle2D.Double(x, y, width, height), false));
+        Rectangle2D rect = new Rectangle2D.Double(x, y, width, height);
+        canvas.renderOperation(g -> renderShape(g, rect, false), dirtyBounds(rect, false));
     }
 
     public void fillText(String text, double x, double y) {
         if (text == null || text.isEmpty()) return;
-        canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y), true));
+        Shape outline = CanvasTextSupport.buildTextOutline(canvas, state, text, x, y, Double.NaN);
+        canvas.renderOperation(g -> renderShape(g, outline, true), dirtyBounds(outline, true));
     }
 
     public void fillText(String text, double x, double y, double maxWidth) {
         if (text == null || text.isEmpty()) return;
-        canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y, maxWidth), true));
+        Shape outline = CanvasTextSupport.buildTextOutline(canvas, state, text, x, y, maxWidth);
+        canvas.renderOperation(g -> renderShape(g, outline, true), dirtyBounds(outline, true));
     }
 
     public void strokeText(String text, double x, double y) {
         if (text == null || text.isEmpty()) return;
-        canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y), false));
+        Shape outline = CanvasTextSupport.buildTextOutline(canvas, state, text, x, y, Double.NaN);
+        canvas.renderOperation(g -> renderShape(g, outline, false), dirtyBounds(outline, false));
     }
 
     public void strokeText(String text, double x, double y, double maxWidth) {
         if (text == null || text.isEmpty()) return;
-        canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y, maxWidth), false));
+        Shape outline = CanvasTextSupport.buildTextOutline(canvas, state, text, x, y, maxWidth);
+        canvas.renderOperation(g -> renderShape(g, outline, false), dirtyBounds(outline, false));
     }
 
     public CanvasTextMetrics measureText(String text) {
@@ -339,13 +345,13 @@ public class CanvasRenderingContext2D {
         int ry1 = Math.min(imageData.height, ry + rh);
         if (rx1 <= rx0 || ry1 <= ry0) return;
 
-        canvas.renderOperation(g -> {
-            int dx0 = Math.max(0, dx + rx0);
-            int dy0 = Math.max(0, dy + ry0);
-            int dx1 = Math.min(dx + rx1, canvas.getWidth());
-            int dy1 = Math.min(dy + ry1, canvas.getHeight());
-            if (dx1 <= dx0 || dy1 <= dy0) return;
+        int dx0 = Math.max(0, dx + rx0);
+        int dy0 = Math.max(0, dy + ry0);
+        int dx1 = Math.min(dx + rx1, canvas.getWidth());
+        int dy1 = Math.min(dy + ry1, canvas.getHeight());
+        if (dx1 <= dx0 || dy1 <= dy0) return;
 
+        canvas.renderOperation(g -> {
             int w = dx1 - dx0;
             int h = dy1 - dy0;
             int[] buffer = new int[w * h];
@@ -363,7 +369,7 @@ public class CanvasRenderingContext2D {
                 }
             }
             canvas.getSurface().setRGB(dx0, dy0, w, h, buffer, 0, w);
-        });
+        }, new Rectangle2D.Double(dx0, dy0, dx1 - dx0, dy1 - dy0));
     }
 
     public void beginPath() {
@@ -464,7 +470,8 @@ public class CanvasRenderingContext2D {
 
     public void fill(String fillRule) {
         String rule = normalizeFillRule(fillRule);
-        canvas.renderOperation(g -> renderShape(g, applyFillRule(currentPath, rule), true));
+        Shape shape = applyFillRule(currentPath, rule);
+        canvas.renderOperation(g -> renderShape(g, shape, true), dirtyBounds(shape, true));
     }
 
     public void fill(Object path) {
@@ -473,7 +480,8 @@ public class CanvasRenderingContext2D {
             return;
         }
         if (path instanceof CanvasPath2D source) {
-            canvas.renderOperation(g -> renderShape(g, applyFillRule(source.raw(), inherentFillRule(source)), true));
+            Shape shape = applyFillRule(source.raw(), inherentFillRule(source));
+            canvas.renderOperation(g -> renderShape(g, shape, true), dirtyBounds(shape, true));
             return;
         }
         fill();
@@ -482,19 +490,20 @@ public class CanvasRenderingContext2D {
     public void fill(Object path, String fillRule) {
         String rule = normalizeFillRule(fillRule);
         if (path instanceof CanvasPath2D source) {
-            canvas.renderOperation(g -> renderShape(g, applyFillRule(source.raw(), rule), true));
+            Shape shape = applyFillRule(source.raw(), rule);
+            canvas.renderOperation(g -> renderShape(g, shape, true), dirtyBounds(shape, true));
             return;
         }
         fill(rule);
     }
 
     public void stroke() {
-        canvas.renderOperation(g -> renderShape(g, currentPath, false));
+        canvas.renderOperation(g -> renderShape(g, currentPath, false), dirtyBounds(currentPath, false));
     }
 
     public void stroke(Object path) {
         if (path instanceof CanvasPath2D source) {
-            canvas.renderOperation(g -> renderShape(g, source.raw(), false));
+            canvas.renderOperation(g -> renderShape(g, source.raw(), false), dirtyBounds(source.raw(), false));
             return;
         }
         stroke();
@@ -645,7 +654,7 @@ public class CanvasRenderingContext2D {
             applyClip(g);
             g.setComposite(AlphaComposite.Clear);
             g.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
-        });
+        }, null);
     }
 
     public CanvasLinearGradient createLinearGradient(double x0, double y0, double x1, double y1) {
@@ -748,6 +757,57 @@ public class CanvasRenderingContext2D {
             if (fill) layer.fill(shape);
             else layer.draw(shape);
         });
+    }
+
+    /**
+     * Conservative device-space bounds of everything one draw can touch: the shape's
+     * bounds transformed to device space, expanded for stroke miters, antialiasing
+     * and the shadow's offset+blur reach, then intersected with the clip. Returns
+     * null when the region can't be bounded cheaply (an active filter re-renders
+     * through a full-canvas layer), which makes the canvas re-upload everything.
+     */
+    private Rectangle2D dirtyBounds(Shape userShape, boolean fill) {
+        if (userShape == null || CanvasFilterSupport.hasFilter(state.filter)) return null;
+        double strokePad = 0;
+        if (!fill) {
+            double half = Math.max(0.1, state.lineWidth) / 2.0;
+            strokePad = half * ("miter".equalsIgnoreCase(state.lineJoin) ? Math.max(1.0, state.miterLimit) : 1.0);
+        }
+        Rectangle2D device = transformBounds(userShape.getBounds2D(), strokePad);
+        // Antialiasing fringe, in device pixels.
+        device.setFrame(device.getX() - 1, device.getY() - 1, device.getWidth() + 2, device.getHeight() + 2);
+        Color shadow = CanvasStyleUtil.parseAwtColor(state.shadowColor);
+        if (shadow.getAlpha() > 0 && state.globalAlpha > 0) {
+            double shadowPad = Math.max(0, state.shadowBlur) * 2.0 + 3.0;
+            Rectangle2D shadowBounds = new Rectangle2D.Double(
+                    device.getX() + state.shadowOffsetX - shadowPad,
+                    device.getY() + state.shadowOffsetY - shadowPad,
+                    device.getWidth() + shadowPad * 2,
+                    device.getHeight() + shadowPad * 2);
+            Rectangle2D.union(device, shadowBounds, device);
+        }
+        if (state.clip != null) {
+            Rectangle2D.intersect(device, state.clip.getBounds2D(), device);
+        }
+        return device;
+    }
+
+    /** Transforms user-space bounds (expanded by pad) into device space. */
+    private Rectangle2D transformBounds(Rectangle2D bounds, double pad) {
+        double x0 = bounds.getMinX() - pad;
+        double y0 = bounds.getMinY() - pad;
+        double x1 = bounds.getMaxX() + pad;
+        double y1 = bounds.getMaxY() + pad;
+        if (state.transform.isIdentity()) {
+            return new Rectangle2D.Double(x0, y0, x1 - x0, y1 - y0);
+        }
+        double[] corners = {x0, y0, x1, y0, x0, y1, x1, y1};
+        state.transform.transform(corners, 0, corners, 0, 4);
+        double minX = Math.min(Math.min(corners[0], corners[2]), Math.min(corners[4], corners[6]));
+        double maxX = Math.max(Math.max(corners[0], corners[2]), Math.max(corners[4], corners[6]));
+        double minY = Math.min(Math.min(corners[1], corners[3]), Math.min(corners[5], corners[7]));
+        double maxY = Math.max(Math.max(corners[1], corners[3]), Math.max(corners[5], corners[7]));
+        return new Rectangle2D.Double(minX, minY, maxX - minX, maxY - minY);
     }
 
     private void renderPatternShape(Graphics2D g, Shape shape, CanvasPattern pattern) {
@@ -945,14 +1005,6 @@ public class CanvasRenderingContext2D {
         return CanvasStyleUtil.parseAwtColor(style == null ? "#000000" : style.toString());
     }
 
-    private Shape buildTextOutline(Graphics2D g, String text, double x, double y) {
-        return CanvasTextSupport.buildTextOutline(g, state, text, x, y);
-    }
-
-    private Shape buildTextOutline(Graphics2D g, String text, double x, double y, double maxWidth) {
-        return CanvasTextSupport.buildTextOutline(g, state, text, x, y, maxWidth);
-    }
-
     private BufferedImage resolveImageSource(Object image) {
         return CanvasImageSupport.resolveImageSource(image);
     }
@@ -965,6 +1017,10 @@ public class CanvasRenderingContext2D {
 
     private void drawImageInternal(BufferedImage source, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh) {
         if (source == null || sw <= 0 || sh <= 0 || dw == 0 || dh == 0) return;
+        // Negative dw/dh flip the image; normalize so the bounds rect stays well-formed.
+        double bx = dw < 0 ? dx + dw : dx;
+        double by = dh < 0 ? dy + dh : dy;
+        Rectangle2D dest = new Rectangle2D.Double(bx, by, Math.abs(dw), Math.abs(dh));
         canvas.renderOperation(g -> {
             CanvasFilterSupport.renderWithFilter(canvas, state.filter, g, layer -> {
                 applyTransformAndClip(layer);
@@ -981,7 +1037,7 @@ public class CanvasRenderingContext2D {
                 int dstY2 = (int) Math.round(dy + dh);
                 layer.drawImage(source, dstX1, dstY1, dstX2, dstY2, srcX1, srcY1, srcX2, srcY2, null);
             });
-        });
+        }, dirtyBounds(dest, true));
     }
 
     private void drawImageShadow(Graphics2D g, BufferedImage source, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh) {

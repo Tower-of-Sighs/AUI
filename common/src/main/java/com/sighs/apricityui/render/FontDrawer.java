@@ -717,15 +717,17 @@ public class FontDrawer {
 
             NativeImage nativeImg = new NativeImage(NativeImage.Format.RGBA, imgW, imgH, true);
 
-            for (int y = 0; y < imgH; y++) {
-                for (int x = 0; x < imgW; x++) {
-                    int argb = pixels[y * imgW + x];
-                    if (compositeMode.solidBackground()) {
-                        argb = uncomposeSolidBackground(argb, colorArgb, compositeMode);
-                    }
-                    com.sighs.apricityui.spi.AuiServices.render().setImagePixel(nativeImg, x, y, argbToAbgr(argb));
+            int[] abgr = new int[pixels.length];
+            if (compositeMode.solidBackground()) {
+                for (int i = 0; i < pixels.length; i++) {
+                    abgr[i] = argbToAbgr(uncomposeSolidBackground(pixels[i], colorArgb, compositeMode));
+                }
+            } else {
+                for (int i = 0; i < pixels.length; i++) {
+                    abgr[i] = argbToAbgr(pixels[i]);
                 }
             }
+            com.sighs.apricityui.spi.AuiServices.render().writeImagePixels(nativeImg, 0, 0, imgW, imgH, abgr);
 
             return new RasterResult(request.cacheKey(), request.generation(), request.linear(), imgW, imgH, textureStats,
                     new RasterLayout(pad, metrics.height(), glyphAnchor(glyphTextureStats, pad, metrics.height()),

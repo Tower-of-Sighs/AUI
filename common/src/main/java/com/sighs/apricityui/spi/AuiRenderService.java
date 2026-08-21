@@ -116,6 +116,21 @@ public interface AuiRenderService {
      */
     void setImagePixel(Object nativeImage, int x, int y, int pixel);
 
+    /**
+     * Bulk-writes a width*height block of ABGR pixels (row-major, tightly packed)
+     * into the image at (x, y). Equivalent to calling {@link #setImagePixel} per
+     * pixel; backends should override with a tight loop over the concrete image
+     * type to avoid per-pixel interface dispatch.
+     */
+    default void writeImagePixels(Object nativeImage, int x, int y, int width, int height, int[] abgrPixels) {
+        int index = 0;
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                setImagePixel(nativeImage, x + col, y + row, abgrPixels[index++]);
+            }
+        }
+    }
+
     /** Releases a dynamic texture's GPU resources. */
     void closeTexture(Object texture);
 

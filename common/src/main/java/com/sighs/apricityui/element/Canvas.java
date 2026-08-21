@@ -17,6 +17,7 @@ import com.sighs.apricityui.spi.TextureKey;
 
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.io.ByteArrayOutputStream;
@@ -47,6 +48,12 @@ public class Canvas extends Element {
         return AuiServices.resources().textureLocation(key);
     }
     private boolean surfaceDirty = true;
+    // Accumulated dirty region in device pixels, empty when dirtyX1 <= dirtyX0.
+    private int dirtyX0;
+    private int dirtyY0;
+    private int dirtyX1;
+    private int dirtyY1;
+    private int[] uploadStaging = new int[0];
     private int bitmapWidth = DEFAULT_WIDTH;
     private int bitmapHeight = DEFAULT_HEIGHT;
     private final CanvasRenderingContext2D context2d;
@@ -115,6 +122,15 @@ public class Canvas extends Element {
     }
 
     public void renderOperation(Consumer<Graphics2D> action) {
+        renderOperation(action, null);
+    }
+
+    /**
+     * Runs a drawing action against the surface and marks only the given device-space
+     * bounds as needing a texture re-upload. Pass null when the touched region is
+     * unknown; the whole surface is re-uploaded in that case.
+     */
+    public void renderOperation(Consumer<Graphics2D> action, Rectangle2D dirtyBounds) {
         if (action == null) return;
         ensureSurface();
         Graphics2D g = surface.createGraphics();
@@ -124,10 +140,59 @@ public class Canvas extends Element {
         } finally {
             g.dispose();
         }
+        markSurfaceDirty(dirtyBounds);
+    }
+
+    /** Marks the whole surface dirty (unknown or full-canvas change). */
+    public void markSurfaceDirty() {
+        markSurfaceDirty(null);
+    }
+
+    /**
+     * Accumulates a device-space dirty region. Regions are unioned until
+     * {@link #syncTexture()} consumes them; a null bounds marks the whole surface.
+     * Regions falling entirely outside the canvas change nothing and are ignored.
+     */
+    public void markSurfaceDirty(Rectangle2D bounds) {
+        int x0;
+        int y0;
+        int x1;
+        int y1;
+        if (bounds == null) {
+            x0 = 0;
+            y0 = 0;
+            x1 = bitmapWidth;
+            y1 = bitmapHeight;
+        } else {
+            x0 = clamp((int) Math.floor(bounds.getMinX()), bitmapWidth);
+            y0 = clamp((int) Math.floor(bounds.getMinY()), bitmapHeight);
+            x1 = clamp((int) Math.ceil(bounds.getMaxX()), bitmapWidth);
+            y1 = clamp((int) Math.ceil(bounds.getMaxY()), bitmapHeight);
+            if (x1 <= x0 || y1 <= y0) return;
+        }
+        if (dirtyX1 > dirtyX0 && dirtyY1 > dirtyY0) {
+            x0 = Math.min(x0, dirtyX0);
+            y0 = Math.min(y0, dirtyY0);
+            x1 = Math.max(x1, dirtyX1);
+            y1 = Math.max(y1, dirtyY1);
+        }
+        dirtyX0 = x0;
+        dirtyY0 = y0;
+        dirtyX1 = x1;
+        dirtyY1 = y1;
         surfaceDirty = true;
         if (document != null) {
             document.markDirty(this, Drawer.REPAINT);
         }
+    }
+
+    private static int clamp(int value, int limit) {
+        return Math.max(0, Math.min(limit, value));
+    }
+
+    /** Test/debug visibility into the accumulated dirty region: [x0, y0, x1, y1), empty when x1 <= x0. */
+    int[] dirtyRegion() {
+        return new int[]{dirtyX0, dirtyY0, dirtyX1, dirtyY1};
     }
 
     /**
@@ -154,10 +219,7 @@ public class Canvas extends Element {
                 Arrays.fill(pixels, offset, offset + rowWidth, 0);
             }
         }
-        surfaceDirty = true;
-        if (document != null) {
-            document.markDirty(this, Drawer.REPAINT);
-        }
+        markSurfaceDirty(new Rectangle2D.Double(left, top, rowWidth, bottom - top));
     }
 
     public String toDataURL() {
@@ -267,6 +329,10 @@ public class Canvas extends Element {
         bitmapHeight = safeHeight;
         surface = new BufferedImage(bitmapWidth, bitmapHeight, BufferedImage.TYPE_INT_ARGB);
         destroyTexture();
+        dirtyX0 = 0;
+        dirtyY0 = 0;
+        dirtyX1 = 0;
+        dirtyY1 = 0;
         surfaceDirty = true;
         if (resetState) {
             context2d.resetState();
@@ -277,6 +343,7 @@ public class Canvas extends Element {
         ensureSurface();
         if (!surfaceDirty && textureLocation != null && texture != null && nativeImage != null) return;
 
+        boolean fullUpload = false;
         if (nativeImage == null || texture == null || textureLocation == null
                 || nativeImage.getWidth() != bitmapWidth || nativeImage.getHeight() != bitmapHeight) {
             destroyTexture();
@@ -288,17 +355,47 @@ public class Canvas extends Element {
                     "canvas/" + UUID.nameUUIDFromBytes(uuid.toString().getBytes(StandardCharsets.UTF_8))
             );
             AuiServices.render().registerTexture(texture, textureLocation(textureLocation));
+            fullUpload = true;
         }
 
+        int x0 = 0;
+        int y0 = 0;
+        int x1 = bitmapWidth;
+        int y1 = bitmapHeight;
+        if (!fullUpload) {
+            x0 = dirtyX0;
+            y0 = dirtyY0;
+            x1 = dirtyX1;
+            y1 = dirtyY1;
+        }
+        if (x1 > x0 && y1 > y0) {
+            copyRegionToStaging(x0, y0, x1, y1);
+            AuiServices.render().writeImagePixels(nativeImage, x0, y0, x1 - x0, y1 - y0, uploadStaging);
+            AuiServices.render().uploadTextureRegion(texture, nativeImage, x0, y0, x1 - x0, y1 - y0, true);
+        }
+        surfaceDirty = false;
+        dirtyX0 = 0;
+        dirtyY0 = 0;
+        dirtyX1 = 0;
+        dirtyY1 = 0;
+    }
+
+    /** Converts the dirty region to ABGR in one tight pass over a reused staging buffer. */
+    private void copyRegionToStaging(int x0, int y0, int x1, int y1) {
+        int regionWidth = x1 - x0;
+        int regionHeight = y1 - y0;
+        int size = regionWidth * regionHeight;
+        if (uploadStaging.length < size) {
+            uploadStaging = new int[size];
+        }
         int[] pixels = ((DataBufferInt) surface.getRaster().getDataBuffer()).getData();
-        int index = 0;
-        for (int y = 0; y < bitmapHeight; y++) {
-            for (int x = 0; x < bitmapWidth; x++) {
-                AuiServices.render().setImagePixel(nativeImage, x, y, argbToAbgr(pixels[index++]));
+        for (int row = 0; row < regionHeight; row++) {
+            int src = (y0 + row) * bitmapWidth + x0;
+            int dst = row * regionWidth;
+            for (int col = 0; col < regionWidth; col++) {
+                uploadStaging[dst + col] = argbToAbgr(pixels[src + col]);
             }
         }
-        AuiServices.render().uploadTextureRegion(texture, nativeImage, 0, 0, bitmapWidth, bitmapHeight, true);
-        surfaceDirty = false;
     }
 
     private void destroyTexture() {
@@ -330,11 +427,7 @@ public class Canvas extends Element {
     }
 
     private static int argbToAbgr(int argb) {
-        int a = (argb >>> 24) & 0xFF;
-        int r = (argb >>> 16) & 0xFF;
-        int g = (argb >>> 8) & 0xFF;
-        int b = argb & 0xFF;
-        return (a << 24) | (b << 16) | (g << 8) | r;
+        return (argb & 0xFF00FF00) | ((argb >>> 16) & 0xFF) | ((argb & 0xFF) << 16);
     }
 
     /**

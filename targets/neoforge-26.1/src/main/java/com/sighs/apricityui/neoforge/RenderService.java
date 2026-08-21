@@ -893,5 +893,16 @@ public final class RenderService implements AuiRenderService {
         ((NativeImage) nativeImage).setPixelABGR(x, y, pixel);
     }
 
+    @Override
+    public void writeImagePixels(Object nativeImage, int x, int y, int width, int height, int[] abgrPixels) {
+        NativeImage image = (NativeImage) nativeImage;
+        int index = 0;
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                image.setPixelABGR(x + col, y + row, abgrPixels[index++]);
+            }
+        }
+    }
+
     private record TextureBatchHandle(MultiBufferSource.BufferSource source, RenderType renderType) { }
 }

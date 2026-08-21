@@ -280,17 +280,13 @@ public class Image {
         int w = bi.getWidth();
         int h = bi.getHeight();
         NativeImage nativeImage = new NativeImage(w, h, false);
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int argb = bi.getRGB(x, y);
-                int a = (argb >> 24) & 0xFF;
-                int r = (argb >> 16) & 0xFF;
-                int g = (argb >> 8) & 0xFF;
-                int b = (argb) & 0xFF;
-                int abgr = (a << 24) | (b << 16) | (g << 8) | r;
-                com.sighs.apricityui.spi.AuiServices.render().setImagePixel(nativeImage, x, y, abgr);
-            }
+        int[] argb = bi.getRGB(0, 0, w, h, null, 0, w);
+        int[] abgr = new int[argb.length];
+        for (int i = 0; i < argb.length; i++) {
+            int pixel = argb[i];
+            abgr[i] = (pixel & 0xFF00FF00) | ((pixel >>> 16) & 0xFF) | ((pixel & 0xFF) << 16);
         }
+        com.sighs.apricityui.spi.AuiServices.render().writeImagePixels(nativeImage, 0, 0, w, h, abgr);
         return nativeImage;
     }
 
