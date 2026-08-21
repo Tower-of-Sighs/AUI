@@ -118,9 +118,9 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 文本
 
-- ✅ font-family（@font-face + 回退链）、font-size、line-height、text-indent、letter-spacing、white-space 六值、text-overflow:ellipsis、line-clamp、direction、text-transform（uppercase/lowercase/capitalize）；
+- ✅ font-family（@font-face + 回退链）、font-size、line-height、text-indent、letter-spacing、white-space 六值、**word-break（normal/break-all/keep-all，含基础 CJK 检测）**、text-overflow:ellipsis、line-clamp、direction、text-transform（uppercase/lowercase/capitalize）；
 - 🟡 font-weight（bolder/lighter 固定映射 700/300，不按父权重算）；**font-style 只认 oblique，italic 不触发斜体**；text-align 的 **justify 等同 start**；text-decoration 只有 underline/line-through；
-- ❌ font 简写、text-shadow、word-break、overflow-wrap、word-spacing；
+- ❌ font 简写、text-shadow、overflow-wrap、word-spacing；
 - 非标准扩展：`selection-color`（选区颜色）、`text-stroke`（描边）；
 - 默认字号固定 **16px**（web 语义：font-size 即实际渲染像素，em/rem 基准同为 16px）。
 

@@ -1224,6 +1224,7 @@ public record Size(double width, double height) {
         measuring.textAlign = base.textAlign;
         measuring.verticalAlign = base.verticalAlign;
         measuring.whiteSpace = base.whiteSpace;
+        measuring.wordBreak = base.wordBreak;
         measuring.textIndent = 0;
         measuring.letterSpacing = base.letterSpacing;
         measuring.content = text;

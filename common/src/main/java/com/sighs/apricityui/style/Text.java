@@ -97,6 +97,7 @@ public class Text {
     public String textAlign = "start";
     public String verticalAlign = "baseline";
     public String whiteSpace = "normal";
+    public String wordBreak = "normal";
     public double textIndent = 0;
     public double letterSpacing = 0;
     // 字体渲染固定为 web 模式：默认字号 16px，缩放基准 9px（即字号即实际渲染像素）。
@@ -316,6 +317,7 @@ public class Text {
         boolean textAlign;
         boolean verticalAlign;
         boolean whiteSpace;
+        boolean wordBreak;
         boolean textIndent;
         boolean letterSpacing;
     }
@@ -345,6 +347,7 @@ public class Text {
             unresolved |= resolveTextAlign(text, style, state);
             unresolved |= resolveVerticalAlign(text, style, state);
             unresolved |= resolveWhiteSpace(text, style, state);
+            unresolved |= resolveWordBreak(text, style, state);
             unresolved |= resolveTextIndent(text, style, element, state);
             unresolved |= resolveLetterSpacing(text, style, state);
             if (!unresolved) break;
@@ -469,6 +472,15 @@ public class Text {
         if (!style.whiteSpace.equals("unset")) {
             text.whiteSpace = CssString.normalizeWhiteSpace(style.whiteSpace);
             state.whiteSpace = true;
+        }
+        return true;
+    }
+
+    private static boolean resolveWordBreak(Text text, Style style, ResolveState state) {
+        if (state.wordBreak) return false;
+        if (!style.wordBreak.equals("unset")) {
+            text.wordBreak = CssString.normalizeWordBreak(style.wordBreak);
+            state.wordBreak = true;
         }
         return true;
     }
@@ -936,6 +948,7 @@ public class Text {
         h = 31 * h + (int) Math.round(text.strokeWidth * 1000);
         h = 31 * h + (text.fontFamily == null ? 0 : text.fontFamily.hashCode());
         h = 31 * h + (text.whiteSpace == null ? 0 : text.whiteSpace.hashCode());
+        h = 31 * h + (text.wordBreak == null ? 0 : text.wordBreak.hashCode());
         h = 31 * h + (text.direction == null ? 0 : text.direction.hashCode());
         h = 31 * h + (int) Math.round(text.textIndent * 1000);
         h = 31 * h + (int) Math.round(text.letterSpacing * 1000);
@@ -1013,7 +1026,7 @@ public class Text {
                 }
                 if (!firstGlyph && width + charWidth > wrapWidth) break;
                 width += charWidth;
-                if (isPreferredBreakChar(text == null ? null : text.whiteSpace, c)) {
+                if (isPreferredBreakChar(text, c) || isBreakAllOpportunity(text, codePoint)) {
                     lastBreak = lineEnd;
                 }
                 lineEnd += charCount;
@@ -1037,6 +1050,14 @@ public class Text {
                 continue;
             }
 
+            // word-break: keep-all 按标准禁止 CJK 字符间换行；无其他换行机会时允许溢出，
+            // 而不是 emergency break（这与缺少 overflow-wrap 的默认行为一致）。
+            if (text != null && "keep-all".equals(text.wordBreak) && lastBreak < lineStart) {
+                lines.add(hardLine.substring(lineStart));
+                starts.add(baseIndex + lineStart);
+                return;
+            }
+
             int resolvedEnd = lastBreak >= lineStart ? lastBreak + 1 : lineEnd;
             lines.add(hardLine.substring(lineStart, resolvedEnd));
             starts.add(baseIndex + lineStart);
@@ -1045,15 +1066,46 @@ public class Text {
 
     }
 
-    private static boolean isPreferredBreakChar(String whiteSpace, char c) {
-        String value = whiteSpace == null ? "normal" : whiteSpace;
-        boolean collapsesSpaces = "normal".equals(value) || "pre-line".equals(value);
+    private static boolean isPreferredBreakChar(Text text, char c) {
+        String whiteSpace = text == null ? "normal" : text.whiteSpace;
+        String wordBreak = text == null ? "normal" : text.wordBreak;
+        boolean collapsesSpaces = "normal".equals(whiteSpace) || "pre-line".equals(whiteSpace);
         boolean whitespaceBreak = collapsesSpaces ? c == ' ' : c == ' ' || c == '\t';
         // CSS normal line breaking permits a break after a visible hyphen.  Keep
         // the character on the preceding line; unlike a collapsed space it is
-        // part of the rendered text.  Without this, a hyphenated filename falls
-        // through to the character-by-character emergency-break path.
-        return whitespaceBreak || isHyphenBreakOpportunity(c);
+        // part of the rendered text.
+        return whitespaceBreak || isHyphenBreakOpportunity(c) || isCjkBreakOpportunity(wordBreak, c);
+    }
+
+    private static boolean isCjkBreakOpportunity(String wordBreak, char c) {
+        if (!isCjkCodePoint(c)) return false;
+        // normal / break-all \u5141\u8bb8 CJK \u5b57\u7b26\u95f4\u6362\u884c\uff1bkeep-all \u7981\u6b62\u3002
+        return !"keep-all".equals(wordBreak);
+    }
+
+    private static boolean isBreakAllOpportunity(Text text, int codePoint) {
+        if (text == null || !"break-all".equals(text.wordBreak)) return false;
+        // break-all \u8ba9\u975e CJK \u6587\u672c\u4e5f\u80fd\u5728\u4efb\u610f\u5b57\u7b26\u95f4\u6362\u884c\uff1bCJK \u5728 normal \u4e0b\u5df2\u6709\u8be5\u80fd\u529b\u3002
+        return !isCjkCodePoint(codePoint);
+    }
+
+    private static boolean isCjkCodePoint(int codePoint) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(codePoint);
+        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT
+                || block == Character.UnicodeBlock.HIRAGANA
+                || block == Character.UnicodeBlock.KATAKANA
+                || block == Character.UnicodeBlock.KATAKANA_PHONETIC_EXTENSIONS
+                || block == Character.UnicodeBlock.HANGUL_SYLLABLES
+                || block == Character.UnicodeBlock.HANGUL_JAMO
+                || block == Character.UnicodeBlock.HANGUL_JAMO_EXTENDED_A
+                || block == Character.UnicodeBlock.HANGUL_JAMO_EXTENDED_B
+                || block == Character.UnicodeBlock.HANGUL_COMPATIBILITY_JAMO
+                || block == Character.UnicodeBlock.BOPOMOFO
+                || block == Character.UnicodeBlock.BOPOMOFO_EXTENDED;
     }
 
     private static boolean isHyphenBreakOpportunity(char c) {

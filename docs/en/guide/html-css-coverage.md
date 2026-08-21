@@ -114,9 +114,9 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 ## Text
 
-- ✅ font-family (@font-face + fallback chain), font-size, line-height, text-indent, letter-spacing, the six white-space values, text-overflow:ellipsis, line-clamp, direction;
+- ✅ font-family (@font-face + fallback chain), font-size, line-height, text-indent, letter-spacing, the six white-space values, **word-break (normal/break-all/keep-all, with basic CJK detection)**, text-overflow:ellipsis, line-clamp, direction;
 - 🟡 font-weight (bolder/lighter map fixed to 700/300, not computed from the parent's weight); **font-style only honors oblique — italic does not trigger italics**; text-align's **justify is equivalent to start**; text-decoration only has underline/line-through;
-- ❌ font shorthand, text-shadow, text-transform, word-break, overflow-wrap, word-spacing;
+- ❌ font shorthand, text-shadow, text-transform, overflow-wrap, word-spacing;
 - Non-standard extensions: `selection-color` (selection color), `text-stroke` (text outline);
 - The default font size is fixed at **16px** (web semantics: font-size equals the rendered pixel size, and em/rem are based on 16px as well).
 

@@ -29,6 +29,7 @@ public final class TextMetrics {
         out.textAlign = base.textAlign;
         out.verticalAlign = base.verticalAlign;
         out.whiteSpace = base.whiteSpace;
+        out.wordBreak = base.wordBreak;
         out.textIndent = 0;
         out.letterSpacing = base.letterSpacing;
         out.size = null;

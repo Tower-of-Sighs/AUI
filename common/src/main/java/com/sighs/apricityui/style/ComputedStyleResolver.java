@@ -92,6 +92,7 @@ public final class ComputedStyleResolver {
             Map.entry("text-indent", "0px"),
             Map.entry("text-transform", "none"),
             Map.entry("white-space", "normal"),
+            Map.entry("word-break", "normal"),
             Map.entry("text-overflow", "clip"),
             Map.entry("line-clamp", "none"),
             Map.entry("flex-direction", "row"),

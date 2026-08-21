@@ -209,6 +209,15 @@ public final class CssString {
         };
     }
 
+    /** CSS 值规范化：word-break → 合法值，默认 normal。 */
+    public static String normalizeWordBreak(String raw) {
+        String value = raw == null ? "" : raw.trim().toLowerCase(Locale.ROOT);
+        return switch (value) {
+            case "normal", "break-all", "keep-all" -> value;
+            default -> "normal";
+        };
+    }
+
     /** CSS 值规范化：text-decoration → 小写，unset/initial → none。 */
     public static String normalizeTextDecoration(String raw) {
         if (raw == null || raw.isBlank()) return "none";
