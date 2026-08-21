@@ -27,6 +27,12 @@ public final class ScriptService implements AuiScriptService {
     }
 
     @Override
+    public void evalGlobal(String code, String documentUuid) {
+        if (!ApricityScriptSupport.rhinoAvailable()) return;
+        ApricityJS.evalGlobal(code, documentUuid);
+    }
+
+    @Override
     public void reload() {
         if (!ApricityScriptSupport.rhinoAvailable()) return;
         ApricityJS.reload();
