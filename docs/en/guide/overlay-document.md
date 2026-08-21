@@ -112,6 +112,8 @@ It keeps the original DOM relationships and event paths, only drawing after norm
 
 Input is dispatched to Documents front to back; if it isn't hit or consumed it passes further down. Event coordinates are logical coordinates — don't multiply by any scale.
 
+For a fullscreen Canvas in an Overlay, or when reading the mouse yourself: size from `document.getViewportSize()` and read the cursor via `document.getMouseDocumentPosition()` (at GUI scale ≥ 6 MC GUI coordinates and document coordinates diverge — see [Coordinate Conversion in gui Mode](apricity-screen#coordinate-conversion-in-gui-mode)).
+
 Two common patterns:
 
 **Modal mask** — enable interception via meta (see the [ApricityScreen meta section](apricity-screen#page-meta-configuration)) and cover the whole viewport with the mask:

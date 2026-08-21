@@ -9,6 +9,7 @@ import com.sighs.apricityui.canvas.DOMMatrix;
 import com.sighs.apricityui.loader.Loader;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.render.RenderNode;
+import com.sighs.apricityui.render.Operation;
 import com.sighs.apricityui.parser.CSS;
 import com.sighs.apricityui.parser.HTML;
 import com.sighs.apricityui.resource.async.image.ImageAsyncHandler;
@@ -159,6 +160,18 @@ public class Document {
         viewportOffsetY = Double.isFinite(offsetY) ? offsetY : 0.0d;
     }
 
+    /**
+     * Converts a position in Minecraft GUI coordinates (the space used by
+     * {@code GuiGraphics}, screen mouse events and {@code Window#getGuiScaledWidth()})
+     * into this document's CSS coordinates.
+     *
+     * <p>The two spaces are identical in {@code gui} viewport mode while the Minecraft
+     * GUI scale is &le; 5. Above that the document keeps laying out at GUI scale 5
+     * ({@link ApricityViewport} caps the document scale to bound layout cost) and is
+     * upscaled when rendered, so GUI coordinates no longer map 1:1 onto document
+     * coordinates — always convert through this method instead of mixing raw
+     * {@code Client}/{@code Window} values into document math.</p>
+     */
     public Position screenToDocumentPosition(Position screenPosition) {
         if (screenPosition == null) return Position.ZERO;
         return new Position(
@@ -167,12 +180,49 @@ public class Document {
         );
     }
 
+    /** Inverse of {@link #screenToDocumentPosition(Position)}. */
     public Position documentToScreenPosition(Position documentPosition) {
         if (documentPosition == null) return Position.ZERO;
         return new Position(
                 documentPosition.x * viewportScaleX + viewportOffsetX,
                 documentPosition.y * viewportScaleY + viewportOffsetY
         );
+    }
+
+    /**
+     * Alias of {@link #screenToDocumentPosition(Position)} with a name that states the
+     * input space explicitly: Minecraft GUI-scaled coordinates.
+     */
+    public Position guiToDocumentPosition(Position guiPosition) {
+        return screenToDocumentPosition(guiPosition);
+    }
+
+    /**
+     * Alias of {@link #documentToScreenPosition(Position)} with a name that states the
+     * output space explicitly: Minecraft GUI-scaled coordinates.
+     */
+    public Position documentToGuiPosition(Position documentPosition) {
+        return documentToScreenPosition(documentPosition);
+    }
+
+    /**
+     * Returns the current mouse cursor position in this document's CSS coordinates,
+     * or {@link Position#ZERO} when no cursor position is available. This is the
+     * one-call answer for overlay/canvas effects that track the cursor: it reads the
+     * live GUI-space cursor and applies the document viewport transform.
+     */
+    public Position getMouseDocumentPosition() {
+        return screenToDocumentPosition(Operation.getMousePositionDirectly());
+    }
+
+    /**
+     * Returns this document's CSS viewport size in logical pixels. Overlay canvases
+     * should size themselves from this (not from the raw window size) so they stay
+     * aligned with document coordinates at any GUI scale.
+     */
+    public Size getViewportSize() {
+        ApricityViewport current = viewport;
+        return new Size(current.layoutWidth(), current.layoutHeight());
     }
 
     public double getViewportScaleX() {
@@ -183,6 +233,13 @@ public class Document {
         return viewportScaleY;
     }
 
+    /**
+     * Returns the resolved logical viewport. In {@code gui} mode the document GUI scale
+     * is capped at 5: at Minecraft GUI scale 6+ the layout viewport stays at scale 5
+     * (larger CSS viewport than the MC GUI viewport) and the rendered output is upscaled.
+     * Use {@link #guiToDocumentPosition(Position)} / {@link #documentToGuiPosition(Position)}
+     * to convert coordinates between the two spaces.
+     */
     public ApricityViewport getViewport() {
         return viewport;
     }

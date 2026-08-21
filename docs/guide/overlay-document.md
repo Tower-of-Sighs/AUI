@@ -112,6 +112,8 @@ dialog.setTopLayer(true);
 
 输入按从前到后的顺序分发给各 Document，没命中或没消费就往下传。事件坐标是逻辑坐标，别乘缩放。
 
+要在 Overlay 里放全屏 Canvas 或自己读鼠标：尺寸用 `document.getViewportSize()`，鼠标用 `document.getMouseDocumentPosition()`（GUI scale ≥ 6 时 MC GUI 坐标和文档坐标不再一致，换算细节见 [gui 模式的坐标换算](apricity-screen#gui-模式的坐标换算)）。
+
 两个常用模式：
 
 **模态遮罩**——meta 开拦截（见 [ApricityScreen 的 meta 章节](apricity-screen#页面-meta-配置)），遮罩盖满视口：

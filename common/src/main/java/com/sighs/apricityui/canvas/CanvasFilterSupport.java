@@ -86,42 +86,109 @@ final class CanvasFilterSupport {
     }
 
     private static BufferedImage blur(BufferedImage source, int radius) {
-        if (radius <= 0) return source;
-        BufferedImage current = source;
-        for (int pass = 0; pass < Math.max(1, radius / 2); pass++) {
-            current = boxBlur(current, Math.max(1, radius));
-        }
-        return current;
+        // CSS blur(Npx): the length is the gaussian standard deviation.
+        return gaussianBlur(source, radius);
     }
 
-    private static BufferedImage boxBlur(BufferedImage source, int radius) {
-        BufferedImage output = new BufferedImage(source.getWidth(), source.getHeight(), BufferedImage.TYPE_INT_ARGB);
-        int[] pixels = source.getRGB(0, 0, source.getWidth(), source.getHeight(), null, 0, source.getWidth());
-        int[] result = new int[pixels.length];
+    /**
+     * Gaussian blur approximated by three separable box-blur passes with a sliding window,
+     * so the cost is O(w*h) per pass instead of O(w*h*r^2). Accumulation is done in
+     * premultiplied alpha to avoid dark fringes around transparent pixels.
+     */
+    static BufferedImage gaussianBlur(BufferedImage source, double sigma) {
+        if (source == null || sigma < 0.5) return source;
         int width = source.getWidth();
         int height = source.getHeight();
+        int[] pixels = source.getRGB(0, 0, width, height, null, 0, width);
+        int[] scratch = new int[pixels.length];
+        boolean blurred = false;
+        for (int radius : boxRadii(sigma, 3)) {
+            if (radius <= 0) continue;
+            boxBlurHorizontal(pixels, scratch, width, height, radius);
+            boxBlurVertical(scratch, pixels, width, height, radius);
+            blurred = true;
+        }
+        if (!blurred) return source;
+        BufferedImage output = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        output.setRGB(0, 0, width, height, pixels, 0, width);
+        return output;
+    }
+
+    private static int[] boxRadii(double sigma, int count) {
+        double wIdeal = Math.sqrt((12.0 * sigma * sigma / count) + 1.0);
+        int wl = (int) Math.floor(wIdeal);
+        if ((wl & 1) == 0) wl--;
+        int wu = wl + 2;
+        double mIdeal = (12.0 * sigma * sigma - count * wl * wl - 4.0 * count * wl - 3.0 * count)
+                / (-4.0 * wl - 4.0);
+        int m = (int) Math.round(mIdeal);
+        int[] radii = new int[count];
+        for (int i = 0; i < count; i++) {
+            radii[i] = ((i < m ? wl : wu) - 1) / 2;
+        }
+        return radii;
+    }
+
+    private static void boxBlurHorizontal(int[] src, int[] dst, int width, int height, int radius) {
+        int size = 2 * radius + 1;
         for (int y = 0; y < height; y++) {
+            int row = y * width;
+            long sumA = 0, sumR = 0, sumG = 0, sumB = 0;
+            for (int i = -radius; i <= radius; i++) {
+                int argb = src[row + Math.min(width - 1, Math.max(0, i))];
+                int a = (argb >>> 24) & 0xFF;
+                sumA += a;
+                sumR += ((argb >>> 16) & 0xFF) * a;
+                sumG += ((argb >>> 8) & 0xFF) * a;
+                sumB += (argb & 0xFF) * a;
+            }
             for (int x = 0; x < width; x++) {
-                int a = 0, r = 0, g = 0, b = 0, count = 0;
-                for (int oy = -radius; oy <= radius; oy++) {
-                    int py = y + oy;
-                    if (py < 0 || py >= height) continue;
-                    for (int ox = -radius; ox <= radius; ox++) {
-                        int px = x + ox;
-                        if (px < 0 || px >= width) continue;
-                        int argb = pixels[py * width + px];
-                        a += (argb >>> 24) & 0xFF;
-                        r += (argb >>> 16) & 0xFF;
-                        g += (argb >>> 8) & 0xFF;
-                        b += argb & 0xFF;
-                        count++;
-                    }
-                }
-                result[y * width + x] = ((a / count) << 24) | ((r / count) << 16) | ((g / count) << 8) | (b / count);
+                dst[row + x] = averagePixel(sumA, sumR, sumG, sumB, size);
+                int argbOut = src[row + Math.max(0, x - radius)];
+                int argbIn = src[row + Math.min(width - 1, x + radius + 1)];
+                int aOut = (argbOut >>> 24) & 0xFF;
+                int aIn = (argbIn >>> 24) & 0xFF;
+                sumA += aIn - aOut;
+                sumR += (((argbIn >>> 16) & 0xFF) * aIn) - (((argbOut >>> 16) & 0xFF) * aOut);
+                sumG += (((argbIn >>> 8) & 0xFF) * aIn) - (((argbOut >>> 8) & 0xFF) * aOut);
+                sumB += ((argbIn & 0xFF) * aIn) - ((argbOut & 0xFF) * aOut);
             }
         }
-        output.setRGB(0, 0, width, height, result, 0, width);
-        return output;
+    }
+
+    private static void boxBlurVertical(int[] src, int[] dst, int width, int height, int radius) {
+        int size = 2 * radius + 1;
+        for (int x = 0; x < width; x++) {
+            long sumA = 0, sumR = 0, sumG = 0, sumB = 0;
+            for (int i = -radius; i <= radius; i++) {
+                int argb = src[Math.min(height - 1, Math.max(0, i)) * width + x];
+                int a = (argb >>> 24) & 0xFF;
+                sumA += a;
+                sumR += ((argb >>> 16) & 0xFF) * a;
+                sumG += ((argb >>> 8) & 0xFF) * a;
+                sumB += (argb & 0xFF) * a;
+            }
+            for (int y = 0; y < height; y++) {
+                dst[y * width + x] = averagePixel(sumA, sumR, sumG, sumB, size);
+                int argbOut = src[Math.max(0, y - radius) * width + x];
+                int argbIn = src[Math.min(height - 1, y + radius + 1) * width + x];
+                int aOut = (argbOut >>> 24) & 0xFF;
+                int aIn = (argbIn >>> 24) & 0xFF;
+                sumA += aIn - aOut;
+                sumR += (((argbIn >>> 16) & 0xFF) * aIn) - (((argbOut >>> 16) & 0xFF) * aOut);
+                sumG += (((argbIn >>> 8) & 0xFF) * aIn) - (((argbOut >>> 8) & 0xFF) * aOut);
+                sumB += ((argbIn & 0xFF) * aIn) - ((argbOut & 0xFF) * aOut);
+            }
+        }
+    }
+
+    private static int averagePixel(long sumA, long sumR, long sumG, long sumB, int size) {
+        int a = (int) (sumA / size);
+        if (a <= 0) return 0;
+        int r = (int) Math.min(255, (sumR * 255 + sumA / 2) / sumA);
+        int g = (int) Math.min(255, (sumG * 255 + sumA / 2) / sumA);
+        int b = (int) Math.min(255, (sumB * 255 + sumA / 2) / sumA);
+        return (a << 24) | (r << 16) | (g << 8) | b;
     }
 
     private static BufferedImage colorMatrix(BufferedImage source, double brightness, double saturation, double hueRotate,

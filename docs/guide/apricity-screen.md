@@ -126,6 +126,21 @@ fixed 模式的 `scale` 可以是数值（`scale=1`）、`fit`（等比放进窗
 
 允许缩放时：Ctrl+滚轮、Ctrl+`+`/`-` 缩放，Ctrl+`0` 重置。缩放值按页面路径存到 `config/apricityui/viewport-zoom.properties`，重开页面会记住上次的值。
 
+### gui 模式的坐标换算
+
+`gui` 模式下文档的 GUI 缩放上限是 5。Minecraft GUI scale ≤ 5 时，文档 CSS 坐标和 Minecraft GUI 坐标（`GuiGraphics`、Screen 鼠标事件用的坐标系）完全一致，可以混用；GUI scale ≥ 6 时文档仍按 5 布局、再放大渲染，两套坐标不再 1:1。
+
+这时不要把 `Client.getWindowSize()`、`Client.getMousePositionDirectly()` 这类原始值直接当文档坐标用，用 `Document` 上的换算 API：
+
+```java
+Size viewport = document.getViewportSize();          // 文档 CSS 视口尺寸（逻辑像素）
+Position doc = document.getMouseDocumentPosition();  // 当前鼠标的文档 CSS 坐标
+Position doc2 = document.guiToDocumentPosition(gui); // MC GUI 坐标 → 文档 CSS 坐标
+Position gui = document.documentToGuiPosition(doc);  // 反向换算
+```
+
+Overlay 里放全屏 Canvas 时，Canvas 的 `width`/`height` 用 `getViewportSize()`，鼠标位置用 `getMouseDocumentPosition()`，任何 GUI scale 下都对齐。
+
 ### aui-mouse-events：输入拦截
 
 ```html

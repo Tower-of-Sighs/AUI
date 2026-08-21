@@ -111,8 +111,13 @@ final class CanvasPathSupport {
     }
 
     static boolean isPointInPath(CanvasState state, Shape shape, double x, double y) {
+        return isPointInPath(state, shape, x, y, "nonzero");
+    }
+
+    static boolean isPointInPath(CanvasState state, Shape shape, double x, double y, String fillRule) {
         if (shape == null) return false;
         Shape transformed = state.transform.createTransformedShape(shape);
+        transformed = CanvasRenderingContext2D.applyFillRule(transformed, fillRule);
         return transformed.contains(x, y);
     }
 

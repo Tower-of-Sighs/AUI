@@ -123,7 +123,9 @@ public class CanvasRenderingContext2D {
         state.globalCompositeOperation = switch (normalized) {
             case "source-in", "source-out", "source-atop", "destination-over", "destination-in",
                     "destination-out", "destination-atop", "xor", "copy", "lighter",
-                    "multiply", "screen", "darken", "lighten" -> normalized;
+                    "multiply", "screen", "darken", "lighten",
+                    "overlay", "soft-light", "hard-light", "difference", "exclusion",
+                    "color-dodge", "color-burn" -> normalized;
             default -> "source-over";
         };
     }
@@ -158,6 +160,22 @@ public class CanvasRenderingContext2D {
 
     public void setTextBaseline(String textBaseline) {
         state.textBaseline = (textBaseline == null || textBaseline.isBlank()) ? "alphabetic" : textBaseline;
+    }
+
+    public String getDirection() {
+        return state.direction;
+    }
+
+    public void setDirection(String direction) {
+        if (direction == null || direction.isBlank()) {
+            state.direction = "ltr";
+            return;
+        }
+        String normalized = direction.trim().toLowerCase(Locale.ROOT);
+        state.direction = switch (normalized) {
+            case "rtl", "inherit" -> normalized;
+            default -> "ltr";
+        };
     }
 
     public String getShadowColor() {
@@ -246,9 +264,19 @@ public class CanvasRenderingContext2D {
         canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y), true));
     }
 
+    public void fillText(String text, double x, double y, double maxWidth) {
+        if (text == null || text.isEmpty()) return;
+        canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y, maxWidth), true));
+    }
+
     public void strokeText(String text, double x, double y) {
         if (text == null || text.isEmpty()) return;
         canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y), false));
+    }
+
+    public void strokeText(String text, double x, double y, double maxWidth) {
+        if (text == null || text.isEmpty()) return;
+        canvas.renderOperation(g -> renderShape(g, buildTextOutline(g, text, x, y, maxWidth), false));
     }
 
     public CanvasTextMetrics measureText(String text) {
@@ -267,46 +295,74 @@ public class CanvasRenderingContext2D {
     public CanvasImageData getImageData(int x, int y, int width, int height) {
         BufferedImage surface = canvas.getSurface();
         CanvasImageData imageData = new CanvasImageData(width, height);
-        for (int row = 0; row < imageData.height; row++) {
-            for (int col = 0; col < imageData.width; col++) {
-                int srcX = x + col;
-                int srcY = y + row;
-                int dataIndex = (row * imageData.width + col) * 4;
-                if (srcX < 0 || srcY < 0 || srcX >= canvas.getWidth() || srcY >= canvas.getHeight()) {
-                    imageData.data[dataIndex] = 0;
-                    imageData.data[dataIndex + 1] = 0;
-                    imageData.data[dataIndex + 2] = 0;
-                    imageData.data[dataIndex + 3] = 0;
-                    continue;
-                }
-                int argb = surface.getRGB(srcX, srcY);
-                imageData.data[dataIndex] = (argb >>> 16) & 0xFF;
-                imageData.data[dataIndex + 1] = (argb >>> 8) & 0xFF;
-                imageData.data[dataIndex + 2] = argb & 0xFF;
-                imageData.data[dataIndex + 3] = (argb >>> 24) & 0xFF;
+        int sx0 = Math.max(0, x);
+        int sy0 = Math.max(0, y);
+        int sx1 = Math.min(x + imageData.width, canvas.getWidth());
+        int sy1 = Math.min(y + imageData.height, canvas.getHeight());
+        if (sx1 <= sx0 || sy1 <= sy0) return imageData;
+
+        int w = sx1 - sx0;
+        int h = sy1 - sy0;
+        int[] argb = surface.getRGB(sx0, sy0, w, h, null, 0, w);
+        int colOffset = sx0 - x;
+        for (int row = 0; row < h; row++) {
+            int dataIndex = (((sy0 - y) + row) * imageData.width + colOffset) * 4;
+            int srcIndex = row * w;
+            for (int col = 0; col < w; col++) {
+                int pixel = argb[srcIndex + col];
+                imageData.data[dataIndex] = (pixel >>> 16) & 0xFF;
+                imageData.data[dataIndex + 1] = (pixel >>> 8) & 0xFF;
+                imageData.data[dataIndex + 2] = pixel & 0xFF;
+                imageData.data[dataIndex + 3] = (pixel >>> 24) & 0xFF;
+                dataIndex += 4;
             }
         }
         return imageData;
     }
 
     public void putImageData(CanvasImageData imageData, int dx, int dy) {
-        if (imageData == null || imageData.data == null) return;
+        if (imageData == null) return;
+        putImageDataRegion(imageData, dx, dy, 0, 0, imageData.width, imageData.height);
+    }
+
+    public void putImageData(CanvasImageData imageData, int dx, int dy,
+                             int dirtyX, int dirtyY, int dirtyWidth, int dirtyHeight) {
+        if (imageData == null) return;
+        putImageDataRegion(imageData, dx, dy, dirtyX, dirtyY, dirtyWidth, dirtyHeight);
+    }
+
+    private void putImageDataRegion(CanvasImageData imageData, int dx, int dy, int rx, int ry, int rw, int rh) {
+        if (imageData.data == null) return;
+        int rx0 = Math.max(0, rx);
+        int ry0 = Math.max(0, ry);
+        int rx1 = Math.min(imageData.width, rx + rw);
+        int ry1 = Math.min(imageData.height, ry + rh);
+        if (rx1 <= rx0 || ry1 <= ry0) return;
+
         canvas.renderOperation(g -> {
-            BufferedImage surface = canvas.getSurface();
-            for (int row = 0; row < imageData.height; row++) {
-                for (int col = 0; col < imageData.width; col++) {
-                    int dstX = dx + col;
-                    int dstY = dy + row;
-                    if (dstX < 0 || dstY < 0 || dstX >= canvas.getWidth() || dstY >= canvas.getHeight()) continue;
-                    int dataIndex = (row * imageData.width + col) * 4;
+            int dx0 = Math.max(0, dx + rx0);
+            int dy0 = Math.max(0, dy + ry0);
+            int dx1 = Math.min(dx + rx1, canvas.getWidth());
+            int dy1 = Math.min(dy + ry1, canvas.getHeight());
+            if (dx1 <= dx0 || dy1 <= dy0) return;
+
+            int w = dx1 - dx0;
+            int h = dy1 - dy0;
+            int[] buffer = new int[w * h];
+            for (int row = 0; row < h; row++) {
+                int dataIndex = (((dy0 - dy) + row) * imageData.width + (dx0 - dx)) * 4;
+                int dstIndex = row * w;
+                for (int col = 0; col < w; col++) {
                     if (dataIndex + 3 >= imageData.data.length) return;
                     int r = CanvasStyleUtil.clampChannel(imageData.data[dataIndex]);
                     int gChannel = CanvasStyleUtil.clampChannel(imageData.data[dataIndex + 1]);
                     int b = CanvasStyleUtil.clampChannel(imageData.data[dataIndex + 2]);
                     int a = CanvasStyleUtil.clampChannel(imageData.data[dataIndex + 3]);
-                    surface.setRGB(dstX, dstY, (a << 24) | (r << 16) | (gChannel << 8) | b);
+                    buffer[dstIndex + col] = (a << 24) | (r << 16) | (gChannel << 8) | b;
+                    dataIndex += 4;
                 }
             }
+            canvas.getSurface().setRGB(dx0, dy0, w, h, buffer, 0, w);
         });
     }
 
@@ -403,15 +459,33 @@ public class CanvasRenderingContext2D {
     }
 
     public void fill() {
-        canvas.renderOperation(g -> renderShape(g, currentPath, true));
+        fill("nonzero");
+    }
+
+    public void fill(String fillRule) {
+        String rule = normalizeFillRule(fillRule);
+        canvas.renderOperation(g -> renderShape(g, applyFillRule(currentPath, rule), true));
     }
 
     public void fill(Object path) {
+        if (path instanceof String fillRule) {
+            fill(fillRule);
+            return;
+        }
         if (path instanceof CanvasPath2D source) {
-            canvas.renderOperation(g -> renderShape(g, source.raw(), true));
+            canvas.renderOperation(g -> renderShape(g, applyFillRule(source.raw(), inherentFillRule(source)), true));
             return;
         }
         fill();
+    }
+
+    public void fill(Object path, String fillRule) {
+        String rule = normalizeFillRule(fillRule);
+        if (path instanceof CanvasPath2D source) {
+            canvas.renderOperation(g -> renderShape(g, applyFillRule(source.raw(), rule), true));
+            return;
+        }
+        fill(rule);
     }
 
     public void stroke() {
@@ -430,11 +504,22 @@ public class CanvasRenderingContext2D {
         return CanvasPathSupport.isPointInPath(state, currentPath, x, y);
     }
 
+    public boolean isPointInPath(double x, double y, String fillRule) {
+        return CanvasPathSupport.isPointInPath(state, currentPath, x, y, normalizeFillRule(fillRule));
+    }
+
     public boolean isPointInPath(Object path, double x, double y) {
         if (path instanceof CanvasPath2D source) {
             return CanvasPathSupport.isPointInPath(state, source.raw(), x, y);
         }
         return isPointInPath(x, y);
+    }
+
+    public boolean isPointInPath(Object path, double x, double y, String fillRule) {
+        if (path instanceof CanvasPath2D source) {
+            return CanvasPathSupport.isPointInPath(state, source.raw(), x, y, normalizeFillRule(fillRule));
+        }
+        return isPointInPath(x, y, fillRule);
     }
 
     public boolean isPointInStroke(double x, double y) {
@@ -449,7 +534,39 @@ public class CanvasRenderingContext2D {
     }
 
     public void clip() {
+        clip("nonzero");
+    }
+
+    public void clip(String fillRule) {
+        String rule = normalizeFillRule(fillRule);
         Shape clipShape = state.transform.createTransformedShape(new Path2D.Double(currentPath));
+        appendClip(applyFillRule(clipShape, rule));
+    }
+
+    public void clip(Object path) {
+        if (path instanceof String fillRule) {
+            clip(fillRule);
+            return;
+        }
+        if (!(path instanceof CanvasPath2D source)) {
+            clip();
+            return;
+        }
+        Shape clipShape = state.transform.createTransformedShape(source.raw());
+        appendClip(applyFillRule(clipShape, inherentFillRule(source)));
+    }
+
+    public void clip(Object path, String fillRule) {
+        String rule = normalizeFillRule(fillRule);
+        if (!(path instanceof CanvasPath2D source)) {
+            clip(rule);
+            return;
+        }
+        Shape clipShape = state.transform.createTransformedShape(source.raw());
+        appendClip(applyFillRule(clipShape, rule));
+    }
+
+    private void appendClip(Shape clipShape) {
         if (state.clip == null) {
             state.clip = clipShape;
             return;
@@ -459,19 +576,22 @@ public class CanvasRenderingContext2D {
         state.clip = area;
     }
 
-    public void clip(Object path) {
-        if (!(path instanceof CanvasPath2D source)) {
-            clip();
-            return;
-        }
-        Shape clipShape = state.transform.createTransformedShape(source.raw());
-        if (state.clip == null) {
-            state.clip = clipShape;
-            return;
-        }
-        Area area = new Area(state.clip);
-        area.intersect(new Area(clipShape));
-        state.clip = area;
+    static String normalizeFillRule(Object fillRule) {
+        return fillRule != null && "evenodd".equalsIgnoreCase(fillRule.toString().trim()) ? "evenodd" : "nonzero";
+    }
+
+    /** Re-wraps the shape with the even-odd winding rule when requested. */
+    static Shape applyFillRule(Shape shape, String fillRule) {
+        if (shape == null || !"evenodd".equals(fillRule)) return shape;
+        if (shape instanceof Path2D path && path.getWindingRule() == Path2D.WIND_EVEN_ODD) return shape;
+        Path2D.Double copy = new Path2D.Double(Path2D.WIND_EVEN_ODD);
+        copy.append(shape, false);
+        copy.setWindingRule(Path2D.WIND_EVEN_ODD);
+        return copy;
+    }
+
+    private static String inherentFillRule(CanvasPath2D path) {
+        return path.raw().getWindingRule() == Path2D.WIND_EVEN_ODD ? "evenodd" : "nonzero";
     }
 
     public void save() {
@@ -534,6 +654,10 @@ public class CanvasRenderingContext2D {
 
     public CanvasRadialGradient createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1) {
         return new CanvasRadialGradient((float) x0, (float) y0, (float) r0, (float) x1, (float) y1, (float) r1);
+    }
+
+    public CanvasConicGradient createConicGradient(double startAngle, double x, double y) {
+        return new CanvasConicGradient((float) startAngle, (float) x, (float) y);
     }
 
     public CanvasPattern createPattern(Object image, String repetition) {
@@ -604,6 +728,12 @@ public class CanvasRenderingContext2D {
         currentPath.reset();
     }
 
+    /** Standard {@code ctx.reset()}: restores the default rendering state and clears the canvas. */
+    public void reset() {
+        resetState();
+        canvas.clearSurfaceRect(0, 0, canvas.getWidth(), canvas.getHeight());
+    }
+
     private void renderShape(Graphics2D g, Shape shape, boolean fill) {
         if (shape == null) return;
         CanvasFilterSupport.renderWithFilter(canvas, state.filter, g, layer -> {
@@ -665,30 +795,76 @@ public class CanvasRenderingContext2D {
         }
     }
 
+    /**
+     * Shadows are rasterized into an offscreen layer, blurred with a real gaussian blur and
+     * composited once, so the cost stays flat no matter how large shadowBlur gets (the old
+     * implementation re-stroked the shape ceil(blur) times per draw call).
+     */
     private void drawShadowIfNeeded(Graphics2D g, Shape shape, boolean fill) {
         Color shadow = CanvasStyleUtil.parseAwtColor(state.shadowColor);
         if (shadow.getAlpha() <= 0) return;
+        float alpha = (float) state.globalAlpha;
+        if (alpha <= 0) return;
+
+        Shape paintShape = fill ? shape : createStroke(state.lineWidth).createStrokedShape(shape);
+        AffineTransform deviceTransform = new AffineTransform(state.transform);
+        deviceTransform.translate(state.shadowOffsetX, state.shadowOffsetY);
+        Shape deviceShape = deviceTransform.createTransformedShape(paintShape);
 
         double blur = Math.max(0, state.shadowBlur);
-        int passes = Math.max(1, (int) Math.ceil(blur));
-        float baseAlpha = (shadow.getAlpha() / 255f) * (float) state.globalAlpha;
-        if (baseAlpha <= 0) return;
+        ShadowLayer layer = createShadowLayer(deviceShape.getBounds2D(), blur);
+        if (layer == null) return;
 
-        for (int pass = passes; pass >= 1; pass--) {
-            Graphics2D shadowGraphics = (Graphics2D) g.create();
-            try {
-                applyTransformAndClip(shadowGraphics);
-                shadowGraphics.translate(state.shadowOffsetX, state.shadowOffsetY);
-                shadowGraphics.setStroke(createStroke(Math.max(0.1, state.lineWidth + pass * 0.8)));
-                float alpha = baseAlpha * (0.16f + 0.12f * pass / passes);
-                shadowGraphics.setComposite(resolveComposite(alpha));
-                shadowGraphics.setPaint(new Color(shadow.getRed(), shadow.getGreen(), shadow.getBlue(), shadow.getAlpha()));
-                if (fill) shadowGraphics.fill(shape);
-                else shadowGraphics.draw(shape);
-            } finally {
-                shadowGraphics.dispose();
-            }
+        Graphics2D layerGraphics = layer.image().createGraphics();
+        try {
+            Canvas.applyGraphicsDefaults(layerGraphics);
+            layerGraphics.translate(-layer.x(), -layer.y());
+            layerGraphics.setPaint(shadow);
+            layerGraphics.fill(deviceShape);
+        } finally {
+            layerGraphics.dispose();
         }
+        compositeShadowLayer(g, layer, blur, alpha);
+    }
+
+    private void compositeShadowLayer(Graphics2D g, ShadowLayer layer, double blur, float alpha) {
+        BufferedImage image = layer.image();
+        if (blur > 0) {
+            // Browser convention: shadowBlur corresponds to a gaussian sigma of blur / 2.
+            image = CanvasFilterSupport.gaussianBlur(image, blur / 2.0);
+        }
+        Graphics2D target = (Graphics2D) g.create();
+        try {
+            applyClip(target);
+            target.setComposite(resolveComposite(alpha));
+            target.drawImage(image, layer.x(), layer.y(), null);
+        } finally {
+            target.dispose();
+        }
+    }
+
+    /**
+     * Allocates the offscreen layer covering the device-space bounds expanded by the blur
+     * reach, clamped to the region that can actually bleed into the canvas.
+     */
+    private ShadowLayer createShadowLayer(Rectangle2D bounds, double blur) {
+        double pad = blur > 0 ? blur * 2.0 + 2.0 : 2.0;
+        int bx = (int) Math.floor(bounds.getMinX() - pad);
+        int by = (int) Math.floor(bounds.getMinY() - pad);
+        int bx1 = (int) Math.ceil(bounds.getMaxX() + pad);
+        int by1 = (int) Math.ceil(bounds.getMaxY() + pad);
+
+        int reach = (int) Math.ceil(pad);
+        int rx = Math.max(bx, -reach);
+        int ry = Math.max(by, -reach);
+        int rx1 = Math.min(bx1, canvas.getWidth() + reach);
+        int ry1 = Math.min(by1, canvas.getHeight() + reach);
+        if (rx1 <= rx || ry1 <= ry) return null;
+
+        return new ShadowLayer(new BufferedImage(rx1 - rx, ry1 - ry, BufferedImage.TYPE_INT_ARGB), rx, ry);
+    }
+
+    private record ShadowLayer(BufferedImage image, int x, int y) {
     }
 
     private void applyPaintState(Graphics2D g, boolean fill) {
@@ -741,6 +917,13 @@ public class CanvasRenderingContext2D {
             case "screen" -> new BlendComposite(BlendComposite.Mode.SCREEN, alpha);
             case "darken" -> new BlendComposite(BlendComposite.Mode.DARKEN, alpha);
             case "lighten" -> new BlendComposite(BlendComposite.Mode.LIGHTEN, alpha);
+            case "overlay" -> new BlendComposite(BlendComposite.Mode.OVERLAY, alpha);
+            case "soft-light" -> new BlendComposite(BlendComposite.Mode.SOFT_LIGHT, alpha);
+            case "hard-light" -> new BlendComposite(BlendComposite.Mode.HARD_LIGHT, alpha);
+            case "difference" -> new BlendComposite(BlendComposite.Mode.DIFFERENCE, alpha);
+            case "exclusion" -> new BlendComposite(BlendComposite.Mode.EXCLUSION, alpha);
+            case "color-dodge" -> new BlendComposite(BlendComposite.Mode.COLOR_DODGE, alpha);
+            case "color-burn" -> new BlendComposite(BlendComposite.Mode.COLOR_BURN, alpha);
             default -> AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha);
         };
     }
@@ -752,6 +935,9 @@ public class CanvasRenderingContext2D {
         if (style instanceof CanvasRadialGradient gradient) {
             return gradient.toPaint();
         }
+        if (style instanceof CanvasConicGradient gradient) {
+            return gradient.toPaint();
+        }
         if (style instanceof CanvasPattern pattern) {
             Paint paint = pattern.toPaint();
             if (paint != null) return paint;
@@ -761,6 +947,10 @@ public class CanvasRenderingContext2D {
 
     private Shape buildTextOutline(Graphics2D g, String text, double x, double y) {
         return CanvasTextSupport.buildTextOutline(g, state, text, x, y);
+    }
+
+    private Shape buildTextOutline(Graphics2D g, String text, double x, double y, double maxWidth) {
+        return CanvasTextSupport.buildTextOutline(g, state, text, x, y, maxWidth);
     }
 
     private BufferedImage resolveImageSource(Object image) {
@@ -797,35 +987,38 @@ public class CanvasRenderingContext2D {
     private void drawImageShadow(Graphics2D g, BufferedImage source, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh) {
         Color shadow = CanvasStyleUtil.parseAwtColor(state.shadowColor);
         if (shadow.getAlpha() <= 0) return;
+        float alpha = (float) state.globalAlpha;
+        if (alpha <= 0) return;
 
         BufferedImage shadowSource = CanvasImageSupport.tintImageAlpha(source, shadow);
         if (shadowSource == null) return;
 
-        double blur = Math.max(0, state.shadowBlur);
-        int passes = Math.max(1, (int) Math.ceil(blur));
-        float baseAlpha = (shadow.getAlpha() / 255f) * (float) state.globalAlpha;
-        if (baseAlpha <= 0) return;
+        AffineTransform deviceTransform = new AffineTransform(state.transform);
+        deviceTransform.translate(state.shadowOffsetX, state.shadowOffsetY);
+        Shape deviceBounds = deviceTransform.createTransformedShape(new Rectangle2D.Double(dx, dy, dw, dh));
 
-        for (int pass = passes; pass >= 1; pass--) {
-            Graphics2D shadowGraphics = (Graphics2D) g.create();
-            try {
-                applyTransformAndClip(shadowGraphics);
-                shadowGraphics.translate(state.shadowOffsetX, state.shadowOffsetY);
-                shadowGraphics.setComposite(resolveComposite(baseAlpha * (0.16f + 0.12f * pass / passes)));
-                int spread = Math.max(0, pass - 1);
-                int srcX1 = (int) Math.round(sx);
-                int srcY1 = (int) Math.round(sy);
-                int srcX2 = (int) Math.round(sx + sw);
-                int srcY2 = (int) Math.round(sy + sh);
-                int dstX1 = (int) Math.round(dx) - spread;
-                int dstY1 = (int) Math.round(dy) - spread;
-                int dstX2 = (int) Math.round(dx + dw) + spread;
-                int dstY2 = (int) Math.round(dy + dh) + spread;
-                shadowGraphics.drawImage(shadowSource, dstX1, dstY1, dstX2, dstY2, srcX1, srcY1, srcX2, srcY2, null);
-            } finally {
-                shadowGraphics.dispose();
-            }
+        double blur = Math.max(0, state.shadowBlur);
+        ShadowLayer layer = createShadowLayer(deviceBounds.getBounds2D(), blur);
+        if (layer == null) return;
+
+        Graphics2D layerGraphics = layer.image().createGraphics();
+        try {
+            Canvas.applyGraphicsDefaults(layerGraphics);
+            layerGraphics.translate(-layer.x(), -layer.y());
+            layerGraphics.transform(deviceTransform);
+            int srcX1 = (int) Math.round(sx);
+            int srcY1 = (int) Math.round(sy);
+            int srcX2 = (int) Math.round(sx + sw);
+            int srcY2 = (int) Math.round(sy + sh);
+            int dstX1 = (int) Math.round(dx);
+            int dstY1 = (int) Math.round(dy);
+            int dstX2 = (int) Math.round(dx + dw);
+            int dstY2 = (int) Math.round(dy + dh);
+            layerGraphics.drawImage(shadowSource, dstX1, dstY1, dstX2, dstY2, srcX1, srcY1, srcX2, srcY2, null);
+        } finally {
+            layerGraphics.dispose();
         }
+        compositeShadowLayer(g, layer, blur, alpha);
     }
 
 }

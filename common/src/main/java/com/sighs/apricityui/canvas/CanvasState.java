@@ -20,6 +20,7 @@ final class CanvasState {
     String font = DEFAULT_FONT;
     String textAlign = "start";
     String textBaseline = "alphabetic";
+    String direction = "ltr";
     String shadowColor = "transparent";
     double shadowBlur = 0.0;
     double shadowOffsetX = 0.0;
@@ -45,6 +46,7 @@ final class CanvasState {
         copy.font = font;
         copy.textAlign = textAlign;
         copy.textBaseline = textBaseline;
+        copy.direction = direction;
         copy.shadowColor = shadowColor;
         copy.shadowBlur = shadowBlur;
         copy.shadowOffsetX = shadowOffsetX;

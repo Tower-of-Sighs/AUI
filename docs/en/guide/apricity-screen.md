@@ -126,6 +126,21 @@ All modes support zoom parameters:
 
 When zooming is allowed: Ctrl+wheel and Ctrl+`+`/`-` zoom, Ctrl+`0` resets. The zoom value is stored per page path in `config/apricityui/viewport-zoom.properties`, so reopening the page remembers the last value.
 
+### Coordinate Conversion in gui Mode
+
+In `gui` mode the document's GUI scale is capped at 5. While the Minecraft GUI scale is ≤ 5, document CSS coordinates are identical to Minecraft GUI coordinates (the space used by `GuiGraphics` and Screen mouse events) and can be mixed freely. At GUI scale ≥ 6 the document keeps laying out at scale 5 and is upscaled when rendered, so the two coordinate spaces no longer map 1:1.
+
+In that case, don't treat raw values like `Client.getWindowSize()` or `Client.getMousePositionDirectly()` as document coordinates — use the conversion API on `Document`:
+
+```java
+Size viewport = document.getViewportSize();          // document CSS viewport size (logical pixels)
+Position doc = document.getMouseDocumentPosition();  // current mouse position in document CSS coordinates
+Position doc2 = document.guiToDocumentPosition(gui); // MC GUI coordinates → document CSS coordinates
+Position gui = document.documentToGuiPosition(doc);  // inverse conversion
+```
+
+For a fullscreen Canvas in an Overlay, size the canvas `width`/`height` from `getViewportSize()` and read the mouse through `getMouseDocumentPosition()` — it stays aligned at any GUI scale.
+
 ### aui-mouse-events: Input Interception
 
 ```html

@@ -13,7 +13,14 @@ final class BlendComposite implements Composite {
         MULTIPLY,
         SCREEN,
         DARKEN,
-        LIGHTEN
+        LIGHTEN,
+        OVERLAY,
+        HARD_LIGHT,
+        SOFT_LIGHT,
+        DIFFERENCE,
+        EXCLUSION,
+        COLOR_DODGE,
+        COLOR_BURN
     }
 
     private final Mode mode;
@@ -69,7 +76,24 @@ final class BlendComposite implements Composite {
                 case SCREEN -> 1f - (1f - src) * (1f - dst);
                 case DARKEN -> Math.min(src, dst);
                 case LIGHTEN -> Math.max(src, dst);
+                case OVERLAY -> dst <= 0.5f ? 2f * src * dst : 1f - 2f * (1f - src) * (1f - dst);
+                case HARD_LIGHT -> src <= 0.5f ? 2f * src * dst : 1f - 2f * (1f - src) * (1f - dst);
+                case SOFT_LIGHT -> softLight(src, dst);
+                case DIFFERENCE -> Math.abs(dst - src);
+                case EXCLUSION -> dst + src - 2f * dst * src;
+                case COLOR_DODGE -> src >= 1f ? 1f : Math.min(1f, dst / (1f - src));
+                case COLOR_BURN -> src <= 0f ? 0f : 1f - Math.min(1f, (1f - dst) / src);
             };
+        }
+
+        private static float softLight(float src, float dst) {
+            if (src <= 0.5f) {
+                return dst - (1f - 2f * src) * dst * (1f - dst);
+            }
+            float d = dst <= 0.25f
+                    ? ((16f * dst - 12f) * dst + 4f) * dst
+                    : (float) Math.sqrt(dst);
+            return dst + (2f * src - 1f) * (d - dst);
         }
 
         private static int clamp(int value) {
