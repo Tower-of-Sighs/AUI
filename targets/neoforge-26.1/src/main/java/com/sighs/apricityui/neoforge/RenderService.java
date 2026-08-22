@@ -114,6 +114,7 @@ public final class RenderService implements AuiRenderService {
     private float opacity = 1.0f;
     private float forceAlpha;
     private float clipEnabled;
+    private float dynamicRangeLimit = 1.0f;
     private float radius;
     private float shadowOffsetX;
     private float shadowOffsetY;
@@ -318,6 +319,7 @@ public final class RenderService implements AuiRenderService {
             case "Opacity" -> opacity = value;
             case "ForceAlpha" -> forceAlpha = value;
             case "ClipEnabled" -> clipEnabled = value;
+            case "DynamicRangeLimit" -> dynamicRangeLimit = value;
             case "Radius" -> radius = value;
             default -> { }
         }
@@ -507,7 +509,7 @@ public final class RenderService implements AuiRenderService {
                     .putVec4(clipRadiusTopLeft, clipRadiusTopRight,
                             clipRadiusBottomRight, clipRadiusBottomLeft)
                     .putVec4(directionX, directionY, 0.0f, 0.0f)
-                    .putVec4(contrast, saturate, sepia, 0.0f)
+                    .putVec4(contrast, saturate, sepia, dynamicRangeLimit)
                     .get();
         }
         return filterUniformBuffer;

@@ -86,6 +86,8 @@ public class Color {
             return parseRgba(input);
         } else if (input.startsWith("hsl(")) {
             return parseHsl(input);
+        } else if (input.startsWith("color(") && isSrgbLinearFunction(input)) {
+            return parseSrgbLinear(input);
         } else {
             return NAMED_COLORS.getOrDefault(input, 0);
         }
@@ -251,6 +253,54 @@ public class Color {
         } catch (NumberFormatException ex) {
             return 0;
         }
+    }
+
+    /** Parses CSS Color 4 color(srgb-linear r g b / a), converting to sRGB ARGB. */
+    private static int parseSrgbLinear(String input) {
+        int start = input.indexOf('('), end = input.lastIndexOf(')');
+        if (start < 0 || end <= start) return 0;
+        String inside = input.substring(start + 1, end).trim();
+        if (!isSrgbLinearFunction(input)) return 0;
+        String channels = inside.substring("srgb-linear".length()).trim();
+        String[] parts = splitColorComponents(channels);
+        if (parts.length < 3) return 0;
+        try {
+            double r = linearToSrgb(parseLinearComponent(parts[0]));
+            double g = linearToSrgb(parseLinearComponent(parts[1]));
+            double b = linearToSrgb(parseLinearComponent(parts[2]));
+            double a = parts.length >= 4 ? parseAlphaDouble(parts[3]) : 1.0;
+            return (clampInt((int) Math.round(a * 255), 0, 255) << 24)
+                    | (clampInt((int) Math.round(r * 255), 0, 255) << 16)
+                    | (clampInt((int) Math.round(g * 255), 0, 255) << 8)
+                    | clampInt((int) Math.round(b * 255), 0, 255);
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
+    }
+
+    private static double parseLinearComponent(String token) {
+        token = token.trim();
+        double value = token.endsWith("%")
+                ? Double.parseDouble(token.substring(0, token.length() - 1)) / 100.0
+                : Double.parseDouble(token);
+        // CSS Color 4 keeps out-of-range color() components until the used-value
+        // stage. Keep a bounded HDR range here so values above SDR white are not
+        // discarded before the renderer's dynamic-range-limit mapping.
+        if (!Double.isFinite(value)) throw new NumberFormatException("non-finite color component");
+        return Math.max(-16.0, Math.min(16.0, value));
+    }
+
+    private static double linearToSrgb(double value) {
+        return value <= 0.0031308 ? 12.92 * value : 1.055 * Math.pow(value, 1.0 / 2.4) - 0.055;
+    }
+
+    private static boolean isSrgbLinearFunction(String input) {
+        int start = input.indexOf('('), end = input.lastIndexOf(')');
+        if (start < 0 || end <= start) return false;
+        String inside = input.substring(start + 1, end).trim();
+        int separator = 0;
+        while (separator < inside.length() && !Character.isWhitespace(inside.charAt(separator))) separator++;
+        return "srgb-linear".equals(inside.substring(0, separator).toLowerCase(Locale.ROOT));
     }
 
     private static int parseColorComponent(String token) {

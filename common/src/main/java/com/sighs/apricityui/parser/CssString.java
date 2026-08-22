@@ -233,7 +233,18 @@ public final class CssString {
         if (Color.isColorKeyword(value)) return true;
         if (value.startsWith("#")) return true;
         return value.startsWith("rgb(") || value.startsWith("rgba(")
-                || value.startsWith("hsl(") || value.startsWith("hsla(");
+                || value.startsWith("hsl(") || value.startsWith("hsla(")
+                || isSrgbLinearColorFunction(value);
+    }
+
+    private static boolean isSrgbLinearColorFunction(String value) {
+        if (!value.startsWith("color(")) return false;
+        int end = value.indexOf(')');
+        if (end < 0) return false;
+        String body = value.substring("color(".length(), end).trim();
+        int separator = 0;
+        while (separator < body.length() && !isCssWhitespace(body.charAt(separator))) separator++;
+        return separator > 0 && "srgb-linear".equals(body.substring(0, separator));
     }
 
     private static boolean isCssHexDigit(char value) {

@@ -170,7 +170,7 @@ public class FilterRenderer {
                 drawMaskBlit(maskFbo, MaskImage.effectiveLuminance(layers));
             }
             AuiServices.render().bindWrite(parentFbo, true);
-            drawWithShader(contentFbo, contentFbo, Filter.FilterState.EMPTY);
+            drawWithShader(contentFbo, contentFbo, Filter.FilterState.EMPTY, 1.0f);
         } finally {
             if (parentFbo != null) AuiServices.render().bindWrite(parentFbo, true);
         }
@@ -280,6 +280,10 @@ public class FilterRenderer {
     }
 
     public static void popFilter(Filter.FilterState state) {
+        popFilter(state, 1.0f);
+    }
+
+    public static void popFilter(Filter.FilterState state, float dynamicRangeLimit) {
         if (fboStack.isEmpty()) return;
 
         // 在切回父 FBO 之前 flush 批处理绘制，使 batched draw calls
@@ -294,10 +298,65 @@ public class FilterRenderer {
             FboHandle shadowFbo = state.hasDropShadow()
                     ? prepareFullFilterSource(currentFbo, state.dropShadowBlur()) : currentFbo;
             AuiServices.render().bindWrite(parentFbo, true);
-            drawWithShader(filteredFbo, shadowFbo, state);
+            drawWithShader(filteredFbo, shadowFbo, state, dynamicRangeLimit);
         } finally {
             if (parentFbo != null) AuiServices.render().bindWrite(parentFbo, true);
         }
+    }
+
+    /** Composites an isolated element layer using the CSS mix-blend-mode operator. */
+    public static void popBlend(String mode) {
+        if (fboStack.isEmpty()) return;
+        ImageDrawer.flushBatch();
+        Graph.endBatch();
+        FboHandle source = fboStack.pop();
+        FboHandle parent = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
+        if (parent == null) return;
+        AuiServices.render().bindWrite(parent, true);
+        withBlendMode(mode, () -> drawTexture(source));
+    }
+
+    private static void withBlendMode(String mode, Runnable body) {
+        AuiRenderService.RenderStateScope scope = AuiServices.render().pushFilterRenderState();
+        if (scope == null) scope = AuiRenderService.RenderStateScope.NOOP;
+        AuiServices.render().enableBlend();
+        AuiServices.render().disableDepthTest();
+        AuiServices.render().setDepthMask(false);
+        int src = GL11.GL_SRC_ALPHA, dst = GL11.GL_ONE_MINUS_SRC_ALPHA;
+        String m = mode == null ? "normal" : mode.toLowerCase(Locale.ROOT).trim();
+        switch (m) {
+            case "multiply" -> { src = GL11.GL_DST_COLOR; dst = GL11.GL_ONE_MINUS_SRC_ALPHA; }
+            case "screen" -> { src = GL11.GL_ONE; dst = GL11.GL_ONE_MINUS_SRC_COLOR; }
+            case "darken" -> { src = GL11.GL_ONE; dst = GL11.GL_ONE; }
+            case "lighten" -> { src = GL11.GL_ONE; dst = GL11.GL_ONE; }
+            case "difference" -> { src = GL11.GL_ONE_MINUS_DST_COLOR; dst = GL11.GL_ONE_MINUS_SRC_COLOR; }
+            case "exclusion" -> { src = GL11.GL_ONE_MINUS_DST_COLOR; dst = GL11.GL_ONE_MINUS_SRC_COLOR; }
+            default -> { }
+        }
+        AuiServices.render().setBlendFuncSeparate(src, dst, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        try { body.run(); } finally {
+            AuiServices.render().setDepthMask(true);
+            if (Base.isDepthTestEnabled()) AuiServices.render().enableDepthTest();
+            scope.close();
+        }
+    }
+
+    private static void drawTexture(FboHandle fbo) {
+        Object shader = AuiServices.render().getFilterShader();
+        if (shader == null) return;
+        Base.setShader(shader);
+        setupUniforms(shader, Filter.FilterState.EMPTY, fbo, false, true, 1.0f,
+                1.0f / Math.max(1, AuiServices.client().getScaledWidth()),
+                1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
+        AuiServices.render().bindColorTexture(fbo, 0);
+        Base.setShaderColor(1, 1, 1, 1);
+        float w = (float) AuiServices.client().getScaledWidth();
+        float h = (float) AuiServices.client().getScaledHeight();
+        Base.setProjectionMatrix(orthoProjection(w, h));
+        MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+        Matrix4f id = new Matrix4f();
+        mesh.vertexUV(id, 0, h, 0, 0, 0); mesh.vertexUV(id, w, h, 0, 1, 0);
+        mesh.vertexUV(id, w, 0, 0, 1, 1); mesh.vertexUV(id, 0, 0, 0, 0, 1); mesh.submit();
     }
 
     /** Runs a shader pass with the standard filter blend/depth state. */
@@ -331,7 +390,8 @@ public class FilterRenderer {
         }
     }
 
-    private static void drawWithShader(FboHandle fbo, FboHandle shadowFbo, Filter.FilterState state) {
+    private static void drawWithShader(FboHandle fbo, FboHandle shadowFbo, Filter.FilterState state,
+                                       float dynamicRangeLimit) {
         Object shader = AuiServices.render().getFilterShader();
 
         withBlendRenderState(true, () -> {
@@ -341,7 +401,7 @@ public class FilterRenderer {
                 Base.setShader(shader);
                 // Blur is precomputed as two separable passes. The composite shader
                 // only applies the inexpensive color/opacity/shadow operations.
-                setupUniforms(shader, state, fbo, false, true,
+                setupUniforms(shader, state, fbo, false, true, dynamicRangeLimit,
                         1.0f / Math.max(1, AuiServices.client().getScaledWidth()),
                         1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
             }
@@ -398,7 +458,7 @@ public class FilterRenderer {
             Base.setProjectionMatrix(orthoProjection(guiW, guiH));
 
             Base.setShader(shader);
-            setupUniforms(shader, state, source.target(), true, true, source.uvPerGuiX(), source.uvPerGuiY());
+            setupUniforms(shader, state, source.target(), true, true, 1.0f, source.uvPerGuiX(), source.uvPerGuiY());
             setupBackdropClipUniforms(shader, rect, guiW, guiH);
             AuiServices.render().bindColorTexture(source.target(), 0);
             AuiServices.render().bindColorTexture(shadowTarget, 1);
@@ -556,7 +616,7 @@ public class FilterRenderer {
                                   float uvPerGuiX, float uvPerGuiY) {}
 
     private static void setupUniforms(Object shader, Filter.FilterState state, FboHandle fbo,
-                                      boolean forceAlpha, boolean preBlurred,
+                                      boolean forceAlpha, boolean preBlurred, float dynamicRangeLimit,
                                       float uvPerGuiX, float uvPerGuiY) {
         float blurRadius = preBlurred ? 0.0f
                 : (forceAlpha ? Math.min(state.blurRadius(), MAX_REASONABLE_BACKDROP_BLUR) : state.blurRadius());
@@ -569,6 +629,7 @@ public class FilterRenderer {
         AuiServices.render().setShaderUniformFloat("Invert", state.invert());
         AuiServices.render().setShaderUniformFloat("HueRotate", state.hueRotate());
         AuiServices.render().setShaderUniformFloat("Opacity", state.opacity());
+        AuiServices.render().setShaderUniformFloat("DynamicRangeLimit", dynamicRangeLimit);
         AuiServices.render().setShaderUniform2f("ShadowOffset", state.dropShadowX(), state.dropShadowY());
         AuiServices.render().setShaderUniformFloat("ShadowBlur", state.dropShadowBlur());
         int c = state.dropShadowColor();

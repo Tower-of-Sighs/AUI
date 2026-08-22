@@ -10,6 +10,7 @@ uniform float Grayscale;
 uniform float Invert;
 uniform float HueRotate;
 uniform float Opacity;
+uniform float DynamicRangeLimit;
 uniform vec2 ShadowOffset;
 uniform vec4 ShadowColor;
 uniform float ForceAlpha;
@@ -27,6 +28,15 @@ vec3 applyHue(vec3 color, float angle) {
     vec3 k = vec3(0.57735);
     float cosAngle = cos(h);
     return color * cosAngle + cross(k, color) * sin(h) + k * dot(k, color) * (1.0 - cosAngle);
+}
+
+vec3 srgbToLinear(vec3 c) {
+    return mix(c / 12.92, pow(max((c + 0.055) / 1.055, vec3(0.0)), vec3(2.4)), step(vec3(0.04045), c));
+}
+
+vec3 linearToSrgb(vec3 c) {
+    return mix(c * 12.92, 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055,
+               step(vec3(0.0031308), c));
 }
 
 void main() {
@@ -103,6 +113,11 @@ void main() {
 
     if (abs(HueRotate) > 0.1) {
         color.rgb = applyHue(color.rgb, HueRotate);
+    }
+
+    float rangeLimit = max(DynamicRangeLimit, 0.0);
+    if (rangeLimit >= 0.0) {
+        color.rgb = linearToSrgb(min(max(srgbToLinear(color.rgb), vec3(0.0)), vec3(rangeLimit)));
     }
 
     float srcA = max(0.0, color.a * Opacity);

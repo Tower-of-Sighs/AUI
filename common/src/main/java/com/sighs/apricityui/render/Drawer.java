@@ -4,6 +4,7 @@ import com.sighs.apricityui.render.Base;
 import com.sighs.apricityui.render.RenderNode;
 import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.DynamicRangeLimit;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.style.Transform;
@@ -176,6 +177,10 @@ public class Drawer {
         }
 
         boolean hasFilter = hasCompositedFilter(contextRoot, rootStyle);
+        boolean hasBlend = hasMixBlendMode(rootStyle);
+        boolean hasIsolation = hasIsolation(rootStyle);
+        if (hasIsolation) paintList.add(new RenderNode.IsolationPushNode(contextRoot));
+        if (hasBlend) paintList.add(new RenderNode.BlendPushNode(contextRoot));
         if (hasFilter) {
             paintList.add(new RenderNode.FilterPushNode(contextRoot));
         }
@@ -285,6 +290,8 @@ public class Drawer {
             paintList.add(new RenderNode.ScrollbarNode(contextRoot));
         }
         if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
+        if (hasBlend) paintList.add(new RenderNode.BlendPopNode(contextRoot));
+        if (hasIsolation) paintList.add(new RenderNode.IsolationPopNode(contextRoot));
         if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
         if (hasMaskImage) paintList.add(new RenderNode.MaskImagePopNode(contextRoot));
     }
@@ -409,8 +416,18 @@ public class Drawer {
 
     private static boolean hasCompositedFilter(Element element, Style style) {
         if (!Filter.isDisabled(style.filter, style.opacity)) return true;
+        if (DynamicRangeLimit.isActive(style.dynamicRangeLimit)) return true;
         if (Transition.affectsFilter(element)) return true;
         return Animation.affectsFilter(style);
+    }
+
+    private static boolean hasMixBlendMode(Style style) {
+        String mode = style == null || style.mixBlendMode == null ? "normal" : style.mixBlendMode.trim();
+        return !mode.isEmpty() && !"normal".equalsIgnoreCase(mode) && !"unset".equalsIgnoreCase(mode);
+    }
+
+    private static boolean hasIsolation(Style style) {
+        return style != null && "isolate".equalsIgnoreCase(style.isolation == null ? "auto" : style.isolation.trim());
     }
 
     private static boolean createsPaintStackingContext(Element element, Style style) {
@@ -422,6 +439,8 @@ public class Drawer {
                 || !position.equals("static")
                 || hasCompositedFilter(element, style)
                 || hasBackdrop
+                || hasMixBlendMode(style)
+                || hasIsolation(style)
                 || Transform.createsStackingContext(style.transform);
     }
 

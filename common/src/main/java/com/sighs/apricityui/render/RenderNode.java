@@ -7,6 +7,7 @@ import com.sighs.apricityui.spi.AuiItemRenderRequest;
 import com.sighs.apricityui.spi.AuiServices;
 import com.sighs.apricityui.style.Style;
 import com.sighs.apricityui.style.Filter;
+import com.sighs.apricityui.style.DynamicRangeLimit;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.MaskImage;
 import com.sighs.apricityui.layout.Position;
@@ -63,6 +64,10 @@ public interface RenderNode {
         if (node instanceof RenderNode.MaskImagePushNode n) return n.target();
         if (node instanceof RenderNode.MaskImagePopNode n) return n.target();
         if (node instanceof RenderNode.BackdropFilterNode n) return n.target();
+        if (node instanceof RenderNode.BlendPushNode n) return n.target();
+        if (node instanceof RenderNode.BlendPopNode n) return n.target();
+        if (node instanceof RenderNode.IsolationPushNode n) return n.target();
+        if (node instanceof RenderNode.IsolationPopNode n) return n.target();
         return null;
     }
 
@@ -546,7 +551,8 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderEffects()) return;
-            if (!Filter.isDisabled(target)) FilterRenderer.pushFilter();
+            if (!Filter.isDisabled(target)
+                    || DynamicRangeLimit.isActive(target.getComputedStyle().dynamicRangeLimit)) FilterRenderer.pushFilter();
         }
     }
 
@@ -554,7 +560,38 @@ public interface RenderNode {
         @Override
         public void render(PoseStack poseStack) {
             if (!WorldWindowRenderContext.shouldRenderEffects()) return;
-            if (!Filter.isDisabled(target)) FilterRenderer.popFilter(Filter.getFilterOf(target));
+            if (!Filter.isDisabled(target)
+                    || DynamicRangeLimit.isActive(target.getComputedStyle().dynamicRangeLimit)) {
+                FilterRenderer.popFilter(Filter.getFilterOf(target),
+                        DynamicRangeLimit.resolve(target.getComputedStyle().dynamicRangeLimit));
+            }
+        }
+    }
+
+    record BlendPushNode(Element target) implements RenderNode {
+        @Override public boolean advancesPaintDepth() { return false; }
+        @Override public void render(PoseStack poseStack) {
+            if (WorldWindowRenderContext.shouldRenderEffects()) FilterRenderer.pushFilter();
+        }
+    }
+
+    record BlendPopNode(Element target) implements RenderNode {
+        @Override public void render(PoseStack poseStack) {
+            if (!WorldWindowRenderContext.shouldRenderEffects()) return;
+            FilterRenderer.popBlend(target.getComputedStyle().mixBlendMode);
+        }
+    }
+
+    record IsolationPushNode(Element target) implements RenderNode {
+        @Override public boolean advancesPaintDepth() { return false; }
+        @Override public void render(PoseStack poseStack) {
+            if (WorldWindowRenderContext.shouldRenderEffects()) FilterRenderer.pushFilter();
+        }
+    }
+
+    record IsolationPopNode(Element target) implements RenderNode {
+        @Override public void render(PoseStack poseStack) {
+            if (WorldWindowRenderContext.shouldRenderEffects()) FilterRenderer.popFilter(Filter.FilterState.EMPTY);
         }
     }
 

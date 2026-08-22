@@ -24,7 +24,8 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     static final Set<String> INHERITED_PROPERTIES = Set.of(
             "color", "selection-color", "font-size", "font-family", "font-weight", "font-style",
             "line-height", "direction", "letter-spacing", "text-align", "text-indent", "text-transform",
-            "white-space", "word-break", "cursor", "visibility", "accent-color", "text-stroke"
+            "white-space", "word-break", "cursor", "visibility", "accent-color", "text-stroke",
+            "dynamic-range-limit"
     );
 
     public String width = "unset";
@@ -39,6 +40,9 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
     public String overflowX = "unset";
     public String overflowY = "unset";
     public String opacity = "1.0";
+    public String dynamicRangeLimit = "standard";
+    public String mixBlendMode = "normal";
+    public String isolation = "auto";
     public String boxShadow = "unset";
     public String zIndex = "auto";
     public String display = "block";

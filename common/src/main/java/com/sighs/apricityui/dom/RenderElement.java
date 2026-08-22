@@ -387,7 +387,7 @@ public class RenderElement {
     );
 
     private static final Set<String> VISUAL_BOX_PROPS = Set.of(
-            "color", "visibility", "opacity",
+            "color", "visibility", "opacity", "dynamicRangeLimit", "mixBlendMode", "isolation",
             "borderRadius",
             "boxShadow",
             "backgroundColor", "backgroundImage", "backgroundRepeat", "backgroundSize", "backgroundPosition",
@@ -407,7 +407,7 @@ public class RenderElement {
     );
 
     private static final Set<String> STRUCTURAL_PROPS = Set.of(
-            "clipPath", "filter", "backdropFilter", "overflow", "overflowX", "overflowY", "maskImage"
+            "clipPath", "filter", "backdropFilter", "mixBlendMode", "isolation", "overflow", "overflowX", "overflowY", "maskImage"
     );
 
     private static final Set<String> MASK_PROPS = Set.of(
@@ -456,6 +456,17 @@ public class RenderElement {
             // filter/opacity 离屏合成开关变化时，必须重建 Push/Pop 节点
             dirtyMask |= Drawer.REORDER;
         }
+
+        boolean originBlend = origin.mixBlendMode != null && !origin.mixBlendMode.equalsIgnoreCase("normal");
+        boolean currentBlend = current.mixBlendMode != null && !current.mixBlendMode.equalsIgnoreCase("normal");
+        if (originBlend != currentBlend) dirtyMask |= Drawer.REORDER;
+        boolean originIsolation = origin.isolation != null && origin.isolation.equalsIgnoreCase("isolate");
+        boolean currentIsolation = current.isolation != null && current.isolation.equalsIgnoreCase("isolate");
+        if (originIsolation != currentIsolation) dirtyMask |= Drawer.REORDER;
+        boolean originRange = DynamicRangeLimit.isActive(origin.dynamicRangeLimit);
+        boolean currentRange = DynamicRangeLimit.isActive(current.dynamicRangeLimit);
+        if (originRange != currentRange) dirtyMask |= Drawer.REORDER;
+        if (!Objects.equals(origin.dynamicRangeLimit, current.dynamicRangeLimit)) dirtyMask |= Drawer.REPAINT;
 
         if (!current.transform.equals(origin.transform) || !current.transformOrigin.equals(origin.transformOrigin)) {
             renderer.transform.clear();
