@@ -30,6 +30,8 @@ public class FilterRenderer {
     private static int poolPointer = 0;
     private static final List<FboHandle> backdropPool = new ArrayList<>();
     private static int backdropPoolPointer = 0;
+    /** Optional external backdrop used by mix-blend-mode and backdrop-filter. */
+    private static FboHandle compositingReference;
     private static final float MAX_REASONABLE_BACKDROP_BLUR = 32.0f;
     private static boolean stencilCapabilityResolved;
     private static boolean stencilAvailable = true;
@@ -79,6 +81,9 @@ public class FilterRenderer {
         mainRenderTarget = AuiServices.render().getMainRenderTarget();
         poolPointer = 0;
         backdropPoolPointer = 0;
+        // The reference is a frame-scoped backdrop source. Holding an FBO
+        // from the previous frame can sample a destroyed or resized target.
+        compositingReference = null;
     }
 
     public static void endFrame() {
@@ -88,6 +93,7 @@ public class FilterRenderer {
                 AuiServices.render().bindWrite(mainRenderTarget, false);
             }
         }
+        compositingReference = null;
     }
 
     public static void pushFilter() {
@@ -283,6 +289,26 @@ public class FilterRenderer {
         popFilter(state, 1.0f);
     }
 
+    /**
+     * Supplies the framebuffer that CSS compositing effects should sample as
+     * their backdrop. The reference is never written by AUI; it is copied to
+     * an internal snapshot immediately before each pass, which makes it safe
+     * to point at the currently bound parent target.
+     */
+    public static void setCompositingReference(FboHandle reference) {
+        compositingReference = reference;
+    }
+
+    /** Clears the external compositing reference and restores parent sampling. */
+    public static void clearCompositingReference() {
+        compositingReference = null;
+    }
+
+    /** Returns the currently configured external compositing reference. */
+    public static FboHandle getCompositingReference() {
+        return compositingReference;
+    }
+
     public static void popFilter(Filter.FilterState state, float dynamicRangeLimit) {
         if (fboStack.isEmpty()) return;
 
@@ -304,7 +330,12 @@ public class FilterRenderer {
         }
     }
 
-    /** Composites an isolated element layer using the CSS mix-blend-mode operator. */
+    /**
+     * Composites an isolated element layer using CSS Compositing and Blending
+     * Level 1. Both textures are sampled by the shader; fixed-function
+     * blending is disabled so darken/lighten/HSL operators and partial alpha
+     * use the same formula on every backend.
+     */
     public static void popBlend(String mode) {
         if (fboStack.isEmpty()) return;
         ImageDrawer.flushBatch();
@@ -312,51 +343,70 @@ public class FilterRenderer {
         FboHandle source = fboStack.pop();
         FboHandle parent = fboStack.isEmpty() ? mainRenderTarget : fboStack.peek();
         if (parent == null) return;
+
+        FboHandle reference = compositingReference != null ? compositingReference : parent;
+        FboHandle backdrop = snapshotReference(reference);
         AuiServices.render().bindWrite(parent, true);
-        withBlendMode(mode, () -> drawTexture(source));
+        drawBlend(source, backdrop, mode);
     }
 
-    private static void withBlendMode(String mode, Runnable body) {
-        AuiRenderService.RenderStateScope scope = AuiServices.render().pushFilterRenderState();
-        if (scope == null) scope = AuiRenderService.RenderStateScope.NOOP;
-        AuiServices.render().enableBlend();
-        AuiServices.render().disableDepthTest();
-        AuiServices.render().setDepthMask(false);
-        int src = GL11.GL_SRC_ALPHA, dst = GL11.GL_ONE_MINUS_SRC_ALPHA;
-        String m = mode == null ? "normal" : mode.toLowerCase(Locale.ROOT).trim();
-        switch (m) {
-            case "multiply" -> { src = GL11.GL_DST_COLOR; dst = GL11.GL_ONE_MINUS_SRC_ALPHA; }
-            case "screen" -> { src = GL11.GL_ONE; dst = GL11.GL_ONE_MINUS_SRC_COLOR; }
-            case "darken" -> { src = GL11.GL_ONE; dst = GL11.GL_ONE; }
-            case "lighten" -> { src = GL11.GL_ONE; dst = GL11.GL_ONE; }
-            case "difference" -> { src = GL11.GL_ONE_MINUS_DST_COLOR; dst = GL11.GL_ONE_MINUS_SRC_COLOR; }
-            case "exclusion" -> { src = GL11.GL_ONE_MINUS_DST_COLOR; dst = GL11.GL_ONE_MINUS_SRC_COLOR; }
-            default -> { }
-        }
-        AuiServices.render().setBlendFuncSeparate(src, dst, GL11.GL_ONE, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        try { body.run(); } finally {
-            AuiServices.render().setDepthMask(true);
-            if (Base.isDepthTestEnabled()) AuiServices.render().enableDepthTest();
-            scope.close();
-        }
+    private static FboHandle snapshotReference(FboHandle reference) {
+        if (reference == null || reference.width <= 0 || reference.height <= 0) return null;
+        FboHandle snapshot = acquireBackdropTarget(reference.width, reference.height);
+        blitRegion(reference, snapshot, 0, 0, reference.width, reference.height);
+        return snapshot;
     }
 
-    private static void drawTexture(FboHandle fbo) {
+    private static void drawBlend(FboHandle source, FboHandle backdrop, String mode) {
+        Object shader = AuiServices.render().getFilterBlendShader();
+        if (shader == null || backdrop == null) {
+            // Third-party bridges compiled before the blend SPI can still
+            // display the layer with ordinary source-over compositing.
+            drawSourceOver(source);
+            return;
+        }
+
+        withBlendRenderState(false, () -> {
+            Base.setShader(shader);
+            AuiServices.render().setShaderUniformFloat("BlendMode", CssBlendMode.id(mode));
+            AuiServices.render().bindColorTexture(source, 0);
+            if (backdrop != null) AuiServices.render().bindColorTexture(backdrop, 1);
+            Base.setShaderColor(1, 1, 1, 1);
+
+            float width = (float) AuiServices.client().getScaledWidth();
+            float height = (float) AuiServices.client().getScaledHeight();
+            Base.setProjectionMatrix(orthoProjection(width, height));
+            MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+            Matrix4f identity = new Matrix4f();
+            mesh.vertexUV(identity, 0, height, 0, 0, 0);
+            mesh.vertexUV(identity, width, height, 0, 1, 0);
+            mesh.vertexUV(identity, width, 0, 0, 1, 1);
+            mesh.vertexUV(identity, 0, 0, 0, 0, 1);
+            mesh.submit();
+        });
+    }
+
+    private static void drawSourceOver(FboHandle source) {
         Object shader = AuiServices.render().getFilterShader();
         if (shader == null) return;
-        Base.setShader(shader);
-        setupUniforms(shader, Filter.FilterState.EMPTY, fbo, false, true, 1.0f,
-                1.0f / Math.max(1, AuiServices.client().getScaledWidth()),
-                1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
-        AuiServices.render().bindColorTexture(fbo, 0);
-        Base.setShaderColor(1, 1, 1, 1);
-        float w = (float) AuiServices.client().getScaledWidth();
-        float h = (float) AuiServices.client().getScaledHeight();
-        Base.setProjectionMatrix(orthoProjection(w, h));
-        MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
-        Matrix4f id = new Matrix4f();
-        mesh.vertexUV(id, 0, h, 0, 0, 0); mesh.vertexUV(id, w, h, 0, 1, 0);
-        mesh.vertexUV(id, w, 0, 0, 1, 1); mesh.vertexUV(id, 0, 0, 0, 0, 1); mesh.submit();
+        withBlendRenderState(true, () -> {
+            Base.setShader(shader);
+            setupUniforms(shader, Filter.FilterState.EMPTY, source, false, true, 1.0f,
+                    1.0f / Math.max(1, AuiServices.client().getScaledWidth()),
+                    1.0f / Math.max(1, AuiServices.client().getScaledHeight()));
+            AuiServices.render().bindColorTexture(source, 0);
+            Base.setShaderColor(1, 1, 1, 1);
+            float width = (float) AuiServices.client().getScaledWidth();
+            float height = (float) AuiServices.client().getScaledHeight();
+            Base.setProjectionMatrix(orthoProjection(width, height));
+            MeshBuilder mesh = AuiServices.render().beginMesh(MeshMode.QUADS, MeshFormat.POSITION_TEX);
+            Matrix4f identity = new Matrix4f();
+            mesh.vertexUV(identity, 0, height, 0, 0, 0);
+            mesh.vertexUV(identity, width, height, 0, 1, 0);
+            mesh.vertexUV(identity, width, 0, 0, 1, 1);
+            mesh.vertexUV(identity, 0, 0, 0, 0, 1);
+            mesh.submit();
+        });
     }
 
     /** Runs a shader pass with the standard filter blend/depth state. */
@@ -429,18 +479,19 @@ public class FilterRenderer {
         // element. It also creates a natural batch boundary for the FBO copy.
         Base.commitDraws();
 
-        FboHandle currentBound = fboStack.isEmpty() ? AuiServices.render().getMainRenderTarget() : fboStack.peek();
+        FboHandle destination = fboStack.isEmpty() ? AuiServices.render().getMainRenderTarget() : fboStack.peek();
+        FboHandle sampleSource = compositingReference != null ? compositingReference : destination;
         Filter.FilterState state = Filter.getBackdropFilterOf(target);
         Rect rect = Rect.of(target);
         try {
-            BackdropSource source = prepareBackdropSource(currentBound, rect, state.blurRadius());
+            BackdropSource source = prepareBackdropSource(sampleSource, rect, state.blurRadius());
             if (source == null) return;
             FboHandle shadowTarget = prepareBackdropShadow(source, state);
 
-            AuiServices.render().bindWrite(currentBound, true);
+            AuiServices.render().bindWrite(destination, true);
             drawBackdropWithShader(source, shadowTarget, state, rect);
         } finally {
-            if (currentBound != null) AuiServices.render().bindWrite(currentBound, true);
+            if (destination != null) AuiServices.render().bindWrite(destination, true);
         }
     }
 

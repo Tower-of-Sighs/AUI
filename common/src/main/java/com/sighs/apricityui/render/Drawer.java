@@ -207,6 +207,8 @@ public class Drawer {
                 paintList.add(new RenderNode.ScrollbarNode(contextRoot));
             }
             if (hasFilter) paintList.add(new RenderNode.FilterPopNode(contextRoot));
+            if (hasBlend) paintList.add(new RenderNode.BlendPopNode(contextRoot));
+            if (hasIsolation) paintList.add(new RenderNode.IsolationPopNode(contextRoot));
             if (hasClipPath) paintList.add(new RenderNode.ClipPathPopNode(contextRoot));
             if (hasMaskImage) paintList.add(new RenderNode.MaskImagePopNode(contextRoot));
             return;
@@ -422,8 +424,8 @@ public class Drawer {
     }
 
     private static boolean hasMixBlendMode(Style style) {
-        String mode = style == null || style.mixBlendMode == null ? "normal" : style.mixBlendMode.trim();
-        return !mode.isEmpty() && !"normal".equalsIgnoreCase(mode) && !"unset".equalsIgnoreCase(mode);
+        if (style == null) return false;
+        return CssBlendMode.parse(style.mixBlendMode) != CssBlendMode.Mode.NORMAL;
     }
 
     private static boolean hasIsolation(Style style) {

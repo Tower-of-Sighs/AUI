@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="aui-viewport" content="mode=browser">
+    <meta name="aui-mouse-events" content="intercept">
+    <title>Ore compositing bench</title>
+    <link rel="stylesheet" href="../apricityui/theme/ore/ore.css">
+    <style>
+        /* This page is deliberately self-contained so it remains a useful
+           regression fixture when the theme is opened without its showcase. */
+        .ore-theme { background: var(--ore-canvas); }
+        .ore-theme .bench-hero { padding: 24px 0 18px; }
+        .ore-theme .bench-kicker { margin-bottom: 8px; color: var(--ore-gold); font-size: 12px; }
+        .ore-theme .bench-hero h1 { margin-bottom: 8px; }
+        .ore-theme .bench-lede { max-width: 860px; margin: 0; color: var(--ore-ink-muted); }
+        .ore-theme .bench-status {
+            min-height: 42px; margin-top: 16px; padding: 8px 10px; border: 3px solid var(--ore-edge);
+            color: #e9f6e2; background: #2d4029; box-shadow: inset 0 4px #45603e;
+            font-family: OreRegular, monospace; font-size: 12px; line-height: 1.45;
+        }
+        .ore-theme .bench-status.is-error { color: #ffe4de; background: #542d29; box-shadow: inset 0 4px #713b35; }
+        .ore-theme .bench-toolbar { margin-top: 18px; }
+        .ore-theme .bench-toolbar .card-body { padding: 14px 16px; }
+        .ore-theme .bench-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
+        .ore-theme .bench-control { min-width: 0; }
+        .ore-theme .bench-control .form-label { margin-bottom: 5px; color: var(--ore-ink-muted); font-size: 12px; }
+        .ore-theme .bench-toolbar .button { min-width: 120px; }
+        .ore-theme .bench-declaration {
+            min-height: 88px; margin: 14px 0 0; padding: 10px; border: 3px solid var(--ore-edge);
+            color: #dfe7dc; background: #242527; box-shadow: inset 0 5px #171819;
+            font-family: OreRegular, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap;
+        }
+        .ore-theme .bench-section { margin-top: 28px; }
+        .ore-theme .bench-section-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+        .ore-theme .bench-section-number {
+            width: 34px; height: 34px; flex: 0 0 34px; border: 3px solid var(--ore-edge);
+            color: #201809; background: var(--ore-gold); box-shadow: inset 3px 3px #ffe28a, inset -3px -3px #9a6e08;
+            font-family: OreDisplay, sans-serif; line-height: 28px; text-align: center;
+        }
+        .ore-theme .bench-section-head h2 { margin: 0 0 3px; font-size: 22px; }
+        .ore-theme .bench-section-head p { margin: 0; color: var(--ore-ink-muted); font-size: 13px; }
+        .ore-theme .bench-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+        .ore-theme .bench-span-4 { grid-column: span 4; }
+        .ore-theme .bench-span-5 { grid-column: span 5; }
+        .ore-theme .bench-span-7 { grid-column: span 7; }
+        .ore-theme .bench-span-8 { grid-column: span 8; }
+        .ore-theme .bench-span-12 { grid-column: span 12; }
+        .ore-theme .bench-card-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .ore-theme .bench-card-title code { color: var(--ore-gold); font-size: 12px; }
+        .ore-theme .bench-card-copy { margin: 0 0 12px; color: var(--ore-ink-muted); font-size: 12px; }
+        .ore-theme .live-stage {
+            position: relative; min-height: 278px; overflow: hidden; border: 3px solid var(--ore-edge);
+            background:
+                linear-gradient(135deg, rgba(46, 118, 163, .96), rgba(46, 118, 163, .2) 55%, rgba(35, 106, 31, .8)),
+                #2e76a3;
+            box-shadow: inset 4px 4px #6b8ea5, inset -4px -4px #162b3a;
+        }
+        .ore-theme .live-stage::before,
+        .ore-theme .live-stage::after { position: absolute; content: ""; border: 3px solid rgba(255,255,255,.62); }
+        .ore-theme .live-stage::before {
+            top: 28px; left: 28px; width: 150px; height: 150px; background: rgba(179,59,49,.9); transform: rotate(-12deg);
+        }
+        .ore-theme .live-stage::after {
+            right: 24px; bottom: 32px; width: 154px; height: 154px; background: rgba(45,120,168,.74); transform: rotate(12deg);
+        }
+        .ore-theme .live-crosshair { position: absolute; top: 50%; right: 0; left: 0; border-top: 2px dashed rgba(255,255,255,.24); }
+        .ore-theme .live-target {
+            position: absolute; top: 76px; left: 50%; width: 190px; height: 116px; margin-left: -95px;
+            border: 4px solid var(--ore-edge); color: #201809; background: rgba(240,185,45,.92);
+            box-shadow: inset 5px 5px #ffe28a, inset -5px -7px #9a6e08, 7px 7px rgba(0,0,0,.35);
+            font-family: OreDisplay, sans-serif; font-size: 21px; line-height: 108px; text-align: center; transform: rotate(-4deg);
+        }
+        .ore-theme .live-target::after { position: absolute; top: 14px; right: 14px; bottom: 14px; left: 14px; border: 2px solid rgba(32,24,9,.55); content: ""; }
+        .ore-theme .live-caption {
+            position: absolute; right: 10px; bottom: 10px; left: 10px; padding: 5px 7px; color: #fff;
+            background: rgba(0,0,0,.66); font-family: OreRegular, monospace; font-size: 12px; text-align: center;
+        }
+        .ore-theme .operator-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+        .ore-theme .operator-cell { min-width: 0; border: 2px solid var(--ore-edge); background: #252628; }
+        .ore-theme .operator-label {
+            min-height: 28px; padding: 5px; color: #fff; background: var(--ore-surface-deep);
+            font-family: OreRegular, monospace; font-size: 11px; line-height: 1.15; text-align: center; overflow-wrap: anywhere;
+        }
+        .ore-theme .operator-scene { position: relative; height: 58px; overflow: hidden; background: #b33b31; }
+        .ore-theme .operator-scene::before,
+        .ore-theme .operator-scene::after { position: absolute; top: 5px; width: 48px; height: 48px; content: ""; }
+        .ore-theme .operator-scene::before { left: 10px; background: #2d78a8; }
+        .ore-theme .operator-scene::after { right: 10px; background: #f0b92d; mix-blend-mode: var(--operator); }
+        .ore-theme .operator-cell.is-active { border-color: var(--ore-gold); box-shadow: 0 0 0 2px #9a6e08; }
+        .ore-theme .operator-cell.is-active .operator-label { color: #201809; background: var(--ore-gold); }
+        .ore-theme .iso-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .ore-theme .iso-scene {
+            position: relative; min-height: 218px; overflow: hidden; border: 3px solid var(--ore-edge);
+            background: linear-gradient(90deg, rgba(179,59,49,.92) 0 33%, rgba(240,185,45,.82) 33% 66%, rgba(45,120,168,.92) 66%), #b33b31;
+        }
+        .ore-theme .iso-scene::before { position: absolute; top: 18px; right: 15px; width: 78px; height: 78px; border: 3px solid rgba(255,255,255,.48); background: rgba(115,69,229,.8); content: ""; transform: rotate(18deg); }
+        .ore-theme .iso-group { position: absolute; top: 35px; left: 50%; width: 230px; height: 144px; margin-left: -115px; border: 4px solid var(--ore-edge); background: rgba(32,33,36,.08); }
+        .ore-theme .iso-group::after { position: absolute; top: 9px; right: 9px; bottom: 9px; left: 9px; border: 2px dashed rgba(255,255,255,.35); content: ""; pointer-events: none; }
+        .ore-theme .iso-base,
+        .ore-theme .iso-blend { position: absolute; top: 20px; width: 102px; height: 102px; border: 3px solid rgba(255,255,255,.68); }
+        .ore-theme .iso-base { left: 20px; background: rgba(45,120,168,.72); }
+        .ore-theme .iso-blend { right: -24px; width: 128px; background: rgba(240,185,45,.9); mix-blend-mode: multiply; transform: rotate(10deg); }
+        .ore-theme .iso-caption { position: absolute; right: 8px; bottom: 7px; left: 8px; color: #fff; font-family: OreRegular, monospace; font-size: 11px; text-align: center; }
+        .ore-theme .hdr-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+        .ore-theme .hdr-swatch {
+            min-height: 150px; padding: 9px; border: 3px solid var(--ore-edge); color: #201809;
+            display: flex; flex-direction: column; justify-content: flex-end;
+        }
+        .ore-theme .hdr-swatch.neutral { background-color: color(srgb-linear .18 .18 .18); }
+        .ore-theme .hdr-swatch.sdr { background-color: color(srgb-linear .5 .18 .04); }
+        .ore-theme .hdr-swatch.live { background-color: color(srgb-linear 2 .45 .04 / 75%); }
+        .ore-theme .hdr-swatch.extended { background-color: color(srgb-linear 8 1.8 .15); }
+        .ore-theme .hdr-chip { padding: 5px 6px; border: 2px solid rgba(32,24,9,.62); background: rgba(255,255,255,.52); font-size: 11px; line-height: 1.25; }
+        .ore-theme .hdr-value { margin-top: 5px; font-family: OreRegular, monospace; font-size: 10px; line-height: 1.25; overflow-wrap: anywhere; }
+        .ore-theme .bench-readback { min-height: 116px; margin: 0; padding: 10px; border: 3px solid var(--ore-edge); color: #dfe7dc; background: #242527; box-shadow: inset 0 5px #171819; font-family: OreRegular, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+        .ore-theme .check-table { width: 100%; border-collapse: collapse; color: var(--ore-ink); font-size: 12px; }
+        .ore-theme .check-table th, .ore-theme .check-table td { padding: 8px; border-bottom: 2px solid #292a2b; text-align: left; vertical-align: top; }
+        .ore-theme .check-table th { color: #fff; background: var(--ore-surface-deep); font-family: OreDisplay, sans-serif; font-weight: 400; }
+        .ore-theme .check-state { color: #8bd067; font-family: OreRegular, monospace; white-space: nowrap; }
+        .ore-theme .check-state.is-fail { color: #ef8178; }
+        .ore-theme .bench-note { margin: 12px 0 0; }
+        .ore-theme .bench-footer { margin: 28px 0 34px; color: var(--ore-ink-muted); font-size: 12px; }
+        @media (max-width: 900px) {
+            .ore-theme .bench-span-4, .ore-theme .bench-span-5, .ore-theme .bench-span-7, .ore-theme .bench-span-8 { grid-column: span 12; }
+            .ore-theme .hdr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        }
+        @media (max-width: 620px) {
+            .ore-theme .bench-controls, .ore-theme .iso-board, .ore-theme .hdr-grid { grid-template-columns: 1fr; }
+            .ore-theme .operator-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .ore-theme .live-stage { min-height: 245px; }
+            .ore-theme .live-target { width: 164px; height: 104px; margin-left: -82px; line-height: 96px; }
+        }
+    </style>
+</head>
+<body class="ore-theme">
+<main class="container">
+    <header class="bench-hero">
+        <div class="bench-kicker">APRICITYUI / ORE RENDER LAB / CSS COMPOSITING</div>
+        <h1>Compositing bench</h1>
+        <p class="bench-lede">A compact visual regression fixture for <code>mix-blend-mode</code>, <code>isolation</code>, <code>color(srgb-linear ...)</code>, and <code>dynamic-range-limit</code>. Pick a declaration, then compare the live layer, the reference grid, and CSSOM readback.</p>
+        <div class="cluster mt-3">
+            <span class="badge badge-success">FBO blend</span>
+            <span class="badge badge-purple">isolated group</span>
+            <span class="badge badge-warning">linear-light color</span>
+            <span class="badge">readback</span>
+        </div>
+        <p class="bench-status" id="bench-status" role="status">Initializing compositor checks...</p>
+    </header>
+
+    <section class="card card-accent-gold bench-toolbar" aria-labelledby="control-title">
+        <div class="card-header bench-card-title"><span id="control-title">Declaration controls</span><span class="badge" id="state-badge">ready</span></div>
+        <div class="card-body">
+            <div class="bench-controls">
+                <div class="bench-control form-group">
+                    <label class="form-label" for="blend-select">mix-blend-mode</label>
+                    <select class="form-select" id="blend-select">
+                        <option value="normal">normal</option>
+                        <option value="multiply">multiply</option>
+                        <option value="screen" selected>screen</option>
+                        <option value="overlay">overlay</option>
+                        <option value="darken">darken</option>
+                        <option value="lighten">lighten</option>
+                        <option value="color-dodge">color-dodge</option>
+                        <option value="color-burn">color-burn</option>
+                        <option value="hard-light">hard-light</option>
+                        <option value="soft-light">soft-light</option>
+                        <option value="difference">difference</option>
+                        <option value="exclusion">exclusion</option>
+                        <option value="hue">hue</option>
+                        <option value="saturation">saturation</option>
+                        <option value="color">color</option>
+                        <option value="luminosity">luminosity</option>
+                        <option value="plus-lighter">plus-lighter</option>
+                    </select>
+                </div>
+                <div class="bench-control form-group">
+                    <label class="form-label" for="isolation-select">isolation</label>
+                    <select class="form-select" id="isolation-select">
+                        <option value="auto" selected>auto</option>
+                        <option value="isolate">isolate</option>
+                    </select>
+                </div>
+                <div class="bench-control form-group">
+                    <label class="form-label" for="range-select">dynamic-range-limit</label>
+                    <select class="form-select" id="range-select">
+                        <option value="standard" selected>standard</option>
+                        <option value="constrained">constrained</option>
+                        <option value="50%">50%</option>
+                        <option value="1">1</option>
+                        <option value="200%">200%</option>
+                        <option value="4">4</option>
+                        <option value="no-limit">no-limit</option>
+                    </select>
+                </div>
+            </div>
+            <div class="cluster">
+                <button class="button button-primary" id="reset-button" type="button">Reset declarations</button>
+                <span class="text-muted font-sm">Each change invalidates the affected paint list and shader pass.</span>
+            </div>
+            <pre class="bench-declaration" id="declaration-output">mix-blend-mode: screen;&#10;isolation: auto;&#10;dynamic-range-limit: standard;&#10;background-color: color(srgb-linear 2 .45 .04 / 75%);</pre>
+        </div>
+    </section>
+
+    <section class="bench-section" aria-labelledby="live-title">
+        <div class="bench-section-head"><span class="bench-section-number">01</span><div><h2 id="live-title">Live compositor</h2><p>The gold layer is rendered through the selected blend operator against the colored backdrop.</p></div></div>
+        <div class="bench-grid">
+            <article class="card bench-span-7">
+                <div class="card-header bench-card-title"><span>Source-over viewport</span><code id="live-code">screen</code></div>
+                <div class="card-body">
+                    <div class="live-stage" id="live-stage">
+                        <div class="live-crosshair"></div>
+                        <div class="live-target" id="blend-target">LIVE LAYER</div>
+                        <div class="live-caption" id="live-caption">mix-blend-mode: screen</div>
+                    </div>
+                </div>
+                <div class="card-footer"><span class="text-muted">The backdrop remains unchanged while only the center layer changes operator.</span></div>
+            </article>
+            <article class="card card-accent-purple bench-span-5">
+                <div class="card-header bench-card-title"><span>Operator reference matrix</span><code>17 modes</code></div>
+                <div class="card-body">
+                    <div class="operator-grid">
+                        <div class="operator-cell is-active" data-mode="normal"><div class="operator-label">normal</div><div class="operator-scene" style="--operator: normal"></div></div>
+                        <div class="operator-cell" data-mode="multiply"><div class="operator-label">multiply</div><div class="operator-scene" style="--operator: multiply"></div></div>
+                        <div class="operator-cell" data-mode="screen"><div class="operator-label">screen</div><div class="operator-scene" style="--operator: screen"></div></div>
+                        <div class="operator-cell" data-mode="overlay"><div class="operator-label">overlay</div><div class="operator-scene" style="--operator: overlay"></div></div>
+                        <div class="operator-cell" data-mode="darken"><div class="operator-label">darken</div><div class="operator-scene" style="--operator: darken"></div></div>
+                        <div class="operator-cell" data-mode="lighten"><div class="operator-label">lighten</div><div class="operator-scene" style="--operator: lighten"></div></div>
+                        <div class="operator-cell" data-mode="color-dodge"><div class="operator-label">color-dodge</div><div class="operator-scene" style="--operator: color-dodge"></div></div>
+                        <div class="operator-cell" data-mode="color-burn"><div class="operator-label">color-burn</div><div class="operator-scene" style="--operator: color-burn"></div></div>
+                        <div class="operator-cell" data-mode="hard-light"><div class="operator-label">hard-light</div><div class="operator-scene" style="--operator: hard-light"></div></div>
+                        <div class="operator-cell" data-mode="soft-light"><div class="operator-label">soft-light</div><div class="operator-scene" style="--operator: soft-light"></div></div>
+                        <div class="operator-cell" data-mode="difference"><div class="operator-label">difference</div><div class="operator-scene" style="--operator: difference"></div></div>
+                        <div class="operator-cell" data-mode="exclusion"><div class="operator-label">exclusion</div><div class="operator-scene" style="--operator: exclusion"></div></div>
+                        <div class="operator-cell" data-mode="hue"><div class="operator-label">hue</div><div class="operator-scene" style="--operator: hue"></div></div>
+                        <div class="operator-cell" data-mode="saturation"><div class="operator-label">saturation</div><div class="operator-scene" style="--operator: saturation"></div></div>
+                        <div class="operator-cell" data-mode="color"><div class="operator-label">color</div><div class="operator-scene" style="--operator: color"></div></div>
+                        <div class="operator-cell" data-mode="luminosity"><div class="operator-label">luminosity</div><div class="operator-scene" style="--operator: luminosity"></div></div>
+                        <div class="operator-cell" data-mode="plus-lighter"><div class="operator-label">plus-lighter</div><div class="operator-scene" style="--operator: plus-lighter"></div></div>
+                    </div>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <section class="bench-section" aria-labelledby="isolation-title">
+        <div class="bench-section-head"><span class="bench-section-number">02</span><div><h2 id="isolation-title">Isolation boundary</h2><p>The left reference stays <code>auto</code>; the right group follows the control above.</p></div></div>
+        <div class="card card-accent-green">
+            <div class="card-body">
+                <div class="iso-board">
+                    <div class="iso-scene">
+                        <div class="iso-group" style="isolation: auto"><div class="iso-base"></div><div class="iso-blend"></div></div>
+                        <div class="iso-caption">reference / isolation: auto</div>
+                    </div>
+                    <div class="iso-scene">
+                        <div class="iso-group" id="isolation-target" style="isolation: auto"><div class="iso-base"></div><div class="iso-blend"></div></div>
+                        <div class="iso-caption" id="isolation-caption">controlled / isolation: auto</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="bench-section" aria-labelledby="hdr-title">
+        <div class="bench-section-head"><span class="bench-section-number">03</span><div><h2 id="hdr-title">Linear-light and range mapping</h2><p>These swatches use real <code>color(srgb-linear ...)</code> declarations. The live swatch also carries the selected range limit.</p></div></div>
+        <div class="card card-accent-gold">
+            <div class="card-body">
+                <div class="hdr-grid">
+                    <div class="hdr-swatch neutral"><div class="hdr-chip">linear SDR neutral</div><div class="hdr-value">color(srgb-linear .18 .18 .18)</div></div>
+                    <div class="hdr-swatch sdr"><div class="hdr-chip">linear SDR color</div><div class="hdr-value">color(srgb-linear .5 .18 .04)</div></div>
+                    <div class="hdr-swatch live" id="hdr-target"><div class="hdr-chip">live HDR / alpha 75%</div><div class="hdr-value">color(srgb-linear 2 .45 .04 / 75%)</div></div>
+                    <div class="hdr-swatch extended"><div class="hdr-chip">extended range</div><div class="hdr-value">color(srgb-linear 8 1.8 .15)</div></div>
+                </div>
+            </div>
+            <div class="card-footer"><span class="text-muted" id="hdr-caption">dynamic-range-limit: standard / linear peak: 1x</span></div>
+        </div>
+        <div class="alert alert-warning bench-note">The default framebuffer is still an 8-bit display target. This fixture verifies linear color parsing, CSSOM values, dynamic range mapping, FBO routing, and shader behavior; it does not promise physical HDR output on an SDR monitor.</div>
+    </section>
+
+    <section class="bench-section" aria-labelledby="checks-title">
+        <div class="bench-section-head"><span class="bench-section-number">04</span><div><h2 id="checks-title">Readback and checks</h2><p>Every control update refreshes this small machine-readable snapshot.</p></div></div>
+        <div class="bench-grid">
+            <article class="card bench-span-5">
+                <div class="card-header">CSSOM readback</div>
+                <div class="card-body"><pre class="bench-readback" id="readback-output">computed mix-blend-mode: screen&#10;computed isolation: auto&#10;computed dynamic-range-limit: standard&#10;computed background-color: color(srgb-linear 2 .45 .04 / 75%)</pre></div>
+            </article>
+            <article class="card card-accent-purple bench-span-7">
+                <div class="card-header">Regression assertions</div>
+                <div class="card-body">
+                    <table class="check-table">
+                        <thead><tr><th>assertion</th><th>state</th><th>observed</th></tr></thead>
+                        <tbody>
+                        <tr><td>blend declaration reaches live target</td><td class="check-state" id="check-blend">pending</td><td id="check-blend-value">-</td></tr>
+                        <tr><td>isolation declaration reaches live group</td><td class="check-state" id="check-isolation">pending</td><td id="check-isolation-value">-</td></tr>
+                        <tr><td>range declaration reaches HDR target</td><td class="check-state" id="check-range">pending</td><td id="check-range-value">-</td></tr>
+                        <tr><td>linear color declaration is present</td><td class="check-state" id="check-color">pending</td><td id="check-color-value">-</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </article>
+        </div>
+    </section>
+
+    <p class="bench-footer">Open this resource with the ApricityUI test launcher (F10). For screenshot regression, capture the initial state, each blend operator, both isolation values, and each range limit.</p>
+</main>
+
+<script>
+    (function () {
+        var defaults = { blend: "screen", isolation: "auto", range: "standard" };
+        var blendSelect = document.getElementById("blend-select");
+        var isolationSelect = document.getElementById("isolation-select");
+        var rangeSelect = document.getElementById("range-select");
+        var blendTarget = document.getElementById("blend-target");
+        var isolationTarget = document.getElementById("isolation-target");
+        var hdrTarget = document.getElementById("hdr-target");
+        var status = document.getElementById("bench-status");
+        var stateBadge = document.getElementById("state-badge");
+        var declaration = document.getElementById("declaration-output");
+        var readback = document.getElementById("readback-output");
+        var colorDeclaration = "color(srgb-linear 2 .45 .04 / 75%)";
+
+        function computed(element, property, fallback) {
+            try {
+                var value = window.getComputedStyle(element).getPropertyValue(property);
+                if (value && value.trim()) return value.trim();
+            } catch (error) {
+                // The inline declaration remains a valid fallback on older hosts.
+            }
+            return element.style.getPropertyValue(property) || fallback;
+        }
+
+        function selectedValue(select, fallback) {
+            var value = select.value;
+            if (value && value !== "null" && value !== "undefined") return String(value);
+            var index = Number(select.selectedIndex);
+            var option = select.options && select.options[index];
+            if (option) {
+                var attribute = option.getAttribute && option.getAttribute("value");
+                if (attribute && attribute !== "null") return String(attribute);
+                if (option.textContent && option.textContent.trim()) return option.textContent.trim();
+            }
+            /* ApricityUI's select facade may expose neither value nor options;
+               keep this fixture deterministic by resolving its fixed controls
+               from selectedIndex in that host as well. */
+            var byId = {
+                "blend-select": ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity", "plus-lighter"],
+                "isolation-select": ["auto", "isolate"],
+                "range-select": ["standard", "constrained", "50%", "1", "200%", "4", "no-limit"]
+            };
+            var values = byId[select.id];
+            if (values && index >= 0 && index < values.length) return values[index];
+            return fallback;
+        }
+
+        function rangePeak(value) {
+            if (value === "standard" || value === "constrained") return "1x";
+            if (value === "no-limit") return "16x (engine cap)";
+            if (value.slice(-1) === "%") return (parseFloat(value) / 100) + "x";
+            return value + "x";
+        }
+
+        function markCheck(id, passed, observed) {
+            var node = document.getElementById(id);
+            node.textContent = passed ? "PASS" : "FAIL";
+            node.classList.toggle("is-fail", !passed);
+            document.getElementById(id + "-value").textContent = observed;
+            return passed;
+        }
+
+        function refresh() {
+            var blend = selectedValue(blendSelect, defaults.blend);
+            var isolation = selectedValue(isolationSelect, defaults.isolation);
+            var range = selectedValue(rangeSelect, defaults.range);
+            blendTarget.style.setProperty("mix-blend-mode", blend);
+            isolationTarget.style.setProperty("isolation", isolation);
+            hdrTarget.style.setProperty("dynamic-range-limit", range);
+
+            document.getElementById("live-code").textContent = blend;
+            document.getElementById("live-caption").textContent = "mix-blend-mode: " + blend;
+            document.getElementById("isolation-caption").textContent = "controlled / isolation: " + isolation;
+            document.getElementById("hdr-caption").textContent = "dynamic-range-limit: " + range + " / linear peak: " + rangePeak(range);
+
+            var actualBlend = computed(blendTarget, "mix-blend-mode", blend).toLowerCase();
+            var actualIsolation = computed(isolationTarget, "isolation", isolation).toLowerCase();
+            var actualRange = computed(hdrTarget, "dynamic-range-limit", range).toLowerCase();
+            var actualColor = computed(hdrTarget, "background-color", colorDeclaration).toLowerCase();
+            declaration.textContent = "mix-blend-mode: " + actualBlend + ";\nisolation: " + actualIsolation + ";\ndynamic-range-limit: " + actualRange + ";\nbackground-color: " + colorDeclaration + ";";
+            readback.textContent = "computed mix-blend-mode: " + actualBlend + "\ncomputed isolation: " + actualIsolation + "\ncomputed dynamic-range-limit: " + actualRange + "\ncomputed background-color: " + actualColor;
+
+            var passed = true;
+            passed = markCheck("check-blend", actualBlend === blend, actualBlend) && passed;
+            passed = markCheck("check-isolation", actualIsolation === isolation, actualIsolation) && passed;
+            passed = markCheck("check-range", actualRange === range.toLowerCase(), actualRange) && passed;
+            passed = markCheck("check-color", actualColor.indexOf("srgb-linear") !== -1 || actualColor === colorDeclaration.toLowerCase(), actualColor) && passed;
+            status.textContent = (passed ? "PASS" : "CHECK") + "  blend=" + actualBlend + " | isolation=" + actualIsolation + " | range=" + actualRange;
+            status.classList.toggle("is-error", !passed);
+            stateBadge.textContent = passed ? "pass" : "review";
+            stateBadge.classList.toggle("badge-danger", !passed);
+            stateBadge.classList.toggle("badge-success", passed);
+
+            var cells = document.querySelectorAll(".operator-cell");
+            for (var i = 0; i < cells.length; i++) cells[i].classList.toggle("is-active", cells[i].getAttribute("data-mode") === blend);
+        }
+
+        blendSelect.addEventListener("change", refresh);
+        isolationSelect.addEventListener("change", refresh);
+        rangeSelect.addEventListener("change", refresh);
+        document.getElementById("reset-button").addEventListener("click", function () {
+            blendSelect.value = defaults.blend;
+            isolationSelect.value = defaults.isolation;
+            rangeSelect.value = defaults.range;
+            refresh();
+            stateBadge.textContent = "reset";
+        });
+        refresh();
+    }());
+</script>
+</body>
+</html>

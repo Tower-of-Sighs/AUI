@@ -87,7 +87,7 @@ public class Color {
         } else if (input.startsWith("hsl(")) {
             return parseHsl(input);
         } else if (input.startsWith("color(") && isSrgbLinearFunction(input)) {
-            return parseSrgbLinear(input);
+            return parseLinear(input).toArgb(1.0f);
         } else {
             return NAMED_COLORS.getOrDefault(input, 0);
         }
@@ -255,27 +255,38 @@ public class Color {
         }
     }
 
-    /** Parses CSS Color 4 color(srgb-linear r g b / a), converting to sRGB ARGB. */
-    private static int parseSrgbLinear(String input) {
+    /**
+     * Parses CSS Color 4 {@code color(srgb-linear ...)} without converting to
+     * an 8-bit display value. Components are retained in linear light (up to
+     * the renderer's supported 16x SDR working range) so HDR declarations can
+     * be mapped later by {@code dynamic-range-limit}.
+     */
+    public static LinearColor parseLinear(String string) {
+        if (string == null) return new LinearColor(0, 0, 0, 0);
+        String input = string.trim().toLowerCase(Locale.ROOT);
+        if (!input.startsWith("color(") || !isSrgbLinearFunction(input)) {
+            return new LinearColor(0, 0, 0, 0);
+        }
         int start = input.indexOf('('), end = input.lastIndexOf(')');
-        if (start < 0 || end <= start) return 0;
+        if (start < 0 || end <= start) return new LinearColor(0, 0, 0, 0);
         String inside = input.substring(start + 1, end).trim();
-        if (!isSrgbLinearFunction(input)) return 0;
         String channels = inside.substring("srgb-linear".length()).trim();
         String[] parts = splitColorComponents(channels);
-        if (parts.length < 3) return 0;
+        if (parts.length < 3) return new LinearColor(0, 0, 0, 0);
         try {
-            double r = linearToSrgb(parseLinearComponent(parts[0]));
-            double g = linearToSrgb(parseLinearComponent(parts[1]));
-            double b = linearToSrgb(parseLinearComponent(parts[2]));
-            double a = parts.length >= 4 ? parseAlphaDouble(parts[3]) : 1.0;
-            return (clampInt((int) Math.round(a * 255), 0, 255) << 24)
-                    | (clampInt((int) Math.round(r * 255), 0, 255) << 16)
-                    | (clampInt((int) Math.round(g * 255), 0, 255) << 8)
-                    | clampInt((int) Math.round(b * 255), 0, 255);
+            float r = (float) parseLinearComponent(parts[0]);
+            float g = (float) parseLinearComponent(parts[1]);
+            float b = (float) parseLinearComponent(parts[2]);
+            float a = parts.length >= 4 ? (float) parseCssAlphaDouble(parts[3]) : 1.0f;
+            return new LinearColor(r, g, b, a);
         } catch (NumberFormatException ex) {
-            return 0;
+            return new LinearColor(0, 0, 0, 0);
         }
+    }
+
+    /** Parses CSS Color 4 color(srgb-linear r g b / a), converting to sRGB ARGB. */
+    private static int parseSrgbLinear(String input) {
+        return parseLinear(input).toArgb(1.0f);
     }
 
     private static double parseLinearComponent(String token) {
@@ -288,10 +299,6 @@ public class Color {
         // discarded before the renderer's dynamic-range-limit mapping.
         if (!Double.isFinite(value)) throw new NumberFormatException("non-finite color component");
         return Math.max(-16.0, Math.min(16.0, value));
-    }
-
-    private static double linearToSrgb(double value) {
-        return value <= 0.0031308 ? 12.92 * value : 1.055 * Math.pow(value, 1.0 / 2.4) - 0.055;
     }
 
     private static boolean isSrgbLinearFunction(String input) {
@@ -329,6 +336,20 @@ public class Color {
             if (v > 1.0) return clampDouble(v / 255.0, 0.0, 1.0);
             return clampDouble(v, 0.0, 1.0);
         }
+    }
+
+    /**
+     * CSS Color 4 alpha values are unitless numbers in the 0..1 range (or
+     * percentages). Unlike the legacy rgb()/rgba() parser, values greater
+     * than one are not byte values and therefore clamp directly to one.
+     */
+    private static double parseCssAlphaDouble(String token) {
+        token = token.trim();
+        if (token.endsWith("%")) {
+            double perc = Double.parseDouble(token.substring(0, token.length() - 1).trim());
+            return clampDouble(perc / 100.0, 0.0, 1.0);
+        }
+        return clampDouble(Double.parseDouble(token), 0.0, 1.0);
     }
 
     private static double parsePercentLike(String token) {

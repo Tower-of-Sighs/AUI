@@ -8,6 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 public final class FabricShaderRegistry {
     private static ShaderInstance filterShader;
     private static ShaderInstance filterBlurShader;
+    private static ShaderInstance filterBlendShader;
     private static ShaderInstance filterMaskShader;
     private static ShaderInstance filterMaskIntersectShader;
     private static ShaderInstance filterMaskSubtractShader;
@@ -17,6 +18,7 @@ public final class FabricShaderRegistry {
         CoreShaderRegistrationCallback.EVENT.register(context -> {
             context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter"), DefaultVertexFormat.POSITION_TEX, shader -> filterShader = shader);
             context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter_blur"), DefaultVertexFormat.POSITION_TEX, shader -> filterBlurShader = shader);
+            context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter_blend"), DefaultVertexFormat.POSITION_TEX, shader -> filterBlendShader = shader);
             context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask"), DefaultVertexFormat.POSITION_TEX, shader -> filterMaskShader = shader);
             context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask_intersect"), DefaultVertexFormat.POSITION_TEX, shader -> filterMaskIntersectShader = shader);
             context.register(ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask_subtract"), DefaultVertexFormat.POSITION_TEX, shader -> filterMaskSubtractShader = shader);
@@ -25,6 +27,7 @@ public final class FabricShaderRegistry {
     }
     public static ShaderInstance getFilterShader() { return filterShader; }
     public static ShaderInstance getFilterBlurShader() { return filterBlurShader; }
+    public static ShaderInstance getFilterBlendShader() { return filterBlendShader; }
     public static ShaderInstance getFilterMaskShader() { return filterMaskShader; }
     public static ShaderInstance getFilterMaskIntersectShader() { return filterMaskIntersectShader; }
     public static ShaderInstance getFilterMaskSubtractShader() { return filterMaskSubtractShader; }

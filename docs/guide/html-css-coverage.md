@@ -114,7 +114,9 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 | transform | 🟡 | translate/rotate/scale 各轴向，角度单位全；**无 skew、matrix、perspective** |
 | transform-origin | ✅ | |
 | rotate 独立属性 | ✅ | translate/scale 独立属性 ❌ |
-| mix-blend-mode/isolation/contain/will-change | ❌ | |
+| mix-blend-mode | 🟡 | 支持 CSS Compositing and Blending Level 1 的 17 个算子（含 `plus-lighter`）；通过离屏 FBO 和背景快照合成。 |
+| isolation | 🟡 | 支持 `auto`/`isolate`，建立独立合成组；支持嵌套组。 |
+| contain / will-change | ❌ | |
 
 ## 文本
 
@@ -126,7 +128,7 @@ AUI 是自研的 HTML/CSS 引擎，不是内嵌浏览器。这篇回答一个问
 
 ## 颜色、交互、动画
 
-**颜色**：hex 全家、rgb/rgba 新旧语法、hsl/hsla、transparent ✅；命名色只有 26 个（CSS 有 148 个）；**currentColor 解析为黑**（SVG 内部除外）；hwb/lab/lch/oklch ❌。
+**颜色**：hex 全家、rgb/rgba 新旧语法、hsl/hsla、transparent ✅；支持 `color(srgb-linear r g b / a)` 线性光颜色，组件在渲染器 16 倍 SDR 工作范围内保留；`dynamic-range-limit` 支持 `standard`、`constrained`、`no-limit`、数字和百分比，并在 filter shader 中映射工作范围。普通 8-bit framebuffer 在最终显示时仍会钳制 SDR 白点以上的能量。命名色只有 26 个（CSS 有 148 个）；**currentColor 解析为黑**（SVG 内部除外）；hwb/lab/lch/oklch ❌。
 
 **交互**：cursor 常用值 + `url()` 自定义 ✅（move/wait/grab 等回退箭头）；user-select、pointer-events、accent-color、appearance、resize（textarea）✅；outline ❌。
 

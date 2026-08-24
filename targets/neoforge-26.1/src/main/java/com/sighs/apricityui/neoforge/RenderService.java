@@ -138,6 +138,7 @@ public final class RenderService implements AuiRenderService {
     private float clipRadiusBottomLeft;
     private float directionX;
     private float directionY;
+    private float blendMode;
 
     private RenderService() {
     }
@@ -295,6 +296,7 @@ public final class RenderService implements AuiRenderService {
     @Override public void setShaderColor(float a, float r, float g, float b) { }
     @Override public Object getFilterShader() { return PipelineRegistry.getFilter(); }
     @Override public Object getFilterBlurShader() { return PipelineRegistry.getFilterBlur(); }
+    @Override public Object getFilterBlendShader() { return PipelineRegistry.getFilterBlend(); }
     @Override public Object getFilterMaskShader(boolean luminance) {
         return luminance ? PipelineRegistry.getFilterMaskLum() : PipelineRegistry.getFilterMask();
     }
@@ -321,6 +323,7 @@ public final class RenderService implements AuiRenderService {
             case "ClipEnabled" -> clipEnabled = value;
             case "DynamicRangeLimit" -> dynamicRangeLimit = value;
             case "Radius" -> radius = value;
+            case "BlendMode" -> blendMode = value;
             default -> { }
         }
     }
@@ -425,21 +428,25 @@ public final class RenderService implements AuiRenderService {
      */
     private void drawWithPass(RenderPipeline pipeline, MeshData meshData) {
         boolean filterPipeline = pipeline == PipelineRegistry.getFilter()
-                || pipeline == PipelineRegistry.getFilterBlur();
-        boolean compositePipeline = pipeline == PipelineRegistry.getFilter();
+                || pipeline == PipelineRegistry.getFilterBlur()
+                || pipeline == PipelineRegistry.getFilterBlend();
+        boolean compositePipeline = pipeline == PipelineRegistry.getFilter()
+                || pipeline == PipelineRegistry.getFilterBlend();
         RenderTarget output = OutputTargets.currentTarget();
         if (output == null) return;
-        // Writing the live PIP override through a custom pass leaves the
-        // end-of-frame blit's sampler stale on this driver: the screen renders
-        // black behind backdrop-filtered elements. Backdrop-filter still works
-        // through the element's own background (which renders via the normal
-        // RenderType path), so skip the composite pass into the PIP.
-        if (output == Minecraft.getInstance().getMainRenderTarget()
-                && RenderSystem.outputColorTextureOverride != null) {
-            return;
-        }
         GpuTextureView colorView = output.getColorTextureView();
         GpuTextureView depthView = output.useDepth ? output.getDepthTextureView() : null;
+        // During a PIP render the logical main target is redirected to the
+        // live PIP attachments. Custom filter/blend passes must use the same
+        // views or their output would be written to the hidden main target.
+        if (output == Minecraft.getInstance().getMainRenderTarget()
+                && RenderSystem.outputColorTextureOverride != null) {
+            colorView = RenderSystem.outputColorTextureOverride;
+        }
+        if (output == Minecraft.getInstance().getMainRenderTarget()
+                && RenderSystem.outputDepthTextureOverride != null) {
+            depthView = RenderSystem.outputDepthTextureOverride;
+        }
         if (colorView == null) return;
 
         GpuDevice device = RenderSystem.getDevice();
@@ -501,7 +508,8 @@ public final class RenderService implements AuiRenderService {
                 .mapBuffer(filterUniformBuffer, false, true)) {
             Std140Builder.intoBuffer(mapped.data())
                     .putVec4(brightness, grayscale, invert, hueRotate)
-                    .putVec4(opacity, forceAlpha, clipEnabled, radius)
+                    .putVec4(opacity, forceAlpha, clipEnabled,
+                            currentShader == PipelineRegistry.getFilterBlend() ? blendMode : radius)
                     .putVec4(shadowOffsetX, shadowOffsetY, uvPerGuiX, uvPerGuiY)
                     .putVec4(guiWidth, guiHeight, inputWidth, inputHeight)
                     .putVec4(shadowColorR, shadowColorG, shadowColorB, shadowColorA)
@@ -645,6 +653,7 @@ public final class RenderService implements AuiRenderService {
         private final RenderPipeline previousShader = currentShader;
         private final GpuTextureView previousSampler0 = samplers[0];
         private final GpuTextureView previousSampler1 = samplers[1];
+        private final float previousBlendMode = blendMode;
         private boolean closed;
 
         @Override
@@ -663,6 +672,7 @@ public final class RenderService implements AuiRenderService {
             currentShader = previousShader;
             samplers[0] = previousSampler0;
             samplers[1] = previousSampler1;
+            blendMode = previousBlendMode;
         }
     }
 

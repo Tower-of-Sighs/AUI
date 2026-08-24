@@ -466,6 +466,11 @@ public final class RenderService implements AuiRenderService {
     }
 
     @Override
+    public Object getFilterBlendShader() {
+        return FabricShaderRegistry.getFilterBlendShader();
+    }
+
+    @Override
     public Object getFilterMaskShader(boolean luminance) {
         // luminance 由 filter_mask.fsh 的 MaskLuminance uniform 驱动，同一 shader
         return FabricShaderRegistry.getFilterMaskShader();

@@ -159,6 +159,20 @@ public interface AuiRenderService {
     Object getFilterBlurShader();
 
     /**
+     * Returns the CSS compositing shader, or {@code null} when the backend
+     * does not provide one. The shader samples {@code Sampler0} as the source
+     * layer and {@code Sampler1} as the backdrop and writes a fully composited
+     * pixel, so the fixed-function blend state must be disabled for the pass.
+     *
+     * <p>This is a default method deliberately: third-party render bridges
+     * compiled against an older AUI release remain source and binary
+     * compatible and simply use the normal source-over fallback.</p>
+     */
+    default Object getFilterBlendShader() {
+        return null;
+    }
+
+    /**
      * CSS mask-composite 的非 add 算子（逐层合成时源=当前层、目标=下层累积，
      * 对应 Porter-Duff source-in / source-out / xor）。
      */

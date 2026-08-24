@@ -110,7 +110,9 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 | transform | 🟡 | translate/rotate/scale on each axis, all angle units; **no skew, matrix, perspective** |
 | transform-origin | ✅ | |
 | rotate as an independent property | ✅ | translate/scale as independent properties ❌ |
-| mix-blend-mode/isolation/contain/will-change | ❌ | |
+| mix-blend-mode | 🟡 | 17 CSS Compositing and Blending Level 1 operators, including `plus-lighter`; rendered through an offscreen FBO and backdrop snapshot. |
+| isolation | 🟡 | `auto` and `isolate` establish an independent compositing group; nested groups are supported. |
+| contain / will-change | ❌ | |
 
 ## Text
 
@@ -122,7 +124,7 @@ For extension tags (texture, sprite, container, slot, recipe, translation, etc.)
 
 ## Color, Interaction, Animation
 
-**Color**: the whole hex family, rgb/rgba old and new syntaxes, hsl/hsla, transparent ✅; only 26 named colors (CSS has 148); **currentColor resolves to black** (except inside SVG); hwb/lab/lch/oklch ❌.
+**Color**: the whole hex family, rgb/rgba old and new syntaxes, hsl/hsla, transparent ✅; `color(srgb-linear r g b / a)` is parsed into a linear-light working color (components are retained through the renderer's 16x SDR bound); `dynamic-range-limit` accepts `standard`, `constrained`, `no-limit`, numbers, and percentages and maps the working range in the filter shader. Ordinary 8-bit framebuffers still clamp presentation above SDR white. Only 26 named colors (CSS has 148); **currentColor resolves to black** (except inside SVG); hwb/lab/lch/oklch ❌.
 
 **Interaction**: common cursor values + `url()` custom cursors ✅ (move/wait/grab, etc. fall back to the arrow); user-select, pointer-events, accent-color, appearance, resize (textarea) ✅; outline ❌.
 

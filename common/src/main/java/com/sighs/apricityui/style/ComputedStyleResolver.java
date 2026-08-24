@@ -5,6 +5,7 @@ import java.util.Locale;
 import java.util.Map;
 import com.sighs.apricityui.init.Element;
 import com.sighs.apricityui.parser.CSS;
+import com.sighs.apricityui.render.CssBlendMode;
 
 /**
  * 计算值定型：CSS 层叠关键字（inherit/initial/revert）解析、继承/初始值回退、
@@ -153,6 +154,12 @@ public final class ComputedStyleResolver {
                 if ("display".equals(cssName)) {
                     resolved = normalizeDisplay(resolved);
                 }
+                if ("mix-blend-mode".equals(cssName)) {
+                    // Unknown identifiers are invalid CSS values and compute to normal.
+                    resolved = CssBlendMode.normalize(resolved);
+                } else if ("isolation".equals(cssName)) {
+                    resolved = normalizeIsolation(resolved);
+                }
                 field.set(style, resolved);
             } catch (IllegalAccessException ignored) {
             }
@@ -209,6 +216,10 @@ public final class ComputedStyleResolver {
             case "inline-table" -> "inline-block";
             default -> "block";
         };
+    }
+
+    private static String normalizeIsolation(String raw) {
+        return raw != null && "isolate".equalsIgnoreCase(raw.trim()) ? "isolate" : "auto";
     }
 
     private static void finalizeAnimationValues(Style style) {

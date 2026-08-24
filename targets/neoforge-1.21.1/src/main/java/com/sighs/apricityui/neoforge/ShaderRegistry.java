@@ -19,6 +19,10 @@ public class ShaderRegistry {
             filterBlurShader = instance;
         });
         event.registerShader(new ShaderInstance(event.getResourceProvider(),
+                ResourceLocation.fromNamespaceAndPath("apricityui", "filter_blend"), DefaultVertexFormat.POSITION_TEX), (instance) -> {
+            filterBlendShader = instance;
+        });
+        event.registerShader(new ShaderInstance(event.getResourceProvider(),
                 ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask"), DefaultVertexFormat.POSITION_TEX), (instance) -> {
             filterMaskShader = instance;
         });
@@ -38,6 +42,7 @@ public class ShaderRegistry {
 
     private static ShaderInstance filterShader;
     private static ShaderInstance filterBlurShader;
+    private static ShaderInstance filterBlendShader;
     private static ShaderInstance filterMaskShader;
     private static ShaderInstance filterMaskIntersectShader;
     private static ShaderInstance filterMaskSubtractShader;
@@ -46,6 +51,7 @@ public class ShaderRegistry {
     public static void init(ResourceManager resourceManager) throws IOException {
         filterShader = new ShaderInstance(resourceManager, ResourceLocation.fromNamespaceAndPath("apricityui", "filter"), DefaultVertexFormat.POSITION_TEX);
         filterBlurShader = new ShaderInstance(resourceManager, ResourceLocation.fromNamespaceAndPath("apricityui", "filter_blur"), DefaultVertexFormat.POSITION_TEX);
+        filterBlendShader = new ShaderInstance(resourceManager, ResourceLocation.fromNamespaceAndPath("apricityui", "filter_blend"), DefaultVertexFormat.POSITION_TEX);
         filterMaskShader = new ShaderInstance(resourceManager, ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask"), DefaultVertexFormat.POSITION_TEX);
         filterMaskIntersectShader = new ShaderInstance(resourceManager, ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask_intersect"), DefaultVertexFormat.POSITION_TEX);
         filterMaskSubtractShader = new ShaderInstance(resourceManager, ResourceLocation.fromNamespaceAndPath("apricityui", "filter_mask_subtract"), DefaultVertexFormat.POSITION_TEX);
@@ -58,6 +64,10 @@ public class ShaderRegistry {
 
     public static ShaderInstance getFilterBlurShader() {
         return filterBlurShader;
+    }
+
+    public static ShaderInstance getFilterBlendShader() {
+        return filterBlendShader;
     }
 
     public static ShaderInstance getFilterMaskShader() {

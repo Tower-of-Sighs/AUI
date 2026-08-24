@@ -28,6 +28,7 @@ import java.util.Optional;
 public final class PipelineRegistry {
     private static volatile RenderPipeline filterPipeline;
     private static volatile RenderPipeline filterBlurPipeline;
+    private static volatile RenderPipeline filterBlendPipeline;
     private static volatile RenderPipeline filterCopyPipeline;
     private static volatile RenderPipeline filterMaskPipeline;
     private static volatile RenderPipeline filterMaskLumPipeline;
@@ -42,6 +43,7 @@ public final class PipelineRegistry {
     public static void registerPipelines(RegisterRenderPipelinesEvent event) {
         event.registerPipeline(getFilter());
         event.registerPipeline(getFilterBlur());
+        event.registerPipeline(getFilterBlend());
         event.registerPipeline(getFilterCopy());
         event.registerPipeline(getFilterMask());
         event.registerPipeline(getFilterMaskLum());
@@ -64,6 +66,16 @@ public final class PipelineRegistry {
         if (p == null) {
             p = buildFilter(true);
             filterBlurPipeline = p;
+        }
+        return p;
+    }
+
+    /** CSS blend pass: Sampler0 is the source layer, Sampler1 the backdrop. */
+    public static RenderPipeline getFilterBlend() {
+        RenderPipeline p = filterBlendPipeline;
+        if (p == null) {
+            p = buildBlend();
+            filterBlendPipeline = p;
         }
         return p;
     }
@@ -97,6 +109,25 @@ public final class PipelineRegistry {
                 .withColorTargetState(new ColorTargetState(
                         blur ? Optional.empty() : Optional.of(BlendFunction.TRANSLUCENT),
                         ColorTargetState.WRITE_ALL))
+                .withCull(false)
+                .build();
+    }
+
+    private static RenderPipeline buildBlend() {
+        Identifier shader = Identifier.fromNamespaceAndPath("apricityui", "core/filter_blend");
+        return RenderPipeline.builder(RenderPipelines.MATRICES_PROJECTION_SNIPPET)
+                .withLocation(Identifier.fromNamespaceAndPath("apricityui", "pipeline/filter_blend"))
+                .withVertexShader(shader)
+                .withFragmentShader(shader)
+                .withSampler("Sampler0")
+                .withSampler("Sampler1")
+                .withUniform("FilterParams", UniformType.UNIFORM_BUFFER)
+                .withVertexFormat(DefaultVertexFormat.POSITION_TEX, VertexFormat.Mode.QUADS)
+                .withDepthStencilState(Optional.empty())
+                // The fragment shader writes the premultiplied source-over
+                // result directly; applying a second blend would double the
+                // alpha factors and break transparent layers.
+                .withColorTargetState(new ColorTargetState(Optional.empty(), ColorTargetState.WRITE_ALL))
                 .withCull(false)
                 .build();
     }

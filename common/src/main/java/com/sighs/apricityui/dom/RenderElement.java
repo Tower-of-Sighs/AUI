@@ -23,6 +23,7 @@ import com.sighs.apricityui.style.Filter;
 import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.Text;
 import com.sighs.apricityui.style.Transform;
+import com.sighs.apricityui.render.CssBlendMode;
 
 public class RenderElement {
     private final Element element;
@@ -457,8 +458,8 @@ public class RenderElement {
             dirtyMask |= Drawer.REORDER;
         }
 
-        boolean originBlend = origin.mixBlendMode != null && !origin.mixBlendMode.equalsIgnoreCase("normal");
-        boolean currentBlend = current.mixBlendMode != null && !current.mixBlendMode.equalsIgnoreCase("normal");
+        boolean originBlend = CssBlendMode.parse(origin.mixBlendMode) != CssBlendMode.Mode.NORMAL;
+        boolean currentBlend = CssBlendMode.parse(current.mixBlendMode) != CssBlendMode.Mode.NORMAL;
         if (originBlend != currentBlend) dirtyMask |= Drawer.REORDER;
         boolean originIsolation = origin.isolation != null && origin.isolation.equalsIgnoreCase("isolate");
         boolean currentIsolation = current.isolation != null && current.isolation.equalsIgnoreCase("isolate");
