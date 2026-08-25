@@ -32,6 +32,17 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 | 间距 | `--ore-space-1..5` = 4/8/16/24/32px |
 | 字号 | `--ore-font-sm/md/lg/xl` = 13/16/20/28px |
 
+扩展样式还提供语义别名，旧变量仍是兼容底层值：
+`--ore-color-foreground`、`--ore-color-muted`、`--ore-color-background`、
+`--ore-color-surface`、`--ore-color-surface-deep`、`--ore-color-border`、
+`--ore-color-border-light`、`--ore-color-focus`、`--ore-color-primary`、
+`--ore-color-primary-hover`、`--ore-color-primary-active`、
+`--ore-color-secondary`、`--ore-color-danger`、`--ore-color-success`、
+`--ore-color-warning`、`--ore-color-info`。尺寸和节奏使用
+`--ore-size-unit`、`--ore-control-height`、`--ore-control-height-compact`、
+`--ore-radius-sm/md`、`--ore-motion-fast/normal/slow`、
+`--ore-motion-play-state`。
+
 覆写方式（挂在主题根或自己的类上）：
 
 ```css
@@ -41,6 +52,11 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 }
 ```
 
+编号变体还提供局部 token，例如
+`--ore-button-primary-2-background`、`--ore-card-2-background`、
+`--ore-panel-2-background`、`--ore-input-2-focus-border` 和
+`--ore-tab-2-active-background`，可在变体元素或其父级覆写。
+
 **公共契约只有 `.ore-theme`、`--ore-*` 和下面列出的组件类**。`ore-edit.css` 里的 `--ore-edit-*` 是生成细节，别依赖。
 
 ## 组件类速查
@@ -49,11 +65,11 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 **导航**：`.navbar` + `.navbar-brand` + `.navbar-nav`（活动项自己维护 `.active`）；`.breadcrumb`（自动加 `>` 分隔）。
 
-**按钮**：`.button` 默认绿色主操作；变体 `.button-primary/-secondary`（紫）/`tertiary`（浅色）/`-danger`（红）/`-normal`（原版灰）/`-small`/`-wide`。`:hover`/`:active`/`[disabled]` 状态齐全，但禁用要用真实 `disabled` 属性。
+**按钮**：`.button` 默认绿色主操作；变体 `.button-primary/-secondary`（紫）/`tertiary`（浅色）/`-danger`（红）/`-normal`（原版灰）/`-small`/`-wide`。第二套扁平视觉使用 `.button-primary-2`、`.button-secondary-2`、`.button-danger-2`、`.button-tertiary-2`、`.button-normal-2`，第三套轮廓视觉使用 `.button-primary-3`。变体支持 `:hover`、`:active`、`:focus-visible`、`[aria-pressed="true"]`、`[disabled]`、`[aria-disabled="true"]` 和 `data-state="loading"`；禁用要用真实 `disabled` 属性。
 
-**卡片/面板**：`.card` / `.panel` 等价，拆 `.card-header` / `-body` / `-footer`；顶部色条 `.card-accent-green/-purple/-gold`。
+**卡片/面板**：`.card` / `.panel` 等价，拆 `.card-header` / `-body` / `-footer`；顶部色条 `.card-accent-green/-purple/-gold`。`.card-2`、`.panel-2` 是紧凑扁平边框，`.card-3` 是低对比表面，均复用原有 header/body/footer DOM。
 
-**表单**：`.form-group` / `.form-label` / `.form-help` / `.form-input` / `.form-select` / `.form-textarea` / `.input-group`（输入框+按钮横排）；校验态 `.is-valid` / `.is-invalid`（只改边框，错误文案自己写）；radio/checkbox 用 `.choice-list` + `.choice` 包裹。
+**表单**：`.form-group` / `.form-label` / `.form-help` / `.form-input` / `.form-select` / `.form-textarea` / `.input-group`（输入框+按钮横排）；校验态 `.is-valid` / `.is-invalid`（只改边框，错误文案自己写）。扁平控件使用 `.form-input-2`、`.form-select-2`、`.form-textarea-2`，支持 hover/focus/disabled/valid/invalid 和 `aria-invalid`。原有 radio/checkbox 用 `.choice-list` + `.choice` 包裹；新页面也可使用 `.checkbox`、`.radio`、`.switch`、`.slider`。
 
 **数据展示**：
 
@@ -65,7 +81,11 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 **MC 风格**：`.inventory-grid`（九列 44px 格）+ `.slot`。**这只是视觉方格**，真实槽位用容器系统的 `<slot>`，见[容器文档](container)。
 
-**Tabs / Modal / 分页**：`.tabs` + `.tab`（`.active` 紫边）、`.modal-backdrop.open` + `.modal` + `-header/-body/-footer`、`.pagination` + `.page-button`。同样**只有样式**：切换面板、开关 modal、Escape/遮罩点击、页码逻辑全部自己写。要现成的弹窗行为用 Java 侧的 [DialogWindow](ui-library)。
+**Tabs / Modal / 分页**：`.tabs` + `.tab`（`.active` 紫边），`.tab-2` 支持 `.active`、`[aria-selected="true"]` 和 `data-state="active"`；`.modal-backdrop.open` + `.modal` + `-header/-body/-footer`、`.pagination` + `.page-button`。同样**只有样式**：切换面板、开关 modal、Escape/遮罩点击、页码逻辑全部自己写。要现成的弹窗行为用 Java 侧的 [DialogWindow](ui-library)。
+
+**反馈与扩展组件**：`.tooltip` + `.tooltip-content`/`.tooltip-text`（hover/focus-within 显示，`.tooltip-right`/`.tooltip-bottom` 调整方向）；`.toast`/`.pop` 及 `-success/-warning/-danger/-info` 或 `data-variant`；`.loading-mask`/`.loading-overlay`（`.open` 或 `data-state`）和 `.spinner`；`.drawer` + `.drawer-overlay` + `-header/-body/-footer`（`.open`、`aria-hidden`、`data-state`）；`.icon-button`/`.button-icon`；`.sidebar-2`、`.scrollbar-2`/`.ore-scrollbar-2`。这些 class 只负责呈现状态，不切换状态。
+
+**动效**：新增组件带有克制的 CSS 动效：`.spinner` 和 loading 按钮指示器旋转，Toast/Pop 与 Loading Overlay 淡入，Drawer/Tooltip 和控件状态使用短过渡。可通过 `--ore-motion-fast`、`--ore-motion-normal`、`--ore-motion-slow`、`--ore-motion-play-state` 调整；需要降低动效时，在主题根添加 `ore-motion-reduced`。
 
 **工具类**：`.text-left/-center/-right`、`.text-success/-warning/-danger/-info/-muted`、`.font-sm/-lg/-display`、`.hidden`、`.invisible`、`.w-full`、`.m-0`、间距 `mt/mb/p-1..4`（4/8/16/24px）。
 

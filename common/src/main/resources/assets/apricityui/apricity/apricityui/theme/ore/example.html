@@ -116,6 +116,12 @@
               <button class="button button-normal" type="button">Vanilla control</button>
               <button class="button button-danger" type="button">Delete save</button>
               <button class="button" type="button" disabled>Unavailable action</button>
+              <button class="button button-primary-2" type="button">Flat primary</button>
+              <button class="button button-secondary-2" type="button">Flat secondary</button>
+              <button class="button button-danger-2" type="button">Flat danger</button>
+              <button class="button button-tertiary-2" type="button">Flat light</button>
+              <button class="button button-normal-2" type="button">Flat vanilla</button>
+              <button class="button button-primary-3" type="button">Outline variant</button>
             </div>
           </div>
           <div class="col-6 card card-accent-purple">
@@ -164,6 +170,16 @@
             </ul>
           </div>
         </div>
+        <div class="card card-2 mt-4">
+          <div class="card-header">Flat tab variant</div>
+          <div class="card-body">
+            <div class="tabs" role="tablist">
+              <button class="tab tab-2" type="button" aria-selected="true">Overview</button>
+              <button class="tab tab-2" type="button">Equipment</button>
+              <button class="tab tab-2" type="button" disabled>Locked</button>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -203,6 +219,30 @@
               <button class="form-button" type="button">Create</button>
             </div>
           </form>
+
+          <form class="col-12 card card-2">
+            <div class="card-header">Flat controls</div>
+            <div class="card-body">
+              <div class="grid">
+                <div class="col-4 form-group">
+                  <label class="form-label" for="flatName">Flat input</label>
+                  <input class="form-input form-input-2" id="flatName" placeholder="Type a name">
+                </div>
+                <div class="col-4 form-group">
+                  <label class="form-label" for="flatMode">Flat select</label>
+                  <select class="form-select form-select-2" id="flatMode"><option>Survival</option><option>Creative</option></select>
+                </div>
+                <div class="col-4 form-group">
+                  <label class="form-label" for="flatNotes">Flat textarea</label>
+                  <textarea class="form-textarea form-textarea-2" id="flatNotes" placeholder="Notes"></textarea>
+                </div>
+              </div>
+            </div>
+          </form>
+          <div class="col-12 panel panel-2">
+            <div class="panel-header">Panel variant</div>
+            <div class="panel-body">The panel variant reuses the same header/body/footer structure.</div>
+          </div>
 
         </div>
       </div>
@@ -440,6 +480,72 @@ Built for ApricityUI.</textarea>
             </div>
           </div>
         </div>
+        <div class="grid mt-4">
+          <div class="col-6 card card-2">
+            <div class="card-header">Toast / pop states</div>
+            <div class="card-body stack">
+              <div class="toast toast-success" style="position:relative;right:auto;bottom:auto;width:auto;max-width:none;">World saved successfully.</div>
+              <div class="toast toast-warning" style="position:relative;right:auto;bottom:auto;width:auto;max-width:none;">Storage is almost full.</div>
+              <div class="toast toast-danger" style="position:relative;right:auto;bottom:auto;width:auto;max-width:none;">Connection lost.</div>
+              <div class="toast toast-info" style="position:relative;right:auto;bottom:auto;width:auto;max-width:none;">Resource reload ready.</div>
+            </div>
+          </div>
+          <div class="col-6 card card-2">
+            <div class="card-header">Tooltip, loading & icon</div>
+            <div class="card-body cluster">
+              <span class="tooltip"><button class="icon-button" type="button" aria-label="Info">i</button><span class="tooltip-content">Additional world information</span></span>
+              <span class="tooltip tooltip-right"><button class="button button-primary-2" type="button">Hover me</button><span class="tooltip-text">Flat action tooltip</span></span>
+              <span class="spinner" aria-label="Loading"></span>
+              <button class="icon-button" type="button" aria-label="Close">x</button>
+            </div>
+          </div>
+        </div>
+        <div class="grid mt-4">
+          <div class="col-4 card card-2">
+            <div class="card-header">Dropdown</div>
+            <div class="card-body">
+              <details class="dropdown" open>
+                <summary class="button button-primary-2">Select realm</summary>
+                <div class="dropdown-menu">
+                  <button class="dropdown-item" type="button" aria-selected="true">Overworld</button>
+                  <button class="dropdown-item" type="button">Nether</button>
+                  <button class="dropdown-item" type="button" disabled>End (locked)</button>
+                </div>
+              </details>
+            </div>
+          </div>
+          <div class="col-4 card card-2">
+            <div class="card-header">Loading mask</div>
+            <div class="card-body">
+              <div class="loading-mask open" style="position:relative;display:flex;min-height:92px;">
+                <span class="spinner spinner-sm" aria-label="Loading"></span><span class="loading-label">Loading chunks</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-4 card card-2">
+            <div class="card-header">Drawer</div>
+            <div class="card-body">
+              <div class="drawer open" style="position:relative;transform:none;min-height:150px;width:100%;">
+                <div class="drawer-header">Quick details</div>
+                <div class="drawer-body">Drawer content stays scrollable.</div>
+                <div class="drawer-footer"><button class="button button-primary-2" type="button">Done</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid mt-4">
+          <div class="col-6 card card-3">
+            <div class="card-header">Card 3</div>
+            <div class="card-body">Low-contrast surface variant.</div>
+          </div>
+          <div class="col-6 card card-2">
+            <div class="card-header">Pop and scrollbar</div>
+            <div class="card-body">
+              <div class="pop pop-info" style="position:relative;right:auto;bottom:auto;width:auto;max-width:none;margin-bottom:8px;">Pop information</div>
+              <div class="ore-scrollbar-2" style="height:42px;">Scrollable content with the compact scrollbar surface.</div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -513,6 +619,27 @@ Built for ApricityUI.</textarea>
               <span class="text-muted">Muted text</span>
             </div>
             <div class="panel p-4 text-center">Padding, centered text, panel surface, and responsive width.</div>
+          </div>
+        </div>
+      </div>
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">COMPACT CONTROLS</div>
+        <h1 id="page-layout-controls">Sidebar, switch & slider</h1>
+        <div class="grid mt-4">
+          <aside class="col-4 sidebar-2" aria-label="Compact sidebar">
+            <div class="sidebar-2-item active" aria-current="page">Overview</div>
+            <div class="sidebar-2-item">Inventory</div>
+            <div class="sidebar-2-item" aria-disabled="true">Locked</div>
+          </aside>
+          <div class="col-8 card card-2">
+            <div class="card-header">Static control states</div>
+            <div class="card-body stack">
+              <label class="switch"><input type="checkbox" checked><span class="switch-track"><span class="switch-thumb"></span></span> Auto-save</label>
+              <label class="switch"><input type="checkbox"><span class="switch-track"><span class="switch-thumb"></span></span> Notifications</label>
+              <label class="checkbox"><input type="checkbox" checked> Generate structures</label>
+              <label class="radio"><input type="radio" name="layout-mode" checked> Compact mode</label>
+              <input class="slider" type="range" min="0" max="100" value="64" aria-label="View distance">
+            </div>
           </div>
         </div>
       </div>
