@@ -1097,39 +1097,3 @@
   .ore-theme .inventory-grid { grid-template-columns: repeat(4, var(--ore-edit-size-44)); }
   .ore-theme .showcase-mark { width: var(--ore-edit-size-88); height: var(--ore-edit-size-88); flex-basis: var(--ore-edit-size-88); font-size: var(--ore-edit-size-38); }
 }
-
-/* Public semantic aliases kept in sync with ore.css for stable editor snapshots. */
-.ore-theme {
-  --ore-color-foreground: var(--ore-ink);
-  --ore-color-muted: var(--ore-ink-muted);
-  --ore-color-background: var(--ore-canvas);
-  --ore-color-surface: var(--ore-surface);
-  --ore-color-surface-deep: var(--ore-surface-deep);
-  --ore-color-border: var(--ore-edge);
-  --ore-color-border-light: var(--ore-edge-light);
-  --ore-color-focus: var(--ore-focus);
-  --ore-color-primary: var(--ore-green);
-  --ore-color-primary-hover: var(--ore-green-hover);
-  --ore-color-primary-active: var(--ore-green-shadow);
-  --ore-color-secondary: var(--ore-purple);
-  --ore-color-danger: var(--ore-red);
-  --ore-color-success: var(--ore-success);
-  --ore-color-warning: var(--ore-warning);
-  --ore-color-info: var(--ore-info);
-  --ore-color-on-accent: #ffffff;
-  --ore-color-highlight: rgba(255,255,255,0.16);
-  --ore-color-overlay: rgba(0,0,0,0.68);
-  --ore-color-overlay-soft: rgba(32,33,36,0.82);
-  --ore-color-shadow: rgba(0,0,0,0.32);
-  --ore-size-unit: 2px;
-  --ore-motion-fast: 100ms;
-  --ore-motion-normal: 180ms;
-  --ore-motion-slow: 260ms;
-  --ore-motion-play-state: running;
-  --ore-radius-sm: 0;
-  --ore-radius-md: 0;
-  --ore-control-height: 42px;
-  --ore-control-height-compact: 36px;
-  --ore-scrollbar-size: 12px;
-  --ore-sidebar-width: 240px;
-}
