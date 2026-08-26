@@ -167,6 +167,102 @@ class IntersectionObserverEngineTest {
         assertEquals(second, records.get(0).target());
     }
 
+    @Test
+    void acceptsEmptyMarginsAndConvertsAbsoluteCssUnitsToPixels() {
+        IntersectionOptions options = new IntersectionOptions(
+                "1in 2.54cm 25.4mm 72pt",
+                "",
+                List.of(),
+                0,
+                false
+        );
+
+        assertEquals("96px 96px 96px 96px", options.rootMargin());
+        assertEquals("0px 0px 0px 0px", options.scrollMargin());
+        assertEquals(new IntersectionRect(-96, -96, 292, 292),
+                options.expandRootBounds(new IntersectionRect(0, 0, 100, 100)));
+        assertThrows(IllegalArgumentException.class,
+                () -> new IntersectionOptions("1", "0px", List.of(), 0, false));
+    }
+
+    @Test
+    void appliesScrollMarginSeparatelyAndEnforcesVisibilityDelayMinimum() {
+        IntersectionOptions options = new IntersectionOptions(
+                "0px",
+                "10% 20px",
+                List.of(),
+                25,
+                true
+        );
+
+        assertEquals("10% 20px 10% 20px", options.scrollMargin());
+        assertEquals(100, options.delay());
+        assertTrue(options.trackVisibility());
+        assertEquals(new IntersectionRect(-20, -10, 140, 120),
+                options.expandScrollBounds(new IntersectionRect(0, 0, 100, 100)));
+    }
+
+    @Test
+    void ancestorClipCanEmptyIntersectionRectWithoutErasingRootContact() {
+        Object target = new Object();
+        IntersectionObserverEngine<Object> engine = new IntersectionObserverEngine<>(
+                new IntersectionOptions("0px", List.of())
+        );
+        engine.observe(target);
+
+        engine.evaluate(ignored -> new IntersectionSnapshot<>(
+                target,
+                1,
+                ROOT,
+                new IntersectionRect(10, 10, 20, 20),
+                List.of(new IntersectionRect(80, 80, 10, 10))
+        ));
+
+        IntersectionEntryData<Object> entry = engine.takeRecords().get(0);
+        assertTrue(entry.isIntersecting());
+        assertEquals(IntersectionRect.ZERO, entry.intersectionRect());
+        assertEquals(0.0, entry.intersectionRatio(), 0.00001);
+    }
+
+    @Test
+    void delayKeepsLatestStateAndDeliversItAfterTheInterval() {
+        Object target = new Object();
+        IntersectionObserverEngine<Object> engine = new IntersectionObserverEngine<>(
+                new IntersectionOptions("0px", "0px", List.of(), 10, false)
+        );
+        engine.observe(target);
+
+        engine.evaluate(ignored -> snapshot(target, 0, new IntersectionRect(0, 0, 10, 10)));
+        assertEquals(1, engine.takeRecords().size());
+
+        engine.evaluate(ignored -> snapshot(target, 5, new IntersectionRect(-20, 0, 10, 10)));
+        assertTrue(engine.takeRecords().isEmpty());
+        engine.evaluate(ignored -> snapshot(target, 10, new IntersectionRect(-20, 0, 10, 10)));
+        List<IntersectionEntryData<Object>> exit = engine.takeRecords();
+        assertEquals(1, exit.size());
+        assertFalse(exit.get(0).isIntersecting());
+    }
+
+    @Test
+    void visibilityChangesProduceEntriesWhenTrackingIsEnabled() {
+        Object target = new Object();
+        IntersectionObserverEngine<Object> engine = new IntersectionObserverEngine<>(
+                new IntersectionOptions("0px", "0px", List.of(), 0, true)
+        );
+        engine.observe(target);
+
+        engine.evaluate(ignored -> new IntersectionSnapshot<>(
+                target, 0, ROOT, new IntersectionRect(0, 0, 10, 10), List.of(), true, false));
+        IntersectionEntryData<Object> hidden = engine.takeRecords().get(0);
+        assertTrue(hidden.isIntersecting());
+        assertFalse(hidden.isVisible());
+
+        engine.evaluate(ignored -> new IntersectionSnapshot<>(
+                target, 100, ROOT, new IntersectionRect(0, 0, 10, 10), List.of(), true, true));
+        IntersectionEntryData<Object> visible = engine.takeRecords().get(0);
+        assertTrue(visible.isVisible());
+    }
+
     private static IntersectionSnapshot<Object> snapshot(Object target, double time, IntersectionRect targetBounds) {
         return new IntersectionSnapshot<>(target, time, ROOT, targetBounds, List.of());
     }
