@@ -14,6 +14,7 @@
   <input class="showcase-page-toggle" type="radio" name="ore-page" id="ore-page-data">
   <input class="showcase-page-toggle" type="radio" name="ore-page" id="ore-page-feedback">
   <input class="showcase-page-toggle" type="radio" name="ore-page" id="ore-page-layout">
+  <input class="showcase-page-toggle" type="radio" name="ore-page" id="ore-page-variants">
   <input class="showcase-modal-toggle" type="checkbox" id="ore-modal-toggle">
 
   <nav class="navbar" aria-label="Ore showcase navigation">
@@ -25,6 +26,7 @@
       <li><label for="ore-page-data">Data</label></li>
       <li><label for="ore-page-feedback">Feedback</label></li>
       <li><label for="ore-page-layout">Layout</label></li>
+      <li><label for="ore-page-variants">Variants</label></li>
     </ul>
   </nav>
 
@@ -40,15 +42,17 @@
         <span data-breadcrumb="data">Data</span>
         <span data-breadcrumb="feedback">Feedback</span>
         <span data-breadcrumb="layout">Layout</span>
+        <span data-breadcrumb="variants">Variants</span>
       </li>
     </ol>
 
     <section class="ore-page" data-page="0" aria-labelledby="page-foundations">
+      <!-- @page:foundations -->
       <div class="showcase-hero">
         <div>
-          <div class="showcase-kicker font-display">PURE CSS THEME / VERSION 1.0</div>
+          <div class="showcase-kicker font-display">PURE CSS THEME / MPL-2.0</div>
           <h1 id="page-foundations">Ore</h1>
-          <p class="font-lg mb-3">A block-built interface theme for ApricityUI, adapted from Minecraft-CSS and packaged with local fonts.</p>
+          <p class="font-lg mb-3">A block-built interface theme for ApricityUI, adapted from Minecraft-CSS and extended with the OreUI community variants.</p>
           <div class="cluster">
             <span class="badge badge-success">Pure CSS</span>
             <span class="badge badge-purple">No CDN</span>
@@ -59,7 +63,7 @@
       </div>
 
       <div class="showcase-section">
-        <div class="showcase-kicker font-display">02 / MATERIAL PALETTE</div>
+        <div class="showcase-kicker font-display">01 / MATERIAL PALETTE</div>
         <h2 class="showcase-section-title">Color tokens</h2>
         <div class="grid mt-3">
           <div class="col-2 ore-swatch ore-swatch-dark">Deep stone</div>
@@ -69,9 +73,25 @@
           <div class="col-2 ore-swatch ore-swatch-red">Redstone</div>
           <div class="col-2 ore-swatch ore-swatch-blue">Lapis</div>
         </div>
+        <div class="grid mt-2">
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-10);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-20);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-30);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-40);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-50);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-60);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-70);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-80);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-90);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gray-100);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-green-30);"></div>
+          <div class="col-1 ore-swatch" style="background: var(--ore-gold-vip);"></div>
+        </div>
+        <p class="text-muted mt-2">Gray scale --ore-gray-10..100 plus hue steps, all exposed as tokens on .ore-theme.</p>
       </div>
+
       <div class="showcase-section">
-        <div class="showcase-kicker font-display">01 / TYPE SYSTEM</div>
+        <div class="showcase-kicker font-display">02 / TYPE SYSTEM</div>
         <h1 id="page-typography">Typography</h1>
         <p class="text-muted">Ore Display carries headings and controls. Ore Regular handles body copy, data, and longer labels.</p>
         <div class="grid mt-4">
@@ -97,18 +117,43 @@
             </div>
           </div>
         </div>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Text colors & alignment</div>
+            <div class="card-body">
+              <p class="text-success text-left mb-1">Success text, left aligned</p>
+              <p class="text-warning text-center mb-1">Warning text, centered</p>
+              <p class="text-danger text-right mb-1">Danger text, right aligned</p>
+              <p class="text-info text-center mb-1">Info text, centered</p>
+              <p class="text-muted text-right m-0">Muted text, right aligned</p>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Code block</div>
+            <div class="card-body">
+              <pre class="ore-code"><code>&lt;link rel="stylesheet" href="ore.css"&gt;
+
+&lt;body class="ore-theme"&gt;
+  &lt;button class="button button-primary"&gt;
+    Create world
+  &lt;/button&gt;
+&lt;/body&gt;</code></pre>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
     <section class="ore-page" data-page="1" aria-labelledby="page-actions">
+      <!-- @page:actions -->
       <div class="showcase-section">
         <div class="showcase-kicker font-display">INTERACTION STATES</div>
-        <h1 id="page-actions">Actions & navigation</h1>
-        <p class="text-muted">Hover and press each control to inspect its face, inset edge, and depth response.</p>
+        <h1 id="page-actions">Actions</h1>
+        <p class="text-muted">Hover and press each control to inspect its face, inset edge, and depth response. Disabled states override hover and active.</p>
 
         <div class="grid mt-4">
           <div class="col-6 card card-accent-green">
-            <div class="card-header">Button variants</div>
+            <div class="card-header">Base buttons</div>
             <div class="card-body stack">
               <button class="button button-primary" type="button">Create world</button>
               <button class="button button-secondary" type="button">Open inventory</button>
@@ -124,31 +169,72 @@
               <div class="cluster">
                 <button class="button button-small" type="button">Small</button>
                 <button class="button button-secondary button-small" type="button">Compact</button>
+                <button class="form-button" type="button">Form button</button>
               </div>
               <button class="button button-wide" type="button">Full width action</button>
               <div class="split">
                 <button class="button button-tertiary" type="button">Back</button>
                 <button class="button" type="button">Continue</button>
               </div>
+              <div class="cluster">
+                <button class="icon-button" type="button" aria-label="Settings">&#9881;</button>
+                <button class="icon-button-2" type="button" aria-label="Edit">&#9998;</button>
+                <button class="icon-button" type="button" disabled aria-label="Locked">&#10006;</button>
+                <span class="text-muted">icon buttons</span>
+              </div>
             </div>
           </div>
         </div>
 
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Flat buttons (-2)</div>
+            <div class="card-body stack">
+              <button class="button button-primary-2" type="button">Primary flat</button>
+              <button class="button button-secondary-2" type="button">Secondary flat</button>
+              <button class="button button-danger-2" type="button">Danger flat</button>
+              <button class="button button-purple-2" type="button">Realms flat</button>
+              <div class="cluster">
+                <button class="button button-primary-2" type="button" disabled>Disabled</button>
+                <button class="button button-primary-2" type="button" data-state="loading">Loading</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Unit bevel buttons (-3)</div>
+            <div class="card-body stack">
+              <button class="button button-primary-3" type="button">Primary unit</button>
+              <button class="button button-secondary-3" type="button">Secondary unit</button>
+              <button class="button button-danger-3" type="button">Danger unit</button>
+              <button class="button button-primary-3" type="button" disabled>Disabled</button>
+            </div>
+          </div>
+        </div>
       </div>
+
       <div class="showcase-section">
         <div class="showcase-kicker font-display">NAVIGATION STATES</div>
         <h1 id="page-navigation">Tabs & pagination</h1>
-        <p class="text-muted">Navigation components preserve the same stone surfaces and amethyst selection state.</p>
+        <p class="text-muted">Navigation components preserve the same stone surfaces; the -2 and -3 tab sets are opt-in variants.</p>
         <div class="card mt-4">
-          <div class="card-header">Tabs</div>
-          <div class="card-body">
+          <div class="card-header">Tabs (base / -2 dark bevel / -3 indicator bar)</div>
+          <div class="card-body stack">
             <div class="tabs" role="tablist">
               <button class="tab active" type="button">Overview</button>
               <button class="tab" type="button">Equipment</button>
               <button class="tab" type="button">Enchantments</button>
-              <button class="tab" type="button">Statistics</button>
+              <button class="tab" type="button" disabled>Locked</button>
             </div>
-            <p class="mt-3 mb-0">The active tab uses an amethyst top edge while preserving the stone surface.</p>
+            <div class="tabs" role="tablist">
+              <button class="tab-2 active" type="button">Inventory</button>
+              <button class="tab-2" type="button">Crafting</button>
+              <button class="tab-2" type="button" disabled>Locked</button>
+            </div>
+            <div class="tabs" role="tablist">
+              <button class="tab-3 active" type="button">Overworld</button>
+              <button class="tab-3" type="button">Nether</button>
+              <button class="tab-3" type="button">The End</button>
+            </div>
           </div>
         </div>
         <div class="card mt-4">
@@ -168,6 +254,7 @@
     </section>
 
     <section class="ore-page" data-page="2" aria-labelledby="page-forms">
+      <!-- @page:forms -->
       <div class="showcase-section">
         <div class="showcase-kicker font-display">INPUT & SELECTION</div>
         <h1 id="page-forms">Forms</h1>
@@ -197,30 +284,25 @@
                   <input class="form-input" id="seed" type="number" value="50321">
                 </div>
               </div>
+              <div class="form-group m-0">
+                <label class="form-label" for="description">World description</label>
+                <textarea class="form-textarea" id="description">A complete Ore theme demonstration.
+Built for ApricityUI.</textarea>
+              </div>
             </div>
             <div class="card-footer split">
               <button class="button button-tertiary" type="reset">Reset</button>
               <button class="form-button" type="button">Create</button>
             </div>
           </form>
-
         </div>
       </div>
+
       <div class="showcase-section">
-        <div class="showcase-kicker font-display">TEXT & VALIDATION</div>
-        <h1 id="page-form-text">Text areas & validation</h1>
-        <p class="text-muted">Long-form input and validation states remain visible together without an inner scrolling surface.</p>
+        <div class="showcase-kicker font-display">VALIDATION & GROUPING</div>
+        <h1 id="page-form-text">Validation & input groups</h1>
         <div class="grid mt-4">
-          <div class="col-7 card card-accent-green">
-            <div class="card-header">Description</div>
-            <div class="card-body">
-              <label class="form-label" for="description">World description</label>
-              <textarea class="form-textarea" id="description">A complete Ore theme demonstration.
-Built for ApricityUI.</textarea>
-              <div class="form-help">Shown beneath the world name when additional context is available.</div>
-            </div>
-          </div>
-          <div class="col-5 card card-accent-purple">
+          <div class="col-6 card card-accent-purple">
             <div class="card-header">Validation</div>
             <div class="card-body">
               <div class="form-group">
@@ -228,44 +310,19 @@ Built for ApricityUI.</textarea>
                 <input class="form-input is-valid" id="validField" value="Available">
                 <div class="form-help text-success">This name can be used.</div>
               </div>
-              <div class="form-group mb-0">
+              <div class="form-group">
                 <label class="form-label" for="invalidField">Invalid value</label>
                 <input class="form-input is-invalid" id="invalidField" value="Already exists">
                 <div class="form-help text-danger">Choose a different name.</div>
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="showcase-section">
-        <div class="showcase-kicker font-display">CHOICE & GROUPING</div>
-        <h1 id="page-form-controls">Form controls</h1>
-        <p class="text-muted">Selection controls, grouped inputs, disabled fields, and form actions use the same control rhythm.</p>
-        <div class="grid mt-4">
-          <div class="col-7 card card-accent-green">
-            <div class="card-header">World options</div>
-            <div class="card-body stack">
-              <div class="form-group mb-0">
-                <span class="form-label">Difficulty</span>
-                <div class="choice-list">
-                  <label class="choice"><input type="radio" name="difficulty"> Peaceful</label>
-                  <label class="choice"><input type="radio" name="difficulty"> Easy</label>
-                  <label class="choice"><input type="radio" name="difficulty" checked> Normal</label>
-                  <label class="choice"><input type="radio" name="difficulty"> Hard</label>
-                </div>
-              </div>
-              <div class="choice-list">
-                <label class="choice"><input type="checkbox" checked> Generate structures</label>
-                <label class="choice"><input type="checkbox"> Bonus chest</label>
+              <div class="form-group m-0">
+                <label class="form-label" for="lockedField">Disabled</label>
+                <input class="form-input" id="lockedField" value="Locked value" disabled>
               </div>
             </div>
-            <div class="card-footer split">
-              <button class="button button-tertiary" type="button">Reset</button>
-              <button class="form-button" type="button">Create</button>
-            </div>
           </div>
-          <div class="col-5 stack">
-            <div class="card card-accent-purple">
+          <div class="col-6 stack">
+            <div class="card">
               <div class="card-header">Input group</div>
               <div class="card-body">
                 <label class="form-label" for="commandField">Command</label>
@@ -285,13 +342,162 @@ Built for ApricityUI.</textarea>
           </div>
         </div>
       </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">NATIVE CHOICES</div>
+        <h1 id="page-form-controls">Native radios & checkboxes</h1>
+        <div class="grid mt-4">
+          <div class="col-12 card card-accent-green">
+            <div class="card-header">World options</div>
+            <div class="card-body stack">
+              <div class="form-group m-0">
+                <span class="form-label">Difficulty</span>
+                <div class="choice-list">
+                  <label class="choice"><input type="radio" name="difficulty"> Peaceful</label>
+                  <label class="choice"><input type="radio" name="difficulty"> Easy</label>
+                  <label class="choice"><input type="radio" name="difficulty" checked> Normal</label>
+                  <label class="choice"><input type="radio" name="difficulty"> Hard</label>
+                </div>
+              </div>
+              <div class="choice-list">
+                <label class="choice"><input type="checkbox" checked> Generate structures</label>
+                <label class="choice"><input type="checkbox"> Bonus chest</label>
+                <label class="choice"><input type="checkbox" disabled> Locked option</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">CUSTOM CHOICE CONTROLS</div>
+        <h1 id="page-form-custom">Switch, checkbox, radio, slider</h1>
+        <p class="text-muted">Pure CSS controls: on state via .on / :checked / aria-checked / data-state, disabled via .disabled or [disabled].</p>
+        <div class="grid mt-4">
+          <div class="col-6 card card-accent-green">
+            <div class="card-header">Switches (-1 / -2 / -3)</div>
+            <div class="card-body stack">
+              <div class="cluster">
+                <span class="switch on"><span class="switch-thumb"></span></span>
+                <span class="switch"><span class="switch-thumb"></span></span>
+                <span class="switch disabled"><span class="switch-thumb"></span></span>
+                <span class="text-muted">gradient track</span>
+              </div>
+              <div class="cluster">
+                <span class="switch-2 on"><span class="switch-2-status"></span><span class="switch-2-status"></span><span class="switch-2-thumb"></span></span>
+                <span class="switch-2"><span class="switch-2-status"></span><span class="switch-2-status"></span><span class="switch-2-thumb"></span></span>
+                <span class="switch-2 disabled"><span class="switch-2-status"></span><span class="switch-2-status"></span><span class="switch-2-thumb"></span></span>
+                <span class="text-muted">dual status halves</span>
+              </div>
+              <div class="cluster">
+                <span class="switch-3 on"><span class="switch-3-thumb"></span></span>
+                <span class="switch-3"><span class="switch-3-thumb"></span></span>
+                <span class="switch-3 disabled"><span class="switch-3-thumb"></span></span>
+                <span class="text-muted">compact 52px</span>
+              </div>
+              <div class="cluster">
+                <span class="switch on switch-bounce-left"><span class="switch-thumb"></span></span>
+                <span class="switch on switch-bounce-right"><span class="switch-thumb"></span></span>
+                <span class="text-muted">bounce modifiers (play on load)</span>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 card card-accent-purple">
+            <div class="card-header">Checkboxes & radios</div>
+            <div class="card-body stack">
+              <div class="cluster">
+                <label class="choice-row"><span class="checkbox on"></span> Checked</label>
+                <label class="choice-row"><span class="checkbox"></span> Empty</label>
+                <label class="choice-row disabled"><span class="checkbox disabled"></span> Disabled</label>
+              </div>
+              <div class="cluster">
+                <label class="choice-row"><span class="checkbox-2 on"></span> Checked</label>
+                <label class="choice-row"><span class="checkbox-2"></span> Empty</label>
+                <label class="choice-row disabled"><span class="checkbox-2 disabled"></span> Disabled</label>
+              </div>
+              <div class="cluster">
+                <label class="choice-row"><span class="radio on"></span> Selected</label>
+                <label class="choice-row"><span class="radio"></span> Empty</label>
+                <label class="choice-row disabled"><span class="radio disabled"></span> Disabled</label>
+              </div>
+              <div class="cluster">
+                <label class="choice-row"><span class="radio-2 on"></span> Diamond</label>
+                <label class="choice-row"><span class="radio-2"></span> Empty</label>
+                <label class="choice-row disabled"><span class="radio-2 disabled"></span> Disabled</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Slider (-1)</div>
+            <div class="card-body stack">
+              <div class="slider"><div class="slider-process" style="width:40%"></div><span class="slider-thumb" style="left:40%"></span><span class="slider-segment" style="left:25%"></span><span class="slider-segment" style="left:50%"></span><span class="slider-segment" style="left:75%"></span></div>
+              <div class="slider disabled"><div class="slider-process" style="width:60%"></div><span class="slider-thumb" style="left:60%"></span></div>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Slider -2 (segmented)</div>
+            <div class="card-body stack">
+              <div class="slider-2"><div class="slider-2-process" style="width:55%"></div><span class="slider-2-thumb" style="left:55%"></span></div>
+              <div class="slider-2 disabled"><div class="slider-2-process" style="width:30%"></div><span class="slider-2-thumb" style="left:30%"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">FORM VARIANTS</div>
+        <h1 id="page-form-variants">Inputs -2</h1>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Flat input states</div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="flatName">World name</label>
+                <input class="form-input-2" id="flatName" type="text" value="Ore Flat">
+                <div class="form-help-2">Inset top shadow, green caret, white focus ring.</div>
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="flatValid">Valid value</label>
+                <input class="form-input-2 is-valid" id="flatValid" value="Available">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="flatInvalid">Invalid value</label>
+                <input class="form-input-2" id="flatInvalid" value="Taken" aria-invalid="true">
+              </div>
+              <div class="form-group m-0">
+                <label class="form-label" for="flatDisabled">Disabled</label>
+                <input class="form-input-2" id="flatDisabled" value="Locked" disabled>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Select & textarea -2</div>
+            <div class="card-body">
+              <div class="form-group">
+                <label class="form-label" for="flatMode">Game mode</label>
+                <select class="form-select-2" id="flatMode">
+                  <option>Survival</option>
+                  <option>Creative</option>
+                </select>
+              </div>
+              <div class="form-group m-0">
+                <label class="form-label" for="flatNotes">Notes</label>
+                <textarea class="form-textarea-2" id="flatNotes">Flat textarea variant.</textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section class="ore-page" data-page="3" aria-labelledby="page-data">
+      <!-- @page:data -->
       <div class="showcase-section">
-        <div class="showcase-kicker font-display">STRUCTURED CONTENT</div>
-        <h1 id="page-data">Data display</h1>
-        <p class="text-muted">Cards, tables, lists, badges, and inventory slots cover dense operational interfaces.</p>
+        <div class="showcase-kicker font-display">SURFACES</div>
+        <h1 id="page-data">Cards & panels</h1>
+        <p class="text-muted">Card and panel are interchangeable surfaces; accent bars, the -2 bevel variants, and media blocks are opt-in.</p>
 
         <div class="grid mt-4">
           <article class="col-4 card card-accent-green">
@@ -332,11 +538,73 @@ Built for ApricityUI.</textarea>
           </article>
         </div>
 
+        <div class="grid mt-4">
+          <article class="col-6 card card-2">
+            <div class="card-media"></div>
+            <div class="card-header">Card -2 with media</div>
+            <div class="card-body">
+              <p class="card-description">Katorlys card surface: highlight top-left, shadow bottom-right, offset ground lip.</p>
+              <p class="card-muted">card-muted renders quiet metadata inside card-2.</p>
+            </div>
+            <div class="card-footer"><button class="button button-primary-2 button-small" type="button">Open</button></div>
+          </article>
+          <div class="col-6 panel panel-2">
+            <div class="panel-header">Panel -2<span class="panel-subtitle">mcui panel surface</span></div>
+            <div class="panel-body">
+              <p class="mb-2">Soft inner bevel, hard offset ground shadow, header and footer bands.</p>
+              <p class="text-muted m-0">Base .panel and .panel-2 share the same header / body / footer split.</p>
+            </div>
+            <div class="panel-footer">
+              <span class="badge-2 badge-2-green"></span>
+              <span class="badge-2 badge-2-blue"></span>
+              <span class="badge-2 badge-2-yellow"></span>
+              <span class="badge-2 badge-2-red"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="grid mt-4">
+          <div class="col-6 panel">
+            <div class="panel-header">Base panel</div>
+            <div class="panel-body">
+              <p class="m-0">The plain panel surface, equivalent to a card.</p>
+            </div>
+            <div class="panel-footer"><span class="text-muted">panel-footer</span></div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Tags & badge dots</div>
+            <div class="card-body stack">
+              <div class="cluster">
+                <span class="tag">Default</span>
+                <span class="tag tag-primary">Primary</span>
+                <span class="tag tag-primary tag-outlined">Outlined</span>
+                <span class="tag tag-informative">Informative</span>
+                <span class="tag tag-notice">Notice</span>
+                <span class="tag tag-warning">Warning</span>
+                <span class="tag tag-realms">Realms</span>
+              </div>
+              <div class="cluster">
+                <span class="tag-2 tag-2-green">Green</span>
+                <span class="tag-2 tag-2-blue">Blue</span>
+                <span class="tag-2 tag-2-yellow">Yellow</span>
+                <span class="tag-2 tag-2-red">Red</span>
+                <span class="tag-2 tag-2-black">Black</span>
+              </div>
+              <div class="cluster">
+                <span class="badge">Default</span>
+                <span class="badge badge-success">Success</span>
+                <span class="badge badge-warning">Warning</span>
+                <span class="badge badge-danger">Danger</span>
+                <span class="badge badge-purple">Purple</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+
       <div class="showcase-section">
         <div class="showcase-kicker font-display">DENSE DATA</div>
-        <h1 id="page-data-details">Tables, lists & slots</h1>
-        <p class="text-muted">Dense resource data remains legible without nesting another scrolling surface.</p>
+        <h1 id="page-data-details">Tables & lists</h1>
         <div class="grid mt-4">
           <div class="col-8 card">
             <div class="card-header">Resource ledger</div>
@@ -367,17 +635,24 @@ Built for ApricityUI.</textarea>
             </div>
           </div>
         </div>
-      </div>
-      <div class="showcase-section">
-        <div class="showcase-kicker font-display">SLOT GRID</div>
-        <h1 id="page-inventory">Inventory slots</h1>
-        <p class="text-muted">Slots retain their fixed square format and hover state without forcing the surrounding page to scroll.</p>
-        <div class="card mt-4">
-          <div class="card-header">Inventory slot example</div>
-          <div class="card-body">
-            <div class="inventory-grid" aria-label="Inventory slot example">
-              <div class="slot">Fe</div><div class="slot">Au</div><div class="slot">C</div><div class="slot">Cu</div><div class="slot">L</div><div class="slot">R</div><div class="slot">Q</div><div class="slot">E</div><div class="slot">D</div>
-              <div class="slot">64</div><div class="slot">32</div><div class="slot">18</div><div class="slot">8</div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">List group -2 (mcui bevel rows)</div>
+            <div class="card-body">
+              <ul class="list-group-2">
+                <li class="list-group-2-item active"><span>Selected item</span><span class="badge-2 badge-2-green"></span></li>
+                <li class="list-group-2-item"><span>Plain item</span><span class="badge-2 badge-2-blue"></span></li>
+                <li class="list-group-2-item disabled"><span>Disabled item</span><span class="badge-2 badge-2-red"></span></li>
+              </ul>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Inventory slots</div>
+            <div class="card-body">
+              <div class="inventory-grid" aria-label="Inventory slot example">
+                <div class="slot">Fe</div><div class="slot">Au</div><div class="slot">C</div><div class="slot">Cu</div><div class="slot">L</div><div class="slot">R</div><div class="slot">Q</div><div class="slot">E</div><div class="slot">D</div>
+                <div class="slot">64</div><div class="slot">32</div><div class="slot">18</div><div class="slot">8</div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div><div class="slot"></div>
+              </div>
             </div>
           </div>
         </div>
@@ -385,20 +660,21 @@ Built for ApricityUI.</textarea>
     </section>
 
     <section class="ore-page" data-page="4" aria-labelledby="page-feedback">
+      <!-- @page:feedback -->
       <div class="showcase-section">
         <div class="showcase-kicker font-display">SYSTEM RESPONSE</div>
-        <h1 id="page-feedback">Feedback & overlays</h1>
-        <p class="text-muted">Communicate state with color, edge weight, progress, and focused modal surfaces.</p>
-
+        <h1 id="page-feedback">Alerts, progress & banners</h1>
         <div class="grid mt-4">
           <div class="col-7 stack">
             <div class="alert alert-success"><strong>World saved.</strong> All region files were written successfully.</div>
             <div class="alert alert-info"><strong>Resource reload.</strong> New theme assets are now available.</div>
             <div class="alert alert-warning"><strong>Storage warning.</strong> Only 12 slots remain in this chest.</div>
             <div class="alert alert-danger"><strong>Connection lost.</strong> Reconnect before continuing.</div>
+            <div class="banner banner-information">Banner: information strip</div>
+            <div class="banner banner-important">Banner: important strip</div>
           </div>
           <div class="col-5 card card-accent-purple">
-            <div class="card-header">Progress</div>
+            <div class="card-header">Progress (base / purple / -2)</div>
             <div class="card-body stack">
               <div>
                 <div class="split mb-2"><span>Terrain</span><span>82%</span></div>
@@ -409,18 +685,64 @@ Built for ApricityUI.</textarea>
                 <div class="progress progress-purple"><div class="progress-bar" style="width:56%"></div></div>
               </div>
               <div>
-                <div class="split mb-2"><span>Lighting</span><span>24%</span></div>
-                <div class="progress"><div class="progress-bar" style="width:24%"></div></div>
+                <div class="split mb-2"><span>Flat track -2</span><span>66%</span></div>
+                <div class="progress-2"><div class="progress-2-bar" style="width:66%"></div></div>
+              </div>
+              <div>
+                <div class="split mb-2"><span>Danger -2</span><span>30%</span></div>
+                <div class="progress-2 progress-2-danger"><div class="progress-2-bar" style="width:30%"></div></div>
+              </div>
+              <div>
+                <div class="split mb-2"><span>Indeterminate -2</span><span>...</span></div>
+                <div class="progress-2 progress-2-indeterminate"><div class="progress-2-bar"></div></div>
               </div>
             </div>
           </div>
         </div>
-
       </div>
+
       <div class="showcase-section">
-        <div class="showcase-kicker font-display">OVERLAYS & STATUS</div>
-        <h1 id="page-overlays">Dialogs & status</h1>
-        <p class="text-muted">Focused overlays and compact status labels complete the feedback vocabulary.</p>
+        <div class="showcase-kicker font-display">OVERLAYS</div>
+        <h1 id="page-overlays">Tooltip, dropdown & modal</h1>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Tooltips (top / bottom / left / right / -2)</div>
+            <div class="card-body cluster">
+              <span class="tooltip">Top<span class="tooltip-content">Dark pixel tooltip</span></span>
+              <span class="tooltip tooltip-bottom">Bottom<span class="tooltip-content">Placed below</span></span>
+              <span class="tooltip tooltip-left">Left<span class="tooltip-content">Placed left</span></span>
+              <span class="tooltip tooltip-right">Right<span class="tooltip-content">Placed right</span></span>
+              <span class="tooltip tooltip-2">Variant -2<span class="tooltip-content">Informative blue surface</span></span>
+              <span class="tooltip" data-state="open">Pinned<span class="tooltip-content">data-state="open" keeps it visible</span></span>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Dropdowns (closed / open / dark -2)</div>
+            <div class="card-body cluster">
+              <div class="dropdown">
+                <button class="dropdown-label" type="button" aria-expanded="false">Closed menu</button>
+                <div class="dropdown-options">
+                  <div class="dropdown-option">Hidden</div>
+                </div>
+              </div>
+              <div class="dropdown open">
+                <button class="dropdown-label" type="button" aria-expanded="true">Open menu</button>
+                <div class="dropdown-options">
+                  <div class="dropdown-option selected">Selected option</div>
+                  <div class="dropdown-option">Second option</div>
+                  <div class="dropdown-option disabled">Disabled option</div>
+                </div>
+              </div>
+              <div class="dropdown dropdown-2 open">
+                <button class="dropdown-label" type="button" aria-expanded="true">Dark menu</button>
+                <div class="dropdown-options">
+                  <div class="dropdown-option selected">Selected option</div>
+                  <div class="dropdown-option">Second option</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="grid mt-4">
           <div class="col-6 card card-accent-green">
             <div class="card-header">Modal dialog</div>
@@ -429,96 +751,377 @@ Built for ApricityUI.</textarea>
               <label class="button" for="ore-modal-toggle">Open dialog</label>
             </div>
           </div>
-          <div class="col-6 card card-accent-gold">
-            <div class="card-header">Status vocabulary</div>
+          <div class="col-6 card">
+            <div class="card-header">Loading (spinner sizes / mask / error)</div>
             <div class="card-body stack">
-              <div class="split"><span>Ready</span><span class="badge badge-success">Success</span></div>
-              <div class="split"><span>Queued</span><span class="badge">Info</span></div>
-              <div class="split"><span>Attention</span><span class="badge badge-warning">Warning</span></div>
-              <div class="split"><span>Blocked</span><span class="badge badge-danger">Danger</span></div>
-              <div class="split"><span>Special</span><span class="badge badge-purple">Rare</span></div>
+              <div class="cluster">
+                <span class="spinner spinner-small"></span>
+                <span class="spinner"></span>
+                <span class="spinner spinner-large"></span>
+                <span class="spinner-text">Loading...</span>
+                <span class="loading-error-text">Failed to load</span>
+              </div>
+              <div style="position: relative; height: 140px; overflow: hidden;">
+                <div class="loading-mask" style="position: absolute;">
+                  <span class="spinner spinner-large"></span>
+                  <span class="spinner-text">Loading chunks...</span>
+                </div>
+              </div>
+              <p class="text-muted m-0">loading-mask is position:fixed in production; shown here inside a clipped box.</p>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">NOTIFICATIONS</div>
+        <h1 id="page-toasts">Toasts</h1>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Pop toasts (-1)</div>
+            <div class="card-body stack">
+              <div class="toast show">Plain pop toast</div>
+              <div class="toast toast-success show">Success toast</div>
+              <div class="toast toast-warning show">Warning toast</div>
+              <div class="toast toast-danger show">Danger toast</div>
+              <div class="toast toast-info show">Info toast</div>
+              <div class="toast toast-vip show">VIP toast</div>
+              <div class="toast toast-debug show">Debug toast</div>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Tinted toasts (-2)</div>
+            <div class="card-body stack">
+              <div class="toast-2 show">Dark toast</div>
+              <div class="toast-2 toast-2-secondary show">Secondary toast</div>
+              <div class="toast-2 toast-2-primary show">Primary toast</div>
+              <div class="toast-2 toast-2-informative show">Informative toast</div>
+              <div class="toast-2 toast-2-notice show">Notice toast</div>
+              <div class="toast-2 toast-2-warning show">Warning toast</div>
+              <div class="toast-2 toast-2-realms show">Realms toast</div>
+            </div>
+          </div>
+        </div>
+        <div class="card mt-4">
+          <div class="card-header">Toast area (stacking container)</div>
+          <div class="card-body">
+            <div style="position: relative; height: 150px; overflow: hidden;">
+              <div class="toast-area" style="position: absolute;">
+                <div class="toast toast-success show">Newest toast on top</div>
+                <div class="toast show">Older toast below</div>
+              </div>
+            </div>
+            <p class="text-muted m-0">toast-area is fixed bottom-center in production (column-reverse stacking); shown here inside a clipped box.</p>
           </div>
         </div>
       </div>
     </section>
 
     <section class="ore-page" data-page="5" aria-labelledby="page-layout">
+      <!-- @page:layout -->
       <div class="showcase-section">
-        <div class="showcase-kicker font-display">COMPOSITION & ADOPTION</div>
-        <h1 id="page-layout">Layout & usage</h1>
-        <p class="text-muted">The twelve-column grid collapses for narrow viewports, while stacks and clusters cover common component flow.</p>
-
+        <div class="showcase-kicker font-display">GRID SYSTEM</div>
+        <h1 id="page-layout">Twelve-column grid</h1>
+        <p class="text-muted">The grid collapses for narrow viewports; col-full always spans the row.</p>
         <div class="card mt-4">
-          <div class="card-header">Twelve-column grid</div>
-          <div class="card-body">
+          <div class="card-header">col-1 .. col-12, col-full</div>
+          <div class="card-body stack">
             <div class="grid">
-              <div class="col-12 alert alert-info text-center">12 columns</div>
-              <div class="col-8 alert alert-success text-center">8 columns</div>
-              <div class="col-4 alert alert-warning text-center">4 columns</div>
-              <div class="col-6 alert alert-info text-center">6 columns</div>
-              <div class="col-6 alert alert-danger text-center">6 columns</div>
-              <div class="col-3 ore-swatch ore-swatch-green">3</div>
-              <div class="col-3 ore-swatch ore-swatch-purple">3</div>
-              <div class="col-3 ore-swatch ore-swatch-gold">3</div>
-              <div class="col-3 ore-swatch ore-swatch-blue">3</div>
+              <div class="col-12 alert alert-info text-center">col-12</div>
+              <div class="col-11 alert alert-success text-center">col-11</div>
+              <div class="col-1 alert alert-warning text-center">1</div>
+              <div class="col-10 alert alert-success text-center">col-10</div>
+              <div class="col-2 alert alert-warning text-center">2</div>
+              <div class="col-9 alert alert-success text-center">col-9</div>
+              <div class="col-3 alert alert-warning text-center">3</div>
+              <div class="col-8 alert alert-success text-center">col-8</div>
+              <div class="col-4 alert alert-warning text-center">4</div>
+              <div class="col-7 alert alert-success text-center">col-7</div>
+              <div class="col-5 alert alert-warning text-center">5</div>
+              <div class="col-6 alert alert-success text-center">col-6</div>
+              <div class="col-6 alert alert-danger text-center">col-6</div>
+              <div class="col-full alert alert-info text-center">col-full</div>
             </div>
           </div>
         </div>
-
-      </div>
-      <div class="showcase-section">
-        <div class="showcase-kicker font-display">ADOPTION</div>
-        <h1 id="page-usage">Usage & utilities</h1>
-        <p class="text-muted">The theme is scoped by one class and ships with layout and text utilities for common composition.</p>
         <div class="grid mt-4">
-          <div class="col-6 card card-accent-green">
-            <div class="card-header">Quick start</div>
+          <div class="col-6 card">
+            <div class="card-header">Containers</div>
             <div class="card-body">
-              <pre class="ore-code"><code>&lt;link rel="stylesheet" href="ore.css"&gt;
-
-&lt;body class="ore-theme"&gt;
-  &lt;button class="button button-primary"&gt;
-    Create world
-  &lt;/button&gt;
-&lt;/body&gt;</code></pre>
+              <p>This page sits in .container (centered, max 1180px).</p>
+              <div class="container-fluid" style="border: 2px dashed var(--ore-edge-light);">
+                <p class="text-center m-0">.container-fluid spans the full width with 20px padding.</p>
+              </div>
             </div>
           </div>
-          <div class="col-6 card card-accent-purple">
-            <div class="card-header">Theme contract</div>
+          <div class="col-6 card">
+            <div class="card-header">Flow helpers & dividers</div>
+            <div class="card-body">
+              <div class="cluster mb-2">
+                <span class="badge">cluster</span><span class="badge">wraps</span><span class="badge">horizontally</span>
+              </div>
+              <div class="split mb-2">
+                <span class="badge badge-success">split</span><span class="badge badge-danger">apart</span>
+              </div>
+              <div class="stack">
+                <span class="badge badge-purple">stack</span>
+                <span class="badge badge-purple">vertical</span>
+              </div>
+              <hr class="ore-divider">
+              <p class="text-muted m-0">ore-divider above, ore-divider-2 below.</p>
+              <hr class="ore-divider-2">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">FIXED OVERLAYS</div>
+        <h1 id="page-drawers">Drawers</h1>
+        <p class="text-muted">Drawers are position:fixed in production; shown here open inside clipped boxes. drawer-overlay dims the page behind them.</p>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">drawer-left + overlay</div>
+            <div class="card-body">
+              <div style="position: relative; height: 240px; overflow: hidden;">
+                <div class="drawer-overlay show" style="position: absolute;"></div>
+                <div class="drawer drawer-left open" style="position: absolute; width: 220px;">
+                  <div class="drawer-header"><span class="drawer-title">Drawer</span><button class="drawer-close" type="button">X</button></div>
+                  <div class="drawer-body"><p>Drawer body content.</p></div>
+                  <div class="drawer-footer"><button class="button button-primary-2 button-small" type="button">Apply</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">drawer-right</div>
+            <div class="card-body">
+              <div style="position: relative; height: 240px; overflow: hidden;">
+                <div class="drawer drawer-right open" style="position: absolute; width: 220px;">
+                  <div class="drawer-header"><span class="drawer-title">Right</span><button class="drawer-close" type="button">X</button></div>
+                  <div class="drawer-body"><p>Anchored to the right edge.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">drawer-top</div>
+            <div class="card-body">
+              <div style="position: relative; height: 180px; overflow: hidden;">
+                <div class="drawer drawer-top open" style="position: absolute;">
+                  <div class="drawer-header"><span class="drawer-title">Top</span><button class="drawer-close" type="button">X</button></div>
+                  <div class="drawer-body"><p class="m-0">Drops from the top edge.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">drawer-bottom</div>
+            <div class="card-body">
+              <div style="position: relative; height: 180px; overflow: hidden;">
+                <div class="drawer drawer-bottom open" style="position: absolute;">
+                  <div class="drawer-header"><span class="drawer-title">Bottom</span><button class="drawer-close" type="button">X</button></div>
+                  <div class="drawer-body"><p class="m-0">Rises from the bottom edge.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">NAVIGATION PANELS</div>
+        <h1 id="page-sidebars">Sidebars & scrollbars</h1>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Sidebar + mask + scrollbar</div>
+            <div class="card-body">
+              <div style="position: relative; height: 240px; overflow: hidden;">
+                <div class="sidebar-mask show" style="position: absolute;"></div>
+                <div class="sidebar open" style="position: absolute; width: 180px;">
+                  <div class="sidebar-title">Menu</div>
+                  <hr class="sidebar-divider">
+                  <a class="sidebar-item active">Home</a>
+                  <a class="sidebar-item">Worlds</a>
+                  <a class="sidebar-item">Settings</a>
+                </div>
+                <div class="scrollbar" style="position: absolute; right: 4px; top: 0; height: 100%;">
+                  <div class="scrollbar-track"></div>
+                  <div class="scrollbar-thumb" style="height: 60px;"></div>
+                </div>
+                <div class="scrollbar-2" style="position: absolute; right: 32px; top: 0; height: 100%;">
+                  <div class="scrollbar-2-track"></div>
+                  <div class="scrollbar-2-thumb" style="height: 60px;"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">Sidebar -2 (paraore) + mask</div>
+            <div class="card-body">
+              <div style="position: relative; height: 240px; overflow: hidden;">
+                <div class="sidebar-2-mask show" style="position: absolute;"></div>
+                <div class="sidebar-2 open" style="position: absolute; width: 200px;">
+                  <div class="sidebar-2-header">Display sidebar</div>
+                  <a class="sidebar-2-item active">Active link</a>
+                  <a class="sidebar-2-item">Plain link</a>
+                  <button class="sidebar-button" type="button">Sidebar button</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">UTILITY CLASSES</div>
+        <h1 id="page-utilities">Utilities</h1>
+        <div class="card mt-4">
+          <div class="card-header">Spacing, width & visibility</div>
+          <div class="card-body">
+            <div class="cluster mb-3">
+              <span class="badge p-1">p-1</span>
+              <span class="badge p-2">p-2</span>
+              <span class="badge p-3">p-3</span>
+              <span class="badge p-4">p-4</span>
+            </div>
+            <div class="panel p-4 text-center mb-2">panel with p-4 and text-center</div>
+            <div class="panel p-2 text-left mb-2 mt-1">mt-1, text-left</div>
+            <div class="panel p-2 text-right mb-4 mt-2">mt-2, mb-4, text-right</div>
+            <div class="alert alert-info w-full m-0">w-full + m-0 alert</div>
+            <div class="cluster mt-2">
+              <span class="badge hidden">hidden (display:none)</span>
+              <span class="badge invisible">invisible (keeps space)</span>
+              <span class="text-muted">&#8592; one hidden and one invisible badge sit in this row</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="ore-page" data-page="6" aria-labelledby="page-variants">
+      <!-- @page:variants -->
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">NUMBERED VARIANTS</div>
+        <h1 id="page-variants">Variant contract</h1>
+        <p class="text-muted">Numbered visuals ported from katorlys/OreUI, Spectrollay-OreUI, ParaOre-UI and mcui-oreui. Base classes never change; -2 and -3 are opt-in per element. New classes only create new effects.</p>
+
+        <div class="grid mt-4">
+          <div class="col-6 card card-accent-green">
+            <div class="card-header">Naming contract</div>
             <div class="card-body">
               <ul class="list-group">
+                <li class="list-group-item"><span>Base class</span><code>.button-primary</code></li>
+                <li class="list-group-item"><span>Flat variant</span><code>.button-primary-2</code></li>
+                <li class="list-group-item"><span>Bevel variant</span><code>.button-primary-3</code></li>
                 <li class="list-group-item"><span>Theme scope</span><code>.ore-theme</code></li>
-                <li class="list-group-item"><span>Variables</span><code>--ore-*</code></li>
-                <li class="list-group-item"><span>Display font</span><code>OreDisplay</code></li>
-                <li class="list-group-item"><span>Body font</span><code>OreRegular</code></li>
+                <li class="list-group-item"><span>Tokens</span><code>--ore-*</code></li>
                 <li class="list-group-item"><span>License</span><code>MPL-2.0</code></li>
               </ul>
             </div>
           </div>
+          <div class="col-6 card card-accent-purple">
+            <div class="card-header">State hooks</div>
+            <div class="card-body">
+              <p>Attribute states: <code>:checked</code> <code>[disabled]</code> <code>[aria-pressed]</code> <code>[aria-selected]</code> <code>[aria-expanded]</code> <code>[aria-invalid]</code> <code>[data-state]</code> <code>details[open]</code></p>
+              <p>Class states: <code>.on</code> <code>.active</code> <code>.show</code> <code>.open</code> <code>.disabled</code> <code>.hidden</code></p>
+              <p class="text-muted m-0">Disabled always overrides hover and active.</p>
+            </div>
+          </div>
         </div>
       </div>
+
       <div class="showcase-section">
-        <div class="showcase-kicker font-display">UTILITY CLASSES</div>
-        <h1 id="page-utilities">Utility samples</h1>
-        <p class="text-muted">Color, spacing, alignment, and panel utilities can be composed without changing the component layer.</p>
-        <div class="card mt-4">
-          <div class="card-header">Text and spacing</div>
-          <div class="card-body">
-            <div class="cluster mb-3">
-              <span class="text-success">Success text</span>
-              <span class="text-warning">Warning text</span>
-              <span class="text-danger">Danger text</span>
-              <span class="text-info">Info text</span>
-              <span class="text-muted">Muted text</span>
+        <div class="showcase-kicker font-display">STATE HOOKS IN ACTION</div>
+        <h1 id="page-variants-states">Attribute-driven states</h1>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">aria-* states</div>
+            <div class="card-body stack">
+              <div class="cluster">
+                <button class="button button-primary-2" type="button" aria-pressed="true">aria-pressed</button>
+                <button class="button button-secondary-2" type="button" aria-disabled="true">aria-disabled</button>
+              </div>
+              <div class="tabs" role="tablist">
+                <button class="tab-2" type="button" aria-selected="true">aria-selected</button>
+                <button class="tab-2" type="button" data-state="active">data-state=active</button>
+              </div>
+              <div class="cluster">
+                <span class="switch" data-state="on"><span class="switch-thumb"></span></span>
+                <span class="checkbox" data-state="on"></span>
+                <span class="radio" aria-checked="true"></span>
+                <span class="text-muted">data-state / aria-checked</span>
+              </div>
             </div>
-            <div class="panel p-4 text-center">Padding, centered text, panel surface, and responsive width.</div>
+          </div>
+          <div class="col-6 card">
+            <div class="card-header">details[open] dropdown</div>
+            <div class="card-body">
+              <details class="dropdown" open>
+                <summary class="dropdown-label" aria-expanded="true">Details dropdown</summary>
+                <div class="dropdown-options">
+                  <div class="dropdown-option selected">Selected option</div>
+                  <div class="dropdown-option">Second option</div>
+                </div>
+              </details>
+              <p class="text-muted mt-2 m-0">A details element with the dropdown classes opens through its native [open] attribute.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="showcase-section">
+        <div class="showcase-kicker font-display">TOKEN OVERRIDES</div>
+        <h1 id="page-variants-tokens">Reskinning with tokens</h1>
+        <p class="text-muted">Every component reads --ore-* tokens, so a scoped override recolors a whole subtree without touching the stylesheet.</p>
+        <div class="grid mt-4">
+          <div class="col-6 card">
+            <div class="card-header">Default tokens</div>
+            <div class="card-body stack">
+              <button class="button button-primary-2" type="button">Primary flat</button>
+              <div class="cluster">
+                <span class="switch on"><span class="switch-thumb"></span></span>
+                <span class="checkbox on"></span>
+                <span class="radio on"></span>
+              </div>
+              <div class="progress-2"><div class="progress-2-bar" style="width:60%"></div></div>
+            </div>
+          </div>
+          <div class="col-6 card" style="--ore-green: #2e6be5; --ore-button-primary-2-background: #2e6be5; --ore-button-primary-2-shadow: #1452cc; --ore-switch-thumb-background: #ffffff; --ore-checkbox-checked: #2e6be5; --ore-progress-2-bar: #2e6be5;">
+            <div class="card-header">Lapis override</div>
+            <div class="card-body stack">
+              <button class="button button-primary-2" type="button">Primary flat</button>
+              <div class="cluster">
+                <span class="switch on"><span class="switch-thumb"></span></span>
+                <span class="checkbox on"></span>
+                <span class="radio on"></span>
+              </div>
+              <div class="progress-2"><div class="progress-2-bar" style="width:60%"></div></div>
+            </div>
           </div>
         </div>
       </div>
     </section>
 
   </main>
+
+  <footer class="showcase-footer">
+    <div class="split">
+      <span>Ore theme for ApricityUI. Pure CSS, MPL-2.0.</span>
+      <span class="cluster">
+        <label class="page-button" for="ore-page-foundations">1</label>
+        <label class="page-button" for="ore-page-actions">2</label>
+        <label class="page-button" for="ore-page-forms">3</label>
+        <label class="page-button" for="ore-page-data">4</label>
+        <label class="page-button" for="ore-page-feedback">5</label>
+        <label class="page-button" for="ore-page-layout">6</label>
+        <label class="page-button" for="ore-page-variants">7</label>
+      </span>
+    </div>
+    <span>Fonts OreRegular / OreDisplay are bundled locally. Every component on this page is styled by ore.css alone.</span>
+  </footer>
 
   <div class="modal-backdrop" id="exampleModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
     <label class="modal-dismiss" for="ore-modal-toggle" aria-label="Close dialog"></label>
@@ -529,7 +1132,7 @@ Built for ApricityUI.</textarea>
       </div>
       <div class="modal-body">
         <p>Your Ore theme settings are ready to be applied.</p>
-        <div class="alert alert-warning">This example only demonstrates the modal structure.</div>
+        <div class="alert alert-warning m-0">This example only demonstrates the modal structure.</div>
       </div>
       <div class="modal-footer split">
         <label class="button button-tertiary" for="ore-modal-toggle">Cancel</label>

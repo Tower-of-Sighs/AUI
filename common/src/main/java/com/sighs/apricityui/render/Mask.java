@@ -24,7 +24,7 @@ public class Mask {
     private static final Stack<MaskMode> clipPathModeStack = new Stack<>();
     private static final Stack<AABB> clipPathScissorStack = new Stack<>();
     private static final Stack<SurfaceClipState> surfaceClipStack = new Stack<>();
-    private static final ThreadLocal<ArrayDeque<Double>> scissorScaleStack = ThreadLocal.withInitial(ArrayDeque::new);
+    private static final ThreadLocal<ArrayDeque<ScissorScaleState>> scissorScaleStack = ThreadLocal.withInitial(ArrayDeque::new);
     private static final ThreadLocal<Integer> forceStencilDepth = ThreadLocal.withInitial(() -> 0);
     private static AABB currentScissor = null;
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
@@ -66,18 +66,41 @@ public class Mask {
     }
 
     public static void pushScissorScale(double scale) {
+        pushScissorScale(scale, null);
+    }
+
+    /**
+     * Pushes the CSS→device scissor scale. {@code pose} 必须是应用完文档
+     * renderScale 之后的当前 pose：它作为基底被快照，之后 pushMask 只把
+     * 相对基底的局部增量（元素 CSS transform）作用于 scissor 矩形，
+     * 矩形主体仍留在文档 CSS 坐标系由 scale 换算。
+     */
+    public static void pushScissorScale(double scale, PoseStack pose) {
         double safeScale = scale > 0 && Double.isFinite(scale) ? scale : -1.0d;
-        scissorScaleStack.get().push(safeScale);
+        float b00 = 1.0f, b11 = 1.0f, b30 = 0.0f, b31 = 0.0f;
+        if (pose != null) {
+            Matrix4f base = pose.last().pose();
+            b00 = base.m00();
+            b11 = base.m11();
+            b30 = base.m30();
+            b31 = base.m31();
+        }
+        scissorScaleStack.get().push(new ScissorScaleState(safeScale, b00, b11, b30, b31));
     }
 
     public static void popScissorScale() {
-        ArrayDeque<Double> stack = scissorScaleStack.get();
+        ArrayDeque<ScissorScaleState> stack = scissorScaleStack.get();
         if (!stack.isEmpty()) {
             stack.pop();
         }
         if (stack.isEmpty()) {
             scissorScaleStack.remove();
         }
+    }
+
+    private static ScissorScaleState peekScissorScale() {
+        ArrayDeque<ScissorScaleState> stack = scissorScaleStack.get();
+        return stack.isEmpty() ? null : stack.peek();
     }
 
     public static void pushForceStencil() {
@@ -94,17 +117,30 @@ public class Mask {
         return depth > 0;
     }
 
+    public static void pushSurfaceClip(double width, double height, double offsetX, double offsetY, double scaleX, double scaleY) {
+        pushSurfaceClip(null, width, height, offsetX, offsetY, scaleX, scaleY);
+    }
+
     /**
      * Starts a clipped embedded document surface. Its render nodes retain a
      * document-local clip space while its scissor rectangles are mapped into
-     * the current GUI surface.
+     * the current GUI surface. {@code pose}（可选）为建立映射时的基底 pose，
+     * 用于让后续元素 CSS transform 的局部增量正确作用于 scissor 矩形。
      */
-    public static void pushSurfaceClip(double width, double height, double offsetX, double offsetY, double scaleX, double scaleY) {
+    public static void pushSurfaceClip(PoseStack pose, double width, double height, double offsetX, double offsetY, double scaleX, double scaleY) {
         Base.commitDraws();
         surfaceClipStack.push(new SurfaceClipState(currentClip, currentScissor, surfaceScissorTransform));
         currentClip = new AABB(0, 0, (float) width, (float) height);
         currentScissor = currentClip;
-        surfaceScissorTransform = new SurfaceScissorTransform(offsetX, offsetY, scaleX, scaleY);
+        float b00 = 1.0f, b11 = 1.0f, b30 = 0.0f, b31 = 0.0f;
+        if (pose != null) {
+            Matrix4f base = pose.last().pose();
+            b00 = base.m00();
+            b11 = base.m11();
+            b30 = base.m30();
+            b31 = base.m31();
+        }
+        surfaceScissorTransform = new SurfaceScissorTransform(offsetX, offsetY, scaleX, scaleY, b00, b11, b30, b31);
         applyScissor(currentScissor);
     }
 
@@ -141,16 +177,32 @@ public class Mask {
 
     public static void pushMask(PoseStack pose, float x, float y, float width, float height, float[] radii, boolean forceStencil) {
         boolean forced = forceStencil || forceStencilDepth.get() > 0;
+        // scissor 是轴对齐矩形，而顶点会经过当前 pose 矩阵：两者必须保持一致。
+        // 但 scissor 坐标系不一定等于设备像素：scissorScale 覆盖（overlay/screen
+        // 文档）和 surface 坐标系各自负责 CSS→设备的换算，pose 里的文档缩放
+        // （renderScale）已含在其中，不能再乘一次（否则全屏 overlay 被双重缩放）。
+        // 因此只对遮罩矩形应用“相对基底的局部增量”L = 基底⁻¹ ∘ pose —— 即元素
+        // 自身的 CSS transform。L 轴对齐时变换矩形；带旋转/错切时 scissor 无法
+        // 表达，退回 stencil。否则 CSS transform（如滑块按钮的
+        // translate(-50%,-50%)）会把几何移走、遮罩留在原地，inset 阴影被错误裁剪。
+        Matrix4f poseMatrix = pose.last().pose();
+        float[] local = resolveLocalScissorTransform(
+                poseMatrix.m00(), poseMatrix.m01(), poseMatrix.m10(), poseMatrix.m11(),
+                poseMatrix.m20(), poseMatrix.m21(), poseMatrix.m30(), poseMatrix.m31());
         MaskMode mode = !stencilUsable()
                 ? (forced ? MaskMode.NONE : MaskMode.SCISSOR)
-                : (!forced && isRectMask(radii) ? MaskMode.SCISSOR : MaskMode.STENCIL);
+                : (!forced && isRectMask(radii) && local != null
+                        ? MaskMode.SCISSOR : MaskMode.STENCIL);
         maskModeStack.push(mode);
         if (mode == MaskMode.SCISSOR) {
             Base.commitDraws();
             scissorStack.push(currentScissor);
             AABB newMask = new AABB(x, y, width, height);
+            if (local != null) {
+                newMask = transformAxisAligned(newMask, local[0], local[1], local[2], local[3]);
+            }
             clipStack.push(currentClip);
-            currentClip = currentClip.intersection(newMask);
+            currentClip = currentClip.intersection(new AABB(x, y, width, height));
             currentScissor = currentScissor == null ? newMask : currentScissor.intersection(newMask);
             applyScissor(currentScissor);
             return;
@@ -282,6 +334,13 @@ public class Mask {
         if (mode == MaskMode.SCISSOR) {
             Base.commitDraws();
             clipPathScissorStack.push(currentScissor);
+            Matrix4f poseMatrix = pose.last().pose();
+            float[] local = resolveLocalScissorTransform(
+                    poseMatrix.m00(), poseMatrix.m01(), poseMatrix.m10(), poseMatrix.m11(),
+                    poseMatrix.m20(), poseMatrix.m21(), poseMatrix.m30(), poseMatrix.m31());
+            if (local != null) {
+                newMask = transformAxisAligned(newMask, local[0], local[1], local[2], local[3]);
+            }
             currentScissor = currentScissor == null ? newMask : currentScissor.intersection(newMask);
             applyScissor(currentScissor);
             return;
@@ -415,7 +474,11 @@ public class Mask {
     private record StencilDepthState(boolean depthTestEnabled, boolean depthWriteEnabled, boolean cullEnabled) {
     }
 
-    private record SurfaceScissorTransform(double offsetX, double offsetY, double scaleX, double scaleY) {
+    private record ScissorScaleState(double scale, float b00, float b11, float b30, float b31) {
+    }
+
+    private record SurfaceScissorTransform(double offsetX, double offsetY, double scaleX, double scaleY,
+                                           float b00, float b11, float b30, float b31) {
         private void apply(AABB rect) {
             Window window = Minecraft.getInstance().getWindow();
             double guiScale = Math.max(1.0d, window.getGuiScale());
@@ -433,12 +496,9 @@ public class Mask {
     }
 
     private static double getScissorScale(Window window) {
-        ArrayDeque<Double> stack = scissorScaleStack.get();
-        if (!stack.isEmpty()) {
-            double scale = stack.peek();
-            if (scale > 0 && Double.isFinite(scale)) {
-                return scale;
-            }
+        ScissorScaleState state = peekScissorScale();
+        if (state != null && state.scale() > 0 && Double.isFinite(state.scale())) {
+            return state.scale();
         }
         return Math.max(1.0d, window.getGuiScale());
     }
@@ -449,6 +509,71 @@ public class Mask {
             if (r > 0.001f) return false;
         }
         return true;
+    }
+
+    /**
+     * 2D 轴对齐判定：x′/y′ 不能依赖另一轴或 z（顶点带有绘制深度 z）。
+     * 只放行平移 + 缩放，旋转/错切返回 false。
+     */
+    static boolean isAxisAligned2D(float m01, float m10, float m20, float m21) {
+        float eps = 0.0001f;
+        return Math.abs(m01) < eps && Math.abs(m10) < eps
+                && Math.abs(m20) < eps && Math.abs(m21) < eps;
+    }
+
+    /**
+     * 计算遮罩矩形需要跟随的局部变换 L = 基底⁻¹ ∘ pose。基底是建立 scissor
+     * 坐标映射时的 pose（surface 映射还包含其自身的 offset/scale），pose 中
+     * 属于基底的部分（如文档 renderScale）由 scissor 换算路径负责，不能重复
+     * 应用。返回 {l00, l11, l30, l31}；L 带旋转/错切（scissor 无法表达）时
+     * 返回 null，调用方应退回 stencil。
+     */
+    private static float[] resolveLocalScissorTransform(
+            float p00, float p01, float p10, float p11,
+            float p20, float p21, float p30, float p31) {
+        if (surfaceScissorTransform != null) {
+            SurfaceScissorTransform s = surfaceScissorTransform;
+            // 有效基底 = 建立映射时的 pose ∘ T(offset) ∘ S(scale)
+            float be00 = (float) (s.b00() * s.scaleX());
+            float be11 = (float) (s.b11() * s.scaleY());
+            float be30 = (float) (s.b00() * s.offsetX() + s.b30());
+            float be31 = (float) (s.b11() * s.offsetY() + s.b31());
+            return divideAxisAligned(p00, p01, p10, p11, p20, p21, p30, p31, be00, be11, be30, be31);
+        }
+        ScissorScaleState state = peekScissorScale();
+        if (state != null) {
+            return divideAxisAligned(p00, p01, p10, p11, p20, p21, p30, p31,
+                    state.b00(), state.b11(), state.b30(), state.b31());
+        }
+        return divideAxisAligned(p00, p01, p10, p11, p20, p21, p30, p31, 1, 1, 0, 0);
+    }
+
+    /**
+     * L = B⁻¹ ∘ P（B 为轴对齐的 2D 仿射：x′=b00·x+b30，y′=b11·y+b31）。
+     * L 轴对齐时返回 {l00, l11, l30, l31}，否则返回 null。
+     */
+    static float[] divideAxisAligned(
+            float p00, float p01, float p10, float p11,
+            float p20, float p21, float p30, float p31,
+            float b00, float b11, float b30, float b31) {
+        if (Math.abs(b00) < 1.0e-8f || Math.abs(b11) < 1.0e-8f) return null;
+        // P = B ∘ L ⇒ p01 = b11·l01，p10 = b00·l10，p20 = b00·l20，p21 = b11·l21
+        float l01 = p01 / b11;
+        float l10 = p10 / b00;
+        float l20 = p20 / b00;
+        float l21 = p21 / b11;
+        if (!isAxisAligned2D(l01, l10, l20, l21)) return null;
+        return new float[]{p00 / b00, p11 / b11, (p30 - b30) / b00, (p31 - b31) / b11};
+    }
+
+    /** 轴对齐矩阵下的矩形变换：对角两点分别变换后取包围盒（兼容负缩放/翻转）。 */
+    static AABB transformAxisAligned(AABB rect, float m00, float m11, float m30, float m31) {
+        float x0 = m00 * rect.x() + m30;
+        float y0 = m11 * rect.y() + m31;
+        float x1 = m00 * (rect.x() + rect.width()) + m30;
+        float y1 = m11 * (rect.y() + rect.height()) + m31;
+        return new AABB(Math.min(x0, x1), Math.min(y0, y1),
+                Math.abs(x1 - x0), Math.abs(y1 - y0));
     }
 
     /**

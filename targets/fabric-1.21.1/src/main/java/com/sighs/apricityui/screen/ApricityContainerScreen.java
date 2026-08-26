@@ -162,9 +162,9 @@ public class ApricityContainerScreen extends AbstractContainerScreen<ApricityCon
 
         ApricityViewport viewport = linkedDocument.getViewport();
         guiGraphics.pose().pushPose();
-        Mask.pushScissorScale(viewport.scissorScale());
         try {
             guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+            Mask.pushScissorScale(viewport.scissorScale(), guiGraphics.pose());
             Base.drawScreenDocument(guiGraphics.pose(), linkedDocument, floatingItemNodes);
         } finally {
             Mask.popScissorScale();

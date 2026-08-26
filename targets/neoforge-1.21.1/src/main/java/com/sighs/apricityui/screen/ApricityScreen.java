@@ -113,9 +113,9 @@ public class ApricityScreen extends Screen implements AuiLinkedScreen {
                 }
                 ApricityViewport viewport = currentViewport();
                 guiGraphics.pose().pushPose();
-                Mask.pushScissorScale(viewport.scissorScale());
                 try {
                     guiGraphics.pose().scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
+                    Mask.pushScissorScale(viewport.scissorScale(), guiGraphics.pose());
                     Base.drawScreenDocument(guiGraphics.pose(), linkedDocument);
                 } finally {
                     Mask.popScissorScale();

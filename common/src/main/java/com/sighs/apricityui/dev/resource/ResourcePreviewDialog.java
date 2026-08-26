@@ -258,7 +258,7 @@ public final class ResourcePreviewDialog {
             return;
         }
 
-        Mask.pushSurfaceClip(preview.getViewport().layoutWidth(), preview.getViewport().layoutHeight(), contentX, contentY, scaleX, scaleY);
+        Mask.pushSurfaceClip(poseStack, preview.getViewport().layoutWidth(), preview.getViewport().layoutHeight(), contentX, contentY, scaleX, scaleY);
         try {
             poseStack.translate(contentX, contentY, 0);
             poseStack.scale((float) scaleX, (float) scaleY, 1);

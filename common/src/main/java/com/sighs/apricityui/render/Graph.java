@@ -601,19 +601,48 @@ public class Graph {
         float tlH = r[0], tlV = r[1], trH = r[2], trV = r[3];
         float brH = r[4], brV = r[5], blH = r[6], blV = r[7];
 
-        if (tW > 0) addRect(mesh, mat, x + tlH, y, x + w - trH, y + tW, tC);
-        if (bW > 0) addRect(mesh, mat, x + blH, y + h - bW, x + w - brH, y + h, bC);
-        if (lW > 0) addRect(mesh, mat, x, y + tlV, x + lW, y + h - blV, lC);
-        if (rW > 0) addRect(mesh, mat, x + w - rW, y + trV, x + w, y + h - brV, rC);
+        boolean tlRound = tlH > 0 && tlV > 0;
+        boolean trRound = trH > 0 && trV > 0;
+        boolean brRound = brH > 0 && brV > 0;
+        boolean blRound = blH > 0 && blV > 0;
+        // 尖角且两条邻边都存在时按 CSS 斜接（miter）处理：边条让出角区，
+        // 角区沿 外角→内角 对角线分成两个三角形，各归相邻边的颜色。
+        // 否则两条边条在角区互相压盖，半透明边框（如 rgba(0,0,0,0.25)）
+        // 会被混合两次，浏览器里的等腰梯形接缝也会丢失。
+        boolean tlMiter = !tlRound && tW > 0 && lW > 0;
+        boolean trMiter = !trRound && tW > 0 && rW > 0;
+        boolean brMiter = !brRound && rW > 0 && bW > 0;
+        boolean blMiter = !blRound && bW > 0 && lW > 0;
 
-        if ((tlH > 0 && tlV > 0) || tW > 0 || lW > 0)
-            addComplexCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
-        if ((trH > 0 && trV > 0) || tW > 0 || rW > 0)
-            addComplexCorner(mesh, mat, x + w - trH, y + trV, trH, trV, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
-        if ((brH > 0 && brV > 0) || rW > 0 || bW > 0)
-            addComplexCorner(mesh, mat, x + w - brH, y + h - brV, brH, brV, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
-        if ((blH > 0 && blV > 0) || bW > 0 || lW > 0)
-            addComplexCorner(mesh, mat, x + blH, y + h - blV, blH, blV, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+        if (tW > 0) addRect(mesh, mat, x + (tlRound ? tlH : tlMiter ? lW : 0), y, x + w - (trRound ? trH : trMiter ? rW : 0), y + tW, tC);
+        if (bW > 0) addRect(mesh, mat, x + (blRound ? blH : blMiter ? lW : 0), y + h - bW, x + w - (brRound ? brH : brMiter ? rW : 0), y + h, bC);
+        if (lW > 0) addRect(mesh, mat, x, y + (tlRound ? tlV : tlMiter ? tW : 0), x + lW, y + h - (blRound ? blV : blMiter ? bW : 0), lC);
+        if (rW > 0) addRect(mesh, mat, x + w - rW, y + (trRound ? trV : trMiter ? tW : 0), x + w, y + h - (brRound ? brV : brMiter ? bW : 0), rC);
+
+        if (tlRound) addComplexCorner(mesh, mat, x + tlH, y + tlV, tlH, tlV, lW, tW, SEGMENTS * 2, (lW > 0 ? lC : tC), (tW > 0 ? tC : lC));
+        else if (tlMiter) addMiteredCorner(mesh, mat, x, y, x + lW, y + tW, tC, lC);
+        if (trRound) addComplexCorner(mesh, mat, x + w - trH, y + trV, trH, trV, rW, tW, SEGMENTS * 3, (tW > 0 ? tC : rC), (rW > 0 ? rC : tC));
+        else if (trMiter) addMiteredCorner(mesh, mat, x + w, y, x + w - rW, y + tW, tC, rC);
+        if (brRound) addComplexCorner(mesh, mat, x + w - brH, y + h - brV, brH, brV, rW, bW, 0, (rW > 0 ? rC : bC), (bW > 0 ? bC : rC));
+        else if (brMiter) addMiteredCorner(mesh, mat, x + w, y + h, x + w - rW, y + h - bW, bC, rC);
+        if (blRound) addComplexCorner(mesh, mat, x + blH, y + h - blV, blH, blV, lW, bW, SEGMENTS, (bW > 0 ? bC : lC), (lW > 0 ? lC : bC));
+        else if (blMiter) addMiteredCorner(mesh, mat, x, y + h, x + lW, y + h - bW, bC, lC);
+    }
+
+    /**
+     * 尖角边框的斜接接缝：角区矩形沿 外角(ox,oy)→内角(ix,iy) 对角线切开，
+     * 水平边（上/下）拿走含角区水平边的三角形，垂直边（左/右）拿走另一个，
+     * 与浏览器中相邻异色边框形成等腰梯形的渲染一致。
+     */
+    private static void addMiteredCorner(MeshBuilder mesh, Matrix4f mat, float ox, float oy, float ix, float iy, int horizontalColor, int verticalColor) {
+        // 含角区水平边的三角形 → 水平边框的颜色
+        vtx(mesh, mat, ox, oy, horizontalColor);
+        vtx(mesh, mat, ix, oy, horizontalColor);
+        vtx(mesh, mat, ix, iy, horizontalColor);
+        // 含角区垂直边的三角形 → 垂直边框的颜色
+        vtx(mesh, mat, ox, oy, verticalColor);
+        vtx(mesh, mat, ox, iy, verticalColor);
+        vtx(mesh, mat, ix, iy, verticalColor);
     }
 
     public static void drawCursor(Matrix4f mat, float x, float y, float height, int color, long lastBlinkTime) {

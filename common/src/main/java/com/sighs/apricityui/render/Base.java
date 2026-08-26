@@ -91,12 +91,17 @@ public class Base {
             ApricityViewport viewport = document.getViewport();
             Mask.resetDepth();
             poseStack.pushPose();
-            Mask.pushScissorScale(viewport.scissorScale());
             try {
                 poseStack.scale(viewport.renderScale(), viewport.renderScale(), 1.0f);
-                drawFlatDocumentInContext(poseStack, document, List.of());
+                // 基底必须在 renderScale 应用之后快照：scissor 矩形保持在 CSS
+                // 坐标系，只有元素 CSS transform 的局部增量会作用于它。
+                Mask.pushScissorScale(viewport.scissorScale(), poseStack);
+                try {
+                    drawFlatDocumentInContext(poseStack, document, List.of());
+                } finally {
+                    Mask.popScissorScale();
+                }
             } finally {
-                Mask.popScissorScale();
                 poseStack.popPose();
             }
         }

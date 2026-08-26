@@ -76,7 +76,7 @@ public class Box {
     public void applyMargin(String side, String value) {
         boolean auto = isAuto(value);
         setAutoMargin(side, auto);
-        setMargin(side, auto ? 0d : resolveBoxLength(value));
+        setMargin(side, auto ? 0d : resolveMarginLength(value));
     }
 
     public void applyMarginAll(String value) {
@@ -260,6 +260,16 @@ public class Box {
     }
 
     /**
+     * margin 允许负值（CSS2 §8.3 未限制符号），例如 absolute 居中常用的
+     * margin: -10px 0 0 -10px；不能像 padding 一样钳制到 0。
+     */
+    private double resolveMarginLength(String value) {
+        if (element == null) return Size.resolveLength(value, 0, 0);
+        double basis = Size.isPercent(value) ? Size.getScaleWidth(element) : 0;
+        return Size.resolveLength(value, basis, 0);
+    }
+
+    /**
      * 1-4 值简写展开映射：索引 = 数量-1，值 = 输出位 [TL,TR,BR,BL] 各取源 token 的下标。
      * 1=全同，2=[TL,TR,TL,TR]，3=[TL,TR,BR,TR]，4=[TL,TR,BR,BL]。
      */
@@ -306,7 +316,7 @@ public class Box {
 
     private BoxLength[] parseFourSideBoxLengths(String raw) {
         return parseFourSideShorthand(raw,
-                token -> isAuto(token) ? BoxLength.autoValue() : new BoxLength(resolveBoxLength(token), false),
+                token -> isAuto(token) ? BoxLength.autoValue() : new BoxLength(resolveMarginLength(token), false),
                 BoxLength[]::new, BoxLength.zero());
     }
 
