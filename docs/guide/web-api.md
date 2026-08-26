@@ -287,7 +287,10 @@ var io = new IntersectionObserver(function (entries, observer) {
 }, {
     root: null,                         // null = Document 逻辑 viewport
     rootMargin: "20px 0px",
-    threshold: [0, 0.5, 1]
+    scrollMargin: "0px",               // 扩大路径上的滚动裁剪区域
+    threshold: [0, 0.5, 1],
+    trackVisibility: true,
+    delay: 100                          // trackVisibility=true 时最少 100ms
 });
 io.observe(el);
 io.unobserve(el);
@@ -295,9 +298,9 @@ io.takeRecords();
 io.disconnect();
 ```
 
-`IntersectionObserver` 的 entry 有 `target/time/rootBounds/boundingClientRect/intersectionRect/isIntersecting/intersectionRatio`。实例只读 `root/rootMargin/thresholds`，其中 rootMargin 会规范为四值，threshold 会排序去重。`root` 必须是同一 Document 的 Element 或 null；显式 root 在 overflow 裁剪时使用提交后的 padding clip（含滚动条 gutter），否则使用 border box。target 也基于提交后的 border box，并叠加实际 paint-list 中的祖先 overflow clip。rootMargin 只支持 1–4 个 `px` 或 `%` 值，所有百分比都按 root 宽度解析；非法 rootMargin 或 threshold 会抛错。
+`IntersectionObserver` 的 entry 有 `target/time/rootBounds/boundingClientRect/intersectionRect/isIntersecting/isVisible/intersectionRatio`。实例只读 `root/rootMargin/scrollMargin/thresholds/delay/trackVisibility`；rootMargin 和 scrollMargin 会规范为四值，threshold 会排序去重。`root` 可以是同一 Document 的 Element、Document 或 null；显式 root 的目标必须是它的后代。显式 root 在 overflow 裁剪时使用提交后的 padding clip（含滚动条 gutter），否则使用 border box；target 基于提交后的 border box，并沿目标到 root 的祖先链应用 overflow 裁剪。`rootMargin` 只扩大 root，`scrollMargin` 只扩大路径上的滚动裁剪，百分比均按未扩大的矩形宽度解析；支持 CSS 绝对长度和百分比，非法值会抛错。`trackVisibility` 开启后会填充 `isVisible`，且 `delay` 自动提升到至少 100ms。
 
-这是 V1 核心子集：没有 `trackVisibility`、`delay`、`scrollMargin`、跨 Document 观察、变换或 `clip-path` 的精确相交。`visibility:hidden` 不会自动视为不可相交；`display:none`、断连或失活 Document 不会产生可相交结果。
+观察器仍按文档帧批量派发；目标可以在插入 DOM 前注册，断连或 `display:none` 时会产生不相交状态，而不会被静默删除。当前实现仍不提供跨 Document/跨源观察，也不承诺滤镜、遮挡等复杂合成场景的像素级可见性。
 
 ```javascript
 var mo = new MutationObserver(function (records) { ... });

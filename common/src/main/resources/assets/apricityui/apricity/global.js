@@ -505,6 +505,7 @@ function __auiDecorateIntersectionEntries(list) {
       boundingClientRect: entry.boundingClientRect,
       intersectionRect: entry.intersectionRect,
       isIntersecting: !!entry.isIntersecting,
+      isVisible: !!entry.isVisible,
       intersectionRatio: Number(entry.intersectionRatio)
     });
   }
@@ -978,54 +979,108 @@ function ResizeObserver(callback) {
   return observer;
 }
 
+function __auiNormalizeIntersectionMargin(value, name) {
+  let text = value == null ? '' : String(value).trim();
+  if (text === '') return '';
+  let tokens = text.split(/\s+/);
+  if (tokens.length > 4) throw new SyntaxError(name + ' must contain one to four values');
+  let pattern = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:px|%|cm|mm|q|in|pc|pt)?$/i;
+  for (let i = 0; i < tokens.length; i++) {
+    if (!pattern.test(tokens[i])) throw new SyntaxError('Invalid ' + name + ' value: ' + tokens[i]);
+    let unit = tokens[i].match(/(px|%|cm|mm|q|in|pc|pt)$/i);
+    if (!unit && Number(tokens[i]) !== 0) {
+      throw new SyntaxError('Unitless ' + name + ' values must be zero');
+    }
+  }
+  return text;
+}
+
+function __auiNormalizeIntersectionThreshold(value) {
+  let number = Number(value);
+  if (!isFinite(number) || number < 0 || number > 1) {
+    throw new RangeError('IntersectionObserver threshold must be a number from 0 to 1');
+  }
+  return String(number);
+}
+
+IntersectionObserver.prototype = {
+  constructor: IntersectionObserver,
+  observe: function(target) {
+    if (!target || typeof target.getNodeType !== 'function' || target.getNodeType() !== 1) {
+      throw new TypeError('IntersectionObserver target must be an Element');
+    }
+    this.__auiNativeObserver.observe(__auiDecorateElement(target));
+  },
+  unobserve: function(target) {
+    if (!target || typeof target.getNodeType !== 'function' || target.getNodeType() !== 1) {
+      throw new TypeError('IntersectionObserver target must be an Element');
+    }
+    this.__auiNativeObserver.unobserve(__auiDecorateElement(target));
+  },
+  disconnect: function() { this.__auiNativeObserver.disconnect(); },
+  takeRecords: function() {
+    return __auiDecorateIntersectionEntries(this.__auiNativeObserver.takeRecords());
+  }
+};
+
 function IntersectionObserver(callback, options) {
   if (typeof callback !== 'function') throw new TypeError('IntersectionObserver callback must be a function');
   if (options == null) options = {};
   if (typeof options !== 'object') throw new TypeError('IntersectionObserver options must be an object');
 
   let root = options.root == null ? null : options.root;
-  if (root !== null && (!root || typeof root.getNodeType !== 'function' || root.getNodeType() !== 1)) {
-    throw new TypeError('IntersectionObserver root must be an Element or null');
+  let isDocumentRoot = root === document || (root && typeof root.getDocumentElement === 'function'
+    && typeof root.getURL === 'function');
+  if (root !== null && !isDocumentRoot
+      && (!root || typeof root.getNodeType !== 'function' || root.getNodeType() !== 1)) {
+    throw new TypeError('IntersectionObserver root must be an Element, Document, or null');
   }
-  root = root === null ? null : __auiDecorateElement(root);
+  root = root === null || isDocumentRoot ? root : __auiDecorateElement(root);
 
   let threshold = options.threshold;
   let thresholds = null;
   if (threshold != null) {
     if (typeof threshold === 'number') {
-      thresholds = String(threshold);
+      thresholds = __auiNormalizeIntersectionThreshold(threshold);
     } else if (typeof threshold === 'object' && typeof threshold.length === 'number') {
       let values = [];
-      for (let i = 0; i < threshold.length; i++) values.push(String(threshold[i]));
+      for (let i = 0; i < threshold.length; i++) {
+        values.push(__auiNormalizeIntersectionThreshold(threshold[i]));
+      }
       thresholds = values.join(',');
     } else {
       throw new TypeError('IntersectionObserver threshold must be a number or array-like value');
     }
   }
 
-  let rootMargin = options.rootMargin == null ? null : String(options.rootMargin);
+  let rootMargin = options.rootMargin == null ? null
+    : __auiNormalizeIntersectionMargin(options.rootMargin, 'rootMargin');
+  let scrollMargin = options.scrollMargin == null ? null
+    : __auiNormalizeIntersectionMargin(options.scrollMargin, 'scrollMargin');
+  let delay = options.delay == null ? 0 : Number(options.delay);
+  if (!isFinite(delay) || delay < 0) throw new RangeError('IntersectionObserver delay must be a non-negative finite number');
+  delay = Math.floor(delay);
+  let trackVisibility = !!options.trackVisibility;
+  let observer = null;
   let nativeObserver = window.createIntersectionObserver(function(entries) {
-    callback(__auiDecorateIntersectionEntries(entries), observer);
-  }, root, rootMargin, thresholds);
-  let observer = {
-    observe: function(target) {
-      if (!target || typeof target.getNodeType !== 'function' || target.getNodeType() !== 1) {
-        throw new TypeError('IntersectionObserver target must be an Element');
-      }
-      nativeObserver.observe(__auiDecorateElement(target));
-    },
-    unobserve: function(target) {
-      if (!target || typeof target.getNodeType !== 'function' || target.getNodeType() !== 1) {
-        throw new TypeError('IntersectionObserver target must be an Element');
-      }
-      nativeObserver.unobserve(__auiDecorateElement(target));
-    },
-    disconnect: function() { nativeObserver.disconnect(); },
-    takeRecords: function() { return __auiDecorateIntersectionEntries(nativeObserver.takeRecords()); }
-  };
-  __auiInstallValueBridge(observer, 'root', () => __auiDecorateElement(nativeObserver.getRoot()));
+    if (!observer) return;
+    callback.call(observer, __auiDecorateIntersectionEntries(entries), observer);
+  }, root, rootMargin, scrollMargin, thresholds, delay, trackVisibility);
+  observer = Object.create(IntersectionObserver.prototype);
+  try {
+    Object.defineProperty(observer, '__auiNativeObserver', { value: nativeObserver, configurable: false });
+  } catch (e) {
+    observer.__auiNativeObserver = nativeObserver;
+  }
+  __auiInstallValueBridge(observer, 'root', () => {
+    let value = nativeObserver.getRoot();
+    return value === document ? document : __auiDecorateElement(value);
+  });
   __auiInstallValueBridge(observer, 'rootMargin', () => nativeObserver.getRootMargin());
+  __auiInstallValueBridge(observer, 'scrollMargin', () => nativeObserver.getScrollMargin());
   __auiInstallValueBridge(observer, 'thresholds', () => __auiDecorateIntersectionThresholds(nativeObserver.getThresholds()));
+  __auiInstallValueBridge(observer, 'delay', () => Number(nativeObserver.getDelay()));
+  __auiInstallValueBridge(observer, 'trackVisibility', () => !!nativeObserver.getTrackVisibility());
   return observer;
 }
 

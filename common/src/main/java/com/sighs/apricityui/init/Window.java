@@ -272,13 +272,40 @@ public class Window {
         return new FetchPromise(url, contextPath);
     }
 
-    public IntersectionObserver createIntersectionObserver(Consumer<Object> callback, Element root, String rootMargin, String thresholds) {
+    /** Backwards-compatible Java entry point using the original four arguments. */
+    public IntersectionObserver createIntersectionObserver(Consumer<Object> callback,
+                                                            Element root,
+                                                            String rootMargin,
+                                                            String thresholds) {
+        return createIntersectionObserver(callback, (Object) root, rootMargin, null, thresholds, 0L, false);
+    }
+
+    /** Creates an observer with the full IntersectionObserverInit option set. */
+    public IntersectionObserver createIntersectionObserver(Consumer<Object> callback,
+                                                            Object root,
+                                                            String rootMargin,
+                                                            String scrollMargin,
+                                                            String thresholds,
+                                                            long delay,
+                                                            boolean trackVisibility) {
+        if (callback == null) {
+            throw new NullPointerException("IntersectionObserver callback must not be null");
+        }
+        if (root != null && !(root instanceof Element) && !(root instanceof Document)) {
+            throw new IllegalArgumentException("IntersectionObserver root must be an Element, Document, or null");
+        }
+
         Document ownerDocument = Document.getContextDocument();
-        if (root != null) {
-            if (ownerDocument != null && root.document != ownerDocument) {
+        if (root instanceof Element elementRoot) {
+            if (ownerDocument != null && elementRoot.document != ownerDocument) {
                 throw new IllegalArgumentException("IntersectionObserver root must belong to the current document");
             }
-            ownerDocument = root.document;
+            ownerDocument = elementRoot.document;
+        } else if (root instanceof Document documentRoot) {
+            if (ownerDocument != null && documentRoot != ownerDocument) {
+                throw new IllegalArgumentException("IntersectionObserver root must belong to the current document");
+            }
+            ownerDocument = documentRoot;
         }
         if (ownerDocument == null || !ownerDocument.isActive()) {
             throw new IllegalStateException("IntersectionObserver must be created from an active document");
@@ -288,7 +315,7 @@ public class Window {
                 this,
                 ownerDocument,
                 root,
-                IntersectionOptions.parse(rootMargin, thresholds)
+                IntersectionOptions.parse(rootMargin, scrollMargin, thresholds, delay, trackVisibility)
         );
         registerIntersectionObserver(observer);
         return observer;
@@ -339,10 +366,16 @@ public class Window {
             }
         }
         for (IntersectionDelivery delivery : deliveries) {
-            if (delivery.callback != null
-                    && delivery.document != null
-                    && delivery.document.isCurrentGeneration(delivery.documentGeneration)) {
+            if (delivery.callback == null
+                    || delivery.document == null
+                    || !delivery.document.isCurrentGeneration(delivery.documentGeneration)) {
+                continue;
+            }
+            try {
                 Document.runWithContext(delivery.document, () -> delivery.callback.accept(delivery.entries));
+            } catch (RuntimeException exception) {
+                // One observer callback must not prevent other observers from being notified.
+                ApricityUI.LOGGER.error("[AUI IntersectionObserver] callback failed", exception);
             }
         }
     }
@@ -781,7 +814,7 @@ public class Window {
     /** Normalized root-margin and threshold configuration for an observer. */
     public static final class IntersectionOptions {
         private static final Pattern MARGIN_TOKEN = Pattern.compile(
-                "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))(px|%)",
+                "([+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+))(px|%|cm|mm|q|in|pc|pt)?",
                 Pattern.CASE_INSENSITIVE
         );
         private static final RootMargin ZERO_MARGIN = new RootMargin(
@@ -790,27 +823,63 @@ public class Window {
                 new MarginValue(0.0d, Unit.PX),
                 new MarginValue(0.0d, Unit.PX)
         );
-        private static final IntersectionOptions DEFAULTS = new IntersectionOptions(ZERO_MARGIN, List.of(0.0d));
+        private static final IntersectionOptions DEFAULTS =
+                new IntersectionOptions(ZERO_MARGIN, ZERO_MARGIN, List.of(0.0d), 0L, false);
 
         private final RootMargin rootMargin;
+        private final RootMargin scrollMargin;
         private final List<Double> thresholds;
+        private final long delay;
+        private final boolean trackVisibility;
 
         public IntersectionOptions(String rootMargin, Collection<? extends Number> thresholds) {
-            this(parseRootMargin(rootMargin), normalizeThresholds(thresholds));
+            this(parseRootMargin(rootMargin), ZERO_MARGIN, normalizeThresholds(thresholds), 0L, false);
         }
 
-        private IntersectionOptions(RootMargin rootMargin, List<Double> thresholds) {
-            this.rootMargin = rootMargin;
-            this.thresholds = thresholds;
+        public IntersectionOptions(String rootMargin,
+                                   String scrollMargin,
+                                   Collection<? extends Number> thresholds,
+                                   long delay,
+                                   boolean trackVisibility) {
+            this(parseRootMargin(rootMargin), parseRootMargin(scrollMargin),
+                    normalizeThresholds(thresholds), normalizeDelay(delay, trackVisibility), trackVisibility);
+        }
+
+        private IntersectionOptions(RootMargin rootMargin,
+                                    RootMargin scrollMargin,
+                                    List<Double> thresholds,
+                                    long delay,
+                                    boolean trackVisibility) {
+            this.rootMargin = rootMargin == null ? ZERO_MARGIN : rootMargin;
+            this.scrollMargin = scrollMargin == null ? ZERO_MARGIN : scrollMargin;
+            this.thresholds = thresholds == null || thresholds.isEmpty() ? List.of(0.0d) : List.copyOf(thresholds);
+            this.delay = Math.max(0L, delay);
+            this.trackVisibility = trackVisibility;
+        }
+
+        private static long normalizeDelay(long delay, boolean trackVisibility) {
+            long normalized = Math.max(0L, delay);
+            return trackVisibility && normalized < 100L ? 100L : normalized;
         }
 
         public static IntersectionOptions defaults() {
             return DEFAULTS;
         }
 
-        /** Parses the scalar arguments supplied by the JavaScript bridge. */
+        /** Parses the legacy scalar arguments supplied by the JavaScript bridge. */
         public static IntersectionOptions parse(String rootMargin, String thresholdValues) {
-            return new IntersectionOptions(parseRootMargin(rootMargin), parseThresholds(thresholdValues));
+            return new IntersectionOptions(parseRootMargin(rootMargin), ZERO_MARGIN,
+                    parseThresholds(thresholdValues), 0L, false);
+        }
+
+        /** Parses the complete scalar option set supplied by the JavaScript bridge. */
+        public static IntersectionOptions parse(String rootMargin,
+                                                String scrollMargin,
+                                                String thresholdValues,
+                                                long delay,
+                                                boolean trackVisibility) {
+            return new IntersectionOptions(parseRootMargin(rootMargin), parseRootMargin(scrollMargin),
+                    parseThresholds(thresholdValues), normalizeDelay(delay, trackVisibility), trackVisibility);
         }
 
         /** Returns the four-value canonical root-margin string. */
@@ -818,54 +887,104 @@ public class Window {
             return rootMargin.toString();
         }
 
+        /** Returns the four-value canonical scroll-margin string. */
+        public String scrollMargin() {
+            return scrollMargin.toString();
+        }
+
         public List<Double> thresholds() {
             return thresholds;
         }
 
-        /** Applies root margin; percentages on every side resolve against root width. */
+        public long delay() {
+            return delay;
+        }
+
+        public boolean trackVisibility() {
+            return trackVisibility;
+        }
+
+        /** Applies root margin; percentages on every side resolve against the raw root width. */
         public IntersectionRect expandRootBounds(IntersectionRect rootBounds) {
-            return rootBounds == null ? null : rootMargin.expand(rootBounds);
+            return expandRootBounds(rootBounds, false);
+        }
+
+        /** Applies root and (when applicable) scroll margin against the raw root width. */
+        public IntersectionRect expandRootBounds(IntersectionRect rootBounds, boolean scrollableRoot) {
+            if (rootBounds == null) return null;
+            double width = rootBounds.width();
+            return rootBounds.expand(
+                    rootMargin.top.resolve(width) + (scrollableRoot ? scrollMargin.top.resolve(width) : 0.0d),
+                    rootMargin.right.resolve(width) + (scrollableRoot ? scrollMargin.right.resolve(width) : 0.0d),
+                    rootMargin.bottom.resolve(width) + (scrollableRoot ? scrollMargin.bottom.resolve(width) : 0.0d),
+                    rootMargin.left.resolve(width) + (scrollableRoot ? scrollMargin.left.resolve(width) : 0.0d)
+            );
+        }
+
+        /** Applies scroll margin to one raw scrollport rectangle. */
+        public IntersectionRect expandScrollBounds(IntersectionRect scrollBounds) {
+            return scrollBounds == null ? null : scrollMargin.expand(scrollBounds);
         }
 
         private static RootMargin parseRootMargin(String source) {
-            if (source == null) return ZERO_MARGIN;
-            String trimmed = source.trim();
-            if (trimmed.isEmpty()) {
-                throw new IllegalArgumentException("rootMargin must contain one to four px or % values");
-            }
-            String[] tokens = trimmed.split("\\s+");
+            if (source == null || source.trim().isEmpty()) return ZERO_MARGIN;
+            String[] tokens = source.trim().split("\\s+");
             if (tokens.length > 4) {
-                throw new IllegalArgumentException("rootMargin must contain one to four values");
+                throw new IllegalArgumentException("margin must contain one to four values");
             }
             ArrayList<MarginValue> values = new ArrayList<>(tokens.length);
-            for (String token : tokens) {
-                values.add(parseMarginValue(token));
-            }
+            for (String token : tokens) values.add(parseMarginValue(token));
             return switch (values.size()) {
                 case 1 -> new RootMargin(values.get(0), values.get(0), values.get(0), values.get(0));
                 case 2 -> new RootMargin(values.get(0), values.get(1), values.get(0), values.get(1));
                 case 3 -> new RootMargin(values.get(0), values.get(1), values.get(2), values.get(1));
                 case 4 -> new RootMargin(values.get(0), values.get(1), values.get(2), values.get(3));
-                default -> throw new IllegalArgumentException("rootMargin must contain one to four values");
+                default -> ZERO_MARGIN;
             };
         }
 
         private static MarginValue parseMarginValue(String token) {
             Matcher matcher = MARGIN_TOKEN.matcher(token == null ? "" : token.trim());
             if (!matcher.matches()) {
-                throw new IllegalArgumentException("Unsupported rootMargin value: " + token);
+                throw new IllegalArgumentException("Unsupported margin value: " + token);
             }
             double value;
             try {
                 value = Double.parseDouble(matcher.group(1));
             } catch (NumberFormatException exception) {
-                throw new IllegalArgumentException("Invalid rootMargin value: " + token, exception);
+                throw new IllegalArgumentException("Invalid margin value: " + token, exception);
             }
             if (!Double.isFinite(value)) {
-                throw new IllegalArgumentException("rootMargin values must be finite");
+                throw new IllegalArgumentException("margin values must be finite");
             }
-            Unit unit = "%".equals(matcher.group(2).toLowerCase(java.util.Locale.ROOT)) ? Unit.PERCENT : Unit.PX;
-            return new MarginValue(value == 0.0d ? 0.0d : value, unit);
+            String suffix = matcher.group(2);
+            if (suffix == null || suffix.isEmpty()) {
+                if (value != 0.0d) {
+                    throw new IllegalArgumentException("Unitless margin values must be zero: " + token);
+                }
+                return new MarginValue(0.0d, Unit.PX);
+            }
+            String normalized = suffix.toLowerCase(java.util.Locale.ROOT);
+            if ("%".equals(normalized)) return new MarginValue(normalizeZero(value), Unit.PERCENT);
+            return new MarginValue(convertAbsoluteLength(value, normalized), Unit.PX);
+        }
+
+        private static double convertAbsoluteLength(double value, String unit) {
+            double factor = switch (unit) {
+                case "px" -> 1.0d;
+                case "in" -> 96.0d;
+                case "cm" -> 96.0d / 2.54d;
+                case "mm" -> 96.0d / 25.4d;
+                case "q" -> 96.0d / 101.6d;
+                case "pt" -> 96.0d / 72.0d;
+                case "pc" -> 16.0d;
+                default -> throw new IllegalArgumentException("Unsupported margin unit: " + unit);
+            };
+            return normalizeZero(value * factor);
+        }
+
+        private static double normalizeZero(double value) {
+            return value == 0.0d ? 0.0d : value;
         }
 
         private static List<Double> parseThresholds(String source) {
@@ -952,29 +1071,65 @@ public class Window {
             IntersectionRect rootBounds,
             IntersectionRect boundingClientRect,
             List<IntersectionRect> clipBounds,
-            boolean eligible
+            List<IntersectionRect> scrollClipBounds,
+            boolean rootScrollable,
+            boolean eligible,
+            boolean visible
     ) {
         public IntersectionSnapshot(T target,
                                     double time,
                                     IntersectionRect rootBounds,
                                     IntersectionRect boundingClientRect,
                                     List<IntersectionRect> clipBounds) {
-            this(target, time, rootBounds, boundingClientRect, clipBounds, true);
+            this(target, time, rootBounds, boundingClientRect, clipBounds, List.of(), false, true, true);
+        }
+
+        /** Backwards-compatible constructor retaining the old explicit eligibility flag. */
+        public IntersectionSnapshot(T target,
+                                    double time,
+                                    IntersectionRect rootBounds,
+                                    IntersectionRect boundingClientRect,
+                                    List<IntersectionRect> clipBounds,
+                                    boolean eligible) {
+            this(target, time, rootBounds, boundingClientRect, clipBounds, List.of(), false, eligible, true);
+        }
+
+        public IntersectionSnapshot(T target,
+                                    double time,
+                                    IntersectionRect rootBounds,
+                                    IntersectionRect boundingClientRect,
+                                    List<IntersectionRect> clipBounds,
+                                    boolean eligible,
+                                    boolean visible) {
+            this(target, time, rootBounds, boundingClientRect, clipBounds, List.of(), false, eligible, visible);
+        }
+
+        public IntersectionSnapshot(T target,
+                                    double time,
+                                    IntersectionRect rootBounds,
+                                    IntersectionRect boundingClientRect,
+                                    List<IntersectionRect> clipBounds,
+                                    List<IntersectionRect> scrollClipBounds,
+                                    boolean eligible,
+                                    boolean visible) {
+            this(target, time, rootBounds, boundingClientRect, clipBounds, scrollClipBounds, false, eligible, visible);
         }
 
         public IntersectionSnapshot {
             target = Objects.requireNonNull(target, "target");
             if (!Double.isFinite(time)) time = 0.0d;
             boundingClientRect = Objects.requireNonNull(boundingClientRect, "boundingClientRect");
-            if (clipBounds == null || clipBounds.isEmpty()) {
-                clipBounds = List.of();
-            } else {
-                ArrayList<IntersectionRect> copied = new ArrayList<>(clipBounds.size());
-                for (IntersectionRect clip : clipBounds) {
-                    copied.add(Objects.requireNonNull(clip, "clipBounds must not contain null"));
-                }
-                clipBounds = List.copyOf(copied);
+            clipBounds = copyRectList(clipBounds, "clipBounds");
+            scrollClipBounds = copyRectList(scrollClipBounds, "scrollClipBounds");
+        }
+
+        private static List<IntersectionRect> copyRectList(List<IntersectionRect> source, String name) {
+            if (source == null || source.isEmpty()) return List.of();
+            ArrayList<IntersectionRect> copied = new ArrayList<>(source.size());
+            for (IntersectionRect rect : source) {
+                copied.add(Objects.requireNonNull(rect, name + " must not contain null"));
             }
+            return List.copyOf(copied);
         }
     }
 
@@ -986,8 +1141,21 @@ public class Window {
             IntersectionRect boundingClientRect,
             IntersectionRect intersectionRect,
             boolean isIntersecting,
+            boolean isVisible,
             double intersectionRatio
     ) {
+        /** Backwards-compatible constructor for callers that do not track visibility. */
+        public IntersectionEntryData(T target,
+                                     double time,
+                                     IntersectionRect rootBounds,
+                                     IntersectionRect boundingClientRect,
+                                     IntersectionRect intersectionRect,
+                                     boolean isIntersecting,
+                                     double intersectionRatio) {
+            this(target, time, rootBounds, boundingClientRect, intersectionRect,
+                    isIntersecting, false, intersectionRatio);
+        }
+
         public IntersectionEntryData {
             target = Objects.requireNonNull(target, "target");
             if (!Double.isFinite(time)) time = 0.0d;
@@ -1064,53 +1232,99 @@ public class Window {
             TargetState state = observed.get(snapshot.target());
             if (state == null) return;
 
+            double time = snapshot.time();
+            if (state.initialized && options.delay() > 0L
+                    && Double.isFinite(state.lastUpdateTime)
+                    && time - state.lastUpdateTime < options.delay()) {
+                // Keep the previous delivered state intact. A later evaluation
+                // will deliver the newest geometry once the interval expires.
+                return;
+            }
+            // The delay is measured between processing opportunities, not only
+            // between entries that happened to cross a threshold.
+            state.lastUpdateTime = time;
+
             Evaluation evaluation = evaluateGeometry(snapshot);
             int thresholdIndex = thresholdIndex(evaluation.ratio);
-            if (!state.initialized
+            boolean changed = !state.initialized
                     || state.isIntersecting != evaluation.isIntersecting
-                    || state.thresholdIndex != thresholdIndex) {
+                    || state.thresholdIndex != thresholdIndex
+                    || state.isVisible != evaluation.isVisible;
+            if (changed) {
                 records.add(new IntersectionEntryData<>(
                         snapshot.target(),
-                        snapshot.time(),
+                        time,
                         evaluation.rootBounds,
                         snapshot.boundingClientRect(),
                         evaluation.intersectionRect,
                         evaluation.isIntersecting,
+                        evaluation.isVisible,
                         evaluation.ratio
                 ));
+                state.lastUpdateTime = time;
             }
             state.initialized = true;
             state.isIntersecting = evaluation.isIntersecting;
+            state.isVisible = evaluation.isVisible;
             state.thresholdIndex = thresholdIndex;
         }
 
         private Evaluation evaluateGeometry(IntersectionSnapshot<T> snapshot) {
             IntersectionRect rawRootBounds = snapshot.rootBounds();
-            if (rawRootBounds == null) {
-                return new Evaluation(null, IntersectionRect.ZERO, false, 0.0d);
+            if (rawRootBounds == null || !snapshot.eligible()) {
+                return new Evaluation(
+                        rawRootBounds == null ? null : options.expandRootBounds(rawRootBounds, snapshot.rootScrollable()),
+                        IntersectionRect.ZERO,
+                        false,
+                        visibilityFor(snapshot),
+                        0.0d
+                );
             }
-            IntersectionRect rootBounds = options.expandRootBounds(rawRootBounds);
-            if (!snapshot.eligible()) {
-                return new Evaluation(rootBounds, IntersectionRect.ZERO, false, 0.0d);
-            }
+            IntersectionRect rootBounds = options.expandRootBounds(rawRootBounds, snapshot.rootScrollable());
+            IntersectionRect targetBounds = snapshot.boundingClientRect();
 
-            IntersectionRect.Intersection intersection = new IntersectionRect.Intersection(
-                    true,
-                    snapshot.boundingClientRect()
-            );
+            // isIntersecting is intentionally based only on target-vs-root contact.
+            // Ancestor clips affect intersectionRect/ratio, but must not erase an
+            // edge-adjacent contact with the root.
+            IntersectionRect.Intersection rootContact = IntersectionRect.intersect(targetBounds, rootBounds);
+            boolean isIntersecting = rootContact.intersects();
+
+            IntersectionRect intersectionRect = targetBounds;
+            boolean clipsIntersect = true;
             for (IntersectionRect clip : snapshot.clipBounds()) {
-                intersection = IntersectionRect.intersect(intersection.rect(), clip);
-                if (!intersection.intersects()) {
-                    return new Evaluation(rootBounds, IntersectionRect.ZERO, false, 0.0d);
+                IntersectionRect.Intersection clipped = IntersectionRect.intersect(intersectionRect, clip);
+                if (!clipped.intersects()) {
+                    clipsIntersect = false;
+                    break;
+                }
+                intersectionRect = clipped.rect();
+            }
+            if (clipsIntersect) {
+                for (IntersectionRect scrollClip : snapshot.scrollClipBounds()) {
+                    IntersectionRect expanded = options.expandScrollBounds(scrollClip);
+                    IntersectionRect.Intersection clipped = IntersectionRect.intersect(intersectionRect, expanded);
+                    if (!clipped.intersects()) {
+                        clipsIntersect = false;
+                        break;
+                    }
+                    intersectionRect = clipped.rect();
                 }
             }
-            intersection = IntersectionRect.intersect(intersection.rect(), rootBounds);
-            boolean isIntersecting = intersection.intersects();
-            IntersectionRect intersectionRect = isIntersecting ? intersection.rect() : IntersectionRect.ZERO;
-            double targetArea = snapshot.boundingClientRect().area();
+            if (clipsIntersect) {
+                IntersectionRect.Intersection clippedRoot = IntersectionRect.intersect(intersectionRect, rootBounds);
+                if (clippedRoot.intersects()) intersectionRect = clippedRoot.rect();
+                else clipsIntersect = false;
+            }
+            if (!clipsIntersect) intersectionRect = IntersectionRect.ZERO;
+            double targetArea = targetBounds.area();
             double ratio = targetArea == 0.0d ? (isIntersecting ? 1.0d : 0.0d)
                     : clampRatio(intersectionRect.area() / targetArea);
-            return new Evaluation(rootBounds, intersectionRect, isIntersecting, ratio);
+            return new Evaluation(rootBounds, intersectionRect, isIntersecting,
+                    visibilityFor(snapshot), ratio);
+        }
+
+        private boolean visibilityFor(IntersectionSnapshot<T> snapshot) {
+            return options.trackVisibility() && snapshot.eligible() && snapshot.visible();
         }
 
         private int thresholdIndex(double ratio) {
@@ -1139,13 +1353,16 @@ public class Window {
         private static final class TargetState {
             private boolean initialized;
             private boolean isIntersecting;
+            private boolean isVisible;
             private int thresholdIndex = -1;
+            private double lastUpdateTime = Double.NaN;
         }
 
         private record Evaluation(
                 IntersectionRect rootBounds,
                 IntersectionRect intersectionRect,
                 boolean isIntersecting,
+                boolean isVisible,
                 double ratio
         ) {
         }
@@ -1159,12 +1376,12 @@ public class Window {
         private final IntersectionObserverEngine<Element> engine;
         private Document document;
         private long documentGeneration;
-        private Element root;
+        private Object root;
 
         private IntersectionObserver(Consumer<Object> callback,
                                      Window owner,
                                      Document document,
-                                     Element root,
+                                     Object root,
                                      IntersectionOptions options) {
             this.callback = callback;
             this.owner = owner;
@@ -1175,7 +1392,7 @@ public class Window {
             this.engine = new IntersectionObserverEngine<>(this.options);
         }
 
-        public Element getRoot() {
+        public Object getRoot() {
             return root;
         }
 
@@ -1183,12 +1400,27 @@ public class Window {
             return options.rootMargin();
         }
 
+        public String getScrollMargin() {
+            return options.scrollMargin();
+        }
+
         public List<Double> getThresholds() {
             return options.thresholds();
         }
 
+        public long getDelay() {
+            return options.delay();
+        }
+
+        public boolean getTrackVisibility() {
+            return options.trackVisibility();
+        }
+
         public void observe(Element target) {
-            if (target == null || !isCurrentDocument() || target.document != document || !target.isConnected()) return;
+            if (target == null || !isCurrentDocument() || target.document != document) return;
+            // Registration is allowed before the target is connected. The next
+            // evaluation reports the initial non-intersecting state and a later
+            // insertion can then produce the normal transition.
             engine.observe(target);
             owner.registerIntersectionObserver(this);
         }
@@ -1225,11 +1457,6 @@ public class Window {
                 disposeForDocument();
                 return List.of();
             }
-            for (Element target : engine.observedTargets()) {
-                if (target == null || target.document != document || !target.isConnected()) {
-                    engine.unobserve(target);
-                }
-            }
             if (engine.observedTargets().isEmpty()) {
                 owner.unregisterIntersectionObserver(this);
                 return List.of();
@@ -1239,8 +1466,7 @@ public class Window {
         }
 
         private boolean isCurrentDocument() {
-            if (document == null || !document.isCurrentGeneration(documentGeneration)) return false;
-            return root == null || root.document == document && root.isConnected();
+            return document != null && document.isCurrentGeneration(documentGeneration);
         }
 
         private void unregisterIfIdle() {
@@ -1267,6 +1493,7 @@ public class Window {
         public final Element.DOMRect boundingClientRect;
         public final Element.DOMRect intersectionRect;
         public final boolean isIntersecting;
+        public final boolean isVisible;
         public final double intersectionRatio;
 
         private IntersectionObserverEntry(IntersectionEntryData<Element> entry) {
@@ -1276,74 +1503,170 @@ public class Window {
             this.boundingClientRect = toDomRect(entry.boundingClientRect());
             this.intersectionRect = toDomRect(entry.intersectionRect());
             this.isIntersecting = entry.isIntersecting();
+            this.isVisible = entry.isVisible();
             this.intersectionRatio = entry.intersectionRatio();
         }
     }
 
     private static IntersectionSnapshot<Element> captureIntersectionSnapshot(Document document,
-                                                                               Element root,
+                                                                               Object root,
                                                                                Element target,
                                                                                double time) {
-        if (document == null || !document.isActive() || target == null || target.document != document || !target.isConnected()) {
-            return null;
-        }
+        if (document == null || !document.isActive() || target == null) return null;
+
         List<RenderNode> paintOrder = document.getPaintList();
         RootGeometry rootGeometry = resolveIntersectionRootGeometry(document, root, paintOrder);
         if (rootGeometry == null) return null;
 
-        CommittedGeometry.PaintClip targetPaintClip = CommittedGeometry.resolvePaintClip(target, paintOrder);
-        IntersectionRect targetBounds = CommittedGeometry.borderBox(target);
-        boolean eligible = rootGeometry.eligible
-                && Interaction.isDisplayed(target)
-                && targetPaintClip.painted()
-                && targetBounds != null;
+        boolean sameDocument = target.document == document;
+        boolean connected = sameDocument && target.isConnected();
+        Element rootElement = root instanceof Element elementRoot ? elementRoot : null;
+        boolean withinRoot = rootElement == null || isSameOrDescendant(target, rootElement);
+        boolean paintCommitted = paintOrder != null && !paintOrder.isEmpty();
+        CommittedGeometry.PaintClip targetPaintClip = paintCommitted
+                ? CommittedGeometry.resolvePaintClip(target, paintOrder) : null;
+        boolean painted = targetPaintClip != null && targetPaintClip.painted();
+
+        IntersectionRect targetBounds = connected ? CommittedGeometry.borderBox(target) : null;
+        boolean hasCommittedBounds = targetBounds != null;
         if (targetBounds == null) targetBounds = IntersectionRect.ZERO;
 
+        boolean displayed = connected && Interaction.isDisplayed(target);
+        boolean eligible = rootGeometry.eligible
+                && withinRoot
+                && displayed
+                && painted
+                && hasCommittedBounds;
+        boolean visible = resolveIntersectionVisibility(target, eligible);
+
         ArrayList<IntersectionRect> clips = new ArrayList<>();
-        appendIntersectionClips(clips, rootGeometry.ancestorClips, null);
-        appendIntersectionClips(clips, targetPaintClip.clips(), root);
-        return new IntersectionSnapshot<>(target, time, rootGeometry.bounds, targetBounds, clips, eligible);
+        ArrayList<IntersectionRect> scrollClips = new ArrayList<>();
+        if (connected) {
+            // The DOM ancestor walk is the single source of geometry clips. The
+            // paint list above only tells us whether a committed border phase
+            // exists; adding its mask stack here would clip scrollports before
+            // scrollMargin has a chance to expand them.
+            appendAncestorIntersectionClips(clips, scrollClips, target, rootElement);
+        }
+        return new IntersectionSnapshot<>(
+                target,
+                time,
+                rootGeometry.bounds,
+                targetBounds,
+                clips,
+                scrollClips,
+                rootGeometry.scrollable,
+                eligible,
+                visible
+        );
     }
 
     private static RootGeometry resolveIntersectionRootGeometry(Document document,
-                                                                 Element root,
+                                                                 Object root,
                                                                  List<RenderNode> paintOrder) {
-        if (root == null) {
+        if (root == null || root instanceof Document) {
             ApricityViewport viewport = document.getViewport();
             return new RootGeometry(
                     new IntersectionRect(0.0d, 0.0d, viewport.layoutWidth(), viewport.layoutHeight()),
-                    List.of(),
-                    true
+                    true,
+                    false
             );
         }
-        if (root.document != document || !root.isConnected()) return null;
-        CommittedGeometry.PaintClip rootPaintClip = CommittedGeometry.resolvePaintClip(root, paintOrder);
-        IntersectionRect rootBounds = Interaction.clipsOverflow(root.getComputedStyle())
-                ? CommittedGeometry.overflowClip(root)
-                : CommittedGeometry.borderBox(root);
-        if (rootBounds == null) rootBounds = IntersectionRect.ZERO;
-        return new RootGeometry(rootBounds, rootPaintClip.clips(), Interaction.isDisplayed(root) && rootPaintClip.painted());
+        if (!(root instanceof Element elementRoot)) {
+            return new RootGeometry(null, false, false);
+        }
+        if (elementRoot.document != document || !elementRoot.isConnected()) {
+            // Keep the observer alive while a root is detached. A null root
+            // bounds makes the next evaluation a clean non-intersecting state.
+            return new RootGeometry(null, false, false);
+        }
+        boolean paintCommitted = paintOrder != null && !paintOrder.isEmpty();
+        CommittedGeometry.PaintClip rootPaintClip = paintCommitted
+                ? CommittedGeometry.resolvePaintClip(elementRoot, paintOrder) : null;
+        IntersectionRect rootBounds = Interaction.clipsOverflow(elementRoot.getComputedStyle())
+                ? CommittedGeometry.overflowClip(elementRoot)
+                : CommittedGeometry.borderBox(elementRoot);
+        boolean eligible = Interaction.isDisplayed(elementRoot)
+                && rootPaintClip != null
+                && rootPaintClip.painted()
+                && rootBounds != null;
+        return new RootGeometry(rootBounds, eligible, isScrollContainer(elementRoot));
     }
 
-    private static void appendIntersectionClips(List<IntersectionRect> output,
-                                                List<Element> elements,
-                                                Element excluded) {
-        if (output == null || elements == null || elements.isEmpty()) return;
-        for (Element element : elements) {
-            if (element == null || element == excluded) continue;
-            IntersectionRect bounds = CommittedGeometry.overflowClip(element);
-            if (bounds != null) output.add(bounds);
+    /** Adds overflow clips between target and an explicit root (or the document). */
+    private static void appendAncestorIntersectionClips(List<IntersectionRect> clips,
+                                                        List<IntersectionRect> scrollClips,
+                                                        Element target,
+                                                        Element root) {
+        if (target == null) return;
+        IdentityHashMap<Element, Boolean> seen = new IdentityHashMap<>();
+        Element current = target.parentElement;
+        while (current != null && current != root) {
+            if (seen.put(current, Boolean.TRUE) == null && Interaction.clipsOverflow(current.getComputedStyle())) {
+                IntersectionRect bounds = CommittedGeometry.overflowClip(current);
+                if (bounds != null) {
+                    if (isScrollContainer(current)) scrollClips.add(bounds);
+                    else clips.add(bounds);
+                }
+            }
+            current = current.parentElement;
         }
+    }
+
+    private static boolean isSameOrDescendant(Element target, Element ancestor) {
+        if (target == null || ancestor == null) return false;
+        Element current = target;
+        while (current != null) {
+            if (current == ancestor) return true;
+            current = current.parentElement;
+        }
+        return false;
+    }
+
+    private static boolean isScrollContainer(Element element) {
+        if (element == null) return false;
+        Style style = element.getComputedStyle();
+        return isScrollOverflow(Interaction.resolveOverflowX(style))
+                || isScrollOverflow(Interaction.resolveOverflowY(style));
+    }
+
+    private static boolean isScrollOverflow(String overflow) {
+        String normalized = Interaction.normalizeOverflow(overflow);
+        return !"visible".equals(normalized) && !"clip".equals(normalized);
+    }
+
+    /** Conservative visibility subset used when trackVisibility is enabled. */
+    private static boolean resolveIntersectionVisibility(Element target, boolean eligible) {
+        if (!eligible || target == null) return false;
+        for (Element current = target; current != null; current = current.parentElement) {
+            Style style = current.getComputedStyle();
+            if ("none".equals(style.display)) return false;
+            if (!Interaction.isVisible(current)) return false;
+            if (effectiveOpacity(style.opacity) < 0.999999d) return false;
+            if (hasNonNone(style.transform) || hasNonNone(style.filter) || hasNonNone(style.clipPath)) return false;
+        }
+        return true;
+    }
+
+    private static double effectiveOpacity(String raw) {
+        if (raw == null || raw.isBlank() || "unset".equalsIgnoreCase(raw.trim())) return 1.0d;
+        try {
+            double value = Double.parseDouble(raw.trim());
+            return Double.isFinite(value) ? Math.max(0.0d, value) : 0.0d;
+        } catch (NumberFormatException ignored) {
+            return 0.0d;
+        }
+    }
+
+    private static boolean hasNonNone(String value) {
+        return value != null && !value.isBlank() && !"none".equalsIgnoreCase(value.trim());
     }
 
     private static Element.DOMRect toDomRect(IntersectionRect rect) {
         return rect == null ? null : new Element.DOMRect(rect.x(), rect.y(), rect.width(), rect.height());
     }
 
-    private record RootGeometry(IntersectionRect bounds, List<Element> ancestorClips, boolean eligible) {
-        private RootGeometry {
-            ancestorClips = ancestorClips == null ? List.of() : List.copyOf(ancestorClips);
-        }
+    private record RootGeometry(IntersectionRect bounds, boolean eligible, boolean scrollable) {
     }
 
     public static class ResizeObserver {
