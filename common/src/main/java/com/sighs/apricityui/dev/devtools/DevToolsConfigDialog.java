@@ -57,6 +57,10 @@ final class DevToolsConfigDialog {
                 "devtools.apricityui.settings.viewport_zoom_pass_through",
                 "devtools.apricityui.settings.viewport_zoom_pass_through.description",
                 AuiServices.config().viewportZoomPassThrough());
+        appendBooleanField(inputGrid, "blockMouseEventsWhenCursorHidden",
+                "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden",
+                "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden.description",
+                AuiServices.config().blockMouseEventsWhenCursorHidden());
 
         Element worldWindow = appendSection(scroll, "devtools.apricityui.settings.section.world_window");
         Element worldGrid = appendGrid(worldWindow);
@@ -204,6 +208,7 @@ final class DevToolsConfigDialog {
             AuiServices.config().setRemoteDebug(isChecked("remoteDebug"));
             AuiServices.config().setResourceManagerWorldWindow(isChecked("resourceManagerWorldWindow"));
             AuiServices.config().setViewportZoomPassThrough(isChecked("viewportZoomPassThrough"));
+            AuiServices.config().setBlockMouseEventsWhenCursorHidden(isChecked("blockMouseEventsWhenCursorHidden"));
             AuiServices.config().setWorldWindowDepthOffsetScale(depthOffsetScale);
             AuiServices.config().setWorldWindowMaxDisplayDistance(maxDisplayDistance);
             AuiServices.config().setWorldWindowLodEnabled(isChecked("worldWindowLodEnabled"));

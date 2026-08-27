@@ -33,6 +33,14 @@ public interface AuiConfigService {
 
     void setViewportZoomPassThrough(boolean value);
 
+    /**
+     * 游戏未显示鼠标（准星模式，mouse grabbed）时，overlay/screen 文档不接收任何
+     * 鼠标事件；世界窗口（inWorld）不受影响。默认开启。
+     */
+    boolean blockMouseEventsWhenCursorHidden();
+
+    void setBlockMouseEventsWhenCursorHidden(boolean value);
+
     float worldWindowDepthOffsetScale();
 
     void setWorldWindowDepthOffsetScale(double value);

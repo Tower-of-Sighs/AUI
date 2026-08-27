@@ -41,6 +41,8 @@ public final class FabricConfigService implements AuiConfigService {
     public void setResourceManagerWorldWindow(boolean value) { set("resourceManagerWorldWindow", value); }
     public boolean viewportZoomPassThrough() { return bool("viewportZoomPassThrough", true); }
     public void setViewportZoomPassThrough(boolean value) { set("viewportZoomPassThrough", value); }
+    public boolean blockMouseEventsWhenCursorHidden() { return bool("blockMouseEventsWhenCursorHidden", true); }
+    public void setBlockMouseEventsWhenCursorHidden(boolean value) { set("blockMouseEventsWhenCursorHidden", value); }
     public float worldWindowDepthOffsetScale() { return decimal("worldWindowDepthOffsetScale", .01f); }
     public void setWorldWindowDepthOffsetScale(double value) { set("worldWindowDepthOffsetScale", value); }
     public int worldWindowMaxDisplayDistance() { return integer("worldWindowMaxDisplayDistance", 128); }

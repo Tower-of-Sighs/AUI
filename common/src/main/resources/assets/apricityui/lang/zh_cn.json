@@ -104,6 +104,8 @@
   "devtools.apricityui.settings.resource_manager_world_window.description": "在游戏世界中打开资源管理器。",
   "devtools.apricityui.settings.viewport_zoom_pass_through": "视口缩放穿透",
   "devtools.apricityui.settings.viewport_zoom_pass_through.description": "允许 Ctrl+滚轮穿过不拦截鼠标的覆盖层。",
+  "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden": "鼠标隐藏时屏蔽界面鼠标输入",
+  "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden.description": "游戏隐藏鼠标（准星模式）时，覆盖层和屏幕文档不接收任何鼠标事件，世界窗口不受影响。",
   "devtools.apricityui.settings.world_window_depth_offset_scale": "深度偏移倍率",
   "devtools.apricityui.settings.world_window_depth_offset_scale.description": "距离深度偏移的倍率，范围为 0 到 1。",
   "devtools.apricityui.settings.world_window_max_display_distance": "最大显示距离",

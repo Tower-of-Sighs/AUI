@@ -12,13 +12,14 @@ import com.sighs.apricityui.style.Text;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * 文本拖拽与中键粘贴的回归测试：中键把文档选区文本粘贴进可编辑输入控件（Linux 主选区
- * 风格，受 maxlength 约束）；点击已选中文本内部不折叠选区；从选区内部拖拽选区文本并在
- * 可编辑输入控件上松手=复制（源选区保留），在不可编辑目标上松手=取消拖拽；选区/文本拖拽
- * 靠近可滚动容器边缘时按帧自动滚动。
+ * 风格，受 maxlength 约束）；点击已选中文本内部且未拖动时按浏览器行为在 mouseup 折叠
+ * 到点击点；从选区内部拖拽选区文本并在可编辑输入控件上松手=复制（源选区保留），在不可
+ * 编辑目标上松手=取消拖拽；选区/文本拖拽靠近可滚动容器边缘时按帧自动滚动。
  * <p>
  * 鼠标事件统一通过公开的 {@link MouseEvent#dispatchToTarget} 派发；dispatchToTarget 不做
  * 几何解析，offsetX/offsetY 由测试按目标内容盒位置显式提供。中键按钮常量与实现约定一致：
@@ -113,24 +114,26 @@ class TextDragAndPasteTest {
     }
 
     // ------------------------------------------------------------------
-    // C2: 点击选区内部不折叠；从选区内部拖拽
+    // C2: 选区内单击折叠到点击点；从选区内部拖拽
     // ------------------------------------------------------------------
 
     @Test
-    void clickInsideExistingSelectionKeepsItActive() {
+    void clickInsideExistingSelectionCollapsesToTheClickPoint() {
         Document document = TestDocumentFactory.createDocument();
         Element source = selectableUnit(document, "hello world");
         document.tickFrame();
         source.selectAllInnerText();
 
         Position inside = insideTextPoint(source);
-        // 单击（按下+抬起同点，位移在 4px 内）不折叠既有选区。
+        // 浏览器行为：单击（按下+抬起同点，位移在阈值内）落在选区内部时，
+        // mouseup 把选区折叠到点击位置——mousedown 保留选区只是为了给拖拽留机会。
         mouse(source, "mousedown", 0, 1, inside.x, inside.y);
+        // mousedown 后选区仍保留（等待拖拽判定）
+        assertTrue(document.hasDocumentSelection());
         mouse(source, "mouseup", 0, 0, inside.x, inside.y);
 
-        assertTrue(source.hasInnerTextSelection());
-        assertEquals("hello world", source.getSelectedInnerText());
-        assertTrue(document.hasDocumentSelection());
+        assertFalse(source.hasInnerTextSelection());
+        assertFalse(document.hasDocumentSelection());
     }
 
     @Test

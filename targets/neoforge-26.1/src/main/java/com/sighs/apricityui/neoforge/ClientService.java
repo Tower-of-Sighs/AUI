@@ -127,6 +127,15 @@ public final class ClientService implements AuiClientService {
     }
 
     @Override
+    public boolean isMouseGrabbed() {
+        try {
+            return Minecraft.getInstance().mouseHandler.isMouseGrabbed();
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    @Override
     public Position getMousePositionForWorldInteraction() {
         try {
             return Client.getMousePositionForWorldInteraction();

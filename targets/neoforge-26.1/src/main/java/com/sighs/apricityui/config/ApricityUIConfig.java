@@ -22,6 +22,7 @@ public final class ApricityUIConfig {
         public final ModConfigSpec.BooleanValue remoteDebug;
         public final ModConfigSpec.BooleanValue resourceManagerWorldWindow;
         public final ModConfigSpec.BooleanValue viewportZoomPassThrough;
+        public final ModConfigSpec.BooleanValue blockMouseEventsWhenCursorHidden;
         public final ModConfigSpec.DoubleValue worldWindowDepthOffsetScale;
         public final ModConfigSpec.IntValue worldWindowMaxDisplayDistance;
         public final ModConfigSpec.BooleanValue worldWindowLodEnabled;
@@ -51,6 +52,9 @@ public final class ApricityUIConfig {
             viewportZoomPassThrough = builder
                     .comment("Allow Ctrl+mouse-wheel viewport zoom to pass through persistent overlays that do not intercept mouse events.")
                     .define("viewportZoomPassThrough", true);
+            blockMouseEventsWhenCursorHidden = builder
+                    .comment("When the game hides the mouse cursor (crosshair mode), overlay and screen documents receive no mouse events. World windows are unaffected.")
+                    .define("blockMouseEventsWhenCursorHidden", true);
             builder.pop();
 
             builder.push("worldWindow");

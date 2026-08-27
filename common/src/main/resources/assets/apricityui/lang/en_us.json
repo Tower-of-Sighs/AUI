@@ -104,6 +104,8 @@
   "devtools.apricityui.settings.resource_manager_world_window.description": "Open the Resource Manager in the world.",
   "devtools.apricityui.settings.viewport_zoom_pass_through": "Viewport zoom pass-through",
   "devtools.apricityui.settings.viewport_zoom_pass_through.description": "Let Ctrl+wheel pass through non-intercepting overlays.",
+  "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden": "Block UI mouse input when cursor hidden",
+  "devtools.apricityui.settings.block_mouse_events_when_cursor_hidden.description": "While the game hides the cursor (crosshair mode), overlay and screen documents receive no mouse events. World windows are unaffected.",
   "devtools.apricityui.settings.world_window_depth_offset_scale": "Depth offset scale",
   "devtools.apricityui.settings.world_window_depth_offset_scale.description": "Distance depth offset scale from 0 to 1.",
   "devtools.apricityui.settings.world_window_max_display_distance": "Maximum display distance",

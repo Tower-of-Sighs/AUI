@@ -78,6 +78,16 @@ public final class ConfigService implements AuiConfigService {
     }
 
     @Override
+    public boolean blockMouseEventsWhenCursorHidden() {
+        return client().blockMouseEventsWhenCursorHidden.get();
+    }
+
+    @Override
+    public void setBlockMouseEventsWhenCursorHidden(boolean value) {
+        client().blockMouseEventsWhenCursorHidden.set(value);
+    }
+
+    @Override
     public float worldWindowDepthOffsetScale() {
         return client().worldWindowDepthOffsetScale();
     }

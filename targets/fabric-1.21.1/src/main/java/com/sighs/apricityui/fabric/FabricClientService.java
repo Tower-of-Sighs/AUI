@@ -34,6 +34,7 @@ public final class FabricClientService implements AuiClientService {
     public int getDefaultFontWidth(String text, boolean bold, boolean oblique, double strokeWidth) { return Client.getDefaultFontWidth(text, bold, oblique, strokeWidth); }
     public void drawDefaultFont(PoseStack poseStack, Text text, String content, Position position) { Client.drawDefaultFont(poseStack, text, content, position); }
     public boolean isKeyPressed(String keyName) { return Client.isKeyPressed(keyName); }
+    public boolean isMouseGrabbed() { return Minecraft.getInstance().mouseHandler.isMouseGrabbed(); }
     public Position getMousePositionForWorldInteraction() { return Client.getMousePositionForWorldInteraction(); }
     public void openScreen(String templatePath) { Minecraft.getInstance().setScreen(new ApricityScreen(templatePath)); }
     public void closeScreen() { Minecraft.getInstance().setScreen(null); }

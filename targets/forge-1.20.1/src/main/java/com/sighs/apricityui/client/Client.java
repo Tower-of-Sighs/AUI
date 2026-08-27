@@ -378,6 +378,7 @@ public class Client {
 
     private static boolean handleViewportZoomAtMouse(boolean zoomIn) {
         if (!isControlDown()) return false;
+        if (Operation.shouldBlockScreenMouseEvents()) return false;
         Document target = findViewportZoomTargetAtMouse();
         if (target == null) return false;
         ApricityUI.LOGGER.info("[AUI Viewport] wheel zoomIn={} target={}", zoomIn, target.getPath());

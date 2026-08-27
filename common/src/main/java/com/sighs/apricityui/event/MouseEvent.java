@@ -100,6 +100,9 @@ public class MouseEvent extends Event implements Cloneable {
     }
 
     public static boolean tiggerEvent(MouseEvent event) {
+        // 游戏未显示鼠标（准星模式）时 overlay/screen 文档完全不接收鼠标事件，
+        // 事件透传回游戏本体；世界窗口由按文档派发路径处理，不经过这里
+        if (Operation.shouldBlockScreenMouseEvents()) return false;
         try (GeometryQueryScope geometryScope = GeometryQueryScope.open()) {
             Cursor.refreshFromDocuments(new Position(event.clientX, event.clientY));
             List<Document> docs = DocumentLayerOrder.frontToBack(Document.getAll());

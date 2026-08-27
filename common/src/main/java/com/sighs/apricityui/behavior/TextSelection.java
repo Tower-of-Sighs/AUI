@@ -74,6 +74,13 @@ public final class TextSelection {
         if (document == null) return;
         // 中键不参与文档级选择：Linux 主选区语义下由输入控件负责中键粘贴，这里保持 no-op
         if (event.button == 2) return;
+        // 右键：选区内保留（contextmenu 作用于当前选区），选区外折叠到点击点，均不进入拖拽
+        if (event.button == 1) {
+            handleRightMouseDown(document, event);
+            return;
+        }
+        // 侧键等其他按键不参与文本选择
+        if (event.button != 0) return;
         // 任何新的按下都取消尚未完成的文本拖拽（拖拽过程中按下其他按钮/元素时）
         document.endTextDrag();
         SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
@@ -95,21 +102,31 @@ public final class TextSelection {
 
         int clickCount = event.clickCount;
         if (clickCount >= 3) {
-            // 三击：选择整个段落（单元）
+            // 三击：选择段落（硬换行 <br> 之间的片段；无硬换行时即整个单元），
+            // 拖拽从段落边界继续按段落扩展
             Element unit = hit.unit();
-            selection.selectUnit(unit);
+            String text = SelectionUnits.flattenedSelectableText(unit);
+            int[] paragraph = paragraphRange(text, hit.offset());
+            if (paragraph != null && paragraph[0] < paragraph[1]) {
+                selection.collapse(unit, paragraph[0]);
+                selection.extendTo(unit, paragraph[1]);
+                selection.setGranularity(DocumentSelection.Granularity.PARAGRAPH, unit, paragraph[0], paragraph[1]);
+            } else {
+                selection.collapse(unit, hit.offset());
+            }
             selection.setSelecting(true);
             document.setFocusedElement(unit);
             return;
         }
         if (clickCount == 2) {
-            // 双击：按空白分词选择单词，拖拽从词边界继续扩展
+            // 双击：按词边界选词（空白与标点均断词），拖拽从词边界继续按词扩展
             Element unit = hit.unit();
             String text = SelectionUnits.flattenedSelectableText(unit);
             int[] word = wordRange(text, hit.offset());
             if (word != null) {
                 selection.collapse(unit, word[0]);
                 selection.extendTo(unit, word[1]);
+                selection.setGranularity(DocumentSelection.Granularity.WORD, unit, word[0], word[1]);
             } else {
                 selection.collapse(unit, hit.offset());
             }
@@ -119,17 +136,36 @@ public final class TextSelection {
         }
 
         if (event.shiftKey && selection.hasAnchor()) {
-            // shift+点击：从既有锚点扩展
+            // shift+点击：从既有锚点按字符粒度扩展
+            selection.setGranularity(DocumentSelection.Granularity.CHARACTER, null, 0, 0);
             selection.extendTo(hit.unit(), hit.offset());
         } else if (clickCount == 1 && isInsideSelection(selection, hit)) {
             // 单击落在选区内部：保留选区（不折叠/不扩展），登记为潜在的文本拖拽，
             // 拖拽文本快照取当前文档选区；移出阈值后进入真正的拖拽（COPY 语义）。
+            // 若未形成拖拽，mouseup 时按浏览器行为折叠到按下点（pending collapse）。
             document.beginTextDrag(document.getDocumentSelectedText(), event.clientX, event.clientY);
+            selection.markPendingCollapse(hit.unit(), hit.offset());
         } else {
             selection.collapse(hit.unit(), hit.offset());
         }
         selection.setSelecting(true);
         document.setFocusedElement(hit.unit());
+    }
+
+    /**
+     * 右键按下（浏览器语义）：命中选区内部时保留选区（随后的 contextmenu 作用于它）；
+     * 命中选区外的可选文本时折叠到点击点；命中不可选区域时清空选择。不进入拖拽状态。
+     */
+    private void handleRightMouseDown(Document document, MouseEvent event) {
+        document.endTextDrag();
+        DocumentSelection selection = document.getDocumentSelection();
+        SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
+        if (hit == null) {
+            document.clearDocumentSelection();
+            return;
+        }
+        if (isInsideSelection(selection, hit)) return;
+        selection.collapse(hit.unit(), hit.offset());
     }
 
     /** 命中偏移是否落在该单元当前的文档选区范围内（含端点），单击保留选区用。 */
@@ -149,10 +185,11 @@ public final class TextSelection {
         if (event.activeElementRedirect) return;
         DocumentSelection selection = document.getDocumentSelection();
         if (!selection.isSelecting()) return;
-        // 文本拖拽候选：先推进拖拽判定，越过阈值后选区冻结，不再扩展
+        // 文本拖拽候选：先推进拖拽判定；候选期间（含越阈值后的拖拽中）选区冻结不再扩展，
+        // 未越阈值时由 mouseup 折叠到按下点，越阈值后进入真正的拖拽
         if (document.isTextDragPending()) {
             document.updateTextDrag(event.clientX, event.clientY);
-            if (document.isTextDragging()) return;
+            return;
         }
         // 事件始终派发到指针当前悬停的元素，无需再依赖 pressedElement 冻结
         SelectionUnits.UnitOffset hit = resolveUnitOffset(owner, event.clientX, event.clientY);
@@ -160,12 +197,45 @@ public final class TextSelection {
             // 指针悬停在不可选内容上：保持终点不动（自然冻结）
             return;
         }
-        selection.extendTo(hit.unit(), hit.offset());
+        extendWithGranularity(document, selection, hit);
+    }
+
+    /**
+     * 按拖拽粒度扩展终点：字符粒度直接扩展；词/段落粒度（双击/三击后的拖拽）把终点
+     * 吸附到所在词/段落的边界，锚点固定在初始词/段落背离拖拽方向的一侧——反向拖拽
+     * 时锚点翻转到区间另一端，保证初始词/段落始终完整选中（浏览器行为）。
+     */
+    private static void extendWithGranularity(Document document, DocumentSelection selection,
+                                              SelectionUnits.UnitOffset hit) {
+        DocumentSelection.Granularity granularity = selection.getGranularity();
+        Element anchorRangeUnit = selection.getGranularityUnit();
+        if (granularity == DocumentSelection.Granularity.CHARACTER || anchorRangeUnit == null) {
+            selection.extendTo(hit.unit(), hit.offset());
+            return;
+        }
+        boolean draggingBackward = hit.unit() != anchorRangeUnit
+                ? selection.unitOrderedBefore(document, hit.unit(), anchorRangeUnit)
+                : hit.offset() < selection.getGranularityStart();
+        int anchorBoundary = draggingBackward ? selection.getGranularityEnd() : selection.getGranularityStart();
+        if (selection.getAnchorUnit() != anchorRangeUnit || selection.getAnchorOffset() != anchorBoundary) {
+            selection.moveAnchorTo(anchorRangeUnit, anchorBoundary);
+        }
+        String text = SelectionUnits.flattenedSelectableText(hit.unit());
+        int snapped = hit.offset();
+        if (granularity == DocumentSelection.Granularity.WORD) {
+            int[] word = wordRange(text, hit.offset());
+            if (word != null) snapped = draggingBackward ? word[0] : word[1];
+        } else {
+            int[] paragraph = paragraphRange(text, hit.offset());
+            if (paragraph != null) snapped = draggingBackward ? paragraph[0] : paragraph[1];
+        }
+        selection.extendTo(hit.unit(), snapped);
     }
 
     /**
      * mouseup：若文本拖拽结束时指针落在可编辑输入控件上，把拖拽文本复制进去
      * （COPY 语义，源选区保持不动）；否则仅取消拖拽。每次 mouseup 都清理拖拽状态。
+     * 选区内按下但未形成拖拽时，按浏览器行为把选区折叠到按下点（pending collapse）。
      */
     private void handleMouseUp(Event rawEvent) {
         Document document = owner.document;
@@ -173,8 +243,9 @@ public final class TextSelection {
             // 重派发到按下元素的事件不处理落下/清理：悬停元素自身的 mouseup 已完成
             if (mouseEvent.activeElementRedirect) return;
         }
+        boolean dragging = document.isTextDragging();
         // 只有最深命中元素（target == owner）执行落下，避免路由上的祖先重复处理
-        if (document.isTextDragging() && rawEvent.target == owner
+        if (dragging && rawEvent.target == owner
                 && rawEvent.target instanceof AbstractText input && input.canEditText()) {
             String draggedText = document.getDraggedText();
             if (draggedText != null && !draggedText.isEmpty()) {
@@ -182,7 +253,13 @@ public final class TextSelection {
             }
         }
         document.endTextDrag();
-        document.getDocumentSelection().setSelecting(false);
+        DocumentSelection selection = document.getDocumentSelection();
+        selection.setSelecting(false);
+        // 待折叠只消费一次：路由上多个元素的 mouseup 监听器共享同一份文档选择
+        SelectionUnits.UnitOffset pending = selection.consumePendingCollapse();
+        if (pending != null && !dragging) {
+            selection.collapse(pending.unit(), pending.offset());
+        }
     }
 
     // ------------------------------------------------------------------
@@ -535,19 +612,61 @@ public final class TextSelection {
     }
 
     /**
-     * 浏览器式单词边界：围绕命中偏移的最大连续非空白片段。
+     * 浏览器式词边界（UAX #29 的简化版）：字符分三类——空白（不可成词）、词字符
+     * （字母/数字/CJK/连接符如 _/组合符）、标点符号。标点同样断词：双击 "foo.bar"
+     * 选中 "foo"；连续同类标点作为一个整体成词（双击 "..." 选中整段标点）。
+     * 偏移落在两字符之间时优先取左侧字符的词（双击词尾选中该词）。
      * 偏移落在空白内（或文本为空）时返回 null，此时不做词选择。
      */
-    /** 按空白分词：返回 offset 所在词的 [start, end)；无词时返回 null。 */
+    /** 按浏览器词边界分词：返回 offset 所在词的 [start, end)；无词时返回 null。 */
     public static int[] wordRange(String text, int offset) {
         if (text == null || text.isEmpty()) return null;
         int clamped = Math.max(0, Math.min(offset, text.length()));
-        int start = clamped;
-        while (start > 0 && !isWordSeparator(text.charAt(start - 1))) start--;
-        int end = clamped;
-        while (end < text.length() && !isWordSeparator(text.charAt(end))) end++;
-        if (start == end) return null;
+        int anchor = -1;
+        if (clamped > 0 && wordClassOf(text.charAt(clamped - 1)) != WORD_CLASS_SEPARATOR) {
+            anchor = clamped - 1;
+        } else if (clamped < text.length() && wordClassOf(text.charAt(clamped)) != WORD_CLASS_SEPARATOR) {
+            anchor = clamped;
+        }
+        if (anchor < 0) return null;
+        int wordClass = wordClassOf(text.charAt(anchor));
+        int start = anchor;
+        while (start > 0 && wordClassOf(text.charAt(start - 1)) == wordClass) start--;
+        int end = anchor + 1;
+        while (end < text.length() && wordClassOf(text.charAt(end)) == wordClass) end++;
+        if (start >= end) return null;
         return new int[]{start, end};
+    }
+
+    /**
+     * 段落范围：扁平文本中硬换行（\n，来自 <br>）之间的片段 [start, end)，
+     * 不含换行符本身。浏览器三击选择段落；无硬换行的单元段落即整个单元文本。
+     */
+    public static int[] paragraphRange(String text, int offset) {
+        if (text == null || text.isEmpty()) return null;
+        int clamped = Math.max(0, Math.min(offset, text.length()));
+        int start = clamped <= 0 ? 0 : text.lastIndexOf('\n', clamped - 1) + 1;
+        int newline = text.indexOf('\n', clamped);
+        int end = newline < 0 ? text.length() : newline;
+        return new int[]{start, end};
+    }
+
+    private static final int WORD_CLASS_SEPARATOR = 0;
+    private static final int WORD_CLASS_WORD = 1;
+    private static final int WORD_CLASS_PUNCTUATION = 2;
+
+    private static int wordClassOf(char c) {
+        if (Character.isWhitespace(c)) return WORD_CLASS_SEPARATOR;
+        // CJK 表意文字在 isLetterOrDigit 的 Letter 范畴内，与拉丁词同属词字符
+        if (Character.isLetterOrDigit(c)) return WORD_CLASS_WORD;
+        int type = Character.getType(c);
+        // 连接符（_ 等）与组合符并入词字符，与浏览器词边界一致
+        if (type == Character.CONNECTOR_PUNCTUATION
+                || type == Character.NON_SPACING_MARK
+                || type == Character.COMBINING_SPACING_MARK) {
+            return WORD_CLASS_WORD;
+        }
+        return WORD_CLASS_PUNCTUATION;
     }
 
     /** 元素是否位于富文本编辑区（richtext 子树）内：编辑区的选词/选中由 RichTextSelection 管理。 */
@@ -556,10 +675,6 @@ public final class TextSelection {
             if (e instanceof com.sighs.apricityui.element.RichText) return true;
         }
         return false;
-    }
-
-    private static boolean isWordSeparator(char c) {
-        return Character.isWhitespace(c);
     }
 
     /** 与 Element.drawChildTextRuns 的 shouldAlignDirectNormalFlowTextRuns 保持一致。 */

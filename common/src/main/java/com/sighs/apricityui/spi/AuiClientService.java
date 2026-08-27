@@ -51,6 +51,9 @@ public interface AuiClientService {
 
     boolean isKeyPressed(String keyName);
 
+    /** Returns whether the game mouse is grabbed (crosshair mode, cursor hidden). */
+    boolean isMouseGrabbed();
+
     /** Returns the pointer position used for world-window picking. */
     Position getMousePositionForWorldInteraction();
 

@@ -209,6 +209,12 @@ public final class AuiServices {
             }
 
             @Override
+            public boolean isMouseGrabbed() {
+                // 无头环境视为"鼠标可见"：不拦截任何鼠标事件，保持测试行为不变
+                return false;
+            }
+
+            @Override
             public Position getMousePositionForWorldInteraction() {
                 return null;
             }
@@ -340,6 +346,15 @@ public final class AuiServices {
 
             @Override
             public void setViewportZoomPassThrough(boolean value) {
+            }
+
+            @Override
+            public boolean blockMouseEventsWhenCursorHidden() {
+                return true;
+            }
+
+            @Override
+            public void setBlockMouseEventsWhenCursorHidden(boolean value) {
             }
 
             @Override

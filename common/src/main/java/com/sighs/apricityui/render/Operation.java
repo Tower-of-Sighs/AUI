@@ -122,6 +122,16 @@ public class Operation {
         return mouseButtons;
     }
 
+    /**
+     * 配置开启且游戏未显示鼠标（准星模式，mouse grabbed）时，overlay/screen 文档
+     * 不接收任何鼠标事件（返回 true 表示应拦截）。世界窗口（inWorld 文档）走独立的
+     * 按文档派发路径，不受此拦截影响。
+     */
+    public static boolean shouldBlockScreenMouseEvents() {
+        return AuiServices.config().blockMouseEventsWhenCursorHidden()
+                && AuiServices.client().isMouseGrabbed();
+    }
+
     private static int buttonMask(int button) {
         return switch (button) {
             case 0 -> 1;

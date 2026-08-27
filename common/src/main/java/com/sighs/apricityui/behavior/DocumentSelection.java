@@ -13,12 +13,28 @@ import java.util.List;
  * 自身维护，不在此列。
  */
 public final class DocumentSelection {
+    /**
+     * 拖拽粒度（浏览器行为）：普通拖拽按字符扩展；双击选词后继续拖拽按词边界吸附；
+     * 三击选段后继续拖拽按段落（硬换行之间的片段）吸附。
+     */
+    public enum Granularity { CHARACTER, WORD, PARAGRAPH }
+
     private final Document owner;
     private Element anchorUnit = null;
     private int anchorOffset = 0;
     private Element endUnit = null;
     private int endOffset = 0;
     private boolean selecting = false;
+    // 词/段落粒度拖拽的锚区间：拖拽翻转方向时锚点吸附到该区间的另一侧边界，
+    // 保证初始词/段落在反向拖拽中仍保持完整选中。
+    private Granularity granularity = Granularity.CHARACTER;
+    private Element granularityUnit = null;
+    private int granularityStart = 0;
+    private int granularityEnd = 0;
+    // 选区内单击的待折叠位置：mousedown 落在选区内时不立即折叠（可能是拖拽起点），
+    // mouseup 且未形成拖拽时由 TextSelection 消费并折叠到此处。
+    private Element pendingCollapseUnit = null;
+    private int pendingCollapseOffset = 0;
 
     public DocumentSelection(Document owner) {
         this.owner = owner;
@@ -32,6 +48,8 @@ public final class DocumentSelection {
         anchorOffset = offset;
         endUnit = unit;
         endOffset = offset;
+        resetGranularity();
+        clearPendingCollapse();
         markDirty();
     }
 
@@ -45,6 +63,17 @@ public final class DocumentSelection {
         if (owner != null) owner.clearRichTextSelection();
         endUnit = unit;
         endOffset = offset;
+        clearPendingCollapse();
+        markDirty();
+    }
+
+    /** 仅移动锚点（词/段落粒度拖拽翻转方向时吸附锚区间另一侧边界），终点不变。 */
+    public void moveAnchorTo(Element unit, int offset) {
+        if (anchorUnit == unit && anchorOffset == offset) return;
+        if (owner != null) owner.bumpSelectionCache();
+        if (owner != null) owner.clearRichTextSelection();
+        anchorUnit = unit;
+        anchorOffset = offset;
         markDirty();
     }
 
@@ -57,6 +86,8 @@ public final class DocumentSelection {
         endUnit = null;
         endOffset = 0;
         selecting = false;
+        resetGranularity();
+        clearPendingCollapse();
         markDirty();
     }
 
@@ -77,6 +108,67 @@ public final class DocumentSelection {
 
     public void setSelecting(boolean selecting) {
         this.selecting = selecting;
+    }
+
+    // ------------------------------------------------------------------
+    // 拖拽粒度（双击/三击后的词/段落吸附）
+    // ------------------------------------------------------------------
+
+    /** 设置拖拽粒度与粒度锚区间；CHARACTER 时锚区间清空。 */
+    public void setGranularity(Granularity newGranularity, Element unit, int start, int end) {
+        granularity = newGranularity == null ? Granularity.CHARACTER : newGranularity;
+        if (granularity == Granularity.CHARACTER) {
+            granularityUnit = null;
+            granularityStart = 0;
+            granularityEnd = 0;
+        } else {
+            granularityUnit = unit;
+            granularityStart = start;
+            granularityEnd = end;
+        }
+    }
+
+    public Granularity getGranularity() {
+        return granularity;
+    }
+
+    /** 粒度锚区间所在单元（初始词/段落）；CHARACTER 粒度或无锚区间时为 null。 */
+    public Element getGranularityUnit() {
+        return granularityUnit;
+    }
+
+    public int getGranularityStart() {
+        return granularityStart;
+    }
+
+    public int getGranularityEnd() {
+        return granularityEnd;
+    }
+
+    private void resetGranularity() {
+        setGranularity(Granularity.CHARACTER, null, 0, 0);
+    }
+
+    // ------------------------------------------------------------------
+    // 选区内单击的待折叠位置（mousedown 登记，mouseup 未拖拽时消费）
+    // ------------------------------------------------------------------
+
+    public void markPendingCollapse(Element unit, int offset) {
+        pendingCollapseUnit = unit;
+        pendingCollapseOffset = offset;
+    }
+
+    /** 取出并清除待折叠位置；无待折叠时返回 null。 */
+    public SelectionUnits.UnitOffset consumePendingCollapse() {
+        if (pendingCollapseUnit == null) return null;
+        SelectionUnits.UnitOffset pending = new SelectionUnits.UnitOffset(pendingCollapseUnit, pendingCollapseOffset);
+        clearPendingCollapse();
+        return pending;
+    }
+
+    private void clearPendingCollapse() {
+        pendingCollapseUnit = null;
+        pendingCollapseOffset = 0;
     }
 
     public Element getAnchorUnit() {
