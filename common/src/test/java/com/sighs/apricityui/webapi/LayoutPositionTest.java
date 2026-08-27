@@ -549,7 +549,7 @@ class LayoutPositionTest {
         card.appendChild(body);
         body.appendChild(list);
         String[] labels = {"Theme scope", "Variables", "Display font", "Body font", "License"};
-        String[] values = {".ore-theme", "--ore-*", "OreDisplay", "OreRegular", "MPL-2.0"};
+        String[] values = {".ore-theme", "--*", "OreDisplay", "OreRegular", "MPL-2.0"};
         for (int i = 0; i < rowCount; i++) {
             Element row = new Element(document, "li");
             row.setAttribute("class", "list-group-item");

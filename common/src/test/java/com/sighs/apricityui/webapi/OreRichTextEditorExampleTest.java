@@ -37,7 +37,7 @@ class OreRichTextEditorExampleTest {
         assertTrue(html.contains("id=\"toolbar\""));
         assertTrue(html.contains("id=\"editor\""));
         assertTrue(html.contains("contenteditable=\"true\""), "browser editing surface is used");
-        assertTrue(html.contains("var(--ore-canvas)"), "page consumes ORE tokens");
+        assertTrue(html.contains("var(--canvas)"), "page consumes ORE tokens");
         assertTrue(html.contains(".toolbar"));
         assertTrue(html.contains(".document-surface"));
         assertTrue(html.contains("#editor u"), "underline styling is explicit");

@@ -49,16 +49,65 @@ class OreThemeExtensionTest {
         Document document = document();
         Element root = document.body;
 
-        assertEquals("var(--ore-ink)", root.getComputedStyle().getPropertyValue("--ore-color-foreground"));
-        assertEquals("var(--ore-green)", root.getComputedStyle().getPropertyValue("--ore-color-primary"));
-        assertEquals("2px", root.getComputedStyle().getPropertyValue("--ore-size-unit"));
-        assertEquals("100ms", root.getComputedStyle().getPropertyValue("--ore-motion-fast"));
+        assertEquals("var(--ink)", root.getComputedStyle().getPropertyValue("--color-foreground"));
+        assertEquals("var(--green)", root.getComputedStyle().getPropertyValue("--color-primary"));
+        assertEquals("2px", root.getComputedStyle().getPropertyValue("--size-unit"));
+        assertEquals("100ms", root.getComputedStyle().getPropertyValue("--motion-fast"));
         // Legacy tokens untouched.
-        assertEquals("#f4f5f7", root.getComputedStyle().getPropertyValue("--ore-ink"));
-        assertEquals("#3c8527", root.getComputedStyle().getPropertyValue("--ore-green"));
+        assertEquals("#f4f5f7", root.getComputedStyle().getPropertyValue("--ink"));
+        assertEquals("#3c8527", root.getComputedStyle().getPropertyValue("--green"));
         // Ported scale tokens resolve.
-        assertEquals("#8c8d90", root.getComputedStyle().getPropertyValue("--ore-gray-50"));
-        assertEquals("#1d4d13", root.getComputedStyle().getPropertyValue("--ore-button-primary-2-shadow"));
+        assertEquals("#8c8d90", root.getComputedStyle().getPropertyValue("--gray-50"));
+        assertEquals("#1d4d13", root.getComputedStyle().getPropertyValue("--button-primary-2-shadow"));
+    }
+
+    /**
+     * 兼容层：主题扩展前（commit ea3a9a0 之前）就存在的 --ore-* 变量名全部保留，
+     * 以 var() 形式转发到去掉前缀的通用变量，且使用旧名字的属性解析出同样的计算值。
+     */
+    @Test
+    void legacyOrePrefixedTokensForwardToGenericTokens() throws Exception {
+        Document document = document();
+        Element root = document.body;
+
+        // 颜色 token：注册为 var() 转发，且实际使用新旧名字解析出同样的颜色。
+        String[] colors = {
+                "ink", "ink-muted", "ink-dark", "canvas", "surface", "surface-deep", "surface-soft",
+                "edge", "edge-light", "green", "green-hover", "green-shadow",
+                "purple", "purple-hover", "purple-shadow", "gold", "gold-shadow",
+                "red", "red-hover", "red-shadow", "blue",
+                "success", "warning", "danger", "info", "focus",
+        };
+        for (String name : colors) {
+            assertEquals("var(--" + name + ")", root.getComputedStyle().getPropertyValue("--ore-" + name),
+                    "--ore-" + name + " must forward to --" + name);
+            Element legacy = document.createElement("div");
+            legacy.setAttribute("style", "background-color: var(--ore-" + name + ");");
+            document.body.appendChild(legacy);
+            Element generic = document.createElement("div");
+            generic.setAttribute("style", "background-color: var(--" + name + ");");
+            document.body.appendChild(generic);
+            assertEquals(generic.getComputedStyle().backgroundColor,
+                    legacy.getComputedStyle().backgroundColor,
+                    "var(--ore-" + name + ") must resolve to the same color as var(--" + name + ")");
+        }
+
+        // 尺寸 token：同样转发，经 width 验证解析值一致。
+        String[] sizes = {"space-1", "space-2", "space-3", "space-4", "space-5",
+                "font-sm", "font-md", "font-lg", "font-xl"};
+        for (String name : sizes) {
+            assertEquals("var(--" + name + ")", root.getComputedStyle().getPropertyValue("--ore-" + name),
+                    "--ore-" + name + " must forward to --" + name);
+            Element legacy = document.createElement("div");
+            legacy.setAttribute("style", "width: var(--ore-" + name + ");");
+            document.body.appendChild(legacy);
+            Element generic = document.createElement("div");
+            generic.setAttribute("style", "width: var(--" + name + ");");
+            document.body.appendChild(generic);
+            assertEquals(generic.getComputedStyle().width,
+                    legacy.getComputedStyle().width,
+                    "var(--ore-" + name + ") must resolve to the same size as var(--" + name + ")");
+        }
     }
 
     @Test

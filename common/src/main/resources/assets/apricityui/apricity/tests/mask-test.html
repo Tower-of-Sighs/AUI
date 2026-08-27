@@ -36,18 +36,18 @@
 
         /* mask-clip / mask-origin */
         .ore-theme .geo {
-            height: 140px; padding: 20px; border: 10px solid var(--ore-purple); border-radius: 20px;
+            height: 140px; padding: 20px; border: 10px solid var(--purple); border-radius: 20px;
             color: #ffffff; background: linear-gradient(135deg, #3c8527, #2d78a8);
             mask-image: repeating-linear-gradient(45deg, #000000 0, #000000 10px, transparent 10px, transparent 20px);
         }
         .geo-clip-padding { mask-clip: padding-box; }
         .geo-noclip {
-            border: 4px solid var(--ore-gold); border-radius: 0;
+            border: 4px solid var(--gold); border-radius: 0;
             mask-size: 180% 180%; mask-position: center; mask-origin: border-box; mask-clip: no-clip;
         }
         .ore-theme .origin-box {
-            width: 130px; height: 110px; padding: 16px; border: 10px solid var(--ore-gold);
-            color: var(--ore-ink-muted); font-size: 11px; background: var(--ore-surface-deep);
+            width: 130px; height: 110px; padding: 16px; border: 10px solid var(--gold);
+            color: var(--ink-muted); font-size: 11px; background: var(--surface-deep);
             mask-image: linear-gradient(#000000, #000000);
             mask-size: 36px 36px; mask-repeat: no-repeat; mask-position: 0 0;
         }
@@ -67,7 +67,7 @@
         .img-broken { mask-image: url(missing-mask.png); }
     </style>
 </head>
-<body class="ore-theme" style="background-color: var(--ore-canvas);">
+<body class="ore-theme" style="background-color: var(--canvas);">
 <main class="container mt-4 mb-4">
     <div class="showcase-kicker font-display">APRICITYUI RENDER REGRESSION / ORE THEME</div>
     <h1>Mask 测试</h1>

@@ -64,7 +64,7 @@ class MaskCssTest {
 
         assertTrue(html.contains("../apricityui/theme/ore/ore.css"), "ORE public theme is linked");
         assertTrue(html.contains("class=\"ore-theme\""), "ORE scope is present");
-        assertTrue(html.contains("var(--ore-canvas)"), "page consumes ORE tokens");
+        assertTrue(html.contains("var(--canvas)"), "page consumes ORE tokens");
 
         assertTrue(html.contains("mask-mode: luminance"));
         assertTrue(html.contains("mask-composite: add"));

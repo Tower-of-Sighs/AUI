@@ -9,13 +9,13 @@
     <style>
         /* This page is deliberately self-contained so it remains a useful
            regression fixture when the theme is opened without its showcase. */
-        .ore-theme { background: var(--ore-canvas); }
+        .ore-theme { background: var(--canvas); }
         .ore-theme .bench-hero { padding: 24px 0 18px; }
-        .ore-theme .bench-kicker { margin-bottom: 8px; color: var(--ore-gold); font-size: 12px; }
+        .ore-theme .bench-kicker { margin-bottom: 8px; color: var(--gold); font-size: 12px; }
         .ore-theme .bench-hero h1 { margin-bottom: 8px; }
-        .ore-theme .bench-lede { max-width: 860px; margin: 0; color: var(--ore-ink-muted); }
+        .ore-theme .bench-lede { max-width: 860px; margin: 0; color: var(--ink-muted); }
         .ore-theme .bench-status {
-            min-height: 42px; margin-top: 16px; padding: 8px 10px; border: 3px solid var(--ore-edge);
+            min-height: 42px; margin-top: 16px; padding: 8px 10px; border: 3px solid var(--edge);
             color: #e9f6e2; background: #2d4029; box-shadow: inset 0 4px #45603e;
             font-family: OreRegular, monospace; font-size: 12px; line-height: 1.45;
         }
@@ -24,22 +24,22 @@
         .ore-theme .bench-toolbar .card-body { padding: 14px 16px; }
         .ore-theme .bench-controls { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; align-items: end; }
         .ore-theme .bench-control { min-width: 0; }
-        .ore-theme .bench-control .form-label { margin-bottom: 5px; color: var(--ore-ink-muted); font-size: 12px; }
+        .ore-theme .bench-control .form-label { margin-bottom: 5px; color: var(--ink-muted); font-size: 12px; }
         .ore-theme .bench-toolbar .button { min-width: 120px; }
         .ore-theme .bench-declaration {
-            min-height: 88px; margin: 14px 0 0; padding: 10px; border: 3px solid var(--ore-edge);
+            min-height: 88px; margin: 14px 0 0; padding: 10px; border: 3px solid var(--edge);
             color: #dfe7dc; background: #242527; box-shadow: inset 0 5px #171819;
             font-family: OreRegular, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap;
         }
         .ore-theme .bench-section { margin-top: 28px; }
         .ore-theme .bench-section-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
         .ore-theme .bench-section-number {
-            width: 34px; height: 34px; flex: 0 0 34px; border: 3px solid var(--ore-edge);
-            color: #201809; background: var(--ore-gold); box-shadow: inset 3px 3px #ffe28a, inset -3px -3px #9a6e08;
+            width: 34px; height: 34px; flex: 0 0 34px; border: 3px solid var(--edge);
+            color: #201809; background: var(--gold); box-shadow: inset 3px 3px #ffe28a, inset -3px -3px #9a6e08;
             font-family: OreDisplay, sans-serif; line-height: 28px; text-align: center;
         }
         .ore-theme .bench-section-head h2 { margin: 0 0 3px; font-size: 22px; }
-        .ore-theme .bench-section-head p { margin: 0; color: var(--ore-ink-muted); font-size: 13px; }
+        .ore-theme .bench-section-head p { margin: 0; color: var(--ink-muted); font-size: 13px; }
         .ore-theme .bench-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
         .ore-theme .bench-span-4 { grid-column: span 4; }
         .ore-theme .bench-span-5 { grid-column: span 5; }
@@ -47,10 +47,10 @@
         .ore-theme .bench-span-8 { grid-column: span 8; }
         .ore-theme .bench-span-12 { grid-column: span 12; }
         .ore-theme .bench-card-title { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-        .ore-theme .bench-card-title code { color: var(--ore-gold); font-size: 12px; }
-        .ore-theme .bench-card-copy { margin: 0 0 12px; color: var(--ore-ink-muted); font-size: 12px; }
+        .ore-theme .bench-card-title code { color: var(--gold); font-size: 12px; }
+        .ore-theme .bench-card-copy { margin: 0 0 12px; color: var(--ink-muted); font-size: 12px; }
         .ore-theme .live-stage {
-            position: relative; min-height: 278px; overflow: hidden; border: 3px solid var(--ore-edge);
+            position: relative; min-height: 278px; overflow: hidden; border: 3px solid var(--edge);
             background:
                 linear-gradient(135deg, rgba(46, 118, 163, .96), rgba(46, 118, 163, .2) 55%, rgba(35, 106, 31, .8)),
                 #2e76a3;
@@ -67,7 +67,7 @@
         .ore-theme .live-crosshair { position: absolute; top: 50%; right: 0; left: 0; border-top: 2px dashed rgba(255,255,255,.24); }
         .ore-theme .live-target {
             position: absolute; top: 76px; left: 50%; width: 190px; height: 116px; margin-left: -95px;
-            border: 4px solid var(--ore-edge); color: #201809; background: rgba(240,185,45,.92);
+            border: 4px solid var(--edge); color: #201809; background: rgba(240,185,45,.92);
             box-shadow: inset 5px 5px #ffe28a, inset -5px -7px #9a6e08, 7px 7px rgba(0,0,0,.35);
             font-family: OreDisplay, sans-serif; font-size: 21px; line-height: 108px; text-align: center; transform: rotate(-4deg);
         }
@@ -77,9 +77,9 @@
             background: rgba(0,0,0,.66); font-family: OreRegular, monospace; font-size: 12px; text-align: center;
         }
         .ore-theme .operator-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
-        .ore-theme .operator-cell { min-width: 0; border: 2px solid var(--ore-edge); background: #252628; }
+        .ore-theme .operator-cell { min-width: 0; border: 2px solid var(--edge); background: #252628; }
         .ore-theme .operator-label {
-            min-height: 28px; padding: 5px; color: #fff; background: var(--ore-surface-deep);
+            min-height: 28px; padding: 5px; color: #fff; background: var(--surface-deep);
             font-family: OreRegular, monospace; font-size: 11px; line-height: 1.15; text-align: center; overflow-wrap: anywhere;
         }
         .ore-theme .operator-scene { position: relative; height: 58px; overflow: hidden; background: #b33b31; }
@@ -87,15 +87,15 @@
         .ore-theme .operator-scene::after { position: absolute; top: 5px; width: 48px; height: 48px; content: ""; }
         .ore-theme .operator-scene::before { left: 10px; background: #2d78a8; }
         .ore-theme .operator-scene::after { right: 10px; background: #f0b92d; mix-blend-mode: var(--operator); }
-        .ore-theme .operator-cell.is-active { border-color: var(--ore-gold); box-shadow: 0 0 0 2px #9a6e08; }
-        .ore-theme .operator-cell.is-active .operator-label { color: #201809; background: var(--ore-gold); }
+        .ore-theme .operator-cell.is-active { border-color: var(--gold); box-shadow: 0 0 0 2px #9a6e08; }
+        .ore-theme .operator-cell.is-active .operator-label { color: #201809; background: var(--gold); }
         .ore-theme .iso-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
         .ore-theme .iso-scene {
-            position: relative; min-height: 218px; overflow: hidden; border: 3px solid var(--ore-edge);
+            position: relative; min-height: 218px; overflow: hidden; border: 3px solid var(--edge);
             background: linear-gradient(90deg, rgba(179,59,49,.92) 0 33%, rgba(240,185,45,.82) 33% 66%, rgba(45,120,168,.92) 66%), #b33b31;
         }
         .ore-theme .iso-scene::before { position: absolute; top: 18px; right: 15px; width: 78px; height: 78px; border: 3px solid rgba(255,255,255,.48); background: rgba(115,69,229,.8); content: ""; transform: rotate(18deg); }
-        .ore-theme .iso-group { position: absolute; top: 35px; left: 50%; width: 230px; height: 144px; margin-left: -115px; border: 4px solid var(--ore-edge); background: rgba(32,33,36,.08); }
+        .ore-theme .iso-group { position: absolute; top: 35px; left: 50%; width: 230px; height: 144px; margin-left: -115px; border: 4px solid var(--edge); background: rgba(32,33,36,.08); }
         .ore-theme .iso-group::after { position: absolute; top: 9px; right: 9px; bottom: 9px; left: 9px; border: 2px dashed rgba(255,255,255,.35); content: ""; pointer-events: none; }
         .ore-theme .iso-base,
         .ore-theme .iso-blend { position: absolute; top: 20px; width: 102px; height: 102px; border: 3px solid rgba(255,255,255,.68); }
@@ -104,7 +104,7 @@
         .ore-theme .iso-caption { position: absolute; right: 8px; bottom: 7px; left: 8px; color: #fff; font-family: OreRegular, monospace; font-size: 11px; text-align: center; }
         .ore-theme .hdr-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
         .ore-theme .hdr-swatch {
-            min-height: 150px; padding: 9px; border: 3px solid var(--ore-edge); color: #201809;
+            min-height: 150px; padding: 9px; border: 3px solid var(--edge); color: #201809;
             display: flex; flex-direction: column; justify-content: flex-end;
         }
         .ore-theme .hdr-swatch.neutral { background-color: color(srgb-linear .18 .18 .18); }
@@ -113,14 +113,14 @@
         .ore-theme .hdr-swatch.extended { background-color: color(srgb-linear 8 1.8 .15); }
         .ore-theme .hdr-chip { padding: 5px 6px; border: 2px solid rgba(32,24,9,.62); background: rgba(255,255,255,.52); font-size: 11px; line-height: 1.25; }
         .ore-theme .hdr-value { margin-top: 5px; font-family: OreRegular, monospace; font-size: 10px; line-height: 1.25; overflow-wrap: anywhere; }
-        .ore-theme .bench-readback { min-height: 116px; margin: 0; padding: 10px; border: 3px solid var(--ore-edge); color: #dfe7dc; background: #242527; box-shadow: inset 0 5px #171819; font-family: OreRegular, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
-        .ore-theme .check-table { width: 100%; border-collapse: collapse; color: var(--ore-ink); font-size: 12px; }
+        .ore-theme .bench-readback { min-height: 116px; margin: 0; padding: 10px; border: 3px solid var(--edge); color: #dfe7dc; background: #242527; box-shadow: inset 0 5px #171819; font-family: OreRegular, monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; }
+        .ore-theme .check-table { width: 100%; border-collapse: collapse; color: var(--ink); font-size: 12px; }
         .ore-theme .check-table th, .ore-theme .check-table td { padding: 8px; border-bottom: 2px solid #292a2b; text-align: left; vertical-align: top; }
-        .ore-theme .check-table th { color: #fff; background: var(--ore-surface-deep); font-family: OreDisplay, sans-serif; font-weight: 400; }
+        .ore-theme .check-table th { color: #fff; background: var(--surface-deep); font-family: OreDisplay, sans-serif; font-weight: 400; }
         .ore-theme .check-state { color: #8bd067; font-family: OreRegular, monospace; white-space: nowrap; }
         .ore-theme .check-state.is-fail { color: #ef8178; }
         .ore-theme .bench-note { margin: 12px 0 0; }
-        .ore-theme .bench-footer { margin: 28px 0 34px; color: var(--ore-ink-muted); font-size: 12px; }
+        .ore-theme .bench-footer { margin: 28px 0 34px; color: var(--ink-muted); font-size: 12px; }
         @media (max-width: 900px) {
             .ore-theme .bench-span-4, .ore-theme .bench-span-5, .ore-theme .bench-span-7, .ore-theme .bench-span-8 { grid-column: span 12; }
             .ore-theme .hdr-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }

@@ -25,7 +25,7 @@ Open `example.html` for the complete seven-page component showcase.
 
 Every base class keeps its original look. New visuals are opt-in through
 numbered suffixes and additional component classes, all scoped under
-`.ore-theme` and driven by `--ore-*` tokens:
+`.ore-theme` and driven by `--*` tokens:
 
 - Buttons: `.button-primary-2/-secondary-2/-danger-2/-purple-2` (flat),
   `.button-primary-3/-secondary-3/-danger-3` (unit bevel),
@@ -49,7 +49,7 @@ Disabled always wins over hover/active.
 ## Scope
 
 - Theme scope: `.ore-theme`
-- Custom properties: `--ore-*`
+- Custom properties: `--*`
 - Display font: `OreDisplay`
 - Body font: `OreRegular`
 - Entry stylesheet: `ore.css`

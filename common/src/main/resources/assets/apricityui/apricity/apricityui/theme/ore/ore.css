@@ -18,50 +18,86 @@
   font-style: normal;
 }
 .ore-theme {
-  --ore-ink: #f4f5f7;
-  --ore-ink-muted: #b6bac1;
-  --ore-ink-dark: #191a1c;
-  --ore-canvas: #202124;
-  --ore-surface: #48494a;
-  --ore-surface-deep: #313233;
-  --ore-surface-soft: #d0d1d4;
-  --ore-edge: #1e1e1f;
-  --ore-edge-light: #77797c;
-  --ore-green: #3c8527;
-  --ore-green-hover: #2a641c;
-  --ore-green-shadow: #1d4d13;
-  --ore-purple: #7345e5;
-  --ore-purple-hover: #5d2cc6;
-  --ore-purple-shadow: #4a1cac;
-  --ore-gold: #f0b92d;
-  --ore-gold-shadow: #936715;
-  --ore-red: #b33b31;
-  --ore-red-hover: #8b2923;
-  --ore-red-shadow: #662019;
-  --ore-blue: #2d78a8;
-  --ore-success: #69ad45;
-  --ore-warning: #f0b92d;
-  --ore-danger: #d45b50;
-  --ore-info: #58a6d2;
-  --ore-focus: #ffffff;
-  --ore-space-1: 4px;
-  --ore-space-2: 8px;
-  --ore-space-3: 16px;
-  --ore-space-4: 24px;
-  --ore-space-5: 32px;
-  --ore-font-sm: 13px;
-  --ore-font-md: 16px;
-  --ore-font-lg: 20px;
-  --ore-font-xl: 28px;
+  --ink: #f4f5f7;
+  --ink-muted: #b6bac1;
+  --ink-dark: #191a1c;
+  --canvas: #202124;
+  --surface: #48494a;
+  --surface-deep: #313233;
+  --surface-soft: #d0d1d4;
+  --edge: #1e1e1f;
+  --edge-light: #77797c;
+  --green: #3c8527;
+  --green-hover: #2a641c;
+  --green-shadow: #1d4d13;
+  --purple: #7345e5;
+  --purple-hover: #5d2cc6;
+  --purple-shadow: #4a1cac;
+  --gold: #f0b92d;
+  --gold-shadow: #936715;
+  --red: #b33b31;
+  --red-hover: #8b2923;
+  --red-shadow: #662019;
+  --blue: #2d78a8;
+  --success: #69ad45;
+  --warning: #f0b92d;
+  --danger: #d45b50;
+  --info: #58a6d2;
+  --focus: #ffffff;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 16px;
+  --space-4: 24px;
+  --space-5: 32px;
+  --font-sm: 13px;
+  --font-md: 16px;
+  --font-lg: 20px;
+  --font-xl: 28px;
+  /* 兼容层：--ore-* 旧变量名（主题扩展前存在的那批）保留，直接转发到通用变量。 */
+  --ore-ink: var(--ink);
+  --ore-ink-muted: var(--ink-muted);
+  --ore-ink-dark: var(--ink-dark);
+  --ore-canvas: var(--canvas);
+  --ore-surface: var(--surface);
+  --ore-surface-deep: var(--surface-deep);
+  --ore-surface-soft: var(--surface-soft);
+  --ore-edge: var(--edge);
+  --ore-edge-light: var(--edge-light);
+  --ore-green: var(--green);
+  --ore-green-hover: var(--green-hover);
+  --ore-green-shadow: var(--green-shadow);
+  --ore-purple: var(--purple);
+  --ore-purple-hover: var(--purple-hover);
+  --ore-purple-shadow: var(--purple-shadow);
+  --ore-gold: var(--gold);
+  --ore-gold-shadow: var(--gold-shadow);
+  --ore-red: var(--red);
+  --ore-red-hover: var(--red-hover);
+  --ore-red-shadow: var(--red-shadow);
+  --ore-blue: var(--blue);
+  --ore-success: var(--success);
+  --ore-warning: var(--warning);
+  --ore-danger: var(--danger);
+  --ore-info: var(--info);
+  --ore-focus: var(--focus);
+  --ore-space-1: var(--space-1);
+  --ore-space-2: var(--space-2);
+  --ore-space-3: var(--space-3);
+  --ore-space-4: var(--space-4);
+  --ore-space-5: var(--space-5);
+  --ore-font-sm: var(--font-sm);
+  --ore-font-md: var(--font-md);
+  --ore-font-lg: var(--font-lg);
+  --ore-font-xl: var(--font-xl);
   min-width: 320px;
   min-height: 100%;
   margin: 0;
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreRegular, sans-serif;
-  font-size: var(--ore-font-md);
+  font-size: var(--font-md);
   line-height: 1.5;
   letter-spacing: 0;
-  caret-color: var(--ore-green);
+  caret-color: var(--green);
 }
 .ore-theme *, .ore-theme *::before, .ore-theme *::after { box-sizing: border-box; }
 .ore-theme h1,
@@ -83,7 +119,7 @@
 .ore-theme h5,
 .ore-theme h6,
 .ore-theme .font-display {
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-weight: 400;
   line-height: 1.15;
@@ -101,7 +137,7 @@
 }
 .ore-theme h1 {
   margin-bottom: 16px;
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-size: 36px;
   font-weight: 400;
@@ -109,7 +145,7 @@
 }
 .ore-theme h2 {
   margin-bottom: 14px;
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-size: 28px;
   font-weight: 400;
@@ -117,7 +153,7 @@
 }
 .ore-theme h3 {
   margin-bottom: 12px;
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-size: 22px;
   font-weight: 400;
@@ -125,7 +161,7 @@
 }
 .ore-theme h4 {
   margin-bottom: 10px;
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-size: 18px;
   font-weight: 400;
@@ -133,7 +169,7 @@
 }
 .ore-theme h5 {
   margin-bottom: 8px;
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-size: 16px;
   font-weight: 400;
@@ -141,35 +177,35 @@
 }
 .ore-theme h6 {
   margin-bottom: 8px;
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.15;
 }
 .ore-theme .font-display {
-  color: var(--ore-ink);
+  color: var(--ink);
   font-family: OreDisplay, sans-serif;
   font-weight: 400;
   line-height: 1.15;
 }
 .ore-theme p { margin-bottom: 16px; }
-.ore-theme a { color: var(--ore-info); text-decoration: none; }
+.ore-theme a { color: var(--info); text-decoration: none; }
 .ore-theme a:hover { color: #8cc9eb; text-decoration: underline; }
 .ore-theme strong { color: #ffffff; }
-.ore-theme small, .ore-theme .text-muted { color: var(--ore-ink-muted); }
+.ore-theme small, .ore-theme .text-muted { color: var(--ink-muted); }
 .ore-theme code,
 .ore-theme kbd {
   padding: 2px 6px;
-  border: 2px solid var(--ore-edge);
+  border: 2px solid var(--edge);
   color: #ffffff;
-  background: var(--ore-surface-deep);
+  background: var(--surface-deep);
   font-family: OreRegular, monospace;
 }
 .ore-theme .ore-code {
   margin: 0;
   padding: 14px;
-  border: 3px solid var(--ore-edge);
+  border: 3px solid var(--edge);
   color: #dfe7dc;
   background: #242527;
   box-shadow: inset 0 5px #171819;
@@ -211,7 +247,7 @@
   min-height: 64px;
   padding: 10px 20px 16px;
   border-bottom: 3px solid #151516;
-  color: var(--ore-ink-dark);
+  color: var(--ink-dark);
   background: #e6e8eb;
   box-shadow: inset 0 -6px #b1b2b5;
   display: flex;
@@ -220,7 +256,7 @@
   gap: 20px;
 }
 .ore-theme .navbar-brand {
-  color: var(--ore-ink-dark);
+  color: var(--ink-dark);
   font-family: OreDisplay, sans-serif;
   font-size: 25px;
   line-height: 1;
@@ -253,7 +289,7 @@
 .ore-theme .navbar-nav .active {
   border-color: #242527;
   color: #ffffff;
-  background: var(--ore-green);
+  background: var(--green);
   text-decoration: none;
 }
 .ore-theme .breadcrumb {
@@ -261,12 +297,12 @@
   margin: 0;
   padding: 10px 0;
   list-style: none;
-  color: var(--ore-ink-muted);
+  color: var(--ink-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
 }
-.ore-theme .breadcrumb li + li::before { content: ">"; margin-right: 8px; color: var(--ore-edge-light); }
+.ore-theme .breadcrumb li + li::before { content: ">"; margin-right: 8px; color: var(--edge-light); }
 .ore-theme .breadcrumb-page span { display: none; }
 .ore-theme .button,
 .ore-theme .form-button,
@@ -274,11 +310,11 @@
   min-height: 42px;
   margin: 0;
   padding: 7px 16px 13px;
-  border: 3px solid var(--ore-edge);
+  border: 3px solid var(--edge);
   color: #ffffff;
-  background: var(--ore-green);
+  background: var(--green);
   box-shadow:
-    inset 0 -6px var(--ore-green-shadow),
+    inset 0 -6px var(--green-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.22),
     inset -3px -9px rgba(0, 0, 0, 0.12);
   font-family: OreDisplay, sans-serif;
@@ -299,7 +335,7 @@
 .ore-theme .button-primary:hover,
 .ore-theme .form-button:hover {
   color: #ffffff;
-  background: var(--ore-green-hover);
+  background: var(--green-hover);
   text-decoration: none;
 }
 .ore-theme .button:active,
@@ -312,16 +348,16 @@
     inset -3px -3px rgba(0, 0, 0, 0.18);
 }
 .ore-theme .button-secondary {
-  background: var(--ore-purple);
+  background: var(--purple);
   box-shadow:
-    inset 0 -6px var(--ore-purple-shadow),
+    inset 0 -6px var(--purple-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.25),
     inset -3px -9px rgba(0, 0, 0, 0.12);
 }
-.ore-theme .button-secondary:hover { background: var(--ore-purple-hover); }
+.ore-theme .button-secondary:hover { background: var(--purple-hover); }
 .ore-theme .button-tertiary {
-  color: var(--ore-ink-dark);
-  background: var(--ore-surface-soft);
+  color: var(--ink-dark);
+  background: var(--surface-soft);
   box-shadow:
     inset 0 -6px #58585a,
     inset 3px 3px rgba(255, 255, 255, 0.55),
@@ -330,13 +366,13 @@
 }
 .ore-theme .button-tertiary:hover { color: #000000; background: #b1b2b5; }
 .ore-theme .button-danger {
-  background: var(--ore-red);
+  background: var(--red);
   box-shadow:
-    inset 0 -6px var(--ore-red-shadow),
+    inset 0 -6px var(--red-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.2),
     inset -3px -9px rgba(0, 0, 0, 0.12);
 }
-.ore-theme .button-danger:hover { background: var(--ore-red-hover); }
+.ore-theme .button-danger:hover { background: var(--red-hover); }
 .ore-theme .button-normal {
   padding: 8px 16px;
   border: 2px solid #131313;
@@ -366,17 +402,17 @@
 }
 .ore-theme .card,
 .ore-theme .panel {
-  border: 3px solid var(--ore-edge);
-  color: var(--ore-ink);
-  background: var(--ore-surface);
-  box-shadow: inset 2px 2px var(--ore-edge-light), inset -2px -2px #292a2b;
+  border: 3px solid var(--edge);
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: inset 2px 2px var(--edge-light), inset -2px -2px #292a2b;
 }
 .ore-theme .card-header,
 .ore-theme .panel-header {
   min-height: 46px;
   padding: 12px 16px;
-  border-bottom: 3px solid var(--ore-edge);
-  background: var(--ore-surface-deep);
+  border-bottom: 3px solid var(--edge);
+  background: var(--surface-deep);
   font-family: OreDisplay, sans-serif;
   font-size: 18px;
   line-height: 1.1;
@@ -385,24 +421,24 @@
 .ore-theme .card-footer,
 .ore-theme .panel-footer {
   padding: 12px 16px;
-  border-top: 3px solid var(--ore-edge);
+  border-top: 3px solid var(--edge);
   background: #3a3b3d;
 }
-.ore-theme .card-accent-green { border-top-color: var(--ore-green); }
-.ore-theme .card-accent-purple { border-top-color: var(--ore-purple); }
-.ore-theme .card-accent-gold { border-top-color: var(--ore-gold); }
+.ore-theme .card-accent-green { border-top-color: var(--green); }
+.ore-theme .card-accent-purple { border-top-color: var(--purple); }
+.ore-theme .card-accent-gold { border-top-color: var(--gold); }
 .ore-theme .form-group { margin-bottom: 16px; }
-.ore-theme .form-label { margin-bottom: 6px; color: var(--ore-ink); display: block; }
-.ore-theme .form-help { margin-top: 5px; color: var(--ore-ink-muted); font-size: var(--ore-font-sm); }
+.ore-theme .form-label { margin-bottom: 6px; color: var(--ink); display: block; }
+.ore-theme .form-help { margin-top: 5px; color: var(--ink-muted); font-size: var(--font-sm); }
 .ore-theme .form-input,
 .ore-theme .form-select,
 .ore-theme .form-textarea {
   width: 100%;
   min-height: 42px;
   padding: 8px 10px;
-  border: 3px solid var(--ore-edge);
+  border: 3px solid var(--edge);
   color: #ffffff;
-  background: var(--ore-surface-deep);
+  background: var(--surface-deep);
   box-shadow: inset 0 5px #242425;
   font-family: OreRegular, sans-serif;
   font-size: 16px;
@@ -417,8 +453,8 @@
 .ore-theme .form-input:focus,
 .ore-theme .form-select:focus,
 .ore-theme .form-textarea:focus {
-  border-color: var(--ore-focus);
-  outline: 2px solid var(--ore-green);
+  border-color: var(--focus);
+  outline: 2px solid var(--green);
   outline-offset: 0;
 }
 .ore-theme .form-input[disabled],
@@ -427,23 +463,23 @@
   color: #888a8e;
   background: #292a2c;
 }
-.ore-theme .form-input.is-valid { border-color: var(--ore-success); }
-.ore-theme .form-input.is-invalid { border-color: var(--ore-danger); }
+.ore-theme .form-input.is-valid { border-color: var(--success); }
+.ore-theme .form-input.is-invalid { border-color: var(--danger); }
 .ore-theme .choice-list { display: flex; flex-wrap: wrap; gap: 12px 18px; }
 .ore-theme .choice {
   min-height: 28px;
-  color: var(--ore-ink);
+  color: var(--ink);
   display: inline-flex;
   align-items: center;
   gap: 8px;
   cursor: pointer;
 }
-.ore-theme .choice input { width: 20px; height: 20px; margin: 0; accent-color: var(--ore-green); }
+.ore-theme .choice input { width: 20px; height: 20px; margin: 0; accent-color: var(--green); }
 .ore-theme .input-group { width: 100%; display: flex; }
 .ore-theme .input-group .form-input { min-width: 0; flex: 1; }
 .ore-theme .input-group .button { min-width: 96px; }
-.ore-theme .table-wrap { width: 100%; overflow: auto; border: 3px solid var(--ore-edge); }
-.ore-theme .table { width: 100%; border-collapse: collapse; color: var(--ore-ink); background: #3b3c3e; }
+.ore-theme .table-wrap { width: 100%; overflow: auto; border: 3px solid var(--edge); }
+.ore-theme .table { width: 100%; border-collapse: collapse; color: var(--ink); background: #3b3c3e; }
 .ore-theme .table thead, .ore-theme .table tbody { display: block; }
 .ore-theme .table tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .ore-theme .table th,
@@ -455,7 +491,7 @@
 }
 .ore-theme .table th {
   color: #ffffff;
-  background: var(--ore-surface-deep);
+  background: var(--surface-deep);
   font-family: OreDisplay, sans-serif;
   font-weight: 400;
 }
@@ -463,34 +499,34 @@
 .ore-theme .badge {
   min-height: 24px;
   padding: 3px 8px;
-  border: 2px solid var(--ore-edge);
+  border: 2px solid var(--edge);
   color: #ffffff;
-  background: var(--ore-blue);
+  background: var(--blue);
   font-size: 12px;
   line-height: 1.2;
   display: inline-flex;
   align-items: center;
 }
-.ore-theme .badge-success { background: var(--ore-green); }
-.ore-theme .badge-warning { color: #221b0d; background: var(--ore-gold); }
-.ore-theme .badge-danger { background: var(--ore-red); }
-.ore-theme .badge-purple { background: var(--ore-purple); }
+.ore-theme .badge-success { background: var(--green); }
+.ore-theme .badge-warning { color: #221b0d; background: var(--gold); }
+.ore-theme .badge-danger { background: var(--red); }
+.ore-theme .badge-purple { background: var(--purple); }
 .ore-theme .alert {
   padding: 12px 14px;
-  border: 3px solid var(--ore-edge);
+  border: 3px solid var(--edge);
   border-left-width: 8px;
   color: #ffffff;
   background: #363739;
   box-shadow: inset 2px 2px rgba(255, 255, 255, 0.08);
 }
-.ore-theme .alert-success { border-left-color: var(--ore-success); }
-.ore-theme .alert-warning { border-left-color: var(--ore-warning); }
-.ore-theme .alert-danger { border-left-color: var(--ore-danger); }
-.ore-theme .alert-info { border-left-color: var(--ore-info); }
+.ore-theme .alert-success { border-left-color: var(--success); }
+.ore-theme .alert-warning { border-left-color: var(--warning); }
+.ore-theme .alert-danger { border-left-color: var(--danger); }
+.ore-theme .alert-info { border-left-color: var(--info); }
 .ore-theme .progress {
   height: 24px;
   padding: 3px;
-  border: 3px solid var(--ore-edge);
+  border: 3px solid var(--edge);
   background: #252628;
   box-shadow: inset 0 3px #151516;
   overflow: hidden;
@@ -498,20 +534,20 @@
 .ore-theme .progress-bar {
   height: 100%;
   min-width: 0;
-  background: var(--ore-green);
-  box-shadow: inset 0 -4px var(--ore-green-shadow), inset 2px 2px rgba(255,255,255,0.2);
+  background: var(--green);
+  box-shadow: inset 0 -4px var(--green-shadow), inset 2px 2px rgba(255,255,255,0.2);
 }
 .ore-theme .progress-purple .progress-bar {
-  background: var(--ore-purple);
-  box-shadow: inset 0 -4px var(--ore-purple-shadow), inset 2px 2px rgba(255,255,255,0.2);
+  background: var(--purple);
+  box-shadow: inset 0 -4px var(--purple-shadow), inset 2px 2px rgba(255,255,255,0.2);
 }
-.ore-theme .list-group { margin: 0; padding: 0; border: 3px solid var(--ore-edge); list-style: none; }
+.ore-theme .list-group { margin: 0; padding: 0; border: 3px solid var(--edge); list-style: none; }
 .ore-theme .list-group-item {
   min-height: 42px;
   padding: 9px 12px;
   border-bottom: 2px solid #292a2b;
-  color: var(--ore-ink);
-  background: var(--ore-surface);
+  color: var(--ink);
+  background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -519,7 +555,7 @@
 }
 .ore-theme .list-group-item:last-child { border-bottom: 0; }
 .ore-theme .list-group-item:hover { background: #56585b; }
-.ore-theme .list-group-item.active { background: var(--ore-green); }
+.ore-theme .list-group-item.active { background: var(--green); }
 .ore-theme .inventory-grid { display: grid; grid-template-columns: repeat(9, 44px); gap: 3px; }
 .ore-theme .slot {
   width: 44px;
@@ -539,24 +575,24 @@
 .ore-theme .ore-swatch {
   min-height: 76px;
   padding: 10px;
-  border: 3px solid var(--ore-edge);
+  border: 3px solid var(--edge);
   color: #ffffff;
   display: flex;
   align-items: flex-end;
 }
-.ore-theme .ore-swatch-dark { background: var(--ore-surface-deep); }
-.ore-theme .ore-swatch-green { background: var(--ore-green); }
-.ore-theme .ore-swatch-purple { background: var(--ore-purple); }
-.ore-theme .ore-swatch-gold { color: #1c160b; background: var(--ore-gold); }
-.ore-theme .ore-swatch-red { background: var(--ore-red); }
-.ore-theme .ore-swatch-blue { background: var(--ore-blue); }
-.ore-theme .tabs { border-bottom: 3px solid var(--ore-edge); display: flex; flex-wrap: wrap; gap: 4px; }
+.ore-theme .ore-swatch-dark { background: var(--surface-deep); }
+.ore-theme .ore-swatch-green { background: var(--green); }
+.ore-theme .ore-swatch-purple { background: var(--purple); }
+.ore-theme .ore-swatch-gold { color: #1c160b; background: var(--gold); }
+.ore-theme .ore-swatch-red { background: var(--red); }
+.ore-theme .ore-swatch-blue { background: var(--blue); }
+.ore-theme .tabs { border-bottom: 3px solid var(--edge); display: flex; flex-wrap: wrap; gap: 4px; }
 .ore-theme .tab {
   min-height: 38px;
   padding: 8px 14px;
-  border: 2px solid var(--ore-edge);
+  border: 2px solid var(--edge);
   border-bottom: 0;
-  color: var(--ore-ink-muted);
+  color: var(--ink-muted);
   background: #37383a;
   font: inherit;
   cursor: pointer;
@@ -564,8 +600,8 @@
 .ore-theme .tab:hover,
 .ore-theme .tab.active {
   color: #ffffff;
-  background: var(--ore-surface);
-  box-shadow: inset 0 4px var(--ore-purple);
+  background: var(--surface);
+  box-shadow: inset 0 4px var(--purple);
 }
 .ore-theme .modal-backdrop {
   position: fixed;
@@ -588,20 +624,20 @@
   z-index: 1;
   width: 520px;
   max-width: 100%;
-  border: 4px solid var(--ore-edge);
-  background: var(--ore-surface);
-  box-shadow: 8px 8px rgba(0, 0, 0, 0.42), inset 2px 2px var(--ore-edge-light);
+  border: 4px solid var(--edge);
+  background: var(--surface);
+  box-shadow: 8px 8px rgba(0, 0, 0, 0.42), inset 2px 2px var(--edge-light);
 }
 .ore-theme .modal-header {
   min-height: 50px;
   padding: 13px 16px;
-  border-bottom: 3px solid var(--ore-edge);
-  background: var(--ore-surface-deep);
+  border-bottom: 3px solid var(--edge);
+  background: var(--surface-deep);
   font-family: OreDisplay, sans-serif;
   font-size: 20px;
 }
 .ore-theme .modal-body { padding: 18px 16px; }
-.ore-theme .modal-footer { padding: 12px 16px; border-top: 3px solid var(--ore-edge); }
+.ore-theme .modal-footer { padding: 12px 16px; border-top: 3px solid var(--edge); }
 .ore-theme .pagination {
   margin: 0;
   padding: 0;
@@ -622,8 +658,8 @@
 .ore-theme .page-button:hover,
 .ore-theme .page-button.active {
   color: #ffffff;
-  background: var(--ore-purple);
-  box-shadow: inset 0 -5px var(--ore-purple-shadow), inset 2px 2px rgba(255,255,255,0.2);
+  background: var(--purple);
+  box-shadow: inset 0 -5px var(--purple-shadow), inset 2px 2px rgba(255,255,255,0.2);
 }
 .ore-theme .page-button[disabled] {
   color: #85878b;
@@ -651,7 +687,7 @@
 #ore-page-variants:checked~.navbar .navbar-nav label[for="ore-page-variants"] {
   border-color: #242527;
   color: #ffffff;
-  background: var(--ore-green);
+  background: var(--green);
   text-decoration: none;
 }
 #ore-page-foundations:checked~.showcase-main [data-breadcrumb="foundations"],
@@ -687,7 +723,7 @@
 .ore-theme .showcase-hero {
   min-height: 196px;
   padding: 28px;
-  border: 4px solid var(--ore-edge);
+  border: 4px solid var(--edge);
   color: #ffffff;
   background-color: #313233;
   background-image:
@@ -705,7 +741,7 @@
   height: 112px;
   flex: 0 0 112px;
   border: 5px solid #171819;
-  background: var(--ore-green);
+  background: var(--green);
   box-shadow:
     inset 12px 12px #69ad45,
     inset -12px -12px #1d4d13,
@@ -719,13 +755,13 @@
 }
 .ore-theme .showcase-section { padding: 20px 0 24px; }
 .ore-theme .showcase-section-title { margin-bottom: 6px; }
-.ore-theme .showcase-kicker { margin-bottom: 8px; color: var(--ore-gold); font-size: 13px; }
+.ore-theme .showcase-kicker { margin-bottom: 8px; color: var(--gold); font-size: 13px; }
 .ore-theme .showcase-footer {
   min-height: 108px;
   margin-top: 0;
   padding: 12px 20px 16px;
   border-top: 3px solid #151516;
-  color: var(--ore-ink-muted);
+  color: var(--ink-muted);
   background: #2a2b2d;
   box-shadow: inset 0 6px #3d3e40;
 }
@@ -742,8 +778,8 @@
 .ore-theme .text-warning { color: #ffd45f; }
 .ore-theme .text-danger { color: #ef8178; }
 .ore-theme .text-info { color: #82c6ec; }
-.ore-theme .font-sm { font-size: var(--ore-font-sm); }
-.ore-theme .font-lg { font-size: var(--ore-font-lg); }
+.ore-theme .font-sm { font-size: var(--font-sm); }
+.ore-theme .font-lg { font-size: var(--font-lg); }
 .ore-theme .hidden { display: none; }
 .ore-theme .invisible { visibility: hidden; }
 .ore-theme .w-full { width: 100%; }
@@ -797,231 +833,231 @@
      - NingZeStudio/ParaOre-UI   (sizes, scrollbar metrics)
      - ShenYuanOR/mcui-oreui     (panel, drawer, toast, tooltip, tabs)
    Rules:
-     - Existing classes and legacy --ore-* tokens are frozen (see top of file).
+     - Existing classes and legacy --* tokens are frozen (see top of file).
      - New visuals are opt-in via numbered classes (.button-primary-2, ...).
      - Static pre-computed colors only; every selector is .ore-theme scoped.
      - All new colors live in the token block below; component rules use var().
    ========================================================================== */
 .ore-theme {
-  --ore-color-foreground: var(--ore-ink);
-  --ore-color-muted: var(--ore-ink-muted);
-  --ore-color-background: var(--ore-canvas);
-  --ore-color-surface: var(--ore-surface);
-  --ore-color-surface-deep: var(--ore-surface-deep);
-  --ore-color-border: var(--ore-edge);
-  --ore-color-border-light: var(--ore-edge-light);
-  --ore-color-focus: var(--ore-focus);
-  --ore-color-primary: var(--ore-green);
-  --ore-color-primary-hover: var(--ore-green-hover);
-  --ore-color-primary-active: var(--ore-green-shadow);
-  --ore-color-secondary: var(--ore-purple);
-  --ore-color-danger: var(--ore-red);
-  --ore-size-unit: 2px;
-  --ore-motion-fast: 100ms;
-  --ore-radius-sm: 0;
-  --ore-radius-md: 0;
-  --ore-gray-10: #f4f6f9;
-  --ore-gray-20: #e6e8eb;
-  --ore-gray-30: #d0d1d4;
-  --ore-gray-40: #b1b2b5;
-  --ore-gray-50: #8c8d90;
-  --ore-gray-60: #58585a;
-  --ore-gray-70: #48494a;
-  --ore-gray-80: #313233;
-  --ore-gray-90: #242425;
-  --ore-gray-100: #1e1e1f;
-  --ore-green-30: #6cc349;
-  --ore-green-40: #52a535;
-  --ore-green-50: #3c8527;
-  --ore-green-60: #2a641c;
-  --ore-green-70: #1d4d13;
-  --ore-red-10: #f46d6d;
-  --ore-red-30: #df5050;
-  --ore-red-50: #ca3636;
-  --ore-red-60: #c02d2d;
-  --ore-red-80: #ad1d1d;
-  --ore-blue-10: #8cb3ff;
-  --ore-blue-20: #2e6be5;
-  --ore-blue-30: #1452cc;
-  --ore-yellow-10: #ffe866;
-  --ore-yellow-20: #e5c317;
-  --ore-orange-20: #d3791f;
-  --ore-purple-10: #ac90f3;
-  --ore-gold-vip: #fee039;
-  --ore-disabled-background: #d0d1d4;
-  --ore-disabled-border: #8c8d90;
-  --ore-disabled-shadow: #b1b2b5;
-  --ore-disabled-foreground: #48494a;
-  --ore-overlay: rgba(0, 0, 0, 0.7);
-  --ore-overlay-soft: rgba(0, 0, 0, 0.55);
-  --ore-button-2-border: #1e1e1f;
-  --ore-button-2-foreground: #ffffff;
-  --ore-button-primary-2-background: #3c8527;
-  --ore-button-primary-2-background-hover: #2a641c;
-  --ore-button-primary-2-background-active: #1d4d13;
-  --ore-button-primary-2-shadow: #1d4d13;
-  --ore-button-secondary-2-background: #d0d1d4;
-  --ore-button-secondary-2-background-hover: #b1b2b5;
-  --ore-button-secondary-2-background-active: #b1b2b5;
-  --ore-button-secondary-2-shadow: #58585a;
-  --ore-button-secondary-2-foreground: #1e1e1f;
-  --ore-button-danger-2-background: #ca3636;
-  --ore-button-danger-2-background-hover: #c02d2d;
-  --ore-button-danger-2-background-active: #ad1d1d;
-  --ore-button-danger-2-shadow: #ad1d1d;
-  --ore-button-purple-2-background: #7345e5;
-  --ore-button-purple-2-background-hover: #5d2cc6;
-  --ore-button-purple-2-background-active: #4a1cac;
-  --ore-button-purple-2-shadow: #4a1cac;
-  --ore-button-primary-3-background: #3c8527;
-  --ore-button-primary-3-background-hover: #52a535;
-  --ore-button-primary-3-background-active: #2a641c;
-  --ore-button-primary-3-shadow: #1d4d13;
-  --ore-button-primary-3-highlight: rgba(255, 255, 255, 0.2);
-  --ore-button-secondary-3-background: #d0d1d4;
-  --ore-button-secondary-3-background-hover: #f4f6f9;
-  --ore-button-secondary-3-background-active: #b1b2b5;
-  --ore-button-secondary-3-shadow: #58585a;
-  --ore-button-secondary-3-foreground: #1e1e1f;
-  --ore-button-danger-3-background: #ca3636;
-  --ore-button-danger-3-background-hover: #df5050;
-  --ore-button-danger-3-background-active: #c02d2d;
-  --ore-button-danger-3-shadow: #ad1d1d;
-  --ore-card-2-background: #48494a;
-  --ore-card-2-border: #1e1e1f;
-  --ore-card-2-highlight: #6c6d6e;
-  --ore-card-2-shadow: #333334;
-  --ore-card-2-muted: #d0d1d4;
-  --ore-panel-2-background: #313233;
-  --ore-panel-2-header-background: #48494a;
-  --ore-panel-2-border: #1e1e1f;
-  --ore-panel-2-elevation: rgba(0, 0, 0, 0.25);
-  --ore-panel-2-muted: #d0d1d4;
-  --ore-input-2-background: #313233;
-  --ore-input-2-border: #1e1e1f;
-  --ore-input-2-inner-shadow: #242425;
-  --ore-input-2-caret: #6cc349;
-  --ore-input-2-invalid: #cf4a4a;
-  --ore-input-2-valid: #6cc349;
-  --ore-input-2-help: #b1b2b5;
-  --ore-tab-2-background: #48494a;
-  --ore-tab-2-background-hover: #67686a;
-  --ore-tab-2-border: #131313;
-  --ore-tab-2-active-background: #3c8527;
-  --ore-tab-2-active-background-hover: #2a641c;
-  --ore-tab-2-active-shadow: #2a641c;
-  --ore-tab-3-background: #48494a;
-  --ore-tab-3-background-hover: #58585a;
-  --ore-tab-3-background-active: #313233;
-  --ore-tab-3-indicator: #ffffff;
-  --ore-progress-2-track: #1e1e1f;
-  --ore-progress-2-border: #131313;
-  --ore-progress-2-bar: #3c8527;
-  --ore-progress-2-bar-shadow: #2a641c;
-  --ore-progress-2-bar-danger: #c33636;
-  --ore-progress-2-bar-danger-shadow: #ad1d1d;
+  --color-foreground: var(--ink);
+  --color-muted: var(--ink-muted);
+  --color-background: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-deep: var(--surface-deep);
+  --color-border: var(--edge);
+  --color-border-light: var(--edge-light);
+  --color-focus: var(--focus);
+  --color-primary: var(--green);
+  --color-primary-hover: var(--green-hover);
+  --color-primary-active: var(--green-shadow);
+  --color-secondary: var(--purple);
+  --color-danger: var(--red);
+  --size-unit: 2px;
+  --motion-fast: 100ms;
+  --radius-sm: 0;
+  --radius-md: 0;
+  --gray-10: #f4f6f9;
+  --gray-20: #e6e8eb;
+  --gray-30: #d0d1d4;
+  --gray-40: #b1b2b5;
+  --gray-50: #8c8d90;
+  --gray-60: #58585a;
+  --gray-70: #48494a;
+  --gray-80: #313233;
+  --gray-90: #242425;
+  --gray-100: #1e1e1f;
+  --green-30: #6cc349;
+  --green-40: #52a535;
+  --green-50: #3c8527;
+  --green-60: #2a641c;
+  --green-70: #1d4d13;
+  --red-10: #f46d6d;
+  --red-30: #df5050;
+  --red-50: #ca3636;
+  --red-60: #c02d2d;
+  --red-80: #ad1d1d;
+  --blue-10: #8cb3ff;
+  --blue-20: #2e6be5;
+  --blue-30: #1452cc;
+  --yellow-10: #ffe866;
+  --yellow-20: #e5c317;
+  --orange-20: #d3791f;
+  --purple-10: #ac90f3;
+  --gold-vip: #fee039;
+  --disabled-background: #d0d1d4;
+  --disabled-border: #8c8d90;
+  --disabled-shadow: #b1b2b5;
+  --disabled-foreground: #48494a;
+  --overlay: rgba(0, 0, 0, 0.7);
+  --overlay-soft: rgba(0, 0, 0, 0.55);
+  --button-2-border: #1e1e1f;
+  --button-2-foreground: #ffffff;
+  --button-primary-2-background: #3c8527;
+  --button-primary-2-background-hover: #2a641c;
+  --button-primary-2-background-active: #1d4d13;
+  --button-primary-2-shadow: #1d4d13;
+  --button-secondary-2-background: #d0d1d4;
+  --button-secondary-2-background-hover: #b1b2b5;
+  --button-secondary-2-background-active: #b1b2b5;
+  --button-secondary-2-shadow: #58585a;
+  --button-secondary-2-foreground: #1e1e1f;
+  --button-danger-2-background: #ca3636;
+  --button-danger-2-background-hover: #c02d2d;
+  --button-danger-2-background-active: #ad1d1d;
+  --button-danger-2-shadow: #ad1d1d;
+  --button-purple-2-background: #7345e5;
+  --button-purple-2-background-hover: #5d2cc6;
+  --button-purple-2-background-active: #4a1cac;
+  --button-purple-2-shadow: #4a1cac;
+  --button-primary-3-background: #3c8527;
+  --button-primary-3-background-hover: #52a535;
+  --button-primary-3-background-active: #2a641c;
+  --button-primary-3-shadow: #1d4d13;
+  --button-primary-3-highlight: rgba(255, 255, 255, 0.2);
+  --button-secondary-3-background: #d0d1d4;
+  --button-secondary-3-background-hover: #f4f6f9;
+  --button-secondary-3-background-active: #b1b2b5;
+  --button-secondary-3-shadow: #58585a;
+  --button-secondary-3-foreground: #1e1e1f;
+  --button-danger-3-background: #ca3636;
+  --button-danger-3-background-hover: #df5050;
+  --button-danger-3-background-active: #c02d2d;
+  --button-danger-3-shadow: #ad1d1d;
+  --card-2-background: #48494a;
+  --card-2-border: #1e1e1f;
+  --card-2-highlight: #6c6d6e;
+  --card-2-shadow: #333334;
+  --card-2-muted: #d0d1d4;
+  --panel-2-background: #313233;
+  --panel-2-header-background: #48494a;
+  --panel-2-border: #1e1e1f;
+  --panel-2-elevation: rgba(0, 0, 0, 0.25);
+  --panel-2-muted: #d0d1d4;
+  --input-2-background: #313233;
+  --input-2-border: #1e1e1f;
+  --input-2-inner-shadow: #242425;
+  --input-2-caret: #6cc349;
+  --input-2-invalid: #cf4a4a;
+  --input-2-valid: #6cc349;
+  --input-2-help: #b1b2b5;
+  --tab-2-background: #48494a;
+  --tab-2-background-hover: #67686a;
+  --tab-2-border: #131313;
+  --tab-2-active-background: #3c8527;
+  --tab-2-active-background-hover: #2a641c;
+  --tab-2-active-shadow: #2a641c;
+  --tab-3-background: #48494a;
+  --tab-3-background-hover: #58585a;
+  --tab-3-background-active: #313233;
+  --tab-3-indicator: #ffffff;
+  --progress-2-track: #1e1e1f;
+  --progress-2-border: #131313;
+  --progress-2-bar: #3c8527;
+  --progress-2-bar-shadow: #2a641c;
+  --progress-2-bar-danger: #c33636;
+  --progress-2-bar-danger-shadow: #ad1d1d;
   /* Switch tokens (katorlys switch.css, unit = 2px; color-mix precomputed). */
-  --ore-switch-track-background: #8c8d90;
-  --ore-switch-track-highlight: #a3a4a6;
-  --ore-switch-track-border: #1e1e1f;
-  --ore-switch-active-track-background: #3c8527;
-  --ore-switch-active-track-highlight: #639d52;
-  --ore-switch-thumb-background: #d0d1d4;
-  --ore-switch-thumb-background-hover: #f4f6f9;
-  --ore-switch-thumb-background-pressed: #b1b2b5;
-  --ore-switch-thumb-highlight: #e3e3e5;
-  --ore-switch-thumb-highlight-hover: #fbfbfd;
-  --ore-switch-thumb-highlight-pressed: #d0d1d3;
-  --ore-switch-thumb-highlight-focus: #ecedee;
-  --ore-switch-thumb-shadow: #58585a;
-  --ore-switch-thumb-border: #1e1e1f;
-  --ore-switch-thumb-focus-ring: transparent;
-  --ore-switch-icon: #242425;
-  --ore-checkbox-size: 20px;
-  --ore-checkbox-background: #8c8d90;
-  --ore-checkbox-background-hover: #b1b2b5;
-  --ore-checkbox-background-active: #58585a;
-  --ore-checkbox-checked: #3c8527;
-  --ore-checkbox-checked-hover: #2a641c;
-  --ore-checkbox-checked-active: #1d4d13;
-  --ore-checkbox-border: #1e1e1f;
-  --ore-checkbox-mark: #ffffff;
-  --ore-checkbox-2-size: 24px;
-  --ore-checkbox-2-checked-hover: #52a535;
-  --ore-radio-dot: #ffffff;
-  --ore-radio-2-size: 18px;
-  --ore-slider-track: #8c8d90;
-  --ore-slider-track-border: #1e1e1f;
-  --ore-slider-process: #3c8527;
-  --ore-slider-segment: #1e1e1f;
-  --ore-slider-thumb-background: #d0d1d4;
-  --ore-slider-thumb-background-hover: #b1b2b5;
-  --ore-slider-thumb-shadow: #58585a;
-  --ore-slider-2-segment-gap: rgba(0, 0, 0, 0.35);
-  --ore-tooltip-background: #1f1f1f;
-  --ore-tooltip-border: #ffffff;
-  --ore-tooltip-shadow: #000000;
-  --ore-tooltip-foreground: #ffffff;
-  --ore-tooltip-2-background: #2e6be5;
-  --ore-tooltip-2-border: #1e1e1f;
-  --ore-dropdown-label-background: #d0d1d4;
-  --ore-dropdown-label-background-hover: #b1b2b5;
-  --ore-dropdown-label-foreground: #1e1e1f;
-  --ore-dropdown-menu-background: #58585a;
-  --ore-dropdown-menu-border: #1e1e1f;
-  --ore-dropdown-option-separator: #8c8d90;
-  --ore-dropdown-2-menu-background: #1e1e1f;
-  --ore-dropdown-2-option-background: #313233;
-  --ore-dropdown-2-option-background-hover: #242425;
-  --ore-toast-background: #1f1f1f;
-  --ore-toast-foreground: #ffffff;
-  --ore-toast-success: #6cc349;
-  --ore-toast-warning: #ffe866;
-  --ore-toast-danger: #f46d6d;
-  --ore-toast-info: #8cb3ff;
-  --ore-toast-vip: #fee039;
-  --ore-toast-2-background: #1e1e1f;
-  --ore-toast-2-secondary: #313233;
-  --ore-toast-2-dark-foreground: #1e1e1f;
-  --ore-loading-background: #48494a;
-  --ore-spinner-track: rgba(255, 255, 255, 0.25);
-  --ore-spinner-head: #ffffff;
-  --ore-loading-error: #c02d2d;
-  --ore-drawer-background: #313233;
-  --ore-drawer-border: #1e1e1f;
-  --ore-drawer-header-background: #48494a;
-  --ore-drawer-close-hover: #58585a;
-  --ore-icon-button-background: #48494a;
-  --ore-icon-button-background-hover: #58585a;
-  --ore-icon-button-background-active: #313233;
-  --ore-icon-button-border: #1e1e1f;
-  --ore-icon-button-highlight: #6c6d6e;
-  --ore-icon-button-shadow: #333334;
-  --ore-sidebar-width: 238px;
-  --ore-sidebar-background: #313233;
-  --ore-sidebar-border: #1e1e1f;
-  --ore-sidebar-item-hover: #58585a;
-  --ore-sidebar-2-width: 240px;
-  --ore-sidebar-2-background: #48494a;
-  --ore-sidebar-2-border: #333334;
-  --ore-sidebar-2-active: #3c8527;
-  --ore-scrollbar-width: 22px;
-  --ore-scrollbar-track: #58585a;
-  --ore-scrollbar-thumb: #e6e8eb;
-  --ore-scrollbar-thumb-border: #000000;
-  --ore-scrollbar-thumb-shadow: #58585a;
-  --ore-scrollbar-thumb-highlight: #f9fafa;
-  --ore-scrollbar-2-width: 18px;
-  --ore-scrollbar-2-thumb: rgba(255, 255, 255, 0.4);
-  --ore-tag-background: #1e1e1f;
-  --ore-tag-foreground: #ffffff;
-  --ore-tag-dark-foreground: #1e1e1f;
-  --ore-banner-neutral: #1e1e1f;
-  --ore-banner-information: #2e6be5;
-  --ore-banner-important: #ffe866;
-  --ore-list-2-background: #313233;
-  --ore-list-2-item-hover: #48494a;
-  --ore-list-2-item-active: #242425;
+  --switch-track-background: #8c8d90;
+  --switch-track-highlight: #a3a4a6;
+  --switch-track-border: #1e1e1f;
+  --switch-active-track-background: #3c8527;
+  --switch-active-track-highlight: #639d52;
+  --switch-thumb-background: #d0d1d4;
+  --switch-thumb-background-hover: #f4f6f9;
+  --switch-thumb-background-pressed: #b1b2b5;
+  --switch-thumb-highlight: #e3e3e5;
+  --switch-thumb-highlight-hover: #fbfbfd;
+  --switch-thumb-highlight-pressed: #d0d1d3;
+  --switch-thumb-highlight-focus: #ecedee;
+  --switch-thumb-shadow: #58585a;
+  --switch-thumb-border: #1e1e1f;
+  --switch-thumb-focus-ring: transparent;
+  --switch-icon: #242425;
+  --checkbox-size: 20px;
+  --checkbox-background: #8c8d90;
+  --checkbox-background-hover: #b1b2b5;
+  --checkbox-background-active: #58585a;
+  --checkbox-checked: #3c8527;
+  --checkbox-checked-hover: #2a641c;
+  --checkbox-checked-active: #1d4d13;
+  --checkbox-border: #1e1e1f;
+  --checkbox-mark: #ffffff;
+  --checkbox-2-size: 24px;
+  --checkbox-2-checked-hover: #52a535;
+  --radio-dot: #ffffff;
+  --radio-2-size: 18px;
+  --slider-track: #8c8d90;
+  --slider-track-border: #1e1e1f;
+  --slider-process: #3c8527;
+  --slider-segment: #1e1e1f;
+  --slider-thumb-background: #d0d1d4;
+  --slider-thumb-background-hover: #b1b2b5;
+  --slider-thumb-shadow: #58585a;
+  --slider-2-segment-gap: rgba(0, 0, 0, 0.35);
+  --tooltip-background: #1f1f1f;
+  --tooltip-border: #ffffff;
+  --tooltip-shadow: #000000;
+  --tooltip-foreground: #ffffff;
+  --tooltip-2-background: #2e6be5;
+  --tooltip-2-border: #1e1e1f;
+  --dropdown-label-background: #d0d1d4;
+  --dropdown-label-background-hover: #b1b2b5;
+  --dropdown-label-foreground: #1e1e1f;
+  --dropdown-menu-background: #58585a;
+  --dropdown-menu-border: #1e1e1f;
+  --dropdown-option-separator: #8c8d90;
+  --dropdown-2-menu-background: #1e1e1f;
+  --dropdown-2-option-background: #313233;
+  --dropdown-2-option-background-hover: #242425;
+  --toast-background: #1f1f1f;
+  --toast-foreground: #ffffff;
+  --toast-success: #6cc349;
+  --toast-warning: #ffe866;
+  --toast-danger: #f46d6d;
+  --toast-info: #8cb3ff;
+  --toast-vip: #fee039;
+  --toast-2-background: #1e1e1f;
+  --toast-2-secondary: #313233;
+  --toast-2-dark-foreground: #1e1e1f;
+  --loading-background: #48494a;
+  --spinner-track: rgba(255, 255, 255, 0.25);
+  --spinner-head: #ffffff;
+  --loading-error: #c02d2d;
+  --drawer-background: #313233;
+  --drawer-border: #1e1e1f;
+  --drawer-header-background: #48494a;
+  --drawer-close-hover: #58585a;
+  --icon-button-background: #48494a;
+  --icon-button-background-hover: #58585a;
+  --icon-button-background-active: #313233;
+  --icon-button-border: #1e1e1f;
+  --icon-button-highlight: #6c6d6e;
+  --icon-button-shadow: #333334;
+  --sidebar-width: 238px;
+  --sidebar-background: #313233;
+  --sidebar-border: #1e1e1f;
+  --sidebar-item-hover: #58585a;
+  --sidebar-2-width: 240px;
+  --sidebar-2-background: #48494a;
+  --sidebar-2-border: #333334;
+  --sidebar-2-active: #3c8527;
+  --scrollbar-width: 22px;
+  --scrollbar-track: #58585a;
+  --scrollbar-thumb: #e6e8eb;
+  --scrollbar-thumb-border: #000000;
+  --scrollbar-thumb-shadow: #58585a;
+  --scrollbar-thumb-highlight: #f9fafa;
+  --scrollbar-2-width: 18px;
+  --scrollbar-2-thumb: rgba(255, 255, 255, 0.4);
+  --tag-background: #1e1e1f;
+  --tag-foreground: #ffffff;
+  --tag-dark-foreground: #1e1e1f;
+  --banner-neutral: #1e1e1f;
+  --banner-information: #2e6be5;
+  --banner-important: #ffe866;
+  --list-2-background: #313233;
+  --list-2-item-hover: #48494a;
+  --list-2-item-active: #242425;
 }
 
 /* --------------------------------------------------------------------------
@@ -1034,22 +1070,22 @@
   min-height: 40px;
   padding: 8px 16px 12px;
   border-width: 2px;
-  border-color: var(--ore-button-2-border);
-  color: var(--ore-button-2-foreground);
-  transition: background-color var(--ore-motion-fast) ease;
+  border-color: var(--button-2-border);
+  color: var(--button-2-foreground);
+  transition: background-color var(--motion-fast) ease;
 }
 .ore-theme .button-primary-2 {
-  background: var(--ore-button-primary-2-background);
+  background: var(--button-primary-2-background);
   box-shadow:
-    inset 0 -4px var(--ore-button-primary-2-shadow),
+    inset 0 -4px var(--button-primary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.2),
     inset -3px -7px rgba(255, 255, 255, 0.1);
 }
 .ore-theme .button-primary-2:hover {
   color: #ffffff;
-  background: var(--ore-button-primary-2-background-hover);
+  background: var(--button-primary-2-background-hover);
   box-shadow:
-    inset 0 -4px var(--ore-button-primary-2-shadow),
+    inset 0 -4px var(--button-primary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.4),
     inset -3px -7px rgba(255, 255, 255, 0.3);
 }
@@ -1057,25 +1093,25 @@
 .ore-theme .button-primary-2[aria-pressed="true"] {
   padding-top: 10px;
   padding-bottom: 10px;
-  background: var(--ore-button-primary-2-background-active);
+  background: var(--button-primary-2-background-active);
   box-shadow:
     inset 3px 3px rgba(255, 255, 255, 0.4),
     inset -3px -3px rgba(255, 255, 255, 0.3);
 }
 .ore-theme .button-secondary-2 {
-  color: var(--ore-button-secondary-2-foreground);
-  background: var(--ore-button-secondary-2-background);
+  color: var(--button-secondary-2-foreground);
+  background: var(--button-secondary-2-background);
   box-shadow:
-    inset 0 -4px var(--ore-button-secondary-2-shadow),
+    inset 0 -4px var(--button-secondary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.6),
     inset -3px -7px rgba(255, 255, 255, 0.4);
   text-shadow: none;
 }
 .ore-theme .button-secondary-2:hover {
-  color: var(--ore-button-secondary-2-foreground);
-  background: var(--ore-button-secondary-2-background-hover);
+  color: var(--button-secondary-2-foreground);
+  background: var(--button-secondary-2-background-hover);
   box-shadow:
-    inset 0 -4px var(--ore-button-secondary-2-shadow),
+    inset 0 -4px var(--button-secondary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.8),
     inset -3px -7px rgba(255, 255, 255, 0.6);
 }
@@ -1083,24 +1119,24 @@
 .ore-theme .button-secondary-2[aria-pressed="true"] {
   padding-top: 10px;
   padding-bottom: 10px;
-  color: var(--ore-button-secondary-2-foreground);
-  background: var(--ore-button-secondary-2-background-active);
+  color: var(--button-secondary-2-foreground);
+  background: var(--button-secondary-2-background-active);
   box-shadow:
     inset 3px 3px rgba(255, 255, 255, 0.8),
     inset -3px -3px rgba(255, 255, 255, 0.6);
 }
 .ore-theme .button-danger-2 {
-  background: var(--ore-button-danger-2-background);
+  background: var(--button-danger-2-background);
   box-shadow:
-    inset 0 -4px var(--ore-button-danger-2-shadow),
+    inset 0 -4px var(--button-danger-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.2),
     inset -3px -7px rgba(255, 255, 255, 0.1);
 }
 .ore-theme .button-danger-2:hover {
   color: #ffffff;
-  background: var(--ore-button-danger-2-background-hover);
+  background: var(--button-danger-2-background-hover);
   box-shadow:
-    inset 0 -4px var(--ore-button-danger-2-shadow),
+    inset 0 -4px var(--button-danger-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.5),
     inset -3px -7px rgba(255, 255, 255, 0.4);
 }
@@ -1108,23 +1144,23 @@
 .ore-theme .button-danger-2[aria-pressed="true"] {
   padding-top: 10px;
   padding-bottom: 10px;
-  background: var(--ore-button-danger-2-background-active);
+  background: var(--button-danger-2-background-active);
   box-shadow:
     inset 3px 3px rgba(255, 255, 255, 0.5),
     inset -3px -3px rgba(255, 255, 255, 0.4);
 }
 .ore-theme .button-purple-2 {
-  background: var(--ore-button-purple-2-background);
+  background: var(--button-purple-2-background);
   box-shadow:
-    inset 0 -4px var(--ore-button-purple-2-shadow),
+    inset 0 -4px var(--button-purple-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.25),
     inset -3px -7px rgba(255, 255, 255, 0.12);
 }
 .ore-theme .button-purple-2:hover {
   color: #ffffff;
-  background: var(--ore-button-purple-2-background-hover);
+  background: var(--button-purple-2-background-hover);
   box-shadow:
-    inset 0 -4px var(--ore-button-purple-2-shadow),
+    inset 0 -4px var(--button-purple-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.4),
     inset -3px -7px rgba(255, 255, 255, 0.3);
 }
@@ -1132,7 +1168,7 @@
 .ore-theme .button-purple-2[aria-pressed="true"] {
   padding-top: 10px;
   padding-bottom: 10px;
-  background: var(--ore-button-purple-2-background-active);
+  background: var(--button-purple-2-background-active);
   box-shadow:
     inset 3px 3px rgba(255, 255, 255, 0.4),
     inset -3px -3px rgba(255, 255, 255, 0.3);
@@ -1149,10 +1185,10 @@
 .ore-theme .button-purple-2[disabled],
 .ore-theme .button-purple-2.disabled,
 .ore-theme .button-purple-2[aria-disabled="true"] {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
+  box-shadow: inset 0 -4px var(--disabled-shadow);
   text-shadow: none;
   cursor: not-allowed;
 }
@@ -1168,10 +1204,10 @@
 .ore-theme .button-purple-2[disabled]:hover,
 .ore-theme .button-purple-2.disabled:hover,
 .ore-theme .button-purple-2[aria-disabled="true"]:hover {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
+  box-shadow: inset 0 -4px var(--disabled-shadow);
 }
 
 /* Button -3: katorlys unit bevel (4px top highlight band, 8px bottom shadow). */
@@ -1181,60 +1217,60 @@
   min-height: 44px;
   padding: 9px 16px 15px;
   border-width: 2px;
-  border-color: var(--ore-button-2-border);
-  color: var(--ore-button-2-foreground);
-  transition: background-color var(--ore-motion-fast) ease;
+  border-color: var(--button-2-border);
+  color: var(--button-2-foreground);
+  transition: background-color var(--motion-fast) ease;
 }
 .ore-theme .button-primary-3 {
-  background: var(--ore-button-primary-3-background);
+  background: var(--button-primary-3-background);
   box-shadow:
-    inset 0 -8px var(--ore-button-primary-3-shadow),
-    inset 0 4px var(--ore-button-primary-3-highlight);
+    inset 0 -8px var(--button-primary-3-shadow),
+    inset 0 4px var(--button-primary-3-highlight);
 }
 .ore-theme .button-primary-3:hover {
   color: #ffffff;
-  background: var(--ore-button-primary-3-background-hover);
+  background: var(--button-primary-3-background-hover);
 }
 .ore-theme .button-primary-3:active,
 .ore-theme .button-primary-3[aria-pressed="true"] {
   padding-top: 13px;
   padding-bottom: 11px;
-  background: var(--ore-button-primary-3-background-active);
-  box-shadow: inset 0 4px var(--ore-button-primary-3-highlight);
+  background: var(--button-primary-3-background-active);
+  box-shadow: inset 0 4px var(--button-primary-3-highlight);
 }
 .ore-theme .button-secondary-3 {
-  color: var(--ore-button-secondary-3-foreground);
-  background: var(--ore-button-secondary-3-background);
+  color: var(--button-secondary-3-foreground);
+  background: var(--button-secondary-3-background);
   box-shadow:
-    inset 0 -8px var(--ore-button-secondary-3-shadow),
+    inset 0 -8px var(--button-secondary-3-shadow),
     inset 0 4px rgba(255, 255, 255, 0.5);
   text-shadow: none;
 }
 .ore-theme .button-secondary-3:hover {
-  color: var(--ore-button-secondary-3-foreground);
-  background: var(--ore-button-secondary-3-background-hover);
+  color: var(--button-secondary-3-foreground);
+  background: var(--button-secondary-3-background-hover);
 }
 .ore-theme .button-secondary-3:active,
 .ore-theme .button-secondary-3[aria-pressed="true"] {
   padding-top: 13px;
   padding-bottom: 11px;
-  color: var(--ore-button-secondary-3-foreground);
-  background: var(--ore-button-secondary-3-background-active);
+  color: var(--button-secondary-3-foreground);
+  background: var(--button-secondary-3-background-active);
   box-shadow: inset 0 4px rgba(255, 255, 255, 0.5);
 }
 .ore-theme .button-danger-3 {
-  background: var(--ore-button-danger-3-background);
+  background: var(--button-danger-3-background);
   box-shadow:
-    inset 0 -8px var(--ore-button-danger-3-shadow),
-    inset 0 4px var(--ore-button-primary-3-highlight);
+    inset 0 -8px var(--button-danger-3-shadow),
+    inset 0 4px var(--button-primary-3-highlight);
 }
-.ore-theme .button-danger-3:hover { color: #ffffff; background: var(--ore-button-danger-3-background-hover); }
+.ore-theme .button-danger-3:hover { color: #ffffff; background: var(--button-danger-3-background-hover); }
 .ore-theme .button-danger-3:active,
 .ore-theme .button-danger-3[aria-pressed="true"] {
   padding-top: 13px;
   padding-bottom: 11px;
-  background: var(--ore-button-danger-3-background-active);
-  box-shadow: inset 0 4px var(--ore-button-primary-3-highlight);
+  background: var(--button-danger-3-background-active);
+  box-shadow: inset 0 4px var(--button-primary-3-highlight);
 }
 .ore-theme .button-primary-3[disabled],
 .ore-theme .button-primary-3.disabled,
@@ -1251,10 +1287,10 @@
 .ore-theme .button-secondary-3.disabled:hover,
 .ore-theme .button-danger-3[disabled]:hover,
 .ore-theme .button-danger-3.disabled:hover {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -8px var(--ore-disabled-shadow), inset 0 4px rgba(255, 255, 255, 0.4);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
+  box-shadow: inset 0 -8px var(--disabled-shadow), inset 0 4px rgba(255, 255, 255, 0.4);
   text-shadow: none;
   cursor: not-allowed;
 }
@@ -1274,15 +1310,15 @@
   width: 16px;
   height: 16px;
   margin: -10px 0 0 -10px;
-  border: 4px solid var(--ore-spinner-track);
-  border-top-color: var(--ore-spinner-head);
+  border: 4px solid var(--spinner-track);
+  border-top-color: var(--spinner-head);
   animation: ore-spin 800ms steps(8) infinite;
 }
 .ore-theme .button-secondary-2[data-state="loading"]::after,
 .ore-theme .button-secondary-3[data-state="loading"]::after,
 .ore-theme .button-tertiary[data-state="loading"]::after {
   border-color: rgba(0, 0, 0, 0.25);
-  border-top-color: var(--ore-button-2-border);
+  border-top-color: var(--button-2-border);
 }
 
 /* --------------------------------------------------------------------------
@@ -1290,61 +1326,61 @@
    -------------------------------------------------------------------------- */
 .ore-theme .card-2 {
   border: 0;
-  color: var(--ore-color-foreground);
-  background: var(--ore-card-2-background);
+  color: var(--color-foreground);
+  background: var(--card-2-background);
   box-shadow:
-    0 0 0 2px var(--ore-card-2-border),
-    0 4px 0 var(--ore-card-2-shadow),
-    inset 2px 2px var(--ore-card-2-highlight),
-    inset -2px -2px var(--ore-card-2-shadow);
+    0 0 0 2px var(--card-2-border),
+    0 4px 0 var(--card-2-shadow),
+    inset 2px 2px var(--card-2-highlight),
+    inset -2px -2px var(--card-2-shadow);
 }
 .ore-theme .card-2 .card-header {
-  border-bottom: 2px solid var(--ore-card-2-shadow);
+  border-bottom: 2px solid var(--card-2-shadow);
   background: transparent;
 }
 .ore-theme .card-2 .card-footer {
-  border-top: 2px solid var(--ore-card-2-highlight);
+  border-top: 2px solid var(--card-2-highlight);
   background: transparent;
 }
 .ore-theme .card-2 .card-description,
 .ore-theme .card-2 .card-muted {
-  color: var(--ore-card-2-muted);
-  font-size: var(--ore-font-sm);
+  color: var(--card-2-muted);
+  font-size: var(--font-sm);
 }
 .ore-theme .card-2 .card-media {
   min-height: 120px;
   background: #000000;
-  box-shadow: inset 0 0 0 2px var(--ore-card-2-border);
+  box-shadow: inset 0 0 0 2px var(--card-2-border);
 }
 .ore-theme .panel-2 {
-  border: 2px solid var(--ore-panel-2-border);
-  color: var(--ore-color-foreground);
-  background: var(--ore-panel-2-background);
+  border: 2px solid var(--panel-2-border);
+  color: var(--color-foreground);
+  background: var(--panel-2-background);
   box-shadow:
     inset 2px 2px rgba(255, 255, 255, 0.12),
     inset -2px -2px rgba(255, 255, 255, 0.08),
-    4px 4px 0 var(--ore-panel-2-elevation);
+    4px 4px 0 var(--panel-2-elevation);
 }
 .ore-theme .panel-2 .panel-header {
   padding: 12px 12px 10px;
-  border-bottom: 2px solid var(--ore-panel-2-border);
-  background: var(--ore-panel-2-header-background);
+  border-bottom: 2px solid var(--panel-2-border);
+  background: var(--panel-2-header-background);
   font-size: 20px;
   line-height: 1.2;
   overflow-wrap: anywhere;
 }
 .ore-theme .panel-2 .panel-subtitle {
-  color: var(--ore-panel-2-muted);
+  color: var(--panel-2-muted);
   font-family: OreRegular, sans-serif;
-  font-size: var(--ore-font-sm);
+  font-size: var(--font-sm);
   line-height: 1.25;
   overflow-wrap: anywhere;
 }
 .ore-theme .panel-2 .panel-body { padding: 14px; }
 .ore-theme .panel-2 .panel-footer {
   padding: 10px 12px;
-  border-top: 2px solid var(--ore-panel-2-border);
-  background: var(--ore-panel-2-header-background);
+  border-top: 2px solid var(--panel-2-border);
+  background: var(--panel-2-header-background);
 }
 
 /* --------------------------------------------------------------------------
@@ -1356,11 +1392,11 @@
   width: 100%;
   min-height: 40px;
   padding: 10px 10px 11px;
-  border: 2px solid var(--ore-input-2-border);
+  border: 2px solid var(--input-2-border);
   color: #ffffff;
-  background: var(--ore-input-2-background);
-  box-shadow: inset 0 4px var(--ore-input-2-inner-shadow);
-  caret-color: var(--ore-input-2-caret);
+  background: var(--input-2-background);
+  box-shadow: inset 0 4px var(--input-2-inner-shadow);
+  caret-color: var(--input-2-caret);
   font-family: OreRegular, sans-serif;
   font-size: 16px;
   line-height: 1.35;
@@ -1369,7 +1405,7 @@
 .ore-theme .form-input-2:hover,
 .ore-theme .form-select-2:hover,
 .ore-theme .form-textarea-2:hover {
-  border-color: var(--ore-gray-60);
+  border-color: var(--gray-60);
 }
 .ore-theme .form-input-2:focus,
 .ore-theme .form-input-2:focus-visible,
@@ -1377,13 +1413,13 @@
 .ore-theme .form-select-2:focus-visible,
 .ore-theme .form-textarea-2:focus,
 .ore-theme .form-textarea-2:focus-visible {
-  border-color: var(--ore-color-focus);
-  outline: 2px solid var(--ore-color-focus);
+  border-color: var(--color-focus);
+  outline: 2px solid var(--color-focus);
   outline-offset: 1px;
 }
 .ore-theme .form-input-2.is-valid,
 .ore-theme .form-select-2.is-valid {
-  border-color: var(--ore-input-2-valid);
+  border-color: var(--input-2-valid);
 }
 .ore-theme .form-input-2.is-invalid,
 .ore-theme .form-input-2[aria-invalid="true"],
@@ -1391,7 +1427,7 @@
 .ore-theme .form-select-2[aria-invalid="true"],
 .ore-theme .form-textarea-2.is-invalid,
 .ore-theme .form-textarea-2[aria-invalid="true"] {
-  border-color: var(--ore-input-2-invalid);
+  border-color: var(--input-2-invalid);
 }
 .ore-theme .form-input-2[disabled],
 .ore-theme .form-input-2.disabled,
@@ -1402,13 +1438,13 @@
 .ore-theme .form-textarea-2[disabled],
 .ore-theme .form-textarea-2.disabled,
 .ore-theme .form-textarea-2[aria-disabled="true"] {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 4px var(--ore-disabled-shadow);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
+  box-shadow: inset 0 4px var(--disabled-shadow);
   cursor: not-allowed;
 }
-.ore-theme .form-help-2 { margin-top: 5px; color: var(--ore-input-2-help); font-size: 14px; }
+.ore-theme .form-help-2 { margin-top: 5px; color: var(--input-2-help); font-size: 14px; }
 
 /* --------------------------------------------------------------------------
    Tabs: -2 (mcui dark bevel, green active), -3 (katorlys indicator bar)
@@ -1416,29 +1452,29 @@
 .ore-theme .tab-2 {
   min-height: 34px;
   padding: 6px 14px 8px;
-  border: 2px solid var(--ore-tab-2-border);
+  border: 2px solid var(--tab-2-border);
   color: #ffffff;
-  background: var(--ore-tab-2-background);
+  background: var(--tab-2-background);
   box-shadow: inset -1px -1px #1e1e1f, inset 1px 1px #6d6d6e;
   font: inherit;
   cursor: pointer;
 }
-.ore-theme .tab-2:hover { border-color: #ffffff; background: var(--ore-tab-2-background-hover); }
+.ore-theme .tab-2:hover { border-color: #ffffff; background: var(--tab-2-background-hover); }
 .ore-theme .tab-2.active,
 .ore-theme .tab-2[aria-selected="true"],
 .ore-theme .tab-2[data-state="active"] {
   color: #ffffff;
-  background: var(--ore-tab-2-active-background);
+  background: var(--tab-2-active-background);
   box-shadow:
-    inset 0 -4px var(--ore-tab-2-active-shadow),
+    inset 0 -4px var(--tab-2-active-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.25),
     inset -3px -6px rgba(255, 255, 255, 0.12);
 }
 .ore-theme .tab-2.active:hover,
 .ore-theme .tab-2[aria-selected="true"]:hover,
 .ore-theme .tab-2[data-state="active"]:hover {
-  border-color: var(--ore-tab-2-border);
-  background: var(--ore-tab-2-active-background-hover);
+  border-color: var(--tab-2-border);
+  background: var(--tab-2-active-background-hover);
 }
 .ore-theme .tab-2[disabled],
 .ore-theme .tab-2.disabled,
@@ -1446,10 +1482,10 @@
 .ore-theme .tab-2[disabled]:hover,
 .ore-theme .tab-2.disabled:hover,
 .ore-theme .tab-2[aria-disabled="true"]:hover {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
+  box-shadow: inset 0 -4px var(--disabled-shadow);
   cursor: not-allowed;
 }
 .ore-theme .tab-3 {
@@ -1458,17 +1494,17 @@
   padding: 8px 14px;
   border: 0;
   color: #ffffff;
-  background: var(--ore-tab-3-background);
+  background: var(--tab-3-background);
   font: inherit;
   cursor: pointer;
 }
-.ore-theme .tab-3:hover { background: var(--ore-tab-3-background-hover); }
-.ore-theme .tab-3:active { background: var(--ore-tab-3-background-active); }
+.ore-theme .tab-3:hover { background: var(--tab-3-background-hover); }
+.ore-theme .tab-3:active { background: var(--tab-3-background-active); }
 .ore-theme .tab-3.active,
 .ore-theme .tab-3[aria-selected="true"],
 .ore-theme .tab-3[data-state="active"] {
   color: #ffffff;
-  background: var(--ore-tab-3-background-active);
+  background: var(--tab-3-background-active);
 }
 .ore-theme .tab-3.active::after,
 .ore-theme .tab-3[aria-selected="true"]::after,
@@ -1479,7 +1515,7 @@
   left: 50%;
   width: 44px;
   height: 2px;
-  background: var(--ore-tab-3-indicator);
+  background: var(--tab-3-indicator);
   transform: translateX(-50%);
 }
 .ore-theme .tab-3[disabled],
@@ -1488,8 +1524,8 @@
 .ore-theme .tab-3[disabled]:hover,
 .ore-theme .tab-3.disabled:hover,
 .ore-theme .tab-3[aria-disabled="true"]:hover {
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
   cursor: not-allowed;
 }
 .ore-theme .tab-3[disabled]::after,
@@ -1504,8 +1540,8 @@
 .ore-theme .progress-2 {
   height: 22px;
   padding: 3px;
-  border: 2px solid var(--ore-progress-2-border);
-  background: var(--ore-progress-2-track);
+  border: 2px solid var(--progress-2-border);
+  background: var(--progress-2-track);
   box-shadow: inset 2px 2px #000000, inset -2px -2px #48494a;
   overflow: hidden;
 }
@@ -1513,18 +1549,18 @@
 .ore-theme .progress-2-bar {
   height: 100%;
   min-width: 0;
-  background: var(--ore-progress-2-bar);
+  background: var(--progress-2-bar);
   box-shadow:
-    inset 0 -4px var(--ore-progress-2-bar-shadow),
+    inset 0 -4px var(--progress-2-bar-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.3),
     inset -3px -6px rgba(255, 255, 255, 0.12);
   transition: width 0.2s ease;
 }
 .ore-theme .progress-2-danger .progress-bar,
 .ore-theme .progress-2-danger .progress-2-bar {
-  background: var(--ore-progress-2-bar-danger);
+  background: var(--progress-2-bar-danger);
   box-shadow:
-    inset 0 -4px var(--ore-progress-2-bar-danger-shadow),
+    inset 0 -4px var(--progress-2-bar-danger-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.25),
     inset -3px -6px rgba(255, 255, 255, 0.12);
 }
@@ -1544,32 +1580,32 @@
 .ore-theme .tag {
   min-height: 17px;
   padding: 0 5px;
-  color: var(--ore-tag-foreground);
-  background: var(--ore-tag-background);
-  font-size: var(--ore-font-sm);
+  color: var(--tag-foreground);
+  background: var(--tag-background);
+  font-size: var(--font-sm);
   line-height: 1.2;
   display: inline-flex;
   align-items: center;
 }
-.ore-theme .tag-outlined { box-shadow: 0 0 0 2px var(--ore-tag-background); }
+.ore-theme .tag-outlined { box-shadow: 0 0 0 2px var(--tag-background); }
 .ore-theme .tag-primary,
 .ore-theme .tag-informative,
 .ore-theme .tag-notice,
 .ore-theme .tag-warning,
 .ore-theme .tag-realms {
-  color: var(--ore-tag-dark-foreground);
+  color: var(--tag-dark-foreground);
 }
 .ore-theme .tag-2 {
   min-height: 0;
   padding: 0 2px;
   color: #000000;
-  background: var(--ore-green-30);
+  background: var(--green-30);
   font-size: 12px;
   line-height: 1.3;
   display: inline-flex;
   align-items: center;
 }
-.ore-theme .tag-2-black { color: #ffffff; background: var(--ore-gray-100); }
+.ore-theme .tag-2-black { color: #ffffff; background: var(--gray-100); }
 
 /* Dot badges (mcui 6px squares). */
 .ore-theme .badge-2 {
@@ -1578,7 +1614,7 @@
   min-height: 6px;
   padding: 0;
   border: 0;
-  background: var(--ore-green-30);
+  background: var(--green-30);
   display: inline-block;
 }
 
@@ -1589,22 +1625,22 @@
   padding: 10px;
   width: calc(100% - 40px);
   color: #ffffff;
-  background: var(--ore-banner-neutral);
+  background: var(--banner-neutral);
   text-align: center;
   overflow-wrap: break-word;
   display: flex;
   align-items: center;
   justify-content: center;
 }
-.ore-theme .banner-information { background: var(--ore-banner-information); }
-.ore-theme .banner-important { color: #000000; background: var(--ore-banner-important); font-weight: bold; }
+.ore-theme .banner-information { background: var(--banner-information); }
+.ore-theme .banner-important { color: #000000; background: var(--banner-important); font-weight: bold; }
 
 /* List group -2 (mcui list item bevels). */
 .ore-theme .list-group-2 {
   margin: 0;
   padding: 0;
-  border: 2px solid var(--ore-panel-2-border);
-  background: var(--ore-list-2-background);
+  border: 2px solid var(--panel-2-border);
+  background: var(--list-2-background);
   list-style: none;
 }
 .ore-theme .list-group-2-item {
@@ -1619,23 +1655,23 @@
   cursor: pointer;
 }
 .ore-theme .list-group-2-item:hover {
-  background: var(--ore-list-2-item-hover);
+  background: var(--list-2-item-hover);
   box-shadow: inset 0 1px 0 #5a5b5c, inset 0 -1px 0 #2d2e2e;
 }
 .ore-theme .list-group-2-item:active {
-  background: var(--ore-list-2-item-active);
+  background: var(--list-2-item-active);
   box-shadow: inset 0 1px 0 #070707, inset 0 -1px 0 #39393a;
 }
 .ore-theme .list-group-2-item.active,
 .ore-theme .list-group-2-item[aria-selected="true"] {
-  background: var(--ore-list-2-item-hover);
+  background: var(--list-2-item-hover);
   box-shadow: inset 0 1px 0 #2b2c2c, inset 0 -1px 0 #5a5b5c;
 }
 .ore-theme .list-group-2-item.disabled,
 .ore-theme .list-group-2-item[aria-disabled="true"],
 .ore-theme .list-group-2-item.disabled:hover,
 .ore-theme .list-group-2-item[aria-disabled="true"]:hover {
-  color: var(--ore-gray-50);
+  color: var(--gray-50);
   background: transparent;
   box-shadow: none;
   cursor: not-allowed;
@@ -1681,10 +1717,10 @@
   box-sizing: border-box;
   width: 26px;
   height: 26px;
-  background-color: var(--ore-switch-track-border);
+  background-color: var(--switch-track-border);
   background-image:
-    linear-gradient(var(--ore-switch-track-background), var(--ore-switch-track-background)),
-    linear-gradient(var(--ore-switch-track-highlight), var(--ore-switch-track-highlight));
+    linear-gradient(var(--switch-track-background), var(--switch-track-background)),
+    linear-gradient(var(--switch-track-highlight), var(--switch-track-highlight));
   background-position: 0px 4px, 0px 2px;
   background-size: 22px 18px, 24px 22px;
   background-repeat: no-repeat, no-repeat;
@@ -1697,15 +1733,15 @@
   width: 30px;
   height: 30px;
   order: -1;
-  background-color: var(--ore-switch-thumb-border);
+  background-color: var(--switch-thumb-border);
   background-image:
-    linear-gradient(var(--ore-switch-thumb-background), var(--ore-switch-thumb-background)),
-    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
-    linear-gradient(var(--ore-switch-thumb-highlight), var(--ore-switch-thumb-highlight));
+    linear-gradient(var(--switch-thumb-background), var(--switch-thumb-background)),
+    linear-gradient(var(--switch-thumb-shadow), var(--switch-thumb-shadow)),
+    linear-gradient(var(--switch-thumb-highlight), var(--switch-thumb-highlight));
   background-position: 4px 4px, 2px 24px, 2px 2px;
   background-size: 22px 18px, 26px 4px, 26px 22px;
   background-repeat: no-repeat, no-repeat, no-repeat;
-  box-shadow: 0 0 0 2px var(--ore-switch-thumb-focus-ring);
+  box-shadow: 0 0 0 2px var(--switch-thumb-focus-ring);
 }
 
 /* Checked: thumb flips to the right (order), the track turns green and its
@@ -1724,8 +1760,8 @@
 .ore-theme .switch[aria-checked="true"] .switch-status,
 .ore-theme .switch[data-state="on"] .switch-status {
   background-image:
-    linear-gradient(var(--ore-switch-active-track-background), var(--ore-switch-active-track-background)),
-    linear-gradient(var(--ore-switch-active-track-highlight), var(--ore-switch-active-track-highlight));
+    linear-gradient(var(--switch-active-track-background), var(--switch-active-track-background)),
+    linear-gradient(var(--switch-active-track-highlight), var(--switch-active-track-highlight));
   background-position: 4px 4px, 2px 2px;
 }
 .ore-theme .switch.on,
@@ -1733,40 +1769,40 @@
 .ore-theme .switch[checked],
 .ore-theme .switch[aria-checked="true"],
 .ore-theme .switch[data-state="on"] {
-  --ore-switch-icon: #ffffff;
+  --switch-icon: #ffffff;
 }
 
 /* Color variants (katorlys [color] attribute; only the checked track and
    the icon color change, thumb always keeps the secondary skin). */
 .ore-theme .switch[color="secondary"] {
-  --ore-switch-active-track-background: #d0d1d4;
-  --ore-switch-active-track-highlight: #e3e3e5;
+  --switch-active-track-background: #d0d1d4;
+  --switch-active-track-highlight: #e3e3e5;
 }
 .ore-theme .switch[color="destructive"] {
-  --ore-switch-active-track-background: #ca3636;
-  --ore-switch-active-track-highlight: #cf4a4a;
+  --switch-active-track-background: #ca3636;
+  --switch-active-track-highlight: #cf4a4a;
 }
 .ore-theme .switch[color="dungeons"] {
-  --ore-switch-active-track-background: #ffa41f;
-  --ore-switch-active-track-highlight: #ffd953;
+  --switch-active-track-background: #ffa41f;
+  --switch-active-track-highlight: #ffd953;
 }
 .ore-theme .switch[color="legends"] {
-  --ore-switch-active-track-background: #acf2ff;
-  --ore-switch-active-track-highlight: #c4f5fe;
+  --switch-active-track-background: #acf2ff;
+  --switch-active-track-highlight: #c4f5fe;
 }
 .ore-theme .switch[color="realms"] {
-  --ore-switch-active-track-background: #7345e5;
-  --ore-switch-active-track-highlight: #8557f8;
+  --switch-active-track-background: #7345e5;
+  --switch-active-track-highlight: #8557f8;
 }
 .ore-theme .switch[color="gold"] {
-  --ore-switch-active-track-background: #ffc42b;
-  --ore-switch-active-track-highlight: #ffd953;
+  --switch-active-track-background: #ffc42b;
+  --switch-active-track-highlight: #ffd953;
 }
 .ore-theme .switch[color="secondary"],
 .ore-theme .switch[color="dungeons"],
 .ore-theme .switch[color="legends"],
 .ore-theme .switch[color="gold"] {
-  --ore-switch-icon: #1e1e1f;
+  --switch-icon: #1e1e1f;
 }
 
 /* Icons variant ([variant="icons"] or .switch-icons): the off.svg ring and
@@ -1780,7 +1816,7 @@
   width: 12px;
   height: 12px;
   box-sizing: border-box;
-  border: 2px solid var(--ore-switch-icon);
+  border: 2px solid var(--switch-icon);
 }
 .ore-theme .switch[variant="icons"].on .switch-status::after,
 .ore-theme .switch[variant="icons"]:checked .switch-status::after,
@@ -1797,32 +1833,32 @@
   width: 2px;
   height: 12px;
   border: 0;
-  background: var(--ore-switch-icon);
+  background: var(--switch-icon);
 }
 
 /* Hover / pressed / focus: thumb tokens swap (identical for every color). */
 .ore-theme .switch:hover .switch-button {
   background-image:
-    linear-gradient(var(--ore-switch-thumb-background-hover), var(--ore-switch-thumb-background-hover)),
-    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
-    linear-gradient(var(--ore-switch-thumb-highlight-hover), var(--ore-switch-thumb-highlight-hover));
+    linear-gradient(var(--switch-thumb-background-hover), var(--switch-thumb-background-hover)),
+    linear-gradient(var(--switch-thumb-shadow), var(--switch-thumb-shadow)),
+    linear-gradient(var(--switch-thumb-highlight-hover), var(--switch-thumb-highlight-hover));
 }
 .ore-theme .switch:active .switch-button,
 .ore-theme .switch[pressed] .switch-button {
   background-image:
-    linear-gradient(var(--ore-switch-thumb-background-pressed), var(--ore-switch-thumb-background-pressed)),
-    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
-    linear-gradient(var(--ore-switch-thumb-highlight-pressed), var(--ore-switch-thumb-highlight-pressed));
+    linear-gradient(var(--switch-thumb-background-pressed), var(--switch-thumb-background-pressed)),
+    linear-gradient(var(--switch-thumb-shadow), var(--switch-thumb-shadow)),
+    linear-gradient(var(--switch-thumb-highlight-pressed), var(--switch-thumb-highlight-pressed));
 }
 .ore-theme .switch:focus-visible {
-  box-shadow: 0 0 0 2px var(--ore-focus);
+  box-shadow: 0 0 0 2px var(--focus);
 }
 .ore-theme .switch:focus-visible .switch-button {
   background-image:
-    linear-gradient(var(--ore-switch-thumb-background), var(--ore-switch-thumb-background)),
-    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
-    linear-gradient(var(--ore-switch-thumb-highlight-focus), var(--ore-switch-thumb-highlight-focus));
-  box-shadow: 0 0 0 2px var(--ore-focus);
+    linear-gradient(var(--switch-thumb-background), var(--switch-thumb-background)),
+    linear-gradient(var(--switch-thumb-shadow), var(--switch-thumb-shadow)),
+    linear-gradient(var(--switch-thumb-highlight-focus), var(--switch-thumb-highlight-focus));
+  box-shadow: 0 0 0 2px var(--focus);
 }
 
 /* Disabled (katorlys [disabled]: every layer flattens to the disabled
@@ -1831,7 +1867,7 @@
 .ore-theme .switch[disabled],
 .ore-theme .switch[aria-disabled="true"] {
   cursor: not-allowed;
-  --ore-switch-icon: #48494a;
+  --switch-icon: #48494a;
 }
 .ore-theme .switch.disabled .switch-status,
 .ore-theme .switch[disabled] .switch-status,
@@ -1871,34 +1907,34 @@
 /* Checkbox -1 (spectrollay/mcui 20px), -2 (katorlys 24px) Checkmarks are CSS-drawn (no external image assets). */
 .ore-theme .checkbox {
   position: relative;
-  width: var(--ore-checkbox-size);
-  height: var(--ore-checkbox-size);
-  border: 2px solid var(--ore-checkbox-border);
-  background: var(--ore-checkbox-background);
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  border: 2px solid var(--checkbox-border);
+  background: var(--checkbox-background);
   box-shadow: inset 2px 2px rgba(255, 255, 255, 0.2), inset -2px -2px rgba(255, 255, 255, 0.1);
   cursor: pointer;
   display: inline-block;
   vertical-align: middle;
 }
-.ore-theme .checkbox:hover { background: var(--ore-checkbox-background-hover); }
-.ore-theme .checkbox:active { background: var(--ore-checkbox-background-active); }
+.ore-theme .checkbox:hover { background: var(--checkbox-background-hover); }
+.ore-theme .checkbox:active { background: var(--checkbox-background-active); }
 .ore-theme .checkbox.on,
 .ore-theme .checkbox:checked,
 .ore-theme .checkbox[aria-checked="true"],
 .ore-theme .checkbox[data-state="on"] {
-  background: var(--ore-checkbox-checked);
+  background: var(--checkbox-checked);
 }
 .ore-theme .checkbox.on:hover,
 .ore-theme .checkbox:checked:hover,
 .ore-theme .checkbox[aria-checked="true"]:hover,
 .ore-theme .checkbox[data-state="on"]:hover {
-  background: var(--ore-checkbox-checked-hover);
+  background: var(--checkbox-checked-hover);
 }
 .ore-theme .checkbox.on:active,
 .ore-theme .checkbox:checked:active,
 .ore-theme .checkbox[aria-checked="true"]:active,
 .ore-theme .checkbox[data-state="on"]:active {
-  background: var(--ore-checkbox-checked-active);
+  background: var(--checkbox-checked-active);
 }
 .ore-theme .checkbox.on::after,
 .ore-theme .checkbox:checked::after,
@@ -1910,8 +1946,8 @@
   left: 5px;
   width: 6px;
   height: 11px;
-  border-right: 3px solid var(--ore-checkbox-mark);
-  border-bottom: 3px solid var(--ore-checkbox-mark);
+  border-right: 3px solid var(--checkbox-mark);
+  border-bottom: 3px solid var(--checkbox-mark);
   transform: rotate(45deg);
 }
 .ore-theme .checkbox.disabled,
@@ -1920,43 +1956,43 @@
 .ore-theme .checkbox.disabled:hover,
 .ore-theme .checkbox[disabled]:hover,
 .ore-theme .checkbox[aria-disabled="true"]:hover {
-  border-color: var(--ore-disabled-border);
-  background: var(--ore-disabled-background);
+  border-color: var(--disabled-border);
+  background: var(--disabled-background);
   box-shadow: none;
   cursor: not-allowed;
 }
 .ore-theme .checkbox-2 {
   position: relative;
-  width: var(--ore-checkbox-2-size);
-  height: var(--ore-checkbox-2-size);
-  background: var(--ore-checkbox-background);
+  width: var(--checkbox-2-size);
+  height: var(--checkbox-2-size);
+  background: var(--checkbox-background);
   box-shadow:
-    inset 0 0 0 2px var(--ore-checkbox-border),
+    inset 0 0 0 2px var(--checkbox-border),
     inset 2px 2px rgba(255, 255, 255, 0.2),
     inset -2px -2px rgba(255, 255, 255, 0.1);
   cursor: pointer;
   display: inline-block;
   vertical-align: middle;
 }
-.ore-theme .checkbox-2:hover { background: var(--ore-checkbox-background-hover); }
-.ore-theme .checkbox-2:active { background: var(--ore-checkbox-background-active); }
+.ore-theme .checkbox-2:hover { background: var(--checkbox-background-hover); }
+.ore-theme .checkbox-2:active { background: var(--checkbox-background-active); }
 .ore-theme .checkbox-2.on,
 .ore-theme .checkbox-2:checked,
 .ore-theme .checkbox-2[aria-checked="true"],
 .ore-theme .checkbox-2[data-state="on"] {
-  background: var(--ore-checkbox-checked);
+  background: var(--checkbox-checked);
 }
 .ore-theme .checkbox-2.on:hover,
 .ore-theme .checkbox-2:checked:hover,
 .ore-theme .checkbox-2[aria-checked="true"]:hover,
 .ore-theme .checkbox-2[data-state="on"]:hover {
-  background: var(--ore-checkbox-2-checked-hover);
+  background: var(--checkbox-2-checked-hover);
 }
 .ore-theme .checkbox-2.on:active,
 .ore-theme .checkbox-2:checked:active,
 .ore-theme .checkbox-2[aria-checked="true"]:active,
 .ore-theme .checkbox-2[data-state="on"]:active {
-  background: var(--ore-checkbox-checked-active);
+  background: var(--checkbox-checked-active);
 }
 .ore-theme .checkbox-2.on::after,
 .ore-theme .checkbox-2:checked::after,
@@ -1968,8 +2004,8 @@
   left: 7px;
   width: 7px;
   height: 13px;
-  border-right: 3px solid var(--ore-checkbox-mark);
-  border-bottom: 3px solid var(--ore-checkbox-mark);
+  border-right: 3px solid var(--checkbox-mark);
+  border-bottom: 3px solid var(--checkbox-mark);
   transform: rotate(45deg);
 }
 .ore-theme .checkbox-2.disabled,
@@ -1978,8 +2014,8 @@
 .ore-theme .checkbox-2.disabled:hover,
 .ore-theme .checkbox-2[disabled]:hover,
 .ore-theme .checkbox-2[aria-disabled="true"]:hover {
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 0 0 2px var(--ore-disabled-border);
+  background: var(--disabled-background);
+  box-shadow: inset 0 0 0 2px var(--disabled-border);
   cursor: not-allowed;
 }
 
@@ -1988,10 +2024,10 @@
    -------------------------------------------------------------------------- */
 .ore-theme .radio {
   position: relative;
-  width: var(--ore-checkbox-size);
-  height: var(--ore-checkbox-size);
-  border: 2px solid var(--ore-checkbox-border);
-  background: var(--ore-checkbox-background);
+  width: var(--checkbox-size);
+  height: var(--checkbox-size);
+  border: 2px solid var(--checkbox-border);
+  background: var(--checkbox-background);
   box-shadow: inset 2px 2px rgba(255, 255, 255, 0.2), inset -2px -2px rgba(255, 255, 255, 0.1);
   cursor: pointer;
   display: inline-flex;
@@ -1999,19 +2035,19 @@
   justify-content: center;
   vertical-align: middle;
 }
-.ore-theme .radio:hover { background: var(--ore-checkbox-background-hover); }
-.ore-theme .radio:active { background: var(--ore-checkbox-background-active); }
+.ore-theme .radio:hover { background: var(--checkbox-background-hover); }
+.ore-theme .radio:active { background: var(--checkbox-background-active); }
 .ore-theme .radio.on,
 .ore-theme .radio:checked,
 .ore-theme .radio[aria-checked="true"],
 .ore-theme .radio[data-state="on"] {
-  background: var(--ore-checkbox-checked);
+  background: var(--checkbox-checked);
 }
 .ore-theme .radio.on:hover,
 .ore-theme .radio:checked:hover,
 .ore-theme .radio[aria-checked="true"]:hover,
 .ore-theme .radio[data-state="on"]:hover {
-  background: var(--ore-checkbox-checked-hover);
+  background: var(--checkbox-checked-hover);
 }
 .ore-theme .radio.on::after,
 .ore-theme .radio:checked::after,
@@ -2020,7 +2056,7 @@
   content: "";
   width: 10px;
   height: 10px;
-  background: var(--ore-radio-dot);
+  background: var(--radio-dot);
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
 }
 .ore-theme .radio.disabled,
@@ -2029,19 +2065,19 @@
 .ore-theme .radio.disabled:hover,
 .ore-theme .radio[disabled]:hover,
 .ore-theme .radio[aria-disabled="true"]:hover {
-  border-color: var(--ore-disabled-border);
-  background: var(--ore-disabled-background);
+  border-color: var(--disabled-border);
+  background: var(--disabled-background);
   box-shadow: none;
   cursor: not-allowed;
 }
 .ore-theme .radio-2 {
   position: relative;
-  width: var(--ore-radio-2-size);
-  height: var(--ore-radio-2-size);
+  width: var(--radio-2-size);
+  height: var(--radio-2-size);
   margin: 3px;
-  background: var(--ore-checkbox-background);
+  background: var(--checkbox-background);
   box-shadow:
-    inset 0 0 0 2px var(--ore-checkbox-border),
+    inset 0 0 0 2px var(--checkbox-border),
     inset 2px 2px rgba(255, 255, 255, 0.2),
     inset -2px -2px rgba(255, 255, 255, 0.1);
   transform: rotate(45deg);
@@ -2049,19 +2085,19 @@
   display: inline-block;
   vertical-align: middle;
 }
-.ore-theme .radio-2:hover { background: var(--ore-checkbox-background-hover); }
-.ore-theme .radio-2:active { background: var(--ore-checkbox-background-active); }
+.ore-theme .radio-2:hover { background: var(--checkbox-background-hover); }
+.ore-theme .radio-2:active { background: var(--checkbox-background-active); }
 .ore-theme .radio-2.on,
 .ore-theme .radio-2:checked,
 .ore-theme .radio-2[aria-checked="true"],
 .ore-theme .radio-2[data-state="on"] {
-  background: var(--ore-checkbox-checked);
+  background: var(--checkbox-checked);
 }
 .ore-theme .radio-2.on:hover,
 .ore-theme .radio-2:checked:hover,
 .ore-theme .radio-2[aria-checked="true"]:hover,
 .ore-theme .radio-2[data-state="on"]:hover {
-  background: var(--ore-checkbox-checked-hover);
+  background: var(--checkbox-checked-hover);
 }
 
 /* 3-stripe indicator (katorlys radio.css), counter-rotated to stay upright. */
@@ -2084,8 +2120,8 @@
 .ore-theme .radio-2.disabled:hover,
 .ore-theme .radio-2[disabled]:hover,
 .ore-theme .radio-2[aria-disabled="true"]:hover {
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 0 0 2px var(--ore-disabled-border);
+  background: var(--disabled-background);
+  box-shadow: inset 0 0 0 2px var(--disabled-border);
   cursor: not-allowed;
 }
 
@@ -2095,12 +2131,12 @@
   align-items: center;
   gap: 8px;
   min-height: 28px;
-  color: var(--ore-color-foreground);
+  color: var(--color-foreground);
   cursor: pointer;
 }
 .ore-theme .choice-row.disabled,
 .ore-theme .choice-row[aria-disabled="true"] {
-  color: var(--ore-gray-50);
+  color: var(--gray-50);
   cursor: not-allowed;
 }
 
@@ -2112,8 +2148,8 @@
   width: 100%;
   height: 8px;
   margin: 16px 6px;
-  border: 2px solid var(--ore-slider-track-border);
-  background: var(--ore-slider-track);
+  border: 2px solid var(--slider-track-border);
+  background: var(--slider-track);
   box-shadow: inset 2px 2px rgba(255, 255, 255, 0.4), inset -2px -2px rgba(255, 255, 255, 0.2);
   cursor: pointer;
 }
@@ -2123,7 +2159,7 @@
   bottom: 0;
   left: 0;
   max-width: 100%;
-  background: var(--ore-slider-process);
+  background: var(--slider-process);
   box-shadow: inset 2px 2px rgba(255, 255, 255, 0.4), inset -2px -2px rgba(255, 255, 255, 0.2);
   transition: width 100ms linear;
 }
@@ -2133,10 +2169,10 @@
   left: 0;
   width: 28px;
   height: 28px;
-  border: 2px solid var(--ore-slider-track-border);
-  background: var(--ore-slider-thumb-background);
+  border: 2px solid var(--slider-track-border);
+  background: var(--slider-thumb-background);
   box-shadow:
-    inset 0 -4px var(--ore-slider-thumb-shadow),
+    inset 0 -4px var(--slider-thumb-shadow),
     inset 2px 2px rgba(255, 255, 255, 0.6),
     inset -2px -6px rgba(255, 255, 255, 0.4);
   transform: translate(-50%, -50%);
@@ -2146,9 +2182,9 @@
 .ore-theme .slider-thumb:hover,
 .ore-theme .slider-thumb:active,
 .ore-theme .slider:hover .slider-thumb {
-  background: var(--ore-slider-thumb-background-hover);
+  background: var(--slider-thumb-background-hover);
   box-shadow:
-    inset 0 -4px var(--ore-slider-thumb-shadow),
+    inset 0 -4px var(--slider-thumb-shadow),
     inset 2px 2px rgba(255, 255, 255, 0.8),
     inset -2px -6px rgba(255, 255, 255, 0.6);
 }
@@ -2157,13 +2193,13 @@
   top: 50%;
   width: 2px;
   height: 8px;
-  background: var(--ore-slider-segment);
+  background: var(--slider-segment);
   transform: translateY(-50%);
 }
 .ore-theme .slider.disabled,
 .ore-theme .slider[disabled],
 .ore-theme .slider[aria-disabled="true"] {
-  border-color: var(--ore-disabled-border);
+  border-color: var(--disabled-border);
   background: #cfd0d4;
   cursor: not-allowed;
 }
@@ -2179,7 +2215,7 @@
 .ore-theme .slider.disabled:hover .slider-thumb,
 .ore-theme .slider[disabled]:hover .slider-thumb,
 .ore-theme .slider[aria-disabled="true"]:hover .slider-thumb {
-  border-color: var(--ore-disabled-border);
+  border-color: var(--disabled-border);
   background: #cfd0d4;
   box-shadow:
     inset 0 -4px #b0b1b5,
@@ -2193,9 +2229,9 @@
   width: 100%;
   height: 12px;
   margin: 16px 6px;
-  border: 2px solid var(--ore-slider-track-border);
-  background: var(--ore-slider-track);
-  background-image: repeating-linear-gradient(to right, transparent 0 14px, var(--ore-slider-2-segment-gap) 14px 16px);
+  border: 2px solid var(--slider-track-border);
+  background: var(--slider-track);
+  background-image: repeating-linear-gradient(to right, transparent 0 14px, var(--slider-2-segment-gap) 14px 16px);
   cursor: pointer;
 }
 .ore-theme .slider-2-process {
@@ -2204,7 +2240,7 @@
   bottom: 0;
   left: 0;
   max-width: 100%;
-  background: var(--ore-slider-process);
+  background: var(--slider-process);
   transition: width 100ms linear;
 }
 .ore-theme .slider-2-thumb {
@@ -2213,10 +2249,10 @@
   left: 0;
   width: 29px;
   height: 29px;
-  border: 2px solid var(--ore-slider-track-border);
-  background: var(--ore-slider-thumb-background);
+  border: 2px solid var(--slider-track-border);
+  background: var(--slider-thumb-background);
   box-shadow:
-    inset 0 -4px var(--ore-slider-thumb-shadow),
+    inset 0 -4px var(--slider-thumb-shadow),
     inset 0 4px rgba(255, 255, 255, 0.5);
   transform: translate(-50%, -50%);
   transition: left 100ms linear;
@@ -2225,19 +2261,19 @@
 .ore-theme .slider-2-thumb:hover,
 .ore-theme .slider-2-thumb:active,
 .ore-theme .slider-2:hover .slider-2-thumb {
-  background: var(--ore-slider-thumb-background-hover);
+  background: var(--slider-thumb-background-hover);
 }
 .ore-theme .slider-2.disabled,
 .ore-theme .slider-2[disabled],
 .ore-theme .slider-2[aria-disabled="true"] {
-  border-color: var(--ore-disabled-border);
-  background: var(--ore-disabled-background);
+  border-color: var(--disabled-border);
+  background: var(--disabled-background);
   cursor: not-allowed;
 }
 .ore-theme .slider-2.disabled .slider-2-process,
 .ore-theme .slider-2[disabled] .slider-2-process,
 .ore-theme .slider-2[aria-disabled="true"] .slider-2-process {
-  background: var(--ore-disabled-shadow);
+  background: var(--disabled-shadow);
 }
 .ore-theme .slider-2.disabled .slider-2-thumb,
 .ore-theme .slider-2[disabled] .slider-2-thumb,
@@ -2245,9 +2281,9 @@
 .ore-theme .slider-2.disabled:hover .slider-2-thumb,
 .ore-theme .slider-2[disabled]:hover .slider-2-thumb,
 .ore-theme .slider-2[aria-disabled="true"]:hover .slider-2-thumb {
-  border-color: var(--ore-disabled-border);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
+  border-color: var(--disabled-border);
+  background: var(--disabled-background);
+  box-shadow: inset 0 -4px var(--disabled-shadow);
 }
 
 /* Tooltip -1 (mcui .mc-tooltip), -2 (katorlys ore-tooltip; corner-notch polygons replaced with a plain border for parser compatibility) */
@@ -2259,10 +2295,10 @@
   z-index: 30;
   max-width: 220px;
   padding: 6px 8px;
-  border: 2px solid var(--ore-tooltip-border);
-  color: var(--ore-tooltip-foreground);
-  background: var(--ore-tooltip-background);
-  box-shadow: 3px 3px 0 var(--ore-tooltip-shadow);
+  border: 2px solid var(--tooltip-border);
+  color: var(--tooltip-foreground);
+  background: var(--tooltip-background);
+  box-shadow: 3px 3px 0 var(--tooltip-shadow);
   font-size: 14px;
   line-height: 1.25;
   text-align: center;
@@ -2290,8 +2326,8 @@
   min-width: 152px;
   max-width: 304px;
   padding: 6px 12px;
-  border-color: var(--ore-tooltip-2-border);
-  background: var(--ore-tooltip-2-background);
+  border-color: var(--tooltip-2-border);
+  background: var(--tooltip-2-background);
   box-shadow: none;
 }
 .ore-theme .tooltip-2:hover .tooltip-content,
@@ -2312,11 +2348,11 @@
   width: 100%;
   min-height: 40px;
   padding: 10px 32px 16px 10px;
-  border: 2px solid var(--ore-dropdown-menu-border);
-  color: var(--ore-dropdown-label-foreground);
-  background: var(--ore-dropdown-label-background);
+  border: 2px solid var(--dropdown-menu-border);
+  color: var(--dropdown-label-foreground);
+  background: var(--dropdown-label-background);
   box-shadow:
-    inset 0 -4px var(--ore-button-secondary-2-shadow),
+    inset 0 -4px var(--button-secondary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.6),
     inset -3px -7px rgba(255, 255, 255, 0.4);
   font: inherit;
@@ -2330,14 +2366,14 @@
   right: 12px;
   width: 8px;
   height: 8px;
-  border-right: 3px solid var(--ore-dropdown-label-foreground);
-  border-bottom: 3px solid var(--ore-dropdown-label-foreground);
+  border-right: 3px solid var(--dropdown-label-foreground);
+  border-bottom: 3px solid var(--dropdown-label-foreground);
   transform: rotate(45deg);
 }
 .ore-theme .dropdown-label:hover {
-  background: var(--ore-dropdown-label-background-hover);
+  background: var(--dropdown-label-background-hover);
   box-shadow:
-    inset 0 -4px var(--ore-button-secondary-2-shadow),
+    inset 0 -4px var(--button-secondary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.8),
     inset -3px -7px rgba(255, 255, 255, 0.6);
 }
@@ -2346,7 +2382,7 @@
 .ore-theme .dropdown[data-state="open"] .dropdown-label,
 .ore-theme details.dropdown[open] .dropdown-label {
   box-shadow:
-    inset 0 4px var(--ore-button-secondary-2-shadow),
+    inset 0 4px var(--button-secondary-2-shadow),
     inset 3px 7px rgba(0, 0, 0, 0.22),
     inset -3px -3px rgba(255, 255, 255, 0.45);
 }
@@ -2363,16 +2399,16 @@
 .ore-theme .dropdown-label.disabled:hover,
 .ore-theme .dropdown-label[disabled]:hover,
 .ore-theme .dropdown-label[aria-disabled="true"]:hover {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
+  box-shadow: inset 0 -4px var(--disabled-shadow);
   cursor: not-allowed;
 }
 .ore-theme .dropdown-label.disabled::after,
 .ore-theme .dropdown-label[disabled]::after,
 .ore-theme .dropdown-label[aria-disabled="true"]::after {
-  border-color: var(--ore-disabled-foreground);
+  border-color: var(--disabled-foreground);
 }
 .ore-theme .dropdown-options {
   position: absolute;
@@ -2383,14 +2419,14 @@
   width: 100%;
   max-height: 162px;
   overflow: auto;
-  border: 2px solid var(--ore-dropdown-menu-border);
+  border: 2px solid var(--dropdown-menu-border);
   color: #ffffff;
-  background: var(--ore-dropdown-menu-background);
+  background: var(--dropdown-menu-background);
   box-shadow:
-    inset 2px 0 var(--ore-dropdown-option-separator),
-    inset -2px 0 var(--ore-dropdown-option-separator),
-    inset 0 2px var(--ore-dropdown-option-separator),
-    inset 0 -2px var(--ore-dropdown-option-separator);
+    inset 2px 0 var(--dropdown-option-separator),
+    inset -2px 0 var(--dropdown-option-separator),
+    inset 0 2px var(--dropdown-option-separator),
+    inset 0 -2px var(--dropdown-option-separator);
 }
 .ore-theme .dropdown.open .dropdown-options,
 .ore-theme .dropdown:focus-within .dropdown-options,
@@ -2402,8 +2438,8 @@
   min-height: 40px;
   padding: 0 10px;
   box-shadow:
-    inset 0 1px var(--ore-dropdown-option-separator),
-    inset 0 -1px var(--ore-dropdown-option-separator);
+    inset 0 1px var(--dropdown-option-separator),
+    inset 0 -1px var(--dropdown-option-separator);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2423,23 +2459,23 @@
 .ore-theme .dropdown-option.disabled,
 .ore-theme .dropdown-option[disabled],
 .ore-theme .dropdown-option[aria-disabled="true"] {
-  color: var(--ore-gray-40);
+  color: var(--gray-40);
   cursor: not-allowed;
 }
 
 /* Dropdown -2 (katorlys dark menu). */
 .ore-theme .dropdown-2 .dropdown-options {
-  border-color: var(--ore-dropdown-2-menu-background);
-  background: var(--ore-dropdown-2-menu-background);
+  border-color: var(--dropdown-2-menu-background);
+  background: var(--dropdown-2-menu-background);
   box-shadow: 3px 3px 0 rgba(0, 0, 0, 0.3);
 }
 .ore-theme .dropdown-2 .dropdown-option {
   min-height: 36px;
   padding: 0 36px 0 22px;
-  background: var(--ore-dropdown-2-option-background);
+  background: var(--dropdown-2-option-background);
   box-shadow: none;
 }
-.ore-theme .dropdown-2 .dropdown-option:hover { background: var(--ore-dropdown-2-option-background-hover); }
+.ore-theme .dropdown-2 .dropdown-option:hover { background: var(--dropdown-2-option-background-hover); }
 
 /* --------------------------------------------------------------------------
    Toast / pop -1 (spectrollay pop), -2 (katorlys toast)
@@ -2461,27 +2497,27 @@
   max-width: 100%;
   margin: 6px 0;
   padding: 10px 20px;
-  color: var(--ore-toast-foreground);
-  background: var(--ore-toast-background);
+  color: var(--toast-foreground);
+  background: var(--toast-background);
   text-align: center;
   opacity: 0;
   transform: translateY(20px);
   transition: opacity 0.3s ease, transform 0.3s ease;
   pointer-events: none;
 }
-.ore-theme .toast-success { color: var(--ore-toast-success); }
-.ore-theme .toast-warning { color: var(--ore-toast-warning); }
-.ore-theme .toast-danger { color: var(--ore-toast-danger); }
-.ore-theme .toast-info { color: var(--ore-toast-info); }
-.ore-theme .toast-vip { color: var(--ore-toast-vip); }
-.ore-theme .toast-debug { color: #000000; background: var(--ore-toast-warning); }
+.ore-theme .toast-success { color: var(--toast-success); }
+.ore-theme .toast-warning { color: var(--toast-warning); }
+.ore-theme .toast-danger { color: var(--toast-danger); }
+.ore-theme .toast-info { color: var(--toast-info); }
+.ore-theme .toast-vip { color: var(--toast-vip); }
+.ore-theme .toast-debug { color: #000000; background: var(--toast-warning); }
 .ore-theme .toast-2 {
   max-width: 100%;
   margin: 6px 0;
   padding: 6px 10px;
-  border: 2px solid var(--ore-toast-2-background);
-  color: var(--ore-toast-foreground);
-  background: var(--ore-toast-2-background);
+  border: 2px solid var(--toast-2-background);
+  color: var(--toast-foreground);
+  background: var(--toast-2-background);
   box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
   font-size: 16px;
   text-align: center;
@@ -2497,39 +2533,39 @@
   opacity: 1;
   transform: translateY(0);
 }
-.ore-theme .toast-2-secondary { background: var(--ore-toast-2-secondary); }
+.ore-theme .toast-2-secondary { background: var(--toast-2-secondary); }
 .ore-theme .toast-2-primary,
 .ore-theme .toast-2-informative,
 .ore-theme .toast-2-notice,
 .ore-theme .toast-2-warning,
 .ore-theme .toast-2-realms {
-  color: var(--ore-toast-2-dark-foreground);
+  color: var(--toast-2-dark-foreground);
 }
 .ore-theme .tag-primary,
 .ore-theme .tag-2-green,
 .ore-theme .badge-2-green,
 .ore-theme .toast-2-primary {
-  background: var(--ore-green-30);
+  background: var(--green-30);
 }
 .ore-theme .tag-informative,
 .ore-theme .tag-2-blue,
 .ore-theme .badge-2-blue,
 .ore-theme .toast-2-informative {
-  background: var(--ore-blue-10);
+  background: var(--blue-10);
 }
 .ore-theme .tag-notice,
 .ore-theme .tag-2-yellow,
 .ore-theme .badge-2-yellow,
 .ore-theme .toast-2-notice {
-  background: var(--ore-yellow-10);
+  background: var(--yellow-10);
 }
 .ore-theme .tag-warning,
 .ore-theme .tag-2-red,
 .ore-theme .badge-2-red,
 .ore-theme .toast-2-warning {
-  background: var(--ore-red-10);
+  background: var(--red-10);
 }
-.ore-theme .tag-realms, .ore-theme .toast-2-realms { background: var(--ore-purple-10); }
+.ore-theme .tag-realms, .ore-theme .toast-2-realms { background: var(--purple-10); }
 
 /* --------------------------------------------------------------------------
    Loading mask + spinner (mcui loading-mask / spectrollay loading)
@@ -2541,7 +2577,7 @@
   bottom: 0;
   left: 0;
   z-index: 999;
-  background: var(--ore-loading-background);
+  background: var(--loading-background);
   opacity: 1;
   transition: opacity 0.8s;
   display: flex;
@@ -2559,8 +2595,8 @@
 .ore-theme .spinner {
   width: 32px;
   height: 32px;
-  border: 4px solid var(--ore-spinner-track);
-  border-top-color: var(--ore-spinner-head);
+  border: 4px solid var(--spinner-track);
+  border-top-color: var(--spinner-head);
   animation: ore-spin 800ms steps(8) infinite;
 }
 .ore-theme .spinner-small { width: 16px; height: 16px; border-width: 3px; }
@@ -2573,7 +2609,7 @@
 .ore-theme .spinner-text { color: #ffffff; font-size: 24px; }
 .ore-theme .loading-error-text {
   padding: 10px 0;
-  color: var(--ore-loading-error);
+  color: var(--loading-error);
   font-size: 20px;
   font-weight: bold;
 }
@@ -2588,7 +2624,7 @@
   bottom: 0;
   left: 0;
   z-index: 21;
-  background: var(--ore-overlay-soft);
+  background: var(--overlay-soft);
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.3s ease, visibility 0.3s ease;
@@ -2596,9 +2632,9 @@
 .ore-theme .drawer {
   position: fixed;
   z-index: 40;
-  border: 2px solid var(--ore-drawer-border);
+  border: 2px solid var(--drawer-border);
   color: #ffffff;
-  background: var(--ore-drawer-background);
+  background: var(--drawer-background);
   box-shadow:
     inset 2px 2px rgba(255, 255, 255, 0.12),
     inset -2px -2px rgba(255, 255, 255, 0.08),
@@ -2630,8 +2666,8 @@
 .ore-theme .drawer-header {
   min-height: 44px;
   padding: 0 8px 0 14px;
-  border-bottom: 2px solid var(--ore-drawer-border);
-  background: var(--ore-drawer-header-background);
+  border-bottom: 2px solid var(--drawer-border);
+  background: var(--drawer-header-background);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2655,12 +2691,12 @@
   align-items: center;
   justify-content: center;
 }
-.ore-theme .drawer-close:hover, .ore-theme .drawer-close:active { background: var(--ore-drawer-close-hover); }
+.ore-theme .drawer-close:hover, .ore-theme .drawer-close:active { background: var(--drawer-close-hover); }
 .ore-theme .drawer-body { flex: 1 1 auto; padding: 14px; overflow: auto; }
 .ore-theme .drawer-footer {
   padding: 10px 12px;
-  border-top: 2px solid var(--ore-drawer-border);
-  background: var(--ore-drawer-header-background);
+  border-top: 2px solid var(--drawer-border);
+  background: var(--drawer-header-background);
 }
 
 /* --------------------------------------------------------------------------
@@ -2670,12 +2706,12 @@
   width: 36px;
   height: 36px;
   padding: 2px;
-  border: 2px solid var(--ore-icon-button-border);
+  border: 2px solid var(--icon-button-border);
   color: #ffffff;
-  background: var(--ore-icon-button-background);
+  background: var(--icon-button-background);
   box-shadow:
-    inset 2px 2px var(--ore-icon-button-highlight),
-    inset -2px -2px var(--ore-icon-button-shadow);
+    inset 2px 2px var(--icon-button-highlight),
+    inset -2px -2px var(--icon-button-shadow);
   font: inherit;
   line-height: 1;
   cursor: pointer;
@@ -2683,13 +2719,13 @@
   align-items: center;
   justify-content: center;
 }
-.ore-theme .icon-button:hover { background: var(--ore-icon-button-background-hover); }
+.ore-theme .icon-button:hover { background: var(--icon-button-background-hover); }
 .ore-theme .icon-button:active,
 .ore-theme .icon-button[aria-pressed="true"] {
-  background: var(--ore-icon-button-background-active);
+  background: var(--icon-button-background-active);
   box-shadow:
-    inset 2px 2px var(--ore-icon-button-shadow),
-    inset -2px -2px var(--ore-icon-button-highlight);
+    inset 2px 2px var(--icon-button-shadow),
+    inset -2px -2px var(--icon-button-highlight);
 }
 .ore-theme .icon-button[disabled],
 .ore-theme .icon-button.disabled,
@@ -2697,9 +2733,9 @@
 .ore-theme .icon-button[disabled]:hover,
 .ore-theme .icon-button.disabled:hover,
 .ore-theme .icon-button[aria-disabled="true"]:hover {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -2707,11 +2743,11 @@
   width: 36px;
   height: 36px;
   padding: 2px 2px 6px;
-  border: 2px solid var(--ore-icon-button-border);
-  color: var(--ore-button-secondary-2-foreground);
-  background: var(--ore-button-secondary-2-background);
+  border: 2px solid var(--icon-button-border);
+  color: var(--button-secondary-2-foreground);
+  background: var(--button-secondary-2-background);
   box-shadow:
-    inset 0 -4px var(--ore-button-secondary-2-shadow),
+    inset 0 -4px var(--button-secondary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.6),
     inset -3px -7px rgba(255, 255, 255, 0.4);
   font: inherit;
@@ -2722,16 +2758,16 @@
   justify-content: center;
 }
 .ore-theme .icon-button-2:hover {
-  background: var(--ore-button-secondary-2-background-hover);
+  background: var(--button-secondary-2-background-hover);
   box-shadow:
-    inset 0 -4px var(--ore-button-secondary-2-shadow),
+    inset 0 -4px var(--button-secondary-2-shadow),
     inset 3px 3px rgba(255, 255, 255, 0.8),
     inset -3px -7px rgba(255, 255, 255, 0.6);
 }
 .ore-theme .icon-button-2:active,
 .ore-theme .icon-button-2[aria-pressed="true"] {
   padding-bottom: 2px;
-  background: var(--ore-button-secondary-2-background-active);
+  background: var(--button-secondary-2-background-active);
   box-shadow:
     inset 3px 3px rgba(255, 255, 255, 0.8),
     inset -3px -3px rgba(255, 255, 255, 0.6);
@@ -2740,7 +2776,7 @@
 /* Scrollbar (spectrollay/mcui custom-scrollbar metrics, class based) .scrollbar = primary beveled thumb; .scrollbar-2 = secondary thin. */
 .ore-theme .scrollbar {
   position: relative;
-  width: var(--ore-scrollbar-width);
+  width: var(--scrollbar-width);
   height: 100%;
   min-height: 60px;
 }
@@ -2750,7 +2786,7 @@
   right: 8px;
   bottom: 8px;
   width: 6px;
-  background: var(--ore-scrollbar-track);
+  background: var(--scrollbar-track);
 }
 .ore-theme .scrollbar-thumb {
   position: absolute;
@@ -2758,18 +2794,18 @@
   right: 3px;
   width: 12px;
   min-height: 35px;
-  border: 2px solid var(--ore-scrollbar-thumb-border);
-  background: var(--ore-scrollbar-thumb);
+  border: 2px solid var(--scrollbar-thumb-border);
+  background: var(--scrollbar-thumb);
   box-shadow:
-    inset 0 -4px var(--ore-scrollbar-thumb-shadow),
-    inset 0 -7px var(--ore-scrollbar-thumb-highlight),
-    inset 3px 3px var(--ore-scrollbar-thumb-highlight),
-    inset -3px 0 var(--ore-scrollbar-thumb-highlight);
+    inset 0 -4px var(--scrollbar-thumb-shadow),
+    inset 0 -7px var(--scrollbar-thumb-highlight),
+    inset 3px 3px var(--scrollbar-thumb-highlight),
+    inset -3px 0 var(--scrollbar-thumb-highlight);
   cursor: pointer;
 }
 .ore-theme .scrollbar-2 {
   position: relative;
-  width: var(--ore-scrollbar-2-width);
+  width: var(--scrollbar-2-width);
   height: 100%;
   min-height: 60px;
 }
@@ -2788,7 +2824,7 @@
   width: 10px;
   min-height: 35px;
   border: 0;
-  background: var(--ore-scrollbar-2-thumb);
+  background: var(--scrollbar-2-thumb);
   cursor: default;
 }
 
@@ -2802,7 +2838,7 @@
   bottom: 0;
   left: 0;
   z-index: 9;
-  background: var(--ore-overlay);
+  background: var(--overlay);
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.6s ease, visibility 0.6s ease;
@@ -2813,11 +2849,11 @@
   bottom: 0;
   left: 0;
   z-index: 10;
-  width: var(--ore-sidebar-width);
+  width: var(--sidebar-width);
   max-width: 90%;
-  border-right: 2px solid var(--ore-sidebar-border);
+  border-right: 2px solid var(--sidebar-border);
   color: #ffffff;
-  background: var(--ore-sidebar-background);
+  background: var(--sidebar-background);
   transform: translateX(-105%);
   transition: transform 0.6s ease;
   display: flex;
@@ -2828,14 +2864,14 @@
   padding: 10px;
   color: #ffffff;
   font-family: OreDisplay, sans-serif;
-  font-size: var(--ore-font-lg);
+  font-size: var(--font-lg);
   line-height: 1.2;
 }
 .ore-theme .sidebar-divider {
   height: 0;
   border: 0;
   border-top: 2px solid #000000;
-  border-bottom: 2px solid var(--ore-gray-70);
+  border-bottom: 2px solid var(--gray-70);
 }
 .ore-theme .sidebar-item {
   min-height: 40px;
@@ -2851,7 +2887,7 @@
 .ore-theme .sidebar-item.active,
 .ore-theme .sidebar-item[aria-selected="true"] {
   color: #ffffff;
-  background: var(--ore-sidebar-item-hover);
+  background: var(--sidebar-item-hover);
   text-decoration: none;
 }
 
@@ -2886,11 +2922,11 @@
   bottom: 0;
   left: 0;
   z-index: 100;
-  width: var(--ore-sidebar-2-width);
+  width: var(--sidebar-2-width);
   max-width: 90%;
-  border-right: 2px solid var(--ore-sidebar-2-border);
+  border-right: 2px solid var(--sidebar-2-border);
   color: #ffffff;
-  background: var(--ore-sidebar-2-background);
+  background: var(--sidebar-2-background);
   box-shadow: 2px 0 4px rgba(0, 0, 0, 0.3);
   transform: translateX(-105%);
   transition: transform 0.3s ease;
@@ -2906,7 +2942,7 @@
 .ore-theme .sidebar-2-header {
   min-height: 40px;
   padding: 8px 10px;
-  border-bottom: 2px solid var(--ore-sidebar-2-border);
+  border-bottom: 2px solid var(--sidebar-2-border);
   display: flex;
   align-items: center;
 }
@@ -2927,13 +2963,13 @@
 .ore-theme .sidebar-2-item:active { background: rgba(255, 255, 255, 0.15); }
 .ore-theme .sidebar-2-item.active,
 .ore-theme .sidebar-2-item[aria-selected="true"] {
-  color: var(--ore-sidebar-2-active);
+  color: var(--sidebar-2-active);
 }
 .ore-theme .list-group-2-item:focus-visible,
 .ore-theme .dropdown-option:focus-visible,
 .ore-theme .sidebar-item:focus-visible,
 .ore-theme .sidebar-2-item:focus-visible {
-  outline: 2px solid var(--ore-color-focus);
+  outline: 2px solid var(--color-focus);
   outline-offset: -2px;
 }
 
@@ -2945,7 +2981,7 @@
   padding: 6px 12px;
   border: 2px solid #131313;
   color: #ffffff;
-  background: var(--ore-gray-70);
+  background: var(--gray-70);
   box-shadow:
     inset -1px -1px #1e1e1f,
     inset 1px 1px #1e1e1f,
@@ -2979,7 +3015,7 @@
 .ore-theme .icon-button:focus-visible,
 .ore-theme .icon-button-2:focus-visible,
 .ore-theme .sidebar-button:focus-visible {
-  outline: 2px solid var(--ore-color-focus);
+  outline: 2px solid var(--color-focus);
   outline-offset: 2px;
 }
 .ore-theme .icon-button-2[disabled],
@@ -2994,10 +3030,10 @@
 .ore-theme .sidebar-button[disabled]:hover,
 .ore-theme .sidebar-button.disabled:hover,
 .ore-theme .sidebar-button[aria-disabled="true"]:hover {
-  border-color: var(--ore-disabled-border);
-  color: var(--ore-disabled-foreground);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
+  border-color: var(--disabled-border);
+  color: var(--disabled-foreground);
+  background: var(--disabled-background);
+  box-shadow: inset 0 -4px var(--disabled-shadow);
   cursor: not-allowed;
 }
 
