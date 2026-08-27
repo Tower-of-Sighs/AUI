@@ -198,11 +198,16 @@ class ResourcePipelineTest {
         HTML.DocumentRoot root = HTML.create(document, "test://loose-body");
 
         assertNotNull(root);
-        assertEquals(3, root.body().getChildNodes().size());
+        // 与浏览器 DOM 一致：标签间/注释旁的纯空白文本节点保留。
+        assertEquals(5, root.body().getChildNodes().size());
         assertEquals("#text", root.body().getChildNodes().get(0).getNodeName());
         assertEquals("hello", root.body().getChildNodes().get(0).getTextContent().trim());
         assertEquals("#comment", root.body().getChildNodes().get(1).getNodeName());
-        assertEquals("MAIN", root.body().getChildNodes().get(2).getNodeName());
+        assertEquals("#text", root.body().getChildNodes().get(2).getNodeName());
+        assertTrue(root.body().getChildNodes().get(2).getTextContent().isBlank());
+        assertEquals("MAIN", root.body().getChildNodes().get(3).getNodeName());
+        assertEquals("#text", root.body().getChildNodes().get(4).getNodeName());
+        assertTrue(root.body().getChildNodes().get(4).getTextContent().isBlank());
     }
 
     @Test

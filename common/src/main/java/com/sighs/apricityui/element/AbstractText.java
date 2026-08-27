@@ -161,7 +161,7 @@ public abstract class AbstractText extends Element {
     }
 
     public boolean canEditText() {
-        return true;
+        return !isDisabled() && !hasAttribute("readonly");
     }
 
     public boolean canSelectText() {
@@ -770,7 +770,8 @@ public abstract class AbstractText extends Element {
 
     @Override
     public boolean canFocus() {
-        return true;
+        // HTML 语义：disabled 控件不可聚焦；readonly 仍可聚焦（可选中复制）。
+        return !isDisabled();
     }
 
     protected record TextState(String value, int cursor, int selectionStart, int selectionEnd,

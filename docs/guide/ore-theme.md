@@ -37,7 +37,7 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 | 间距 | `--ore-space-1..5` = 4/8/16/24/32px |
 | 字号 | `--ore-font-sm/md/lg/xl` = 13/16/20/28px |
 
-每个编号变体组件还有自己的一组 token（如 `--ore-button-primary-2-background` / `-hover` / `-active` / `-shadow`、`--ore-switch-width`、`--ore-tooltip-background` 等），命名规律是 `--ore-<组件>-<属性>`，直接在 ore.css 顶部 `.ore-theme` 块里查。
+每个编号变体组件还有自己的一组 token（如 `--ore-button-primary-2-background` / `-hover` / `-active` / `-shadow`、`--ore-switch-track-background`、`--ore-tooltip-background` 等），命名规律是 `--ore-<组件>-<属性>`，直接在 ore.css 顶部 `.ore-theme` 块里查。
 
 覆写方式（挂在主题根或自己的类上）：
 
@@ -64,7 +64,7 @@ Ore 是框架自带的纯 CSS 主题：MC 风格像素边框、深色石材表�
 
 **选择控件**（纯 CSS 绘制，无图片资源）：
 
-- 开关三兄弟：`.switch`（58px 渐变轨道）/ `.switch-2`（56px 双状态半块）/ `.switch-3`（52px 紧凑），内部都是 `<span class="switch-thumb">`（-2 另加两个 `.switch-2-status`）；开态用 `.on`、`:checked`、`[aria-checked="true"]` 或 `[data-state="on"]` 任一；`.switch-bounce-left/-right` 是回弹动画修饰类。
+- 开关移植自 katorlys 的 `ore-switch`：`.switch` 宿主内嵌 `.switch-control`（56×30），里面放 `.switch-status`（26×26 轨道）和 `.switch-button`（30×30 滑块）；开态用 `.on`、`:checked`、`[checked]`、`[aria-checked="true"]` 或 `[data-state="on"]` 任一（滑块靠 flex `order` 翻到右侧），`variant="icons"`（或 `.switch-icons`）在轨道上画开/关 glyph，`color="secondary|destructive|dungeons|legends|realms|gold"` 改开态轨道色；禁用加 `.disabled` 或 `[disabled]`，`.switch-bounce-left/-right` 是回弹动画修饰类。
 - `.checkbox`（20px）/ `.checkbox-2`（24px 描边款）、`.radio`（圆点）/ `.radio-2`（菱形旋转 45°），勾选用 `.on` / `:checked` / `[aria-checked="true"]`；禁用加 `.disabled` 或 `[disabled]`。
 - `.slider`（8px 轨道 + `.slider-process` + `.slider-thumb`，可加 `.slider-segment` 刻度）/ `.slider-2`（12px 分段轨道），进度和位置用内联 `style="width:..%" / "left:..%"` 自己设。
 

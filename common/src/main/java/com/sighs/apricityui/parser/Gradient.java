@@ -166,21 +166,39 @@ public class Gradient {
             String part = parts.get(i).trim();
             StopTokens stop = splitStop(part);
             int color = Color.parse(stop.colorToken());
-            float pos = -1;
-            boolean absolutePx = false;
-            if (stop.positionToken() != null && stop.positionToken().endsWith("%")) {
-                try {
-                    pos = Float.parseFloat(stop.positionToken().replace("%", "")) / 100f;
-                } catch (NumberFormatException ignored) {
-                }
-            } else if (stop.positionToken() != null && stop.positionToken().endsWith("px")) {
-                try {
-                    pos = Float.parseFloat(stop.positionToken().replace("px", ""));
-                    absolutePx = true;
-                } catch (NumberFormatException ignored) {
+            boolean added = false;
+            if (stop.positionToken() != null) {
+                // CSS 允许双位置色标（color start end），等价于同色的两个硬停止。
+                for (String token : stop.positionToken().trim().split("\\s+")) {
+                    float pos = -1;
+                    boolean absolutePx = false;
+                    if (token.endsWith("%")) {
+                        try {
+                            pos = Float.parseFloat(token.replace("%", "")) / 100f;
+                        } catch (NumberFormatException ignored) {
+                        }
+                    } else if (token.endsWith("px")) {
+                        try {
+                            pos = Float.parseFloat(token.replace("px", ""));
+                            absolutePx = true;
+                        } catch (NumberFormatException ignored) {
+                        }
+                    } else {
+                        // CSS 里裸数字只允许 0（无单位的零长度），按 0px 处理。
+                        try {
+                            pos = Float.parseFloat(token);
+                            absolutePx = true;
+                            if (pos != 0f) pos = -1;
+                        } catch (NumberFormatException ignored) {
+                        }
+                    }
+                    if (pos >= 0) {
+                        gradient.stops.add(new Stop(pos, color, absolutePx));
+                        added = true;
+                    }
                 }
             }
-            gradient.stops.add(new Stop(pos, color, absolutePx));
+            if (!added) gradient.stops.add(new Stop(-1, color, false));
         }
 
         gradient.fixStops();

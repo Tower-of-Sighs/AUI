@@ -151,13 +151,14 @@ public final class NormalFlow {
         // 索引循环：flow 布局逐帧高频，for-each 迭代器分配 JFR 归因约 8MB。
         for (int i = 0; i < children.size(); i++) {
             if (state.foundTarget) return;
-            layoutChild(owner, children.get(i), state);
+            layoutChild(owner, children, i, state);
         }
     }
 
-    private static void layoutChild(Element owner, Node child, FlowState state) {
+    private static void layoutChild(Element owner, List<Node> children, int index, FlowState state) {
+        Node child = children.get(index);
         if (child instanceof TextNode textNode) {
-            placeTextRun(owner, textNode, state);
+            layoutTextChild(owner, children, index, textNode, state);
             return;
         }
         if (!(child instanceof Element childElement)) return;
@@ -193,6 +194,47 @@ public final class NormalFlow {
     private static void placeTextRun(Element owner, TextNode node, FlowState state) {
         TextRunLayout run = layoutTextRun(owner, node, node.getTextContent(), state.lineLimit, state.cursorX, state.cursorY);
         placeTextRun(run, owner, node, node.getTextContent(), state);
+    }
+
+    /**
+     * 文本节点入场前的 white-space 边界处理（CSS 2.1 §16.6.1，white-space 折叠模式）：
+     * 纯空白文本节点塌缩成单个空格，但只有在"当前行已有内容、且同一内联格式化
+     * 上下文中后面还跟着行内内容"时才真正占位——行首/行尾（块级边界、容器
+     * 边缘、<br> 前）的空白会被移除。行首空格本身由 layoutTextRun 剥离兜底。
+     * pre 系模式保留原始空白，直接放置。
+     */
+    private static void layoutTextChild(Element owner, List<Node> siblings, int index, TextNode node, FlowState state) {
+        String whiteSpace = Text.getWhiteSpace(owner);
+        if (collapsesWhiteSpace(whiteSpace)) {
+            String normalized = normalizeInlineTextFragment(node.getTextContent(), whiteSpace);
+            if (normalized.isEmpty()) return;
+            if (normalized.isBlank() && !hasFollowingInlineContent(siblings, index + 1, whiteSpace)) return;
+        }
+        placeTextRun(owner, node, state);
+    }
+
+    private static boolean collapsesWhiteSpace(String whiteSpace) {
+        String value = whiteSpace == null ? "normal" : whiteSpace.trim().toLowerCase(java.util.Locale.ROOT);
+        return !"pre".equals(value) && !"pre-wrap".equals(value) && !"break-spaces".equals(value);
+    }
+
+    /** 同一容器后续兄弟中是否还有会在本行产生内容的行内级节点（决定行尾空白是否保留）。 */
+    private static boolean hasFollowingInlineContent(List<Node> siblings, int fromIndex, String whiteSpace) {
+        for (int i = fromIndex; i < siblings.size(); i++) {
+            Node next = siblings.get(i);
+            if (next instanceof TextNode textNode) {
+                String normalized = normalizeInlineTextFragment(textNode.getTextContent(), whiteSpace);
+                // 纯空白节点自身也可能被边界规则移除，不构成本行内容，继续向后看。
+                if (normalized.isEmpty() || normalized.isBlank()) continue;
+                return true;
+            }
+            if (!(next instanceof Element nextElement)) continue;
+            Style nextStyle = nextElement.getComputedStyle();
+            if (!Layout.isInFlow(nextStyle)) continue;
+            if (isLineBreak(nextElement)) return false;
+            return isInlineLevel(nextStyle.display);
+        }
+        return false;
     }
 
     /** <br> 的换行：当前行有内容时提交断行；连续 <br>（空行）也要推进至少一行高度，避免折叠。 */
@@ -497,6 +539,11 @@ public final class NormalFlow {
         text.strokeColor = base.strokeColor;
         text.content = normalizeInlineTextFragment(content, text.whiteSpace);
         if (text.content == null || text.content.isEmpty()) return null;
+        // CSS：折叠模式下位于行首（cursorX<=0）的空格被移除；折叠后至多一个前导空格。
+        if (cursorX <= 0 && collapsesWhiteSpace(text.whiteSpace) && text.content.startsWith(" ")) {
+            text.content = text.content.substring(1);
+            if (text.content.isEmpty()) return null;
+        }
 
         boolean startOnNewLine = false;
         if (Text.allowsSoftWrap(text.whiteSpace)

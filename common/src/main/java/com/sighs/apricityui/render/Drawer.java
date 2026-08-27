@@ -69,9 +69,12 @@ public class Drawer {
 
     public static ArrayList<RenderNode> createPaintList(Element body) {
         ArrayList<RenderNode> paintList = new ArrayList<>();
-        processStackingContext(body, paintList);
+        // 同一次构建共享的“已提升”集合：被子作用域跳过的元素记入其中，
+        // 递归到它们原本的 DOM 父级时据此跳过，保证每个元素只画一次。
+        Set<Element> hoisted = Collections.newSetFromMap(new IdentityHashMap<>());
+        processStackingContext(body, paintList, hoisted);
         for (Element topLayer : collectTopLayerRoots(body)) {
-            processStackingContext(topLayer, paintList);
+            processStackingContext(topLayer, paintList, hoisted);
         }
         return paintList;
     }
@@ -142,7 +145,8 @@ public class Drawer {
      * 实际上渲染节点在 {@link RenderNode.ElementPhaseNode#render} 中已经会做 clip 检查，
      * hitTest 也有自己的 mask stack，因此这里保持“只负责顺序”，把“是否可见”交给渲染阶段处理。
      */
-    private static void processStackingContext(Element contextRoot, List<RenderNode> paintList) {
+    private static void processStackingContext(Element contextRoot, List<RenderNode> paintList,
+                                               Set<Element> hoisted) {
         Style rootStyle = contextRoot.getRawComputedStyle();
         if ("none".equals(rootStyle.display)) {
             // CSS display:none should suppress the entire subtree, not just the node itself.
@@ -228,29 +232,43 @@ public class Drawer {
             if ("none".equals(style.display)) {
                 continue;
             }
+            // 已被外层作用域提升排序的元素（见 hoistPaintedDescendants）只画一次。
+            if (hoisted.contains(child)) continue;
             String zIndexStr = style.zIndex;
+            int zValue = "auto".equals(zIndexStr) ? 0 : Size.parse(zIndexStr);
             double translateZ = Transform.getTranslateZ(style.transform);
 
-            // 按照规范，filter, opacity, transform 等都会触发层叠上下文
+            // 按照规范，z-index≠auto 的 positioned 元素、filter/opacity/transform 等才会触发层叠上下文
             boolean createsContext = createsPaintStackingContext(child, style);
 
-            // 关键：保持 CSS 的大体绘制顺序
-            // - 普通流（static, 不创建层叠上下文）应当先绘制
-            // - position:relative 等“创建层叠上下文但 z-index:auto/0”的节点，应当在普通流之后绘制
-            // 否则会出现典型问题：后面的普通节点覆盖前面的 relative 节点（比如 <div> 盖住 <img> 等奇奇怪怪的问题）
-            if (!createsContext) {
-                normalFlow.add(child);
+            if (createsContext) {
+                Paintable p = new Paintable(child, zValue, translateZ, i);
+                if (zValue < 0) {
+                    negativeZ.add(p);
+                } else if (zValue == 0) {
+                    autoOrZeroContext.add(p);
+                } else {
+                    positiveZ.add(p);
+                }
                 continue;
             }
 
-            int zValue = "auto".equals(zIndexStr) ? 0 : Size.parse(zIndexStr);
-            Paintable p = new Paintable(child, zValue, translateZ, i);
-            if (zValue < 0) {
-                negativeZ.add(p);
-            } else if (zValue == 0) {
-                autoOrZeroContext.add(p);
+            // 关键：保持 CSS 的大体绘制顺序
+            // - 普通流（static, 不创建层叠上下文）应当先绘制
+            // - position:relative/absolute 且 z-index:auto 的节点不创建层叠上下文，
+            //   但自身应当排在普通流之后绘制（CSS2.1 Appendix E 第 6 层），
+            //   否则会出现典型问题：后面的普通节点覆盖前面的 relative 节点
+            // - 这类节点对 z-index 排序是“透明”的：它们带 z-index 的后代按规范
+            //   提升到最近的分组作用域（层叠上下文或裁剪边界）排序，
+            //   否则下拉菜单这类浮层会被后续普通流内容盖住
+            if (isTransparentGroupingScope(child, style)) {
+                hoistPaintedDescendants(child, negativeZ, autoOrZeroContext, positiveZ, hoisted);
+            }
+            String position = style.position == null ? "static" : style.position;
+            if (!"static".equals(position)) {
+                autoOrZeroContext.add(new Paintable(child, 0, translateZ, i));
             } else {
-                positiveZ.add(p);
+                normalFlow.add(child);
             }
         }
 
@@ -278,13 +296,13 @@ public class Drawer {
             paintList.add(new RenderNode.ElementPhaseNode(contextRoot, Base.RenderPhase.BORDER));
         }
 
-        for (Paintable p : negativeZ) processStackingContext(p.element, paintList);
+        for (Paintable p : negativeZ) processStackingContext(p.element, paintList, hoisted);
         if (splitContentForNegativeZ) {
             appendContentRenderNodes(contextRoot, paintList);
         }
-        for (Element e : normalFlow) processStackingContext(e, paintList);
-        for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList);
-        for (Paintable p : positiveZ) processStackingContext(p.element, paintList);
+        for (Element e : normalFlow) processStackingContext(e, paintList, hoisted);
+        for (Paintable p : autoOrZeroContext) processStackingContext(p.element, paintList, hoisted);
+        for (Paintable p : positiveZ) processStackingContext(p.element, paintList, hoisted);
         appendForegroundRenderNodes(contextRoot, paintList);
 
         if (needsMask) paintList.add(new RenderNode.MaskPopNode(contextRoot));
@@ -298,12 +316,65 @@ public class Drawer {
         if (hasMaskImage) paintList.add(new RenderNode.MaskImagePopNode(contextRoot));
     }
 
+    /**
+     * 组内排序：先 z-index，再 translateZ。同值时依赖 List.sort 的稳定性保持插入序——
+     * 分组循环按 DFS 树序插入，因此同值元素按规范的“树序”排列，
+     * 这对跨层级提升进来的元素（domOrder 只在兄弟间有意义）尤其重要。
+     */
     private static final Comparator<Paintable> PAINTABLE_ORDER = Comparator
             .comparingInt(Paintable::zValue)
-            .thenComparingDouble(Paintable::translateZ)
-            .thenComparingInt(Paintable::domOrder);
+            .thenComparingDouble(Paintable::translateZ);
 
     private record Paintable(Element element, int zValue, double translateZ, int domOrder) {
+    }
+
+    /**
+     * 将透明分组容器（见 {@link #isTransparentGroupingScope}）内、按 CSS 应参与
+     * 当前作用域排序的后代提升到当前分组：z-index≠auto 的层叠上下文进入负/正 z 组，
+     * z-index:auto/0 的层叠上下文进入 autoOrZero 组。提升只穿过透明容器，
+     * 遇到层叠上下文或裁剪/遮罩边界即停止（否则 overflow 裁剪会失效）。
+     * 被提升的元素记入 {@code hoisted}，递归到它们原本的 DOM 父级时跳过，保证只画一次。
+     */
+    private static void hoistPaintedDescendants(Element parent, List<Paintable> negativeZ,
+                                                List<Paintable> autoOrZeroContext, List<Paintable> positiveZ,
+                                                Set<Element> hoisted) {
+        List<Element> children = parent.getRenderChildren();
+        for (int i = 0; i < children.size(); i++) {
+            Element child = children.get(i);
+            if (child.isTopLayer()) continue;
+            Style style = child.getRawComputedStyle();
+            if ("none".equals(style.display)) continue;
+            if (hoisted.contains(child)) continue;
+            if (createsPaintStackingContext(child, style)) {
+                String zIndexStr = style.zIndex;
+                int zValue = "auto".equals(zIndexStr) ? 0 : Size.parse(zIndexStr);
+                double translateZ = Transform.getTranslateZ(style.transform);
+                Paintable p = new Paintable(child, zValue, translateZ, i);
+                if (zValue < 0) {
+                    negativeZ.add(p);
+                } else if (zValue == 0) {
+                    autoOrZeroContext.add(p);
+                } else {
+                    positiveZ.add(p);
+                }
+                hoisted.add(child);
+                continue;
+            }
+            if (!isTransparentGroupingScope(child, style)) continue;
+            hoistPaintedDescendants(child, negativeZ, autoOrZeroContext, positiveZ, hoisted);
+        }
+    }
+
+    /**
+     * “透明分组容器”：自身不创建层叠上下文（如 position:relative + z-index:auto），
+     * 也不产生裁剪/遮罩边界。它的盒子和普通内容原地绘制，但带 z-index 的后代
+     * 按 CSS2.1 Appendix E 提升到外层作用域参与排序。
+     */
+    private static boolean isTransparentGroupingScope(Element element, Style style) {
+        if (createsPaintStackingContext(element, style)) return false;
+        if (Interaction.clipsOverflow(style)) return false;
+        if (!"none".equals(style.clipPath)) return false;
+        return !com.sighs.apricityui.style.MaskImage.hasMask(element);
     }
 
     private static void appendBodyRenderNodes(Element contextRoot, List<RenderNode> paintList) {
@@ -371,7 +442,12 @@ public class Drawer {
         if (e == null) return paintRoot;
         Element current = e.parentElement;
         while (current != null) {
-            if (current == paintRoot || createsPaintStackingContext(current, current.getRawComputedStyle())) {
+            Style style = current.getRawComputedStyle();
+            // 层叠上下文与裁剪边界都是分组作用域：z-index 提升不会越过它们，
+            // 其子树在绘制列表中是连续区间，因此是最小的合法增量重建单位。
+            if (current == paintRoot
+                    || createsPaintStackingContext(current, style)
+                    || Interaction.clipsOverflow(style)) {
                 return current;
             }
             current = current.parentElement;
@@ -437,13 +513,25 @@ public class Drawer {
         String zIndex = style.zIndex == null ? "auto" : style.zIndex;
         String position = style.position == null ? "static" : style.position;
         boolean hasBackdrop = style.backdropFilter != null && !style.backdropFilter.equals("none");
-        return !zIndex.equals("auto")
-                || !position.equals("static")
+        // CSS2.1：仅 position ≠ static 而 z-index:auto 时【不】创建层叠上下文；
+        // 只有 z-index ≠ auto 的 positioned 元素（或 flex/grid 子项）才因 z-index 创建。
+        boolean zIndexedContext = !zIndex.equals("auto")
+                && (!position.equals("static") || isFlexOrGridItem(element));
+        return zIndexedContext
                 || hasCompositedFilter(element, style)
                 || hasBackdrop
                 || hasMixBlendMode(style)
                 || hasIsolation(style)
                 || Transform.createsStackingContext(style.transform);
+    }
+
+    private static boolean isFlexOrGridItem(Element element) {
+        Element parent = element.parentElement;
+        if (parent == null) return false;
+        String display = parent.getRawComputedStyle().display;
+        if (display == null) return false;
+        return display.equals("flex") || display.equals("inline-flex")
+                || display.equals("grid") || display.equals("inline-grid");
     }
 
 }

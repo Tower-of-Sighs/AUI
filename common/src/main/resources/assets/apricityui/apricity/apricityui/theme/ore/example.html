@@ -375,29 +375,36 @@ Built for ApricityUI.</textarea>
         <p class="text-muted">Pure CSS controls: on state via .on / :checked / aria-checked / data-state, disabled via .disabled or [disabled].</p>
         <div class="grid mt-4">
           <div class="col-6 card card-accent-green">
-            <div class="card-header">Switches (-1 / -2 / -3)</div>
+            <div class="card-header">Switches (katorlys ore-switch)</div>
             <div class="card-body stack">
               <div class="cluster">
-                <span class="switch on"><span class="switch-thumb"></span></span>
-                <span class="switch"><span class="switch-thumb"></span></span>
-                <span class="switch disabled"><span class="switch-thumb"></span></span>
-                <span class="text-muted">gradient track</span>
+                <span class="switch on"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch disabled"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="text-muted">default (primary green)</span>
               </div>
               <div class="cluster">
-                <span class="switch-2 on"><span class="switch-2-status"></span><span class="switch-2-status"></span><span class="switch-2-thumb"></span></span>
-                <span class="switch-2"><span class="switch-2-status"></span><span class="switch-2-status"></span><span class="switch-2-thumb"></span></span>
-                <span class="switch-2 disabled"><span class="switch-2-status"></span><span class="switch-2-status"></span><span class="switch-2-thumb"></span></span>
-                <span class="text-muted">dual status halves</span>
+                <span class="switch on" variant="icons"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch" variant="icons"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch disabled" variant="icons"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="text-muted">icons variant (on bar / off ring)</span>
               </div>
               <div class="cluster">
-                <span class="switch-3 on"><span class="switch-3-thumb"></span></span>
-                <span class="switch-3"><span class="switch-3-thumb"></span></span>
-                <span class="switch-3 disabled"><span class="switch-3-thumb"></span></span>
-                <span class="text-muted">compact 52px</span>
+                <span class="switch on" color="secondary"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch on" color="destructive"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch on" color="dungeons"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch on" color="legends"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch on" color="realms"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch on" color="gold"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="text-muted">color variants (checked track)</span>
               </div>
               <div class="cluster">
-                <span class="switch on switch-bounce-left"><span class="switch-thumb"></span></span>
-                <span class="switch on switch-bounce-right"><span class="switch-thumb"></span></span>
+                <span class="switch on"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span>With label</span>
+                <span class="text-muted">label inside the host (8px gap)</span>
+              </div>
+              <div class="cluster">
+                <span class="switch on switch-bounce-left"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
+                <span class="switch on switch-bounce-right"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
                 <span class="text-muted">bounce modifiers (play on load)</span>
               </div>
             </div>
@@ -1049,7 +1056,7 @@ Built for ApricityUI.</textarea>
                 <button class="tab-2" type="button" data-state="active">data-state=active</button>
               </div>
               <div class="cluster">
-                <span class="switch" data-state="on"><span class="switch-thumb"></span></span>
+                <span class="switch" data-state="on"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
                 <span class="checkbox" data-state="on"></span>
                 <span class="radio" aria-checked="true"></span>
                 <span class="text-muted">data-state / aria-checked</span>
@@ -1082,7 +1089,7 @@ Built for ApricityUI.</textarea>
             <div class="card-body stack">
               <button class="button button-primary-2" type="button">Primary flat</button>
               <div class="cluster">
-                <span class="switch on"><span class="switch-thumb"></span></span>
+                <span class="switch on"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
                 <span class="checkbox on"></span>
                 <span class="radio on"></span>
               </div>
@@ -1094,7 +1101,7 @@ Built for ApricityUI.</textarea>
             <div class="card-body stack">
               <button class="button button-primary-2" type="button">Primary flat</button>
               <div class="cluster">
-                <span class="switch on"><span class="switch-thumb"></span></span>
+                <span class="switch on"><span class="switch-control"><span class="switch-status"></span><span class="switch-button"></span></span></span>
                 <span class="checkbox on"></span>
                 <span class="radio on"></span>
               </div>

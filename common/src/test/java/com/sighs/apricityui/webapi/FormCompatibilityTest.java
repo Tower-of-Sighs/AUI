@@ -359,6 +359,36 @@ class FormCompatibilityTest {
         assertTrue(second.isChecked());
     }
 
+    @Test
+    void disabledAndReadonlyTextControlsRejectEditingAndFocus() {
+        Document document = TestDocumentFactory.createDocument();
+
+        Input disabled = input(document, "locked", "x");
+        disabled.setDisabled(true);
+        document.body.appendChild(disabled);
+        assertTrue(disabled.isDisabled());
+        assertFalse(disabled.canEditText());
+        assertFalse(disabled.canFocus());
+
+        Input readonly = input(document, "readonly", "x");
+        readonly.setAttribute("readonly", "");
+        document.body.appendChild(readonly);
+        assertFalse(readonly.canEditText());
+        // readonly 仍可聚焦（允许选中复制），只是不可编辑。
+        assertTrue(readonly.canFocus());
+
+        HeadlessTextArea disabledArea = new HeadlessTextArea(document);
+        disabledArea.setDisabled(true);
+        document.body.appendChild(disabledArea);
+        assertFalse(disabledArea.canEditText());
+        assertFalse(disabledArea.canFocus());
+
+        // 恢复正常后重新可编辑、可聚焦。
+        disabled.setDisabled(false);
+        assertTrue(disabled.canEditText());
+        assertTrue(disabled.canFocus());
+    }
+
     private static Input input(Document document, String name, String value) {
         Input input = new Input(document);
         input.setAttribute("name", name);

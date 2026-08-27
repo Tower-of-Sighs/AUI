@@ -37,7 +37,7 @@ All tunable parameters are `--ore-*` CSS variables on `.ore-theme`. Business pag
 | Spacing | `--ore-space-1..5` = 4/8/16/24/32px |
 | Font sizes | `--ore-font-sm/md/lg/xl` = 13/16/20/28px |
 
-Each numbered variant component also has its own token set (e.g. `--ore-button-primary-2-background` / `-hover` / `-active` / `-shadow`, `--ore-switch-width`, `--ore-tooltip-background`, ...), named `--ore-<component>-<property>`; look them up in the `.ore-theme` block at the top of ore.css.
+Each numbered variant component also has its own token set (e.g. `--ore-button-primary-2-background` / `-hover` / `-active` / `-shadow`, `--ore-switch-track-background`, `--ore-tooltip-background`, ...), named `--ore-<component>-<property>`; look them up in the `.ore-theme` block at the top of ore.css.
 
 How to override (attach to the theme root or your own class):
 
@@ -64,7 +64,7 @@ How to override (attach to the theme root or your own class):
 
 **Choice controls** (drawn in pure CSS, no image assets):
 
-- Three switch flavors: `.switch` (58px gradient track) / `.switch-2` (56px dual status halves) / `.switch-3` (52px compact); all take an inner `<span class="switch-thumb">` (-2 also takes two `.switch-2-status` spans). The on state is any of `.on`, `:checked`, `[aria-checked="true"]`, or `[data-state="on"]`; `.switch-bounce-left/-right` are bounce-animation modifiers.
+- The switch is a faithful port of katorlys' `ore-switch`: a `.switch` host wrapping `.switch-control` (56×30) with `.switch-status` (26×26 track) and `.switch-button` (30×30 thumb) inside. The on state is any of `.on`, `:checked`, `[checked]`, `[aria-checked="true"]`, or `[data-state="on"]` (the thumb flips sides via flex `order`); `variant="icons"` (or `.switch-icons`) draws the on/off glyphs on the track, `color="secondary|destructive|dungeons|legends|realms|gold"` recolors the checked track; disable with `.disabled` or `[disabled]`. `.switch-bounce-left/-right` are bounce-animation modifiers.
 - `.checkbox` (20px) / `.checkbox-2` (24px outlined), `.radio` (dot) / `.radio-2` (diamond rotated 45°); checked via `.on` / `:checked` / `[aria-checked="true"]`; disable with `.disabled` or `[disabled]`.
 - `.slider` (8px track + `.slider-process` + `.slider-thumb`, optional `.slider-segment` ticks) / `.slider-2` (12px segmented track); set progress and position yourself with inline `style="width:..%"` / `style="left:..%"`.
 

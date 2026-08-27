@@ -120,15 +120,42 @@ class OreThemeExtensionTest {
     void choiceControlsApply() throws Exception {
         Document document = document();
 
-        Element switchTrack = element(document, "span", "switch");
-        assertEquals("58px", switchTrack.getComputedStyle().width);
-        assertTrue(switchTrack.getComputedStyle().backgroundImage.contains("linear-gradient"));
+        // katorlys ore-switch port: host > .switch-control > .switch-status + .switch-button.
+        Element switchOff = element(document, "span", "switch");
+        Element controlOff = child(document, switchOff, "switch-control");
+        Element statusOff = child(document, controlOff, "switch-status");
+        Element buttonOff = child(document, controlOff, "switch-button");
+        assertEquals("56px", controlOff.getComputedStyle().width);
+        assertEquals("30px", controlOff.getComputedStyle().height);
+        assertEquals("26px", statusOff.getComputedStyle().width);
+        assertEquals("26px", statusOff.getComputedStyle().height);
+        assertEquals("#1e1e1f", statusOff.getComputedStyle().backgroundColor);
+        assertEquals("30px", buttonOff.getComputedStyle().width);
+        assertEquals("-1", buttonOff.getComputedStyle().order);
+        // Unchecked: fill flush against the thumb (left), dark frame outside.
+        assertEquals("0px 4px, 0px 2px", statusOff.getComputedStyle().backgroundPosition);
+        assertTrue(statusOff.getComputedStyle().backgroundImage.contains("#8c8d90"));
+        assertTrue(statusOff.getComputedStyle().backgroundImage.contains("#a3a4a6"));
 
-        Element switch2 = element(document, "span", "switch-2");
-        assertEquals("56px", switch2.getComputedStyle().width);
+        Element switchOn = element(document, "span", "switch on");
+        Element controlOn = child(document, switchOn, "switch-control");
+        Element statusOn = child(document, controlOn, "switch-status");
+        Element buttonOn = child(document, controlOn, "switch-button");
+        assertEquals("0", buttonOn.getComputedStyle().order);
+        // Checked: bevel mirrors, dark frame on the outer (left) edge.
+        assertEquals("4px 4px, 2px 2px", statusOn.getComputedStyle().backgroundPosition);
+        assertTrue(statusOn.getComputedStyle().backgroundImage.contains("#3c8527"));
+        assertTrue(statusOn.getComputedStyle().backgroundImage.contains("#639d52"));
 
-        Element switch3 = element(document, "span", "switch-3");
-        assertEquals("52px", switch3.getComputedStyle().width);
+        Element switchGold = element(document, "span", "switch on");
+        switchGold.setAttribute("color", "gold");
+        Element statusGold = child(document, child(document, switchGold, "switch-control"), "switch-status");
+        assertTrue(statusGold.getComputedStyle().backgroundImage.contains("#ffc42b"));
+
+        Element switchDisabled = element(document, "span", "switch disabled");
+        Element statusDisabled = child(document, child(document, switchDisabled, "switch-control"), "switch-status");
+        assertEquals("#8c8d90", statusDisabled.getComputedStyle().backgroundColor);
+        assertFalse(statusDisabled.getComputedStyle().backgroundImage.contains("#58585a"));
 
         Element checkbox = element(document, "span", "checkbox");
         assertEquals("20px", checkbox.getComputedStyle().width);
@@ -260,6 +287,13 @@ class OreThemeExtensionTest {
         Element element = document.createElement(tag);
         element.setAttribute("class", classes);
         document.body.appendChild(element);
+        return element;
+    }
+
+    private static Element child(Document document, Element parent, String classes) {
+        Element element = document.createElement("span");
+        element.setAttribute("class", classes);
+        parent.appendChild(element);
         return element;
     }
 

@@ -621,11 +621,19 @@ public record Size(double width, double height) {
         if (element == null) return false;
         // 索引循环：该判定在自然测量路径逐帧高频调用，for-each 的迭代器分配
         // 在 JFR 里累计约 22MB。
+        // 纯空白文本节点（white-space 折叠模式下会在行首/行尾被移除）不算文本内容，
+        // 否则只含换行缩进的容器会被测成一行高。
         List<com.sighs.apricityui.init.Node> children = element.getRenderChildNodes();
+        Boolean preLike = null;
         for (int i = 0; i < children.size(); i++) {
-            if (children.get(i) instanceof com.sighs.apricityui.dom.TextNode textNode && !textNode.getTextContent().isEmpty()) {
-                return true;
+            if (!(children.get(i) instanceof com.sighs.apricityui.dom.TextNode textNode)) continue;
+            String content = textNode.getTextContent();
+            if (content.isEmpty()) continue;
+            if (preLike == null) {
+                String whiteSpace = Text.getWhiteSpace(element);
+                preLike = "pre".equals(whiteSpace) || "pre-wrap".equals(whiteSpace) || "break-spaces".equals(whiteSpace);
             }
+            if (preLike || !content.isBlank()) return true;
         }
         return false;
     }

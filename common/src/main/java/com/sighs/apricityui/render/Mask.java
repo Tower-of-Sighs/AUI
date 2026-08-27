@@ -30,6 +30,13 @@ public class Mask {
     private static AABB currentClip = new AABB(0, 0, 100000, 100000); // 默认全屏可见
     private static SurfaceScissorTransform surfaceScissorTransform = null;
 
+    /**
+     * Test hook: when non-null, scissor state changes are reported here (CSS
+     * space; {@code null} = scissor disabled) and no GL/Window calls happen.
+     * Lets headless tests observe which clip was active for each submission.
+     */
+    public static java.util.function.Consumer<AABB> testScissorSink = null;
+
     public static void resetDepth() {
         Size window = Size.getWindowSize();
         resetDepth(window.width(), window.height());
@@ -413,6 +420,10 @@ public class Mask {
     }
 
     public static void enableScissor(double x, double y, double width, double height) {
+        if (testScissorSink != null) {
+            testScissorSink.accept(new AABB((float) x, (float) y, (float) width, (float) height));
+            return;
+        }
         Window window = Minecraft.getInstance().getWindow();
         double scale = getScissorScale(window);
         double left = x * scale;
@@ -447,12 +458,25 @@ public class Mask {
     }
 
     public static void disableScissor() {
+        if (testScissorSink != null) {
+            testScissorSink.accept(null);
+            return;
+        }
         AuiServices.render().disableScissorTest();
     }
 
     private static void applyScissor(AABB rect) {
-        if (rect == null || !rect.isValid()) {
+        if (rect == null) {
             disableScissor();
+            return;
+        }
+        if (!rect.isValid()) {
+            // An empty intersection must clip everything, never fail open:
+            // e.g. an inset box-shadow mask pushed while a CSS transform has
+            // moved the element fully outside its overflow-hidden parent
+            // produces an empty scissor, and disabling the scissor here would
+            // paint the shadow layers unclipped across the screen.
+            enableScissor(0, 0, 0, 0);
             return;
         }
         if (surfaceScissorTransform != null) {

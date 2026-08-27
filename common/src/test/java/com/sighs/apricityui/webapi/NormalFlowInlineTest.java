@@ -302,6 +302,137 @@ class NormalFlowInlineTest {
         assertTrue(Layout.computeContentSize(parent).height() >= Position.getOffset(block).y + Size.box(block).height());
     }
 
+    @Test
+    void whitespaceTextBetweenInlineBlocksCollapsesToOneSpaceGap() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // 对照组：无空白节点，两个 inline-block 紧贴。
+        Element tight = new Element(document, "div");
+        tight.setAttribute("style", "width: 200px;");
+        document.body.appendChild(tight);
+        Element tightA = inlineBlock(document);
+        Element tightB = inlineBlock(document);
+        tight.appendChild(tightA);
+        tight.appendChild(tightB);
+
+        // 实验组：中间夹换行+缩进的纯空白文本节点，浏览器折叠成一个空格。
+        Element gapped = new Element(document, "div");
+        gapped.setAttribute("style", "width: 200px;");
+        document.body.appendChild(gapped);
+        Element gapA = inlineBlock(document);
+        gapped.appendChild(gapA);
+        gapped.appendChild(new TextNode(document, "\n    "));
+        Element gapB = inlineBlock(document);
+        gapped.appendChild(gapB);
+        gapped.appendChild(new TextNode(document, "\n"));
+
+        double tightX = Position.getOffset(tightB).x;
+        double gapX = Position.getOffset(gapB).x;
+        assertTrue(gapX > tightX,
+                "whitespace between inline-level boxes must collapse to a rendered space");
+
+        // 中间的空白产生一个空格 run；容器尾部的换行被边界规则移除，不产生 run。
+        List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(gapped);
+        assertEquals(1, runs.size());
+        assertEquals(" ", runs.get(0).text().content);
+    }
+
+    @Test
+    void boundaryWhitespaceTextNodesRenderNothing() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // 容器首尾的纯空白被移除：首个 inline-block 仍在行首，且不产生任何文本 run。
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 200px;");
+        document.body.appendChild(parent);
+        parent.appendChild(new TextNode(document, "\n  "));
+        Element first = inlineBlock(document);
+        parent.appendChild(first);
+        parent.appendChild(new TextNode(document, "\n  "));
+        assertEquals(0, Position.getOffset(first).x);
+        assertTrue(NormalFlow.computeTextRuns(parent).isEmpty());
+
+        // 块级兄弟之间的空白不会挤出新行。
+        Element blocks = new Element(document, "div");
+        blocks.setAttribute("style", "width: 200px;");
+        document.body.appendChild(blocks);
+        Element tightBlocks = new Element(document, "div");
+        tightBlocks.setAttribute("style", "width: 200px;");
+        document.body.appendChild(tightBlocks);
+
+        Element b1 = block(document);
+        blocks.appendChild(b1);
+        blocks.appendChild(new TextNode(document, "\n    "));
+        Element b2 = block(document);
+        blocks.appendChild(b2);
+
+        Element c1 = block(document);
+        tightBlocks.appendChild(c1);
+        Element c2 = block(document);
+        tightBlocks.appendChild(c2);
+
+        assertEquals(Position.getOffset(c2).y - Position.getOffset(c1).y,
+                Position.getOffset(b2).y - Position.getOffset(b1).y,
+                "whitespace between block-level boxes must not create a line");
+    }
+
+    @Test
+    void leadingSpaceAtLineStartIsRemoved() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        Element parent = new Element(document, "div");
+        parent.setAttribute("style", "width: 200px;");
+        document.body.appendChild(parent);
+        parent.appendChild(new TextNode(document, "\n   hello"));
+
+        List<NormalFlow.TextRunLayout> runs = NormalFlow.computeTextRuns(parent);
+        assertEquals(1, runs.size());
+        assertEquals("hello", runs.get(0).text().content);
+        assertEquals(0, runs.get(0).x());
+    }
+
+    @Test
+    void parsedWhitespaceBetweenInlineBlocksProducesSpaceGap() {
+        assumeMinecraftClientTextRuntime();
+        Document document = TestDocumentFactory.createDocument();
+        document.body.setAttribute("style", "width: 300px; height: 200px;");
+
+        // 走真实解析管线（tokenizer + buildDocument）：标签间的换行缩进
+        // 必须像浏览器一样折叠成一个渲染空格。
+        Element footer = com.sighs.apricityui.parser.HTML.createElement(document,
+                "<div style=\"width: 200px;\">\n"
+                        + "  <span style=\"display: inline-block; vertical-align: top; width: 10px; height: 6px;\"></span>\n"
+                        + "  <span style=\"display: inline-block; vertical-align: top; width: 10px; height: 6px;\"></span>\n"
+                        + "</div>");
+        document.body.appendChild(footer);
+
+        // DOM 里保留空白文本节点（与浏览器一致）。
+        assertTrue(footer.childNodes.stream().anyMatch(node -> node instanceof TextNode),
+                "parser must keep whitespace-only text nodes");
+
+        Element second = footer.children.get(1);
+        assertTrue(Position.getOffset(second).x > 10,
+                "whitespace between inline-blocks must collapse to a rendered space");
+    }
+
+    private static Element inlineBlock(Document document) {
+        Element element = new Element(document, "span");
+        element.setAttribute("style", "display: inline-block; vertical-align: top; width: 10px; height: 6px;");
+        return element;
+    }
+
+    private static Element block(Document document) {
+        Element element = new Element(document, "div");
+        element.setAttribute("style", "width: 10px; height: 10px;");
+        return element;
+    }
+
     private static void assumeMinecraftClientTextRuntime() {
         // Inline flow tests are pure geometry checks and do not require a live
         // Minecraft client when the viewport and font fallback are deterministic.

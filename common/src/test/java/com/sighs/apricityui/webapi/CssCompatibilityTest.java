@@ -338,6 +338,23 @@ class CssCompatibilityTest {
     }
 
     @Test
+    void repeatingGradientSupportsDoublePositionStops() {
+        // ore slider-2 底纹：repeating-linear-gradient(to right, transparent 0 14px, gap 14px 16px)
+        Gradient gradient = Gradient.parse(
+                "repeating-linear-gradient(to right, transparent 0 14px, rgba(0, 0, 0, 0.35) 14px 16px)");
+
+        assertNotNull(gradient);
+        assertTrue(gradient.repeating());
+        assertEquals(4, gradient.stops().size());
+        assertEquals(16f, gradient.repeatLengthPx(), 0.0001f);
+
+        Gradient scaled = gradient.scaledTo(16f, 12f);
+        assertEquals(0, scaled.getColorAt(7f, 6f, 0f, 0f, 16f, 12f) >>> 24);
+        assertTrue((scaled.getColorAt(15f, 6f, 0f, 0f, 16f, 12f) >>> 24) > 0);
+        assertTrue(gradient.hasHardStops());
+    }
+
+    @Test
     void rajdhaniFallbackUsesCondensedLatinFontWhenAvailable() {
         java.awt.Font resolved = Font.resolveBaseFont("Rajdhani, sans-serif");
 

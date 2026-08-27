@@ -427,8 +427,8 @@ public class HTML {
                     continue;
                 }
 
-                if (part.isBlank()) continue;
-
+                // 纯空白文本不再丢弃：浏览器会把内联级盒子之间的空白折叠成一个
+                // 空格参与排版，是否产生渲染空白由布局阶段决定（见 NormalFlow）。
                 tokens.add(Token.text(part));
             }
 
@@ -650,13 +650,20 @@ public class HTML {
                 }
                 case TEXT -> {
                     if (stack.isEmpty()) continue;
-                    if (!token.content.isBlank()) {
-                        Element parent = stack.peek();
-                        String content = isRawTextElement(parent)
-                                ? token.content
-                                : HtmlTokenizer.decodeCharacterReferences(token.content);
-                        attachChildFast(parent, document.createTextNode(content));
+                    // 与浏览器一致：纯空白文本节点保留进 DOM，是否产生渲染空白
+                    // 由布局阶段按 white-space 折叠规则决定（见 NormalFlow）。
+                    Element parent = stack.peek();
+                    String content = isRawTextElement(parent)
+                            ? token.content
+                            : HtmlTokenizer.decodeCharacterReferences(token.content);
+                    if (content == null || content.isEmpty()) continue;
+                    // HTML 规范：textarea 起始标签后的第一个换行不属于内容。
+                    if ("TEXTAREA".equals(parent.tagName) && parent.childNodes.isEmpty()) {
+                        if (content.startsWith("\r\n")) content = content.substring(2);
+                        else if (content.startsWith("\n") || content.startsWith("\r")) content = content.substring(1);
+                        if (content.isEmpty()) continue;
                     }
+                    attachChildFast(parent, document.createTextNode(content));
                 }
                 case COMMENT -> {
                     if (stack.isEmpty()) continue;

@@ -920,22 +920,23 @@
   --ore-progress-2-bar-shadow: #2a641c;
   --ore-progress-2-bar-danger: #c33636;
   --ore-progress-2-bar-danger-shadow: #ad1d1d;
-  --ore-switch-width: 58px;
-  --ore-switch-height: 24px;
-  --ore-switch-track-on: #3c8527;
-  --ore-switch-track-off: #8c8d90;
-  --ore-switch-border: #1e1e1f;
+  /* Switch tokens (katorlys switch.css, unit = 2px; color-mix precomputed). */
+  --ore-switch-track-background: #8c8d90;
+  --ore-switch-track-highlight: #a3a4a6;
+  --ore-switch-track-border: #1e1e1f;
+  --ore-switch-active-track-background: #3c8527;
+  --ore-switch-active-track-highlight: #639d52;
   --ore-switch-thumb-background: #d0d1d4;
-  --ore-switch-thumb-background-hover: #b1b2b5;
+  --ore-switch-thumb-background-hover: #f4f6f9;
+  --ore-switch-thumb-background-pressed: #b1b2b5;
+  --ore-switch-thumb-highlight: #e3e3e5;
+  --ore-switch-thumb-highlight-hover: #fbfbfd;
+  --ore-switch-thumb-highlight-pressed: #d0d1d3;
+  --ore-switch-thumb-highlight-focus: #ecedee;
   --ore-switch-thumb-shadow: #58585a;
-  --ore-switch-2-width: 56px;
-  --ore-switch-2-height: 30px;
-  --ore-switch-2-track-off: #8c8d90;
-  --ore-switch-2-track-on: #3c8527;
-  --ore-switch-2-thumb-background: #d0d1d4;
-  --ore-switch-2-thumb-shadow: #58585a;
-  --ore-switch-3-width: 52px;
-  --ore-switch-3-travel: 22px;
+  --ore-switch-thumb-border: #1e1e1f;
+  --ore-switch-thumb-focus-ring: transparent;
+  --ore-switch-icon: #242425;
   --ore-checkbox-size: 20px;
   --ore-checkbox-background: #8c8d90;
   --ore-checkbox-background-hover: #b1b2b5;
@@ -1648,180 +1649,207 @@
   background: transparent;
   box-shadow: inset 0 2px #333334, inset 0 -2px #5a5b5c;
 }
-
 /* --------------------------------------------------------------------------
-   Switch -1 (spectrollay/paraore gradient track, 58x24)
+   Switch (katorlys switch.css: 56x30 control = 30x30 thumb + 26x26 status,
+   bevels drawn as stacked solid background layers; unit is 2px and every
+   color-mix token is precomputed. The track keeps its dark frame on the
+   outer edge with the fill flush against the thumb; the layers mirror when
+   the thumb flips sides. On state: .on / :checked / [checked] /
+   [aria-checked="true"] / [data-state="on"]; disabled: .disabled /
+   [disabled] / [aria-disabled="true"].)
    -------------------------------------------------------------------------- */
 .ore-theme .switch {
-  position: relative;
-  width: var(--ore-switch-width);
-  height: var(--ore-switch-height);
-  border: 2px solid var(--ore-switch-border);
-  background: linear-gradient(to right, var(--ore-switch-track-on) 50%, var(--ore-switch-track-off) 50%);
-  box-shadow: inset 2px 2px rgba(255, 255, 255, 0.2), inset -2px -2px rgba(255, 255, 255, 0.1);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
   cursor: pointer;
-  overflow: visible;
-  display: inline-block;
+  user-select: none;
   vertical-align: middle;
 }
-.ore-theme .switch:hover .switch-thumb,
-.ore-theme .switch-thumb:active {
-  background: var(--ore-switch-thumb-background-hover);
-  box-shadow:
-    inset 0 -4px var(--ore-switch-thumb-shadow),
-    inset 2px 2px rgba(255, 255, 255, 0.8),
-    inset -2px -6px rgba(255, 255, 255, 0.6);
+.ore-theme .switch .switch-control {
+  display: flex;
+  align-items: flex-end;
+  flex: none;
+  width: 56px;
+  height: 30px;
 }
-.ore-theme .switch.on .switch-thumb,
-.ore-theme .switch:checked .switch-thumb,
-.ore-theme .switch[aria-checked="true"] .switch-thumb,
-.ore-theme .switch[data-state="on"] .switch-thumb {
-  left: 28px;
+.ore-theme .switch .switch-status {
+  position: relative;
+  z-index: 0;
+  flex: none;
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  background-color: var(--ore-switch-track-border);
+  background-image:
+    linear-gradient(var(--ore-switch-track-background), var(--ore-switch-track-background)),
+    linear-gradient(var(--ore-switch-track-highlight), var(--ore-switch-track-highlight));
+  background-position: 0px 4px, 0px 2px;
+  background-size: 22px 18px, 24px 22px;
+  background-repeat: no-repeat, no-repeat;
 }
+.ore-theme .switch .switch-button {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  box-sizing: border-box;
+  width: 30px;
+  height: 30px;
+  order: -1;
+  background-color: var(--ore-switch-thumb-border);
+  background-image:
+    linear-gradient(var(--ore-switch-thumb-background), var(--ore-switch-thumb-background)),
+    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
+    linear-gradient(var(--ore-switch-thumb-highlight), var(--ore-switch-thumb-highlight));
+  background-position: 4px 4px, 2px 24px, 2px 2px;
+  background-size: 22px 18px, 26px 4px, 26px 22px;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  box-shadow: 0 0 0 2px var(--ore-switch-thumb-focus-ring);
+}
+
+/* Checked: thumb flips to the right (order), the track turns green and its
+   bevel layers mirror to the right edge, keeping the dark strip on the
+   outer edge and the fill flush against the thumb in both states. */
+.ore-theme .switch.on .switch-button,
+.ore-theme .switch:checked .switch-button,
+.ore-theme .switch[checked] .switch-button,
+.ore-theme .switch[aria-checked="true"] .switch-button,
+.ore-theme .switch[data-state="on"] .switch-button {
+  order: 0;
+}
+.ore-theme .switch.on .switch-status,
+.ore-theme .switch:checked .switch-status,
+.ore-theme .switch[checked] .switch-status,
+.ore-theme .switch[aria-checked="true"] .switch-status,
+.ore-theme .switch[data-state="on"] .switch-status {
+  background-image:
+    linear-gradient(var(--ore-switch-active-track-background), var(--ore-switch-active-track-background)),
+    linear-gradient(var(--ore-switch-active-track-highlight), var(--ore-switch-active-track-highlight));
+  background-position: 4px 4px, 2px 2px;
+}
+.ore-theme .switch.on,
+.ore-theme .switch:checked,
+.ore-theme .switch[checked],
+.ore-theme .switch[aria-checked="true"],
+.ore-theme .switch[data-state="on"] {
+  --ore-switch-icon: #ffffff;
+}
+
+/* Color variants (katorlys [color] attribute; only the checked track and
+   the icon color change, thumb always keeps the secondary skin). */
+.ore-theme .switch[color="secondary"] {
+  --ore-switch-active-track-background: #d0d1d4;
+  --ore-switch-active-track-highlight: #e3e3e5;
+}
+.ore-theme .switch[color="destructive"] {
+  --ore-switch-active-track-background: #ca3636;
+  --ore-switch-active-track-highlight: #cf4a4a;
+}
+.ore-theme .switch[color="dungeons"] {
+  --ore-switch-active-track-background: #ffa41f;
+  --ore-switch-active-track-highlight: #ffd953;
+}
+.ore-theme .switch[color="legends"] {
+  --ore-switch-active-track-background: #acf2ff;
+  --ore-switch-active-track-highlight: #c4f5fe;
+}
+.ore-theme .switch[color="realms"] {
+  --ore-switch-active-track-background: #7345e5;
+  --ore-switch-active-track-highlight: #8557f8;
+}
+.ore-theme .switch[color="gold"] {
+  --ore-switch-active-track-background: #ffc42b;
+  --ore-switch-active-track-highlight: #ffd953;
+}
+.ore-theme .switch[color="secondary"],
+.ore-theme .switch[color="dungeons"],
+.ore-theme .switch[color="legends"],
+.ore-theme .switch[color="gold"] {
+  --ore-switch-icon: #1e1e1f;
+}
+
+/* Icons variant ([variant="icons"] or .switch-icons): the off.svg ring and
+   on.svg bar are redrawn as pure CSS shapes in the 16x16 glyph box. */
+.ore-theme .switch[variant="icons"] .switch-status::after,
+.ore-theme .switch.switch-icons .switch-status::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  left: 6px;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border: 2px solid var(--ore-switch-icon);
+}
+.ore-theme .switch[variant="icons"].on .switch-status::after,
+.ore-theme .switch[variant="icons"]:checked .switch-status::after,
+.ore-theme .switch[variant="icons"][checked] .switch-status::after,
+.ore-theme .switch[variant="icons"][aria-checked="true"] .switch-status::after,
+.ore-theme .switch[variant="icons"][data-state="on"] .switch-status::after,
+.ore-theme .switch.switch-icons.on .switch-status::after,
+.ore-theme .switch.switch-icons:checked .switch-status::after,
+.ore-theme .switch.switch-icons[checked] .switch-status::after,
+.ore-theme .switch.switch-icons[aria-checked="true"] .switch-status::after,
+.ore-theme .switch.switch-icons[data-state="on"] .switch-status::after {
+  top: 7px;
+  left: 13px;
+  width: 2px;
+  height: 12px;
+  border: 0;
+  background: var(--ore-switch-icon);
+}
+
+/* Hover / pressed / focus: thumb tokens swap (identical for every color). */
+.ore-theme .switch:hover .switch-button {
+  background-image:
+    linear-gradient(var(--ore-switch-thumb-background-hover), var(--ore-switch-thumb-background-hover)),
+    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
+    linear-gradient(var(--ore-switch-thumb-highlight-hover), var(--ore-switch-thumb-highlight-hover));
+}
+.ore-theme .switch:active .switch-button,
+.ore-theme .switch[pressed] .switch-button {
+  background-image:
+    linear-gradient(var(--ore-switch-thumb-background-pressed), var(--ore-switch-thumb-background-pressed)),
+    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
+    linear-gradient(var(--ore-switch-thumb-highlight-pressed), var(--ore-switch-thumb-highlight-pressed));
+}
+.ore-theme .switch:focus-visible {
+  box-shadow: 0 0 0 2px var(--ore-focus);
+}
+.ore-theme .switch:focus-visible .switch-button {
+  background-image:
+    linear-gradient(var(--ore-switch-thumb-background), var(--ore-switch-thumb-background)),
+    linear-gradient(var(--ore-switch-thumb-shadow), var(--ore-switch-thumb-shadow)),
+    linear-gradient(var(--ore-switch-thumb-highlight-focus), var(--ore-switch-thumb-highlight-focus));
+  box-shadow: 0 0 0 2px var(--ore-focus);
+}
+
+/* Disabled (katorlys [disabled]: every layer flattens to the disabled
+   tokens; kept after the state rules so it wins the specificity ties). */
 .ore-theme .switch.disabled,
 .ore-theme .switch[disabled],
 .ore-theme .switch[aria-disabled="true"] {
-  background: var(--ore-disabled-background);
-  border-color: var(--ore-disabled-border);
+  cursor: not-allowed;
+  --ore-switch-icon: #48494a;
+}
+.ore-theme .switch.disabled .switch-status,
+.ore-theme .switch[disabled] .switch-status,
+.ore-theme .switch[aria-disabled="true"] .switch-status {
+  background-color: #8c8d90;
+  background-image:
+    linear-gradient(#d0d1d4, #d0d1d4),
+    linear-gradient(#d0d1d4, #d0d1d4);
+}
+.ore-theme .switch.disabled .switch-button,
+.ore-theme .switch[disabled] .switch-button,
+.ore-theme .switch[aria-disabled="true"] .switch-button {
+  background-color: #8c8d90;
+  background-image:
+    linear-gradient(#d0d1d4, #d0d1d4),
+    linear-gradient(#b1b2b5, #b1b2b5),
+    linear-gradient(#d0d1d4, #d0d1d4);
   box-shadow: none;
-  cursor: not-allowed;
-}
-.ore-theme .switch.disabled .switch-thumb,
-.ore-theme .switch[disabled] .switch-thumb,
-.ore-theme .switch[aria-disabled="true"] .switch-thumb,
-.ore-theme .switch.disabled:hover .switch-thumb,
-.ore-theme .switch[disabled]:hover .switch-thumb,
-.ore-theme .switch[aria-disabled="true"]:hover .switch-thumb {
-  border-color: var(--ore-disabled-border);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
-}
-
-/* Switch -2 (katorlys switch.css: two status halves + overlapping thumb). */
-.ore-theme .switch-2 {
-  position: relative;
-  width: var(--ore-switch-2-width);
-  height: var(--ore-switch-2-height);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  vertical-align: middle;
-}
-.ore-theme .switch-2-status {
-  width: 26px;
-  height: 26px;
-  background: var(--ore-switch-2-track-off);
-  box-shadow:
-    0 0 0 2px var(--ore-switch-border),
-    inset 2px 2px rgba(255, 255, 255, 0.2),
-    inset -2px -2px rgba(255, 255, 255, 0.1);
-}
-.ore-theme .switch-2-thumb {
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 30px;
-  height: 30px;
-  background: var(--ore-switch-2-thumb-background);
-  box-shadow:
-    0 0 0 2px var(--ore-switch-border),
-    inset 0 -4px var(--ore-switch-2-thumb-shadow),
-    inset 2px 2px rgba(255, 255, 255, 0.6),
-    inset -2px -6px rgba(255, 255, 255, 0.4);
-  transition: left 125ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 1;
-}
-.ore-theme .switch-2:hover .switch-2-thumb { background: var(--ore-switch-thumb-background-hover); }
-.ore-theme .switch-2.on .switch-2-status,
-.ore-theme .switch-2[aria-checked="true"] .switch-2-status,
-.ore-theme .switch-2[data-state="on"] .switch-2-status {
-  background: var(--ore-switch-2-track-on);
-}
-.ore-theme .switch-2.on .switch-2-thumb,
-.ore-theme .switch-2[aria-checked="true"] .switch-2-thumb,
-.ore-theme .switch-2[data-state="on"] .switch-2-thumb {
-  left: 26px;
-}
-.ore-theme .switch-2.disabled,
-.ore-theme .switch-2[disabled],
-.ore-theme .switch-2[aria-disabled="true"] {
-  cursor: not-allowed;
-}
-.ore-theme .switch-2.disabled .switch-2-status,
-.ore-theme .switch-2[disabled] .switch-2-status,
-.ore-theme .switch-2[aria-disabled="true"] .switch-2-status {
-  background: var(--ore-disabled-background);
-  box-shadow: 0 0 0 2px var(--ore-disabled-border);
-}
-.ore-theme .switch-2.disabled .switch-2-thumb,
-.ore-theme .switch-2[disabled] .switch-2-thumb,
-.ore-theme .switch-2[aria-disabled="true"] .switch-2-thumb,
-.ore-theme .switch-2.disabled:hover .switch-2-thumb,
-.ore-theme .switch-2[disabled]:hover .switch-2-thumb,
-.ore-theme .switch-2[aria-disabled="true"]:hover .switch-2-thumb {
-  background: var(--ore-disabled-background);
-  box-shadow: 0 0 0 2px var(--ore-disabled-border), inset 0 -4px var(--ore-disabled-shadow);
-}
-
-/* Switch -3 (mcui .switch: compact 52px track with bounce feedback). */
-.ore-theme .switch-3 {
-  position: relative;
-  width: var(--ore-switch-3-width);
-  height: var(--ore-switch-height);
-  border: 2px solid var(--ore-switch-border);
-  background: linear-gradient(to right, var(--ore-switch-track-on) 50%, var(--ore-switch-track-off) 50%);
-  box-shadow: inset 2px 2px rgba(255, 255, 255, 0.2), inset -2px -2px rgba(255, 255, 255, 0.1);
-  cursor: pointer;
-  overflow: visible;
-  display: inline-block;
-  vertical-align: middle;
-}
-.ore-theme .switch-thumb,
-.ore-theme .switch-3-thumb {
-  position: absolute;
-  top: -6px;
-  left: -2px;
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--ore-switch-border);
-  background: var(--ore-switch-thumb-background);
-  box-shadow:
-    inset 0 -4px var(--ore-switch-thumb-shadow),
-    inset 2px 2px rgba(255, 255, 255, 0.6),
-    inset -2px -6px rgba(255, 255, 255, 0.4);
-  transition: left 125ms cubic-bezier(0.34, 1.56, 0.64, 1);
-  z-index: 1;
-}
-.ore-theme .switch-3:hover .switch-3-thumb,
-.ore-theme .switch-3-thumb:active {
-  background: var(--ore-switch-thumb-background-hover);
-  box-shadow:
-    inset 0 -4px var(--ore-switch-thumb-shadow),
-    inset 2px 2px rgba(255, 255, 255, 0.8),
-    inset -2px -6px rgba(255, 255, 255, 0.6);
-}
-.ore-theme .switch-3.on .switch-3-thumb,
-.ore-theme .switch-3[aria-checked="true"] .switch-3-thumb,
-.ore-theme .switch-3[data-state="on"] .switch-3-thumb {
-  left: var(--ore-switch-3-travel);
-}
-.ore-theme .switch-3.disabled,
-.ore-theme .switch-3[disabled],
-.ore-theme .switch-3[aria-disabled="true"] {
-  background: var(--ore-disabled-background);
-  border-color: var(--ore-disabled-border);
-  box-shadow: none;
-  cursor: not-allowed;
-}
-.ore-theme .switch-3.disabled .switch-3-thumb,
-.ore-theme .switch-3[disabled] .switch-3-thumb,
-.ore-theme .switch-3[aria-disabled="true"] .switch-3-thumb,
-.ore-theme .switch-3.disabled:hover .switch-3-thumb,
-.ore-theme .switch-3[disabled]:hover .switch-3-thumb,
-.ore-theme .switch-3[aria-disabled="true"]:hover .switch-3-thumb {
-  border-color: var(--ore-disabled-border);
-  background: var(--ore-disabled-background);
-  box-shadow: inset 0 -4px var(--ore-disabled-shadow);
 }
 
 /* Bounce feedback (mcui bounce_left/bounce_right keyframes). */
@@ -2941,9 +2969,6 @@
 .ore-theme .button-danger-3:focus-visible,
 .ore-theme .tab-2:focus-visible,
 .ore-theme .tab-3:focus-visible,
-.ore-theme .switch:focus-visible,
-.ore-theme .switch-2:focus-visible,
-.ore-theme .switch-3:focus-visible,
 .ore-theme .checkbox:focus-visible,
 .ore-theme .checkbox-2:focus-visible,
 .ore-theme .radio:focus-visible,

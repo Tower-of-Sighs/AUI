@@ -131,7 +131,7 @@ public class Input extends AbstractText {
 
     @Override
     public boolean canEditText() {
-        return getMode() == Mode.TEXT || getMode() == Mode.NUMBER;
+        return (getMode() == Mode.TEXT || getMode() == Mode.NUMBER) && super.canEditText();
     }
 
     @Override
