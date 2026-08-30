@@ -198,7 +198,13 @@ public final class RenderService implements AuiRenderService {
      */
     public void reconcileFabulousChainStencil() {
         RenderTarget main = Minecraft.getInstance().getMainRenderTarget();
-        if (main != null && main.isStencilEnabled()) enableFabulousChainStencil();
+        if (main == null) return;
+        // RenderTarget.enableStencil() rebuilds the target. Do this from the
+        // client tick, before the frame is rendered, instead of on the first
+        // transformed overflow mask during GUI painting (which would clear
+        // the already-rendered frame and flash the screen black).
+        if (!main.isStencilEnabled()) main.enableStencil();
+        if (main.isStencilEnabled()) enableFabulousChainStencil();
     }
 
     @Override

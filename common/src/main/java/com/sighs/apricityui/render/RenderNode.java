@@ -12,7 +12,6 @@ import com.sighs.apricityui.style.Interaction;
 import com.sighs.apricityui.style.MaskImage;
 import com.sighs.apricityui.layout.Position;
 import com.sighs.apricityui.layout.Size;
-import com.sighs.apricityui.style.Transform;
 import org.lwjgl.opengl.GL11;
 
 import java.util.function.BooleanSupplier;
@@ -109,7 +108,7 @@ public interface RenderNode {
                             Mask.getCurrentClip()
                     );
                 }
-                Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius(), hasTransformedAncestor(target));
+                Mask.pushMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
             });
         }
     }
@@ -143,23 +142,6 @@ public interface RenderNode {
                 Mask.popMask(poseStack, (float) p.x, (float) p.y, (float) s.width(), (float) s.height(), rect.getBodyRadius());
             });
         }
-    }
-
-    /**
-     * Stencil masks exist for transforms that move content in the XY plane:
-     * an axis-aligned scissor rect is computed from layout coordinates and
-     * would clip the wrong region beneath them. Pure Z transforms (the
-     * translateZ stacking-order trick) leave XY untouched, so the cheaper
-     * scissor path stays correct.
-     */
-    private static boolean hasTransformedAncestor(Element target) {
-        if (target == null) return false;
-        for (Element element : target.getRouteArray()) {
-            if (Transform.affectsXY(element.getComputedStyle().transform)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     record ElementPhaseNode(Element target, Base.RenderPhase phase) implements RenderNode {
@@ -513,7 +495,7 @@ public interface RenderNode {
                 float y = (float) (p.y - rect.box.getBorderTop());
                 float w = (float) (s.width() + rect.box.getBorderHorizontal());
                 float h = (float) (s.height() + rect.box.getBorderVertical());
-                Mask.pushClipPath(poseStack, x, y, w, h, clip, hasTransformedAncestor(target));
+                Mask.pushClipPath(poseStack, x, y, w, h, clip);
             });
         }
     }

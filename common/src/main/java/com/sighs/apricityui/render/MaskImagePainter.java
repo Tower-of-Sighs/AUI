@@ -7,7 +7,6 @@ import com.sighs.apricityui.layout.Size;
 import com.sighs.apricityui.parser.Gradient;
 import com.sighs.apricityui.style.Background;
 import com.sighs.apricityui.style.MaskImage;
-import com.sighs.apricityui.style.Transform;
 
 /**
  * 把单个 mask 层画进当前绑定的离屏 FBO（编排见 {@link FilterRenderer#popMaskImage}）。
@@ -48,7 +47,7 @@ public final class MaskImagePainter {
         try {
             Base.applyTransform(poseStack, target);
             if (clipped) {
-                Mask.pushMask(poseStack, clip[0], clip[1], clip[2], clip[3], clipRadii, hasTransformedAncestor(target));
+                Mask.pushMask(poseStack, clip[0], clip[1], clip[2], clip[3], clipRadii);
             }
             try {
                 if (isGradient) {
@@ -134,17 +133,4 @@ public final class MaskImagePainter {
         Graph.beginBatch();
     }
 
-    /**
-     * XY 平面变换会让基于布局坐标的 scissor 裁剪错位（见 RenderNode 的同名约定），
-     * 此时圆角裁剪强制走 stencil 路径。
-     */
-    private static boolean hasTransformedAncestor(Element target) {
-        if (target == null) return false;
-        for (Element element : target.getRouteArray()) {
-            if (Transform.affectsXY(element.getComputedStyle().transform)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }
