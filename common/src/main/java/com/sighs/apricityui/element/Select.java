@@ -42,6 +42,7 @@ public class Select extends Element {
                 Base.offsetPaintDepth(poseStack, 0.16f);
                 Text text = Text.of(this);
                 text.content = selectedLabel();
+                text.color = new Color(Text.getFontColor(this));
                 com.sighs.apricityui.layout.Position contentPosition = rectRenderer.getContentPosition();
                 double contentHeight = Math.max(0, rectRenderer.box.innerSize().height());
                 double drawY = contentPosition.y + (contentHeight - text.lineHeight) / 2.0d;

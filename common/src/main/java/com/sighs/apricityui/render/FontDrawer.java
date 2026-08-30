@@ -62,7 +62,9 @@ public class FontDrawer {
     }
 
     public static void drawFont(PoseStack poseStack, Element element) {
-        drawFont(poseStack, Text.of(element), Rect.of(element).position);
+        Text text = Text.of(element);
+        if (element != null) text.color = new Color(Text.getFontColor(element));
+        drawFont(poseStack, text, Rect.of(element).position);
     }
 
     public static void drawFont(PoseStack poseStack, Text text, Position position) {

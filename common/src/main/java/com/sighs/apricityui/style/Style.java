@@ -187,6 +187,11 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
             "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "text-transform", "white-space", "word-break", "text-overflow",
             "line-clamp"
     );
+    private static final Set<String> TEXT_PROPS_WITHOUT_COLOR = Set.of(
+            "font-size", "font-family", "font-weight", "font-style", "text-stroke", "text-decoration", "line-height",
+            "direction", "letter-spacing", "text-align", "vertical-align", "text-indent", "text-transform", "white-space", "word-break", "text-overflow",
+            "line-clamp"
+    );
 
     static {
         java.util.List<Field> fields = new java.util.ArrayList<>();
@@ -688,6 +693,11 @@ public class Style extends AbstractMap<String, String> implements Cloneable {
 
     public static Set<String> getTextProp() {
         return TEXT_PROPS;
+    }
+
+    /** Text properties that can change layout or raster appearance independently of a tint color. */
+    public static Set<String> getTextPropWithoutColor() {
+        return TEXT_PROPS_WITHOUT_COLOR;
     }
 
     /** Copies the mutable CSS fields without allocating another Style object. */

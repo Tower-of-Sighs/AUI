@@ -489,6 +489,17 @@ public class Element extends Node {
         return currentStyle.affectsDescendantComputedStyleComparedTo(originStyle);
     }
 
+    /**
+     * Refreshes inherited computed values for an animated ancestor without
+     * treating the update as an authored style mutation. Inherited color is a
+     * draw-time tint and must not clear text layout caches on every frame.
+     */
+    public void refreshInheritedStyleForMotion() {
+        renderElement.computedStyle.clear();
+        StyleFrameCache.invalidate(this);
+        getRawComputedStyle();
+    }
+
     public Style getComputedStyle() {
         syncLegacyInlineStyleMutations();
         Style cached = StyleFrameCache.get(this);
@@ -2930,6 +2941,7 @@ public class Element extends Node {
 
         double textHeight = Math.max(text.lineHeight, renderLines.size() * text.lineHeight);
         double drawY = contentPos.y + TextMetrics.computeVerticalOffset(text, contentHeight, textHeight);
+        int currentColor = Text.getFontColor(this);
 
         for (int i = 0; i < renderLines.size(); i++) {
             String line = renderLines.get(i);
@@ -2937,7 +2949,7 @@ public class Element extends Node {
             if (lineTop >= contentHeight) break;
             double lineWidth = Text.measureLine(text, line);
             double drawX = contentPos.x + TextMetrics.computeAlignedX(text, contentWidth, lineWidth, i == 0);
-            Text lineText = TextMetrics.cloneTextForSegment(text, line, Color.BLACK);
+            Text lineText = cloneTextForCurrentColor(text, line, currentColor);
             FontDrawer.drawFont(poseStack, lineText, new Position(drawX - scrollLeft, drawY + lineTop));
         }
     }
@@ -2991,6 +3003,7 @@ public class Element extends Node {
                 runBase = SelectionUnits.baseOffsetOfDescendant(this, runNode != null ? runNode : run.owner());
             }
             Position drawPos = new Position(0, 0);
+            int currentColor = Text.getFontColor(run.owner() == null ? this : run.owner());
             for (int i = 0; i < run.lines().size(); i++) {
                 String line = run.lines().get(i);
                 if (line == null || line.isEmpty()) continue;
@@ -3016,7 +3029,7 @@ public class Element extends Node {
                                 (float) highlightX1, (float) (drawPos.y + run.text().lineHeight), Text.getSelectionColor(this));
                     }
                 }
-                Text lineText = TextMetrics.cloneTextForSegment(run.text(), line, Color.BLACK);
+                Text lineText = cloneTextForCurrentColor(run.text(), line, currentColor);
                 if (baselineAnchors[r]) {
                     FontDrawer.drawFontOnBaseline(poseStack, lineText, drawPos, Text.renderedBaselineOffset(lineText));
                 } else {
@@ -3125,6 +3138,7 @@ public class Element extends Node {
             if (layout == null || layout.text() == null || layout.position() == null) continue;
             Text text = layout.text();
             if (text.content == null || text.content.isEmpty()) continue;
+            int currentColor = Text.getFontColor(this);
             Position paintPos = getFlexDirectTextPaintPosition(layout);
             List<String> lines = layout.lines();
             int[] starts = layout.lineStarts();
@@ -3133,7 +3147,7 @@ public class Element extends Node {
                 for (int i = 0; i < lines.size(); i++) {
                     FontDrawer.drawFont(
                             poseStack,
-                            TextMetrics.cloneTextForSegment(text, lines.get(i), Color.BLACK),
+                            cloneTextForCurrentColor(text, lines.get(i), currentColor),
                             new Position(paintPos.x, paintPos.y + i * text.lineHeight)
                     );
                 }
@@ -3165,7 +3179,7 @@ public class Element extends Node {
                     Graph.drawFillRect(poseStack.last().pose(), (float) x0, (float) lineY,
                             (float) x1, (float) (lineY + text.lineHeight), Text.getSelectionColor(this));
                 }
-                FontDrawer.drawFont(poseStack, TextMetrics.cloneTextForSegment(text, line, Color.BLACK),
+                FontDrawer.drawFont(poseStack, cloneTextForCurrentColor(text, line, currentColor),
                         new Position(paintPos.x, lineY));
             }
         }
@@ -3176,6 +3190,14 @@ public class Element extends Node {
         if (segment == null || segment.isEmpty()) return 0;
         Text copy = TextMetrics.cloneTextForSegment(text, segment, Color.BLACK);
         return Text.measureLine(copy, segment);
+    }
+
+    private static Text cloneTextForCurrentColor(Text base, String content, int currentColor) {
+        Text copy = TextMetrics.cloneTextForSegment(base, content, Color.BLACK);
+        if (copy.color == null || copy.color.getValue() != currentColor) {
+            copy.color = new Color(currentColor);
+        }
+        return copy;
     }
 
     Position getFlexDirectTextPaintPosition(Flex.DirectTextLayout layout) {

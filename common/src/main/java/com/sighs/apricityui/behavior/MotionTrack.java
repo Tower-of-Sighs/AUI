@@ -4,9 +4,12 @@ import com.sighs.apricityui.style.Animation;
 import com.sighs.apricityui.layout.Layout;
 import com.sighs.apricityui.style.Transition;
 
+import java.util.ArrayList;
 import java.util.ArrayDeque;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -85,7 +88,11 @@ public final class MotionTrack {
         if (flags.isEmpty()) return false;
 
         boolean requiresGeometryCommit = false;
-        for (Map.Entry<Element, Integer> entry : flags.entrySet()) {
+        // Inherited motion values must be published before descendants sample
+        // their base style. ConcurrentHashMap iteration order is undefined.
+        List<Map.Entry<Element, Integer>> entries = new ArrayList<>(flags.entrySet());
+        entries.sort(Comparator.comparingInt(entry -> entry.getKey() == null ? Integer.MAX_VALUE : entry.getKey().getDepth()));
+        for (Map.Entry<Element, Integer> entry : entries) {
             Element element = entry.getKey();
             if (element == null || element.document != owner) {
                 flags.remove(element);
@@ -179,7 +186,9 @@ public final class MotionTrack {
         while (!pending.isEmpty()) {
             Element element = pending.removeFirst();
             if (element.document != owner) continue;
-            element.recomputeStyleSelf();
+            // Inherited color is a paint tint. Refresh only the computed value;
+            // full style observation would invalidate text layout every frame.
+            element.refreshInheritedStyleForMotion();
             pending.addAll(element.children);
         }
     }
@@ -216,10 +225,10 @@ public final class MotionTrack {
             renderer.invalidateStyleVersion();
         }
 
-        // Text.of() is cached independently from the computed style. A color
-        // transition otherwise leaves the glyph cache pinned to its first frame:
-        // black on hover enter and white on hover leave.
-        if (differsAny(base, animated, Style.getTextProp())) {
+        // Color is applied as a draw-time tint. Keep text layout and wrapping
+        // caches stable during a color transition; other text properties still
+        // need the existing invalidation path.
+        if (differsAny(base, animated, Style.getTextPropWithoutColor())) {
             renderer.text.clear();
             renderer.wrappedText.clear();
             element.forEachRoute(routeElement -> routeElement.getRenderer().invalidateTextVersion());

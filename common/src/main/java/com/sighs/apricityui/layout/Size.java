@@ -709,26 +709,42 @@ public record Size(double width, double height) {
     }
 
     public static double getScaleHeight(Element element) {
-        Element parent = element.parentElement;
-        if (parent != null) {
-            Size cachedParentSize = parent.getRenderer().size.get();
-            if (cachedParentSize != null) {
-                double innerHeight = Box.of(parent).innerSize().height();
+        if (element == null) return getWindowHeight();
+
+        // Resolve from the root towards the nearest ancestor so percentage
+        // heights use the same containing-block chain without recursive calls.
+        Element[] route = element.getRouteArray();
+        double scaleHeight = getWindowHeight();
+        double nearestScaleHeight = scaleHeight;
+        for (int index = route.length - 1; index > 0; index--) {
+            Element current = route[index];
+            Size cachedSize = current.getRenderer().size.get();
+            boolean hasUsableSize = false;
+            if (cachedSize != null) {
+                double innerHeight = Box.of(current).innerSize().height();
                 if (innerHeight > 0) {
-                    return innerHeight;
+                    scaleHeight = innerHeight;
+                    hasUsableSize = true;
                 }
             }
-            Style parentStyle = parent.getRawComputedStyle();
-            if (tryResolveLength(parentStyle.height, getScaleHeight(parent)) != null) {
-                double resolvedHeight = resolveLength(parentStyle.height, getScaleHeight(parent), 0);
-                if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(parentStyle.boxSizing))) {
-                    Box parentBox = Box.of(parent);
-                    resolvedHeight -= parentBox.getBorderVertical() + parentBox.getPaddingVertical();
+
+            if (!hasUsableSize) {
+                Style currentStyle = current.getRawComputedStyle();
+                Double resolved = tryResolveLength(currentStyle.height, scaleHeight);
+                if (resolved != null) {
+                    double resolvedHeight = resolved;
+                    if (Box.BOX_SIZING_BORDER_BOX.equals(Box.normalizeBoxSizing(currentStyle.boxSizing))) {
+                        Box currentBox = Box.of(current);
+                        resolvedHeight -= currentBox.getBorderVertical() + currentBox.getPaddingVertical();
+                    }
+                    scaleHeight = Math.max(0, resolvedHeight);
+                    hasUsableSize = true;
                 }
-                return Math.max(0, resolvedHeight);
             }
-            return getScaleHeight(parent);
-        } else return getWindowHeight();
+
+            if (hasUsableSize) nearestScaleHeight = scaleHeight;
+        }
+        return nearestScaleHeight;
     }
 
     public static Double getExplicitContainingBlockHeight(Element element) {
@@ -1239,5 +1255,4 @@ public record Size(double width, double height) {
         return Text.measureText(measuring);
     }
 }
-
 
